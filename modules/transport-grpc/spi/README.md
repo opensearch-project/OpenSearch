@@ -8,7 +8,7 @@ The `transport-grpc-spi` module enables plugin developers to:
 - Implement custom query converters for gRPC transport
 - Extend gRPC protocol buffer handling
 - Register custom query types that can be processed via gRPC
-- Register gRPC interceptors for request/response processing
+- Register gRPC interceptors for cross-cutting concerns (authentication, authorization, logging, metrics)
 
 
 ## Key Components
@@ -27,6 +27,27 @@ public interface QueryBuilderProtoConverter {
 ### QueryBuilderProtoConverterRegistry
 
 Interface for accessing the query converter registry. This provides a clean abstraction for plugins that need to convert nested queries without exposing internal implementation details.
+
+### GrpcInterceptorProvider
+
+Interface for providing gRPC interceptors that can intercept and process all incoming gRPC requests. This enables plugins to implement cross-cutting concerns like authentication, authorization, logging, and metrics collection.
+
+```java
+public interface GrpcInterceptorProvider {
+    List<OrderedGrpcInterceptor> getOrderedGrpcInterceptors();
+}
+```
+
+### OrderedGrpcInterceptor
+
+Interface for ordered gRPC interceptors. Interceptors are executed in order based on their `order()` value, with lower values executing first.
+
+```java
+public interface OrderedGrpcInterceptor {
+    int order();  // Lower values execute first (e.g., 10 before 20)
+    ServerInterceptor getInterceptor();
+}
+```
 
 ## Usage for Plugin Developers
 
@@ -278,3 +299,51 @@ org.opensearch.knn.grpc.proto.request.search.query.KNNQueryBuilderProtoConverter
 
 **Why k-NN needs the registry:**
 The k-NN query's `filter` field is a `QueryContainer` protobuf type that can contain any query type (MatchAll, Term, Terms, etc.). The k-NN converter needs access to the registry to convert these nested queries to their corresponding QueryBuilder objects.
+
+
+## gRPC Interceptors
+
+### Overview
+
+Intercept incoming gRPC requests for authentication, authorization, logging, metrics, rate limiting,etc
+
+### Basic Usage
+
+**1. Implement Provider:**
+```java
+public class SampleInterceptorProvider implements GrpcInterceptorProvider {
+    @Override
+    public List<OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
+        return Collections.singletonList(new OrderedGrpcInterceptor() {
+            @Override
+            public int order() { return 10; } // Lower = higher priority
+
+            @Override
+            public ServerInterceptor getInterceptor() {
+                return (call, headers, next) -> {
+                    // Custom logic: log request, validate headers, etc.
+                    String methodName = call.getMethodDescriptor().getFullMethodName();
+                    System.out.println("Intercepting gRPC call: " + methodName);
+
+                    // Pass to next interceptor or service handler
+                    return next.startCall(call, headers);
+                };
+            }
+        });
+    }
+}
+```
+
+**2. Create SPI Registration File:**
+
+Create a service file denoting your plugin's implementation of the `GrpcInterceptorProvider` interface.
+
+`src/main/resources/META-INF/services/org.opensearch.transport.grpc.spi.GrpcInterceptorProvider`:
+
+```
+org.opensearch.mypackage.SampleInterceptorProvider
+```
+
+**3. Declare Dependency:**
+
+Add to `plugin-descriptor.properties`: `extended.plugins=transport-grpc`

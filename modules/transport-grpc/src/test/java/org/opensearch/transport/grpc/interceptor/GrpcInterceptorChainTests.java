@@ -22,6 +22,7 @@ import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -136,9 +137,56 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
         );
     }
 
-    // =============================================
-    // ORDERING TESTS
-    // =============================================
+    public void testInterceptorThrowsStatusRuntimeExceptionPermissionDenied() {
+        List<OrderedGrpcInterceptor> interceptors = Arrays.asList(
+            createTestInterceptor(10, false, null),
+            createStatusRuntimeExceptionInterceptor(20, Status.PERMISSION_DENIED.withDescription("Unauthorized access")),
+            createTestInterceptor(30, false, null)
+        );
+
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
+
+        assertNotNull(result);
+        verify(mockCall).close(
+            argThat(status -> status.getCode() == Status.Code.PERMISSION_DENIED && status.getDescription().equals("Unauthorized access")),
+            eq(headers)
+        );
+    }
+
+    public void testInterceptorThrowsStatusRuntimeExceptionUnauthenticated() {
+        List<OrderedGrpcInterceptor> interceptors = Arrays.asList(
+            createStatusRuntimeExceptionInterceptor(10, Status.UNAUTHENTICATED.withDescription("Invalid token")),
+            createTestInterceptor(20, false, null)
+        );
+
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
+
+        assertNotNull(result);
+        verify(mockCall).close(
+            argThat(status -> status.getCode() == Status.Code.UNAUTHENTICATED && status.getDescription().equals("Invalid token")),
+            eq(headers)
+        );
+    }
+
+    public void testInterceptorThrowsStatusRuntimeExceptionResourceExhausted() {
+        List<OrderedGrpcInterceptor> interceptors = Arrays.asList(
+            createTestInterceptor(10, false, null),
+            createTestInterceptor(20, false, null),
+            createStatusRuntimeExceptionInterceptor(30, Status.RESOURCE_EXHAUSTED.withDescription("Rate limit exceeded"))
+        );
+
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
+
+        assertNotNull(result);
+        verify(mockCall).close(
+            argThat(status -> status.getCode() == Status.Code.RESOURCE_EXHAUSTED && status.getDescription().equals("Rate limit exceeded")),
+            eq(headers)
+        );
+    }
+
 
     public void testInterceptorOrdering() {
         List<Integer> executionOrder = new ArrayList<>();
@@ -159,9 +207,6 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
         assertEquals(Arrays.asList(10, 20, 30), executionOrder);
     }
 
-    // =============================================
-    // EDGE CASE TESTS
-    // =============================================
 
     public void testNullInterceptorList() {
         // Constructor should throw NullPointerException for null interceptors
@@ -303,6 +348,33 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
                     ) {
                         log.add(name);
                         return next.startCall(call, headers);
+                    }
+                };
+            }
+        };
+    }
+
+    /**
+     * Creates an interceptor that throws StatusRuntimeException with specific gRPC status
+     * This is used to test the StatusRuntimeException handling path (lines 71-79)
+     */
+    private OrderedGrpcInterceptor createStatusRuntimeExceptionInterceptor(int order, Status status) {
+        return new OrderedGrpcInterceptor() {
+            @Override
+            public int order() {
+                return order;
+            }
+
+            @Override
+            public ServerInterceptor getInterceptor() {
+                return new ServerInterceptor() {
+                    @Override
+                    public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+                        ServerCall<ReqT, RespT> call,
+                        Metadata headers,
+                        ServerCallHandler<ReqT, RespT> next
+                    ) {
+                        throw new StatusRuntimeException(status);
                     }
                 };
             }

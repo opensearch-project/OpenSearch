@@ -62,7 +62,6 @@ public class GrpcInterceptorChain implements ServerInterceptor {
             final ServerCallHandler<ReqT, RespT> nextHandler = currentHandler;
             final int index = i;
 
-            // Wrap each interceptor with exception handling
             currentHandler = new ServerCallHandler<ReqT, RespT>() {
                 @Override
                 public ServerCall.Listener<ReqT> startCall(ServerCall<ReqT, RespT> call, Metadata headers) {
