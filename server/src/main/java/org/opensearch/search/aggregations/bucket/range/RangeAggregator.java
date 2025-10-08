@@ -69,6 +69,8 @@ import org.opensearch.search.aggregations.bucket.filterrewrite.RangeAggregatorBr
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.AggregationProfileBreakdown;
+import org.opensearch.search.profile.aggregation.startree.StarTreeProfileBreakdown;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.MatchAllFilter;
@@ -366,7 +368,24 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
     }
 
     private void preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
+
+        if (context.getProfilers() != null) {
+            StarTreeProfileBreakdown breakdown = context.getProfilers().getAggregationProfiler().getStarTreeProfileBreakdown(this);
+            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollectorProfiling(ctx, starTree, null, breakdown);
+            preComputeBucketsWithStarTreeProfiling(starTreeBucketCollector, breakdown);
+            AggregationProfileBreakdown aggregationProfileBreakdown = context.getProfilers()
+                .getAggregationProfiler()
+                .getQueryBreakdown(this);
+            aggregationProfileBreakdown.setStarTreeProfileBreakdown(breakdown);
+            aggregationProfileBreakdown.setStarTreePrecomputed();
+        } else {
+            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
+            preComputeBucketsWithStarTree(starTreeBucketCollector);
+        }
+    }
+
+    @Override
+    public void preComputeBucketsWithStarTree(StarTreeBucketCollector starTreeBucketCollector) throws IOException {
         FixedBitSet matchingDocsBitSet = starTreeBucketCollector.getMatchingDocsBitSet();
 
         int numBits = matchingDocsBitSet.length();

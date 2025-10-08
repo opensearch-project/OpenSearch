@@ -116,7 +116,7 @@ public class StarTreeQueryHelper {
 
     public static FixedBitSet scanStarTree(
         SearchContext context,
-        ValuesSource.Numeric valuesSource,
+        ValuesSource valuesSource,
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,
         String metric
@@ -126,9 +126,6 @@ public class StarTreeQueryHelper {
         String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
         String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, metric);
 
-        SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
-            metricName
-        );
         // Obtain a FixedBitSet of matched star tree document IDs
         FixedBitSet filteredValues = getStarTreeFilteredValues(context, ctx, starTreeValues);
         return filteredValues;
@@ -136,7 +133,7 @@ public class StarTreeQueryHelper {
 
     public static void buildBucketsFromStarTree(
         SearchContext context,
-        ValuesSource.Numeric valuesSource,
+        ValuesSource valuesSource,
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,
         String metric,
@@ -148,7 +145,7 @@ public class StarTreeQueryHelper {
         assert starTreeValues != null;
         String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
         String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, metric);
-        
+
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
             metricName
         );

@@ -33,14 +33,13 @@
 package org.opensearch.search.profile.aggregation;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.util.FixedBitSet;
-import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.support.AggregationPath.PathElement;
-import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.sort.SortOrder;
@@ -49,11 +48,11 @@ import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.function.Consumer;
 
 /**
  * An aggregator that aggregates the performance profiling of other aggregations
  */
+@PublicApi(since = "3.4.0")
 public class ProfilingAggregator extends Aggregator implements Streamable {
 
     private final Aggregator delegate;
@@ -127,7 +126,10 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
         timer.start();
         try {
-            return new ProfilingLeafBucketCollector(delegate.getLeafCollector(ctx), profileBreakdown);
+            if (tryPrecomputeAggregationForLeaf(ctx)) {
+                throw new CollectionTerminatedException();
+            }
+            return new ProfilingLeafBucketCollector(delegate.getLeafCollectorWithoutPrecompute(ctx), profileBreakdown);
         } finally {
             timer.stop();
         }
@@ -165,42 +167,6 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
             // Here we can add logic to check if star tree precomputation is possible and do it accordingly
             // For now, we just call the super method
             return delegate.tryPrecomputeAggregationForLeaf(ctx);
-        } finally {
-            timer.stop();
-        }
-    }
-
-    @Override
-    public FixedBitSet scanStarTree(SearchContext context,
-        ValuesSource.Numeric valuesSource,
-        LeafReaderContext ctx,
-        CompositeIndexFieldInfo starTree,
-        String metric
-    ) throws IOException {
-        Timer timer = profileBreakdown.getTimer(StarTreeAggregationTimingType.SCAN_STAR_TREE_SEGMENTS);
-        timer.start();
-        try {
-            return delegate.scanStarTree(context, valuesSource, ctx, starTree, metric);
-        } finally {
-            timer.stop();
-        }
-    }
-
-    @Override
-    public void buildBucketsFromStarTree(
-        SearchContext context,
-        ValuesSource.Numeric valuesSource,
-        LeafReaderContext ctx,
-        CompositeIndexFieldInfo starTree,
-        String metric,
-        Consumer<Long> valueConsumer,
-        Runnable finalConsumer,
-        FixedBitSet filteredValues
-    ) throws IOException {
-        Timer timer = profileBreakdown.getTimer(StarTreeAggregationTimingType.BUILD_BUCKETS_FROM_STAR_TREE);
-        timer.start();
-        try {
-            delegate.buildBucketsFromStarTree(context, valuesSource, ctx, starTree, metric, valueConsumer, finalConsumer, filteredValues);
         } finally {
             timer.stop();
         }

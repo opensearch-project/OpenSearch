@@ -67,6 +67,8 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeu
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.AggregationProfileBreakdown;
+import org.opensearch.search.profile.aggregation.startree.StarTreeProfileBreakdown;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.MatchAllFilter;
@@ -164,8 +166,25 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
     public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
-            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
-            StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+
+            if (context.getProfilers() != null) {
+                StarTreeProfileBreakdown breakdown = context.getProfilers().getAggregationProfiler().getStarTreeProfileBreakdown(this);
+                StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollectorProfiling(
+                    ctx,
+                    supportedStarTree,
+                    null,
+                    breakdown
+                );
+                preComputeBucketsWithStarTreeProfiling(starTreeBucketCollector, breakdown);
+                AggregationProfileBreakdown aggregationProfileBreakdown = context.getProfilers()
+                    .getAggregationProfiler()
+                    .getQueryBreakdown(this);
+                aggregationProfileBreakdown.setStarTreeProfileBreakdown(breakdown);
+                aggregationProfileBreakdown.setStarTreePrecomputed();
+            } else {
+                StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+                preComputeBucketsWithStarTree(starTreeBucketCollector);
+            }
             return true;
         }
         return false;
@@ -176,6 +195,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         return StarTreeQueryHelper.collectDimensionFilters(new MatchAllFilter(fieldName), subAggregators);
     }
 
+    @Override
     public StarTreeBucketCollector getStarTreeBucketCollector(
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,

@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
@@ -45,16 +44,14 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.search.aggregations.support.AggregationPath;
-import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 /**
  * An Aggregator.
@@ -134,51 +131,15 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
-     * If this aggregator supports star tree precomputation, this method will represent the first phase of scanning
-     * the star tree index and return the matching values to be added to the buckets. Can be overriden by subclasses
-     * supporting star tree precomputation.
-     * @param context the search context for the aggregator
-     * @param valuesSource the data for values in this aggregator
-     * @param ctx the context for the given segment
-     * @param starTree field info details of composite index
-     * @param metric type of metric used for aggregation (e.g. sum, max, min, etc...)
+     * Subclasses can choose to override this method to retrieve the leaf collected without precomputing the
+     * aggregation. Used in {@link ProfilingAggregator}
+     * @param ctx
      * @return
      * @throws IOException
      */
-    public FixedBitSet scanStarTree(SearchContext context,
-        ValuesSource.Numeric valuesSource,
-        LeafReaderContext ctx,
-        CompositeIndexFieldInfo starTree,
-        String metric
-    ) throws IOException {
+    public LeafBucketCollector getLeafCollectorWithoutPrecompute(LeafReaderContext ctx) throws IOException {
         return null;
-    }
-
-    /**
-     * After scanning the star tree, this method will apply the aggregation operation to. Can be overriden by subclasses
-     * supporting star tree precomputation.
-     * @param context the search context for the aggregator
-     * @param valuesSource the data for values in this aggregator
-     * @param ctx the context for the given segment
-     * @param starTree field info details of composite index
-     * @param metric type of metric used for aggregation (e.g. sum, max, min, etc...)
-     * @param valueConsumer consumer to accept the values in documents matching the conditions
-     * @param finalConsumer consumer to set the final answer after iterating over all values
-     * @param filteredValues bitset for document ids matching the star tree query
-     * @throws IOException
-     */
-    public void buildBucketsFromStarTree(
-        SearchContext context,
-        ValuesSource.Numeric valuesSource,
-        LeafReaderContext ctx,
-        CompositeIndexFieldInfo starTree,
-        String metric,
-        Consumer<Long> valueConsumer,
-        Runnable finalConsumer,
-        FixedBitSet filteredValues
-    ) throws IOException {
-        return;
-    }
+    };
 
     /**
      * Resolve the next step of the sort path as though this aggregation

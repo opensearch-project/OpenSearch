@@ -37,6 +37,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
@@ -56,6 +57,8 @@ import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.AggregationProfileBreakdown;
+import org.opensearch.search.profile.aggregation.startree.StarTreeProfileBreakdown;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.streaming.Streamable;
 import org.opensearch.search.streaming.StreamingCostMetrics;
@@ -63,6 +66,7 @@ import org.opensearch.search.streaming.StreamingCostMetrics;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
@@ -175,10 +179,69 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        String metric = MetricStat.MIN.getTypeName();
+
         AtomicReference<Double> min = new AtomicReference<>(mins.get(0));
-        StarTreeQueryHelper.precomputeLeafUsingStarTree(context, valuesSource, ctx, starTree, MetricStat.MIN.getTypeName(), value -> {
-            min.set(Math.min(min.get(), (NumericUtils.sortableLongToDouble(value))));
-        }, () -> mins.set(0, min.get()));
+        Consumer<Long> valueConsumer = value -> { min.set(Math.min(min.get(), (NumericUtils.sortableLongToDouble(value)))); };
+        Runnable finalConsumer = () -> mins.set(0, min.get());
+
+        if (context.getProfilers() != null) {
+            StarTreeProfileBreakdown breakdown = context.getProfilers().getAggregationProfiler().getStarTreeProfileBreakdown(this);
+            FixedBitSet filteredValues = scanStarTreeProfiling(context, valuesSource, ctx, starTree, metric, breakdown);
+            buildBucketsFromStarTreeProfiling(
+                context,
+                valuesSource,
+                ctx,
+                starTree,
+                metric,
+                valueConsumer,
+                finalConsumer,
+                filteredValues,
+                breakdown
+            );
+            AggregationProfileBreakdown aggregationProfileBreakdown = context.getProfilers()
+                .getAggregationProfiler()
+                .getQueryBreakdown(this);
+            aggregationProfileBreakdown.setStarTreeProfileBreakdown(breakdown);
+            aggregationProfileBreakdown.setStarTreePrecomputed();
+        } else {
+            FixedBitSet filteredValues = scanStarTree(context, valuesSource, ctx, starTree, metric);
+            buildBucketsFromStarTree(context, valuesSource, ctx, starTree, metric, valueConsumer, finalConsumer, filteredValues);
+        }
+    }
+
+    @Override
+    public FixedBitSet scanStarTree(
+        SearchContext context,
+        ValuesSource valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric
+    ) throws IOException {
+        return StarTreeQueryHelper.scanStarTree(context, valuesSource, ctx, starTree, metric);
+    }
+
+    @Override
+    public void buildBucketsFromStarTree(
+        SearchContext context,
+        ValuesSource valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric,
+        Consumer<Long> valueConsumer,
+        Runnable finalConsumer,
+        FixedBitSet filteredValues
+    ) throws IOException {
+        StarTreeQueryHelper.buildBucketsFromStarTree(
+            context,
+            valuesSource,
+            ctx,
+            starTree,
+            metric,
+            valueConsumer,
+            finalConsumer,
+            filteredValues
+        );
     }
 
     @Override

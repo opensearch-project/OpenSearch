@@ -39,7 +39,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
-import org.locationtech.jts.awt.PointShapeFactory.Star;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
@@ -58,6 +57,8 @@ import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.AggregationProfileBreakdown;
+import org.opensearch.search.profile.aggregation.startree.StarTreeProfileBreakdown;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.streaming.Streamable;
 import org.opensearch.search.streaming.StreamingCostMetrics;
@@ -180,18 +181,39 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         String metric = MetricStat.MAX.getTypeName();
-        FixedBitSet filteredValues = scanStarTree(context, valuesSource, ctx, starTree, metric);
         AtomicReference<Double> max = new AtomicReference<>(maxes.get(0));
-        Consumer<Long> valueConsumer = value -> {
-            max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
-        };
+        Consumer<Long> valueConsumer = value -> { max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value)))); };
         Runnable finalConsumer = () -> maxes.set(0, max.get());
-        buildBucketsFromStarTree(context, valuesSource, ctx, starTree, metric, valueConsumer, finalConsumer, filteredValues);
+
+        if (context.getProfilers() != null) {
+            StarTreeProfileBreakdown breakdown = context.getProfilers().getAggregationProfiler().getStarTreeProfileBreakdown(this);
+            FixedBitSet filteredValues = scanStarTreeProfiling(context, valuesSource, ctx, starTree, metric, breakdown);
+            buildBucketsFromStarTreeProfiling(
+                context,
+                valuesSource,
+                ctx,
+                starTree,
+                metric,
+                valueConsumer,
+                finalConsumer,
+                filteredValues,
+                breakdown
+            );
+            AggregationProfileBreakdown aggregationProfileBreakdown = context.getProfilers()
+                .getAggregationProfiler()
+                .getQueryBreakdown(this);
+            aggregationProfileBreakdown.setStarTreeProfileBreakdown(breakdown);
+            aggregationProfileBreakdown.setStarTreePrecomputed();
+        } else {
+            FixedBitSet filteredValues = scanStarTree(context, valuesSource, ctx, starTree, metric);
+            buildBucketsFromStarTree(context, valuesSource, ctx, starTree, metric, valueConsumer, finalConsumer, filteredValues);
+        }
     }
 
     @Override
-    public FixedBitSet scanStarTree(SearchContext context,
-        ValuesSource.Numeric valuesSource,
+    public FixedBitSet scanStarTree(
+        SearchContext context,
+        ValuesSource valuesSource,
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,
         String metric
@@ -202,7 +224,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
     @Override
     public void buildBucketsFromStarTree(
         SearchContext context,
-        ValuesSource.Numeric valuesSource,
+        ValuesSource valuesSource,
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,
         String metric,

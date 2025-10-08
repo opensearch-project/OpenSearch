@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations;
 
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 
 import java.io.IOException;
@@ -45,6 +46,7 @@ import java.util.stream.StreamSupport;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "3.4.0")
 public abstract class LeafBucketCollector implements LeafCollector {
 
     public static final LeafBucketCollector NO_OP_COLLECTOR = new LeafBucketCollector() {
