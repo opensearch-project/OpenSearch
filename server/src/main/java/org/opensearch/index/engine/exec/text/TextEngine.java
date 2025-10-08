@@ -8,9 +8,11 @@
 
 package org.opensearch.index.engine.exec.text;
 
+import java.nio.file.Path;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.DocumentInput;
-import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.FileInfos;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.index.engine.exec.RefreshInput;
@@ -23,10 +25,8 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,7 +35,7 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
 
     private final AtomicLong counter = new AtomicLong();
     private final Set<TextWriter> openWriters = new HashSet<>();
-    private List<FileMetadata> openFiles = new ArrayList<>();
+    private final List<WriterFileSet> openFiles = new ArrayList<>();
 
     @Override
     public List<String> supportedFieldTypes() {
@@ -43,8 +43,8 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
     }
 
     @Override
-    public Writer<? extends DocumentInput<?>> createWriter() throws IOException {
-        return new TextWriter("text_file" + counter.getAndIncrement(), this);
+    public Writer<? extends DocumentInput<?>> createWriter(long writerGeneration) throws IOException {
+        return new TextWriter("text_file" + counter.getAndIncrement(), this, writerGeneration);
     }
 
     @Override
@@ -54,13 +54,14 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
 
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
-        openFiles.addAll(refreshInput.getFiles());
+        openFiles.addAll(refreshInput.getWriterFiles());
         RefreshResult refreshResult = new RefreshResult();
         refreshResult.add(DataFormat.TEXT, openFiles);
         return refreshResult;
     }
 
     public static class TextInput implements DocumentInput<String> {
+
         private final StringBuilder sb = new StringBuilder();
         private final TextWriter writer;
 
@@ -89,18 +90,18 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
         }
     }
 
-
-
     public static class TextWriter implements Writer<TextInput> {
 
         private final StringBuilder sb = new StringBuilder();
         private final File currentFile;
-        private AtomicBoolean flushed = new AtomicBoolean(false);
+        private final AtomicBoolean flushed = new AtomicBoolean(false);
         private final Runnable onClose;
+        private final long writerGeneration;
 
-        public TextWriter(String currentFile, TextEngine engine) throws IOException{
-            this.currentFile = new File("/Users/mgodwan/" + currentFile);
+        public TextWriter(String currentFile, TextEngine engine, long writerGeneration) throws IOException {
+            this.currentFile = new File("/Users/shnkgo/mustang" + currentFile);
             this.currentFile.createNewFile();
+            this.writerGeneration = writerGeneration;
             boolean canWrite = this.currentFile.setWritable(true);
             if (!canWrite) {
                 throw new IllegalStateException("Cannot write to file [" + currentFile + "]");
@@ -116,12 +117,16 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
         }
 
         @Override
-        public FileMetadata flush(FlushIn flushIn) throws IOException {
+        public FileInfos flush(FlushIn flushIn) throws IOException {
             try (FileWriter fw = new FileWriter(currentFile)) {
                 fw.write(sb.toString());
             }
             flushed.set(true);
-            return new FileMetadata(DataFormat.TEXT, currentFile.getName());
+            FileInfos fileInfos = new FileInfos();
+            WriterFileSet writerFileSet = new WriterFileSet(currentFile.toPath().getParent(), writerGeneration);
+            writerFileSet.add(currentFile.getName());
+            fileInfos.putWriterFileSet(DataFormat.TEXT, writerFileSet);
+            return fileInfos;
         }
 
         @Override
@@ -134,16 +139,9 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
         }
 
         @Override
-        public Optional<FileMetadata> getMetadata() {
-            if (flushed.get()) {
-                return Optional.of(new FileMetadata(DataFormat.TEXT, currentFile.getName()));
-            }
-            return Optional.empty();
-        }
-
-        @Override
         public TextInput newDocumentInput() {
             return new TextInput(this);
         }
+
     }
 }

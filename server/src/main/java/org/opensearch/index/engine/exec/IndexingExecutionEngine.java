@@ -16,9 +16,11 @@ import java.util.List;
 import java.util.Map;
 
 public interface IndexingExecutionEngine<T extends DataFormat> {
+
     List<String> supportedFieldTypes();
 
-    Writer<? extends DocumentInput<?>> createWriter() throws IOException; // A writer responsible for data format vended by this engine.
+    Writer<? extends DocumentInput<?>> createWriter(long writerGeneration)
+        throws IOException; // A writer responsible for data format vended by this engine.
 
     RefreshResult refresh(RefreshInput refreshInput) throws IOException;
 

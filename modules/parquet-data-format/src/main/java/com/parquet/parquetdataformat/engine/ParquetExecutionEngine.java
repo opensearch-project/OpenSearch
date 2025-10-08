@@ -1,16 +1,20 @@
 package com.parquet.parquetdataformat.engine;
 
-import org.apache.arrow.vector.types.pojo.Schema;
-import org.opensearch.index.engine.exec.*;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
+import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.IndexingExecutionEngine;
+import org.opensearch.index.engine.exec.RefreshInput;
+import org.opensearch.index.engine.exec.RefreshResult;
+import org.opensearch.index.engine.exec.Writer;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DATA_FORMAT;
@@ -47,13 +51,11 @@ import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DAT
 public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDataFormat> {
 
     public static final String FILE_NAME_PREFIX = "parquet_file_generation";
-    AtomicInteger counter;
-    Supplier<Schema> schema;
-    private final List<FileMetadata> filesWrittenAlready = new ArrayList<>();
+    private final Supplier<Schema> schema;
+    private final List<WriterFileSet> filesWrittenAlready = new ArrayList<>();
     private final ShardPath shardPath;
 
     public ParquetExecutionEngine(Supplier<Schema> schema, ShardPath shardPath) {
-        counter = new AtomicInteger(0);
         this.schema = schema;
         this.shardPath = shardPath;
     }
@@ -64,15 +66,15 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     }
 
     @Override
-    public Writer<ParquetDocumentInput> createWriter() throws IOException {
-        String fileName = Path.of(shardPath.getDataPath().toString(), FILE_NAME_PREFIX + "_" + counter.getAndIncrement() + ".parquet").toString();
-        return new ParquetWriter(fileName, schema.get());
+    public Writer<ParquetDocumentInput> createWriter(long writerGeneration) throws IOException {
+        String fileName = Path.of(shardPath.getDataPath().toString(), FILE_NAME_PREFIX + "_" + writerGeneration + ".parquet").toString();
+        return new ParquetWriter(fileName, schema.get(), writerGeneration);
     }
 
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
         RefreshResult refreshResult = new RefreshResult();
-        filesWrittenAlready.addAll(refreshInput.getFiles());
+        filesWrittenAlready.addAll(refreshInput.getWriterFiles());
         refreshResult.add(PARQUET_DATA_FORMAT, filesWrittenAlready);
         return refreshResult;
     }

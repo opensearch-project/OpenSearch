@@ -8,24 +8,19 @@
 
 package com.parquet.parquetdataformat.vsr;
 
-import com.parquet.parquetdataformat.engine.ParquetDataFormat;
+import com.parquet.parquetdataformat.bridge.ArrowExport;
+import com.parquet.parquetdataformat.bridge.RustBridge;
+import com.parquet.parquetdataformat.memory.MemoryPressureMonitor;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
-import com.parquet.parquetdataformat.bridge.RustBridge;
-import com.parquet.parquetdataformat.bridge.ArrowExport;
-import com.parquet.parquetdataformat.memory.MemoryPressureMonitor;
+import org.opensearch.index.engine.exec.FlushIn;
+import org.opensearch.index.engine.exec.WriteResult;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-
-import org.opensearch.index.engine.exec.FileMetadata;
-import org.opensearch.index.engine.exec.FlushIn;
-import org.opensearch.index.engine.exec.WriteResult;
-
-import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DATA_FORMAT;
 
 /**
  * Manages VectorSchemaRoot lifecycle with integrated memory management and native call wrappers.
@@ -113,7 +108,7 @@ public class VSRManager {
         }
     }
 
-    public FileMetadata flush(FlushIn flushIn) throws IOException {
+    public String flush(FlushIn flushIn) throws IOException {
         System.out.println("[JAVA] flush called, row count: " + managedVSR.getRowCount());
         try {
             // Only flush if we have data
@@ -136,7 +131,7 @@ public class VSRManager {
             }
             System.out.println("[JAVA] Successfully flushed data");
 
-            return new FileMetadata(PARQUET_DATA_FORMAT, fileName);
+            return fileName;
         } catch (Exception e) {
             System.out.println("[JAVA] ERROR in flush: " + e.getMessage());
             throw new IOException("Failed to flush data: " + e.getMessage(), e);
