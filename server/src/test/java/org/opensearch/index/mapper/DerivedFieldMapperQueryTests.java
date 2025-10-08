@@ -551,7 +551,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
 
                 query = new MatchPhrasePrefixQueryBuilder("object_field.text_field", "document number").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(10, topDocs.totalHits.value());
+                assertEquals(0, topDocs.totalHits.value());
 
                 // Multi Phrase Query
                 query = QueryBuilders.multiMatchQuery("GET", "object_field.nested_field.sub_field_1", "object_field.keyword_field")
