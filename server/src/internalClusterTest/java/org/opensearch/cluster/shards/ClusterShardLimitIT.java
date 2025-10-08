@@ -34,8 +34,7 @@ package org.opensearch.cluster.shards;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import org.junit.After;
-import org.junit.Ignore;
+
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
@@ -67,6 +66,7 @@ import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -91,7 +91,7 @@ import static org.hamcrest.Matchers.greaterThan;
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public ClusterShardLimitIT (Settings nodeSettings) {
+    public ClusterShardLimitIT(Settings nodeSettings) {
         super(nodeSettings);
     }
 
@@ -119,8 +119,7 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
         Boolean isWarmEnabled = WRITABLE_WARM_INDEX_SETTING.get(settings);
         if (isWarmEnabled) {
             return Settings.builder().put(super.indexSettings()).put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true).build();
-        }
-        else{
+        } else {
             return super.indexSettings();
         }
     }
@@ -455,11 +454,15 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
         } catch (IllegalArgumentException e) {
             String expectedError = "Validation Failed: 1: this action would add ["
                 + (dataNodes * firstShardCount)
-                + "] total " + getShardType() + " shards, but this cluster currently has ["
+                + "] total "
+                + getShardType()
+                + " shards, but this cluster currently has ["
                 + firstShardCount
                 + "]/["
                 + dataNodes * shardsPerNode
-                + "] maximum " + getShardType() + " shards open;";
+                + "] maximum "
+                + getShardType()
+                + " shards open;";
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = client().admin().cluster().prepareState().get().getState().metadata();
@@ -516,11 +519,15 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
 
             String expectedError = "Validation Failed: 1: this action would add ["
                 + difference
-                + "] total " + getShardType() + " shards, but this cluster currently has ["
+                + "] total "
+                + getShardType()
+                + " shards, but this cluster currently has ["
                 + totalShardsBefore
                 + "]/["
                 + dataNodes * shardsPerNode
-                + "] maximum " + getShardType() + " shards open;";
+                + "] maximum "
+                + getShardType()
+                + " shards open;";
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = client().admin().cluster().prepareState().get().getState().metadata();
@@ -676,13 +683,13 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
         assertFalse(clusterState.getMetadata().hasIndex("snapshot-index"));
     }
 
-    @Ignore
     public void testIgnoreDotSettingOnMultipleNodes() throws IOException, InterruptedException {
         int maxAllowedShardsPerNode = 10, indexPrimaryShards = 11, indexReplicaShards = 1;
 
+        Path tempDir = absolutePath.getParent().getParent();
         InternalTestCluster cluster = new InternalTestCluster(
             randomLong(),
-            createTempDir(),
+            tempDir,
             true,
             true,
             0,
@@ -851,11 +858,15 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
         String shardType = getShardType();
         String expectedError = "Validation Failed: 1: this action would add ["
             + totalShards
-            + "] total " + shardType + " shards, but this cluster currently has ["
+            + "] total "
+            + shardType
+            + " shards, but this cluster currently has ["
             + currentShards
             + "]/["
             + maxShards
-            + "] maximum "+ shardType + " shards open;";
+            + "] maximum "
+            + shardType
+            + " shards open;";
         assertEquals(expectedError, e.getMessage());
     }
 
@@ -863,17 +874,21 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
         String shardType = getShardType();
         String expectedError = "Validation Failed: 1: this action would add ["
             + extraShards
-            + "] total " + shardType + " shards, but this cluster currently has ["
+            + "] total "
+            + shardType
+            + " shards, but this cluster currently has ["
             + currentShards
             + "]/["
             + maxShards
-            + "] maximum " + shardType + " shards open;";
+            + "] maximum "
+            + shardType
+            + " shards open;";
         assertEquals(expectedError, e.getMessage());
     }
 
     private String getShardType() {
         Boolean isWarmIndex = WRITABLE_WARM_INDEX_SETTING.get(settings);
-        return  isWarmIndex ? "Warm" : "Hot";
+        return isWarmIndex ? "Warm" : "Hot";
     }
 
     private Settings warmNodeSettings(ByteSizeValue cacheSize) {
@@ -889,9 +904,7 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
     private int startTestNodes(int nodeCount) {
         boolean isWarmIndex = WRITABLE_WARM_INDEX_SETTING.get(settings);
         if (isWarmIndex) {
-            Settings nodeSettings = Settings.builder()
-                .put(warmNodeSettings(new ByteSizeValue(TOTAL_SPACE_BYTES)))
-                .build();
+            Settings nodeSettings = Settings.builder().put(warmNodeSettings(new ByteSizeValue(TOTAL_SPACE_BYTES))).build();
             internalCluster().startWarmOnlyNodes(nodeCount, nodeSettings);
             return client().admin().cluster().prepareState().get().getState().getNodes().getWarmNodes().size();
         } else {
@@ -900,12 +913,11 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
         }
     }
 
-    private String getShardsPerNodeKey(){
+    private String getShardsPerNodeKey() {
         boolean isWarmIndex = WRITABLE_WARM_INDEX_SETTING.get(settings);
         if (isWarmIndex) {
             return SETTING_CLUSTER_MAX_REMOTE_CAPABLE_SHARDS_PER_NODE.getKey();
-        }
-        else{
+        } else {
             return SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey();
         }
     }
