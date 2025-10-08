@@ -187,7 +187,6 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
         );
     }
 
-
     public void testInterceptorOrdering() {
         List<Integer> executionOrder = new ArrayList<>();
 
@@ -206,7 +205,6 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
         // Verify execution order
         assertEquals(Arrays.asList(10, 20, 30), executionOrder);
     }
-
 
     public void testNullInterceptorList() {
         // Constructor should throw NullPointerException for null interceptors
