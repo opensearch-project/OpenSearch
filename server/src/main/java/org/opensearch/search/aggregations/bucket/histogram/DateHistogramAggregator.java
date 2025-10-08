@@ -235,8 +235,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         if (skipper != null && singleton != null) {
             // TODO: add hard bounds support
-            // TODO: SkipListLeafCollector should be used if the getLeafCollector invocation is from filterRewriteOptimizationContext
-            if (hardBounds == null && parent == null) {
+            // TODO: SkipListLeafCollector should be used if the getLeafCollector invocation is from
+            // filterRewriteOptimizationContext when parent != null. Removing the check to collect
+            // performance numbers for now
+            if (hardBounds == null) {
                 skipListCollectorsUsed++;
                 return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, sub, this);
             }
