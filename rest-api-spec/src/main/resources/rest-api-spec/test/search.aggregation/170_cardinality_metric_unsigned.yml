@@ -266,8 +266,8 @@ setup:
 ---
 "profiler string":
   - skip:
-      version: " - 3.2.99"
-      reason:  hybrid collector added in 3.3.0
+      version: " - 3.3.99"
+      reason:  hybrid collector added in 3.4.0
   - do:
       search:
         body:

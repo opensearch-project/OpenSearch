@@ -47,7 +47,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogRecoveryRunner;
@@ -135,7 +134,7 @@ public class TranslogHandler implements TranslogRecoveryRunner {
             case INDEX:
                 final Translog.Index index = (Translog.Index) operation;
                 final String indexName = mapperService.index().getName();
-                final Engine.Index engineIndex = IndexShard.prepareIndex(
+                final Engine.Index engineIndex = engine.prepareIndex(
                     docMapper(MapperService.SINGLE_MAPPING_NAME),
                     new SourceToParse(
                         indexName,
@@ -157,7 +156,7 @@ public class TranslogHandler implements TranslogRecoveryRunner {
                 return engineIndex;
             case DELETE:
                 final Translog.Delete delete = (Translog.Delete) operation;
-                return IndexShard.prepareDelete(
+                return engine.prepareDelete(
                     delete.id(),
                     delete.seqNo(),
                     delete.primaryTerm(),
