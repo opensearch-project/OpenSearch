@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * SearchProgressListener implementation for streaming search with scoring.
- * Computes partial search results when confidence thresholds are met.
+ * Computes partial search results at configured intervals and milestones.
  *
  * @opensearch.internal
  */
@@ -96,7 +96,7 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
             collectPartialResponse(partialResponse);
 
             int count = streamEmissions.incrementAndGet();
-            logger.info("Computed streaming partial #{} with {} docs from {} shards", count, topDocs.scoreDocs.length, shards.size());
+            logger.debug("Computed streaming partial #{} with {} docs from {} shards", count, topDocs.scoreDocs.length, shards.size());
 
         } catch (Exception e) {
             logger.error("Failed to send partial TopDocs", e);
@@ -113,7 +113,7 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
 
     @Override
     protected void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
-        logger.info(
+        logger.debug(
             "Final reduce: {} total hits from {} shards, {} partial computations",
             totalHits.value(),
             shards.size(),

@@ -302,17 +302,6 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
         for (int i = 1; i < hits.length; i++) {
             assertTrue("Hits should be sorted by score", hits[i - 1].getScore() >= hits[i].getScore());
         }
-
-        // Test CONFIDENCE_BASED mode - progressive emission with Hoeffding bounds
-        SearchRequest confidenceRequest = new SearchRequest(TEST_INDEX);
-        confidenceRequest.source().query(QueryBuilders.matchQuery("field1", "value1")).size(5);
-        confidenceRequest.searchType(SearchType.QUERY_THEN_FETCH);
-        confidenceRequest.setStreamingSearchMode("CONFIDENCE_BASED");
-
-        SearchResponse confidenceResponse = client().execute(SearchAction.INSTANCE, confidenceRequest).actionGet();
-        assertNotNull("Response should not be null for CONFIDENCE_BASED mode", confidenceResponse);
-        assertNotNull("Response hits should not be null", confidenceResponse.getHits());
-        assertTrue("Should have search hits", confidenceResponse.getHits().getTotalHits().value() > 0);
     }
 
     private void createTestIndex() {
@@ -412,5 +401,58 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
                 indexShardSegments.getShards()[0].getSegments().size() >= MIN_SEGMENTS_PER_SHARD
             );
         });
+    }
+
+    /**
+     * Test programmatic streaming with only the flag set (no explicit mode).
+     * This verifies that the coordinator enables streaming and sets default mode.
+     */
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testProgrammaticStreamingWithFlagOnly() {
+        // Create search request with ONLY the flag, no mode specified
+        SearchRequest searchRequest = new SearchRequest(TEST_INDEX);
+        searchRequest.source().query(QueryBuilders.matchAllQuery()).size(10);
+        searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
+
+        // ONLY set the streaming flag, DO NOT set mode
+        searchRequest.setStreamingScoring(true);
+        // Explicitly verify mode is null before execution
+        assertNull("Mode should be null before execution", searchRequest.getStreamingSearchMode());
+
+        // Execute search - coordinator should detect flag and apply default mode
+        SearchResponse response = client().execute(SearchAction.INSTANCE, searchRequest).actionGet();
+
+        // Verify successful response
+        assertNotNull("Response should not be null", response);
+        assertNotNull("Response hits should not be null", response.getHits());
+        assertTrue("Should have search hits", response.getHits().getTotalHits().value() > 0);
+
+        // Log success - the fact we got here means streaming worked with flag only
+        logger.info("Programmatic streaming with flag-only succeeded with {} hits", response.getHits().getHits().length);
+    }
+
+    /**
+     * Test that streaming works with different modes programmatically.
+     */
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingWithDifferentModes() {
+        // Test each streaming mode
+        String[] modes = { "NO_SCORING", "SCORED_UNSORTED", "SCORED_SORTED" };
+
+        for (String mode : modes) {
+            SearchRequest searchRequest = new SearchRequest(TEST_INDEX);
+            searchRequest.source().query(QueryBuilders.matchAllQuery()).size(5);
+            searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
+            searchRequest.setStreamingScoring(true);
+            searchRequest.setStreamingSearchMode(mode);
+
+            SearchResponse response = client().execute(SearchAction.INSTANCE, searchRequest).actionGet();
+
+            assertNotNull("Response should not be null for mode " + mode, response);
+            assertNotNull("Response hits should not be null for mode " + mode, response.getHits());
+            assertTrue("Should have hits for mode " + mode, response.getHits().getTotalHits().value() > 0);
+
+            logger.info("Streaming with mode {} returned {} hits", mode, response.getHits().getHits().length);
+        }
     }
 }

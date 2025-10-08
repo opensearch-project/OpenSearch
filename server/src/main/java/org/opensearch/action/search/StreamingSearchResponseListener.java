@@ -58,7 +58,7 @@ public class StreamingSearchResponseListener implements ActionListener<SearchRes
         // Track TTFB - first partial result delivery time
         if (count == 1 && partialResponse.getHits() != null) {
             int numHits = partialResponse.getHits().getHits().length;
-            logger.info("First partial result delivered with {} hits", numHits);
+            logger.debug("First partial result delivered with {} hits", numHits);
         }
     }
 
@@ -90,7 +90,7 @@ public class StreamingSearchResponseListener implements ActionListener<SearchRes
             int numHits = partialResponse.getHits().getHits().length;
             long totalHits = partialResponse.getHits().getTotalHits().value();
 
-            logger.info("Streaming partial result #{}: {} hits, total: {}", count, numHits, totalHits);
+            logger.debug("Streaming partial result #{}: {} hits, total: {}", count, numHits, totalHits);
 
             if (logger.isDebugEnabled() && numHits > 0) {
                 float topScore = partialResponse.getHits().getHits()[0].getScore();
@@ -102,13 +102,13 @@ public class StreamingSearchResponseListener implements ActionListener<SearchRes
     private void logStreamingSummary(SearchResponse finalResponse) {
         int totalPartials = partialCount.get();
         if (totalPartials > 0) {
-            logger.info("Streaming search complete: {} partial computations", totalPartials);
+            logger.debug("Streaming search complete: {} partial computations", totalPartials);
 
             if (!partialResponses.isEmpty()) {
                 long totalDocsProcessed = partialResponses.stream()
                     .mapToLong(r -> r.getHits() != null ? r.getHits().getHits().length : 0)
                     .sum();
-                logger.info("Processed {} docs across {} partial emissions", totalDocsProcessed, partialResponses.size());
+                logger.debug("Processed {} docs across {} partial emissions", totalDocsProcessed, partialResponses.size());
             }
         } else {
             logger.debug("No partial computations performed");

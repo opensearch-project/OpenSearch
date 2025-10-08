@@ -82,6 +82,7 @@ import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
@@ -135,7 +136,8 @@ import static org.opensearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
  * @opensearch.internal
  */
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
-    // Streaming search integrated via streamingSearchMode in SearchRequest
+    // Streaming is integrated via SearchAction (TransportSearchAction). When stream transport is available,
+    // register its request handler here. A separate StreamSearchAction registration is not required.
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
@@ -1269,7 +1271,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 tracer
             );
         } else {
-            final boolean isStreamingRequest = searchRequest.getStreamingSearchMode() != null
+            // Set default streaming mode if flag is present but mode is null
+            if (searchRequest.isStreamingScoring() && searchRequest.getStreamingSearchMode() == null) {
+                searchRequest.setStreamingSearchMode(StreamingSearchMode.SCORED_UNSORTED.toString());
+            }
+
+            // Consider streaming if either flag is set or mode is specified
+            final boolean isStreamingRequest = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
                 && (searchRequest.source() == null || searchRequest.source().size() > 0);
 
             final SearchProgressListener progressListener = isStreamingRequest

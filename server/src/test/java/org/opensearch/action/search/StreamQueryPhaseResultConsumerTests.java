@@ -69,9 +69,6 @@ public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
                 case SCORED_UNSORTED:
                     assertEquals("SCORED_UNSORTED should use 5 * 2", 10, batchSize);
                     break;
-                case CONFIDENCE_BASED:
-                    assertEquals("CONFIDENCE_BASED should use 5 * 3", 15, batchSize);
-                    break;
                 case SCORED_SORTED:
                     assertEquals("SCORED_SORTED should use 5 * 10", 50, batchSize);
                     break;

@@ -26,7 +26,6 @@ public class StreamingSearchParameters implements Writeable, ToXContent {
 
     public static final String STREAMING_FIELD = "streaming";
     public static final String ENABLED_FIELD = "enabled";
-    public static final String CONFIDENCE_FIELD = "confidence";
     public static final String BATCH_SIZE_FIELD = "batch_size";
     public static final String EMISSION_INTERVAL_FIELD = "emission_interval";
     public static final String MIN_DOCS_FIELD = "min_docs";
@@ -34,7 +33,6 @@ public class StreamingSearchParameters implements Writeable, ToXContent {
     public static final String MILESTONES_FIELD = "milestones";
 
     private boolean enabled = false;
-    private float initialConfidence = 0.99f;
     private int batchSize = 10;
     private int emissionIntervalMillis = 100;
     private int minDocsForStreaming = 5;
@@ -45,7 +43,6 @@ public class StreamingSearchParameters implements Writeable, ToXContent {
 
     public StreamingSearchParameters(StreamInput in) throws IOException {
         this.enabled = in.readBoolean();
-        this.initialConfidence = in.readFloat();
         this.batchSize = in.readVInt();
         this.emissionIntervalMillis = in.readVInt();
         this.minDocsForStreaming = in.readVInt();
@@ -56,7 +53,6 @@ public class StreamingSearchParameters implements Writeable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(enabled);
-        out.writeFloat(initialConfidence);
         out.writeVInt(batchSize);
         out.writeVInt(emissionIntervalMillis);
         out.writeVInt(minDocsForStreaming);
@@ -68,7 +64,6 @@ public class StreamingSearchParameters implements Writeable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(STREAMING_FIELD);
         builder.field(ENABLED_FIELD, enabled);
-        builder.field(CONFIDENCE_FIELD, initialConfidence);
         builder.field(BATCH_SIZE_FIELD, batchSize);
         builder.field(EMISSION_INTERVAL_FIELD, emissionIntervalMillis);
         builder.field(MIN_DOCS_FIELD, minDocsForStreaming);
@@ -90,8 +85,6 @@ public class StreamingSearchParameters implements Writeable, ToXContent {
             } else if (token.isValue()) {
                 if (ENABLED_FIELD.equals(currentFieldName)) {
                     params.enabled = parser.booleanValue();
-                } else if (CONFIDENCE_FIELD.equals(currentFieldName)) {
-                    params.initialConfidence = parser.floatValue();
                 } else if (BATCH_SIZE_FIELD.equals(currentFieldName)) {
                     params.batchSize = parser.intValue();
                 } else if (EMISSION_INTERVAL_FIELD.equals(currentFieldName)) {
@@ -117,18 +110,6 @@ public class StreamingSearchParameters implements Writeable, ToXContent {
 
     public StreamingSearchParameters enabled(boolean enabled) {
         this.enabled = enabled;
-        return this;
-    }
-
-    public float getInitialConfidence() {
-        return initialConfidence;
-    }
-
-    public StreamingSearchParameters initialConfidence(float confidence) {
-        if (confidence <= 0.0f || confidence > 1.0f) {
-            throw new IllegalArgumentException("Confidence must be between 0 and 1");
-        }
-        this.initialConfidence = confidence;
         return this;
     }
 
@@ -192,7 +173,6 @@ public class StreamingSearchParameters implements Writeable, ToXContent {
         if (o == null || getClass() != o.getClass()) return false;
         StreamingSearchParameters that = (StreamingSearchParameters) o;
         return enabled == that.enabled
-            && Float.compare(that.initialConfidence, initialConfidence) == 0
             && batchSize == that.batchSize
             && emissionIntervalMillis == that.emissionIntervalMillis
             && minDocsForStreaming == that.minDocsForStreaming
@@ -202,15 +182,7 @@ public class StreamingSearchParameters implements Writeable, ToXContent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            enabled,
-            initialConfidence,
-            batchSize,
-            emissionIntervalMillis,
-            minDocsForStreaming,
-            adaptiveBatching,
-            useMilestones
-        );
+        return Objects.hash(enabled, batchSize, emissionIntervalMillis, minDocsForStreaming, adaptiveBatching, useMilestones);
     }
 
     @Override
@@ -218,8 +190,6 @@ public class StreamingSearchParameters implements Writeable, ToXContent {
         return "StreamingSearchParameters{"
             + "enabled="
             + enabled
-            + ", confidence="
-            + initialConfidence
             + ", batchSize="
             + batchSize
             + ", emissionInterval="

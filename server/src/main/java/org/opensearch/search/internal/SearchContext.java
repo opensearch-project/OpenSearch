@@ -580,4 +580,16 @@ public abstract class SearchContext implements Releasable {
     public int getStreamingBatchSize() {
         return 10;
     }
+
+    public org.opensearch.common.unit.TimeValue getStreamingTimeInterval() {
+        return org.opensearch.common.unit.TimeValue.timeValueMillis(100);
+    }
+
+    public Boolean getStreamingFirstHitImmediate() {
+        return true;
+    }
+
+    public Boolean getStreamingEnableCoalescing() {
+        return true;
+    }
 }

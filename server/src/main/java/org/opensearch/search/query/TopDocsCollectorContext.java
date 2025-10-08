@@ -789,8 +789,6 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                     sort,
                     circuitBreaker
                 );
-            case CONFIDENCE_BASED:
-                return new StreamingConfidenceCollectorContext("streaming_confidence", searchContext.size(), searchContext, circuitBreaker);
             default:
                 throw new IllegalArgumentException("Unknown streaming mode: " + mode);
         }
