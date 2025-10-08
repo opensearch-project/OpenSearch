@@ -8,10 +8,8 @@
 
 package org.opensearch.index.engine.exec.coord;
 
-import org.opensearch.common.annotation.ExperimentalApi;
-
-
 import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
@@ -22,6 +20,8 @@ import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.bridge.Indexer;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.LuceneCommitEngine;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
 import org.opensearch.index.mapper.KeywordFieldMapper;
@@ -29,11 +29,13 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
-import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.plugins.SearchEnginePlugin;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,27 +46,30 @@ import java.util.Map;
 public class CompositeEngine implements Indexer {
 
     private final CompositeIndexingExecutionEngine engine;
-    private List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
+    private final Committer compositeEngineCommitter;
+    private final List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
     private CatalogSnapshot catalogSnapshot;
-    private List<CatalogSnapshotAwareRefreshListener> catalogSnapshotAwareRefreshListeners = new ArrayList<>();
-    private Map<org.opensearch.vectorized.execution.search.DataFormat, List<SearchExecEngine<?, ?, ?, ?>>> readEngines = new HashMap<>();
+    private final List<CatalogSnapshotAwareRefreshListener> catalogSnapshotAwareRefreshListeners = new ArrayList<>();
+    private final Map<org.opensearch.vectorized.execution.search.DataFormat, List<SearchExecEngine<?, ?, ?, ?>>> readEngines = new HashMap<>();
 
     public CompositeEngine(MapperService mapperService, PluginsService pluginsService, ShardPath shardPath) throws IOException {
         List<SearchEnginePlugin> searchEnginePlugins = pluginsService.filterPlugins(SearchEnginePlugin.class);
         // How to bring the Dataformat here? Currently this means only Text and LuceneFormat can be used
-        this.engine = new CompositeIndexingExecutionEngine(mapperService, pluginsService, shardPath);
+        this.engine = new CompositeIndexingExecutionEngine(mapperService, pluginsService, shardPath, 0);
+        Path committerPath = Files.createTempDirectory("lucene-committer-index");
+        this.compositeEngineCommitter = new LuceneCommitEngine(committerPath);
 
         // Refresh here so that catalog snapshot gets initialized
         // TODO : any better way to do this ?
         refresh("start");
         // TODO : how to extend this for Lucene ? where engine is a r/w engine
         // Create read specific engines for each format which is associated with shard
-        for(SearchEnginePlugin searchEnginePlugin : searchEnginePlugins) {
-            for(org.opensearch.vectorized.execution.search.DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
+        for (SearchEnginePlugin searchEnginePlugin : searchEnginePlugins) {
+            for (org.opensearch.vectorized.execution.search.DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
                 List<SearchExecEngine<?, ?, ?, ?>> currentSearchEngines = readEngines.getOrDefault(dataFormat, new ArrayList<>());
-                SearchExecEngine<?,?,?,?> newSearchEngine = searchEnginePlugin.createEngine(dataFormat,
-                    Collections.emptyList(),
-                    shardPath);
+                SearchExecEngine<?, ?, ?, ?> newSearchEngine = searchEnginePlugin.createEngine(dataFormat,
+                        Collections.emptyList(),
+                        shardPath);
 
                 currentSearchEngines.add(newSearchEngine);
                 readEngines.put(dataFormat, currentSearchEngines);
@@ -75,28 +80,28 @@ public class CompositeEngine implements Indexer {
                 // 60s as refresh interval -> ExternalReaderManager acquires a view every 60 seconds
                 // InternalReaderManager -> IndexingMemoryController , it keeps on refreshing internal maanger
                 //
-                if(newSearchEngine.getRefreshListener(Engine.SearcherScope.INTERNAL) != null) {
+                if (newSearchEngine.getRefreshListener(Engine.SearcherScope.INTERNAL) != null) {
                     catalogSnapshotAwareRefreshListeners.add(newSearchEngine.getRefreshListener(Engine.SearcherScope.INTERNAL));
                 }
             }
         }
     }
 
-    public SearchExecEngine<?,?,?,?> getReadEngine(org.opensearch.vectorized.execution.search.DataFormat dataFormat) {
+    public SearchExecEngine<?, ?, ?, ?> getReadEngine(org.opensearch.vectorized.execution.search.DataFormat dataFormat) {
         return readEngines.getOrDefault(dataFormat, new ArrayList<>()).getFirst();
     }
 
-    public SearchExecEngine<?,?,?,?> getPrimaryReadEngine() {
+    public SearchExecEngine<?, ?, ?, ?> getPrimaryReadEngine() {
         // Return the first available ReadEngine as primary
         return readEngines.values().stream()
-            .filter(list -> !list.isEmpty())
-            .findFirst()
-            .map(list -> list.getFirst())
-            .orElse(null);
+                .filter(list -> !list.isEmpty())
+                .findFirst()
+                .map(List::getFirst)
+                .orElse(null);
     }
 
     public CompositeDataFormatWriter.CompositeDocumentInput documentInput() throws IOException {
-        return engine.createWriter().newDocumentInput();
+        return engine.createCompositeWriter().newDocumentInput();
     }
 
     public Engine.IndexResult index(Engine.Index index) throws IOException {
@@ -104,7 +109,6 @@ public class CompositeEngine implements Indexer {
         // translog, checkpoint, other checks
         return new Engine.IndexResult(writeResult.version(), writeResult.seqNo(), writeResult.term(), writeResult.success());
     }
-
 
     public synchronized void refresh(String source) throws EngineException {
         refreshListeners.forEach(ref -> {
@@ -115,12 +119,11 @@ public class CompositeEngine implements Indexer {
             }
         });
 
-
         long id = 0L;
         if (catalogSnapshot != null) {
             id = catalogSnapshot.getId();
         }
-        CatalogSnapshot newCatSnap = null;
+        CatalogSnapshot newCatSnap;
         try {
             RefreshResult refreshResult = engine.refresh(new RefreshInput());
             if (refreshResult == null) {
@@ -137,6 +140,7 @@ public class CompositeEngine implements Indexer {
             catalogSnapshot.decRef();
         }
         catalogSnapshot = newCatSnap;
+        compositeEngineCommitter.addLuceneIndexes(catalogSnapshot);
 
         catalogSnapshotAwareRefreshListeners.forEach(ref -> {
             try {
@@ -171,10 +175,9 @@ public class CompositeEngine implements Indexer {
         };
     }
 
-
-
     @ExperimentalApi
     public static abstract class ReleasableRef<T> implements AutoCloseable {
+
         private T t;
 
         public ReleasableRef(T t) {
@@ -271,7 +274,7 @@ public class CompositeEngine implements Indexer {
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-
+        compositeEngineCommitter.commit(catalogSnapshot);
     }
 
     @Override
