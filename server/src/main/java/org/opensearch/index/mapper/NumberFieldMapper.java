@@ -405,8 +405,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         query,
                         new ApproximatePointRangeQuery(
                             field,
-                            NumberType.HALF_FLOAT.encodePoint(l),
-                            NumberType.HALF_FLOAT.encodePoint(u),
+                            HalfFloatPoint.pack(l).bytes,
+                            HalfFloatPoint.pack(u).bytes,
                             APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.HALF_FLOAT_FORMAT
                         )
@@ -604,8 +604,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         query,
                         new ApproximatePointRangeQuery(
                             field,
-                            FloatPoint.pack(new float[] { l }).bytes,
-                            FloatPoint.pack(new float[] { u }).bytes,
+                            FloatPoint.pack(l).bytes,
+                            FloatPoint.pack(u).bytes,
                             APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.FLOAT_FORMAT
                         )
@@ -778,8 +778,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             query,
                             new ApproximatePointRangeQuery(
                                 field,
-                                DoublePoint.pack(new double[] { l }).bytes,
-                                DoublePoint.pack(new double[] { u }).bytes,
+                                DoublePoint.pack(l).bytes,
+                                DoublePoint.pack(u).bytes,
                                 APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.DOUBLE_FORMAT
                             )
@@ -1228,8 +1228,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         query,
                         new ApproximatePointRangeQuery(
                             field,
-                            IntPoint.pack(new int[] { l }).bytes,
-                            IntPoint.pack(new int[] { u }).bytes,
+                            IntPoint.pack(l).bytes,
+                            IntPoint.pack(u).bytes,
                             APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.INT_FORMAT
                         )
@@ -1396,8 +1396,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             query,
                             new ApproximatePointRangeQuery(
                                 field,
-                                LongPoint.pack(new long[] { l }).bytes,
-                                LongPoint.pack(new long[] { u }).bytes,
+                                LongPoint.pack(l).bytes,
+                                LongPoint.pack(u).bytes,
                                 APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.LONG_FORMAT
                             )
@@ -1555,8 +1555,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             query,
                             new ApproximatePointRangeQuery(
                                 field,
-                                NumberType.UNSIGNED_LONG.encodePoint(l),
-                                NumberType.UNSIGNED_LONG.encodePoint(u),
+                                BigIntegerPoint.pack(l).bytes,
+                                BigIntegerPoint.pack(u).bytes,
                                 APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.UNSIGNED_LONG_FORMAT
                             )
