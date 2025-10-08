@@ -2136,39 +2136,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        XContentParser parser = context.parser();
-        Object value;
-        Number numericValue = null;
-        if (context.externalValueSet()) {
-            value = context.externalValue();
-        } else if (parser.currentToken() == Token.VALUE_NULL) {
-            value = null;
-        } else if (coerce.value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
-            value = null;
-        } else {
-            try {
-                numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
-                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
-                    context.addIgnoredField(mappedFieldType.name());
-                    return;
-                } else {
-                    throw e;
-                }
-            }
-            value = numericValue;
-        }
-
-        if (value == null) {
-            value = nullValue;
-        }
-
-        if (value == null) {
-            return;
-        }
-
+        Number numericValue = getFieldValue(context);
         if (numericValue == null) {
-            numericValue = fieldType().type.parse(value, coerce.value());
+            return;
         }
 
         context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, skiplist, stored));
@@ -2176,6 +2146,36 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         if (hasDocValues == false && (stored || indexed)) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected Number getFieldValue(ParseContext context) throws IOException {
+        XContentParser parser = context.parser();
+        Number value;
+        if (context.externalValueSet()) {
+            return fieldType().type.parse(context.externalValue(), coerce.value());
+        } else if (parser.currentToken() == Token.VALUE_NULL) {
+            value = nullValue;
+        } else if (coerce.value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
+            value = nullValue;
+        } else {
+            try {
+                value = fieldType().type.parse(parser, coerce.value());
+            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
+                    context.addIgnoredField(mappedFieldType.name());
+                    return null;
+                } else {
+                    throw e;
+                }
+            }
+        }
+
+        if (value == null) {
+            return nullValue;
+        }
+
+        return value;
     }
 
     @Override
