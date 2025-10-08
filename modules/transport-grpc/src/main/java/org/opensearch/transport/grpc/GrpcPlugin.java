@@ -36,6 +36,7 @@ import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBui
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.services.DocumentServiceImpl;
 import org.opensearch.transport.grpc.services.SearchServiceImpl;
+import org.opensearch.transport.grpc.spi.GrpcServiceFactory;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -69,16 +70,16 @@ import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.
  * Main class for the gRPC plugin.
  */
 public final class GrpcPlugin extends Plugin implements NetworkPlugin, ExtensiblePlugin {
-
     private static final Logger logger = LogManager.getLogger(GrpcPlugin.class);
 
     /** The name of the gRPC thread pool */
     public static final String GRPC_THREAD_POOL_NAME = "grpc";
 
-    private Client client;
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
+    private final List<GrpcServiceFactory> servicesFactory = new ArrayList<>();
     private QueryBuilderProtoConverterRegistryImpl queryRegistry;
     private AbstractQueryBuilderProtoUtils queryUtils;
+    private Client client;
 
     /**
      * Creates a new GrpcPlugin instance.
@@ -108,6 +109,13 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             logger.info("Successfully loaded {} QueryBuilderProtoConverter extensions", extensions.size());
         } else {
             logger.info("No QueryBuilderProtoConverter extensions found from other plugins");
+        }
+
+        // Load discovered gRPC service factories
+        List<GrpcServiceFactory> services = loader.loadExtensions(GrpcServiceFactory.class);
+        if (services != null) {
+            servicesFactory.addAll(services);
+            logger.info("Successfully loaded {} GrpcServiceFactory extensions", services.size());
         }
     }
 
@@ -155,22 +163,31 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
-        if (client == null) {
-            throw new RuntimeException("client cannot be null");
+        if (client == null || queryRegistry == null) {
+            throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
 
-        if (queryRegistry == null) {
-            throw new IllegalStateException("createComponents must be called before getAuxTransports to initialize the registry");
-        }
-
-        List<BindableService> grpcServices = registerGRPCServices(
-            new DocumentServiceImpl(client),
-            new SearchServiceImpl(client, queryUtils)
-        );
-        return Collections.singletonMap(
-            GRPC_TRANSPORT_SETTING_KEY,
-            () -> new Netty4GrpcServerTransport(settings, grpcServices, networkService, threadPool)
-        );
+        return Collections.singletonMap(GRPC_TRANSPORT_SETTING_KEY, () -> {
+            List<BindableService> grpcServices = new ArrayList<>(
+                List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
+            );
+            for (GrpcServiceFactory serviceFac : servicesFactory) {
+                List<BindableService> pluginServices = serviceFac.initClient(client)
+                    .initSettings(settings)
+                    .initClusterSettings(clusterSettings)
+                    .initThreadPool(threadPool)
+                    .build();
+                for (BindableService pluginService : pluginServices) {
+                    logger.info(
+                        "{} gRPC services loaded from plugin: {}",
+                        pluginService.bindService().getServiceDescriptor().getName(),
+                        serviceFac.plugin()
+                    );
+                }
+                grpcServices.addAll(pluginServices);
+            }
+            return new Netty4GrpcServerTransport(settings, grpcServices, networkService, threadPool);
+        });
     }
 
     /**
@@ -198,38 +215,37 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         SecureAuxTransportSettingsProvider secureAuxTransportSettingsProvider,
         Tracer tracer
     ) {
-        if (client == null) {
-            throw new RuntimeException("client cannot be null");
+        if (client == null || queryRegistry == null) {
+            throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
 
-        if (queryRegistry == null) {
-            throw new IllegalStateException("createComponents must be called before getSecureAuxTransports to initialize the registry");
-        }
-
-        List<BindableService> grpcServices = registerGRPCServices(
-            new DocumentServiceImpl(client),
-            new SearchServiceImpl(client, queryUtils)
-        );
-        return Collections.singletonMap(
-            GRPC_SECURE_TRANSPORT_SETTING_KEY,
-            () -> new SecureNetty4GrpcServerTransport(
+        return Collections.singletonMap(GRPC_SECURE_TRANSPORT_SETTING_KEY, () -> {
+            List<BindableService> grpcServices = new ArrayList<>(
+                List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
+            );
+            for (GrpcServiceFactory serviceFac : servicesFactory) {
+                List<BindableService> pluginServices = serviceFac.initClient(client)
+                    .initSettings(settings)
+                    .initClusterSettings(clusterSettings)
+                    .initThreadPool(threadPool)
+                    .build();
+                for (BindableService pluginService : pluginServices) {
+                    logger.info(
+                        "{} gRPC services loaded from plugin: {}",
+                        pluginService.bindService().getServiceDescriptor().getName(),
+                        serviceFac.plugin()
+                    );
+                }
+                grpcServices.addAll(pluginServices);
+            }
+            return new SecureNetty4GrpcServerTransport(
                 settings,
                 grpcServices,
                 networkService,
                 threadPool,
                 secureAuxTransportSettingsProvider
-            )
-        );
-    }
-
-    /**
-     * Registers gRPC services to be exposed by the transport.
-     *
-     * @param services The gRPC services to register
-     * @return A list of registered bindable services
-     */
-    private List<BindableService> registerGRPCServices(BindableService... services) {
-        return List.of(services);
+            );
+        });
     }
 
     /**
