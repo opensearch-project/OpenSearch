@@ -15,6 +15,12 @@ import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.MathUtil;
 
+/**
+ * DocIdStream implementation using FixedBitSet. This is duplicate of the implementation in Lucene
+ * and should ideally eventually be removed.
+ *
+ * @opensearch.internal
+ */
 public final class BitSetDocIdStream extends DocIdStream {
     private final FixedBitSet bitSet;
     private final int offset, max;

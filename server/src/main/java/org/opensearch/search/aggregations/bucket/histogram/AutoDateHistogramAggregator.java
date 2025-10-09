@@ -31,8 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Rounding;
@@ -51,6 +50,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
+import org.opensearch.search.aggregations.bucket.HistogramSkiplistLeafCollector;
 import org.opensearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
@@ -135,6 +135,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     protected int roundingIdx;
     protected Rounding.Prepared preparedRounding;
 
+    private final String fieldName;
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
 
     private AutoDateHistogramAggregator(
@@ -218,6 +219,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 return (key) -> getBucketOrds().add(0, preparedRounding.round(key));
             }
         };
+
+        this.fieldName = (valuesSource instanceof ValuesSource.Numeric.FieldData)
+            ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
+            : null;
         filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
     }
 
@@ -260,7 +265,21 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
+        DocValuesSkipper skipper = null;
+        if (this.fieldName != null) {
+            skipper = ctx.reader().getDocValuesSkipper(this.fieldName);
+        }
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+
+        if (skipper != null && singleton != null) {
+            // TODO: add hard bounds support
+            // TODO: SkipListLeafCollector should be used if the getLeafCollector invocation is from
+            // filterRewriteOptimizationContext when parent != null. Removing the check to collect
+            // performance numbers for now
+            return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, getBucketOrds(), sub, this);
+        }
+
         final LeafBucketCollector iteratingCollector = getLeafCollector(values, sub);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
