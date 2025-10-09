@@ -176,7 +176,6 @@ public class JdkDownloadPluginSetupRepositoryTests extends GradleUnitTestCase {
         return (DefaultIvyArtifactRepository) project.getRepositories().findByName(name);
     }
 
-    @SuppressWarnings("unchecked")
     private String getPattern(DefaultIvyArtifactRepository input) throws NoSuchFieldException, IllegalAccessException {
         DefaultIvyPatternRepositoryLayout layout = (DefaultIvyPatternRepositoryLayout) input.getRepositoryLayout();
         Set<String> patterns = new HashSet<>();
