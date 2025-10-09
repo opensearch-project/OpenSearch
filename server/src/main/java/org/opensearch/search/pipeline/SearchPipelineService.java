@@ -79,6 +79,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
     public static final String AD_HOC_PIPELINE_ID = "_ad_hoc_pipeline";
     public static final String NOOP_PIPELINE_ID = "_none";
+    public static final String ALL = "*";
     private static final int MAX_PIPELINE_ID_BYTES = 512;
     private static final Logger logger = LogManager.getLogger(SearchPipelineService.class);
     private final ClusterService clusterService;
@@ -642,5 +643,10 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             this.configuration = Objects.requireNonNull(configuration);
             this.pipeline = Objects.requireNonNull(pipeline);
         }
+    }
+
+    public boolean isSystemGeneratedFactoryEnabled(String factoryName) {
+        return enabledSystemGeneratedFactories != null
+            && (enabledSystemGeneratedFactories.contains(ALL) || enabledSystemGeneratedFactories.contains(factoryName));
     }
 }
