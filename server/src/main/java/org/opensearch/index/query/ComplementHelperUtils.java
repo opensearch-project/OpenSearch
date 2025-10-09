@@ -62,6 +62,7 @@ public class ComplementHelperUtils {
                 // If this is a whole number field and the last value is 1 less than the current value, we can skip this part of the
                 // complement
                 if (isWholeNumber && value.longValue() - lastValue.longValue() == 1) {
+                    lastValue = value;
                     continue;
                 }
                 range.includeLower(false);
