@@ -8,8 +8,7 @@ The `transport-grpc-spi` module enables plugin developers to:
 - Implement custom query converters for gRPC transport
 - Extend gRPC protocol buffer handling
 - Register custom query types that can be processed via gRPC
-- Register gRPC interceptors for cross-cutting concerns (authentication, authorization, logging, metrics)
-
+- Register gRPC interceptors with ordered execution ordering
 
 ## Key Components
 
