@@ -10,7 +10,7 @@ package org.opensearch.transport.grpc.interceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.transport.grpc.spi.OrderedGrpcInterceptor;
+import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInterceptor;
 
 import java.util.ArrayList;
 import java.util.List;

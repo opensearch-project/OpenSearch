@@ -38,7 +38,7 @@ import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProt
 import org.opensearch.transport.grpc.services.DocumentServiceImpl;
 import org.opensearch.transport.grpc.services.SearchServiceImpl;
 import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider;
-import org.opensearch.transport.grpc.spi.OrderedGrpcInterceptor;
+import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInterceptor;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.watcher.ResourceWatcherService;

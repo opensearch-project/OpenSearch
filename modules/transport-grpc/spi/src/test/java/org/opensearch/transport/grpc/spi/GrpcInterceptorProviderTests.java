@@ -23,7 +23,7 @@ public class GrpcInterceptorProviderTests extends OpenSearchTestCase {
     public void testBasicProviderImplementation() {
         TestGrpcInterceptorProvider provider = new TestGrpcInterceptorProvider(10);
 
-        List<OrderedGrpcInterceptor> interceptors = provider.getOrderedGrpcInterceptors();
+        List<GrpcInterceptorProvider.OrderedGrpcInterceptor> interceptors = provider.getOrderedGrpcInterceptors();
         assertNotNull(interceptors);
         assertEquals(1, interceptors.size());
         assertEquals(10, interceptors.get(0).order());
@@ -32,12 +32,12 @@ public class GrpcInterceptorProviderTests extends OpenSearchTestCase {
     public void testProviderReturnsEmptyList() {
         GrpcInterceptorProvider provider = new GrpcInterceptorProvider() {
             @Override
-            public List<OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
+            public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
                 return Collections.emptyList();
             }
         };
 
-        List<OrderedGrpcInterceptor> interceptors = provider.getOrderedGrpcInterceptors();
+        List<GrpcInterceptorProvider.OrderedGrpcInterceptor> interceptors = provider.getOrderedGrpcInterceptors();
         assertNotNull(interceptors);
         assertTrue(interceptors.isEmpty());
     }
@@ -50,7 +50,7 @@ public class GrpcInterceptorProviderTests extends OpenSearchTestCase {
         }
 
         @Override
-        public List<OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
+        public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
             return Collections.singletonList(createTestInterceptor(order, "test-interceptor"));
         }
     }
@@ -58,8 +58,8 @@ public class GrpcInterceptorProviderTests extends OpenSearchTestCase {
     /**
      * Creates a test OrderedGrpcInterceptor
      */
-    private static OrderedGrpcInterceptor createTestInterceptor(int order, String name) {
-        return new OrderedGrpcInterceptor() {
+    private static GrpcInterceptorProvider.OrderedGrpcInterceptor createTestInterceptor(int order, String name) {
+        return new GrpcInterceptorProvider.OrderedGrpcInterceptor() {
             @Override
             public int order() {
                 return order;

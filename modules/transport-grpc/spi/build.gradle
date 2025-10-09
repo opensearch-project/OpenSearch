@@ -15,9 +15,9 @@ base {
 }
 
 dependencies {
-  api project(":server")
-  api "org.opensearch:protobufs:${versions.opensearchprotobufs}"
-  api "io.grpc:grpc-api:${versions.grpc}"
+  implementation project(":server")
+  implementation "org.opensearch:protobufs:${versions.opensearchprotobufs}"
+  implementation "io.grpc:grpc-api:${versions.grpc}"
 
   testImplementation project(":test:framework")
 }

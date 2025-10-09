@@ -35,17 +35,16 @@ Interface for providing gRPC interceptors that can intercept and process all inc
 ```java
 public interface GrpcInterceptorProvider {
     List<OrderedGrpcInterceptor> getOrderedGrpcInterceptors();
-}
-```
 
-#### OrderedGrpcInterceptor
-
-Interface for ordered gRPC interceptors. Interceptors are executed in order based on their `order()` value, with lower values executing first.
-
-```java
-public interface OrderedGrpcInterceptor {
-    int order();  // Lower values execute first (e.g., 10 before 20)
-    ServerInterceptor getInterceptor();
+    /**
+     * Nested interface for ordered gRPC interceptors.
+     * Interceptors are executed in order based on their order() value,
+     * with lower values executing first (e.g., 10 before 20).
+     */
+    interface OrderedGrpcInterceptor {
+        int order();  // Lower values execute first
+        ServerInterceptor getInterceptor();
+    }
 }
 ```
 
@@ -63,15 +62,23 @@ dependencies {
 }
 ```
 
-### 2. Declare Extension in Plugin Descriptor
+### 2. Declare Extension in build.gradle
 
-In your `plugin-descriptor.properties`, declare that your plugin extends transport-grpc:
+In your `build.gradle`, declare that your plugin extends `transport-grpc`. This automatically adds the `extended.plugins=transport-grpc` entry to the auto-generated `plugin-descriptor.properties` file:  :
 
-```properties
-extended.plugins=transport-grpc
+```groovy
+opensearchplugin {
+    name 'your-plugin-name'
+    description 'Your plugin description'
+    classname 'org.opensearch.yourplugin.YourPlugin'
+    extendedPlugins = ['transport-grpc']  // Declare extension here
+}
 ```
+**Real-world examples:**
+- [OpenSearch Reporting Plugin](https://github.com/opensearch-project/reporting/blob/main/build.gradle#L92)
+- [OpenSearch k-NN Plugin](https://github.com/opensearch-project/k-NN/blob/main/build.gradle#L319)
 
-### 2. Create SPI Registration File(s)
+### 3. Create SPI Registration File(s)
 
 Create a service file denoting your plugin's implementation of a service interface.
 
@@ -88,12 +95,6 @@ For `GrpcInterceptorProvider` implementations: `src/main/resources/META-INF/serv
 org.opensearch.mypackage.SampleInterceptorProvider
 ```
 
-
-### 3. Run SPI unit tests
-
-```bash
-./gradlew :modules:transport-grpc:spi:test
-```
 
 
 ## QueryBuilderProtoConverter
@@ -222,6 +223,14 @@ public class KNNQueryBuilderProtoConverter implements QueryBuilderProtoConverter
 ```
 
 
+## Testing
+
+### Unit Tests
+
+```bash
+./gradlew :modules:transport-grpc:spi:test
+```
+
 ### 4. Testing Your Custom Converter
 
 ```java
@@ -323,10 +332,10 @@ Intercept incoming gRPC requests for authentication, authorization, logging, met
 ```java
 public class SampleInterceptorProvider implements GrpcInterceptorProvider {
     @Override
-    public List<OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
+    public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
         return Arrays.asList(
             // First interceptor (order = 5, runs first)
-            new OrderedGrpcInterceptor() {
+            new GrpcInterceptorProvider.OrderedGrpcInterceptor() {
                 @Override
                 public int order() { return 5; } // Lower = higher priority
 
@@ -341,7 +350,7 @@ public class SampleInterceptorProvider implements GrpcInterceptorProvider {
             },
 
             // Second interceptor (order = 10, runs after first)
-            new OrderedGrpcInterceptor() {
+            new GrpcInterceptorProvider.OrderedGrpcInterceptor() {
                 @Override
                 public int order() { return 10; }
 
@@ -356,4 +365,22 @@ public class SampleInterceptorProvider implements GrpcInterceptorProvider {
         );
     }
 }
+```
+
+### Understanding Interceptor Ordering
+
+#### How Order Values Work
+
+Interceptors are executed based on their `order()` value. Lower order values execute first. The interceptor chain processes requests from lowest to highest order value.
+
+```
+Request → [order=5] → [order=10] → [order=100] → Service Handler
+```
+
+#### Duplicate Order Values
+
+Each interceptor must have a unique order value. If duplicate order values are detected, OpenSearch will fail to start with an `IllegalArgumentException`.
+```
+IllegalArgumentException: Multiple gRPC interceptors have the same order value: 10.
+Each interceptor must have a unique order value.
 ```

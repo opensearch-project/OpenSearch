@@ -9,7 +9,7 @@
 package org.opensearch.transport.grpc.interceptor;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.spi.OrderedGrpcInterceptor;
+import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInterceptor;
 import org.junit.Before;
 
 import java.util.ArrayList;
