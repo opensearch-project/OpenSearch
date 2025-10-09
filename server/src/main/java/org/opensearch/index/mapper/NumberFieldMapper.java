@@ -405,8 +405,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         query,
                         new ApproximatePointRangeQuery(
                             field,
-                            NumberType.HALF_FLOAT.encodePoint(l),
-                            NumberType.HALF_FLOAT.encodePoint(u),
+                            HalfFloatPoint.pack(l).bytes,
+                            HalfFloatPoint.pack(u).bytes,
                             APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.HALF_FLOAT_FORMAT
                         )
@@ -604,8 +604,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         query,
                         new ApproximatePointRangeQuery(
                             field,
-                            FloatPoint.pack(new float[] { l }).bytes,
-                            FloatPoint.pack(new float[] { u }).bytes,
+                            FloatPoint.pack(l).bytes,
+                            FloatPoint.pack(u).bytes,
                             APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.FLOAT_FORMAT
                         )
@@ -778,8 +778,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             query,
                             new ApproximatePointRangeQuery(
                                 field,
-                                DoublePoint.pack(new double[] { l }).bytes,
-                                DoublePoint.pack(new double[] { u }).bytes,
+                                DoublePoint.pack(l).bytes,
+                                DoublePoint.pack(u).bytes,
                                 APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.DOUBLE_FORMAT
                             )
@@ -1228,8 +1228,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         query,
                         new ApproximatePointRangeQuery(
                             field,
-                            IntPoint.pack(new int[] { l }).bytes,
-                            IntPoint.pack(new int[] { u }).bytes,
+                            IntPoint.pack(l).bytes,
+                            IntPoint.pack(u).bytes,
                             APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.INT_FORMAT
                         )
@@ -1396,8 +1396,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             query,
                             new ApproximatePointRangeQuery(
                                 field,
-                                LongPoint.pack(new long[] { l }).bytes,
-                                LongPoint.pack(new long[] { u }).bytes,
+                                LongPoint.pack(l).bytes,
+                                LongPoint.pack(u).bytes,
                                 APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.LONG_FORMAT
                             )
@@ -1555,8 +1555,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             query,
                             new ApproximatePointRangeQuery(
                                 field,
-                                NumberType.UNSIGNED_LONG.encodePoint(l),
-                                NumberType.UNSIGNED_LONG.encodePoint(u),
+                                BigIntegerPoint.pack(l).bytes,
+                                BigIntegerPoint.pack(u).bytes,
                                 APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.UNSIGNED_LONG_FORMAT
                             )
@@ -2136,39 +2136,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        XContentParser parser = context.parser();
-        Object value;
-        Number numericValue = null;
-        if (context.externalValueSet()) {
-            value = context.externalValue();
-        } else if (parser.currentToken() == Token.VALUE_NULL) {
-            value = null;
-        } else if (coerce.value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
-            value = null;
-        } else {
-            try {
-                numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
-                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
-                    context.addIgnoredField(mappedFieldType.name());
-                    return;
-                } else {
-                    throw e;
-                }
-            }
-            value = numericValue;
-        }
-
-        if (value == null) {
-            value = nullValue;
-        }
-
-        if (value == null) {
-            return;
-        }
-
+        Number numericValue = getFieldValue(context);
         if (numericValue == null) {
-            numericValue = fieldType().type.parse(value, coerce.value());
+            return;
         }
 
         context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, skiplist, stored));
@@ -2176,6 +2146,36 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         if (hasDocValues == false && (stored || indexed)) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected Number getFieldValue(ParseContext context) throws IOException {
+        XContentParser parser = context.parser();
+        Number value;
+        if (context.externalValueSet()) {
+            return fieldType().type.parse(context.externalValue(), coerce.value());
+        } else if (parser.currentToken() == Token.VALUE_NULL) {
+            value = nullValue;
+        } else if (coerce.value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
+            value = nullValue;
+        } else {
+            try {
+                value = fieldType().type.parse(parser, coerce.value());
+            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
+                    context.addIgnoredField(mappedFieldType.name());
+                    return null;
+                } else {
+                    throw e;
+                }
+            }
+        }
+
+        if (value == null) {
+            return nullValue;
+        }
+
+        return value;
     }
 
     @Override

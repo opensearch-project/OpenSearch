@@ -679,7 +679,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 final String propName = entry.getKey();
                 final Object propNode = entry.getValue();
-                if (Objects.equals("fields", propName)) {
+                if (Objects.equals("fields", propName) && !name.equals(ContextAwareGroupingFieldMapper.CONTENT_TYPE)) {
                     TypeParsers.parseMultiField(multiFieldsBuilder::add, name, parserContext, propName, propNode);
                     iterator.remove();
                     continue;

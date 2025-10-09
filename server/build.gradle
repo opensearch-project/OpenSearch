@@ -38,6 +38,7 @@ plugins {
   id('opensearch.internal-cluster-test')
   id('opensearch.optional-dependencies')
   id('me.champeau.gradle.japicmp') version '0.4.6'
+  id 'test-report-aggregation'
 }
 
 apply from: "$rootDir/gradle/fips.gradle"
@@ -98,11 +99,6 @@ dependencies {
   api libs.log4japi
   api libs.log4jjul
   api libs.log4jcore, optional
-
-  compileOnly "com.github.spotbugs:spotbugs-annotations:${versions.spotbugs_annotations}"
-  compileOnly "org.jspecify:jspecify:1.0.0"
-  api "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
-
   annotationProcessor libs.log4jcore
   annotationProcessor project(':libs:opensearch-common')
 
@@ -370,8 +366,48 @@ tasks.named("dependencyLicenses").configure {
     }.files
 }
 
+if (System.getProperty("moduletests.coverage")) {
+  reporting {
+    reports {
+      testAggregateTestReport(AggregateTestReport) {
+        testSuiteName = "test"
+      }
+    }
+  }
+  tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
+    dependsOn tasks.named('testAggregateTestReport')
+  }
+}
 tasks.named("filepermissions").configure {
   mustRunAfter("generateProto")
+}
+
+if (System.getProperty("moduletests.coverage")) {
+  plugins.withId('jacoco') {
+    tasks.register('testCodeCoverageReport', JacocoReport) {
+      dependsOn tasks.named('test')
+      executionData fileTree(buildDir.absolutePath + "/jacoco").include("test.exec")
+      sourceDirectories.setFrom files(project(':server').sourceSets.main.allSource.srcDirs)
+      classDirectories.setFrom(files(sourceSets.main.output).filter { it.exists() })
+      reports {
+        xml.required = true
+      }
+    }
+
+    tasks.register('testCodeCoverageReportInternalClusterTest', JacocoReport) {
+      dependsOn tasks.named('internalClusterTest')
+      executionData fileTree(buildDir.absolutePath + "/jacoco").include("internalClusterTest.exec")
+      classDirectories.setFrom(files(sourceSets.main.output).filter { it.exists() })
+
+      reports {
+        xml.required = true
+      }
+    }
+
+    tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
+      dependsOn (tasks.named('testCodeCoverageReport'), tasks.named('testCodeCoverageReportInternalClusterTest'))
+    }
+  }
 }
 
 tasks.named("licenseHeaders").configure {

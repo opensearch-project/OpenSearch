@@ -25,7 +25,7 @@ import java.util.List;
  * This class provides methods to transform Protocol Buffer representations of terms queries
  * into their corresponding OpenSearch TermsQueryBuilder implementations for search operations.
  */
-public class TermsQueryBuilderProtoUtils {
+class TermsQueryBuilderProtoUtils {
 
     private TermsQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -42,7 +42,7 @@ public class TermsQueryBuilderProtoUtils {
      * @return A configured TermQueryBuilder instance
      * @throws IllegalArgumentException if the terms query is invalid or missing required fields
      */
-    public static TermsQueryBuilder fromProto(org.opensearch.protobufs.TermsQuery termsQueryProto) {
+    static TermsQueryBuilder fromProto(org.opensearch.protobufs.TermsQuery termsQueryProto) {
         if (termsQueryProto == null) {
             throw new IllegalArgumentException("TermsQuery must not be null");
         }
@@ -83,7 +83,7 @@ public class TermsQueryBuilderProtoUtils {
      * @return A configured TermQueryBuilder instance
      * @throws IllegalArgumentException if the term query field value is not recognized
      */
-    protected static TermsQueryBuilder fromProto(TermsQueryField termsQueryProto) {
+    static TermsQueryBuilder fromProto(TermsQueryField termsQueryProto) {
         String fieldName = null;
         List<Object> values = null;
         TermsLookup termsLookup = null;
@@ -124,7 +124,7 @@ public class TermsQueryBuilderProtoUtils {
      * @return configured TermsQueryBuilder
      * @throws IllegalArgumentException if neither values nor lookup is set, or if bitmap validation fails
      */
-    protected static TermsQueryBuilder fromProto(
+    static TermsQueryBuilder fromProto(
         String fieldName,
         org.opensearch.protobufs.TermsQueryField termsQueryField,
         org.opensearch.protobufs.TermsQueryValueType valueTypeProto

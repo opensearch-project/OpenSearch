@@ -21,7 +21,6 @@ import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rule.action.GetRuleAction;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
-import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.transport.client.node.NodeClient;
 
@@ -67,7 +66,7 @@ public class RestGetRuleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        final Map<Attribute, Set<String>> attributeFilters = new HashMap<>();
+        final Map<String, Set<String>> attributeFilters = new HashMap<>();
 
         if (!request.hasParam(FEATURE_TYPE)) {
             throw new IllegalArgumentException("Invalid route.");
@@ -77,14 +76,10 @@ public class RestGetRuleAction extends BaseRestHandler {
         final List<String> attributeParams = request.params()
             .keySet()
             .stream()
-            .filter(key -> featureType.getAllowedAttributesRegistry().containsKey(key))
+            .filter(key -> featureType.getAllowedAttributesRegistry().containsKey(key.split("\\.", 2)[0]))
             .toList();
         for (String attributeName : attributeParams) {
-            Attribute attribute = featureType.getAttributeFromName(attributeName);
-            if (attribute == null) {
-                throw new IllegalArgumentException(attributeName + " is not a valid attribute under feature type " + featureType.getName());
-            }
-            attributeFilters.put(attribute, parseAttributeValues(request.param(attributeName), attributeName, featureType));
+            attributeFilters.put(attributeName, parseAttributeValues(request.param(attributeName), attributeName, featureType));
         }
         final GetRuleRequest getRuleRequest = new GetRuleRequest(
             request.param(ID_STRING),

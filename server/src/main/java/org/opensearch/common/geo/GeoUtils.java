@@ -78,6 +78,10 @@ public class GeoUtils {
 
     public static final String GEOJSON_TYPE = "type";
     public static final String GEOJSON_COORDS = "coordinates";
+
+    /**  Error messages for WKT parsing */
+    public static final String WKT_BOUNDING_BOX_PARSE_ERROR = "failed to parse WKT bounding box";
+    public static final String WKT_BOUNDING_BOX_TYPE_ERROR = "failed to parse WKT bounding box. [%s] found. expected [%s]";
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
 
