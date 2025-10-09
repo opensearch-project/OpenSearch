@@ -352,7 +352,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      */
     private void setPreferPrimaryShardBalance(boolean preferPrimaryShardBalance) {
         this.preferPrimaryShardBalance = preferPrimaryShardBalance;
-        this.weightFunction.updatePrimaryShardBalanceConstraints(preferPrimaryShardBalance);
+        this.weightFunction.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
+        this.weightFunction.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
+        this.weightFunction.updateRebalanceConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
     }
 
     private void setPreferPrimaryShardRebalance(boolean preferPrimaryShardRebalance) {
@@ -574,7 +576,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.rebalanceConstraints = new RebalanceConstraints(rebalanceParameter);
             // Enable index shard per node breach constraint
             updateAllocationConstraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, true);
-            updatePrimaryShardBalanceConstraints(preferPrimaryShardBalance);
+            updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
+            updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
+            updateRebalanceConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
             updateRebalanceConstraint(CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID, preferPrimaryShardRebalance);
         }
 
