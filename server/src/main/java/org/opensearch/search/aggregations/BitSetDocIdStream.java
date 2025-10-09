@@ -8,12 +8,12 @@
 
 package org.opensearch.search.aggregations;
 
-import java.io.IOException;
-
 import org.apache.lucene.search.CheckedIntConsumer;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.MathUtil;
+
+import java.io.IOException;
 
 /**
  * DocIdStream implementation using FixedBitSet. This is duplicate of the implementation in Lucene
@@ -59,4 +59,3 @@ public final class BitSetDocIdStream extends DocIdStream {
         }
     }
 }
-

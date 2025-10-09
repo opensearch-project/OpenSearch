@@ -24,8 +24,6 @@ import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-
 /**
  * Range collector implementation that supports sub-aggregations by collecting doc IDs.
  */
