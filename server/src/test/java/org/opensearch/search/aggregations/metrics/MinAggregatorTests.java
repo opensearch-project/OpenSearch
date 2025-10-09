@@ -777,4 +777,62 @@ public class MinAggregatorTests extends AggregatorTestCase {
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
         return new MinAggregationBuilder("foo").field(fieldName);
     }
+
+    public void testStreamingCostMetrics() throws IOException {
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        indexWriter.addDocument(singleton(new NumericDocValuesField("value", 1)));
+        indexWriter.close();
+
+        IndexReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("value");
+
+        MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+
+        // Test streaming cost metrics
+        org.opensearch.search.streaming.StreamingCostMetrics metrics = aggregator.getStreamingCostMetrics();
+        assertNotNull(metrics);
+        assertTrue("MinAggregator should be streamable", metrics.streamable());
+        assertEquals(1, metrics.topNSize());
+        assertEquals(1, metrics.estimatedBucketCount());
+        assertEquals(1, metrics.segmentCount());
+        assertEquals(1, metrics.estimatedDocCount());
+
+        indexReader.close();
+        directory.close();
+    }
+
+    public void testDoReset() throws IOException {
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        indexWriter.addDocument(singleton(new NumericDocValuesField("value", 5)));
+        indexWriter.addDocument(singleton(new NumericDocValuesField("value", 10)));
+        indexWriter.close();
+
+        IndexReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("value");
+
+        MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+
+        InternalMin result1 = (InternalMin) aggregator.buildAggregation(0L);
+        assertEquals(5.0, result1.getValue(), 0);
+
+        aggregator.doReset();
+
+        InternalMin result2 = (InternalMin) aggregator.buildAggregation(0L);
+        assertEquals(Double.POSITIVE_INFINITY, result2.getValue(), 0);
+
+        indexReader.close();
+        directory.close();
+    }
 }

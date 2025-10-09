@@ -170,7 +170,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
                 public void trimUnreferencedTranslogFiles() throws TranslogException {
                     final Store store = engineConfig.getStore();
                     store.incRef();
-                    try (ReleasableLock ignored = readLock.acquire()) {
+                    try (ReleasableLock ignored = writeLock.acquire()) {
                         ensureOpen();
                         final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
                         if (commits.size() == 1 && translogStats.getTranslogSizeInBytes() > translogStats.getUncommittedSizeInBytes()) {
