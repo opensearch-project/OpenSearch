@@ -32,8 +32,8 @@ public class RuleAttributeTests extends OpenSearchTestCase {
         assertThrows(IllegalArgumentException.class, () -> RuleAttribute.fromName("invalid_attribute"));
     }
 
-    public void testGetPrioritizedSubfields() {
-        assertTrue(RuleAttribute.INDEX_PATTERN.getPrioritizedSubfields().isEmpty());
+    public void testGetWeightedSubfields() {
+        assertTrue(RuleAttribute.INDEX_PATTERN.getWeightedSubfields().isEmpty());
     }
 
     public void testFromXContentParseAttributeValues_success() throws IOException {
