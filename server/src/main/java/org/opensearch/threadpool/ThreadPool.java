@@ -941,7 +941,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     resolvedType = ThreadPoolType.fromType(typeStr);
                 } catch (IllegalArgumentException e) {
                     // Only fallback for older versions
-                    if (in.getVersion().onOrBefore(Version.V_3_2_0)) { // replace with correct version where ForkJoin was introduced
+                    if (in.getVersion().onOrBefore(Version.V_3_3_0)) { // ForkJoinPool Introduced in 3.4.0 onwards
                         resolvedType = ThreadPoolType.FIXED;
                     } else {
                         throw new IllegalArgumentException(
@@ -969,7 +969,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 // Opensearch on older version doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
                 // to avoid serialization/de-serization issue between nodes with different OpenSearch version
                 out.writeString(ThreadPoolType.FIXED.getType());
-            } else if (type == ThreadPoolType.FORK_JOIN && out.getVersion().before(Version.V_3_2_0)) {
+            } else if (type == ThreadPoolType.FORK_JOIN && out.getVersion().before(Version.V_3_4_0)) {
                 // Opensearch on older version doesn't know about "fork_join" thread pool. Convert FORK_JOIN to FIXED
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else {

@@ -30,63 +30,90 @@ import java.util.concurrent.ForkJoinWorkerThread;
  */
 public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinPoolExecutorBuilder.ForkJoinPoolExecutorSettings> {
 
+    // Mandatory: parallelism, must be >= 1
     private final Setting<Integer> parallelismSetting;
+    // Optional settings
+    private final Setting<Boolean> asyncModeSetting;
+    private final Setting<String> threadFactorySetting;
+    private final Setting<Boolean> enableExceptionHandlingSetting;
+
     // Logger for uncaught exception handler
     private static final Logger logger = LogManager.getLogger(ForkJoinPoolExecutorBuilder.class);
 
-    /**
-     * Construct a ForkJoinPool executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
-     *
-     * @param name        the name of the executor
-     * @param parallelism the target parallelism level (number of worker threads)
-     */
     public ForkJoinPoolExecutorBuilder(final String name, final int parallelism) {
         this(name, parallelism, "thread_pool." + name);
     }
 
-    /**
-     * Construct a ForkJoinPool executor builder with a custom settings prefix.
-     *
-     * @param name        the name of the executor
-     * @param parallelism the target parallelism level (number of worker threads)
-     * @param prefix      the prefix for the settings keys
-     */
     public ForkJoinPoolExecutorBuilder(final String name, final int parallelism, final String prefix) {
         super(name);
         this.parallelismSetting = Setting.intSetting(
             settingsKey(prefix, "parallelism"),
             parallelism,
-            1, // minimum value allowed
+            1, // Enforce minimum of 1 (non-zero)
+            Setting.Property.NodeScope
+        );
+        this.asyncModeSetting = Setting.boolSetting(settingsKey(prefix, "async_mode"), false, Setting.Property.NodeScope);
+        this.threadFactorySetting = Setting.simpleString(settingsKey(prefix, "thread_factory"), "", Setting.Property.NodeScope);
+        this.enableExceptionHandlingSetting = Setting.boolSetting(
+            settingsKey(prefix, "enable_exception_handling"),
+            true,
             Setting.Property.NodeScope
         );
     }
 
     @Override
     public List<Setting<?>> getRegisteredSettings() {
-        return Arrays.asList(parallelismSetting);
+        return Arrays.asList(parallelismSetting, asyncModeSetting, threadFactorySetting, enableExceptionHandlingSetting);
     }
 
     @Override
     ForkJoinPoolExecutorSettings getSettings(Settings settings) {
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
-        final int parallelism = parallelismSetting.get(settings);
-        return new ForkJoinPoolExecutorSettings(nodeName, parallelism);
+        final int parallelism = parallelismSetting.get(settings); // always >= 1
+        final boolean asyncMode = asyncModeSetting.get(settings); // optional, default false
+        final String threadFactoryClassName = threadFactorySetting.get(settings); // optional, default ""
+        final boolean enableExceptionHandling = enableExceptionHandlingSetting.get(settings); // optional, default true
+        return new ForkJoinPoolExecutorSettings(nodeName, parallelism, asyncMode, threadFactoryClassName, enableExceptionHandling);
     }
 
     @Override
     ThreadPool.ExecutorHolder build(final ForkJoinPoolExecutorSettings settings, final ThreadContext threadContext) {
         int parallelism = settings.parallelism;
-        ForkJoinWorkerThreadFactory factory = pool -> {
-            ForkJoinWorkerThread worker = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
-            worker.setName(OpenSearchExecutors.threadName(settings.nodeName, name()));
-            return worker;
-        };
-        // Default uncaught exception handler for ForkJoinPool threads
-        Thread.UncaughtExceptionHandler exceptionHandler = (thread, throwable) -> {
-            // Log the exception so it is not silently ignored
-            logger.error("Uncaught exception in ForkJoinPool thread [" + thread.getName() + "]", throwable);
-        };
-        final ForkJoinPool executor = new ForkJoinPool(parallelism, factory, exceptionHandler, false);
+        boolean asyncMode = settings.asyncMode;
+        String threadFactoryClassName = settings.threadFactoryClassName;
+        boolean enableExceptionHandling = settings.enableExceptionHandling;
+
+        ForkJoinWorkerThreadFactory factory;
+        if (threadFactoryClassName != null && !threadFactoryClassName.isEmpty()) {
+            // Try to instantiate a custom thread factory by class name (must implement ForkJoinWorkerThreadFactory)
+            try {
+                Class<?> clazz = Class.forName(threadFactoryClassName);
+                factory = (ForkJoinWorkerThreadFactory) clazz.getDeclaredConstructor().newInstance();
+            } catch (Exception e) {
+                logger.warn(
+                    "Unable to instantiate custom ForkJoinWorkerThreadFactory '{}', using default. Error: {}",
+                    threadFactoryClassName,
+                    e.toString()
+                );
+                factory = pool -> {
+                    ForkJoinWorkerThread worker = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
+                    worker.setName(OpenSearchExecutors.threadName(settings.nodeName, name()));
+                    return worker;
+                };
+            }
+        } else {
+            factory = pool -> {
+                ForkJoinWorkerThread worker = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
+                worker.setName(OpenSearchExecutors.threadName(settings.nodeName, name()));
+                return worker;
+            };
+        }
+
+        Thread.UncaughtExceptionHandler exceptionHandler = enableExceptionHandling
+            ? (thread, throwable) -> logger.error("Uncaught exception in ForkJoinPool thread [" + thread.getName() + "]", throwable)
+            : null;
+
+        final ForkJoinPool executor = new ForkJoinPool(parallelism, factory, exceptionHandler, asyncMode);
 
         final ThreadPool.Info info = new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.FORK_JOIN, parallelism, parallelism, null, null);
         return new ThreadPool.ExecutorHolder(executor, info);
@@ -99,10 +126,22 @@ public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinP
 
     static class ForkJoinPoolExecutorSettings extends ExecutorBuilder.ExecutorSettings {
         private final int parallelism;
+        private final boolean asyncMode;
+        private final String threadFactoryClassName;
+        private final boolean enableExceptionHandling;
 
-        ForkJoinPoolExecutorSettings(final String nodeName, final int parallelism) {
+        ForkJoinPoolExecutorSettings(
+            final String nodeName,
+            final int parallelism,
+            final boolean asyncMode,
+            final String threadFactoryClassName,
+            final boolean enableExceptionHandling
+        ) {
             super(nodeName);
             this.parallelism = parallelism;
+            this.asyncMode = asyncMode;
+            this.threadFactoryClassName = threadFactoryClassName;
+            this.enableExceptionHandling = enableExceptionHandling;
         }
     }
 }
