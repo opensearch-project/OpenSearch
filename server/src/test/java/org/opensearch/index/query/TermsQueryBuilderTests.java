@@ -505,6 +505,15 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         complement = queryBuilder.getComplement(createShardContext(searcher));
         assertEquals(complement, expectedComplement);
 
+        // Test multiple consecutive values
+        queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, List.of("1", "2", "3"));
+        complement = queryBuilder.getComplement(createShardContext(searcher));
+        expectedComplement = List.of(
+            new RangeQueryBuilder(INT_FIELD_NAME).to(1).includeLower(true).includeUpper(false),
+            new RangeQueryBuilder(INT_FIELD_NAME).from(3).includeLower(false).includeUpper(true)
+        );
+        assertEquals(complement, expectedComplement);
+
         // If zero values, we should get null
         queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, List.of());
         complement = queryBuilder.getComplement(createShardContext(searcher));
