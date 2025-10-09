@@ -596,6 +596,7 @@ public abstract class SearchContext implements Releasable {
     public int getStreamingBatchSize() {
         return 10;
     }
+
     /**
      * Gets the resolved flush mode for this search context.
      */

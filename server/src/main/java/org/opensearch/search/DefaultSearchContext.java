@@ -1310,6 +1310,8 @@ final class DefaultSearchContext extends SearchContext {
     public int getStreamingBatchSize() {
         // Return fixed default for streaming batch size
         return 10;
+    }
+
     /**
      * Disables streaming for this search context.
      * Used when streaming cost analysis determines traditional processing is more efficient.
