@@ -281,7 +281,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<Boolean> QUERY_REWRITING_ENABLED_SETTING = Setting.boolSetting(
         "search.query_rewriting.enabled",
-        true,
+        false,
         Property.Dynamic,
         Property.NodeScope
     );
