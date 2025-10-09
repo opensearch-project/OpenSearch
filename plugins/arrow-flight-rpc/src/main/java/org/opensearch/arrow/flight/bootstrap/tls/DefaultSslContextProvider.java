@@ -8,6 +8,8 @@
 
 package org.opensearch.arrow.flight.bootstrap.tls;
 
+import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 
 import javax.net.ssl.SSLException;
@@ -21,6 +23,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
 import io.netty.handler.ssl.SupportedCipherSuiteFilter;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 /**
  * DefaultSslContextProvider is an implementation of the SslContextProvider interface that provides SSL contexts based on the provided SecureTransportSettingsProvider.
@@ -28,13 +31,16 @@ import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 public class DefaultSslContextProvider implements SslContextProvider {
 
     private final SecureTransportSettingsProvider secureTransportSettingsProvider;
+    private final Settings settings;
 
     /**
      * Constructor for DefaultSslContextProvider.
      * @param secureTransportSettingsProvider The SecureTransportSettingsProvider instance.
+     * @param settings The cluster settings.
      */
-    public DefaultSslContextProvider(SecureTransportSettingsProvider secureTransportSettingsProvider) {
+    public DefaultSslContextProvider(SecureTransportSettingsProvider secureTransportSettingsProvider, Settings settings) {
         this.secureTransportSettingsProvider = secureTransportSettingsProvider;
+        this.settings = settings;
     }
 
     // TODO - handle certificates reload
@@ -79,6 +85,7 @@ public class DefaultSslContextProvider implements SslContextProvider {
     public SslContext getClientSslContext() {
         try {
             SecureTransportSettingsProvider.SecureTransportParameters parameters = secureTransportSettingsProvider.parameters(null).get();
+
             return SslContextBuilder.forClient()
                 .sslProvider(SslProvider.valueOf(parameters.sslProvider().get().toUpperCase(Locale.ROOT)))
                 .protocols(parameters.protocols())
@@ -95,7 +102,11 @@ public class DefaultSslContextProvider implements SslContextProvider {
                 .sessionCacheSize(0)
                 .sessionTimeout(0)
                 .keyManager(parameters.keyManagerFactory().get())
-                .trustManager(parameters.trustManagerFactory().get())
+                .trustManager(
+                    NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION.get(settings)
+                        ? parameters.trustManagerFactory().get()
+                        : InsecureTrustManagerFactory.INSTANCE
+                )
                 .build();
         } catch (SSLException e) {
             throw new RuntimeException(e);
