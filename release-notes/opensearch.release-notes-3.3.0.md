@@ -53,6 +53,7 @@ Compatible with OpenSearch and OpenSearch Dashboards version 3.3.0
 * Harden the circuit breaker and failure handle logic in query result consumer ([#19396](https://github.com/opensearch-project/OpenSearch/pull/19396))
 * Add streaming cardinality aggregator ([#19484](https://github.com/opensearch-project/OpenSearch/pull/19484))
 * Disable request cache for streaming aggregation queries ([#19520](https://github.com/opensearch-project/OpenSearch/pull/19520))
+* [WLM] add a check to stop workload group deletion having rules ([#19502](https://github.com/opensearch-project/OpenSearch/pull/19502))
 
 ### Changed
 * Refactor `if-else` chains to use `Java 17 pattern matching switch expressions` ([#18965](https://github.com/opensearch-project/OpenSearch/pull/18965))
