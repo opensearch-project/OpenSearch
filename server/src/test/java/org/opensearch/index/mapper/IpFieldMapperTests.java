@@ -269,6 +269,32 @@ public class IpFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testWithContextAwareGroupingMapper() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            contextAwareGrouping("field").accept(b);
+            properties(x -> {
+                x.startObject("field");
+                minimalMapping(x);
+                b.endObject();
+            }).accept(b);
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "127.0.0.1")));
+
+        // Assert date field
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.length);
+        IndexableField pointFieldAndDVField = fields[0];
+        assertEquals(1, pointFieldAndDVField.fieldType().pointIndexDimensionCount());
+        assertEquals(16, pointFieldAndDVField.fieldType().pointNumBytes());
+        assertFalse(pointFieldAndDVField.fieldType().stored());
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))), pointFieldAndDVField.binaryValue());
+        assertEquals(DocValuesType.SORTED_SET, pointFieldAndDVField.fieldType().docValuesType());
+
+        // Assert grouping criteria is correct
+        assertEquals("/127.0.0.1", doc.docs().getFirst().getGroupingCriteria());
+    }
+
     private IpFieldMapper getMapper(FieldMapper.CopyTo copyTo, boolean hasDocValues, boolean isStored) throws IOException {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "ip").field("store", isStored).field("doc_values", hasDocValues))

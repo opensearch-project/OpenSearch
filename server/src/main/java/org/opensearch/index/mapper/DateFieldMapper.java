@@ -814,18 +814,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String dateAsString;
-        if (context.externalValueSet()) {
-            Object dateAsObject = context.externalValue();
-            if (dateAsObject == null) {
-                dateAsString = null;
-            } else {
-                dateAsString = dateAsObject.toString();
-            }
-        } else {
-            dateAsString = context.parser().textOrNull();
-        }
-
+        String dateAsString = getFieldValue(context);
         long timestamp;
         if (dateAsString == null) {
             if (nullValue == null) {
@@ -873,6 +862,20 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         }
         return false;
+    }
+
+    @Override
+    protected String getFieldValue(ParseContext context) throws IOException {
+        if (context.externalValueSet()) {
+            Object dateAsObject = context.externalValue();
+            if (dateAsObject == null) {
+                return null;
+            } else {
+                return dateAsObject.toString();
+            }
+        } else {
+            return context.parser().textOrNull();
+        }
     }
 
     public Long getNullValue() {
