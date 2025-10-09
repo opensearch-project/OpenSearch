@@ -53,7 +53,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import io.grpc.BindableService;
-import io.grpc.ServerInterceptor;
 
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
@@ -85,7 +84,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
     private QueryBuilderProtoConverterRegistryImpl queryRegistry;
     private AbstractQueryBuilderProtoUtils queryUtils;
-    private ServerInterceptor serverInterceptor = new GrpcInterceptorChain(Collections.emptyList());
+    private GrpcInterceptorChain serverInterceptor = new GrpcInterceptorChain();
 
     /**
      * Creates a new GrpcPlugin instance.
@@ -147,7 +146,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             if (!orderedList.isEmpty()) {
                 // Create a single chain interceptor that manages the execution
                 // This ensures proper ordering and exception handling
-                serverInterceptor = new GrpcInterceptorChain(orderedList);
+                serverInterceptor.addInterceptors(orderedList);
 
                 logger.info("Loaded {} gRPC interceptors into chain", orderedList.size());
             }

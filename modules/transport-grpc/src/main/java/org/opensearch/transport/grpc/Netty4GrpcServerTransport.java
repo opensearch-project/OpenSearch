@@ -275,7 +275,7 @@ public class Netty4GrpcServerTransport extends AuxTransport {
         NetworkService networkService,
         ThreadPool threadPool
     ) {
-        this(settings, services, networkService, threadPool, new GrpcInterceptorChain(emptyList()));
+        this(settings, services, networkService, threadPool, new GrpcInterceptorChain());
     }
 
     /**

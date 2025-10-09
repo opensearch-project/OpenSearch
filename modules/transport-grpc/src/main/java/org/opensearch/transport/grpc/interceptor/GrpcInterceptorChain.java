@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.transport.grpc.spi.OrderedGrpcInterceptor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,14 +33,27 @@ public class GrpcInterceptorChain implements ServerInterceptor {
     private static final ServerCall.Listener<Object> EMPTY_LISTENER = new ServerCall.Listener<>() {
     };
 
-    private final List<OrderedGrpcInterceptor> interceptors;
+    private final List<OrderedGrpcInterceptor> interceptors = new ArrayList<>();
+
+    /**
+     * Constructs an empty GrpcInterceptorChain.
+     */
+    public GrpcInterceptorChain() {}
 
     /**
      * Constructs a GrpcInterceptorChain with the provided list of ordered interceptors.
      * @param interceptors List of OrderedGrpcInterceptor instances to be applied in order
      */
     public GrpcInterceptorChain(List<OrderedGrpcInterceptor> interceptors) {
-        this.interceptors = Objects.requireNonNull(interceptors);
+        this.interceptors.addAll(Objects.requireNonNull(interceptors));
+    }
+
+    /**
+     * Adds interceptors to the chain.
+     * @param interceptors List of OrderedGrpcInterceptor instances to be added
+     */
+    public void addInterceptors(List<OrderedGrpcInterceptor> interceptors) {
+        this.interceptors.addAll(Objects.requireNonNull(interceptors));
     }
 
     /**
