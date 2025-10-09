@@ -14,8 +14,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fixed
 - Fix flaky test FieldDataLoadingIT.testIndicesFieldDataCacheSizeSetting ([#19571](https://github.com/opensearch-project/OpenSearch/pull/19571))
-- Fix incorrect rewriting of terms query with more than 2 consecutive whole numbers
-  ([#19587](https://github.com/opensearch-project/OpenSearch/pull/19587))
 - Fix case-insensitive wildcard + aggregation query crash ([#19489](https://github.com/opensearch-project/OpenSearch/pull/19489))
 
 ### Dependencies
