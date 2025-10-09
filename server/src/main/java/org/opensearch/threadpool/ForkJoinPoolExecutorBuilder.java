@@ -88,7 +88,7 @@ public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinP
             // Try to instantiate a custom thread factory by class name (must implement ForkJoinWorkerThreadFactory)
             try {
                 Class<?> clazz = Class.forName(threadFactoryClassName);
-                factory = (ForkJoinWorkerThreadFactory) clazz.getDeclaredConstructor().newInstance();
+                factory = (ForkJoinWorkerThreadFactory) clazz.getConstructor().newInstance();
             } catch (Exception e) {
                 logger.warn(
                     "Unable to instantiate custom ForkJoinWorkerThreadFactory '{}', using default. Error: {}",
