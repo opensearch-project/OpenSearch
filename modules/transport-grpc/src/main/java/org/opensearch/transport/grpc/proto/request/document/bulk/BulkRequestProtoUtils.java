@@ -19,7 +19,15 @@ import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProt
 import org.opensearch.transport.grpc.proto.request.common.RefreshProtoUtils;
 
 /**
- * Handler for bulk requests in gRPC.
+ * Utility class for converting protobuf BulkRequest to OpenSearch BulkRequest.
+ * <p>
+ * This class provides functionality similar to the REST layer's bulk request processing.
+ * The parameter mapping and processing logic should be kept consistent with the corresponding
+ * REST implementation to ensure feature parity between gRPC and HTTP APIs.
+ *
+ * @see org.opensearch.rest.action.document.RestBulkAction#prepareRequest(RestRequest, NodeClient) REST equivalent for parameter processing
+ * @see org.opensearch.action.bulk.BulkRequest OpenSearch internal bulk request representation
+ * @see org.opensearch.protobufs.BulkRequest Protobuf definition for gRPC bulk requests
  */
 public class BulkRequestProtoUtils {
     // protected final Settings settings;
@@ -32,12 +40,15 @@ public class BulkRequestProtoUtils {
     }
 
     /**
-     * Prepare the request for execution.
-     * Similar to {@link RestBulkAction#prepareRequest(RestRequest, NodeClient)}
-     * Please ensure to keep both implementations consistent.
+     * Converts a protobuf BulkRequest to an OpenSearch BulkRequest.
+     * <p>
+     * This method processes bulk request parameters and prepares the request for execution,
+     * similar to {@link RestBulkAction#prepareRequest(RestRequest, NodeClient)}.
+     * Please ensure to keep both implementations consistent for feature parity.
      *
-     * @param request the request to execute
-     * @return a future of the bulk action that was executed
+     * @param request the protobuf bulk request to convert
+     * @return the corresponding OpenSearch BulkRequest ready for execution
+     * @see org.opensearch.rest.action.document.RestBulkAction#prepareRequest(RestRequest, NodeClient) REST equivalent
      */
     public static org.opensearch.action.bulk.BulkRequest prepareRequest(BulkRequest request) {
         org.opensearch.action.bulk.BulkRequest bulkRequest = Requests.bulkRequest();
