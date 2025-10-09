@@ -609,12 +609,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         void updatePrimaryConstraintThreshold(long primaryConstraintThreshold) {
             this.primaryConstraintThreshold = primaryConstraintThreshold;
         }
-
-        void updatePrimaryShardBalanceConstraints(boolean preferPrimaryShardBalance) {
-            updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
-            updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
-            updateRebalanceConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
-        }
     }
 
     /**
