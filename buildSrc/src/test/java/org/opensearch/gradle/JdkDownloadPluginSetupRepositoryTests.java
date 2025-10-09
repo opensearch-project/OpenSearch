@@ -8,6 +8,7 @@
 
 package org.opensearch.gradle;
 
+import org.gradle.api.internal.artifacts.repositories.descriptor.IvyRepositoryDescriptor;
 import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Project;
 import org.gradle.api.internal.artifacts.repositories.DefaultIvyArtifactRepository;
@@ -17,6 +18,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.net.URI;
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -177,9 +180,22 @@ public class JdkDownloadPluginSetupRepositoryTests extends GradleUnitTestCase {
     @SuppressWarnings("unchecked")
     private String getPattern(DefaultIvyArtifactRepository input) throws NoSuchFieldException, IllegalAccessException {
         DefaultIvyPatternRepositoryLayout layout = (DefaultIvyPatternRepositoryLayout) input.getRepositoryLayout();
-        Field f = DefaultIvyPatternRepositoryLayout.class.getDeclaredField("artifactPatterns");
-        f.setAccessible(true);
-        Set<String> patterns = (Set<String>) f.get(layout);
+        Set<String> patterns = new HashSet<>();
+        layout.apply(URI.create("test"), new IvyRepositoryDescriptor.Builder("test", URI.create("test")) {
+            @Override
+            public void addArtifactPattern(String declaredPattern) {
+                patterns.add(declaredPattern);
+            }
+
+            @Override
+            public void addArtifactResource(URI rootUri, String pattern) {}
+
+            @Override
+            public void addIvyPattern(String declaredPattern) {}
+
+            @Override
+            public void addIvyResource(URI baseUri, String pattern) {}
+        });
         assertThat(patterns.size(), is(1));
         return patterns.stream().findFirst().get();
     }
