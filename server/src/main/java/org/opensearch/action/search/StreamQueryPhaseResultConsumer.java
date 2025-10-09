@@ -147,9 +147,9 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
             querySearchResult.topDocs() != null
         );
 
-        // Use parent's pendingMerges to consume the result
+        // Use parent's pendingReduces to consume the result
         // Partial reduces are automatically triggered by batchReduceSize
-        pendingMerges.consume(querySearchResult, next);
+        pendingReduces.consume(querySearchResult, next);
     }
 
     /**

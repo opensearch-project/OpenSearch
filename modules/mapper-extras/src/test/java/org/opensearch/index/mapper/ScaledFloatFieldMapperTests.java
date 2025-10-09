@@ -37,6 +37,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -85,6 +86,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             b.field("scaling_factor", 5.0);
         }));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("skip_list", b -> b.field("skip_list", true));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
@@ -488,5 +490,38 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         long decodedDown = LongPoint.decodeDimension(encodedRoundDown, 0);
         assertEquals(1051, decodedUp); // 10.5 scaled = 1050, then +1 = 1051 (represents 10.51)
         assertEquals(1049, decodedDown); // 10.5 scaled = 1050, then -1 = 1049 (represents 10.49)
+    }
+
+    public void testSkiplistParameter() throws IOException {
+        // Test default value (none)
+        DocumentMapper defaultMapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 100))
+        );
+        ParsedDocument doc = defaultMapper.parse(source(b -> b.field("field", 123.45)));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length); // point field + doc values field
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(DocValuesSkipIndexType.NONE, dvField.fieldType().docValuesSkipIndexType());
+
+        // Test skiplist = "skip_list"
+        DocumentMapper skiplistMapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 100).field("skip_list", "true"))
+        );
+        doc = skiplistMapper.parse(source(b -> b.field("field", 123.45)));
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(DocValuesSkipIndexType.RANGE, dvField.fieldType().docValuesSkipIndexType());
+
+        // Test invalid value
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 100).field("skip_list", "invalid"))
+            )
+        );
+        assertThat(e.getMessage(), containsString("Failed to parse value [invalid] as only [true] or [false] are allowed"));
     }
 }

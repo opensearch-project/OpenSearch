@@ -7,9 +7,12 @@
  */
 
 /**
- * Classes for streaming search functionality with progressive result emission
- * and statistical confidence calculation using Hoeffding bounds.
+ * Streaming aggregation support for OpenSearch.
  *
- * @opensearch.internal
+ * <p>This package provides interfaces and utilities for streaming aggregations that can
+ * flush results per-segment instead of per-shard, enabling faster response times for
+ * large aggregations.
+ *
+ * @opensearch.experimental
  */
 package org.opensearch.search.streaming;

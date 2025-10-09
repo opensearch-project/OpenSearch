@@ -111,7 +111,7 @@ dependencies {
   api 'org.apache.rat:apache-rat:0.15'
   api "commons-io:commons-io:${props.getProperty('commonsio')}"
   api "net.java.dev.jna:jna:5.16.0"
-  api 'com.gradleup.shadow:shadow-gradle-plugin:8.3.5'
+  api 'com.gradleup.shadow:shadow-gradle-plugin:8.3.9'
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
   api 'de.thetaphi:forbiddenapis:3.9'
@@ -218,6 +218,7 @@ if (project != rootProject) {
   // Track reaper jar as a test input using runtime classpath normalization strategy
   tasks.withType(Test).configureEach {
     inputs.files(configurations.reaper).withNormalizer(ClasspathNormalizer)
+    jvmArgs += ["--add-opens", "java.base/java.lang=ALL-UNNAMED"]
   }
 
   normalization {

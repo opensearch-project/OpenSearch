@@ -81,6 +81,7 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Collection;
@@ -521,6 +522,21 @@ public abstract class SearchContext implements Releasable {
 
     public abstract int getTargetMaxSliceCount();
 
+    @ExperimentalApi
+    public long getStreamingMaxEstimatedBucketCount() {
+        return 100_000L;
+    }
+
+    @ExperimentalApi
+    public double getStreamingMinCardinalityRatio() {
+        return 0.01;
+    }
+
+    @ExperimentalApi
+    public long getStreamingMinEstimatedBucketCount() {
+        return 1000L;
+    }
+
     public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 
     public boolean getStarTreeIndexEnabled() {
@@ -580,4 +596,20 @@ public abstract class SearchContext implements Releasable {
     public int getStreamingBatchSize() {
         return 10;
     }
+    /**
+     * Gets the resolved flush mode for this search context.
+     */
+    @ExperimentalApi
+    public FlushMode getFlushMode() {
+        return null;
+    }
+
+    /**
+     * Atomically sets the flush mode if not already set. Returns true if successful.
+     */
+    @ExperimentalApi
+    public boolean setFlushModeIfAbsent(FlushMode flushMode) {
+        return false;
+    }
+
 }

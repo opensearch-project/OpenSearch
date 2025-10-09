@@ -941,7 +941,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestBulkStreamingAction(settings));
         registerHandler.accept(new RestUpdateAction());
 
-        registerHandler.accept(new RestSearchAction());
+        registerHandler.accept(new RestSearchAction(clusterSettings));
         registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
         registerHandler.accept(new RestMultiSearchAction(settings));

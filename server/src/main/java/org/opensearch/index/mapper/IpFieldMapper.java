@@ -633,36 +633,9 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        Object addressAsObject;
-        if (context.externalValueSet()) {
-            addressAsObject = context.externalValue();
-        } else {
-            addressAsObject = context.parser().textOrNull();
-        }
-
-        if (addressAsObject == null) {
-            addressAsObject = nullValue;
-        }
-
-        if (addressAsObject == null) {
+        final InetAddress address = getFieldValue(context);
+        if (address == null) {
             return;
-        }
-
-        String addressAsString = addressAsObject.toString();
-        InetAddress address;
-        if (addressAsObject instanceof InetAddress) {
-            address = (InetAddress) addressAsObject;
-        } else {
-            try {
-                address = InetAddresses.forString(addressAsString);
-            } catch (IllegalArgumentException e) {
-                if (ignoreMalformed().value()) {
-                    context.addIgnoredField(fieldType().name());
-                    return;
-                } else {
-                    throw e;
-                }
-            }
         }
 
         if (indexed && hasDocValues) {
@@ -677,6 +650,40 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         }
         if (stored) {
             context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+        }
+    }
+
+    @Override
+    protected InetAddress getFieldValue(ParseContext context) throws IOException {
+        Object addressAsObject;
+        if (context.externalValueSet()) {
+            addressAsObject = context.externalValue();
+        } else {
+            addressAsObject = context.parser().textOrNull();
+        }
+
+        if (addressAsObject == null) {
+            addressAsObject = nullValue;
+        }
+
+        if (addressAsObject == null) {
+            return null;
+        }
+
+        if (addressAsObject instanceof InetAddress) {
+            return (InetAddress) addressAsObject;
+        } else {
+            try {
+                String addressAsString = addressAsObject.toString();
+                return InetAddresses.forString(addressAsString);
+            } catch (IllegalArgumentException e) {
+                if (ignoreMalformed().value()) {
+                    context.addIgnoredField(fieldType().name());
+                    return null;
+                } else {
+                    throw e;
+                }
+            }
         }
     }
 
