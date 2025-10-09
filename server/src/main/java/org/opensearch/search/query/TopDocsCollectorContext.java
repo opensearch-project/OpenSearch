@@ -85,6 +85,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -322,15 +323,15 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                         maxScoreCollector = new MaxScoreCollector();
                     }
 
-                    return MultiCollectorWrapper.wrap(collapseContext.createTopDocs(sort, numHits, searchAfter), maxScoreCollector);
+                    return MultiCollector.wrap(collapseContext.createTopDocs(sort, numHits, searchAfter), maxScoreCollector);
                 }
 
                 @Override
                 public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
                     final Collection<Collector> subs = new ArrayList<>();
                     for (final Collector collector : collectors) {
-                        if (collector instanceof MultiCollectorWrapper) {
-                            subs.addAll(((MultiCollectorWrapper) collector).getCollectors());
+                        if (collector instanceof MultiCollector) {
+                            subs.addAll(List.of(((MultiCollector) collector).getCollectors()));
                         } else {
                             subs.add(collector);
                         }
@@ -549,7 +550,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                     maxScoreCollector = new MaxScoreCollector();
                 }
 
-                return MultiCollectorWrapper.wrap(manager.newCollector(), maxScoreCollector);
+                return MultiCollector.wrap(manager.newCollector(), maxScoreCollector);
             }
 
             @SuppressWarnings("unchecked")
@@ -559,8 +560,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 final Collection<MaxScoreCollector> maxScoreCollectors = new ArrayList<>();
 
                 for (final Collector collector : collectors) {
-                    if (collector instanceof MultiCollectorWrapper) {
-                        for (final Collector sub : (((MultiCollectorWrapper) collector).getCollectors())) {
+                    if (collector instanceof MultiCollector) {
+                        for (final Collector sub : (((MultiCollector) collector).getCollectors())) {
                             if (sub instanceof TopDocsCollector<?>) {
                                 topDocsCollectors.add((TopDocsCollector<?>) sub);
                             } else if (sub instanceof MaxScoreCollector) {
