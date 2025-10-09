@@ -882,6 +882,45 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertTrue(remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
     }
 
+    public void testSkipsMetadataUploadWhenNoNewSegments() throws IOException {
+        setup(true, 2);
+
+        indexShard.refresh("initial-upload");
+
+        try (Store remoteStore = indexShard.remoteStore()) {
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+
+            final int initialCount = remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().size();
+
+            indexShard.refresh("test-optimization");
+
+            int afterOptimizationCount = remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().size();
+            assertEquals("No new segments should be uploaded when optimization kicks in", initialCount, afterOptimizationCount);
+        }
+    }
+
+    public void testUploadsWhenNewSegmentsPresent() throws Exception {
+        setup(true, 1);
+
+        indexShard.refresh("initial-upload");
+
+        try (Store remoteStore = indexShard.remoteStore()) {
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+
+            final int initialCount = remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().size();
+
+            indexDoc(indexShard, "new-doc", "{}");
+            indexShard.refresh("new-segment-refresh");
+
+            assertBusy(() -> {
+                int afterNewSegmentCount = remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().size();
+                assertTrue("Expected new uploads after adding new segments", afterNewSegmentCount > initialCount);
+            });
+        }
+    }
+
     public void testRemoteSegmentStoreNotInSync() throws IOException {
         setup(true, 3);
         remoteStoreRefreshListener.afterRefresh(true);
