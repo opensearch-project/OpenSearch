@@ -1065,7 +1065,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
-        ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             SearchProgressListener.NOOP,
@@ -1134,18 +1134,17 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             result.setSearchShardTarget(new SearchShardTarget("node", new ShardId("a", "b", shardId), null, OriginalIndices.NONE));
             consumer.consumeResult(result, latch::countDown);
             numEmptyResponses--;
-
         }
         latch.await();
         final int numTotalReducePhases;
         if (numShards > bufferSize) {
             if (bufferSize == 2) {
-                assertEquals(1, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                assertEquals(1, consumer.getNumReducePhases());
                 assertEquals(1, reductions.size());
                 assertEquals(false, reductions.get(0));
                 numTotalReducePhases = 2;
             } else {
-                assertEquals(0, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                assertEquals(0, consumer.getNumReducePhases());
                 assertEquals(0, reductions.size());
                 numTotalReducePhases = 1;
             }
@@ -1747,8 +1746,11 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         int batchedReduceSize = randomIntBetween(2, expectedNumResults - 1);
         SearchRequest request = getAggregationSearchRequestWithBatchedReduceSize(batchedReduceSize);
         AssertingCircuitBreaker circuitBreaker = new AssertingCircuitBreaker(CircuitBreaker.REQUEST);
-        AtomicInteger checkCount = new AtomicInteger(0);
-        int cancelAfter = expectedNumResults / 2;
+        // To make it deterministic, we can count the number of times the partialReduce and reduce are called
+        // The exception is only thrown during the call to reduce which will happen once all shard level
+        // results have arrived
+        int partialReduceMethodCallCount = expectedNumResults / batchedReduceSize;
+        AtomicInteger checkCount = new AtomicInteger(expectedNumResults + partialReduceMethodCallCount);
 
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
@@ -1758,7 +1760,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             expectedNumResults,
             exc -> {},
             () -> {
-                return checkCount.incrementAndGet() > cancelAfter;
+                return checkCount.decrementAndGet() <= 0;
             }
         );
 
@@ -1775,9 +1777,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
 
         // making sure circuit breaker trips first
         circuitBreaker.shouldBreak.set(true);
-        AtomicInteger checkCount = new AtomicInteger(0);
-        int cancelAfter = expectedNumResults + 1;
-
+        int partialReduceMethodCallCount = expectedNumResults / batchedReduceSize;
+        AtomicInteger checkCount = new AtomicInteger(expectedNumResults + partialReduceMethodCallCount);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             circuitBreaker,
@@ -1786,7 +1787,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             expectedNumResults,
             exc -> {},
             () -> {
-                return checkCount.incrementAndGet() > cancelAfter;
+                return checkCount.decrementAndGet() <= 0;
             }
         );
 

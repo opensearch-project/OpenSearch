@@ -90,6 +90,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
                 MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
                 MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
+                MergeSchedulerConfig.MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED,
                 IndexMetadata.SETTING_INDEX_CREATION_DATE,
                 IndexMetadata.INDEX_UUID_SETTING,
@@ -277,6 +278,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT,
                 IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING,
                 IndexMetadata.INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING,
+                IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING,
 
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,

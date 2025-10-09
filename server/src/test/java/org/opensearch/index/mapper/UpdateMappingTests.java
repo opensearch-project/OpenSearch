@@ -83,7 +83,7 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     protected void testConflictWhileMergingAndMappingUnchanged(XContentBuilder mapping, XContentBuilder mappingUpdate) throws IOException {
-        IndexService indexService = createIndex("test", Settings.builder().build(), MapperService.SINGLE_MAPPING_NAME, mapping);
+        IndexService indexService = createIndex("test", Settings.builder().build(), mapping);
         CompressedXContent mappingBeforeUpdate = indexService.mapperService().documentMapper().mappingSource();
         // simulate like in MetadataMappingService#putMapping
         try {
@@ -111,8 +111,7 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject()
             .endObject();
-        MapperService mapperService = createIndex("test", Settings.builder().build(), MapperService.SINGLE_MAPPING_NAME, mapping)
-            .mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().build(), mapping).mapperService();
 
         XContentBuilder update = XContentFactory.jsonBuilder()
             .startObject()
@@ -158,8 +157,7 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject()
             .endObject();
-        MapperService mapperService = createIndex("test", Settings.builder().build(), MapperService.SINGLE_MAPPING_NAME, mapping)
-            .mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().build(), mapping).mapperService();
 
         XContentBuilder update = XContentFactory.jsonBuilder()
             .startObject()

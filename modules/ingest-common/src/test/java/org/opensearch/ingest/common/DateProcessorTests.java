@@ -46,12 +46,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IllformedLocaleException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class DateProcessorTests extends OpenSearchTestCase {
 
@@ -315,7 +317,7 @@ public class DateProcessorTests extends OpenSearchTestCase {
             () -> processor.execute(RandomDocumentPicks.randomIngestDocument(random(), document))
         );
         assertThat(e.getMessage(), equalTo("unable to parse date [2010]"));
-        assertThat(e.getCause().getMessage(), equalTo("Unknown language: invalid"));
+        assertThat(e.getCause(), instanceOf(IllformedLocaleException.class));
     }
 
     public void testOutputFormat() {

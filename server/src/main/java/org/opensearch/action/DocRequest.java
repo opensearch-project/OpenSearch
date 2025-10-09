@@ -28,4 +28,18 @@ public interface DocRequest {
      * @return the id
      */
     String id();
+
+    /**
+     * Get the type of the request. This should match the action name prefix: i.e. indices:data/read/get
+     *
+     * Used in the context of resource sharing to specify the type of sharable resource.
+     *
+     * i.e. A report definition is sharable, so ActionRequests in the reporting plugin that
+     * pertain to a single report definition would override this to specify "report_definition"
+     *
+     * @return the type
+     */
+    default String type() {
+        return "indices";
+    }
 }

@@ -157,6 +157,8 @@ public class DefaultStreamPoller implements StreamPoller {
         this.errorStrategy = errorStrategy;
         this.indexName = indexSettings.getIndex().getName();
 
+        // handle initial poller states
+        this.paused = initialState == State.PAUSED;
     }
 
     @Override
@@ -230,6 +232,8 @@ public class DefaultStreamPoller implements StreamPoller {
 
                 if (results.isEmpty()) {
                     // no new records
+                    setLastPolledMessageTimestamp(0);
+                    Thread.sleep(DEFAULT_POLLER_SLEEP_PERIOD_MS);
                     continue;
                 }
 
@@ -240,7 +244,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 // Currently we do not have a good way to skip past the failing messages.
                 // The user will have the option to manually update the offset and resume ingestion.
                 // todo: support retry?
-                logger.error("Pausing ingestion. Fatal error occurred in polling the shard {}: {}", shardId, e);
+                logger.error("Pausing ingestion. Fatal error occurred in polling the shard {} for index {}: {}", shardId, indexName, e);
                 totalConsumerErrorCount.inc();
                 pause();
             }
@@ -265,14 +269,20 @@ public class DefaultStreamPoller implements StreamPoller {
                 }
                 totalPolledCount.inc();
                 blockingQueueContainer.add(result);
-                lastPolledMessageTimestamp = result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp();
+                setLastPolledMessageTimestamp(result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp());
                 logger.debug(
                     "Put message {} with pointer {} to the blocking queue",
                     String.valueOf(result.getMessage().getPayload()),
                     result.getPointer().asString()
                 );
             } catch (Exception e) {
-                logger.error("Error in processing a record. Shard {}, pointer {}: {}", shardId, result.getPointer().asString(), e);
+                logger.error(
+                    "[Default Poller] Error processing record. Index={}, Shard={}, pointer={}: error={}",
+                    indexName,
+                    shardId,
+                    result.getPointer().asString(),
+                    e
+                );
                 errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.POLLING);
                 totalPollerMessageFailureCount.inc();
 
@@ -401,7 +411,17 @@ public class DefaultStreamPoller implements StreamPoller {
      * Returns the lag in milliseconds since the last polled message
      */
     private long computeLag() {
+        if (lastPolledMessageTimestamp == 0 || paused) {
+            return 0;
+        }
+
         return System.currentTimeMillis() - lastPolledMessageTimestamp;
+    }
+
+    private void setLastPolledMessageTimestamp(long timestamp) {
+        if (lastPolledMessageTimestamp != timestamp) {
+            lastPolledMessageTimestamp = timestamp;
+        }
     }
 
     public State getState() {

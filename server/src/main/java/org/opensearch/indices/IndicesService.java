@@ -106,6 +106,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
@@ -383,7 +384,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MapperRegistry mapperRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final IndexingMemoryController indexingMemoryController;
-    private final TimeValue cleanInterval;
+    private final TimeValue cleanInterval; // clean interval for the field data cache
     final IndicesRequestCache indicesRequestCache; // pkg-private for testing
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
@@ -502,7 +503,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     + "]";
                 circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(-sizeInBytes);
             }
-        });
+        }, clusterService, threadPool);
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
@@ -591,6 +592,11 @@ public class IndicesService extends AbstractLifecycleComponent
         this.defaultMaxMergeAtOnce = CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING, this::onDefaultMaxMergeAtOnceUpdate);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
+                this::onClusterLevelForceMergeMBPerSecUpdate
+            );
     }
 
     @InternalApi
@@ -691,6 +697,20 @@ public class IndicesService extends AbstractLifecycleComponent
         for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
             IndexService indexService = entry.getValue();
             indexService.onDefaultMaxMergeAtOnceChanged(newDefaultMaxMergeAtOnce);
+        }
+    }
+
+    /**
+     * The changes to dynamic cluster setting {@code cluster.merge.scheduler.max_force_merge_mb_per_sec} needs to be updated. This
+     * method gets called whenever the setting changes. We notify the change to all IndexService instances that are created on this node
+     * so they can update their merge schedulers accordingly.
+     *
+     * @param maxForceMergeMBPerSec the updated cluster max force merge MB per second rate.
+     */
+    private void onClusterLevelForceMergeMBPerSecUpdate(double maxForceMergeMBPerSec) {
+        for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
+            IndexService indexService = entry.getValue();
+            indexService.onClusterLevelForceMergeMBPerSecUpdate(maxForceMergeMBPerSec);
         }
     }
 
@@ -1203,7 +1223,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final List<Closeable> closeables = new ArrayList<>();
         try {
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            });
+            }, clusterService, threadPool);
             closeables.add(indicesFieldDataCache);
             IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings, clusterService.getClusterSettings());
             closeables.add(indicesQueryCache);
@@ -1877,7 +1897,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 logger.trace("running periodic field data cache cleanup");
             }
             try {
-                this.cache.getCache().refresh();
+                this.cache.clear();
             } catch (Exception e) {
                 logger.warn("Exception during periodic field data cache cleanup:", e);
             }
@@ -1907,6 +1927,12 @@ public class IndicesService extends AbstractLifecycleComponent
         // They modify the search context during their execution so using the cache
         // may invalidate the scroll for the next query.
         if (request.scroll() != null) {
+            return false;
+        }
+
+        // Currently, we cannot cache stream search results as we never compute and reduce full resultset per
+        // shard at data nodes and let coordinator handle the reduce from batched results from shards.
+        if (context.isStreamSearch()) {
             return false;
         }
 
@@ -2117,6 +2143,8 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * Clears the caches for the given shard id if the shard is still allocated on this node
+     * Query cache and field data cache keys are cleared immediately by this method; request cache keys are only marked for cleanup
+     * TODO: In a future PR field data cache keys will also only be marked for cleanup.
      */
     public void clearIndexShardCache(ShardId shardId, boolean queryCache, boolean fieldDataCache, boolean requestCache, String... fields) {
         final IndexService service = indexService(shardId.getIndex());
@@ -2127,6 +2155,14 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesRequestCache.clear(new IndexShardCacheEntity(shard));
             }
         }
+    }
+
+    /**
+     * Force clear node-wide request cache, which will remove any keys which have been previously marked for cleanup.
+     */
+    public void forceClearNodewideCaches() {
+        indicesRequestCache.forceCleanCache();
+        // TODO: Field data cache will also be cleared here in a future PR.
     }
 
     /**

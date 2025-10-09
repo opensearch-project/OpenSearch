@@ -191,11 +191,13 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         produceData("2", "name2", "20");
         internalCluster().startClusterManagerOnlyNode();
         final String nodeA = internalCluster().startDataOnlyNode();
-        final String nodeB = internalCluster().startDataOnlyNode();
 
         createIndexWithDefaultSettings(1, 1);
+        ensureYellowAndNoInitializingShards(indexName);
+        waitForSearchableDocs(2, Arrays.asList(nodeA));
+        final String nodeB = internalCluster().startDataOnlyNode();
         ensureGreen(indexName);
-        waitForSearchableDocs(2, Arrays.asList(nodeA, nodeB));
+        assertTrue(nodeA.equals(primaryNodeName(indexName)));
 
         // pause ingestion
         PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
@@ -205,7 +207,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
             return ingestionState.getFailedShards() == 0
                 && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
         });
 
         // verify ingestion state is persisted
@@ -219,12 +221,13 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         client().admin().cluster().prepareReroute().add(new AllocateReplicaAllocationCommand(indexName, 0, nodeC)).get();
         ensureGreen(indexName);
         assertTrue(nodeC.equals(replicaNodeName(indexName)));
-        assertEquals(2, getSearchableDocCount(nodeB));
         waitForState(() -> {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return Arrays.stream(ingestionState.getShardStates())
-                .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+            return ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
         });
+        assertEquals(2, getSearchableDocCount(nodeB));
 
         // resume ingestion
         ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
@@ -235,7 +238,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             return Arrays.stream(ingestionState.getShardStates())
                 .allMatch(
                     state -> state.isPollerPaused() == false
-                        && (state.pollerState().equalsIgnoreCase("polling") || state.pollerState().equalsIgnoreCase("processing"))
+                        && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
                 );
         });
         waitForSearchableDocs(4, Arrays.asList(nodeB, nodeC));
@@ -253,9 +256,9 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(1, ingestionState.getSuccessfulShards());
         assertEquals(1, ingestionState.getTotalShards());
         assertEquals(1, ingestionState.getShardStates().length);
-        assertEquals(0, ingestionState.getShardStates()[0].shardId());
-        assertEquals("POLLING", ingestionState.getShardStates()[0].pollerState());
-        assertEquals("DROP", ingestionState.getShardStates()[0].errorPolicy());
+        assertEquals(0, ingestionState.getShardStates()[0].getShardId());
+        assertEquals("POLLING", ingestionState.getShardStates()[0].getPollerState());
+        assertEquals("DROP", ingestionState.getShardStates()[0].getErrorPolicy());
         assertFalse(ingestionState.getShardStates()[0].isPollerPaused());
 
         GetIngestionStateResponse ingestionStateForInvalidShard = getIngestionState(new String[] { indexName }, new int[] { 1 });
@@ -291,8 +294,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(3, responsePage1.getSuccessfulShards());
         assertEquals(3, responsePage1.getShardStates().length);
         assertTrue(Arrays.stream(responsePage1.getShardStates()).allMatch(shardIngestionState -> {
-            boolean shardsMatch = Set.of(0, 1, 2).contains(shardIngestionState.shardId());
-            boolean indexMatch = "index1".equalsIgnoreCase(shardIngestionState.index());
+            boolean shardsMatch = Set.of(0, 1, 2).contains(shardIngestionState.getShardId());
+            boolean indexMatch = "index1".equalsIgnoreCase(shardIngestionState.getIndex());
             return indexMatch && shardsMatch;
         }));
 
@@ -302,9 +305,9 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(3, responsePage2.getSuccessfulShards());
         assertEquals(3, responsePage2.getShardStates().length);
         assertTrue(Arrays.stream(responsePage2.getShardStates()).allMatch(shardIngestionState -> {
-            boolean matchIndex1 = Set.of(3, 4).contains(shardIngestionState.shardId())
-                && "index1".equalsIgnoreCase(shardIngestionState.index());
-            boolean matchIndex2 = shardIngestionState.shardId() == 0 && "index2".equalsIgnoreCase(shardIngestionState.index());
+            boolean matchIndex1 = Set.of(3, 4).contains(shardIngestionState.getShardId())
+                && "index1".equalsIgnoreCase(shardIngestionState.getIndex());
+            boolean matchIndex2 = shardIngestionState.getShardId() == 0 && "index2".equalsIgnoreCase(shardIngestionState.getIndex());
             return matchIndex1 || matchIndex2;
         }));
 
@@ -314,8 +317,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(3, responsePage3.getSuccessfulShards());
         assertEquals(3, responsePage3.getShardStates().length);
         assertTrue(Arrays.stream(responsePage3.getShardStates()).allMatch(shardIngestionState -> {
-            boolean shardsMatch = Set.of(1, 2, 3).contains(shardIngestionState.shardId());
-            boolean indexMatch = "index2".equalsIgnoreCase(shardIngestionState.index());
+            boolean shardsMatch = Set.of(1, 2, 3).contains(shardIngestionState.getShardId());
+            boolean indexMatch = "index2".equalsIgnoreCase(shardIngestionState.getIndex());
             return indexMatch && shardsMatch;
         }));
 
@@ -325,8 +328,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(1, responsePage4.getSuccessfulShards());
         assertEquals(1, responsePage4.getShardStates().length);
         assertTrue(Arrays.stream(responsePage4.getShardStates()).allMatch(shardIngestionState -> {
-            boolean shardsMatch = shardIngestionState.shardId() == 4;
-            boolean indexMatch = "index2".equalsIgnoreCase(shardIngestionState.index());
+            boolean shardsMatch = shardIngestionState.getShardId() == 4;
+            boolean indexMatch = "index2".equalsIgnoreCase(shardIngestionState.getIndex());
             return indexMatch && shardsMatch;
         }));
     }
@@ -472,7 +475,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
             return ingestionState.getFailedShards() == 0
                 && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isWriteBlockEnabled() && state.pollerState().equalsIgnoreCase("paused"));
+                    .allMatch(state -> state.isWriteBlockEnabled() && state.getPollerState().equalsIgnoreCase("paused"));
         });
 
         // verify write block state in poller is persisted
@@ -489,7 +492,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         waitForState(() -> {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
             return Arrays.stream(ingestionState.getShardStates())
-                .allMatch(state -> state.isWriteBlockEnabled() && state.pollerState().equalsIgnoreCase("paused"));
+                .allMatch(state -> state.isWriteBlockEnabled() && state.getPollerState().equalsIgnoreCase("paused"));
         });
         assertEquals(2, getSearchableDocCount(nodeB));
 
@@ -543,7 +546,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
             return ingestionState.getFailedShards() == 0
                 && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
         });
         // revalidate that only 1 document is visible
         waitForSearchableDocs(1, Arrays.asList(nodeA, nodeB));
@@ -557,7 +560,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             return Arrays.stream(ingestionState.getShardStates())
                 .allMatch(
                     state -> state.isPollerPaused() == false
-                        && (state.pollerState().equalsIgnoreCase("polling") || state.pollerState().equalsIgnoreCase("processing"))
+                        && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
                 );
         });
 
@@ -615,7 +618,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
             return ingestionState.getFailedShards() == 0
                 && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
         });
 
         // reset consumer by a timestamp after first message was produced

@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRunnable;
@@ -92,6 +93,7 @@ import org.opensearch.index.query.QueryCoordinatorContext;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
+import org.opensearch.index.search.QueryStringQueryParser;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
@@ -136,6 +138,7 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.query.QueryPhase;
+import org.opensearch.search.query.QueryRewriterRegistry;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ScrollQuerySearchResult;
@@ -276,6 +279,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Deprecated
     );
 
+    public static final Setting<Boolean> QUERY_REWRITING_ENABLED_SETTING = Setting.boolSetting(
+        "search.query_rewriting.enabled",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Controls the threshold for the number of term queries on the same field that triggers
+     * the TermsMergingRewriter to combine them into a single terms query. For example,
+     * if set to 16 (default), when 16 or more term queries target the same field within
+     * a boolean clause, they will be merged into a single terms query for better performance.
+     */
+    public static final Setting<Integer> QUERY_REWRITING_TERMS_THRESHOLD_SETTING = Setting.intSetting(
+        "search.query_rewriting.terms_threshold",
+        16,
+        2,  // minimum value
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // Allow concurrent segment search for all requests
     public static final String CONCURRENT_SEGMENT_SEARCH_MODE_ALL = "all";
 
@@ -340,6 +364,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting(
         "indices.query.bool.max_clause_count",
         1024,
+        1,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> SEARCH_MAX_QUERY_STRING_LENGTH = Setting.intSetting(
+        "search.query.max_query_string_length",
+        32_000,
         1,
         Integer.MAX_VALUE,
         Setting.Property.NodeScope,
@@ -501,12 +534,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexSearcher.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, IndexSearcher::setMaxClauseCount);
 
+        QueryStringQueryParser.setMaxQueryStringLength(SEARCH_MAX_QUERY_STRING_LENGTH.get(settings));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SEARCH_MAX_QUERY_STRING_LENGTH, QueryStringQueryParser::setMaxQueryStringLength);
+
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
 
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
 
         this.pluginProfilers = pluginProfilers;
+
+        // Initialize QueryRewriterRegistry with cluster settings so TermsMergingRewriter
+        // can register its settings update consumer
+        QueryRewriterRegistry.INSTANCE.initialize(settings, clusterService.getClusterSettings());
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1488,8 +1529,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.size(source.size());
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
-            InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);
-            context.parsedQuery(queryShardContext.toQuery(source.query()));
+            QueryBuilder query = source.query();
+
+            // Apply query rewriting optimizations
+            query = QueryRewriterRegistry.INSTANCE.rewrite(query, queryShardContext);
+
+            InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
+            context.parsedQuery(queryShardContext.toQuery(query));
         }
         if (source.postFilter() != null) {
             InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);
@@ -1650,7 +1696,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw new SearchException(shardTarget, "cannot use `collapse` in a scroll context");
             }
             if (context.searchAfter() != null) {
-                throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `search_after`");
+                SortField[] sort = context.sort().sort.getSort();
+                if (sort.length != 1 || !sort[0].getField().equals(source.collapse().getField())) {
+                    throw new SearchException(
+                        shardTarget,
+                        "collapse field and sort field must be the same when use `collapse` in conjunction with `search_after`"
+                    );
+                }
             }
             if (context.rescore() != null && context.rescore().isEmpty() == false) {
                 throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `rescore`");

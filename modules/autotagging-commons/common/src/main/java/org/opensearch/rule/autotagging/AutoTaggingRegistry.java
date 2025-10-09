@@ -59,6 +59,11 @@ public class AutoTaggingRegistry {
                 "Feature type name " + name + " should not be null, empty or have more than  " + MAX_FEATURE_TYPE_NAME_LENGTH + "characters"
             );
         }
+        if (featureType.getOrderedAttributes() == null) {
+            throw new IllegalStateException(
+                "Function getOrderedAttributes() should not return null for feature type: " + featureType.getName()
+            );
+        }
         if (featureType.getFeatureValueValidator() == null) {
             throw new IllegalStateException("FeatureValueValidator is not defined for feature type " + name);
         }

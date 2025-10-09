@@ -12,14 +12,14 @@ import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.TermQuery;
-import org.opensearch.transport.grpc.proto.request.common.ObjectMapProtoUtils;
+import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
 /**
  * Utility class for converting TermQuery Protocol Buffers to OpenSearch objects.
  * This class provides methods to transform Protocol Buffer representations of term queries
  * into their corresponding OpenSearch TermQueryBuilder implementations for search operations.
  */
-public class TermQueryBuilderProtoUtils {
+class TermQueryBuilderProtoUtils {
 
     private TermQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -36,55 +36,22 @@ public class TermQueryBuilderProtoUtils {
      * @return A configured TermQueryBuilder instance
      * @throws IllegalArgumentException if the field value type is not supported, or if the term query field value is not recognized
      */
-    protected static TermQueryBuilder fromProto(TermQuery termQueryProto) {
+    static TermQueryBuilder fromProto(TermQuery termQueryProto) {
         String queryName = null;
         String fieldName = termQueryProto.getField();
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         boolean caseInsensitive = TermQueryBuilder.DEFAULT_CASE_INSENSITIVITY;
 
-        if (termQueryProto.hasUnderscoreName()) {
-            queryName = termQueryProto.getUnderscoreName();
+        if (termQueryProto.hasXName()) {
+            queryName = termQueryProto.getXName();
         }
         if (termQueryProto.hasBoost()) {
             boost = termQueryProto.getBoost();
         }
 
         FieldValue fieldValue = termQueryProto.getValue();
-
-        switch (fieldValue.getTypeCase()) {
-            case GENERAL_NUMBER:
-                switch (fieldValue.getGeneralNumber().getValueCase()) {
-                    case INT32_VALUE:
-                        value = fieldValue.getGeneralNumber().getInt32Value();
-                        break;
-                    case INT64_VALUE:
-                        value = fieldValue.getGeneralNumber().getInt64Value();
-                        break;
-                    case FLOAT_VALUE:
-                        value = fieldValue.getGeneralNumber().getFloatValue();
-                        break;
-                    case DOUBLE_VALUE:
-                        value = fieldValue.getGeneralNumber().getDoubleValue();
-                        break;
-                    default:
-                        throw new IllegalArgumentException(
-                            "Unsupported general number type: " + fieldValue.getGeneralNumber().getValueCase()
-                        );
-                }
-                break;
-            case STRING_VALUE:
-                value = fieldValue.getStringValue();
-                break;
-            case OBJECT_MAP:
-                value = ObjectMapProtoUtils.fromProto(fieldValue.getObjectMap());
-                break;
-            case BOOL_VALUE:
-                value = fieldValue.getBoolValue();
-                break;
-            default:
-                throw new IllegalArgumentException("TermQuery field value not recognized");
-        }
+        value = FieldValueProtoUtils.fromProto(fieldValue, false);
 
         if (termQueryProto.hasCaseInsensitive()) {
             caseInsensitive = termQueryProto.getCaseInsensitive();

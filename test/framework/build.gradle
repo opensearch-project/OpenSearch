@@ -56,7 +56,7 @@ dependencies {
   fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   compileOnly project(":libs:agent-sm:bootstrap")
-  compileOnly "com.github.spotbugs:spotbugs-annotations:4.9.4"
+  compileOnly "com.github.spotbugs:spotbugs-annotations:4.9.6"
 
   annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 }

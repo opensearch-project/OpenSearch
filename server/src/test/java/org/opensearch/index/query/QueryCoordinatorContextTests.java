@@ -12,6 +12,7 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -44,7 +45,7 @@ public class QueryCoordinatorContextTests extends OpenSearchTestCase {
         indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
     }
 
-    public void testGetContextVariables_whenPipelinedSearchRequest_thenReturnVariables() {
+    public void testGetContextVariables_whenPipelinedSearchRequest_thenReturnVariables() throws Exception {
         final PipelinedRequest searchRequest = createDummyPipelinedRequest();
         searchRequest.getPipelineProcessingContext().setAttribute("key", "value");
 
@@ -53,14 +54,18 @@ public class QueryCoordinatorContextTests extends OpenSearchTestCase {
         assertEquals(Map.of("key", "value"), queryCoordinatorContext.getContextVariables());
     }
 
-    private PipelinedRequest createDummyPipelinedRequest() {
+    private PipelinedRequest createDummyPipelinedRequest() throws Exception {
         final Client client = mock(Client.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         final SearchPipelineService searchPipelineService = new SearchPipelineService(
-            mock(ClusterService.class),
+            clusterService,
             threadPool,
             null,
             null,

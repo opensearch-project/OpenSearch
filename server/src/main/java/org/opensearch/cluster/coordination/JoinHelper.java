@@ -129,7 +129,7 @@ public class JoinHelper {
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
     private final Consumer<Boolean> nodeCommissioned;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final AtomicReference<Tuple<Long, BytesReference>> serializedState = new AtomicReference<>();
+    private final AtomicReference<SerializedClusterStateCache> serializedClusterStateCache = new AtomicReference<>();
 
     JoinHelper(
         Settings settings,
@@ -263,7 +263,7 @@ public class JoinHelper {
         joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), incomingState));
     }
 
-    private void handleCompressedValidateJoinRequest(
+    protected void handleCompressedValidateJoinRequest(
         Supplier<ClusterState> currentStateSupplier,
         Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
         BytesTransportRequest request
@@ -464,21 +464,25 @@ public class JoinHelper {
             );
         } else {
             try {
-                final BytesReference bytes = serializedState.updateAndGet(cachedState -> {
-                    if (cachedState == null || cachedState.v1() != state.version()) {
+                final BytesReference bytes = serializedClusterStateCache.updateAndGet(currentCache -> {
+                    if (currentCache == null || state.version() != currentCache.getClusterStateVersion()) {
+                        currentCache = new SerializedClusterStateCache(state.version());
+                    }
+                    if (currentCache.containsStateForNodeVersion(state.version(), node.getVersion()) == false) {
+                        BytesReference compressedStream;
                         try {
-                            return new Tuple<>(
-                                state.version(),
-                                CompressedStreamUtils.createCompressedStream(node.getVersion(), state::writeTo)
-                            );
+                            compressedStream = CompressedStreamUtils.createCompressedStream(node.getVersion(), state::writeTo);
                         } catch (IOException e) {
                             // mandatory as AtomicReference doesn't rethrow IOException.
                             throw new RuntimeException(e);
                         }
-                    } else {
-                        return cachedState;
+                        return SerializedClusterStateCache.createNewCache(currentCache, node.getVersion(), compressedStream);
                     }
-                }).v2();
+                    return currentCache;
+                    // This will not be null as we reference to the new cache created which contains the serialized cluster state for the
+                    // node version.
+                }).getStateForNodeVersion(state.version(), node.getVersion());
+                // Joining node version is read when deserializing the cluster state
                 final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
                 transportService.sendRequest(
                     node,
@@ -490,6 +494,64 @@ public class JoinHelper {
                 logger.warn("error sending cluster state to {}", node);
                 listener.onFailure(e);
             }
+        }
+    }
+
+    /**
+     * Cache for serialized cluster state with keys cluster state version and opensearch version
+     *
+     * @opensearch.internal
+     */
+    public static final class SerializedClusterStateCache {
+
+        private final Long clusterStateVersion;
+        private final Map<Version, BytesReference> serialisedClusterStateBySoftwareVersion;
+        private static final int MAX_VERSIONS_SIZE = 2;
+
+        public SerializedClusterStateCache(Long clusterStateVersion) {
+            this.clusterStateVersion = clusterStateVersion;
+            this.serialisedClusterStateBySoftwareVersion = Collections.emptyMap();
+        }
+
+        private SerializedClusterStateCache(
+            Long clusterStateVersion,
+            Map<Version, BytesReference> serialisedClusterStateBySoftwareVersion
+        ) {
+            this.clusterStateVersion = clusterStateVersion;
+            this.serialisedClusterStateBySoftwareVersion = Collections.unmodifiableMap(
+                new HashMap<>(serialisedClusterStateBySoftwareVersion)
+            );
+        }
+
+        public Long getClusterStateVersion() {
+            return clusterStateVersion;
+        }
+
+        private boolean containsStateForNodeVersion(Long clusterStateVersion, Version softwareVersion) {
+            if (this.clusterStateVersion == null || !this.clusterStateVersion.equals(clusterStateVersion)) {
+                return false;
+            }
+            return serialisedClusterStateBySoftwareVersion.containsKey(softwareVersion);
+        }
+
+        private BytesReference getStateForNodeVersion(Long clusterStateVersion, Version softwareVersion) {
+            if (this.clusterStateVersion == null || !this.clusterStateVersion.equals(clusterStateVersion)) {
+                return null;
+            }
+            return serialisedClusterStateBySoftwareVersion.get(softwareVersion);
+        }
+
+        private static SerializedClusterStateCache createNewCache(
+            SerializedClusterStateCache serializedClusterStateCache,
+            Version versionToSerialize,
+            BytesReference bytes
+        ) {
+            Map<Version, BytesReference> newMap = new HashMap<>(serializedClusterStateCache.serialisedClusterStateBySoftwareVersion);
+            if (newMap.size() == MAX_VERSIONS_SIZE) {
+                newMap.remove(newMap.keySet().iterator().next());
+            }
+            newMap.put(versionToSerialize, bytes);
+            return new SerializedClusterStateCache(serializedClusterStateCache.clusterStateVersion, newMap);
         }
     }
 
