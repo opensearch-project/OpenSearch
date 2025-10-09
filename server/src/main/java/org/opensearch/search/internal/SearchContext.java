@@ -610,4 +610,21 @@ public abstract class SearchContext implements Releasable {
     public int getStreamingBatchSize() {
         return 10;
     }
+
+    /**
+     * Gets the resolved flush mode for this search context.
+     */
+    @ExperimentalApi
+    public FlushMode getFlushMode() {
+        return null;
+    }
+
+    /**
+     * Atomically sets the flush mode if not already set. Returns true if successful.
+     */
+    @ExperimentalApi
+    public boolean setFlushModeIfAbsent(FlushMode flushMode) {
+        return false;
+    }
+
 }

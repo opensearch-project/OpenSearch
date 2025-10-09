@@ -39,6 +39,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.settings.ClusterSettings;
@@ -151,11 +152,17 @@ public class RestSearchAction extends BaseRestHandler {
 
         if (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) {
             if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
-                // Enable streaming scoring path via flags on the regular SearchAction
-                searchRequest.setStreamingScoring(true);
-                String scoringMode = request.param("stream_scoring_mode");
-                if (scoringMode != null) {
-                    searchRequest.setStreamingSearchMode(scoringMode);
+                if (canUseStreamSearch(searchRequest)) {
+                    String scoringMode = request.param("stream_scoring_mode");
+                    if (scoringMode != null) {
+                        searchRequest.setStreamingSearchMode(scoringMode);
+                    }
+                    return channel -> {
+                        RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                        cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                    };
+                } else {
+                    logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
                 }
                 return channel -> {
                     RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());

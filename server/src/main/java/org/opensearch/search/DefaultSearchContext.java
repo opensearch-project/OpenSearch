@@ -1360,4 +1360,33 @@ final class DefaultSearchContext extends SearchContext {
         // Return fixed default for streaming batch size
         return 10;
     }
+
+    /**
+     * Disables streaming for this search context.
+     * Used when streaming cost analysis determines traditional processing is more efficient.
+     */
+    @Override
+    public FlushMode getFlushMode() {
+        return cachedFlushMode.get();
+    }
+
+    @Override
+    public boolean setFlushModeIfAbsent(FlushMode flushMode) {
+        return cachedFlushMode.trySet(flushMode);
+    }
+
+    @Override
+    public long getStreamingMaxEstimatedBucketCount() {
+        return clusterService.getClusterSettings().get(STREAMING_MAX_ESTIMATED_BUCKET_COUNT);
+    }
+
+    @Override
+    public double getStreamingMinCardinalityRatio() {
+        return clusterService.getClusterSettings().get(STREAMING_MIN_CARDINALITY_RATIO);
+    }
+
+    @Override
+    public long getStreamingMinEstimatedBucketCount() {
+        return clusterService.getClusterSettings().get(STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
+    }
 }
