@@ -73,6 +73,18 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
         private final long waitTimeNanos;
         private final int parallelism;
 
+        public Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed, long waitTimeNanos) {
+            this.name = name;
+            this.threads = threads;
+            this.queue = queue;
+            this.active = active;
+            this.rejected = rejected;
+            this.largest = largest;
+            this.completed = completed;
+            this.waitTimeNanos = waitTimeNanos;
+            this.parallelism = -1;
+        }
+
         public Stats(
             String name,
             int threads,
