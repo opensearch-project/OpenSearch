@@ -202,6 +202,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             new RemoteTranslogTransferTracker(shardId, 10),
             DefaultRemoteStoreSettings.INSTANCE,
             TranslogOperationHelper.DEFAULT,
+            null,
             null
         );
     }

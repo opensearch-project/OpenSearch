@@ -507,6 +507,62 @@ class S3Repository extends MeteredBlobStoreRepository {
         );
     }
 
+    @Override
+    protected S3BlobStore createClientSideEncryptedBlobStore() {
+        serverSideEncryptionType = ServerSideEncryption.AES256.toString();
+        return new S3BlobStore(
+            service,
+            s3AsyncService,
+            multipartUploadEnabled,
+            bucket,
+            bufferSize,
+            cannedACL,
+            storageClass,
+            bulkDeletesSize,
+            metadata,
+            asyncUploadUtils,
+            urgentExecutorBuilder,
+            priorityExecutorBuilder,
+            normalExecutorBuilder,
+            normalPrioritySizeBasedBlockingQ,
+            lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher,
+            serverSideEncryptionType,
+            null,
+            false,
+            null,
+            ""
+        );
+    }
+
+    @Override
+    protected S3BlobStore createServerSideEncryptedBlobStore() {
+        serverSideEncryptionType = ServerSideEncryption.AWS_KMS.toString();
+        return new S3BlobStore(
+            service,
+            s3AsyncService,
+            multipartUploadEnabled,
+            bucket,
+            bufferSize,
+            cannedACL,
+            storageClass,
+            bulkDeletesSize,
+            metadata,
+            asyncUploadUtils,
+            urgentExecutorBuilder,
+            priorityExecutorBuilder,
+            normalExecutorBuilder,
+            normalPrioritySizeBasedBlockingQ,
+            lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher,
+            serverSideEncryptionType,
+            serverSideEncryptionKmsKey,
+            serverSideEncryptionBucketKey,
+            serverSideEncryptionEncryptionContext,
+            expectedBucketOwner
+        );
+    }
+
     // only use for testing (S3RepositoryTests)
     @Override
     protected BlobStore getBlobStore() {

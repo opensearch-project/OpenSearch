@@ -1178,6 +1178,12 @@ public class MetadataCreateIndexService {
                 .findFirst();
 
             if (remoteNode.isPresent()) {
+
+                if (RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled(remoteNode.get().getAttributes())
+                    && indexName.startsWith("sse-idx-1")) {
+                    settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, true);
+                }
+
                 translogRepo = RemoteStoreNodeAttribute.getTranslogRepoName(remoteNode.get().getAttributes());
                 segmentRepo = RemoteStoreNodeAttribute.getSegmentRepoName(remoteNode.get().getAttributes());
                 if (segmentRepo != null) {

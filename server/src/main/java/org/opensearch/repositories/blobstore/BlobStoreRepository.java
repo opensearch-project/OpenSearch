@@ -74,7 +74,6 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
-import org.opensearch.common.blobstore.EncryptedBlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.blobstore.transfer.stream.RateLimitingOffsetRangeInputStream;
@@ -567,7 +566,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final SetOnce<BlobContainer> snapshotShardPathBlobContainer = new SetOnce<>();
 
-    private final SetOnce<BlobStore> blobStore = new SetOnce<>();
+//    private final SetOnce<BlobStore> blobStore = new SetOnce<>();
+    private final SetOnce<BlobStoreProvider> blobStore = new SetOnce<>();
 
     protected final ClusterService clusterService;
 
@@ -683,10 +683,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     protected void doClose() {
-        BlobStore store;
+        BlobStore store = null;
         // to close blobStore if blobStore initialization is started during close
         synchronized (lock) {
-            store = blobStore.get();
+            BlobStoreProvider provider = blobStore.get();
+            if (provider != null) {
+                store = provider.getBlobStore(false);
+            }
         }
         if (store != null) {
             try {
@@ -983,7 +986,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // for test purposes only
     protected BlobStore getBlobStore() {
-        return blobStore.get();
+        return blobStore.get().getBlobStore(false);
     }
 
     boolean getPrefixModeVerification() {
@@ -1052,35 +1055,40 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Public for testing.
      */
     public BlobStore blobStore() {
-        BlobStore store = blobStore.get();
-        if (store == null) {
-            synchronized (lock) {
-                store = blobStore.get();
-                if (store == null) {
-                    if (lifecycle.started() == false) {
-                        throw new RepositoryException(metadata.name(), "repository is not in started state");
-                    }
-                    try {
-                        store = createBlobStore();
-                        if (metadata.cryptoMetadata() != null) {
-                            store = new EncryptedBlobStore(store, metadata.cryptoMetadata());
-                        }
-                    } catch (RepositoryException e) {
-                        throw e;
-                    } catch (Exception e) {
-                        throw new RepositoryException(metadata.name(), "cannot create blob store", e);
-                    }
-                    blobStore.set(store);
-                }
-            }
+        return blobStore(false);
+    }
+
+    /**
+     * Calls the existing blobStore() method. Specific repositories can implement the support for
+     * Server side encryption
+     * @param serverSideEncryption If the server side encryption is supported.
+     * @return BlobStore `Blobstore` for the repository
+     */
+    public BlobStore blobStore(boolean serverSideEncryption) {
+        System.out.println("metadata = " + metadata);
+        BlobStoreProviderFactory providerFactory = new BlobStoreProviderFactory(this, metadata, lifecycle, lock);
+        BlobStoreProvider provider = providerFactory.getBlobStoreProvider();
+        if (provider == null) {
+            System.out.println("provider is null ");
+            return null;
         }
-        return store;
+        System.out.println("provider = " + provider.getClass().getName());
+        provider.blobStore(serverSideEncryption);
+        return provider.getBlobStore(serverSideEncryption);
     }
 
     /**
      * Creates new BlobStore to read and write data.
      */
     protected abstract BlobStore createBlobStore() throws Exception;
+
+    protected BlobStore createServerSideEncryptedBlobStore() {
+        throw new UnsupportedOperationException();
+    }
+
+    protected BlobStore createClientSideEncryptedBlobStore() {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Returns base path of the repository
@@ -1122,7 +1130,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public RepositoryStats stats() {
-        final BlobStore store = blobStore.get();
+        BlobStoreProvider provider = blobStore.get();
+        BlobStore store = null;
+        if (provider == null) {
+            return RepositoryStats.EMPTY_STATS;
+        }
+        store = provider.getBlobStore(false);
         if (store == null) {
             return RepositoryStats.EMPTY_STATS;
         } else if (store.extendedStats() != null && store.extendedStats().isEmpty() == false) {
@@ -2394,7 +2407,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             remoteTranslogTransferTracker,
             remoteStorePathStrategy,
             remoteStoreSettings,
-            indexMetadataEnabled
+            indexMetadataEnabled,
+            false
         );
         try {
             RemoteFsTimestampAwareTranslog.cleanupOfDeletedIndex(translogTransferManager, forceClean);
