@@ -44,6 +44,11 @@ public class ParquetDataFormat implements DataFormat {
 
     }
 
+//    @Override
+//    public String getDirectoryName() {
+//        return "parquet";
+//    }
+
     public static ParquetDataFormat PARQUET_DATA_FORMAT = new ParquetDataFormat();
 
     @Override

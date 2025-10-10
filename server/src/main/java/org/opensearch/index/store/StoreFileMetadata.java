@@ -64,16 +64,27 @@ public class StoreFileMetadata implements Writeable {
 
     private final BytesRef hash;
 
+    private final String dataFormat;
+
     public StoreFileMetadata(String name, long length, String checksum, Version writtenBy) {
-        this(name, length, checksum, writtenBy, null);
+        this(name, length, checksum, writtenBy, null, "lucene");
     }
 
     public StoreFileMetadata(String name, long length, String checksum, Version writtenBy, BytesRef hash) {
+        this(name, length, checksum, writtenBy, hash, "lucene");
+    }
+
+    public StoreFileMetadata(String name, long length, String checksum, Version writtenBy, String dataFormat) {
+        this(name, length, checksum, writtenBy, null, dataFormat);
+    }
+
+    public StoreFileMetadata(String name, long length, String checksum, Version writtenBy, BytesRef hash, String dataFormat) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.length = length;
         this.checksum = Objects.requireNonNull(checksum, "checksum must not be null");
         this.writtenBy = Objects.requireNonNull(writtenBy, "writtenBy must not be null");
         this.hash = hash == null ? new BytesRef() : hash;
+        this.dataFormat = Objects.requireNonNull(dataFormat, "dataFormat must not be null");
     }
 
     /**
@@ -89,6 +100,12 @@ public class StoreFileMetadata implements Writeable {
             throw new AssertionError(e);
         }
         hash = in.readBytesRef();
+        // For backward compatibility, default to "lucene" if not present
+        if (in.available() > 0) {
+            dataFormat = in.readString();
+        } else {
+            dataFormat = "lucene";
+        }
     }
 
     @Override
@@ -98,6 +115,7 @@ public class StoreFileMetadata implements Writeable {
         out.writeString(checksum);
         out.writeString(writtenBy.toString());
         out.writeBytesRef(hash);
+        out.writeString(dataFormat);
     }
 
     /**
@@ -154,12 +172,12 @@ public class StoreFileMetadata implements Writeable {
             // we can't tell if either or is null so we return false in this case! this is why we don't use equals for this!
             return false;
         }
-        return length == other.length && checksum.equals(other.checksum) && hash.equals(other.hash);
+        return length == other.length && checksum.equals(other.checksum) && hash.equals(other.hash) && dataFormat.equals(other.dataFormat);
     }
 
     @Override
     public String toString() {
-        return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "]";
+        return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "], dataFormat [" + dataFormat + "]";
     }
 
     /**
@@ -175,5 +193,12 @@ public class StoreFileMetadata implements Writeable {
      */
     public BytesRef hash() {
         return hash;
+    }
+
+    /**
+     * Returns the data format of this file (e.g., "lucene", "parquet")
+     */
+    public String dataFormat() {
+        return dataFormat;
     }
 }
