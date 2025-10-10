@@ -21,6 +21,14 @@ import static org.opensearch.tools.cli.fips.truststore.UserInteractionService.CO
  */
 public class TrustStoreService {
 
+    /**
+     * Generates a new BCFKS trust store from the JVM default trust store.
+     *
+     * @param spec the command specification for output
+     * @param options common command-line options
+     * @param confPath path to the OpenSearch configuration directory
+     * @return exit code (0 for success, 1 for failure)
+     */
     public Integer generateTrustStore(CommandSpec spec, CommonOptions options, Path confPath) {
         if (!UserInteractionService.confirmAction(spec, options, "Generate new BCFKS trust store from system defaults?")) {
             spec.commandLine().getOut().println("Operation cancelled.");
@@ -50,6 +58,15 @@ public class TrustStoreService {
         }
     }
 
+    /**
+     * Configures OpenSearch to use the system PKCS11 trust store.
+     *
+     * @param spec the command specification for output
+     * @param options common command-line options
+     * @param preselectedPKCS11Provider optional pre-selected PKCS11 provider name
+     * @param confPath path to the OpenSearch configuration directory
+     * @return exit code (0 for success, 1 for failure)
+     */
     public Integer useSystemTrustStore(CommandSpec spec, CommonOptions options, String preselectedPKCS11Provider, Path confPath) {
         if (!UserInteractionService.confirmAction(spec, options, "Use system PKCS11 trust store?")) {
             spec.commandLine().getOut().println("Operation cancelled.");
@@ -93,6 +110,14 @@ public class TrustStoreService {
         }
     }
 
+    /**
+     * Presents an interactive menu for trust store configuration selection.
+     *
+     * @param spec the command specification for output
+     * @param options common command-line options
+     * @param confPath path to the OpenSearch configuration directory
+     * @return exit code (0 for success, 1 for failure)
+     */
     public Integer executeInteractiveSelection(CommandSpec spec, CommonOptions options, Path confPath) {
         if (options.nonInteractive) {
             spec.commandLine().getOut().println("Non-interactive mode: Using generated trust store (default)");

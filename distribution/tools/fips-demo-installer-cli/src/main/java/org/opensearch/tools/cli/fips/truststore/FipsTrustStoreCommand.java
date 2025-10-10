@@ -22,7 +22,6 @@ import picocli.CommandLine.Unmatched;
 
 /**
  * Main command-line interface for the OpenSearch FIPS Demo Configuration Installer.
- * Provides interactive and programmatic trust store configuration options.
  */
 @Command(name = "opensearch-fips-demo-installer", description = "OpenSearch FIPS Demo Configuration Installer", subcommands = {
     GeneratedTrustStoreCommand.class,
@@ -49,6 +48,11 @@ public class FipsTrustStoreCommand implements Callable<Integer> {
     @SuppressWarnings("unused")
     private List<String> unmatchedArgs;
 
+    /**
+     * Executes the main command logic, presenting an interactive trust store configuration menu.
+     *
+     * @return exit code (0 for success, 1 for failure)
+     */
     @Override
     public final Integer call() {
         // workaround for opensearch-env logic that scans all environment variables,
@@ -69,6 +73,11 @@ public class FipsTrustStoreCommand implements Callable<Integer> {
         return new TrustStoreService().executeInteractiveSelection(spec, common, confPath);
     }
 
+    /**
+     * Main entry point for the FIPS demo installer CLI.
+     *
+     * @param args command-line arguments
+     */
     @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
     public static void main(String[] args) {
         int exitCode = new CommandLine(new FipsTrustStoreCommand()).setColorScheme(COLOR_SCHEME).execute(args);

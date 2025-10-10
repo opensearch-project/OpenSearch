@@ -22,6 +22,18 @@ import static org.opensearch.tools.cli.fips.truststore.UserInteractionService.CO
  */
 public class ProviderSelectionService {
 
+    /**
+     * Selects a PKCS11 provider service based on configuration and user interaction.
+     *
+     * @param spec the command specification for output
+     * @param options common command-line options
+     * @param serviceProviderList list of available PKCS11 provider services
+     * @param preselectedPKCS11Provider optional pre-selected provider name
+     * @return the selected provider service
+     * @throws IllegalStateException if no providers are available
+     * @throws IllegalArgumentException if pre-selected provider is not found
+     * @throws RuntimeException if user cancels the operation
+     */
     public Provider.Service selectProvider(
         CommandLine.Model.CommandSpec spec,
         CommonOptions options,
@@ -77,6 +89,14 @@ public class ProviderSelectionService {
         return selectProviderInteractively(spec, serviceProviderList);
     }
 
+    /**
+     * Prompts the user to select a provider from multiple available options.
+     *
+     * @param spec the command specification for output
+     * @param serviceProviderList list of available PKCS11 provider services
+     * @return the user-selected provider service
+     * @throws RuntimeException if no input is available
+     */
     protected Provider.Service selectProviderInteractively(CommandLine.Model.CommandSpec spec, List<Provider.Service> serviceProviderList) {
         var out = spec.commandLine().getOut();
         out.println("Multiple PKCS11 providers found:");

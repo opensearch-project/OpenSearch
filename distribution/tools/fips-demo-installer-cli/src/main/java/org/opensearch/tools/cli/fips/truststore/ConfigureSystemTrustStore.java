@@ -19,9 +19,7 @@ import static org.opensearch.tools.cli.fips.truststore.ConfigurationProperties.J
 
 /**
  * The ConfigureSystemTrustStore class provides methods to interact with and configure the system
- * trust store for PKCS#11 providers. It supports discovering PKCS#11 KeyStore providers and
- * encapsulates the process of setting up a PKCS#11-based trust store for enhanced security
- * configurations.
+ * trust store for PKCS#11 providers.
  */
 public class ConfigureSystemTrustStore {
 
@@ -29,6 +27,11 @@ public class ConfigureSystemTrustStore {
     private static final String TRUST_STORE_PASSWORD = Security.getProperty(JAVAX_NET_SSL_TRUST_STORE_PASSWORD);
     private static final String SYSTEMSTORE_PASSWORD = Objects.requireNonNullElse(TRUST_STORE_PASSWORD, "");
 
+    /**
+     * Finds all available PKCS11 KeyStore provider services in the security environment.
+     *
+     * @return list of PKCS11 KeyStore provider services
+     */
     public static List<Provider.Service> findPKCS11ProviderService() {
         return Arrays.stream(Security.getProviders())
             .filter(it -> it.getName().toUpperCase(Locale.ROOT).contains(PKCS_11))
@@ -37,6 +40,12 @@ public class ConfigureSystemTrustStore {
             .toList();
     }
 
+    /**
+     * Creates configuration properties for a PKCS11-based trust store.
+     *
+     * @param pkcs11ProviderService the PKCS11 provider service to configure
+     * @return configuration properties for the PKCS11 trust store
+     */
     public static ConfigurationProperties configurePKCS11TrustStore(Provider.Service pkcs11ProviderService) {
         return new ConfigurationProperties("NONE", PKCS_11, SYSTEMSTORE_PASSWORD, pkcs11ProviderService.getProvider().getName());
     }

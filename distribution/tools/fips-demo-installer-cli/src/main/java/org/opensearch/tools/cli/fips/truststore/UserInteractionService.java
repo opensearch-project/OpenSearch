@@ -23,6 +23,7 @@ import picocli.CommandLine;
  */
 public class UserInteractionService {
 
+    /** Shared scanner for reading console input. */
     public static final Scanner CONSOLE_SCANNER = new Scanner(System.in, StandardCharsets.UTF_8);
     private static final String ALPHA_NUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
 
@@ -30,6 +31,14 @@ public class UserInteractionService {
         Runtime.getRuntime().addShutdownHook(new Thread(CONSOLE_SCANNER::close));
     }
 
+    /**
+     * Prompts the user to confirm an action.
+     *
+     * @param spec the command specification for output
+     * @param options common command-line options
+     * @param message confirmation message to display
+     * @return true if user confirms, false otherwise
+     */
     public static boolean confirmAction(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
         PrintWriter out = spec.commandLine().getOut();
         PrintWriter err = spec.commandLine().getErr();
@@ -52,6 +61,15 @@ public class UserInteractionService {
         return response.equalsIgnoreCase("yes") || response.equalsIgnoreCase("y");
     }
 
+    /**
+     * Prompts the user for a password with confirmation.
+     *
+     * @param spec the command specification for output
+     * @param options common command-line options
+     * @param message password prompt message
+     * @return the entered password
+     * @throws RuntimeException if passwords don't match or input is canceled
+     */
     public static String promptForPasswordWithConfirmation(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
         if (options.nonInteractive) {
             // Generate a secure random password for non-interactive mode

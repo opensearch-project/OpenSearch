@@ -28,6 +28,19 @@ import static org.opensearch.tools.cli.fips.truststore.ConfigurationProperties.J
  */
 public class ConfigurationService {
 
+    /**
+     * Constructs a new ConfigurationService instance.
+     */
+    public ConfigurationService() {}
+
+    /**
+     * Verifies that the jvm.options file exists, is readable, and doesn't contain existing FIPS configuration.
+     *
+     * @param spec the command specification for output
+     * @param options common command-line options
+     * @param confPath path to the OpenSearch configuration directory
+     * @throws IllegalStateException if validation fails
+     */
     public static void verifyJvmOptionsFile(CommandLine.Model.CommandSpec spec, CommonOptions options, Path confPath) {
         Path jvmOptionsFile = confPath.resolve("jvm.options");
         if (options.force) {
@@ -47,6 +60,12 @@ public class ConfigurationService {
         validateJvmOptionsContent(jvmOptionsFile);
     }
 
+    /**
+     * Validates that the jvm.options file doesn't already contain FIPS trust store properties.
+     *
+     * @param jvmOptionsFile path to the jvm.options file
+     * @throws IllegalStateException if FIPS configuration already exists
+     */
     protected static void validateJvmOptionsContent(Path jvmOptionsFile) {
         try {
             long size = Files.size(jvmOptionsFile);
@@ -78,6 +97,13 @@ public class ConfigurationService {
         }
     }
 
+    /**
+     * Writes FIPS trust store configuration to the jvm.options file.
+     *
+     * @param properties the trust store configuration properties to write
+     * @param confPath path to the OpenSearch configuration directory
+     * @throws RuntimeException if writing fails
+     */
     public void writeSecurityConfigToJvmOptionsFile(ConfigurationProperties properties, Path confPath) {
         Path jvmOptionsFile = confPath.resolve("jvm.options");
         var configHeader = System.lineSeparator()

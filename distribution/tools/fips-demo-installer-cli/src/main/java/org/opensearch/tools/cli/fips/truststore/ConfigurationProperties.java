@@ -15,6 +15,11 @@ import java.util.Locale;
 /**
  * Encapsulates properties related to a TrustStore configuration. Is primarily used to manage and
  * log details of TrustStore configurations within the system.
+ *
+ * @param trustStorePath path to the trust store file
+ * @param trustStoreType type of the trust store (e.g., BCFKS, PKCS11)
+ * @param trustStorePassword password for the trust store
+ * @param trustStoreProvider security provider name for the trust store
  */
 public record ConfigurationProperties(String trustStorePath, String trustStoreType, String trustStorePassword, String trustStoreProvider) {
 

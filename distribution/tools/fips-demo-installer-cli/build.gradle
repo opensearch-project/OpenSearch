@@ -6,6 +6,8 @@
  * compatible open source license.
  */
 
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+
 apply plugin: 'opensearch.build'
 
 dependencies {
@@ -14,22 +16,14 @@ dependencies {
   api 'info.picocli:picocli:4.7.7'
   api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
 
-  testImplementation(project(":test:framework")) {
-  }
+  testImplementation project(":test:framework")
 }
 
 configurations.runtimeClasspath {
   exclude group: 'org.apache.logging.log4j'
 }
 
-//thirdPartyAudit.ignoreMissingClasses (
-//  'org.apache.logging.log4j.util.Strings',
-//  'org.apache.lucene.util.IOUtils',
-//  'org.joda.time.DateTime'
-//)
-
-tasks.withType(de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis).configureEach {
-//  ignoreSignaturesOfMissingClasses = true
+tasks.withType(CheckForbiddenApis).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
 

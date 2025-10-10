@@ -23,6 +23,11 @@ import picocli.CommandLine;
  */
 public class SecurityProviderService {
 
+    /**
+     * Prints current security provider configuration to the console.
+     *
+     * @param spec the command specification for output
+     */
     public static void printCurrentConfiguration(CommandLine.Model.CommandSpec spec) {
         var detailLog = new StringWriter();
         var writer = new PrintWriter(detailLog);

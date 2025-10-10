@@ -40,6 +40,14 @@ public class CreateFipsTrustStore {
     private static final String BCFIPS = "BCFIPS";
     private static final List<String> KNOWN_JDK_TRUSTSTORE_TYPES = List.of("PKCS12", "JKS");
 
+    /**
+     * Loads the JVM's default trust store (cacerts) from the specified Java home directory.
+     *
+     * @param spec the command specification for output
+     * @param javaHome path to the Java home directory
+     * @return the loaded KeyStore containing system certificates
+     * @throws IllegalStateException if cacerts file cannot be found or loaded
+     */
     public static KeyStore loadJvmDefaultTrustStore(CommandLine.Model.CommandSpec spec, Path javaHome) {
         var cacertsPath = javaHome.resolve("lib").resolve("security").resolve("cacerts");
         if (!Files.exists(cacertsPath) || !Files.isReadable(cacertsPath)) {
@@ -75,12 +83,27 @@ public class CreateFipsTrustStore {
         return jvmKeyStore;
     }
 
+    /**
+     * Creates configuration properties for a BCFKS trust store.
+     *
+     * @param bcfksPath path to the BCFKS trust store file
+     * @param password password for the trust store
+     * @return configuration properties for the BCFKS trust store
+     */
     public static ConfigurationProperties configureBCFKSTrustStore(Path bcfksPath, String password) {
         return new ConfigurationProperties(bcfksPath.toAbsolutePath().toString(), BCFKS, password, BCFIPS);
     }
 
     /**
-     * Creates BCFKS formatted trustStore
+     * Converts a source KeyStore to BCFKS format for FIPS compliance.
+     *
+     * @param spec the command specification for output
+     * @param sourceKeyStore the source KeyStore to convert
+     * @param options common command-line options
+     * @param password password for the new BCFKS trust store
+     * @param confPath path to the OpenSearch configuration directory
+     * @return path to the created BCFKS trust store file
+     * @throws RuntimeException if conversion fails
      */
     public static Path convertToBCFKS(
         CommandLine.Model.CommandSpec spec,
@@ -165,7 +188,7 @@ public class CreateFipsTrustStore {
         try (var outputStream = Files.newOutputStream(tempBcfksFile)) {
             bcfksKeyStore.store(outputStream, password.toCharArray());
         } catch (IOException | KeyStoreException | NoSuchAlgorithmException | CertificateException e) {
-            throw new IllegalStateException("Failed to write BCFKS keystore to [%s]: ".formatted(tempBcfksFile) + e.getMessage(), e);
+            throw new IllegalStateException("Failed to write BCFKS keystore to [" + tempBcfksFile + "]: " + e.getMessage(), e);
         }
     }
 
