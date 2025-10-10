@@ -40,10 +40,12 @@ public interface SegmentReplicationSource {
 
     /**
      * Fetch the requested segment files.  Passes a listener that completes when files are stored locally.
+     * This method is format-aware and can handle multi-format files using the dataFormat information
+     * in StoreFileMetadata to direct files to the appropriate CompositeStoreDirectory.
      *
      * @param replicationId long - ID of the replication event.
      * @param checkpoint    {@link ReplicationCheckpoint} Checkpoint to fetch metadata for.
-     * @param filesToFetch  {@link List} List of files to fetch.
+     * @param filesToFetch  {@link List} List of format-aware files to fetch (StoreFileMetadata contains dataFormat).
      * @param indexShard    {@link IndexShard} Reference to the IndexShard.
      * @param fileProgressTracker {@link BiConsumer} A consumer that updates the replication progress for shard files.
      * @param listener      {@link ActionListener} Listener that completes with the list of files copied.

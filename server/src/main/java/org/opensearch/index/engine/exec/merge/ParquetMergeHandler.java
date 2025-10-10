@@ -67,7 +67,7 @@ public class ParquetMergeHandler extends MergeHandler {
                 Set<FileMetadata> files = new HashSet<>();
                 for (ParquetTieredMergePolicy.ParquetFileInfo file : mergeGroup) {
                     Path path = Path.of(file.getSegmentName());
-                    files.add(new FileMetadata(path.getParent().toString(), path.getFileName().toString()));
+                    files.add(new FileMetadata(path.getParent().toString(), "", path.getFileName().toString()));
                 }
                 oneMerges.add(new OneMerge(compositeIndexingExecutionEngine.getDataFormat().getDataFormats().get(0), files));
             }
@@ -102,7 +102,7 @@ public class ParquetMergeHandler extends MergeHandler {
                 Set<FileMetadata> files = new HashSet<>();
                 for (ParquetTieredMergePolicy.ParquetFileInfo file : mergeGroup) {
                     Path path = Path.of(file.getSegmentName());
-                    files.add(new FileMetadata(path.getParent().toString(), path.getFileName().toString()));
+                    files.add(new FileMetadata("", path.getParent().toString(), path.getFileName().toString()));
                 }
                 oneMerges.add(new OneMerge(compositeIndexingExecutionEngine.getDataFormat().getDataFormats().get(0), files));
             }

@@ -56,6 +56,7 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         Map<RowId, Long> rowIdMapping = new HashMap<>();
 
         FileMetadata mergedFileMetadata = new FileMetadata(
+            "",
             outputDirectory,
             mergedFileName
         );

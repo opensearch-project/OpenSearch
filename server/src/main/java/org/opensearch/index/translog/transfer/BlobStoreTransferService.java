@@ -243,7 +243,8 @@ public class BlobStoreTransferService implements TransferService {
                 inputStreamSupplier,
                 expectedChecksum,
                 remoteIntegrityEnabled,
-                metadata
+                metadata,
+                null
             )
         ) {
             ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(

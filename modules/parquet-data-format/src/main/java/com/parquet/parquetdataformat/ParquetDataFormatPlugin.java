@@ -11,12 +11,19 @@ import com.parquet.parquetdataformat.engine.ParquetDataFormat;
 import com.parquet.parquetdataformat.fields.ArrowSchemaBuilder;
 import com.parquet.parquetdataformat.engine.read.ParquetDataSourceCodec;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
-import org.opensearch.index.engine.DataFormatPlugin;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FormatStoreDirectory;
+import org.opensearch.index.store.GenericStoreDirectory;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugins.Plugin;
@@ -26,6 +33,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * OpenSearch plugin that provides Parquet data format support for indexing operations.
@@ -56,7 +64,12 @@ import java.util.Optional;
  *   <li>Memory management via {@link com.parquet.parquetdataformat.memory} package</li>
  * </ul>
  */
-public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin, DataSourcePlugin {
+public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin {
+
+    /**
+     * Set of file extensions that Parquet format handles
+     */
+    private static final Set<String> PARQUET_EXTENSIONS = Set.of(".parquet", ".pqt");
 
     @Override
     @SuppressWarnings("unchecked")
@@ -74,6 +87,14 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     }
 
     @Override
+    public BlobContainer createBlobContainer(BlobStore blobStore, BlobPath baseBlobPath) throws IOException
+    {
+        BlobPath formatPath = baseBlobPath.add(getDataFormat().name().toLowerCase());
+        BlobContainer container = blobStore.blobContainer(formatPath);
+        return container;
+    }
+
+    @Override
     public Optional<Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec>> getDataSourceCodecs() {
         Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec> codecs = new HashMap<>();
         ParquetDataSourceCodec parquetDataSourceCodec = new ParquetDataSourceCodec();
@@ -81,6 +102,23 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         codecs.put(parquetDataSourceCodec.getDataFormat(), new ParquetDataSourceCodec());
         return Optional.of(codecs);
         // return Optional.empty();
+    }
+
+
+    @Override
+    public FormatStoreDirectory<?> createFormatStoreDirectory(
+        IndexSettings indexSettings,
+        ShardPath shardPath
+    ) throws IOException {
+        // Create a GenericStoreDirectory for the parquet subdirectory
+        Logger logger = LogManager.getLogger("index.store.parquet." + shardPath.getShardId());
+
+        return new GenericStoreDirectory<>(
+            new ParquetDataFormat(),
+            shardPath.getDataPath(),
+            PARQUET_EXTENSIONS,
+            logger
+        );
     }
 
     // for testing locally only

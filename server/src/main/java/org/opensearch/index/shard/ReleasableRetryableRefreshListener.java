@@ -14,6 +14,8 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -28,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * is called, all the permits are acquired and there are no available permits to afterRefresh. This abstract class provides
  * necessary abstract methods to schedule retry.
  */
-public abstract class ReleasableRetryableRefreshListener implements ReferenceManager.RefreshListener {
+public abstract class ReleasableRetryableRefreshListener implements ReferenceManager.RefreshListener, CatalogSnapshotAwareRefreshListener {
 
     /**
      * Total permits = 1 ensures that there is only single instance of runAfterRefreshWithPermit that is running at a time.
@@ -59,10 +61,21 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
     }
 
     @Override
+    public final void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
+        if (closed.get()) {
+            return;
+        }
+
+        runAfterRefreshExactlyOnce(didRefresh);
+        runAfterRefreshWithPermit(didRefresh, () -> {});
+    }
+
+    @Override
     public final void afterRefresh(boolean didRefresh) throws IOException {
         if (closed.get()) {
             return;
         }
+
         runAfterRefreshExactlyOnce(didRefresh);
         runAfterRefreshWithPermit(didRefresh, () -> {});
     }

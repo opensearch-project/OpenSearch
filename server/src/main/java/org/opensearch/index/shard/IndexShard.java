@@ -144,11 +144,13 @@ import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.bridge.CheckpointState;
 import org.opensearch.index.engine.exec.bridge.Indexer;
 import org.opensearch.index.engine.exec.bridge.IndexingThrottler;
 import org.opensearch.index.engine.exec.bridge.StatsHolder;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
@@ -181,12 +183,8 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory;
-import org.opensearch.index.store.RemoteStoreFileDownloader;
-import org.opensearch.index.store.Store;
+import org.opensearch.index.store.*;
 import org.opensearch.index.store.Store.MetadataSnapshot;
-import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteFsTranslog;
@@ -237,6 +235,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -564,11 +563,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 startRefreshTask();
             }
         }
+
         this.compositeEngine = new CompositeEngine(mapperService, pluginsService, path);
+
     }
 
     public CompositeEngine getIndexingExecutionCoordinator() {
         return compositeEngine;
+    }
+
+    /**
+     * Complete the initialization of CompositeEngine refresh listeners after all dependencies are ready.
+     * This method should be called after remote store stats trackers have been created.
+     */
+    public void completeCompositeEngineInitialization() {
+        try {
+            final EngineConfig engineConfig = newEngineConfig(() -> replicationTracker.getGlobalCheckpoint());
+            compositeEngine.initializeRefreshListeners(engineConfig);
+            logger.debug("Completed CompositeEngine refresh listener initialization for shard [{}]", shardId);
+        } catch (IOException e) {
+            logger.error("Failed to complete CompositeEngine initialization for shard [{}]", shardId, e);
+            throw new RuntimeException("Failed to complete CompositeEngine initialization", e);
+        }
     }
     /**
      * By default, UNASSIGNED_SEQ_NO is used as the initial global checkpoint for new shard initialization. Ingestion
@@ -1818,6 +1834,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Finalizes replication using CatalogSnapshot instead of SegmentInfos.
+     * This method replaces the SegmentInfos-based approach with CatalogSnapshot
+     * to ensure consistent version tracking and format-aware segment management.
+     *
+     * @param catalogSnapshot the CatalogSnapshot containing segment metadata
+     * @throws IOException if an error occurs during replication finalization
+     */
+    public void finalizeReplication(CatalogSnapshot catalogSnapshot) throws IOException {
+        assert Thread.holdsLock(mutex) == false : "finalizeReplication must not be called under mutex";
+        assert state == IndexShardState.RECOVERING || state == IndexShardState.STARTED;
+
+        if (catalogSnapshot == null) {
+            logger.warn("Cannot finalize replication with null CatalogSnapshot for shard [{}]", shardId);
+            return;
+        }
+
+        // Use the fresh catalogSnapshot parameter directly (like old SegmentInfos pattern)
+        try {
+            final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(catalogSnapshot);
+            replicationTracker.setLatestReplicationCheckpoint(checkpoint);
+            compositeEngine.setCatalogSnapshot(catalogSnapshot);
+            logger.trace("Updated replication checkpoint from fresh CatalogSnapshot: shard={}, checkpoint={}", shardId, checkpoint);
+        } catch (IOException e) {
+            logger.error("Error computing replication checkpoint from fresh catalog snapshot for shard [{}]", shardId, e);
+            throw new OpenSearchException("Error computing replication checkpoint from fresh catalog snapshot", e);
+        }
+
+        // Todo: We need to initialize compositeRepliationEngine here
+        logger.debug("Finalized replication with CatalogSnapshot: generation={}, version={}, shard={}",
+                    catalogSnapshot.getGeneration(), catalogSnapshot.getVersion(), shardId);
+    }
+
+    /**
      * The replica shard cleans up redundant pending merged segments based on the referenced segments of the primary shard.
      * Here, an example of generating redundant pending merged segments will be provided.
      * At time1, the primary shard merges _1.si and _2.si into segment _3.si. _3.si is pre-copied to the replica shard, which completed at time4.
@@ -1942,15 +1991,114 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Compute the latest {@link ReplicationCheckpoint} from a SegmentInfos.
+     * Compute and return the latest ReplicationCheckpoint for a shard and a GatedCloseable containing the corresponding CatalogSnapshot.
+     * This method uses CatalogSnapshot instead of SegmentInfos to ensure consistent checkpoint version calculation
+     * across all replication checkpoint computation flows.
+     * <p>
+     * Primary shards compute the seqNo used in the replication checkpoint from the fetched CatalogSnapshot.
+     * Replica shards compute the seqNo from its latest processed checkpoint, which only increases when refreshing on new segments.
+     *
+     * @return A {@link Tuple} containing CatalogSnapshot wrapped in a {@link GatedCloseable} and the {@link ReplicationCheckpoint} computed from the catalog.
+     *
+     */
+    public Tuple<GatedCloseable<CatalogSnapshot>, ReplicationCheckpoint> getLatestCatalogSnapshotAndCheckpoint() {
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
+
+        CatalogSnapshot catalogSnapshot = null;
+        try {
+            catalogSnapshot = getCatalogSnapshotFromEngine();
+            final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(catalogSnapshot);
+
+            // Create a GatedCloseable wrapper for the catalog snapshot
+            final CatalogSnapshot finalCatalogSnapshot = catalogSnapshot;
+            GatedCloseable<CatalogSnapshot> gatedCatalogSnapshot = new GatedCloseable<>(catalogSnapshot, () -> {
+                if (finalCatalogSnapshot != null) {
+                    finalCatalogSnapshot.decRef();
+                }
+            });
+
+            logger.trace("Retrieved latest CatalogSnapshot and computed checkpoint: shard={}, checkpoint={}", shardId, checkpoint);
+            return new Tuple<>(gatedCatalogSnapshot, checkpoint);
+        } catch (IOException | AlreadyClosedException e) {
+            logger.error("Error Fetching CatalogSnapshot and latest checkpoint", e);
+            if (catalogSnapshot != null) {
+                catalogSnapshot.decRef();
+            }
+        }
+        return new Tuple<>(new GatedCloseable<>(null, () -> {}), getLatestReplicationCheckpoint());
+    }
+
+    /**
+     * Compute the latest {@link ReplicationCheckpoint} from a CatalogSnapshot.
      * This function fetches a metadata snapshot from the store that comes with an IO cost.
      * We will reuse the existing stored checkpoint if it is at the same SI version.
      *
-     * @param segmentInfos {@link SegmentInfos} infos to use to compute.
-     * @return {@link ReplicationCheckpoint} Checkpoint computed from the infos.
+     * @param catalogSnapshot {@link CatalogSnapshot} snapshot to use to compute.
+     * @return {@link ReplicationCheckpoint} Checkpoint computed from the catalog snapshot.
      * @throws IOException When there is an error computing segment metadata from the store.
      * TODO: SegRep changes for decoupling. looks to depend on codec.
      */
+    ReplicationCheckpoint computeReplicationCheckpoint(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (catalogSnapshot == null) {
+            return ReplicationCheckpoint.empty(shardId);
+        }
+        final ReplicationCheckpoint latestReplicationCheckpoint = getLatestReplicationCheckpoint();
+        if (latestReplicationCheckpoint.getSegmentInfosVersion() == catalogSnapshot.getVersion()
+            && latestReplicationCheckpoint.getSegmentsGen() == catalogSnapshot.getGeneration()
+            && latestReplicationCheckpoint.getPrimaryTerm() == getOperationPrimaryTerm()) {
+            return latestReplicationCheckpoint;
+        }
+
+        // Extract format-aware metadata directly from CatalogSnapshot
+        final Map<FileMetadata, StoreFileMetadata> formatAwareMetadataMap = extractFormatAwareMetadata(catalogSnapshot);
+
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
+            this.shardId,
+            getOperationPrimaryTerm(),
+            catalogSnapshot.getGeneration(),
+            catalogSnapshot.getVersion(),
+            formatAwareMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
+            formatAwareMetadataMap,
+            getEngine().config().getCodec().getName()
+        );
+        logger.trace("Recomputed ReplicationCheckpoint from CatalogSnapshot for shard {}", checkpoint);
+        return checkpoint;
+    }
+
+    /**
+     * Extracts format-aware metadata from CatalogSnapshot.
+     * Creates a mapping from FileMetadata to StoreFileMetadata preserving format information.
+     */
+    private Map<FileMetadata, StoreFileMetadata> extractFormatAwareMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
+        Map<FileMetadata, StoreFileMetadata> formatAwareMap = new HashMap<>();
+
+        if(catalogSnapshot == null)
+        {
+            return formatAwareMap;
+        }
+
+        for (FileMetadata fileMetadata : catalogSnapshot.getFileMetadataList()) {
+            try {
+                long fileLength = store.compositeStoreDirectory().fileLength(fileMetadata);
+                long checksum = store.compositeStoreDirectory().calculateChecksum(fileMetadata);
+
+                StoreFileMetadata storeFileMetadata = new StoreFileMetadata(
+                    fileMetadata.file(),
+                    fileLength,
+                    Long.toString(checksum),
+                    Version.LATEST,
+                    fileMetadata.dataFormat()
+                );
+                formatAwareMap.put(fileMetadata, storeFileMetadata);
+            } catch (IOException e) {
+                logger.warn("Failed to create StoreFileMetadata for {}", fileMetadata, e);
+            }
+        }
+
+        logger.debug("Extracted {} format-aware metadata entries from CatalogSnapshot", formatAwareMap.size());
+        return formatAwareMap;
+    }
+
     ReplicationCheckpoint computeReplicationCheckpoint(SegmentInfos segmentInfos) throws IOException {
         if (segmentInfos == null) {
             return ReplicationCheckpoint.empty(shardId);
@@ -1962,7 +2110,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return latestReplicationCheckpoint;
         }
         final Map<String, StoreFileMetadata> metadataMap = store.getSegmentMetadataMap(segmentInfos);
-        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
+        final ReplicationCheckpoint checkpoint = ReplicationCheckpoint.fromLegacyMetadata(
             this.shardId,
             getOperationPrimaryTerm(),
             segmentInfos.getGeneration(),
@@ -2162,6 +2310,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Map<String, StoreFileMetadata> getSegmentMetadataMap() throws IOException {
         try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
             return store.getSegmentMetadataMap(snapshot.get());
+        }
+    }
+
+    /**
+     * Fetch a format-aware map of FileMetadata to StoreFileMetadata from the latest CatalogSnapshot.
+     * This method preserves format information and is used for format-aware segment replication diffs.
+     *
+     * @return - Map of FileMetadata to StoreFileMetadata preserving format information
+     * @throws IOException - When there is an error loading metadata from the store.
+     */
+    public Map<FileMetadata, StoreFileMetadata> getFormatAwareSegmentMetadataMap() throws IOException {
+        try {
+            final CatalogSnapshot catalogSnapshot = getCatalogSnapshotFromEngine();
+            return extractFormatAwareMetadata(catalogSnapshot);
+        } catch (IOException e) {
+            logger.warn("Failed to get format-aware segment metadata", e);
+            return Collections.emptyMap();
         }
     }
 
@@ -2372,7 +2537,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             RemoteSegmentStoreDirectory directory = getRemoteDirectory();
             if (directory.readLatestMetadataFile() != null) {
-                Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
+                Collection<FileMetadata> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
                     Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
                     Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
@@ -4402,7 +4567,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentStoreDirectory rd = getRemoteDirectory();
         AtomicBoolean segment_n_uploaded = new AtomicBoolean(false);
         rd.getSegmentsUploadedToRemoteStore().forEach((key, value) -> {
-            if (key.startsWith("segments")) {
+            if (key.file().startsWith("segments")) {
                 segment_n_uploaded.set(true);
             }
         });
@@ -5187,11 +5352,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void updateReplicationCheckpoint() {
-        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = getLatestSegmentInfosAndCheckpoint();
-        try (final GatedCloseable<SegmentInfos> ignored = tuple.v1()) {
-            replicationTracker.setLatestReplicationCheckpoint(tuple.v2());
+        try {
+            final CatalogSnapshot catalogSnapshot = getCatalogSnapshotFromEngine();
+            final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(catalogSnapshot);
+            replicationTracker.setLatestReplicationCheckpoint(checkpoint);
+            logger.trace("Updated replication checkpoint from CatalogSnapshot: shard={}, checkpoint={}", shardId, checkpoint);
         } catch (IOException e) {
-            throw new OpenSearchException("Error Closing SegmentInfos Snapshot", e);
+            logger.error("Error computing replication checkpoint from catalog snapshot for shard [{}]", shardId, e);
+            throw new OpenSearchException("Error computing replication checkpoint from catalog snapshot", e);
         }
     }
 
@@ -5415,11 +5583,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // are uploaded to the remote segment store.
         RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
 
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
+        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
             .getSegmentsUploadedToRemoteStore()
             .entrySet()
             .stream()
-            .filter(entry -> entry.getKey().startsWith(IndexFileNames.SEGMENTS) == false)
+            .filter(entry -> entry.getKey().file().startsWith(IndexFileNames.SEGMENTS) == false)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         store.incRef();
         remoteStore.incRef();
@@ -5427,19 +5595,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final Directory storeDirectory;
             if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
                 storeDirectory = new StoreRecovery.StatsDirectoryWrapper(store.directory(), recoveryState.getIndex());
-                for (String file : uploadedSegments.keySet()) {
+                for (FileMetadata file : uploadedSegments.keySet()) {
                     long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
                     if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
-                        recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), false);
+                        recoveryState.getIndex().addFileDetail(file.file(), uploadedSegments.get(file).getLength(), false);
                     } else {
-                        recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), true);
+                        recoveryState.getIndex().addFileDetail(file.file(), uploadedSegments.get(file).getLength(), true);
                     }
                 }
             } else {
                 storeDirectory = store.directory();
             }
+
             if (indexSettings.isWarmIndex() == false) {
-                copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal, onFileSync);
+                // ToDo: update while restore implementation
+                // copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal, onFileSync);
             }
 
             if (remoteSegmentMetadata != null) {
@@ -5485,88 +5655,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentMetadata remoteSegmentMetadata,
         boolean pinnedTimestamp
     ) throws IOException {
-        logger.trace("Downloading segments from given remote segment store");
-        RemoteSegmentStoreDirectory remoteDirectory = null;
-        if (remoteStore != null) {
-            remoteDirectory = getRemoteDirectory();
-            remoteDirectory.init();
-            remoteStore.incRef();
-        }
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
-            .getSegmentsUploadedToRemoteStore();
-        store.incRef();
-        try {
-            final Directory storeDirectory;
-            if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
-                storeDirectory = new StoreRecovery.StatsDirectoryWrapper(store.directory(), recoveryState.getIndex());
-                for (String file : uploadedSegments.keySet()) {
-                    long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
-                    if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
-                        recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), false);
-                    } else {
-                        recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), true);
-                    }
-                }
-            } else {
-                storeDirectory = store.directory();
-            }
-
-            String segmentsNFile = copySegmentFiles(
-                storeDirectory,
-                sourceRemoteDirectory,
-                remoteDirectory,
-                uploadedSegments,
-                overrideLocal,
-                () -> {}
-            );
-            if (pinnedTimestamp) {
-                final SegmentInfos infosSnapshot = store.buildSegmentInfos(
-                    remoteSegmentMetadata.getSegmentInfosBytes(),
-                    remoteSegmentMetadata.getGeneration()
-                );
-                long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
-                // Extra segments will be wiped on engine open.
-                for (String file : List.of(store.directory().listAll())) {
-                    if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                        store.deleteQuiet(file);
-                    }
-                }
-                assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
-                    || indexSettings.isWarmIndex() : "There should not be any segments file in the dir";
-                store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
-            } else if (segmentsNFile != null) {
-                try (
-                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
-                        storeDirectory.openInput(segmentsNFile, IOContext.READONCE)
-                    )
-                ) {
-                    long commitGeneration = SegmentInfos.generationFromSegmentsFileName(segmentsNFile);
-                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(store.directory(), indexInput, commitGeneration);
-                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                    if (remoteStore != null) {
-                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
-                    } else {
-                        store.directory().sync(infosSnapshot.files(true));
-                        store.directory().syncMetaData();
-                    }
-                }
-            }
-        } catch (IOException e) {
-            throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
-        } finally {
-            store.decRef();
-            if (remoteStore != null) {
-                remoteStore.decRef();
-            }
-        }
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
+    // ToDo: Needs to be updated while Replication flow implementation
     private String copySegmentFiles(
-        Directory storeDirectory,
+        CompositeStoreDirectory storeDirectory,
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments,
+        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments,
         boolean overrideLocal,
         final Runnable onFileSync
     ) throws IOException {
@@ -5576,28 +5673,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         try {
             if (overrideLocal) {
-                for (String file : storeDirectory.listAll()) {
+                for (FileMetadata file : storeDirectory.listAll()) {
                     storeDirectory.deleteFile(file);
                 }
             }
 
-            for (String file : uploadedSegments.keySet()) {
+            for (FileMetadata file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
                 if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
-                    toDownloadSegments.add(file);
+                    toDownloadSegments.add(file.file());
                 } else {
-                    skippedSegments.add(file);
+                    skippedSegments.add(file.file());
                 }
 
-                if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                if (file.file().startsWith(IndexFileNames.SEGMENTS)) {
                     assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
-                    segmentNFile = file;
+                    segmentNFile = file.file();
                 }
             }
 
             if (toDownloadSegments.isEmpty() == false) {
                 try {
-                    fileDownloader.download(sourceRemoteDirectory, storeDirectory, targetRemoteDirectory, toDownloadSegments, onFileSync);
+                    // ToDo:
+                    //fileDownloader.download(sourceRemoteDirectory, storeDirectory, targetRemoteDirectory, toDownloadSegments, onFileSync);
                 } catch (Exception e) {
                     throw new IOException("Error occurred when downloading segments from remote store", e);
                 }
@@ -5611,30 +5709,59 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     // Visible for testing
-    boolean localDirectoryContains(Directory localDirectory, String file, long checksum) throws IOException {
-        try (IndexInput indexInput = localDirectory.openInput(file, IOContext.READONCE)) {
+    boolean localDirectoryContains(CompositeStoreDirectory localDirectory, FileMetadata fileMetadata, long checksum) throws IOException {
+        try (IndexInput indexInput = localDirectory.openInput(fileMetadata, IOContext.READONCE)) {
             if (checksum == CodecUtil.retrieveChecksum(indexInput)) {
                 return true;
             } else {
-                logger.warn("Checksum mismatch between local and remote segment file: {}, will override local file", file);
+                logger.warn("Checksum mismatch between local and remote segment file: {}, will override local file", fileMetadata.file());
                 // If there is a checksum mismatch and we are not serving reads it is safe to go ahead and delete the file now.
                 // Outside of engine resets this method will be invoked during recovery so this is safe.
                 if (isReadAllowed() == false) {
-                    localDirectory.deleteFile(file);
+                    localDirectory.deleteFile(fileMetadata);
                 } else {
                     // segment conflict with remote store while the shard is serving reads.
-                    failShard("Local copy of segment " + file + " has a different checksum than the version in remote store", null);
+                    failShard("Local copy of segment " + fileMetadata.file()+ " has a different checksum than the version in remote store", null);
                 }
             }
         } catch (NoSuchFileException | FileNotFoundException e) {
-            logger.debug("File {} does not exist in local FS, downloading from remote store", file);
+            logger.debug("File {} does not exist in local FS, downloading from remote store", fileMetadata.file());
         } catch (IOException e) {
-            logger.warn("Exception while reading checksum of file: {}, this can happen if file is corrupted", file);
+            logger.warn("Exception while reading checksum of file: {}, this can happen if file is corrupted", fileMetadata.file());
             // For any other exception on reading checksum, we delete the file to re-download again
-            localDirectory.deleteFile(file);
+            localDirectory.deleteFile(fileMetadata);
         }
         return false;
     }
+
+    // Visible for testing
+    boolean localDirectoryContains(Directory localDirectory, FileMetadata fileMetadata, long checksum) throws IOException {
+        try (IndexInput indexInput = localDirectory.openInput(fileMetadata.file(), IOContext.READONCE)) {
+            if (checksum == CodecUtil.retrieveChecksum(indexInput)) {
+                return true;
+            } else {
+                logger.warn("Checksum mismatch between local and remote segment file: {}, will override local file", fileMetadata);
+                // If there is a checksum mismatch and we are not serving reads it is safe to go ahead and delete the file now.
+                // Outside of engine resets this method will be invoked during recovery so this is safe.
+                if (isReadAllowed() == false) {
+                    localDirectory.deleteFile(fileMetadata.file());
+                } else {
+                    // segment conflict with remote store while the shard is serving reads.
+                    failShard("Local copy of segment " + fileMetadata.file() + " has a different checksum than the version in remote store", null);
+                }
+            }
+        } catch (NoSuchFileException | FileNotFoundException e) {
+            logger.debug("File {} does not exist in local FS, downloading from remote store", fileMetadata.file());
+        } catch (IOException e) {
+            logger.warn("Exception while reading checksum of file: {}, this can happen if file is corrupted", fileMetadata.file());
+            // For any other exception on reading checksum, we delete the file to re-download again
+            localDirectory.deleteFile(fileMetadata.file());
+        }
+
+        return false;
+    }
+
+
 
     /**
      * Returns the maximum sequence number of either update or delete operations have been processed in this shard
@@ -5689,6 +5816,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
         return getEngine().getSegmentInfosSnapshot();
+    }
+
+    public CatalogSnapshot getCatalogSnapshotFromEngine() {
+        return compositeEngine.catalogSnapshot();
     }
 
     private TimeValue getRemoteTranslogUploadBufferInterval(Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier) {

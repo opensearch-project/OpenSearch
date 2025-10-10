@@ -20,6 +20,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.RemoteStoreUploader;
 import org.opensearch.index.shard.RemoteStoreUploaderService;
@@ -79,11 +80,12 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
         this.replicationService = targetService;
     }
 
+    // Todo: needs implementation with fileMetadata
     @Override
     protected void doReplicaOperation(RemoteStorePublishMergedSegmentRequest shardRequest, IndexShard replica) {
         RemoteStoreMergedSegmentCheckpoint checkpoint = shardRequest.getMergedSegment();
         if (checkpoint.getShardId().equals(replica.shardId())) {
-            replica.getRemoteDirectory().markMergedSegmentsPendingDownload(checkpoint.getLocalToRemoteSegmentFilenameMap());
+            // replica.getRemoteDirectory().markMergedSegmentsPendingDownload(checkpoint.getLocalToRemoteSegmentFilenameMap());
             replicationService.onNewMergedSegmentCheckpoint(checkpoint, replica);
         } else {
             logger.warn(
@@ -108,7 +110,16 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
     @Override
     public final void publish(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
         long startTimeMillis = System.currentTimeMillis();
-        Map<String, String> localToRemoteStoreFilenames = uploadMergedSegmentsToRemoteStore(indexShard, checkpoint);
+        Map<FileMetadata, String> localToRemoteStoreFileMetadatas = uploadMergedSegmentsToRemoteStore(indexShard, checkpoint);
+
+        // Todo: needs to update this it should use fileMetadata rather than filename.
+        Map<String, String> localToRemoteStoreFilenames = localToRemoteStoreFileMetadatas.entrySet()
+            .stream()
+            .collect(Collectors.toMap(
+                entry -> entry.getKey().file(),  // Extract filename from FileMetadata
+                Map.Entry::getValue
+            ));
+
         long endTimeMillis = System.currentTimeMillis();
 
         long elapsedTimeMillis = endTimeMillis - startTimeMillis;
@@ -139,16 +150,16 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
         }
     }
 
-    private Map<String, String> uploadMergedSegmentsToRemoteStore(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
+    private Map<FileMetadata, String> uploadMergedSegmentsToRemoteStore(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
         Collection<String> segmentsToUpload = checkpoint.getMetadataMap().keySet();
-        Map<String, String> localToRemoteStoreFilenames = new ConcurrentHashMap<>();
+        Map<FileMetadata, String> localToRemoteStoreFilenames = new ConcurrentHashMap<>();
 
         Map<String, Long> segmentsSizeMap = checkpoint.getMetadataMap()
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().length()));
         final CountDownLatch latch = new CountDownLatch(1);
-        getRemoteStoreUploaderService(indexShard).uploadSegments(segmentsToUpload, segmentsSizeMap, new ActionListener<>() {
+        getRemoteStoreUploaderService(indexShard).uploadSegmentsLegacy(segmentsToUpload, segmentsSizeMap, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 logger.trace(() -> new ParameterizedMessage("Successfully uploaded segments {} to remote store", segmentsToUpload));
@@ -162,15 +173,15 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
             }
         }, (x) -> new UploadListener() {
             @Override
-            public void beforeUpload(String file) {}
+            public void beforeUpload(FileMetadata file) {}
 
             @Override
-            public void onSuccess(String file) {
+            public void onSuccess(FileMetadata file) {
                 localToRemoteStoreFilenames.put(file, indexShard.getRemoteDirectory().getExistingRemoteFilename(file));
             }
 
             @Override
-            public void onFailure(String file) {
+            public void onFailure(FileMetadata file) {
                 logger.warn("Unable to upload segments during merge. Continuing.");
             }
         }, true);
@@ -197,6 +208,6 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
     }
 
     private RemoteStoreUploader getRemoteStoreUploaderService(IndexShard indexShard) {
-        return new RemoteStoreUploaderService(indexShard, indexShard.store().directory(), indexShard.getRemoteDirectory());
+        return new RemoteStoreUploaderService(indexShard, indexShard.store().compositeStoreDirectory(), indexShard.getRemoteDirectory());
     }
 }

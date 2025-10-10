@@ -60,10 +60,12 @@ public class IndexingManager {
         });
 
         long id = 0L;
+        long version = 0L;
         if (catalogSnapshot != null) {
             id = catalogSnapshot.getId();
+            version = catalogSnapshot.getVersion();
         }
-        CatalogSnapshot newCatSnap = new CatalogSnapshot(engine.refresh(new RefreshInput()), id + 1L);
+        CatalogSnapshot newCatSnap = new CatalogSnapshot(engine.refresh(new RefreshInput()), id + 1L, version + 1L);
         newCatSnap.incRef();
         if (catalogSnapshot != null) {
             catalogSnapshot.decRef();

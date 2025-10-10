@@ -72,7 +72,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
 
     @Override
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) throws IOException {
-        String fileName = Path.of(shardPath.getDataPath().toString(), FILE_NAME_PREFIX + "_" + writerGeneration + ".parquet").toString();
+        String fileName = Path.of(shardPath.getDataPath().toString(), "parquet", FILE_NAME_PREFIX + "_" + writerGeneration + ".parquet").toString();
         return new ParquetWriter(fileName, schema.get(), writerGeneration);
     }
 
