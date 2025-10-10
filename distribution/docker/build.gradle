@@ -295,3 +295,11 @@ subprojects { Project subProject ->
 tasks.named("composeUp").configure {
   dependsOn preProcessFixture
 }
+
+dockerCompose {
+  useComposeFiles = ['docker-compose.yml']
+  if (BuildParams.inFipsJvm) {
+    environment.put("KEYSTORE_PASSWORD", "notarealpasswordphrase")
+    environment.put("FIPS_GENERATE_TRUSTSTORE", "true")
+  }
+}
