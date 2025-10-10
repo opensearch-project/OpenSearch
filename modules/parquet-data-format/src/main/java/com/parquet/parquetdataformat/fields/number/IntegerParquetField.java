@@ -15,6 +15,28 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 
+/**
+ * Parquet field implementation for handling 32-bit signed integer data types in OpenSearch documents.
+ *
+ * <p>This class provides the conversion logic between OpenSearch integer fields and Apache Arrow
+ * 32-bit signed integer vectors for columnar storage in Parquet format. Integer values are stored
+ * using Apache Arrow's {@link IntVector}, which provides efficient fixed-width integer storage.</p>
+ *
+ * <p>This field type corresponds to OpenSearch's {@code integer} number field mapping and
+ * supports the full range of 32-bit signed integer values.</p>
+ *
+ * <p><strong>Usage Example:</strong></p>
+ * <pre>{@code
+ * IntegerParquetField intField = new IntegerParquetField();
+ * ArrowType arrowType = intField.getArrowType(); // Returns 32-bit signed integer type
+ * FieldType fieldType = intField.getFieldType(); // Returns non-nullable integer field type
+ * }</pre>
+ *
+ * @see ParquetField
+ * @see IntVector
+ * @see ArrowType.Int
+ * @since 1.0
+ */
 public class IntegerParquetField extends ParquetField {
 
     @Override

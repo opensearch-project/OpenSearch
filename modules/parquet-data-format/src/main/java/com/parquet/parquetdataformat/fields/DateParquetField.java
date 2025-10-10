@@ -15,6 +15,30 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 
+/**
+ * Parquet field implementation for handling date and timestamp data types in OpenSearch documents.
+ *
+ * <p>This class provides the conversion logic between OpenSearch date fields and Apache Arrow
+ * timestamp vectors for columnar storage in Parquet format. Date values are stored using
+ * Apache Arrow's {@link DateMilliVector}, which stores timestamps as milliseconds since the
+ * Unix epoch (January 1, 1970, 00:00:00 UTC).</p>
+ *
+ * <p>This field type corresponds to OpenSearch's {@code date} field mapping and supports
+ * various date formats as configured in the field mapping. All dates are normalized to
+ * millisecond timestamps before storage in the Arrow vector.</p>
+ *
+ * <p><strong>Usage Example:</strong></p>
+ * <pre>{@code
+ * DateParquetField dateField = new DateParquetField();
+ * ArrowType arrowType = dateField.getArrowType(); // Returns Timestamp with MILLISECOND precision
+ * FieldType fieldType = dateField.getFieldType(); // Returns non-nullable timestamp field type
+ * }</pre>
+ *
+ * @see ParquetField
+ * @see DateMilliVector
+ * @see ArrowType.Timestamp
+ * @since 1.0
+ */
 public class DateParquetField extends ParquetField {
 
     @Override
