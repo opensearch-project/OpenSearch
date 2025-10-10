@@ -112,6 +112,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix derived field rewrite to handle range queries ([#19496](https://github.com/opensearch-project/OpenSearch/pull/19496))
 - [WLM] add a check to stop workload group deletion having rules ([#19502](https://github.com/opensearch-project/OpenSearch/pull/19502))
 - Fix incorrect rewriting of terms query with more than two consecutive whole numbers ([#19587](https://github.com/opensearch-project/OpenSearch/pull/19587))
+- Disable query rewriting framework as a default behaviour ([#19592](https://github.com/opensearch-project/OpenSearch/pull/19592))
 
 ### Dependencies
 - Bump `com.gradleup.shadow:shadow-gradle-plugin` from 8.3.5 to 8.3.9 ([#19400](https://github.com/opensearch-project/OpenSearch/pull/19400))
