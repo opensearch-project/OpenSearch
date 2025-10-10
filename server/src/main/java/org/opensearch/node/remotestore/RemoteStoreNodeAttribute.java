@@ -249,6 +249,16 @@ public class RemoteStoreNodeAttribute {
         return false;
     }
 
+    public static boolean isRemoteStoreMetadata(Settings settings) {
+        for (String metadataKey : settings.keySet()) {
+            System.out.println("metadataKey = " + metadataKey);
+            if(metadataKey.equals("sse_enabled")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean isRemoteDataAttributePresent(Settings settings) {
         return isSegmentRepoConfigured(settings) || isTranslogRepoConfigured(settings);
     }
@@ -278,6 +288,10 @@ public class RemoteStoreNodeAttribute {
             }
         }
         return false;
+    }
+
+    public static boolean isRemoteStoreServerSideEncryptionEnabled(Map<String, String> repos) {
+        return true;
     }
 
     public static String getRemoteStoreSegmentRepo(Settings settings) {

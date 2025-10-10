@@ -8,6 +8,7 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.RepositoriesService;
@@ -37,12 +38,15 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
 
     private final RemoteStoreSettings remoteStoreSettings;
 
+    private final IndexSettings indexSettings;
+
     public RemoteBlobStoreInternalTranslogFactory(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
         String repositoryName,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        IndexSettings indexSettings
     ) {
         Repository repository;
         try {
@@ -54,6 +58,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         this.threadPool = threadPool;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         this.remoteStoreSettings = remoteStoreSettings;
+        this.indexSettings = indexSettings;
     }
 
     @Override
@@ -107,7 +112,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 startedPrimarySupplier,
                 remoteTranslogTransferTracker,
                 remoteStoreSettings,
-                translogOperationHelper
+                translogOperationHelper,
+                indexSettings
             );
         } else {
             return new RemoteFsTranslog(
@@ -123,7 +129,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 remoteTranslogTransferTracker,
                 remoteStoreSettings,
                 translogOperationHelper,
-                null
+                null,
+                indexSettings
             );
         }
     }
