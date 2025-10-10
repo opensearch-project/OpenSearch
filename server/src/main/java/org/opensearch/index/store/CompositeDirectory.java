@@ -188,7 +188,9 @@ public class CompositeDirectory extends FilterDirectory {
                         logger.debug("The file [{}] exists in local but not part of FileCache, deleting it from local", blockFile);
                         localDirectory.deleteFile(blockFile);
                     } else {
-                        fileCache.remove(getFilePath(blockFile));
+                        Path blockFilePath = getFilePath(blockFile);
+                        fileCache.unpin(blockFilePath);
+                        fileCache.remove(blockFilePath);
                     }
                 }
             }
@@ -275,7 +277,9 @@ public class CompositeDirectory extends FilterDirectory {
         ensureOpen();
         logger.trace("Composite Directory[{}]: rename() called : source-{}, dest-{}", this::toString, () -> source, () -> dest);
         localDirectory.rename(source, dest);
-        fileCache.remove(getFilePath(source));
+        Path srcFilePath = getFilePath(source);
+        fileCache.unpin(srcFilePath);
+        fileCache.remove(srcFilePath);
         cacheFile(dest);
     }
 
@@ -439,10 +443,9 @@ public class CompositeDirectory extends FilterDirectory {
 
     protected void cacheFile(String name) throws IOException {
         Path filePath = getFilePath(name);
-
         fileCache.put(filePath, new CachedFullFileIndexInput(fileCache, filePath, localDirectory.openInput(name, IOContext.DEFAULT)));
-        fileCache.pin(filePath);
         fileCache.decRef(filePath);
+        fileCache.pin(filePath);
     }
 
 }
