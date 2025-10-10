@@ -57,6 +57,7 @@ import static org.apache.lucene.index.IndexFileNames.SEGMENTS;
 public class CompositeDirectory extends FilterDirectory {
     private static final Logger logger = LogManager.getLogger(CompositeDirectory.class);
     protected final FSDirectory localDirectory;
+    protected  final CompositeStoreDirectory compositeStoreDirectory;
     protected final RemoteSegmentStoreDirectory remoteDirectory;
     protected final FileCache fileCache;
     protected final TransferManager transferManager;
@@ -72,6 +73,7 @@ public class CompositeDirectory extends FilterDirectory {
         super(localDirectory);
         validate(localDirectory, remoteDirectory, fileCache);
         this.localDirectory = (FSDirectory) localDirectory;
+        this.compositeStoreDirectory = null;
         this.remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectory;
         this.fileCache = fileCache;
         this.threadPool = threadPool;

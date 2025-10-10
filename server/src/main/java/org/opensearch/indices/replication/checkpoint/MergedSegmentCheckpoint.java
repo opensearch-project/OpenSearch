@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.StoreFileMetadata;
 
@@ -28,6 +29,19 @@ import java.util.Objects;
 @ExperimentalApi
 public class MergedSegmentCheckpoint extends ReplicationCheckpoint {
     private final String segmentName;
+
+    public MergedSegmentCheckpoint(
+        ShardId shardId,
+        long primaryTerm,
+        long segmentInfosVersion,
+        long length,
+        Map<FileMetadata, StoreFileMetadata> metadataMap,
+        String codec,
+        String segmentName
+    ) {
+        super(shardId, primaryTerm, SequenceNumbers.NO_OPS_PERFORMED, segmentInfosVersion, length, metadataMap, codec);
+        this.segmentName = segmentName;
+    }
 
     public MergedSegmentCheckpoint(
         ShardId shardId,

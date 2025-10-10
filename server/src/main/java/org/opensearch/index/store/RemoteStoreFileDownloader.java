@@ -19,11 +19,14 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.CompositeStoreDirectoryStatsWrapper;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
@@ -63,6 +66,24 @@ public final class RemoteStoreFileDownloader {
         ActionListener<Void> listener
     ) {
         downloadInternal(cancellableThreads, source, destination, null, toDownloadSegments, () -> {}, listener);
+    }
+
+    /**
+     * Format-aware version: Copies the given segments from the remote segment store to the given
+     * CompositeStoreDirectory, using FileMetadata for format-aware routing.
+     * @param source The remote directory to copy segment files from
+     * @param destination The CompositeStoreDirectory wrapper to copy segment files to
+     * @param toDownloadFileMetadata The list of format-aware files to download
+     * @param listener Callback listener to be notified upon completion
+     */
+    public void downloadAsync(
+        CancellableThreads cancellableThreads,
+        RemoteSegmentStoreDirectory source,
+        CompositeStoreDirectoryStatsWrapper destination,
+        List<FileMetadata> toDownloadFileMetadata,
+        ActionListener<Void> listener
+    ) {
+        downloadInternalFormatAware(cancellableThreads, source, destination, toDownloadFileMetadata, () -> {}, listener);
     }
 
     /**
@@ -130,6 +151,34 @@ public final class RemoteStoreFileDownloader {
         }
     }
 
+    /**
+     * Format-aware version of downloadInternal that works with CompositeStoreDirectoryStatsWrapper
+     * and FileMetadata for proper format-based routing.
+     */
+    private void downloadInternalFormatAware(
+        CancellableThreads cancellableThreads,
+        RemoteSegmentStoreDirectory source,
+        CompositeStoreDirectoryStatsWrapper destination,
+        List<FileMetadata> toDownloadFileMetadata,
+        Runnable onFileCompletion,
+        ActionListener<Void> listener
+    ) {
+        final Queue<FileMetadata> queue = new ConcurrentLinkedQueue<>(toDownloadFileMetadata);
+        // Choose the minimum of:
+        // - number of files to download
+        // - max thread pool size
+        // - "indices.recovery.max_concurrent_remote_store_streams" setting
+        final int threads = Math.min(
+            toDownloadFileMetadata.size(),
+            Math.min(threadPool.info(ThreadPool.Names.REMOTE_RECOVERY).getMax(), recoverySettings.getMaxConcurrentRemoteStoreStreams())
+        );
+        logger.trace("Starting format-aware download of {} files with {} threads", queue.size(), threads);
+        final ActionListener<Void> allFilesListener = new GroupedActionListener<>(ActionListener.map(listener, r -> null), threads);
+        for (int i = 0; i < threads; i++) {
+            copyOneFileFormatAware(cancellableThreads, source, destination, queue, onFileCompletion, allFilesListener);
+        }
+    }
+
     private void copyOneFile(
         CancellableThreads cancellableThreads,
         Directory source,
@@ -162,6 +211,50 @@ public final class RemoteStoreFileDownloader {
                     return;
                 }
                 copyOneFile(cancellableThreads, source, destination, secondDestination, queue, onFileCompletion, listener);
+            });
+        }
+    }
+
+    /**
+     * Format-aware version of copyOneFile that works with FileMetadata and CompositeStoreDirectoryStatsWrapper
+     * for format-aware routing to appropriate directories based on data format.
+     */
+    private void copyOneFileFormatAware(
+        CancellableThreads cancellableThreads,
+        RemoteSegmentStoreDirectory source,
+        CompositeStoreDirectoryStatsWrapper destination,
+        Queue<FileMetadata> queue,
+        Runnable onFileCompletion,
+        ActionListener<Void> listener
+    ) {
+        final FileMetadata fileMetadata = queue.poll();
+        if (fileMetadata == null) {
+            // Queue is empty, so notify listener we are done
+            listener.onResponse(null);
+        } else {
+            threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY).submit(() -> {
+                logger.trace("Downloading format-aware file {} with format {}", fileMetadata.file(), fileMetadata.dataFormat());
+                try {
+                    cancellableThreads.executeIO(() -> {
+                        // Use format-aware copy - CompositeStoreDirectoryStatsWrapper will route based on format
+                        destination.copyFrom(fileMetadata, source, IOContext.DEFAULT);
+                        logger.trace("Downloaded format-aware file {} of format {} of size {}", 
+                                   fileMetadata.file(), fileMetadata.dataFormat(), 
+                                   destination.getDelegate().fileLength(fileMetadata));
+                        onFileCompletion.run();
+                        
+                        // TODO: Add second destination support for format-aware operations if needed
+                        // if (secondDestination != null) {
+                        //     secondDestination.copyFrom(destination, fileMetadata, fileMetadata, IOContext.DEFAULT);
+                        // }
+                    });
+                } catch (Exception e) {
+                    // Clear the queue to stop any future processing, report the failure, then return
+                    queue.clear();
+                    listener.onFailure(e);
+                    return;
+                }
+                copyOneFileFormatAware(cancellableThreads, source, destination, queue, onFileCompletion, listener);
             });
         }
     }

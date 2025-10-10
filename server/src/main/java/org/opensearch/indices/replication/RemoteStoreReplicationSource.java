@@ -18,11 +18,14 @@ import org.apache.lucene.util.Version;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.store.CompositeStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.remote.CompositeRemoteDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -31,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -51,14 +55,29 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
     private static final Logger logger = LogManager.getLogger(RemoteStoreReplicationSource.class);
 
     private final IndexShard indexShard;
-    private final RemoteSegmentStoreDirectory remoteDirectory;
+    private final CompositeRemoteDirectory compositeRemoteDirectory;
+    private final RemoteSegmentStoreDirectory remoteDirectory; // Fallback for legacy cases
     private final CancellableThreads cancellableThreads = new CancellableThreads();
 
     public RemoteStoreReplicationSource(IndexShard indexShard) {
         this.indexShard = indexShard;
+
+        // Try to get CompositeRemoteDirectory first, fallback to RemoteSegmentStoreDirectory
         FilterDirectory remoteStoreDirectory = (FilterDirectory) indexShard.remoteStore().directory();
         FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
-        this.remoteDirectory = (RemoteSegmentStoreDirectory) byteSizeCachingStoreDirectory.getDelegate();
+        Directory underlyingDirectory = byteSizeCachingStoreDirectory.getDelegate();
+
+        if (underlyingDirectory instanceof RemoteSegmentStoreDirectory) {
+            // Current case - using RemoteSegmentStoreDirectory (which may internally use CompositeRemoteDirectory)
+            this.remoteDirectory = (RemoteSegmentStoreDirectory) underlyingDirectory;
+            this.compositeRemoteDirectory = null;
+            logger.debug("Using RemoteSegmentStoreDirectory for shard: {}", indexShard.shardId());
+        } else {
+            // Fallback case - should not happen in current architecture
+            logger.warn("Unexpected directory type: {} for shard: {}", underlyingDirectory.getClass(), indexShard.shardId());
+            this.remoteDirectory = null;
+            this.compositeRemoteDirectory = null;
+        }
     }
 
     @Override
@@ -103,13 +122,14 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 .stream()
                 .collect(
                     Collectors.toMap(
-                        e -> e.getKey(),
+                        e -> e.getKey().file(),  // FileMetadata → String filename
                         e -> new StoreFileMetadata(
                             e.getValue().getOriginalFilename(),
                             e.getValue().getLength(),
                             Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
                             version,
-                            null
+                            null, // BytesRef hash
+                            e.getKey().dataFormat() // dataFormat from FileMetadata key
                         )
                     )
                 );
@@ -133,22 +153,42 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
                 return;
             }
-            logger.debug("Downloading segment files from remote store {}", filesToFetch);
+            logger.debug("Downloading format-aware segment files from remote store {}", filesToFetch);
             if (remoteMetadataExists()) {
-                final Directory storeDirectory = indexShard.store().directory();
-                final Collection<String> directoryFiles = List.of(storeDirectory.listAll());
-                final List<String> toDownloadSegmentNames = new ArrayList<>();
-                for (StoreFileMetadata fileMetadata : filesToFetch) {
-                    String file = fileMetadata.name();
-                    assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
-                    toDownloadSegmentNames.add(file);
+                final CompositeStoreDirectory storeDirectory = indexShard.store().compositeStoreDirectory();
+                final List<FileMetadata> directoryFiles = List.of(storeDirectory.listAll());
+
+                // Convert StoreFileMetadata to FileMetadata for format-aware operations
+                final List<FileMetadata> toDownloadFileMetadata = new ArrayList<>();
+
+                for (StoreFileMetadata storeFileMetadata : filesToFetch) {
+                    String fileName = storeFileMetadata.name();
+                    String dataFormat = storeFileMetadata.dataFormat() != null ? storeFileMetadata.dataFormat() : "lucene";
+
+                    // Create FileMetadata for format-aware operations
+                    FileMetadata fileMetadata = new FileMetadata(dataFormat, "", fileName);
+
+                    // Verify file doesn't already exist in local directory
+                    assert directoryFiles.contains(fileMetadata) == false : "Local store already contains the file " + fileMetadata;
+
+                    toDownloadFileMetadata.add(fileMetadata);
+
+                    logger.trace("Queuing format-aware file for download: {} with format: {}", fileName, dataFormat);
                 }
+
+                // Use CompositeStoreDirectory with format-aware progress tracking
+                // The critical improvement: Now using FileMetadata for format-aware routing
+                final CompositeStoreDirectoryStatsWrapper statsWrapper = new CompositeStoreDirectoryStatsWrapper(storeDirectory, fileProgressTracker);
+
+
+                // Use new format-aware downloadAsync with CompositeStoreDirectoryStatsWrapper and FileMetadata
+                // This enables proper format-based routing: lucene files → LuceneStoreDirectory, parquet files → ParquetStoreDirectory
                 indexShard.getFileDownloader()
                     .downloadAsync(
                         cancellableThreads,
-                        remoteDirectory,
-                        new ReplicationStatsDirectoryWrapper(storeDirectory, fileProgressTracker),
-                        toDownloadSegmentNames,
+                        remoteDirectory,                    // RemoteSegmentStoreDirectory source
+                        statsWrapper,                       // CompositeStoreDirectoryStatsWrapper destination
+                        toDownloadFileMetadata,             // List<FileMetadata> with format information
                         ActionListener.map(listener, r -> new GetSegmentFilesResponse(filesToFetch))
                     );
             } else {
@@ -216,15 +256,23 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         return "RemoteStoreReplicationSource";
     }
 
-    private boolean remoteMetadataExists() throws IOException {
-        final AtomicBoolean metadataExists = new AtomicBoolean(false);
-        cancellableThreads.executeIO(() -> metadataExists.set(remoteDirectory.readLatestMetadataFile() != null));
-        return metadataExists.get();
-    }
-
     private RemoteSegmentMetadata getRemoteSegmentMetadata() throws IOException {
+        if (remoteDirectory == null) {
+            throw new IllegalStateException("No remote directory available for shard: " + indexShard.shardId());
+        }
+
         AtomicReference<RemoteSegmentMetadata> mdFile = new AtomicReference<>();
         cancellableThreads.executeIO(() -> mdFile.set(remoteDirectory.init()));
         return mdFile.get();
+    }
+
+    private boolean remoteMetadataExists() throws IOException {
+        if (remoteDirectory == null) {
+            return false;
+        }
+
+        final AtomicBoolean metadataExists = new AtomicBoolean(false);
+        cancellableThreads.executeIO(() -> metadataExists.set(remoteDirectory.readLatestMetadataFile() != null));
+        return metadataExists.get();
     }
 }

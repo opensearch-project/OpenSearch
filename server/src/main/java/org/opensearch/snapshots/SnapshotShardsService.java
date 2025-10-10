@@ -411,7 +411,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             indexFilesToFileLengthMap = lastRemoteUploadedIndexCommit.getMetadata()
                                 .entrySet()
                                 .stream()
-                                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getLength()));
+                                .collect(Collectors.toMap(
+                                    entry -> entry.getKey().file(),  // FileMetadata → String filename
+                                    entry -> entry.getValue().getLength()
+                                ));
                             primaryTerm = lastRemoteUploadedIndexCommit.getPrimaryTerm();
                             commitGeneration = lastRemoteUploadedIndexCommit.getGeneration();
                         } else {

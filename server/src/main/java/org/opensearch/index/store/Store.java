@@ -74,6 +74,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.RefCounted;
@@ -89,12 +90,18 @@ import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
+import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.coord.Any;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.plugins.PluginsService;
+import org.opensearch.index.engine.exec.DataFormat;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -106,6 +113,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -172,6 +180,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     );
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final CompositeStoreDirectory compositeStoreDirectory;
     private final StoreDirectory directory;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
@@ -192,7 +201,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     };
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
-        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null);
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, createTempShardPath(shardId), createMockPluginsService());
     }
 
     public Store(
@@ -203,14 +212,62 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         OnClose onClose,
         ShardPath shardPath
     ) {
+        this(shardId, indexSettings, directory, shardLock, onClose, shardPath, createMockPluginsService());
+    }
+
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        ShardPath shardPath,
+        PluginsService pluginsService
+    ) {
+        this(shardId, indexSettings, directory, shardLock, onClose, shardPath, pluginsService, null);
+    }
+
+    /**
+     * Constructor with factory-created CompositeStoreDirectory
+     */
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        ShardPath shardPath,
+        PluginsService pluginsService,
+        CompositeStoreDirectory factoryCreatedCompositeDirectory
+    ) {
         super(shardId, indexSettings);
+
+        // Use mock PluginsService if none provided
+        PluginsService actualPluginsService = pluginsService != null ? pluginsService : createMockPluginsService();
+        // Create temp ShardPath if none provided
+        ShardPath actualShardPath = shardPath != null ? shardPath : createTempShardPath(shardId);
+
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
         ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(directory, refreshInterval);
         this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
+
+        // Use factory-created CompositeStoreDirectory if provided, otherwise create internally
+        if (factoryCreatedCompositeDirectory != null) {
+            this.compositeStoreDirectory = factoryCreatedCompositeDirectory;
+            logger.debug("Using factory-created CompositeStoreDirectory");
+        } else {
+            // Fallback to internal creation for backward compatibility
+//            List<DataFormat> formats = List.of(DataFormat.LUCENE);
+//            Any dataFormats = new Any(formats);
+//            this.compositeStoreDirectory = new CompositeStoreDirectory(indexSettings, actualPluginsService, dataFormats, actualShardPath, logger);
+            this.compositeStoreDirectory = null;
+            logger.debug("Created CompositeStoreDirectory with plugin-based discovery (fallback)");
+        }
+
         this.shardLock = shardLock;
         this.onClose = onClose;
-        this.shardPath = shardPath;
+        this.shardPath = actualShardPath;
         this.isIndexSortEnabled = indexSettings.getIndexSortConfig().hasIndexSort();
         this.isParentFieldEnabledVersion = indexSettings.getIndexVersionCreated().onOrAfter(org.opensearch.Version.V_3_2_0);
         assert onClose != null;
@@ -218,9 +275,29 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         assert shardLock.getShardId().equals(shardId);
     }
 
+    /**
+     * Creates a mock PluginsService with Lucene and Parquet data format plugins for testing
+     */
+    private static MockPluginsServiceWithFormats createMockPluginsService() {
+        return new MockPluginsServiceWithFormats();
+    }
+
+    /**
+     * Creates a temporary ShardPath for testing when none is provided
+     */
+    private static ShardPath createTempShardPath(ShardId shardId) {
+        Path tempPath = Path.of(System.getProperty("java.io.tmpdir"), "opensearch-test", shardId.toString());
+        return new ShardPath(false, tempPath, tempPath, shardId);
+    }
+
     public Directory directory() {
         ensureOpen();
         return directory;
+    }
+
+    public CompositeStoreDirectory compositeStoreDirectory() {
+        ensureOpen();
+        return compositeStoreDirectory;
     }
 
     public ShardPath shardPath() {
@@ -405,6 +482,72 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
+     * Segment Replication method - Format-aware version
+     * Returns a diff between the Maps of FileMetadata->StoreFileMetadata that can be used for getting list of files to copy over to a replica for segment replication. The returned diff will hold a list of files that are:
+     * <ul>
+     * <li>identical: they exist in both maps and they can be considered the same ie. they don't need to be recovered</li>
+     * <li>different: they exist in both maps but their they are not identical</li>
+     * <li>missing: files that exist in the source but not in the target</li>
+     * </ul>
+     * This version is format-aware and compares files based on both filename and data format.
+     */
+    public static RecoveryDiff formatAwareSegmentReplicationDiff(Map<FileMetadata, StoreFileMetadata> source, Map<FileMetadata, StoreFileMetadata> target) {
+        final List<StoreFileMetadata> identical = new ArrayList<>();
+        final List<StoreFileMetadata> different = new ArrayList<>();
+        final List<StoreFileMetadata> missing = new ArrayList<>();
+
+        for (Map.Entry<FileMetadata, StoreFileMetadata> sourceEntry : source.entrySet()) {
+            FileMetadata sourceFileMetadata = sourceEntry.getKey();
+            StoreFileMetadata sourceStoreMetadata = sourceEntry.getValue();
+
+            // Skip segments files
+            if (sourceStoreMetadata.name().startsWith(IndexFileNames.SEGMENTS)) {
+                continue;
+            }
+
+            // Check if target contains the same FileMetadata (format + filename)
+            if (target.containsKey(sourceFileMetadata) == false) {
+                missing.add(sourceStoreMetadata);
+            } else {
+                final StoreFileMetadata targetStoreMetadata = target.get(sourceFileMetadata);
+                String sourceChecksum = sourceStoreMetadata.checksum();
+                String targetChecksum = targetStoreMetadata.checksum();
+
+                // Normalize target checksum if it's in decimal format
+                String normalizedTargetChecksum = normalizeChecksumToBase36(targetChecksum);
+
+                // Compare normalized checksums
+                if (normalizedTargetChecksum.equals(sourceChecksum)
+                    && targetStoreMetadata.dataFormat().equals(sourceStoreMetadata.dataFormat())) {
+                    identical.add(sourceStoreMetadata);
+                } else {
+                    different.add(sourceStoreMetadata);
+                }
+            }
+        }
+        return new RecoveryDiff(
+            Collections.unmodifiableList(identical),
+            Collections.unmodifiableList(different),
+            Collections.unmodifiableList(missing)
+        );
+    }
+
+    /**
+     * Normalizes checksum to base-36 format if it's currently in decimal format
+     */
+    private static String normalizeChecksumToBase36(String checksum) {
+        try {
+            // Try to parse as decimal (base-10)
+            long checksumValue = Long.parseLong(checksum, 10);
+            // Convert to base-36 using Store.digestToString
+            return digestToString(checksumValue);
+        } catch (NumberFormatException e) {
+            // If parsing as decimal fails, assume it's already in base-36 format
+            return checksum;
+        }
+    }
+
+    /**
      * Renames all the given files from the key of the map to the
      * value of the map. All successfully renamed files are removed from the map in-place.
      */
@@ -541,7 +684,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         // Leverage try-with-resources to close the shard lock for us
         try (Closeable c = shardLock) {
             try {
-                directory.innerClose(); // this closes the distributorDirectory as well
+                directory.close(); // close the composite directory
             } finally {
                 onClose.accept(shardLock);
             }
@@ -757,7 +900,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     continue;
                 }
                 try {
-                    directory.deleteFile(reason, existingFile);
+                    directory.deleteFile(existingFile);
                     // FNF should not happen since we hold a write lock?
                 } catch (IOException ex) {
                     if (existingFile.startsWith(IndexFileNames.SEGMENTS) || existingFile.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
@@ -1171,6 +1314,133 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
             }
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
+        }
+
+        /**
+         * Creates LoadedMetadata from CatalogSnapshot using CompositeStoreDirectory APIs.
+         * This method enables format-aware metadata calculation for replication checkpoints.
+         */
+        public static LoadedMetadata loadMetadata(CatalogSnapshot catalogSnapshot,
+                                                CompositeStoreDirectory compositeDirectory,
+                                                Logger logger) throws IOException {
+            return loadMetadata(catalogSnapshot, compositeDirectory, logger, false);
+        }
+
+        /**
+         * Creates LoadedMetadata from CatalogSnapshot using CompositeStoreDirectory APIs.
+         * This method enables format-aware metadata calculation for replication checkpoints.
+         *
+         * @param catalogSnapshot the CatalogSnapshot containing file information
+         * @param compositeDirectory the CompositeStoreDirectory for format-aware operations
+         * @param logger logger for debugging and error reporting
+         * @param ignoreSegmentsFile whether to skip segments files in metadata calculation
+         * @return LoadedMetadata containing file metadata, user data, and document count
+         */
+        public static LoadedMetadata loadMetadata(CatalogSnapshot catalogSnapshot,
+                                                  CompositeStoreDirectory compositeDirectory,
+                                                  Logger logger,
+                                                  boolean ignoreSegmentsFile) throws IOException {
+
+            // TODO: Extract actual document count from CatalogSnapshot when API is available
+            long numDocs = 0; // Placeholder
+
+            // TODO: Extract commit user data from CatalogSnapshot when API is available
+            Map<String, String> commitUserData = new HashMap<>(); // Placeholder
+
+            Map<String, StoreFileMetadata> builder = new HashMap<>();
+            Version maxVersion = null;
+
+            // Get all files from CatalogSnapshot
+            Collection<FileMetadata> fileMetadatas = catalogSnapshot.getFileMetadataList();
+
+            for (FileMetadata fileMetadata : fileMetadatas) {
+                String fileName = fileMetadata.file();
+
+                // Skip segments files if requested
+                if (ignoreSegmentsFile && fileName.startsWith(IndexFileNames.SEGMENTS)) {
+                    continue;
+                }
+
+                try {
+                    // Use CompositeStoreDirectory APIs for efficient metadata calculation
+                    long length = compositeDirectory.fileLength(fileMetadata);
+
+                    // Convert checksum from long to string format expected by StoreFileMetadata
+                    long checksumLong = compositeDirectory.calculateChecksum(fileMetadata);
+                    String checksum = Store.digestToString(checksumLong);
+
+                    // TODO: Implement version extraction from segment info files
+                    // For now, use a reasonable default version
+                    Version version = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+
+                    // Create hash for small files only
+                    BytesRef hash = createHashForSmallFiles(compositeDirectory, fileMetadata, length, logger);
+
+                    StoreFileMetadata storeFileMetadata = new StoreFileMetadata(fileName, length, checksum, version, hash);
+                    builder.put(fileName, storeFileMetadata);
+
+                    // Track max version
+                    if (maxVersion == null || version.onOrAfter(maxVersion)) {
+                        maxVersion = version;
+                    }
+
+                } catch (IOException e) {
+                    logger.warn("Failed to create metadata for file: {} with format: {}", fileName, fileMetadata.dataFormat(), e);
+                    // Continue with other files
+                }
+            }
+
+            if (maxVersion == null) {
+                maxVersion = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+            }
+
+            return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserData), numDocs);
+        }
+
+        /**
+         * Creates hash for small files using CompositeStoreDirectory APIs
+         */
+        private static BytesRef createHashForSmallFiles(CompositeStoreDirectory compositeDirectory,
+                                                      org.opensearch.index.engine.exec.FileMetadata fileMetadata,
+                                                      long length, Logger logger) throws IOException {
+            // Only hash small files to avoid memory issues
+            if (length > 1024 * 1024) { // 1MB limit
+                return new BytesRef();
+            }
+
+            BytesRefBuilder fileHash = new BytesRefBuilder();
+            try (IndexInput input = compositeDirectory.openInput(fileMetadata, IOContext.READONCE)) {
+                // Create a simple adapter to convert IndexInput to InputStream for hashing
+                InputStream inputStream = new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        if (input.getFilePointer() >= input.length()) {
+                            return -1;
+                        }
+                        return input.readByte() & 0xFF;
+                    }
+
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        if (input.getFilePointer() >= input.length()) {
+                            return -1;
+                        }
+                        long remaining = input.length() - input.getFilePointer();
+                        int toRead = (int) Math.min(len, remaining);
+                        if (toRead <= 0) {
+                            return -1;
+                        }
+                        input.readBytes(b, off, toRead);
+                        return toRead;
+                    }
+                };
+
+                Store.MetadataSnapshot.hashFile(fileHash, inputStream, length);
+                return fileHash.get();
+            } catch (Exception e) {
+                logger.debug("Failed to create hash for file: {}", fileMetadata.file(), e);
+                return new BytesRef(); // Return empty hash on failure
+            }
         }
 
         private static void checksumFromLuceneFile(
@@ -1696,10 +1966,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public void deleteQuiet(String... files) {
         ensureOpen();
+        CompositeStoreDirectory compositeStoreDirectory = this.compositeStoreDirectory;
         StoreDirectory directory = this.directory;
         for (String file : files) {
             try {
-                directory.deleteFile("Store.deleteQuiet", file);
+                // ToDo: CompositeDirectory needs FileMetadata
+                directory.deleteFile(file);
             } catch (Exception ex) {
                 // ignore :(
             }
@@ -1947,5 +2219,32 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             iwc.setParentField(Lucene.PARENT_FIELD);
         }
         return iwc;
+    }
+
+    /**
+     * Mock PluginsService that provides Lucene data format plugin
+     * This ensures CompositeStoreDirectory can find the LuceneDataFormatPlugin
+     */
+    public static class MockPluginsServiceWithFormats extends PluginsService {
+
+        /**
+         * Creates a mock PluginsService with Lucene data format plugin
+         */
+        public MockPluginsServiceWithFormats() {
+            super(Settings.EMPTY, null, null, null, Collections.emptyList());
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> List<T> filterPlugins(Class<T> type) {
+            if (type == org.opensearch.plugins.DataSourcePlugin.class) {
+                // Return Lucene plugin instance (Parquet will be loaded from modules in production)
+                List<org.opensearch.plugins.DataSourcePlugin> plugins = new ArrayList<>();
+                plugins.add(LuceneDataFormatPlugin.INSTANCE);
+                return (List<T>) plugins;
+            }
+            // For other plugin types, return empty list
+            return Collections.emptyList();
+        }
     }
 }

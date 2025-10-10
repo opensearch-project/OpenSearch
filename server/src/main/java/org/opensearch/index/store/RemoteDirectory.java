@@ -385,6 +385,26 @@ public class RemoteDirectory extends Directory {
         return false;
     }
 
+    public boolean copyFrom(
+        FormatStoreDirectory from,
+        String src,
+        String remoteFileName,
+        IOContext context,
+        Runnable postUploadRunner,
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload
+    ) {
+        if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
+            try {
+                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+            return true;
+        }
+        return false;
+    }
+
     private void uploadBlob(
         Directory from,
         String src,
@@ -491,6 +511,90 @@ public class RemoteDirectory extends Directory {
                 );
             }
         }
+    }
+
+    private void uploadBlob(
+        FormatStoreDirectory from,
+        String src,
+        String remoteFileName,
+        IOContext ioContext,
+        Runnable postUploadRunner,
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload
+    ) throws Exception {
+        assert ioContext != IOContext.READONCE : "Remote upload will fail with IoContext.READONCE";
+        long expectedChecksum = calculateChecksumOfChecksum(from, src);
+        // Step 2: Get content length using FormatStoreDirectory
+
+        long contentLength;
+        try (IndexInput indexInput = from.openIndexInput(src, ioContext)) {
+            contentLength = indexInput.length();
+        }
+        boolean remoteIntegrityEnabled = false;
+
+        if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
+            remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) getBlobContainer()).remoteIntegrityCheckSupported();
+        }
+        lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
+        RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
+        if (lowPriorityUpload) {
+            offsetRangeInputStreamSupplier = (size, position) -> lowPriorityUploadRateLimiter.apply(
+                new OffsetRangeIndexInputStream(from.openIndexInput(src, ioContext), size, position)
+            );
+        } else {
+            offsetRangeInputStreamSupplier = (size, position) -> uploadRateLimiter.apply(
+                new OffsetRangeIndexInputStream(from.openIndexInput(src, ioContext), size, position)
+            );
+        }
+        RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+            src,
+            remoteFileName,
+            contentLength,
+            true,
+            lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
+            offsetRangeInputStreamSupplier,
+            expectedChecksum,
+            remoteIntegrityEnabled
+        );
+        ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
+            try {
+                postUploadRunner.run();
+                listener.onResponse(null);
+            } catch (Exception e) {
+                logger.error(() -> new ParameterizedMessage("Exception in segment postUpload for file [{}]", src), e);
+                listener.onFailure(e);
+            }
+        }, ex -> {
+            logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", src), ex);
+            IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(ex);
+            if (corruptIndexException != null) {
+                listener.onFailure(corruptIndexException);
+                return;
+            }
+            Throwable throwable = ExceptionsHelper.unwrap(ex, CorruptFileException.class);
+            if (throwable != null) {
+                CorruptFileException corruptFileException = (CorruptFileException) throwable;
+                listener.onFailure(new CorruptIndexException(corruptFileException.getMessage(), corruptFileException.getFileName()));
+                return;
+            }
+            listener.onFailure(ex);
+        });
+
+        completionListener = ActionListener.runBefore(completionListener, () -> {
+            try {
+                remoteTransferContainer.close();
+            } catch (Exception e) {
+                logger.warn("Error occurred while closing streams", e);
+            }
+        });
+
+        WriteContext writeContext = remoteTransferContainer.createWriteContext();
+        ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(writeContext, completionListener);
+    }
+
+    private long calculateChecksumOfChecksum(FormatStoreDirectory directory, String file) throws IOException
+    {
+        return  directory.calculateChecksum(file);
     }
 
     private IndexInput getBlockInput(String name, long position, long length, long fileLength) throws IOException {

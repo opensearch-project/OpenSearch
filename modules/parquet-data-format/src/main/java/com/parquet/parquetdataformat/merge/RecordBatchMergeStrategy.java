@@ -55,11 +55,12 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         // Build row ID mapping
         Map<RowId, Long> rowIdMapping = new HashMap<>();
 
-        WriterFileSet mergedWriterFileSet =
-            WriterFileSet.builder().directory(Path.of(outputDirectory)).addFile(mergedFileName).writerGeneration(writerGeneration).build();
-
-
-        Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(
+        FileMetadata mergedFileMetadata = new FileMetadata(
+            "",
+            outputDirectory,
+            mergedFileName
+        );
+        Map<DataFormat, Collection<FileMetadata>> mergedFiles = Collections.singletonMap(
             new ParquetDataFormat(),
             mergedWriterFileSet
         );

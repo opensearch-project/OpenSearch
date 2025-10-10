@@ -34,6 +34,7 @@ package org.opensearch.common.blobstore;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
@@ -48,8 +49,9 @@ import java.util.Map;
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface BlobContainer {
 
     /**
@@ -277,6 +279,7 @@ public interface BlobContainer {
     /**
      * The type representing sort order of blob names
      */
+    @PublicApi(since = "1.0.0")
     enum BlobNameSortOrder {
 
         LEXICOGRAPHIC(Comparator.comparing(BlobMetadata::name));
