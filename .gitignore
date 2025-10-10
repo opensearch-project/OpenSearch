@@ -81,4 +81,5 @@ doc-tools/missing-doclet/bin/
 /modules/parquet-data-format/src/main/rust/debug
 /modules/parquet-data-format/src/main/resources/native/
 /modules/parquet-data-format/jni/target/debug
+/modules/parquet-data-format/jni/target/.rustc_info.json
 
