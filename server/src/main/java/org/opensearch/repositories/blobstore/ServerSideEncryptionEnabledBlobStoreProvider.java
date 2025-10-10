@@ -12,20 +12,23 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.lifecycle.Lifecycle;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.repositories.RepositoryException;
 
 /**
  * BlobStoreProvider for RemoteStoreProvider
  */
-public class RemoteStoreBlobStoreProvider extends BlobStoreProvider {
+public class ServerSideEncryptionEnabledBlobStoreProvider extends BlobStoreProvider {
     private final SetOnce<BlobStore> serverSideEncryptedBlobStore = new SetOnce<>();
 
-    public RemoteStoreBlobStoreProvider(BlobStoreRepository repository, RepositoryMetadata metadata, Lifecycle lifecycle, Object lock) {
+    public ServerSideEncryptionEnabledBlobStoreProvider(BlobStoreRepository repository, RepositoryMetadata metadata, Lifecycle lifecycle, Object lock) {
         super(repository, metadata, lifecycle, lock);
     }
 
-    public BlobStore getBlobStore(boolean serverSideEncryption) {
-        if (serverSideEncryption) {
+    public BlobStore getBlobStore(IndexSettings indexSettings) {
+        boolean serverSideEncryptionEnabled = indexSettings != null && indexSettings.isServerSideEncryptionEnabled();
+
+        if (serverSideEncryptionEnabled) {
             return serverSideEncryptedBlobStore.get();
         }
         return blobStore.get();
@@ -34,16 +37,17 @@ public class RemoteStoreBlobStoreProvider extends BlobStoreProvider {
     /**
      *
      */
-    public BlobStore blobStore(boolean serverSideEncryption) {
-        System.out.println("serverSideEncryption = " + serverSideEncryption);
+    public BlobStore blobStore(IndexSettings indexSettings) {
+        boolean serverSideEncryptionEnabled = indexSettings != null && indexSettings.isServerSideEncryptionEnabled();
+        System.out.println("serverSideEncryption = " + serverSideEncryptionEnabled);
         BlobStore store = null;
-        if (serverSideEncryption) {
+        if (serverSideEncryptionEnabled) {
             store = serverSideEncryptedBlobStore.get();
             if (store == null) {
                 store = super.createBlobStore(serverSideEncryptedBlobStore, true);
             }
         } else {
-            store = super.blobStore(false);
+            store = super.blobStore(indexSettings);
         }
         return store;
     }

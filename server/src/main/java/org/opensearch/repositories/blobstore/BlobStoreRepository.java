@@ -108,6 +108,7 @@ import org.opensearch.core.util.BytesRefUtils;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
@@ -688,7 +689,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         synchronized (lock) {
             BlobStoreProvider provider = blobStore.get();
             if (provider != null) {
-                store = provider.getBlobStore(false);
+                store = provider.getBlobStore(null);
             }
         }
         if (store != null) {
@@ -986,7 +987,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // for test purposes only
     protected BlobStore getBlobStore() {
-        return blobStore.get().getBlobStore(false);
+        return blobStore.get().getBlobStore(null);
     }
 
     boolean getPrefixModeVerification() {
@@ -1055,16 +1056,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Public for testing.
      */
     public BlobStore blobStore() {
-        return blobStore(false);
+        return blobStore(null);
     }
 
     /**
      * Calls the existing blobStore() method. Specific repositories can implement the support for
      * Server side encryption
-     * @param serverSideEncryption If the server side encryption is supported.
+     * @param indexSettings IndexSetting.
      * @return BlobStore `Blobstore` for the repository
      */
-    public BlobStore blobStore(boolean serverSideEncryption) {
+    public BlobStore blobStore(IndexSettings indexSettings) {
         System.out.println("metadata = " + metadata);
         BlobStoreProviderFactory providerFactory = new BlobStoreProviderFactory(this, metadata, lifecycle, lock);
         BlobStoreProvider provider = providerFactory.getBlobStoreProvider();
@@ -1073,8 +1074,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return null;
         }
         System.out.println("provider = " + provider.getClass().getName());
-        provider.blobStore(serverSideEncryption);
-        return provider.getBlobStore(serverSideEncryption);
+        provider.blobStore(indexSettings);
+        return provider.getBlobStore(indexSettings);
     }
 
     /**
@@ -1135,7 +1136,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (provider == null) {
             return RepositoryStats.EMPTY_STATS;
         }
-        store = provider.getBlobStore(false);
+        store = provider.getBlobStore(null);
         if (store == null) {
             return RepositoryStats.EMPTY_STATS;
         } else if (store.extendedStats() != null && store.extendedStats().isEmpty() == false) {
@@ -2408,7 +2409,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             remoteStorePathStrategy,
             remoteStoreSettings,
             indexMetadataEnabled,
-            false
+            null
         );
         try {
             RemoteFsTimestampAwareTranslog.cleanupOfDeletedIndex(translogTransferManager, forceClean);
