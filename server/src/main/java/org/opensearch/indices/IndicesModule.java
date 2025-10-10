@@ -47,6 +47,7 @@ import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.ConstantKeywordFieldMapper;
+import org.opensearch.index.mapper.ContextAwareGroupingFieldMapper;
 import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DerivedFieldMapper;
@@ -178,6 +179,7 @@ public class IndicesModule extends AbstractModule {
         mappers.put(WildcardFieldMapper.CONTENT_TYPE, WildcardFieldMapper.PARSER);
         mappers.put(StarTreeMapper.CONTENT_TYPE, new StarTreeMapper.TypeParser());
         mappers.put(SemanticVersionFieldMapper.CONTENT_TYPE, SemanticVersionFieldMapper.PARSER);
+        mappers.put(ContextAwareGroupingFieldMapper.CONTENT_TYPE, ContextAwareGroupingFieldMapper.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {

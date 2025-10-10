@@ -235,7 +235,35 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         final int numberOfRuns = 5;
         int balanceFailed = 0;
 
-        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance().build(), new TestGatewayAllocator());
+        Settings settings = getSettingsBuilderForPrimaryBalance().build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        AllocationService strategy = createAllocationService(
+            settings,
+            clusterSettings,
+            new TestGatewayAllocator(),
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
+        for (int i = 0; i < numberOfRuns; i++) {
+            ClusterState clusterState = initCluster(strategy, numberOfIndices, numberOfNodes, numberOfShards, numberOfReplicas);
+            clusterState = removeOneNode(clusterState, strategy);
+            logger.info(ShardAllocations.printShardDistribution(clusterState));
+            try {
+                verifyPerIndexPrimaryBalance(clusterState);
+            } catch (AssertionError e) {
+                balanceFailed++;
+                logger.info("Unexpected assertion failure");
+            }
+        }
+        assertTrue(balanceFailed <= 1);
+
+        // Update settings & apply
+        Settings updatedSettings = getSettingsBuilderForPrimaryBalance().put(
+            BalancedShardsAllocator.PRIMARY_SHARD_REBALANCE_BUFFER.getKey(),
+            BalancedShardsAllocator.PRIMARY_SHARD_REBALANCE_BUFFER.get(settings) + 0.01f
+        ).build();
+        clusterSettings.applySettings(updatedSettings);
+
+        // Double check primary shard balance should still work
         for (int i = 0; i < numberOfRuns; i++) {
             ClusterState clusterState = initCluster(strategy, numberOfIndices, numberOfNodes, numberOfShards, numberOfReplicas);
             clusterState = removeOneNode(clusterState, strategy);

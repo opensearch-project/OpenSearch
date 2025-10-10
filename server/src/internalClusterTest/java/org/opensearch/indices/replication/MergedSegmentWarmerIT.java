@@ -14,6 +14,7 @@ import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -38,6 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This class runs Segment Replication Integ test suite with merged segment warmer enabled.
@@ -57,6 +59,33 @@ public class MergedSegmentWarmerIT extends SegmentReplicationIT {
         Settings.Builder featureSettings = Settings.builder();
         featureSettings.put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true);
         return featureSettings.build();
+    }
+
+    public void testPrimaryNodeRestart() throws Exception {
+        logger.info("--> start nodes");
+        internalCluster().startNode();
+
+        logger.info("--> creating test index: {}", INDEX_NAME);
+        createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put("number_of_shards", 1).put("number_of_replicas", 0).build());
+
+        ensureGreen();
+
+        logger.info("--> indexing sample data");
+        final int numDocs = 100;
+        final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex(INDEX_NAME)
+                .setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
+        }
+
+        indexRandom(true, docs);
+        flush();
+        assertThat(client().prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value(), equalTo((long) numDocs));
+
+        logger.info("--> restarting cluster");
+        internalCluster().fullRestart();
+        ensureGreen();
     }
 
     public void testMergeSegmentWarmer() throws Exception {
