@@ -129,11 +129,11 @@ public class ThreadPoolSerializationTests extends OpenSearchTestCase {
         Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
         assertThat(map, hasKey("foo"));
         map = (Map<String, Object>) map.get("foo");
-        assertThat(map, hasKey("queue_size"));
         if (threadPoolType == ThreadPool.ThreadPoolType.FORK_JOIN) {
-            // ForkJoinPool always writes queue_size as -1
-            assertThat(map.get("queue_size").toString(), is("-1"));
+            // ForkJoinPool does not write queue_size field at all
+            assertThat(map.containsKey("queue_size"), is(false));
         } else {
+            assertThat(map, hasKey("queue_size"));
             assertThat(map.get("queue_size").toString(), is("1000"));
         }
     }
