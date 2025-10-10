@@ -22,6 +22,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -41,7 +42,12 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.InboundHandler;
+import org.opensearch.transport.OutboundHandler;
+import org.opensearch.transport.StatsTracker;
 import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportHandshaker;
+import org.opensearch.transport.TransportKeepAlive;
 import org.opensearch.transport.nio.MockStreamNioTransport;
 import org.junit.Before;
 
@@ -76,8 +82,11 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
     }
 
     public static class MockStreamTransportPlugin extends Plugin implements NetworkPlugin {
+        // Let default test plugins provide the classic transport
+        // We only provide the stream transport to avoid conflicts
+
         @Override
-        public Map<String, Supplier<Transport>> getTransports(
+        public Map<String, Supplier<Transport>> getStreamTransports(
             Settings settings,
             ThreadPool threadPool,
             PageCacheRecycler pageCacheRecycler,
@@ -86,9 +95,8 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
             NetworkService networkService,
             Tracer tracer
         ) {
-            // Return a mock FLIGHT transport that can handle streaming responses
             return Collections.singletonMap(
-                "FLIGHT",
+                "FLIGHT_TEST",
                 () -> new MockStreamingTransport(
                     settings,
                     Version.CURRENT,
@@ -106,8 +114,8 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
         // TransportSearchAction; streaming transport is enabled internally without a separate action.
     }
 
-    // Use MockStreamNioTransport which supports streaming transport channels
-    // This provides the sendResponseBatch functionality needed for streaming search tests
+    // Stream transport that uses completely independent pipeline from classic transport
+    // This ensures no shared handlers or components that could cause "Cannot set message listener twice"
     private static class MockStreamingTransport extends MockStreamNioTransport {
 
         public MockStreamingTransport(
@@ -120,14 +128,63 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
             CircuitBreakerService circuitBreakerService,
             Tracer tracer
         ) {
+            // Call super to get independent transport instance - the try/catch in TransportService should handle shared handlers
             super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, tracer);
         }
 
         @Override
         protected MockSocketChannel initiateChannel(DiscoveryNode node) throws IOException {
+            // Use stream address for outbound connections to other nodes' stream transports
             InetSocketAddress address = node.getStreamAddress().address();
             return nioGroup.openChannel(address, clientChannelFactory);
         }
+
+        @Override
+        protected InboundHandler createInboundHandler(
+            String nodeName,
+            Version version,
+            String[] features,
+            StatsTracker statsTracker,
+            ThreadPool threadPool,
+            BigArrays bigArrays,
+            OutboundHandler outboundHandler,
+            NamedWriteableRegistry namedWriteableRegistry,
+            TransportHandshaker handshaker,
+            TransportKeepAlive keepAlive,
+            Transport.RequestHandlers requestHandlers,
+            Transport.ResponseHandlers responseHandlers,
+            Tracer tracer
+        ) {
+            // Create completely independent inbound handler for stream transport
+            // with its own message handler instances to avoid conflicts with classic transport
+            return super.createInboundHandler(
+                nodeName + "_stream", // Use unique nodeName for stream transport
+                version,
+                features,
+                statsTracker,
+                threadPool,
+                bigArrays,
+                outboundHandler, // This outbound handler should be independent per instance
+                namedWriteableRegistry,
+                handshaker,
+                keepAlive,
+                requestHandlers,
+                responseHandlers,
+                tracer
+            );
+        }
+
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            // Enable streaming transport
+            .put("transport.stream.type.default", "FLIGHT_TEST")
+            // Enable stream search functionality
+            .put("stream.search.enabled", true)
+            .build();
     }
 
     @Before

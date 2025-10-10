@@ -82,6 +82,7 @@ import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
@@ -213,8 +214,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchTransportService = searchTransportService;
         this.streamSearchTransportService = streamSearchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        // Register request handlers for both transports: stream (if available) and classic
-        if (streamTransportService != null) {
+        // Register request handlers - always classic; add streaming if available
+        if (streamTransportService != null && streamSearchTransportService != null) {
             StreamSearchTransportService.registerStreamRequestHandler(streamTransportService, searchService);
         }
         SearchTransportService.registerRequestHandler(transportService, searchService);
@@ -1097,11 +1098,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
         final DiscoveryNodes nodes = clusterState.nodes();
+        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
+            && (searchRequest.source() == null || searchRequest.source().size() > 0);
+        final SearchTransportService connectionTransport = isStreamingCandidate && streamSearchTransportService != null
+            ? streamSearchTransportService
+            : searchTransportService;
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(
             searchRequest.getLocalClusterAlias(),
             nodes::get,
             remoteConnections,
-            searchTransportService::getConnection
+            connectionTransport::getConnection
         );
         final Executor asyncSearchExecutor = asyncSearchExecutor(concreteLocalIndices, clusterState);
         final boolean preFilterSearchShards = shouldPreFilterSearchShards(
@@ -1230,10 +1236,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext
     ) {
+        // Determine if this request should use streaming transport
+        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
+            && (searchRequest.source() == null || searchRequest.source().size() > 0);
+
+        // Check if streaming transport is actually available and enabled
+        final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
+        final boolean canUseStreamingTransport = (streamSearchTransportService != null) && streamingEnabledSetting;
+
         if (preFilter) {
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "STREAM DEBUG: prefilter using transport [{}] (streaming={}, enabled={}, canUse={})",
+                    ((isStreamingCandidate && canUseStreamingTransport) ? "stream" : "classic"),
+                    isStreamingCandidate,
+                    streamingEnabledSetting,
+                    canUseStreamingTransport
+                );
+            }
             return new CanMatchPreFilterSearchPhase(
                 logger,
-                searchTransportService,
+                (isStreamingCandidate && canUseStreamingTransport) ? streamSearchTransportService : searchTransportService,
                 connectionLookup,
                 aliasFilter,
                 concreteIndexBoosts,
@@ -1269,10 +1292,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 tracer
             );
         } else {
-            final boolean isStreamingRequest = searchRequest.getStreamingSearchMode() != null
+            // Set default streaming mode when only flag is set
+            if (searchRequest.isStreamingScoring() && searchRequest.getStreamingSearchMode() == null) {
+                searchRequest.setStreamingSearchMode(StreamingSearchMode.SCORED_UNSORTED.toString());
+            }
+
+            final boolean isStreamingRequest = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
                 && (searchRequest.source() == null || searchRequest.source().size() > 0);
 
-            final SearchProgressListener progressListener = isStreamingRequest
+            final SearchProgressListener progressListener = (isStreamingRequest && canUseStreamingTransport)
                 ? new StreamingSearchProgressListener(listener, searchPhaseController, searchRequest)
                 : task.getProgressListener();
 
@@ -1285,12 +1313,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 exc -> cancelTask(task, exc),
                 task::isCancelled
             );
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "STREAM DEBUG: query phase using transport [{}] (streamingRequest={}, enabled={}, canUse={})",
+                    ((isStreamingRequest && canUseStreamingTransport) ? "stream" : "classic"),
+                    isStreamingRequest,
+                    streamingEnabledSetting,
+                    canUseStreamingTransport
+                );
+            }
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(
                         logger,
-                        isStreamingRequest && streamSearchTransportService != null ? streamSearchTransportService : searchTransportService,
+                        (isStreamingRequest && canUseStreamingTransport) ? streamSearchTransportService : searchTransportService,
                         connectionLookup,
                         aliasFilter,
                         concreteIndexBoosts,
@@ -1310,7 +1347,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     );
                     break;
                 case QUERY_THEN_FETCH:
-                    if (isStreamingRequest && streamSearchTransportService != null) {
+                    if (isStreamingRequest && canUseStreamingTransport) {
                         searchAsyncAction = new StreamSearchQueryThenFetchAsyncAction(
                             logger,
                             streamSearchTransportService,

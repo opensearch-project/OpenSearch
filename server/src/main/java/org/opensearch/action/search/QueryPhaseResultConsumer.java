@@ -247,6 +247,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             for (QuerySearchResult result : toConsume) {
                 TopDocsAndMaxScore topDocs = result.consumeTopDocs();
+                // For streaming, avoid reassigning shardIndex if already set
                 SearchPhaseController.setShardIndex(topDocs.topDocs, result.getShardIndex());
                 topDocsList.add(topDocs.topDocs);
             }
@@ -583,6 +584,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             for (QuerySearchResult result : buffer) {
                 TopDocsAndMaxScore topDocs = result.consumeTopDocs();
+                // For streaming, avoid reassigning shardIndex if already set
                 SearchPhaseController.setShardIndex(topDocs.topDocs, result.getShardIndex());
                 topDocsList.add(topDocs.topDocs);
             }

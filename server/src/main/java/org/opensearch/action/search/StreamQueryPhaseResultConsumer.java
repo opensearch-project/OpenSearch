@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.search.SearchPhaseResult;
-import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.StreamingSearchMode;
 
 import java.util.concurrent.Executor;
@@ -113,43 +112,15 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
      * Consume streaming results with frequency-based emission
      */
     public void consumeStreamResult(SearchPhaseResult result, Runnable next) {
-        QuerySearchResult querySearchResult = result.queryResult();
+        // Keep streaming: coordinator receives partials and forwards to client,
+        // but the coordinator reducer should only see the final per-shard result.
+        // Do not enqueue partials into pendingReduces.
 
-        // Check if already consumed
-        if (querySearchResult.hasConsumedTopDocs()) {
-            logger.debug("Result already consumed, skipping");
-            next.run();
-            return;
-        }
+        // Optional: cheap debug log if needed
+        logger.debug("Dropping partial from reducer, shard={}, partial={}", result.getShardIndex(), result.queryResult().isPartial());
 
-        resultsReceived++;
-
-        // Track when first batch is ready for fetch phase
-        // Use the batch size that was configured for this mode
-        int batchSize = getBatchReduceSize(Integer.MAX_VALUE, 5);
-        if (!firstBatchReadyForFetch && resultsReceived >= batchSize) {
-            firstBatchReadyForFetch = true;
-            firstBatchReadyForFetchTime = System.currentTimeMillis();
-            long ttfb = firstBatchReadyForFetchTime - queryStartTime;
-            logger.info(
-                "STREAMING TTFB: First batch ready for fetch after {} ms with {} results (batch size: {})",
-                ttfb,
-                resultsReceived,
-                batchSize
-            );
-        }
-
-        logger.debug(
-            "Consumed result #{} from shard {}, partial={}, hasTopDocs={}",
-            resultsReceived,
-            result.getShardIndex(),
-            querySearchResult.isPartial(),
-            querySearchResult.topDocs() != null
-        );
-
-        // Use parent's pendingReduces to consume the result
-        // Partial reduces are automatically triggered by batchReduceSize
-        pendingReduces.consume(querySearchResult, next);
+        // Immediately continue the pipeline
+        next.run();
     }
 
     /**

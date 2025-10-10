@@ -43,7 +43,7 @@ import java.util.function.BiFunction;
  * @opensearch.internal
  */
 public class StreamSearchTransportService extends SearchTransportService {
-    private final Logger logger = LogManager.getLogger(StreamSearchTransportService.class);
+    private static final Logger logger = LogManager.getLogger(StreamSearchTransportService.class);
 
     private final StreamTransportService transportService;
 
@@ -72,6 +72,13 @@ public class StreamSearchTransportService extends SearchTransportService {
             ShardSearchRequest::new,
             (request, channel, task) -> {
                 boolean isStreamSearch = request.isStreamingSearch() || request.getStreamingSearchMode() != null;
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "STREAM DEBUG: stream handler for query; isStreamSearch={} listener=StreamSearchChannelListener shard={}",
+                        isStreamSearch,
+                        request.shardId()
+                    );
+                }
                 searchService.executeQueryPhase(
                     request,
                     false,
@@ -196,6 +203,14 @@ public class StreamSearchTransportService extends SearchTransportService {
             }
         };
 
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "STREAM DEBUG: coordinator sending QUERY to node={} shard={} via stream transport (fetchDocuments={})",
+                connection.getNode().getId(),
+                request.shardId(),
+                fetchDocuments
+            );
+        }
         transportService.sendChildRequest(
             connection,
             QUERY_ACTION_NAME,

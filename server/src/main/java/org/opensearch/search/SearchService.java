@@ -785,11 +785,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                 }
                 // fork the execution in the search thread pool
-                runAsync(
-                    getExecutor(executorName, shard),
-                    () -> executeQueryPhase(orig, task, keepStatesInContext, isStreamSearch, listener),
-                    listener
-                );
+                final Executor queryExecutor;
+                if (shard.isSystem()) {
+                    queryExecutor = threadPool.executor(Names.SYSTEM_READ);
+                } else if (shard.indexSettings().isSearchThrottled()) {
+                    queryExecutor = threadPool.executor(Names.SEARCH_THROTTLED);
+                } else {
+                    queryExecutor = threadPool.executor(Names.SEARCH);
+                }
+                runAsync(queryExecutor, () -> executeQueryPhase(orig, task, keepStatesInContext, isStreamSearch, listener), listener);
             }
 
             @Override
@@ -821,23 +825,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, true, isStreamSearch || request.isStreamingSearch())
+            SearchContext context = createContext(readerContext, request, task, true, isStreamSearch)
         ) {
-            if (isStreamSearch || request.isStreamingSearch()) {
-                if (listener instanceof StreamSearchChannelListener) {
-                    context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
-                }
+            if (isStreamSearch) {
+                assert listener instanceof StreamSearchChannelListener : "Stream search expects StreamSearchChannelListener";
+                context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
+            }
 
-                // NEW: Set streaming mode
-                if (request.getStreamingSearchMode() != null) {
-                    context.setStreamingMode(StreamingSearchMode.fromString(request.getStreamingSearchMode()));
-                } else {
-                    // FALLBACK: If this is a streaming search but no mode is set, use a default mode
-                    // This handles the case where ShardSearchRequest is created without copying streaming fields
-                    if (isStreamSearch) {
-                        context.setStreamingMode(StreamingSearchMode.NO_SCORING);
-                    }
-                }
+            if (request.getStreamingSearchMode() != null) {
+                context.setStreamingMode(StreamingSearchMode.fromString(request.getStreamingSearchMode()));
+            } else if (isStreamSearch) {
+                context.setStreamingMode(StreamingSearchMode.NO_SCORING);
             }
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
@@ -848,6 +846,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 afterQueryTime = executor.success();
             }
             if (request.numberOfShards() == 1) {
+                if (isStreamSearch && logger.isTraceEnabled()) {
+                    logger.trace(
+                        "STREAM DEBUG: shard [{}] sending final {}",
+                        request.shardId(),
+                        (request.numberOfShards() == 1 ? "query+fetch" : "query")
+                    );
+                }
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
@@ -855,6 +860,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
+                if (isStreamSearch && logger.isTraceEnabled()) {
+                    logger.trace(
+                        "STREAM DEBUG: shard [{}] sending final {}",
+                        request.shardId(),
+                        (request.numberOfShards() == 1 ? "query+fetch" : "query")
+                    );
+                }
                 return context.queryResult();
             }
         } catch (Exception e) {
@@ -864,6 +876,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 exception = (exception.getCause() == null || exception.getCause() instanceof Exception)
                     ? (Exception) exception.getCause()
                     : new OpenSearchException(exception.getCause());
+            }
+            if (isStreamSearch && logger.isTraceEnabled()) {
+                logger.trace("STREAM DEBUG: shard [{}] failure {}", request.shardId(), exception.toString());
             }
             logger.trace("Query phase failed", exception);
             processFailure(readerContext, exception);
