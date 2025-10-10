@@ -155,7 +155,7 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
                     aggregator.incrementBucketDocCount(upToBucketIndex, count[0]);
                 }
             } else {
-                stream.forEach(upToExclusive, this::collect);
+                stream.forEach(upToExclusive, doc -> collect(doc, owningBucketOrd));
             }
 
             if (stream.mayHaveRemaining()) {
