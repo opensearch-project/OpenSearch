@@ -76,6 +76,7 @@ Compatible with OpenSearch and OpenSearch Dashboards version 3.3.0
 * Delegate primitive write methods with ByteSizeCachingDirectory wrapped IndexOutput ([#19432](https://github.com/opensearch-project/OpenSearch/pull/19432))
 * Bump opensearch-protobufs dependency to 0.18.0 and update transport-grpc module compatibility ([#19447](https://github.com/opensearch-project/OpenSearch/issues/19447))
 * Bump opensearch-protobufs dependency to 0.19.0 ([#19453](https://github.com/opensearch-project/OpenSearch/issues/19453))
+* Disable query rewriting framework as a default behaviour ([#19592](https://github.com/opensearch-project/OpenSearch/pull/19592))
 
 ### Fixed
 * Fix unnecessary refreshes on update preparation failures ([#15261](https://github.com/opensearch-project/OpenSearch/issues/15261))

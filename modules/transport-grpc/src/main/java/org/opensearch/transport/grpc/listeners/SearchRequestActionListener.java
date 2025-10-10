@@ -54,7 +54,7 @@ public class SearchRequestActionListener implements ActionListener<SearchRespons
 
     @Override
     public void onFailure(Exception e) {
-        logger.error("SearchRequestActionListener failed to process search request: " + e.getMessage());
+        logger.debug("SearchRequestActionListener failed to process search request: " + e.getMessage());
         StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
         responseObserver.onError(grpcError);
     }

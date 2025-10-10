@@ -67,7 +67,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
             SearchRequestActionListener listener = new SearchRequestActionListener(responseObserver);
             client.search(searchRequest, listener);
         } catch (RuntimeException | IOException e) {
-            logger.error("SearchServiceImpl failed to process search request, request=" + request + ", error=" + e.getMessage());
+            logger.debug("SearchServiceImpl failed to process search request, request=" + request + ", error=" + e.getMessage());
             StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
             responseObserver.onError(grpcError);
         }
