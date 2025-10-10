@@ -278,6 +278,20 @@ public final class NetworkModule {
                 registerTransport(entry.getKey(), entry.getValue());
             }
 
+            // Register stream transports
+            Map<String, Supplier<Transport>> streamTransportFactory = plugin.getStreamTransports(
+                settings,
+                threadPool,
+                pageCacheRecycler,
+                circuitBreakerService,
+                namedWriteableRegistry,
+                networkService,
+                tracer
+            );
+            for (Map.Entry<String, Supplier<Transport>> entry : streamTransportFactory.entrySet()) {
+                registerTransport(entry.getKey(), entry.getValue());
+            }
+
             // Register any HTTP secure transports if available
             if (secureHttpTransportSettingsProviders.isEmpty() == false) {
                 final SecureHttpTransportSettingsProvider secureSettingProvider = secureHttpTransportSettingsProviders.iterator().next();

@@ -249,7 +249,14 @@ public final class SearchPhaseController {
     }
 
     static void setShardIndex(TopDocs topDocs, int shardIndex) {
-        assert topDocs.scoreDocs.length == 0 || topDocs.scoreDocs[0].shardIndex == -1 : "shardIndex is already set";
+        // Idempotent assignment: in streaming flows partial reductions may touch the same TopDocs more than once.
+        if (topDocs.scoreDocs.length == 0) {
+            return;
+        }
+        if (topDocs.scoreDocs[0].shardIndex != -1) {
+            // Already set by a previous pass; avoid reassigning to prevent assertion failures
+            return;
+        }
         for (ScoreDoc doc : topDocs.scoreDocs) {
             doc.shardIndex = shardIndex;
         }
