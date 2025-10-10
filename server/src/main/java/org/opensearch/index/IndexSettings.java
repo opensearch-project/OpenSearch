@@ -950,7 +950,7 @@ public final class IndexSettings {
      */
     private final boolean isCompositeIndex;
 
-    private boolean isRemoteStoreSSEnabled;
+    private boolean isServerSideEncryptionEnabled;
 
     /**
      * Denotes whether search via star tree index is enabled for this index
@@ -1037,9 +1037,9 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
-        isRemoteStoreSSEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false);
+        isServerSideEncryptionEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false);
 
-        System.out.println("[PRANIT]: IndexSettings.IndexSettings is for index " + this.index.getName() + " SSE ENABLED VALUE is " + isRemoteStoreSSEnabled);
+        System.out.println("[PRANIT]: IndexSettings.IndexSettings is for index " + this.index.getName() + " SSE ENABLED VALUE is " + isServerSideEncryptionEnabled);
 
         isWarmIndex = settings.getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
 
@@ -1249,7 +1249,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(ALLOW_DERIVED_FIELDS, this::setAllowDerivedField);
         scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, this::setRemoteStoreEnabled);
 
-        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_SSE_ENABLED_SETTING, this::setRemoteStoreSseEnabled);
+        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_SSE_ENABLED_SETTING, this::setServerSideEncryptionEnabled);
 
         scopedSettings.addSettingsUpdateConsumer(
             IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
@@ -1463,8 +1463,8 @@ public final class IndexSettings {
     /**
      * Returns if remote store SSE is enabled for this index.
      */
-    public boolean isRemoteStoreSSEnabled() {
-        return isRemoteStoreSSEnabled;
+    public boolean isServerSideEncryptionEnabled() {
+        return isServerSideEncryptionEnabled;
     }
 
     public boolean isAssignedOnRemoteNode() {
@@ -2177,8 +2177,8 @@ public final class IndexSettings {
         this.isRemoteStoreEnabled = isRemoteStoreEnabled;
     }
 
-    public void setRemoteStoreSseEnabled(boolean sseEnabled) {
-        this.isRemoteStoreSSEnabled = sseEnabled;
+    public void setServerSideEncryptionEnabled(boolean sseEnabled) {
+        this.isServerSideEncryptionEnabled = sseEnabled;
     }
 
     public void setRemoteStoreRepository(String remoteStoreRepository) {

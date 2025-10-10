@@ -9,8 +9,6 @@
 package org.opensearch.repositories.blobstore;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.SetOnce;
-import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 
@@ -22,7 +20,7 @@ public class BlobStoreProviderFactory {
     private final RepositoryMetadata metadata;
     private final Object lock;
     private final BlobStoreRepository repository;
-    private static RemoteStoreBlobStoreProvider remoteStoreBlobStoreProvider;
+    private static ServerSideEncryptionEnabledBlobStoreProvider serverSideEncryptionEnabledBlobStoreProvider;
     private static BlobStoreProvider blobStoreProvider;
 
     public BlobStoreProviderFactory(BlobStoreRepository repository, RepositoryMetadata metadata, Lifecycle lifecycle, Object lock) {
@@ -34,10 +32,10 @@ public class BlobStoreProviderFactory {
 
     public BlobStoreProvider getBlobStoreProvider() {
         if (RemoteStoreNodeAttribute.isRemoteStoreMetadata(metadata.settings())) {
-            if (remoteStoreBlobStoreProvider == null) {
-                remoteStoreBlobStoreProvider = new RemoteStoreBlobStoreProvider(repository, metadata, lifecycle, lock);
+            if (serverSideEncryptionEnabledBlobStoreProvider == null) {
+                serverSideEncryptionEnabledBlobStoreProvider = new ServerSideEncryptionEnabledBlobStoreProvider(repository, metadata, lifecycle, lock);
             }
-            return remoteStoreBlobStoreProvider;
+            return serverSideEncryptionEnabledBlobStoreProvider;
         } else {
             if (blobStoreProvider == null) {
                 blobStoreProvider = new BlobStoreProvider(repository, metadata, lifecycle, lock);

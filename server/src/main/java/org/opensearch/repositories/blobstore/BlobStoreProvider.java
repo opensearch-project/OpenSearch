@@ -13,7 +13,10 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.EncryptedBlobStore;
 import org.opensearch.common.lifecycle.Lifecycle;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.repositories.RepositoryException;
+
+import java.util.function.Supplier;
 
 /**
  * Provide for the BlobStore class
@@ -34,24 +37,25 @@ public class BlobStoreProvider {
         this.repository = repository;
     }
 
-    public BlobStore blobStore(boolean serverSideEncryption) {
-        return createBlobStore(blobStore, false);
+    protected BlobStore blobStore(IndexSettings indexSettings) {
+        boolean serverSideEncryption = indexSettings != null && indexSettings.isServerSideEncryptionEnabled();
+        return createBlobStore(blobStore, serverSideEncryption);
     }
 
     public BlobStore blobStore() {
         // Assertion not true as Kraken threads use blobStore
-        return blobStore(false);
+        return blobStore(null);
     }
 
-    protected BlobStore createBlobStore(SetOnce<BlobStore> blobStore, boolean serverSideEncryptyion) {
+    protected BlobStore createBlobStore(SetOnce<BlobStore> blobStore, boolean serverSideEncryption) {
         // assertSnapshotOrGenericThread();
         BlobStore store = blobStore.get();
         if (store == null) {
             synchronized (lock) {
                 store = blobStore.get();
                 if (store == null) {
-                    store = initBlobStore(serverSideEncryptyion);
-                    if (!serverSideEncryptyion && metadata.cryptoMetadata() != null) {
+                    store = initBlobStore(serverSideEncryption);
+                    if (!serverSideEncryption && metadata.cryptoMetadata() != null) {
                         store = new EncryptedBlobStore(store, metadata.cryptoMetadata());
                     }
                     blobStore.set(store);
@@ -61,8 +65,8 @@ public class BlobStoreProvider {
         return store;
     }
 
-    public BlobStore getBlobStore(boolean serverSideEncryption) {
-        if (serverSideEncryption) {
+    public BlobStore getBlobStore(IndexSettings indexSettings) {
+        if (indexSettings != null && indexSettings.isServerSideEncryptionEnabled()) {
             throw new IllegalArgumentException("Provider Instance Type is not correct");
         }
         return blobStore.get();

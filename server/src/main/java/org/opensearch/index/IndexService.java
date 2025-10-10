@@ -711,7 +711,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         shardId,
                         this.indexSettings.getRemoteStorePathStrategy(),
                         this.indexSettings.getRemoteStoreSegmentPathPrefix(),
-                        this.indexSettings.isRemoteStoreEnabled()
+                        this.indexSettings
                     );
                 }
                 // When an instance of Store is created, a shardlock is created which is released on closing the instance of store.
