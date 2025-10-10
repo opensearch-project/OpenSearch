@@ -639,6 +639,14 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
     @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/19436")
+    public void testMergedSegmentReplicationWithException() throws Exception {
+        // TODO: wait for remote store to support merged segment warmer
+        super.testMergedSegmentReplicationWithException();
+    }
+
+    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    @Override
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18255")
     public void testMergedSegmentReplicationWithZeroReplica() throws Exception {
         // TODO: wait for remote store to support merged segment warmer
