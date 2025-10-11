@@ -40,12 +40,15 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -92,7 +95,9 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 public abstract class TransportBroadcastByNodeAction<
     Request extends BroadcastRequest<Request>,
     Response extends BroadcastResponse,
-    ShardOperationResult extends Writeable> extends HandledTransportAction<Request, Response> {
+    ShardOperationResult extends Writeable> extends HandledTransportAction<Request, Response>
+    implements
+        TransportIndicesResolvingAction<Request> {
 
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -269,15 +274,20 @@ public abstract class TransportBroadcastByNodeAction<
      *
      * @param clusterState the cluster state
      * @param request the underlying request
-     * @return a list of concrete index names that this action should operate on
+     * @return a list of concrete indices that this action should operate on
      */
-    protected String[] resolveConcreteIndexNames(ClusterState clusterState, Request request) {
-        return indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+    protected ResolvedIndices.Local.Concrete resolveConcreteIndices(ClusterState clusterState, Request request) {
+        return indexNameExpressionResolver.concreteResolvedIndices(clusterState, request);
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncAction(task, request, listener).start();
+    }
+
+    @Override
+    public OptionallyResolvedIndices resolveIndices(Request request) {
+        return ResolvedIndices.of(resolveConcreteIndices(clusterService.state(), request));
     }
 
     /**
@@ -309,7 +319,7 @@ public abstract class TransportBroadcastByNodeAction<
                 throw globalBlockException;
             }
 
-            String[] concreteIndices = resolveConcreteIndexNames(clusterState, request);
+            String[] concreteIndices = resolveConcreteIndices(clusterState, request).namesOfConcreteIndicesAsArray();
             ClusterBlockException requestBlockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (requestBlockException != null) {
                 throw requestBlockException;

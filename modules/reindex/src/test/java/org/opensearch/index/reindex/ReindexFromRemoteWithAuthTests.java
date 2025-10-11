@@ -39,6 +39,7 @@ import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
+import org.opensearch.action.support.ActionRequestMetadata;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -233,6 +234,7 @@ public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase
             Task task,
             String action,
             Request request,
+            ActionRequestMetadata<Request, Response> actionRequestMetadata,
             ActionListener<Response> listener,
             ActionFilterChain<Request, Response> chain
         ) {
