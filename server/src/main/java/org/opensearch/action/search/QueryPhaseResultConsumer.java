@@ -151,6 +151,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return (hasAggs || hasTopDocs) ? Math.min(requestBatchedReduceSize, minBatchReduceSize) : minBatchReduceSize;
     }
 
+    /**
+     * Protected accessor for progressListener to allow subclasses to access it.
+     * @return the search progress listener
+     */
+    protected SearchProgressListener progressListener() {
+        return this.progressListener;
+    }
+
     @Override
     public void close() {
         Releasables.close(pendingReduces);
@@ -239,6 +247,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             for (QuerySearchResult result : toConsume) {
                 TopDocsAndMaxScore topDocs = result.consumeTopDocs();
+                // For streaming, avoid reassigning shardIndex if already set
                 SearchPhaseController.setShardIndex(topDocs.topDocs, result.getShardIndex());
                 topDocsList.add(topDocs.topDocs);
             }
@@ -273,7 +282,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             SearchShardTarget target = result.getSearchShardTarget();
             processedShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
         }
-        progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
+        // For streaming search with TopDocs, use the new notification method
+        if (hasTopDocs && newTopDocs != null) {
+            progressListener.notifyPartialReduceWithTopDocs(
+                processedShards,
+                topDocsStats.getTotalHits(),
+                newTopDocs,
+                newAggs,
+                numReducePhases
+            );
+        } else {
+            progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
+        }
         // we leave the results un-serialized because serializing is slow but we compute the serialized
         // size as an estimate of the memory used by the newly reduced aggregations.
         long serializedSize = hasAggs ? newAggs.getSerializedSize() : 0;
@@ -564,6 +584,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             for (QuerySearchResult result : buffer) {
                 TopDocsAndMaxScore topDocs = result.consumeTopDocs();
+                // For streaming, avoid reassigning shardIndex if already set
                 SearchPhaseController.setShardIndex(topDocs.topDocs, result.getShardIndex());
                 topDocsList.add(topDocs.topDocs);
             }
