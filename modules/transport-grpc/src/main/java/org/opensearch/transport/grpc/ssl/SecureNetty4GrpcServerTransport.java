@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
@@ -76,15 +77,17 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
      * @param networkService the bind/publish addresses.
      * @param threadPool the thread pool for managing gRPC executor and monitoring.
      * @param secureTransportSettingsProvider TLS configuration settings.
+     * @param serverInterceptor the gRPC server interceptor to be registered with the server.
      */
     public SecureNetty4GrpcServerTransport(
         Settings settings,
         List<BindableService> services,
         NetworkService networkService,
         ThreadPool threadPool,
-        SecureAuxTransportSettingsProvider secureTransportSettingsProvider
+        SecureAuxTransportSettingsProvider secureTransportSettingsProvider,
+        ServerInterceptor serverInterceptor
     ) {
-        super(settings, services, networkService, threadPool);
+        super(settings, services, networkService, threadPool, serverInterceptor);
         this.port = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.get(settings);
         this.portSettingKey = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.getKey();
         try {
