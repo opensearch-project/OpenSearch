@@ -33,7 +33,9 @@
 package org.opensearch.search.profile.aggregation;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
@@ -50,6 +52,7 @@ import java.util.Iterator;
 /**
  * An aggregator that aggregates the performance profiling of other aggregations
  */
+@PublicApi(since = "3.4.0")
 public class ProfilingAggregator extends Aggregator implements Streamable {
 
     private final Aggregator delegate;
@@ -123,7 +126,10 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
         timer.start();
         try {
-            return new ProfilingLeafBucketCollector(delegate.getLeafCollector(ctx), profileBreakdown);
+            if (tryPrecomputeAggregationForLeaf(ctx)) {
+                throw new CollectionTerminatedException();
+            }
+            return new ProfilingLeafBucketCollector(delegate.getLeafCollectorWithoutPrecompute(ctx), profileBreakdown);
         } finally {
             timer.stop();
         }
@@ -154,6 +160,19 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
         timer.start();
         try {
             delegate.postCollection();
+        } finally {
+            timer.stop();
+        }
+    }
+
+    @Override
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        Timer timer = profileBreakdown.getTimer(AggregationTimingType.PRE_COMPUTE);
+        timer.start();
+        try {
+            // Here we can add logic to check if star tree precomputation is possible and do it accordingly
+            // For now, we just call the super method
+            return delegate.tryPrecomputeAggregationForLeaf(ctx);
         } finally {
             timer.stop();
         }
