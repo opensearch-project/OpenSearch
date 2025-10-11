@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump Apache Lucene to 9.12.3 ([#19444](https://github.com/opensearch-project/OpenSearch/pull/19444))
 - Bump `commons-beanutils:commons-beanutils` from 1.9.4 to 1.11.0 ([#18401](https://github.com/opensearch-project/OpenSearch/issues/18401))
 - Bump `org.apache.poi` version from 5.2.5 to 5.4.1 in /plugins/ingest-attachment ([#17887](https://github.com/opensearch-project/OpenSearch/pull/17887))
-- Bump `org.bouncycastle:bc-fips` from 2.0.0 to 2.1.0 ([#19155](https://github.com/opensearch-project/OpenSearch/pull/19155))
+- Bump `org.bouncycastle:bc-fips` from 2.0.0 to 2.1.2 ([#19155](https://github.com/opensearch-project/OpenSearch/pull/19155))
 - Bump `org.apache.commons:commons-lang3` from 3.14.0 to 3.18.0 ([#19155](https://github.com/opensearch-project/OpenSearch/pull/19155))
 - Bump `org.bouncycastle:bcprov-jdk18on` from 1.78 to 1.79 ([#19155](https://github.com/opensearch-project/OpenSearch/pull/19155))
 - Bump `org.bouncycastle:bcmail-jdk18on` from 1.78 to 1.79 ([#19155](https://github.com/opensearch-project/OpenSearch/pull/19155))
