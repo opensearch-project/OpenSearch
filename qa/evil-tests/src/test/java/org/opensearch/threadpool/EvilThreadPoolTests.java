@@ -47,6 +47,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ForkJoinPool;
+
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -70,6 +72,11 @@ public class EvilThreadPoolTests extends OpenSearchTestCase {
 
     public void testExecutionErrorOnDefaultThreadPoolTypes() throws InterruptedException {
         for (String executor : ThreadPool.THREAD_POOL_TYPES.keySet()) {
+            // ForkJoinPool is skipped here because it does not support all ThreadPoolExecutor features or APIs,
+            // and is tested separately in testExecutionErrorOnForkJoinPool.
+            if (ThreadPool.THREAD_POOL_TYPES.get(executor) == ThreadPool.ThreadPoolType.FORK_JOIN) {
+                continue; // skip FORK_JOIN for these tests
+            }
             checkExecutionError(getExecuteRunner(threadPool.executor(executor)));
             checkExecutionError(getSubmitRunner(threadPool.executor(executor)));
             checkExecutionError(getScheduleRunner(executor));
@@ -176,6 +183,11 @@ public class EvilThreadPoolTests extends OpenSearchTestCase {
 
     public void testExecutionExceptionOnDefaultThreadPoolTypes() throws InterruptedException {
         for (String executor : ThreadPool.THREAD_POOL_TYPES.keySet()) {
+            // ForkJoinPool is skipped here because it does not support all ThreadPoolExecutor features or APIs,
+            // and is tested separately in testExecutionErrorOnForkJoinPool.
+            if (ThreadPool.THREAD_POOL_TYPES.get(executor) == ThreadPool.ThreadPoolType.FORK_JOIN) {
+                continue; // skip FORK_JOIN for these tests
+            }
             checkExecutionException(getExecuteRunner(threadPool.executor(executor)), true);
 
             // here, it's ok for the exception not to bubble up. Accessing the future will yield the exception
@@ -388,6 +400,45 @@ public class EvilThreadPoolTests extends OpenSearchTestCase {
             consumer.accept(Optional.ofNullable(throwableReference.get()));
         } finally {
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
+        }
+    }
+
+    public void testExecutionExceptionOnForkJoinPool() throws InterruptedException {
+        ForkJoinPool fjp = new ForkJoinPool();
+        try {
+            checkExecutionException(getExecuteRunner(fjp), true);
+            checkExecutionException(getSubmitRunner(fjp), false);
+        } finally {
+            fjp.shutdownNow();
+            fjp.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testExecutionErrorOnForkJoinPool() throws Exception {
+        ForkJoinPool fjp = new ForkJoinPool(8);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Throwable> thrown = new AtomicReference<>();
+        try {
+            fjp.execute(() -> {
+                try {
+                    throw new Error("future error");
+                } catch (Throwable t) {
+                    thrown.set(t);
+                } finally {
+                    latch.countDown();
+                }
+            });
+
+            // Wait up to 5 seconds for the task to complete
+            assertTrue("Timeout waiting for ForkJoinPool task", latch.await(5, TimeUnit.SECONDS));
+
+            Throwable error = thrown.get();
+            assertNotNull("No error captured from ForkJoinPool task", error);
+            assertTrue(error instanceof Error);
+            assertEquals("future error", error.getMessage());
+        } finally {
+            fjp.shutdownNow();
+            fjp.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 

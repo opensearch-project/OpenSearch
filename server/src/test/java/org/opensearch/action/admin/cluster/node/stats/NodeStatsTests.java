@@ -742,7 +742,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         randomNonNegativeLong(),
                         randomIntBetween(1, 1000),
                         randomIntBetween(1, 1000),
-                        randomIntBetween(-1, 10)
+                        randomIntBetween(-1, 10),
+                        -1 // Non-ForkJoinPool: use -1
                     )
                 );
             }
