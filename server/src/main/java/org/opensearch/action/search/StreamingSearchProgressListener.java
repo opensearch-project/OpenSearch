@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * SearchProgressListener implementation for streaming search with scoring.
- * Computes partial search results when confidence thresholds are met.
+ * Computes partial search results progressively as shards complete.
  *
  * @opensearch.internal
  */

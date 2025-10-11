@@ -44,16 +44,7 @@ public enum StreamingSearchMode {
      * - No merge needed at coordinator
      * - Best for: scored searches without sorting
      */
-    SCORED_UNSORTED("scored_unsorted"),
-
-    /**
-     * Case 4: Partial scoring + confidence preview - advanced
-     * - Shard collector: StreamingConfidenceCollector
-     * - Deterministic bounds + optional confidence metadata
-     * - Global stability coordination
-     * - Best for: progressive results with confidence guarantees
-     */
-    CONFIDENCE_BASED("confidence_based");
+    SCORED_UNSORTED("scored_unsorted");
 
     private final String value;
 
@@ -102,13 +93,7 @@ public enum StreamingSearchMode {
         return this == SCORED_SORTED;
     }
 
-    /**
-     * Helper method to check if this mode uses confidence bounds.
-     * @return true if confidence bounds are used, false otherwise
-     */
-    public boolean usesConfidence() {
-        return this == CONFIDENCE_BASED;
-    }
+    // Confidence-based mode removed in this branch
 
     @Override
     public String toString() {

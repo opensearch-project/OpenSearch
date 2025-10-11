@@ -360,16 +360,7 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
             assertTrue("Hits should be sorted by score", hits[i - 1].getScore() >= hits[i].getScore());
         }
 
-        // Test CONFIDENCE_BASED mode - progressive emission with Hoeffding bounds
-        SearchRequest confidenceRequest = new SearchRequest(TEST_INDEX);
-        confidenceRequest.source().query(QueryBuilders.matchQuery("field1", "value1")).size(5);
-        confidenceRequest.searchType(SearchType.QUERY_THEN_FETCH);
-        confidenceRequest.setStreamingSearchMode("CONFIDENCE_BASED");
-
-        SearchResponse confidenceResponse = client().execute(SearchAction.INSTANCE, confidenceRequest).actionGet();
-        assertNotNull("Response should not be null for CONFIDENCE_BASED mode", confidenceResponse);
-        assertNotNull("Response hits should not be null", confidenceResponse.getHits());
-        assertTrue("Should have search hits", confidenceResponse.getHits().getTotalHits().value() > 0);
+        // Confidence-based mode removed in this branch
     }
 
     private void createTestIndex() {

@@ -211,13 +211,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                 fetchDocuments
             );
         }
-        transportService.sendChildRequest(
-            connection,
-            QUERY_ACTION_NAME,
-            request,
-            task,
-            transportHandler // TODO: wrap with ConnectionCountingHandler
-        );
+        transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task, transportHandler);
     }
 
     @Override
