@@ -330,8 +330,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
                     final Collection<Collector> subs = new ArrayList<>();
                     for (final Collector collector : collectors) {
-                        if (collector instanceof MultiCollector) {
-                            subs.addAll(List.of(((MultiCollector) collector).getCollectors()));
+                        if (collector instanceof MultiCollector m) {
+                            subs.addAll(List.of(m.getCollectors()));
                         } else {
                             subs.add(collector);
                         }
@@ -560,8 +560,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 final Collection<MaxScoreCollector> maxScoreCollectors = new ArrayList<>();
 
                 for (final Collector collector : collectors) {
-                    if (collector instanceof MultiCollector) {
-                        for (final Collector sub : (((MultiCollector) collector).getCollectors())) {
+                    if (collector instanceof MultiCollector m) {
+                        for (final Collector sub : (m.getCollectors())) {
                             if (sub instanceof TopDocsCollector<?>) {
                                 topDocsCollectors.add((TopDocsCollector<?>) sub);
                             } else if (sub instanceof MaxScoreCollector) {
