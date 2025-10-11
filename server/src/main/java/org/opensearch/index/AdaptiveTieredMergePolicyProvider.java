@@ -38,7 +38,6 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
     private static final ByteSizeValue BASE_FLOOR_SEGMENT = new ByteSizeValue(10, ByteSizeUnit.MB);
     private static final double BASE_SEGMENTS_PER_TIER = 5.0;
 
-
     public AdaptiveTieredMergePolicyProvider(Logger logger, IndexSettings indexSettings) {
         this.logger = logger;
         this.store = null; // Will be set later via setStore()
@@ -79,10 +78,7 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
             // Apply adaptive settings based on continuous scaling
             applyAdaptiveSettings(estimatedShardSize);
 
-            logger.debug(
-                "Initialized adaptive merge policy for shard size: {}",
-                new ByteSizeValue(estimatedShardSize)
-            );
+            logger.debug("Initialized adaptive merge policy for shard size: {}", new ByteSizeValue(estimatedShardSize));
 
         } catch (Exception e) {
             logger.warn("Failed to initialize adaptive settings, falling back to defaults: {}", e.getMessage());
@@ -116,13 +112,13 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
     private void applyAdaptiveSettings(long shardSizeBytes) {
         // Calculate adaptive settings using continuous scaling
         // Scale from base values to maximum values based on shard size
-        
+
         // Max segment size: 50MB to 5GB
         long maxSegmentSize = calculateMaxSegmentSize(shardSizeBytes);
-        
-        // Floor segment size: 10MB to 100MB  
+
+        // Floor segment size: 10MB to 100MB
         long floorSegmentSize = calculateFloorSegmentSize(shardSizeBytes);
-        
+
         // Segments per tier: 5.0 to 12.0
         double segmentsPerTier = calculateSegmentsPerTier(shardSizeBytes);
 
@@ -149,11 +145,11 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
         double baseSize = BASE_MAX_SEGMENT.getBytes(); // 50MB
         double maxSize = 5L * 1024 * 1024 * 1024; // 5GB
         double baseShardSize = BASE_SHARD_SIZE.getBytes(); // 100MB
-        
+
         // Use logarithmic scaling for smooth transitions
         double scaleFactor = Math.log10((double) shardSizeBytes / baseShardSize + 1.0);
         double maxScaleFactor = Math.log10(1000.0); // Scale up to 100GB shards
-        
+
         double ratio = Math.min(scaleFactor / maxScaleFactor, 1.0);
         return (long) (baseSize + (maxSize - baseSize) * ratio);
     }
@@ -162,11 +158,11 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
         double baseSize = BASE_FLOOR_SEGMENT.getBytes(); // 10MB
         double maxSize = 100L * 1024 * 1024; // 100MB
         double baseShardSize = BASE_SHARD_SIZE.getBytes(); // 100MB
-        
+
         // Use logarithmic scaling for smooth transitions
         double scaleFactor = Math.log10((double) shardSizeBytes / baseShardSize + 1.0);
         double maxScaleFactor = Math.log10(1000.0); // Scale up to 100GB shards
-        
+
         double ratio = Math.min(scaleFactor / maxScaleFactor, 1.0);
         return (long) (baseSize + (maxSize - baseSize) * ratio);
     }
@@ -175,11 +171,11 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
         double baseValue = BASE_SEGMENTS_PER_TIER; // 5.0
         double maxValue = 12.0;
         double baseShardSize = BASE_SHARD_SIZE.getBytes(); // 100MB
-        
+
         // Use logarithmic scaling for smooth transitions
         double scaleFactor = Math.log10((double) shardSizeBytes / baseShardSize + 1.0);
         double maxScaleFactor = Math.log10(1000.0); // Scale up to 100GB shards
-        
+
         double ratio = Math.min(scaleFactor / maxScaleFactor, 1.0);
         return baseValue + (maxValue - baseValue) * ratio;
     }

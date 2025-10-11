@@ -164,7 +164,6 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
         assertTrue(description + " max segment should be larger than floor segment", maxSegment > floorSegment);
     }
 
-
     private SegmentTopologyMetrics calculateTopologyMetrics(List<Long> segmentSizes) {
         long totalSize = segmentSizes.stream().mapToLong(Long::longValue).sum();
         long meanSize = totalSize / segmentSizes.size();
@@ -234,7 +233,6 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
         double segmentsPerTierScale = Math.min(scaleFactor * 2.4, 2.4);
         return 5.0 + segmentsPerTierScale;
     }
-
 
     // Data classes for metrics
     private static class SegmentTopologyMetrics {
@@ -349,7 +347,10 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
 
         // Verify reasonable values for 100MB shard
         assertTrue("100MB max segment should be reasonable", maxSegment100MB >= 50L * 1024 * 1024 && maxSegment100MB <= 200L * 1024 * 1024);
-        assertTrue("100MB floor segment should be reasonable", floorSegment100MB >= 10L * 1024 * 1024 && floorSegment100MB <= 50L * 1024 * 1024);
+        assertTrue(
+            "100MB floor segment should be reasonable",
+            floorSegment100MB >= 10L * 1024 * 1024 && floorSegment100MB <= 50L * 1024 * 1024
+        );
         assertTrue("100MB segments per tier should be reasonable", segmentsPerTier100MB >= 5.0 && segmentsPerTier100MB <= 8.0);
 
         // Test at 1GB boundary
