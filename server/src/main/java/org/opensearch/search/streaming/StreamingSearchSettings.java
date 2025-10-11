@@ -77,15 +77,6 @@ public final class StreamingSearchSettings {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Integer> STREAMING_CONFIDENCE_BATCH_MULTIPLIER = Setting.intSetting(
-        "search.streaming.confidence.batch_multiplier",
-        3,
-        1,
-        100,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     public static final Setting<Integer> STREAMING_SCORED_SORTED_BATCH_MULTIPLIER = Setting.intSetting(
         "search.streaming.scored_sorted.batch_multiplier",
         10,
@@ -100,34 +91,6 @@ public final class StreamingSearchSettings {
         TimeValue.timeValueMillis(50),
         TimeValue.timeValueMillis(10),
         TimeValue.timeValueSeconds(1),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    // Confidence settings
-    public static final Setting<Float> STREAMING_INITIAL_CONFIDENCE = Setting.floatSetting(
-        "search.streaming.initial_confidence",
-        0.99f,
-        0.5f,
-        1.0f,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Float> STREAMING_CONFIDENCE_DECAY_RATE = Setting.floatSetting(
-        "search.streaming.confidence_decay_rate",
-        0.02f,
-        0.001f,
-        0.1f,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Float> STREAMING_MIN_CONFIDENCE = Setting.floatSetting(
-        "search.streaming.min_confidence",
-        0.80f,
-        0.5f,
-        0.95f,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -280,12 +243,10 @@ public final class StreamingSearchSettings {
             STREAMING_BATCH_SIZE,
             STREAMING_NO_SCORING_BATCH_MULTIPLIER,
             STREAMING_SCORED_UNSORTED_BATCH_MULTIPLIER,
-            STREAMING_CONFIDENCE_BATCH_MULTIPLIER,
+
             STREAMING_SCORED_SORTED_BATCH_MULTIPLIER,
             STREAMING_EMISSION_INTERVAL,
-            STREAMING_INITIAL_CONFIDENCE,
-            STREAMING_CONFIDENCE_DECAY_RATE,
-            STREAMING_MIN_CONFIDENCE,
+
             STREAMING_MIN_DOCS_FOR_STREAMING,
             STREAMING_MIN_SHARD_RESPONSE_RATIO,
             STREAMING_OUTLIER_THRESHOLD_SIGMA,
@@ -317,9 +278,6 @@ public final class StreamingSearchSettings {
         private volatile int blockSize;
         private volatile int batchSize;
         private volatile long emissionIntervalMillis;
-        private volatile float initialConfidence;
-        private volatile float confidenceDecayRate;
-        private volatile float minConfidence;
 
         public StreamingSearchConfig(Settings settings, ClusterSettings clusterSettings) {
             this.settings = settings;
@@ -336,9 +294,6 @@ public final class StreamingSearchSettings {
                 STREAMING_EMISSION_INTERVAL,
                 interval -> this.emissionIntervalMillis = interval.millis()
             );
-            clusterSettings.addSettingsUpdateConsumer(STREAMING_INITIAL_CONFIDENCE, this::setInitialConfidence);
-            clusterSettings.addSettingsUpdateConsumer(STREAMING_CONFIDENCE_DECAY_RATE, this::setConfidenceDecayRate);
-            clusterSettings.addSettingsUpdateConsumer(STREAMING_MIN_CONFIDENCE, this::setMinConfidence);
         }
 
         private void updateCachedValues() {
@@ -346,9 +301,6 @@ public final class StreamingSearchSettings {
             this.blockSize = STREAMING_BLOCK_SIZE.get(settings);
             this.batchSize = STREAMING_BATCH_SIZE.get(settings);
             this.emissionIntervalMillis = STREAMING_EMISSION_INTERVAL.get(settings).millis();
-            this.initialConfidence = STREAMING_INITIAL_CONFIDENCE.get(settings);
-            this.confidenceDecayRate = STREAMING_CONFIDENCE_DECAY_RATE.get(settings);
-            this.minConfidence = STREAMING_MIN_CONFIDENCE.get(settings);
         }
 
         // Fast getters for hot path
@@ -368,18 +320,6 @@ public final class StreamingSearchSettings {
             return emissionIntervalMillis;
         }
 
-        public float getInitialConfidence() {
-            return initialConfidence;
-        }
-
-        public float getConfidenceDecayRate() {
-            return confidenceDecayRate;
-        }
-
-        public float getMinConfidence() {
-            return minConfidence;
-        }
-
         // Setters for dynamic updates
         private void setEnabled(boolean enabled) {
             this.enabled = enabled;
@@ -391,18 +331,6 @@ public final class StreamingSearchSettings {
 
         private void setBatchSize(int batchSize) {
             this.batchSize = batchSize;
-        }
-
-        private void setInitialConfidence(float confidence) {
-            this.initialConfidence = confidence;
-        }
-
-        private void setConfidenceDecayRate(float rate) {
-            this.confidenceDecayRate = rate;
-        }
-
-        private void setMinConfidence(float confidence) {
-            this.minConfidence = confidence;
         }
 
         // Get non-cached values

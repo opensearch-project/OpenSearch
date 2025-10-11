@@ -26,7 +26,6 @@ import java.util.function.Consumer;
  * Batch reduction frequency is controlled by per-mode multipliers:
  * - NO_SCORING: Immediate reduction (batch size = 1) for fastest time-to-first-byte
  * - SCORED_UNSORTED: Small batches (minBatchReduceSize * 2)
- * - CONFIDENCE_BASED: Moderate batches (minBatchReduceSize * 3)
  * - SCORED_SORTED: Larger batches (minBatchReduceSize * 10)
  *
  * These multipliers are applied to the base batch reduce size (typically 5) to determine
@@ -97,9 +96,6 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
             case SCORED_UNSORTED:
                 // Small batches for quick emission without sorting overhead
                 return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 2);
-            case CONFIDENCE_BASED:
-                // Moderate batching for progressive emission with confidence
-                return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 3);
             case SCORED_SORTED:
                 // Higher batch size to collect more results before reducing (sorting is expensive)
                 return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);

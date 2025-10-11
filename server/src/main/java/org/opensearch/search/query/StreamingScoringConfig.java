@@ -59,7 +59,7 @@ public class StreamingScoringConfig {
      * Returns the default configuration.
      */
     public static StreamingScoringConfig defaultConfig() {
-        return new StreamingScoringConfig(true, StreamingSearchMode.CONFIDENCE_BASED, 100, 50, 10, 100, true);
+        return new StreamingScoringConfig(true, StreamingSearchMode.SCORED_UNSORTED, 100, 50, 10, 100, true);
     }
 
     /**
@@ -73,8 +73,6 @@ public class StreamingScoringConfig {
                 return new StreamingScoringConfig(true, mode, 100, 50, 10, 100, true);
             case SCORED_UNSORTED:
                 return new StreamingScoringConfig(true, mode, 50, 25, 10, 100, false);
-            case CONFIDENCE_BASED:
-                return defaultConfig();
             default:
                 return defaultConfig();
         }

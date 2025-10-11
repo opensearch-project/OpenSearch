@@ -44,8 +44,11 @@ public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
      * Test that different streaming modes use their configured batch sizes
      */
     public void testStreamingModesUseDifferentBatchSizes() {
-        // Test each mode with hard-coded multipliers
-        for (StreamingSearchMode mode : StreamingSearchMode.values()) {
+        // Test supported modes with hard-coded multipliers
+        for (StreamingSearchMode mode : new StreamingSearchMode[] {
+            StreamingSearchMode.NO_SCORING,
+            StreamingSearchMode.SCORED_UNSORTED,
+            StreamingSearchMode.SCORED_SORTED }) {
             SearchRequest request = new SearchRequest();
             request.setStreamingSearchMode(mode.toString());
 
@@ -68,9 +71,6 @@ public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
                     break;
                 case SCORED_UNSORTED:
                     assertEquals("SCORED_UNSORTED should use 5 * 2", 10, batchSize);
-                    break;
-                case CONFIDENCE_BASED:
-                    assertEquals("CONFIDENCE_BASED should use 5 * 3", 15, batchSize);
                     break;
                 case SCORED_SORTED:
                     assertEquals("SCORED_SORTED should use 5 * 10", 50, batchSize);

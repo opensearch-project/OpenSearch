@@ -59,7 +59,6 @@ public class StreamingSearchProgressMessage extends TransportRequest {
     private final long requestId;
     private final Milestone milestone;
     private final TopDocs topDocs;
-    private final float confidence;
     private final ProgressStatistics statistics;
     private final boolean isFinal;
 
@@ -70,7 +69,6 @@ public class StreamingSearchProgressMessage extends TransportRequest {
         this.requestId = -1;
         this.milestone = Milestone.INITIAL;
         this.topDocs = null;
-        this.confidence = 0.0f;
         this.statistics = null;
         this.isFinal = false;
     }
@@ -81,7 +79,6 @@ public class StreamingSearchProgressMessage extends TransportRequest {
         long requestId,
         Milestone milestone,
         TopDocs topDocs,
-        float confidence,
         ProgressStatistics statistics,
         boolean isFinal
     ) {
@@ -90,7 +87,6 @@ public class StreamingSearchProgressMessage extends TransportRequest {
         this.requestId = requestId;
         this.milestone = milestone;
         this.topDocs = topDocs;
-        this.confidence = confidence;
         this.statistics = statistics;
         this.isFinal = isFinal;
     }
@@ -113,7 +109,6 @@ public class StreamingSearchProgressMessage extends TransportRequest {
         }
         this.topDocs = new TopDocs(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), scoreDocs);
 
-        this.confidence = in.readFloat();
         this.statistics = new ProgressStatistics(in);
         this.isFinal = in.readBoolean();
     }
@@ -133,7 +128,6 @@ public class StreamingSearchProgressMessage extends TransportRequest {
             out.writeFloat(doc.score);
         }
 
-        out.writeFloat(confidence);
         statistics.writeTo(out);
         out.writeBoolean(isFinal);
     }
@@ -156,10 +150,6 @@ public class StreamingSearchProgressMessage extends TransportRequest {
 
     public TopDocs getTopDocs() {
         return topDocs;
-    }
-
-    public float getConfidence() {
-        return confidence;
     }
 
     public ProgressStatistics getStatistics() {
@@ -270,7 +260,6 @@ public class StreamingSearchProgressMessage extends TransportRequest {
         private long requestId;
         private Milestone milestone;
         private TopDocs topDocs;
-        private float confidence = 0.0f;
         private ProgressStatistics statistics;
         private boolean isFinal = false;
 
@@ -299,11 +288,6 @@ public class StreamingSearchProgressMessage extends TransportRequest {
             return this;
         }
 
-        public Builder confidence(float confidence) {
-            this.confidence = confidence;
-            return this;
-        }
-
         public Builder statistics(ProgressStatistics statistics) {
             this.statistics = statistics;
             return this;
@@ -315,16 +299,7 @@ public class StreamingSearchProgressMessage extends TransportRequest {
         }
 
         public StreamingSearchProgressMessage build() {
-            return new StreamingSearchProgressMessage(
-                shardTarget,
-                shardIndex,
-                requestId,
-                milestone,
-                topDocs,
-                confidence,
-                statistics,
-                isFinal
-            );
+            return new StreamingSearchProgressMessage(shardTarget, shardIndex, requestId, milestone, topDocs, statistics, isFinal);
         }
     }
 }
