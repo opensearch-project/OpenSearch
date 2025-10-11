@@ -38,10 +38,6 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
     private static final ByteSizeValue BASE_FLOOR_SEGMENT = new ByteSizeValue(10, ByteSizeUnit.MB);
     private static final double BASE_SEGMENTS_PER_TIER = 5.0;
 
-    // Scaling factors for larger shards
-    private static final double MAX_SEGMENT_SCALE_FACTOR = 100.0; // Max segment scales up to 5GB
-    private static final double FLOOR_SEGMENT_SCALE_FACTOR = 10.0; // Floor segment scales up to 100MB
-    private static final double SEGMENTS_PER_TIER_SCALE_FACTOR = 2.4; // Segments per tier scales up to 12
 
     public AdaptiveTieredMergePolicyProvider(Logger logger, IndexSettings indexSettings) {
         this.logger = logger;
