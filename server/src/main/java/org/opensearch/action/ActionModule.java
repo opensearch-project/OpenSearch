@@ -343,7 +343,6 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.action.RestFieldCapabilitiesAction;
 import org.opensearch.rest.action.RestMainAction;
-import org.opensearch.rest.action.admin.RestSegmentTopologyAction;
 import org.opensearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
 import org.opensearch.rest.action.admin.cluster.RestCancelTasksAction;
 import org.opensearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
@@ -1008,7 +1007,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestTasksAction(nodesInCluster));
         registerHandler.accept(new RestIndicesAction(responseLimitSettings));
         registerHandler.accept(new RestSegmentsAction(responseLimitSettings));
-        registerHandler.accept(new RestSegmentTopologyAction());
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         registerHandler.accept(new org.opensearch.rest.action.cat.RestCountAction());
         // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction

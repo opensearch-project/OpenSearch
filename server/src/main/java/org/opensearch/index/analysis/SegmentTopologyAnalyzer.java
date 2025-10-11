@@ -178,7 +178,7 @@ public class SegmentTopologyAnalyzer implements Writeable {
         } else if (totalSize < 10L * 1024 * 1024 * 1024) { // < 10GB
             return 1024 * 1024 * 1024; // 1GB
         } else { // >= 10GB
-            return 2L * 1024 * 1024 * 1024; // 2GB
+            return 5L * 1024 * 1024 * 1024; // 5GB
         }
     }
 

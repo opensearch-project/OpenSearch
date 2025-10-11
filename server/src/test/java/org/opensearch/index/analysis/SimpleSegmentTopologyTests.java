@@ -122,7 +122,7 @@ public class SimpleSegmentTopologyTests extends OpenSearchTestCase {
         } else if (shardSizeBytes < 10L * 1024 * 1024 * 1024) { // < 10GB
             return 1024 * 1024 * 1024; // 1GB
         } else { // >= 10GB
-            return 2L * 1024 * 1024 * 1024; // 2GB
+            return 5L * 1024 * 1024 * 1024; // 5GB
         }
     }
 
@@ -165,7 +165,7 @@ public class SimpleSegmentTopologyTests extends OpenSearchTestCase {
 
         assertTrue("100MB boundary should recommend 200MB max segment", maxSegment100MB == 200L * 1024 * 1024);
         assertTrue("1GB boundary should recommend 1GB max segment", maxSegment1GB == 1024L * 1024 * 1024);
-        assertTrue("10GB boundary should recommend 2GB max segment", maxSegment10GB == 2L * 1024 * 1024 * 1024);
+        assertTrue("10GB boundary should recommend 5GB max segment", maxSegment10GB == 5L * 1024 * 1024 * 1024);
 
         // Test just below boundaries
         long maxSegment99MB = getRecommendedMaxSegmentSize(99L * 1024 * 1024);

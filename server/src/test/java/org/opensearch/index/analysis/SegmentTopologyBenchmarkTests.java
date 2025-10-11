@@ -64,29 +64,39 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test that validates the shard size categorization logic
+     * Test that validates continuous scaling behavior
      */
-    public void testShardSizeCategorization() {
-        // Test boundary conditions
-        assertEquals("50MB should be categorized as small", ShardSizeCategory.SMALL, categorizeShardSize(50L * 1024 * 1024));
-        assertEquals("100MB should be categorized as medium", ShardSizeCategory.MEDIUM, categorizeShardSize(100L * 1024 * 1024));
-        assertEquals("1GB should be categorized as large", ShardSizeCategory.LARGE, categorizeShardSize(1024L * 1024 * 1024));
-        assertEquals(
-            "10GB should be categorized as very large",
-            ShardSizeCategory.VERY_LARGE,
-            categorizeShardSize(10L * 1024 * 1024 * 1024)
-        );
+    public void testContinuousScaling() {
+        // Test that settings scale continuously rather than in discrete steps
+        long smallShard = 50L * 1024 * 1024; // 50MB
+        long mediumShard = 500L * 1024 * 1024; // 500MB
+        long largeShard = 5L * 1024 * 1024 * 1024; // 5GB
+        long veryLargeShard = 50L * 1024 * 1024 * 1024; // 50GB
+
+        // Verify that settings increase monotonically with shard size
+        long maxSegmentSmall = getRecommendedMaxSegmentSize(smallShard);
+        long maxSegmentMedium = getRecommendedMaxSegmentSize(mediumShard);
+        long maxSegmentLarge = getRecommendedMaxSegmentSize(largeShard);
+        long maxSegmentVeryLarge = getRecommendedMaxSegmentSize(veryLargeShard);
+
+        assertTrue("Max segment size should increase with shard size", maxSegmentSmall < maxSegmentMedium);
+        assertTrue("Max segment size should increase with shard size", maxSegmentMedium < maxSegmentLarge);
+        assertTrue("Max segment size should increase with shard size", maxSegmentLarge < maxSegmentVeryLarge);
+
+        // Verify reasonable ranges
+        assertTrue("Small shard max segment should be reasonable", maxSegmentSmall >= 50L * 1024 * 1024);
+        assertTrue("Very large shard max segment should not exceed 5GB", maxSegmentVeryLarge <= 5L * 1024 * 1024 * 1024);
     }
 
     /**
-     * Test that validates the merge policy settings for each category
+     * Test that validates the merge policy settings for specific shard sizes
      */
     public void testMergePolicySettingsValidation() {
-        // Validate settings for each category
-        validateMergeSettings(ShardSizeCategory.SMALL, 50L * 1024 * 1024, 10L * 1024 * 1024, 5.0);
-        validateMergeSettings(ShardSizeCategory.MEDIUM, 200L * 1024 * 1024, 25L * 1024 * 1024, 8.0);
-        validateMergeSettings(ShardSizeCategory.LARGE, 1024L * 1024 * 1024, 50L * 1024 * 1024, 10.0);
-        validateMergeSettings(ShardSizeCategory.VERY_LARGE, 2L * 1024 * 1024 * 1024, 100L * 1024 * 1024, 12.0);
+        // Test specific shard sizes to ensure reasonable settings
+        validateMergeSettingsForShardSize(100L * 1024 * 1024, "100MB shard");
+        validateMergeSettingsForShardSize(1L * 1024 * 1024 * 1024, "1GB shard");
+        validateMergeSettingsForShardSize(10L * 1024 * 1024 * 1024, "10GB shard");
+        validateMergeSettingsForShardSize(100L * 1024 * 1024 * 1024, "100GB shard");
     }
 
     private void validateRecommendationsForShardSize(long shardSize, String description) {
@@ -142,35 +152,18 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
         );
     }
 
-    private ShardSizeCategory categorizeShardSize(long sizeBytes) {
-        if (sizeBytes < 100L * 1024 * 1024) {
-            return ShardSizeCategory.SMALL;
-        } else if (sizeBytes < 1024L * 1024 * 1024) {
-            return ShardSizeCategory.MEDIUM;
-        } else if (sizeBytes < 10L * 1024 * 1024 * 1024) {
-            return ShardSizeCategory.LARGE;
-        } else {
-            return ShardSizeCategory.VERY_LARGE;
-        }
+    private void validateMergeSettingsForShardSize(long shardSize, String description) {
+        long maxSegment = getRecommendedMaxSegmentSize(shardSize);
+        long floorSegment = getRecommendedFloorSegmentSize(shardSize);
+        double segmentsPerTier = getRecommendedSegmentsPerTier(shardSize);
+
+        // Validate reasonable ranges
+        assertTrue(description + " max segment should be positive", maxSegment > 0);
+        assertTrue(description + " floor segment should be positive", floorSegment > 0);
+        assertTrue(description + " segments per tier should be reasonable", segmentsPerTier >= 5.0 && segmentsPerTier <= 15.0);
+        assertTrue(description + " max segment should be larger than floor segment", maxSegment > floorSegment);
     }
 
-    private void validateMergeSettings(
-        ShardSizeCategory category,
-        long expectedMaxSegment,
-        long expectedFloorSegment,
-        double expectedSegmentsPerTier
-    ) {
-        // This would validate against the actual AdaptiveTieredMergePolicyProvider settings
-        // For now, we validate the theoretical values
-        assertTrue("Max segment should be positive for " + category, expectedMaxSegment > 0);
-        assertTrue("Max segment should not exceed 5GB for " + category, expectedMaxSegment <= 5L * 1024 * 1024 * 1024);
-        assertTrue("Floor segment should be positive for " + category, expectedFloorSegment > 0);
-        assertTrue("Floor segment should be smaller than max segment for " + category, expectedFloorSegment < expectedMaxSegment);
-        assertTrue(
-            "Segments per tier should be reasonable for " + category,
-            expectedSegmentsPerTier >= 5.0 && expectedSegmentsPerTier <= 20.0
-        );
-    }
 
     private SegmentTopologyMetrics calculateTopologyMetrics(List<Long> segmentSizes) {
         long totalSize = segmentSizes.stream().mapToLong(Long::longValue).sum();
@@ -199,40 +192,49 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
 
     // Helper methods for recommendations (same as in SimpleSegmentTopologyTests)
     private long getRecommendedMaxSegmentSize(long shardSizeBytes) {
-        if (shardSizeBytes < 100L * 1024 * 1024) {
-            return 50L * 1024 * 1024;
-        } else if (shardSizeBytes < 1024L * 1024 * 1024) {
-            return 200L * 1024 * 1024;
-        } else if (shardSizeBytes < 10L * 1024 * 1024 * 1024) {
-            return 1024L * 1024 * 1024;
-        } else {
-            return 2L * 1024 * 1024 * 1024;
+        // Handle edge cases
+        if (shardSizeBytes <= 0) {
+            return 50L * 1024 * 1024; // Default for invalid sizes
         }
+
+        // Use continuous scaling similar to the main implementation
+        // Scale from 50MB to 5GB based on shard size
+        double baseSize = 50L * 1024 * 1024; // 50MB
+        double maxSize = 5L * 1024 * 1024 * 1024; // 5GB
+        double baseShardSize = 100L * 1024 * 1024; // 100MB
+
+        // Use logarithmic scaling for smooth transitions
+        double scaleFactor = Math.log10((double) shardSizeBytes / baseShardSize + 1.0);
+        double maxScaleFactor = Math.log10(1000.0); // Scale up to 100GB shards
+
+        double ratio = Math.min(scaleFactor / maxScaleFactor, 1.0);
+        return (long) (baseSize + (maxSize - baseSize) * ratio);
     }
 
     private long getRecommendedFloorSegmentSize(long shardSizeBytes) {
-        if (shardSizeBytes < 100L * 1024 * 1024) {
-            return 10L * 1024 * 1024;
-        } else if (shardSizeBytes < 1024L * 1024 * 1024) {
-            return 25L * 1024 * 1024;
-        } else if (shardSizeBytes < 10L * 1024 * 1024 * 1024) {
-            return 50L * 1024 * 1024;
-        } else {
-            return 100L * 1024 * 1024;
+        // Handle edge cases
+        if (shardSizeBytes <= 0) {
+            return 10L * 1024 * 1024; // Default for invalid sizes
         }
+
+        // Use continuous scaling similar to the main implementation
+        double scaleFactor = Math.log10((double) shardSizeBytes / (100L * 1024 * 1024) + 1.0);
+        double floorSegmentScale = Math.min(scaleFactor * 10.0, 10.0);
+        return (long) (10L * 1024 * 1024 * (1.0 + floorSegmentScale / 10.0));
     }
 
     private double getRecommendedSegmentsPerTier(long shardSizeBytes) {
-        if (shardSizeBytes < 100L * 1024 * 1024) {
-            return 5.0;
-        } else if (shardSizeBytes < 1024L * 1024 * 1024) {
-            return 8.0;
-        } else if (shardSizeBytes < 10L * 1024 * 1024 * 1024) {
-            return 10.0;
-        } else {
-            return 12.0;
+        // Handle edge cases
+        if (shardSizeBytes <= 0) {
+            return 5.0; // Default for invalid sizes
         }
+
+        // Use continuous scaling similar to the main implementation
+        double scaleFactor = Math.log10((double) shardSizeBytes / (100L * 1024 * 1024) + 1.0);
+        double segmentsPerTierScale = Math.min(scaleFactor * 2.4, 2.4);
+        return 5.0 + segmentsPerTierScale;
     }
+
 
     // Data classes for metrics
     private static class SegmentTopologyMetrics {
@@ -261,12 +263,6 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
         }
     }
 
-    private enum ShardSizeCategory {
-        SMALL,
-        MEDIUM,
-        LARGE,
-        VERY_LARGE
-    }
     /**
      * Test performance metrics validation
      */
@@ -345,25 +341,32 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
      * Test recommendation boundary conditions
      */
     public void testRecommendationBoundaryConditions() {
-        // Test exactly at 100MB boundary
+        // Test at 100MB boundary (base size)
         long boundary100MB = 100L * 1024 * 1024;
         long maxSegment100MB = getRecommendedMaxSegmentSize(boundary100MB);
         long floorSegment100MB = getRecommendedFloorSegmentSize(boundary100MB);
         double segmentsPerTier100MB = getRecommendedSegmentsPerTier(boundary100MB);
 
-        assertTrue("100MB boundary should recommend 200MB max segment", maxSegment100MB == 200L * 1024 * 1024);
-        assertTrue("100MB boundary should recommend 25MB floor segment", floorSegment100MB == 25L * 1024 * 1024);
-        assertTrue("100MB boundary should recommend 8 segments per tier", segmentsPerTier100MB == 8.0);
+        // Verify reasonable values for 100MB shard
+        assertTrue("100MB max segment should be reasonable", maxSegment100MB >= 50L * 1024 * 1024 && maxSegment100MB <= 200L * 1024 * 1024);
+        assertTrue("100MB floor segment should be reasonable", floorSegment100MB >= 10L * 1024 * 1024 && floorSegment100MB <= 50L * 1024 * 1024);
+        assertTrue("100MB segments per tier should be reasonable", segmentsPerTier100MB >= 5.0 && segmentsPerTier100MB <= 8.0);
 
-        // Test exactly at 1GB boundary
+        // Test at 1GB boundary
         long boundary1GB = 1024L * 1024 * 1024;
         long maxSegment1GB = getRecommendedMaxSegmentSize(boundary1GB);
         long floorSegment1GB = getRecommendedFloorSegmentSize(boundary1GB);
         double segmentsPerTier1GB = getRecommendedSegmentsPerTier(boundary1GB);
 
-        assertTrue("1GB boundary should recommend 1GB max segment", maxSegment1GB == 1024L * 1024 * 1024);
-        assertTrue("1GB boundary should recommend 50MB floor segment", floorSegment1GB == 50L * 1024 * 1024);
-        assertTrue("1GB boundary should recommend 10 segments per tier", segmentsPerTier1GB == 10.0);
+        // Verify reasonable values for 1GB shard
+        assertTrue("1GB max segment should be reasonable", maxSegment1GB >= 200L * 1024 * 1024 && maxSegment1GB <= 2L * 1024 * 1024 * 1024);
+        assertTrue("1GB floor segment should be reasonable", floorSegment1GB >= 20L * 1024 * 1024 && floorSegment1GB <= 100L * 1024 * 1024);
+        assertTrue("1GB segments per tier should be reasonable", segmentsPerTier1GB >= 6.0 && segmentsPerTier1GB <= 10.0);
+
+        // Verify that 1GB values are larger than 100MB values (monotonic scaling)
+        assertTrue("1GB max segment should be larger than 100MB", maxSegment1GB > maxSegment100MB);
+        assertTrue("1GB floor segment should be larger than 100MB", floorSegment1GB > floorSegment100MB);
+        assertTrue("1GB segments per tier should be larger than 100MB", segmentsPerTier1GB > segmentsPerTier100MB);
     }
 
     /**
