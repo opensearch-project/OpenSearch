@@ -425,6 +425,10 @@ gradle.projectsEvaluated {
 
     project.tasks.withType(Test) { task ->
       if (task != null) {
+        // BouncyCastle introduced cleanup daemon with 5-second delay giving thread leak failures
+        // See https://github.com/opensearch-project/OpenSearch/issues/19238
+        task.systemProperty('org.bouncycastle.native.cleanup_delay', '0')
+
         if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
           task.jvmArgs += ["-Djava.security.manager=allow"]
         }
