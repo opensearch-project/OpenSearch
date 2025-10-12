@@ -80,7 +80,9 @@ public class FipsTrustStoreCommand implements Callable<Integer> {
      */
     @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
     public static void main(String[] args) {
-        int exitCode = new CommandLine(new FipsTrustStoreCommand()).setColorScheme(COLOR_SCHEME).execute(args);
+        int exitCode = new CommandLine(new FipsTrustStoreCommand()).setColorScheme(COLOR_SCHEME)
+            .setExecutionExceptionHandler(new FipsTrustStoreExceptionHandler())
+            .execute(args);
         System.exit(exitCode);
     }
 }

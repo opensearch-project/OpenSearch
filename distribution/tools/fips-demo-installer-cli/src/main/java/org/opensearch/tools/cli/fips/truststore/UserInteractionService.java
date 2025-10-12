@@ -8,11 +8,8 @@
 
 package org.opensearch.tools.cli.fips.truststore;
 
-import java.io.Console;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.Arrays;
 import java.util.Scanner;
 
 import picocli.CommandLine;
@@ -40,8 +37,8 @@ public class UserInteractionService {
      * @return true if user confirms, false otherwise
      */
     public static boolean confirmAction(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
-        PrintWriter out = spec.commandLine().getOut();
-        PrintWriter err = spec.commandLine().getErr();
+        var out = spec.commandLine().getOut();
+        var err = spec.commandLine().getErr();
 
         if (options.nonInteractive) {
             out.println(message + " - Auto-confirmed (non-interactive mode)");
@@ -57,7 +54,7 @@ public class UserInteractionService {
             );
             return false;
         }
-        String response = CONSOLE_SCANNER.nextLine().trim();
+        var response = CONSOLE_SCANNER.nextLine().trim();
         return response.equalsIgnoreCase("yes") || response.equalsIgnoreCase("y");
     }
 
@@ -73,7 +70,7 @@ public class UserInteractionService {
     public static String promptForPasswordWithConfirmation(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
         if (options.nonInteractive) {
             // Generate a secure random password for non-interactive mode
-            String password = generateSecurePassword();
+            var password = generateSecurePassword();
             spec.commandLine().getOut().println("Generated secure password for trust store (non-interactive mode)");
             return password;
         }
@@ -88,58 +85,34 @@ public class UserInteractionService {
         return password;
     }
 
+    private static String promptForPassword(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
+        var out = spec.commandLine().getOut();
+        var ansi = spec.commandLine().getColorScheme().ansi();
+
+        out.print(ansi.string("@|yellow " + message + " (WARNING: will be visible): |@"));
+        out.flush();
+
+        if (!CONSOLE_SCANNER.hasNextLine()) {
+            throw new RuntimeException("No input available for password.");
+        }
+
+        var password = CONSOLE_SCANNER.nextLine().trim();
+        if (password.isEmpty()) {
+            throw new RuntimeException("Password cannot be empty.");
+        }
+
+        return password;
+    }
+
     private static String generateSecurePassword() {
-        SecureRandom random = new SecureRandom();
-        StringBuilder password = new StringBuilder();
+        var random = new SecureRandom();
+        var password = new StringBuilder();
 
         for (int i = 0; i < 24; i++) { // 24 characters for a strong password
             password.append(ALPHA_NUMERIC.charAt(random.nextInt(ALPHA_NUMERIC.length())));
         }
 
         return password.toString();
-    }
-
-    private static String promptForPassword(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
-        var out = spec.commandLine().getOut();
-        var ansi = spec.commandLine().getColorScheme().ansi();
-
-        if (options.nonInteractive) {
-            // Generate a secure random password for non-interactive mode
-            return generateSecurePassword();
-        }
-
-        Console console = System.console();
-        if (console != null) {
-            // Use Console for hidden password input
-            char[] passwordChars = console.readPassword(message + ": ");
-            if (passwordChars == null) {
-                throw new RuntimeException("Password input cancelled.");
-            }
-
-            String password = new String(passwordChars);
-            Arrays.fill(passwordChars, ' '); // Clear password from memory
-
-            if (password.trim().isEmpty()) {
-                throw new RuntimeException("Password cannot be empty.");
-            }
-
-            return password;
-        } else {
-            // Fallback to Scanner if no console (IDE debugging, etc.)
-            out.print(ansi.string("@|yellow " + message + " (WARNING: will be visible): |@"));
-            out.flush();
-
-            if (!CONSOLE_SCANNER.hasNextLine()) {
-                throw new RuntimeException("No input available for password.");
-            }
-
-            String password = CONSOLE_SCANNER.nextLine().trim();
-            if (password.isEmpty()) {
-                throw new RuntimeException("Password cannot be empty.");
-            }
-
-            return password;
-        }
     }
 
 }

@@ -9,15 +9,12 @@
 package org.opensearch.tools.cli.fips.truststore;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivilegedAction;
 import java.security.Security;
 import java.security.cert.CertificateException;
 import java.util.List;
@@ -60,7 +57,7 @@ public class CreateFipsTrustStore {
         for (var type : KNOWN_JDK_TRUSTSTORE_TYPES) {
             try {
                 jvmKeyStore = KeyStore.getInstance(type);
-                try (var is = readFileWithPrivilege(cacertsPath)) {
+                try (var is = Files.newInputStream(cacertsPath)) {
                     jvmKeyStore.load(is, JVM_DEFAULT_PASSWORD.toCharArray());
                 }
                 int certCount = jvmKeyStore.size();
@@ -190,17 +187,6 @@ public class CreateFipsTrustStore {
         } catch (IOException | KeyStoreException | NoSuchAlgorithmException | CertificateException e) {
             throw new IllegalStateException("Failed to write BCFKS keystore to [" + tempBcfksFile + "]: " + e.getMessage(), e);
         }
-    }
-
-    @SuppressWarnings("removal")
-    private static InputStream readFileWithPrivilege(Path path) {
-        return AccessController.doPrivileged((PrivilegedAction<InputStream>) () -> {
-            try {
-                return Files.newInputStream(path);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
     }
 
 }

@@ -35,7 +35,7 @@ public class TrustStoreService {
             return 0;
         }
 
-        String password = UserInteractionService.promptForPasswordWithConfirmation(spec, options, "Enter trust store password");
+        var password = UserInteractionService.promptForPasswordWithConfirmation(spec, options, "Enter trust store password");
 
         spec.commandLine().getOut().println("Generating BCFKS trust store...");
 
@@ -83,7 +83,9 @@ public class TrustStoreService {
                     .println(
                         spec.commandLine()
                             .getColorScheme()
-                            .errorText("ERROR: No PKCS11 provider found. Check java.security configuration for FIPS.")
+                            .errorText(
+                                "ERROR: No PKCS11 provider found. Please check 'java.security' configuration file for installed providers."
+                            )
                     );
                 return 1;
             }

@@ -18,6 +18,7 @@ set OPENSEARCH_JAVA_OPTS=-Xms4m -Xmx64m -XX:+UseSerialGC %OPENSEARCH_JAVA_OPTS%
 
 "%JAVA%" ^
   %OPENSEARCH_JAVA_OPTS% ^
+  --enable-native-access=ALL-UNNAMED ^
   -Dopensearch.path.home="%OPENSEARCH_HOME%" ^
   -Dopensearch.path.conf="%OPENSEARCH_PATH_CONF%" ^
   -Dopensearch.distribution.type="%OPENSEARCH_DISTRIBUTION_TYPE%" ^

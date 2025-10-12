@@ -67,8 +67,8 @@ public class ProviderSelectionService {
         }
 
         if (serviceProviderList.size() == 1) {
-            Provider.Service service = serviceProviderList.get(0);
-            String providerName = service.getProvider().getName();
+            var service = serviceProviderList.get(0);
+            var providerName = service.getProvider().getName();
             if (options.nonInteractive) {
                 spec.commandLine().getOut().println("Using PKCS11 provider: " + providerName);
                 return service;
@@ -80,7 +80,7 @@ public class ProviderSelectionService {
         }
 
         if (options.nonInteractive) {
-            Provider.Service service = serviceProviderList.get(0);
+            var service = serviceProviderList.get(0);
             spec.commandLine()
                 .getOut()
                 .println("Non-interactive mode: Using first available PKCS11 provider: " + service.getProvider().getName());

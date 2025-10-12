@@ -42,7 +42,7 @@ public class ConfigurationService {
      * @throws IllegalStateException if validation fails
      */
     public static void verifyJvmOptionsFile(CommandLine.Model.CommandSpec spec, CommonOptions options, Path confPath) {
-        Path jvmOptionsFile = confPath.resolve("jvm.options");
+        var jvmOptionsFile = confPath.resolve("jvm.options");
         if (options.force) {
             var ansi = spec.commandLine().getColorScheme().ansi();
             spec.commandLine().getOut().println(ansi.string("@|yellow WARNING: Force mode enabled, skipping configuration checks.|@"));
@@ -68,12 +68,12 @@ public class ConfigurationService {
      */
     protected static void validateJvmOptionsContent(Path jvmOptionsFile) {
         try {
-            long size = Files.size(jvmOptionsFile);
+            var size = Files.size(jvmOptionsFile);
             if (size == 0) {
                 throw new IllegalStateException("jvm.options file is empty: " + jvmOptionsFile);
             }
 
-            String content = Files.readString(jvmOptionsFile, StandardCharsets.UTF_8);
+            var content = Files.readString(jvmOptionsFile, StandardCharsets.UTF_8);
 
             String[] fipsProperties = {
                 "-D" + JAVAX_NET_SSL_TRUST_STORE,
@@ -88,7 +88,7 @@ public class ConfigurationService {
                             + "Found: '"
                             + property
                             + "'. "
-                            + "Please remove existing configuration before running this installer."
+                            + "Please remove existing configuration before running this installer, or use the '--force option'"
                     );
                 }
             }
@@ -105,20 +105,18 @@ public class ConfigurationService {
      * @throws RuntimeException if writing fails
      */
     public void writeSecurityConfigToJvmOptionsFile(ConfigurationProperties properties, Path confPath) {
-        Path jvmOptionsFile = confPath.resolve("jvm.options");
-        var configHeader = System.lineSeparator()
-            + "################################################################"
-            + System.lineSeparator()
-            + "## Start OpenSearch FIPS Demo Configuration"
-            + System.lineSeparator()
-            + "## WARNING: revise all the lines below before you go into production"
-            + System.lineSeparator()
-            + "################################################################"
-            + System.lineSeparator()
-            + System.lineSeparator();
-        var configFooter = System.lineSeparator()
-            + "################################################################"
-            + System.lineSeparator();
+        var jvmOptionsFile = confPath.resolve("jvm.options");
+        var configHeader = """
+
+            ################################################################
+            ## Start OpenSearch FIPS Demo Configuration
+            ## WARNING: revise all the lines below before you go into production
+            ################################################################
+
+            """;
+        var configFooter = """
+            ################################################################
+            """;
 
         try {
             var configBuilder = new StringBuilder(configHeader);

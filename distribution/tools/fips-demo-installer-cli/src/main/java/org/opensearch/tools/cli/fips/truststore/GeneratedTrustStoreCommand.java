@@ -29,7 +29,7 @@ public class GeneratedTrustStoreCommand implements Callable<Integer> {
 
     @Override
     public final Integer call() throws Exception {
-        Path confPath = Path.of(System.getProperty("opensearch.path.conf"));
+        var confPath = Path.of(System.getProperty("opensearch.path.conf"));
         ConfigurationService.verifyJvmOptionsFile(spec, common, confPath);
         return new TrustStoreService().generateTrustStore(spec, common, confPath);
     }
