@@ -33,5 +33,10 @@ public class KafkaSourceConfigTests extends OpenSearchTestCase {
         );
         Assert.assertEquals("Incorrect fetch.min.bytes", 30000, config.getConsumerConfigurations().get("fetch.min.bytes"));
         Assert.assertEquals("Incorrect enable.auto.commit", false, config.getConsumerConfigurations().get("enable.auto.commit"));
+        Assert.assertEquals(
+            "auto.offset.reset must be 'none' by default",
+            "none",
+            config.getConsumerConfigurations().get("auto.offset.reset")
+        );
     }
 }

@@ -9,6 +9,7 @@
 package org.opensearch.plugin.kafka;
 
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -89,25 +90,32 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     /**
+     * Create consumer properties with default configurations and apply user provided overrides on top.
+     * @param clientId the client id
+     * @param config the Kafka source config
+     * @return the consumer properties
+     */
+    protected static Properties createConsumerProperties(String clientId, KafkaSourceConfig config) {
+        Properties consumerProp = new Properties();
+        consumerProp.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, config.getBootstrapServers());
+        consumerProp.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
+
+        // apply user provided overrides
+        consumerProp.putAll(config.getConsumerConfigurations());
+
+        logger.info("Kafka consumer properties for topic {}: {}", config.getTopic(), consumerProp);
+        return consumerProp;
+    }
+
+    /**
      * Create a Kafka consumer. visible for testing
      * @param clientId the client id
      * @param config the Kafka source config
      * @return the Kafka consumer
      */
     protected static Consumer<byte[], byte[]> createConsumer(String clientId, KafkaSourceConfig config) {
-        Properties consumerProp = new Properties();
-        consumerProp.put("bootstrap.servers", config.getBootstrapServers());
-        consumerProp.put("client.id", clientId);
+        Properties consumerProp = createConsumerProperties(clientId, config);
 
-        logger.info("Kafka consumer properties for topic {}: {}", config.getTopic(), config.getConsumerConfigurations());
-        consumerProp.putAll(config.getConsumerConfigurations());
-
-        // TODO: why Class org.apache.kafka.common.serialization.StringDeserializer could not be found if set the deserializer as prop?
-        // consumerProp.put("key.deserializer",
-        // "org.apache.kafka.common.serialization.StringDeserializer");
-        // consumerProp.put("value.deserializer",
-        // "org.apache.kafka.common.serialization.StringDeserializer");
-        //
         // wrap the kafka consumer creation in a privileged block to apply plugin security policies
         final ClassLoader restore = Thread.currentThread().getContextClassLoader();
         try {
@@ -230,19 +238,22 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         ConsumerRecords<byte[], byte[]> consumerRecords = consumer.poll(Duration.ofMillis(timeoutMillis));
         List<ConsumerRecord<byte[], byte[]>> messageAndOffsets = consumerRecords.records(topicPartition);
 
-        long endOffset = kafkaStartOffset + maxMessages;
         List<ReadResult<KafkaOffset, KafkaMessage>> results = new ArrayList<>();
+        int messageCount = 0;
 
         for (ConsumerRecord<byte[], byte[]> messageAndOffset : messageAndOffsets) {
-            long currentOffset = messageAndOffset.offset();
-            if (currentOffset >= endOffset) {
-                // fetched more message than max
+            if (messageCount >= maxMessages) {
+                // fetched enough messages
+                // maxMessages filter is added to have uniform behavior across stream consumers. It is recommended to
+                // tune Kafka config "max.poll.records" if maxMessages is updated to avoid wasted polls.
                 break;
             }
+            long currentOffset = messageAndOffset.offset();
             lastFetchedOffset = currentOffset;
             KafkaOffset kafkaOffset = new KafkaOffset(currentOffset);
             KafkaMessage message = new KafkaMessage(messageAndOffset.key(), messageAndOffset.value(), messageAndOffset.timestamp());
             results.add(new ReadResult<>(kafkaOffset, message));
+            messageCount++;
         }
         return results;
     }

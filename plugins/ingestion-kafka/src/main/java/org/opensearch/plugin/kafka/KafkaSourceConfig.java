@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.kafka;
 
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.opensearch.core.util.ConfigurationUtils;
 
 import java.util.HashMap;
@@ -19,7 +20,6 @@ import java.util.Map;
 public class KafkaSourceConfig {
     private final String PROP_TOPIC = "topic";
     private final String PROP_BOOTSTRAP_SERVERS = "bootstrap_servers";
-    private final String PROP_AUTO_OFFSET_RESET = "auto.offset.reset";
 
     private final String topic;
     private final String bootstrapServers;
@@ -34,12 +34,17 @@ public class KafkaSourceConfig {
     public KafkaSourceConfig(Map<String, Object> params) {
         this.topic = ConfigurationUtils.readStringProperty(params, PROP_TOPIC);
         this.bootstrapServers = ConfigurationUtils.readStringProperty(params, PROP_BOOTSTRAP_SERVERS);
-        this.autoOffsetResetConfig = ConfigurationUtils.readOptionalStringProperty(params, PROP_AUTO_OFFSET_RESET);
+        // 'auto.offset.reset' is handled differently for Kafka sources, with the default set to none.
+        // This ensures out-of-bounds offsets throw an error, unless the user explicitly sets different value.
+        this.autoOffsetResetConfig = ConfigurationUtils.readStringProperty(params, ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "none");
         this.consumerConfigsMap = new HashMap<>(params);
 
-        // remove above configurations
+        // remove metadata configurations
         consumerConfigsMap.remove(PROP_TOPIC);
         consumerConfigsMap.remove(PROP_BOOTSTRAP_SERVERS);
+
+        // add or overwrite required configurations
+        consumerConfigsMap.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetResetConfig);
     }
 
     /**
