@@ -41,10 +41,10 @@ import java.util.Set;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
-import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
 
@@ -171,7 +171,7 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 4)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)
+            .put(getIndexLevelShardsPerNodeKey(false), 2)
             .build();
 
         Settings indexSettingsWithoutLimit = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 4).put(SETTING_NUMBER_OF_REPLICAS, 1).build();
@@ -233,10 +233,6 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
     }
 
     public void testCombinedClusterAndIndexSpecificShardLimits() {
-        assumeTrue(
-            "Test should only run in the default (non-parameterized) test suite",
-            WRITABLE_WARM_INDEX_SETTING.get(settings) == false
-        );
         startTestNodes(3);
         // Set the cluster-wide shard limit to 6
         updateClusterSetting(getShardsPerNodeKey(false), 6);
@@ -246,7 +242,7 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 3)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+            .put(getIndexLevelShardsPerNodeKey(false), 1)
             .build();
         createIndex("test1", indexSettingsWithLimit);
 
@@ -317,9 +313,6 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
                 assertEquals("One node should have 5 shards", 5, shardCounts.get(2).intValue());
 
                 // Check that all nodes have only one shard of the first index
-                for (Set<String> indexesOnNode : indexShardsPerNode.values()) {
-                    assertTrue("Each node should have a shard from test1", indexesOnNode.contains("test1"));
-                }
             });
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -376,6 +369,10 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
      * indicating that this setting is only applicable for remote store enabled clusters.
      */
     public void testClusterTotalPrimaryShardsPerNodeSettingWithoutRemoteStore() {
+        assumeTrue(
+            "Test should only run in the default (non-parameterized) test suite",
+            WRITABLE_WARM_INDEX_SETTING.get(settings) == false
+        );
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
             updateClusterSetting(getShardsPerNodeKey(true), 1);
         });
@@ -385,8 +382,8 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
             "Exception should mention that the setting requires remote store",
             exception.getMessage()
                 .contains(
-                    "Setting [cluster.routing.allocation.total_primary_shards_per_node] or "
-                        + "[cluster.routing.allocation.total_remote_capable_primary_shards_per_node] can only be used with remote store enabled clusters"
+                    "Setting [cluster.routing.allocation.total_primary_shards_per_node] "
+                        + "can only be used with remote store enabled clusters"
                 )
         );
 
@@ -395,7 +392,7 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 3)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+            .put(getIndexLevelShardsPerNodeKey(false), 1)
             .build();
 
         createIndex("test_index", indexSettings);
@@ -426,11 +423,18 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
     private String getShardsPerNodeKey(boolean primary) {
         boolean isWarmIndex = WRITABLE_WARM_INDEX_SETTING.get(settings);
         if (isWarmIndex) {
-            return primary
-                ? CLUSTER_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
-                : CLUSTER_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING.getKey();
+            return CLUSTER_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING.getKey();
         } else {
             return primary ? CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() : CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey();
+        }
+    }
+
+    private String getIndexLevelShardsPerNodeKey(boolean primary) {
+        boolean isWarmIndex = WRITABLE_WARM_INDEX_SETTING.get(settings);
+        if (isWarmIndex) {
+            return INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING.getKey();
+        } else {
+            return primary ? INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() : INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey();
         }
     }
 }

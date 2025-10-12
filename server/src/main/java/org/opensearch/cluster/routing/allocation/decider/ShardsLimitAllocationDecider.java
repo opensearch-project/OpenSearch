@@ -75,7 +75,6 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     private volatile int clusterShardLimit;
     private volatile int clusterPrimaryShardLimit;
     private volatile int clusterRemoteCapableShardLimit;
-    private volatile int clusterRemoteCapablePrimaryShardLimit;
 
     /**
      * Controls the maximum number of shards per index on a single OpenSearch
@@ -95,6 +94,18 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
      */
     public static final Setting<Integer> INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING = Setting.intSetting(
         "index.routing.allocation.total_primary_shards_per_node",
+        -1,
+        -1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * Controls the maximum number of remote capable shards per index on a single OpenSearch
+     * node. Negative values are interpreted as unlimited.
+     */
+    public static final Setting<Integer> INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING = Setting.intSetting(
+        "index.routing.allocation.total_remote_capable_shards_per_node",
         -1,
         -1,
         Property.Dynamic,
@@ -137,18 +148,6 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         Property.NodeScope
     );
 
-    /**
-     * Controls the maximum number of remote capable primary shards per node on a cluster level.
-     * Negative values are interpreted as unlimited.
-     */
-    public static final Setting<Integer> CLUSTER_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING = Setting.intSetting(
-        "cluster.routing.allocation.total_remote_capable_primary_shards_per_node",
-        -1,
-        -1,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
     private final Settings settings;
 
     public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
@@ -160,10 +159,6 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING,
             this::setClusterRemoteCapableShardLimit
-        );
-        clusterSettings.addSettingsUpdateConsumer(
-            CLUSTER_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING,
-            this::setClusterRemoteCapablePrimaryShardLimit
         );
     }
 
@@ -177,10 +172,6 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     private void setClusterRemoteCapableShardLimit(int clusterRemoteCapableShardLimit) {
         this.clusterRemoteCapableShardLimit = clusterRemoteCapableShardLimit;
-    }
-
-    private void setClusterRemoteCapablePrimaryShardLimit(int clusterRemoteCapablePrimaryShardLimit) {
-        this.clusterRemoteCapablePrimaryShardLimit = clusterRemoteCapablePrimaryShardLimit;
     }
 
     @Override
@@ -206,16 +197,18 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         }
 
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        final int indexShardLimit = indexMetadata.getIndexTotalShardsPerNodeLimit();
-        final int indexPrimaryShardLimit = indexMetadata.getIndexTotalPrimaryShardsPerNodeLimit();
+        final int indexShardLimit = nodeRoutingPool == RoutingPool.REMOTE_CAPABLE
+            ? indexMetadata.getIndexTotalRemoteCapableShardsPerNodeLimit()
+            : indexMetadata.getIndexTotalShardsPerNodeLimit();
+        final int indexPrimaryShardLimit = nodeRoutingPool == RoutingPool.REMOTE_CAPABLE
+            ? -1
+            : indexMetadata.getIndexTotalPrimaryShardsPerNodeLimit();
         // Capture the limit here in case it changes during this method's
         // execution
         final int clusterShardLimit = nodeRoutingPool == RoutingPool.REMOTE_CAPABLE
             ? this.clusterRemoteCapableShardLimit
             : this.clusterShardLimit;
-        final int clusterPrimaryShardLimit = nodeRoutingPool == RoutingPool.REMOTE_CAPABLE
-            ? this.clusterRemoteCapablePrimaryShardLimit
-            : this.clusterPrimaryShardLimit;
+        final int clusterPrimaryShardLimit = nodeRoutingPool == RoutingPool.REMOTE_CAPABLE ? -1 : this.clusterPrimaryShardLimit;
         if (indexShardLimit <= 0 && indexPrimaryShardLimit <= 0 && clusterShardLimit <= 0 && clusterPrimaryShardLimit <= 0) {
             return allocation.decision(
                 Decision.YES,
@@ -250,9 +243,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
                     NAME,
                     "too many primary shards [%d] allocated to this node, cluster setting [%s=%d]",
                     nodePrimaryShardCount,
-                    nodeRoutingPool == RoutingPool.REMOTE_CAPABLE
-                        ? CLUSTER_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
-                        : CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(),
+                    CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(),
                     clusterPrimaryShardLimit
                 );
             }
@@ -266,7 +257,9 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
                     "too many shards [%d] allocated to this node for index [%s], index setting [%s=%d]",
                     indexShardCount,
                     shardRouting.getIndexName(),
-                    INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
+                    shardRoutingPool == RoutingPool.REMOTE_CAPABLE
+                        ? INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING.getKey()
+                        : INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
                     indexShardLimit
                 );
             }
