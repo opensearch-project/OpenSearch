@@ -29,11 +29,6 @@ import static org.opensearch.tools.cli.fips.truststore.ConfigurationProperties.J
 public class ConfigurationService {
 
     /**
-     * Constructs a new ConfigurationService instance.
-     */
-    public ConfigurationService() {}
-
-    /**
      * Verifies that the jvm.options file exists, is readable, and doesn't contain existing FIPS configuration.
      *
      * @param spec the command specification for output

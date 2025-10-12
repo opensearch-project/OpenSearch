@@ -13,7 +13,7 @@ apply plugin: 'opensearch.build'
 dependencies {
   api project(":libs:opensearch-cli")
   api project(':distribution:tools:java-version-checker')
-  api 'info.picocli:picocli:4.7.7'
+  api "info.picocli:picocli:${versions.picocli}"
   api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
 
   testImplementation project(":test:framework")
