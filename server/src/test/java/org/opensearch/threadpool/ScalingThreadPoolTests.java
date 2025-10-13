@@ -76,7 +76,7 @@ public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
             core = randomIntBetween(0, 8);
             builder.put("thread_pool." + threadPoolName + ".core", core);
         } else {
-            core = "generic".equals(threadPoolName) ? 4 : 1; // the defaults
+            core = isGenericOrReplicationThreadPool(threadPoolName) ? 4 : 1; // the defaults
         }
 
         final int availableProcessors = Runtime.getRuntime().availableProcessors();
@@ -105,7 +105,7 @@ public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
             keepAlive = randomIntBetween(1, 300);
             builder.put("thread_pool." + threadPoolName + ".keep_alive", keepAlive + "s");
         } else {
-            keepAlive = "generic".equals(threadPoolName) ? 30 : 300; // the defaults
+            keepAlive = isGenericOrReplicationThreadPool(threadPoolName) ? 30 : 300; // the defaults
         }
 
         runScalingThreadPoolTest(builder.build(), (clusterSettings, threadPool) -> {
@@ -143,6 +143,7 @@ public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
     private int expectedSize(final String threadPoolName, final int numberOfProcessors) {
         final Map<String, Function<Integer, Integer>> sizes = new HashMap<>();
         sizes.put(ThreadPool.Names.GENERIC, n -> ThreadPool.boundedBy(4 * n, 128, 512));
+        sizes.put(ThreadPool.Names.REPLICATION, n -> ThreadPool.boundedBy(4 * n, 128, 512));
         sizes.put(ThreadPool.Names.MANAGEMENT, n -> 5);
         sizes.put(ThreadPool.Names.FLUSH, ThreadPool::halfAllocatedProcessorsMaxFive);
         sizes.put(ThreadPool.Names.REFRESH, ThreadPool::halfAllocatedProcessorsMaxTen);
@@ -189,7 +190,7 @@ public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
     }
 
     public void testScalingThreadPoolThreadsAreTerminatedAfterKeepAlive() throws InterruptedException {
-        final int min = "generic".equals(threadPoolName) ? 4 : 1;
+        final int min = isGenericOrReplicationThreadPool(threadPoolName) ? 4 : 1;
         final Settings settings = Settings.builder()
             .put("thread_pool." + threadPoolName + ".max", 128)
             .put("thread_pool." + threadPoolName + ".keep_alive", "1ms")
