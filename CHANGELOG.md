@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump bouncycastle from 1.79 to 1.82 ([#19552](https://github.com/opensearch-project/OpenSearch/pull/19552))
 - Bump `reactor-netty` from 1.1.23 to 1.2.9 ([#19603](https://github.com/opensearch-project/OpenSearch/pull/19603))
 - Bump `reactor` from 3.5.20 to 3.7.5 ([#19603](https://github.com/opensearch-project/OpenSearch/pull/19603))
+- Bump `io.grpc` deps from 1.68.2 to 1.75.0 ([#19495](https://github.com/opensearch-project/OpenSearch/pull/19495))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.0.2 to 10.3 ([#19604](https://github.com/opensearch-project/OpenSearch/pull/19604))
 
 ### Deprecated
