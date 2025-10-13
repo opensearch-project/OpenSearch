@@ -27,7 +27,7 @@ google_http_client = "1.44.1"
 google_auth       = "1.29.0"
 tdigest           = "3.2"
 hdrhistogram      = "2.2.2"
-grpc              = "1.68.2"
+grpc              = "1.75.0"
 json_smart        = "2.5.2"
 
 # when updating the JNA version, also update the version in buildSrc/build.gradle
@@ -57,7 +57,7 @@ reactivestreams   = "1.0.4"
 # when updating this version, you need to ensure compatibility with:
 #  - plugins/ingest-attachment (transitive dependency, check the upstream POM)
 #  - distribution/tools/plugin-cli
-bouncycastle="1.78"
+bouncycastle="1.82"
 # test dependencies
 randomizedrunner  = "2.7.1"
 junit             = "4.13.2"
