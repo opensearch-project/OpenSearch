@@ -157,7 +157,7 @@ tasks.register('buildRust', Exec) {
   description = 'Build the Rust JNI library using Cargo'
   group = 'build'
 
-  workingDir file('src/main/rust')
+  workingDir = file("${projectDir}/src/main/rust")
 
   // Determine the target directory and library name based on OS
   def osName = System.getProperty('os.name').toLowerCase()
@@ -166,7 +166,7 @@ tasks.register('buildRust', Exec) {
 
   // Use debug build for development, release for production
   def buildType = project.hasProperty('rustRelease') ? 'release' : 'debug'
-  def targetDir = "target/${buildType}"
+  def targetDir = file("${workingDir}/target/")
 
   // Find cargo executable - try common locations
   def cargoExecutable = 'cargo'
@@ -184,9 +184,9 @@ tasks.register('buildRust', Exec) {
   }
 
   def cargoArgs = [cargoExecutable, 'build']
-  if (buildType == 'release') {
-    cargoArgs.add('--release')
-  }
+//  if (buildType == 'release') {
+  cargoArgs.add('--release')
+//  }
 
   if (osName.contains('windows')) {
     commandLine cargoArgs
@@ -195,10 +195,10 @@ tasks.register('buildRust', Exec) {
   }
 
   // Set environment variables for cross-compilation if needed
-  environment 'CARGO_TARGET_DIR', file('jni/target').absolutePath
+  environment 'CARGO_TARGET_DIR', targetDir.absolutePath
 
-  inputs.files fileTree('src/main/rust/src')
-  inputs.file 'src/main/rust/Cargo.toml'
+  inputs.files fileTree("${workingDir}/src")
+  inputs.file "${workingDir}/Cargo.toml"
 //  outputs.files file("jni/${targetDir}/${libPrefix}opensearch_datafusion_jni${libExtension}")
 //  System.out.println("Building Rust library in ${buildType} mode");
 
