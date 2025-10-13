@@ -1216,7 +1216,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + "]";
         ensureWriteAllowed(origin);
         Engine.Index operation;
-        try {
+        try (CompositeDataFormatWriter.CompositeDocumentInput documentInput = documentInputSupplier.get()) {
             operation = prepareIndex(
                 docMapper(),
                 sourceToParse,
@@ -1229,12 +1229,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 isRetry,
                 ifSeqNo,
                 ifPrimaryTerm,
-                documentInputSupplier
+                documentInput
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
                 return new Engine.IndexResult(update);
             }
+            return index(engine, operation);
         } catch (Exception e) {
             // We treat any exception during parsing and or mapping update as a document level failure
             // with the exception side effects of closing the shard. Since we don't have the shard, we
@@ -1243,8 +1244,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             verifyNotClosed(e);
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo);
         }
-
-        return index(engine, operation);
     }
 
     public static Engine.Index prepareIndex(
@@ -1259,15 +1258,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean isRetry,
         long ifSeqNo,
         long ifPrimaryTerm,
-        CheckedSupplier<CompositeDataFormatWriter.CompositeDocumentInput, IOException> documentInputSupplier
+        CompositeDataFormatWriter.CompositeDocumentInput documentInput
     ) {
         long startTime = System.nanoTime();
-        ParsedDocument doc = null;
-        try {
-            doc = docMapper.getDocumentMapper().parse(source, documentInputSupplier.get());
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
-        }
+        ParsedDocument doc = docMapper.getDocumentMapper().parse(source, documentInput);;
         if (docMapper.getMapping() != null) {
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
@@ -1650,7 +1644,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          */
         verifyNotClosed();
         final long time = System.nanoTime();
-        getIndexer().flush(force, waitIfOngoing);
+        getIndexingExecutionCoordinator().flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
     }
 

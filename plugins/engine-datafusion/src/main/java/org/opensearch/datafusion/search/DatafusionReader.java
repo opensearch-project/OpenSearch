@@ -9,14 +9,12 @@
 package org.opensearch.datafusion.search;
 
 import org.opensearch.datafusion.DataFusionQueryJNI;
-import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.datafusion.DataFusionQueryJNI.closeDatafusionReader;
@@ -32,7 +30,7 @@ public class DatafusionReader implements Closeable {
     /**
      * The file metadata collection.
      */
-    public Collection<FileMetadata> files;
+    public Collection<WriterFileSet> files;
     /**
      * The cache pointer.
      */
@@ -44,15 +42,16 @@ public class DatafusionReader implements Closeable {
      * @param directoryPath The directory path
      * @param files The file metadata collection
      */
-    public DatafusionReader(String directoryPath, Collection<FileMetadata> files) {
+    public DatafusionReader(String directoryPath, Collection<WriterFileSet> files) {
         this.directoryPath = directoryPath;
         this.files = files;
         String[] fileNames = new String[0];
         if(files != null) {
             System.out.println("Got the files!!!!!");
-            fileNames = files.stream().map(file -> Path.of(file.fileName()).getFileName().toString()).toArray(String[]::new);
+            fileNames = files.stream()
+                .flatMap(writerFileSet -> writerFileSet.getFiles().stream())
+                .toArray(String[]::new);
         }
-        //String[] fileNames = files.stream().map(file -> Path.of(file.fileName()).getFileName().toString()).toArray(String[]::new);
         System.out.println("File names: " + Arrays.toString(fileNames));
         System.out.println("Directory path: " + directoryPath);
 
