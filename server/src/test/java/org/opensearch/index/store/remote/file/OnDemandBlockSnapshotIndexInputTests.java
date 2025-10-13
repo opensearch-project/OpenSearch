@@ -107,7 +107,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
         try (
             FSDirectory directory = new MMapDirectory(path, lockFactory);
             IndexInput indexInput = new OnDemandBlockSnapshotIndexInput(
-                OnDemandBlockIndexInput.builder()
+                AbstractBlockIndexInput.builder()
                     .resourceDescription(RESOURCE_DESCRIPTION)
                     .offset(BLOCK_SNAPSHOT_FILE_OFFSET)
                     .length(FILE_SIZE)
@@ -184,7 +184,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
         initBlockFiles(blockSize, directory);
 
         return new OnDemandBlockSnapshotIndexInput(
-            OnDemandBlockIndexInput.builder()
+            AbstractBlockIndexInput.builder()
                 .resourceDescription(RESOURCE_DESCRIPTION)
                 .offset(BLOCK_SNAPSHOT_FILE_OFFSET)
                 .length(FILE_SIZE)

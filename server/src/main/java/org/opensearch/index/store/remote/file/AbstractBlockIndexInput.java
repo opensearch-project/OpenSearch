@@ -18,25 +18,28 @@ import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.lang.ref.Cleaner;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Class acts as a virtual file mechanism for the accessed files and only fetches the required blocks of the actual file.
- * Original/Main IndexInput file will be split using {@link OnDemandBlockIndexInput.Builder#DEFAULT_BLOCK_SIZE_SHIFT}. This class has all the
- * logic of how and when to fetch specific block of the main file. Each block is identified by {@link OnDemandBlockIndexInput#currentBlockId}.
+ * Original/Main IndexInput file will be split using {@link AbstractBlockIndexInput.Builder#DEFAULT_BLOCK_SIZE_SHIFT}. This class has all the
+ * logic of how and when to fetch specific block of the main file. Each block is identified by {@link AbstractBlockIndexInput#currentBlockId}.
  * <br>
  * This class delegate the responsibility of actually fetching the block when demanded to its subclasses using
- * {@link OnDemandBlockIndexInput#fetchBlock(int)}.
+ * {@link AbstractBlockIndexInput#fetchBlock(int)}.
  * <p>
  * Like {@link IndexInput}, this class may only be used from one thread as it is not thread safe.
  * However, a cleaning action may run from another thread triggered by the {@link Cleaner}, but
- * this is okay because at that point the {@link OnDemandBlockIndexInput} instance is phantom
+ * this is okay because at that point the {@link AbstractBlockIndexInput} instance is phantom
  * reachable and therefore not able to be accessed by any other thread.
  *
  * @opensearch.internal
  */
-public abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAccessInput {
-    private static final Logger logger = LogManager.getLogger(OnDemandBlockIndexInput.class);
+public abstract class AbstractBlockIndexInput extends IndexInput implements RandomAccessInput {
+    private static final Logger logger = LogManager.getLogger(AbstractBlockIndexInput.class);
 
     public static final String CLEANER_THREAD_NAME_PREFIX = "index-input-cleaner";
 
@@ -47,7 +50,7 @@ public abstract class OnDemandBlockIndexInput extends IndexInput implements Rand
      * the cleaning action is a no-op. For an open IndexInput, the close action
      * will decrement a reference count.
      */
-    private static final Cleaner CLEANER = Cleaner.create(OpenSearchExecutors.daemonThreadFactory(CLEANER_THREAD_NAME_PREFIX));
+    protected static final Cleaner CLEANER = Cleaner.create(OpenSearchExecutors.daemonThreadFactory(CLEANER_THREAD_NAME_PREFIX));
 
     /**
      * Start offset of the virtual file : non-zero in the slice case
@@ -75,11 +78,12 @@ public abstract class OnDemandBlockIndexInput extends IndexInput implements Rand
     /**
      * ID of the current block
      */
-    private int currentBlockId;
+    protected int currentBlockId;
 
     private final BlockHolder blockHolder = new BlockHolder();
+    protected final Cleaner.Cleanable cleanable;
 
-    OnDemandBlockIndexInput(Builder builder) {
+    public AbstractBlockIndexInput(Builder builder) {
         super(builder.resourceDescription);
         this.isClone = builder.isClone;
         this.offset = builder.offset;
@@ -88,12 +92,13 @@ public abstract class OnDemandBlockIndexInput extends IndexInput implements Rand
         this.blockSize = builder.blockSize;
         this.blockMask = builder.blockMask;
         CLEANER.register(this, blockHolder);
+        this.cleanable = CLEANER.register(this, blockHolder);
     }
 
     /**
      * Builds the actual sliced IndexInput (may apply extra offset in subclasses).
      **/
-    protected abstract OnDemandBlockIndexInput buildSlice(String sliceDescription, long offset, long length);
+    protected abstract AbstractBlockIndexInput buildSlice(String sliceDescription, long offset, long length);
 
     /**
      * Given a blockId, fetch it's IndexInput which might be partial/split/cloned one
@@ -103,10 +108,10 @@ public abstract class OnDemandBlockIndexInput extends IndexInput implements Rand
     protected abstract IndexInput fetchBlock(int blockId) throws IOException;
 
     @Override
-    public abstract OnDemandBlockIndexInput clone();
+    public abstract AbstractBlockIndexInput clone();
 
     @Override
-    public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+    public IndexInput slice(String sliceDescription, long offset, long length) {
         if (offset < 0 || length < 0 || offset + length > this.length()) {
             throw new IllegalArgumentException(
                 "slice() "
@@ -302,6 +307,53 @@ public abstract class OnDemandBlockIndexInput extends IndexInput implements Rand
 
     }
 
+    protected long getActualBlockSize(int blockId) {
+        return (blockId != getBlock(length - 1, blockSize)) ? blockSize : getBlockOffset(length - 1, blockSizeShift) + 1;
+    }
+
+    public static int getBlockSize(int blockSizeShift) {
+        return 1 << blockSizeShift;
+    }
+
+    public static int getBlock(long pos, int blockSizeShift) {
+        return (int) (pos >>> blockSizeShift);
+    }
+
+    public static long getBlockOffset(long pos, int blockSizeShift) {
+        return (long) (pos & (getBlockSize(blockSizeShift) - 1));
+    }
+
+    public static long getBlockStart(int blockId, int blockSizeShift) {
+        return (long) blockId << blockSizeShift;
+    }
+
+    public static int getNumberOfBlocks(long fileSize, int blockSizeShift) {
+        int blockSize = getBlockSize(blockSizeShift);
+        return (int) Math.ceil((double) fileSize / blockSize);
+    }
+
+    public static long getActualBlockSize(int blockId, int blockSizeShift, long fileSize) {
+        return (blockId != getBlock(fileSize - 1, blockSizeShift))
+            ? getBlockSize(blockSizeShift)
+            : getBlockOffset(fileSize - 1, blockSizeShift) + 1;
+    }
+
+    public static List<Integer> getAllBlockIdsForFile(long fileSize, int blockSizeShift) {
+        return IntStream.rangeClosed(0, getNumberOfBlocks(fileSize, blockSizeShift) - 1).boxed().collect(Collectors.toList());
+    }
+
+    public static boolean isBlockFilename(String fileName) {
+        return fileName.contains("_block_");
+    }
+
+    public static String getBlockFileName(String fileName, int blockId) {
+        return fileName + "_block_" + blockId;
+    }
+
+    public static String getFileNameFromBlockFileName(String blockFileName) {
+        return blockFileName.contains("_block_") ? blockFileName.substring(0, blockFileName.indexOf("_block_")) : blockFileName;
+    }
+
     /**
      * Seek to a block position, download the block if it's necessary
      * NOTE: the pos should be an adjusted position for slices
@@ -341,7 +393,7 @@ public abstract class OnDemandBlockIndexInput extends IndexInput implements Rand
         currentBlockId = blockId;
     }
 
-    protected void cloneBlock(OnDemandBlockIndexInput other) {
+    protected void cloneBlock(AbstractBlockIndexInput other) {
         if (other.blockHolder.block != null) {
             this.blockHolder.set(other.blockHolder.block.clone());
             this.currentBlockId = other.currentBlockId;
@@ -373,64 +425,69 @@ public abstract class OnDemandBlockIndexInput extends IndexInput implements Rand
     }
 
     /**
-     * Builder for {@link OnDemandBlockIndexInput}. The default block size is 8MiB
+     * Builder for {@link AbstractBlockIndexInput}. The default block size is 8MiB
      * (see {@link Builder#DEFAULT_BLOCK_SIZE_SHIFT}).
      */
-    public static class Builder {
+    public static class Builder<T extends Builder<T>> {
         // Block size shift (default value is 23 == 2^23 == 8MiB)
         public static final int DEFAULT_BLOCK_SIZE_SHIFT = 23;
         public static final int DEFAULT_BLOCK_SIZE = 1 << DEFAULT_BLOCK_SIZE_SHIFT;;
 
-        private String resourceDescription;
-        private boolean isClone;
-        private long offset;
-        private long length;
-        private int blockSizeShift = DEFAULT_BLOCK_SIZE_SHIFT;
-        private int blockSize = 1 << blockSizeShift;
-        private int blockMask = blockSize - 1;
+        protected String resourceDescription;
+        protected boolean isClone;
+        protected long offset;
+        protected long length;
+        protected int blockSizeShift = DEFAULT_BLOCK_SIZE_SHIFT;
+        protected int blockSize = 1 << blockSizeShift;
+        protected int blockMask = blockSize - 1;
 
-        private Builder() {}
+        protected Builder() {}
 
-        public Builder resourceDescription(String resourceDescription) {
-            this.resourceDescription = resourceDescription;
-            return this;
+        @SuppressWarnings("unchecked")
+        protected final T self() {
+            return (T) this;
         }
 
-        public Builder isClone(boolean clone) {
-            isClone = clone;
-            return this;
+        public T resourceDescription(String resourceDescription) {
+            this.resourceDescription = Objects.requireNonNull(resourceDescription, "Resource description cannot be null");
+            return self();
         }
 
-        public Builder offset(long offset) {
+        public T isClone(boolean clone) {
+            this.isClone = clone;
+            return self();
+        }
+
+        public T offset(long offset) {
             this.offset = offset;
-            return this;
+            return self();
         }
 
-        public Builder length(long length) {
+        public T length(long length) {
             this.length = length;
-            return this;
+            return self();
         }
 
-        public Builder blockSizeShift(int blockSizeShift) {
+        public T blockSizeShift(int blockSizeShift) {
             assert blockSizeShift < 31 : "blockSizeShift must be < 31";
             this.blockSizeShift = blockSizeShift;
             this.blockSize = 1 << blockSizeShift;
             this.blockMask = blockSize - 1;
-            return this;
+            return self();
         }
     }
 
     /**
      * Simple class to hold the currently open IndexInput backing an instance
-     * of an {@link OnDemandBlockIndexInput}. Lucene may clone one of these
+     * of an {@link AbstractBlockIndexInput}. Lucene may clone one of these
      * instances, and per the contract[1], the clones will never be closed.
      * However, closing the instances is critical for our reference counting.
      * Therefore, we are using the {@link Cleaner} mechanism from the JDK to
      * close these clones when they become phantom reachable. The clean action
-     * must not hold a reference to the {@link OnDemandBlockIndexInput} itself
+     * must not hold a reference to the {@link AbstractBlockIndexInput} itself
      * (otherwise it would never become phantom reachable!) so we need a wrapper
      * instance to hold the current underlying IndexInput, while allowing it to
-     * be changed out with different instances as {@link OnDemandBlockIndexInput}
+     * be changed out with different instances as {@link AbstractBlockIndexInput}
      * reads through the data.
      * <p>
      * This class implements {@link Runnable} so that it can be passed directly
