@@ -6,7 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.engine.exec.coord;
+package org.opensearch.index.engine.exec;
 
-public class WriterPool {
+public interface Reportable {
+
+    long ramBytesUsed();
 }

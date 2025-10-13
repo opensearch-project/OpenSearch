@@ -160,7 +160,16 @@ pub fn throw_exception(env: &mut JNIEnv, message: &str) {
 pub fn create_object_meta_from_filenames(base_path: &str, filenames: Vec<String>) -> Vec<ObjectMeta> {
     filenames.into_iter().map(|filename| {
         let filename = filename.as_str();
-        let full_path = format!("{}/{}", base_path.trim_end_matches('/'), filename);
+
+        // Handle both full paths and relative filenames
+        let full_path = if filename.starts_with('/') || filename.contains(base_path) {
+            // Already a full path
+            filename.to_string()
+        } else {
+            // Just a filename, needs base_path
+            format!("{}/{}", base_path.trim_end_matches('/'), filename)
+        };
+
         let file_size = fs::metadata(&full_path).map(|m| m.len()).unwrap_or(0);
         let modified = fs::metadata(&full_path)
             .and_then(|m| m.modified())
