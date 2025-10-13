@@ -12,12 +12,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump Apache Lucene to 9.12.3 ([#19444](https://github.com/opensearch-project/OpenSearch/pull/19444))
 - Bump `commons-beanutils:commons-beanutils` from 1.9.4 to 1.11.0 ([#18401](https://github.com/opensearch-project/OpenSearch/issues/18401))
 - Bump `org.apache.poi` version from 5.2.5 to 5.4.1 in /plugins/ingest-attachment ([#17887](https://github.com/opensearch-project/OpenSearch/pull/17887))
+- Bump `org.bouncycastle:bc-fips` from 2.0.0 to 2.1.2 ([#19155](https://github.com/opensearch-project/OpenSearch/pull/19155))
+- Bump `org.apache.commons:commons-lang3` from 3.14.0 to 3.18.0 ([#19155](https://github.com/opensearch-project/OpenSearch/pull/19155))
+- Bump `org.bouncycastle:bcprov-jdk18on` from 1.78 to 1.79 ([#19155](https://github.com/opensearch-project/OpenSearch/pull/19155))
+- Bump `org.bouncycastle:bcmail-jdk18on` from 1.78 to 1.79 ([#19155](https://github.com/opensearch-project/OpenSearch/pull/19155))
+- Bump `org.bouncycastle:bcpkix-jdk18on` from 1.78 to 1.79 ([#19155](https://github.com/opensearch-project/OpenSearch/pull/19155))
 - Bump `org.apache.tika` from 2.9.2 to 3.2.2 ([#19242](https://github.com/opensearch-project/OpenSearch/pull/19242))
 - Bump `org.apache.commons:commons-compress` from 1.26.1 to 1.28.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19242))
 - Bump `org.apache.commons:commonscodec` from 1.16.1 to 1.18.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19242))
 - Bump bouncycastle from 1.79 to 1.82 ([#19552](https://github.com/opensearch-project/OpenSearch/pull/19552))
 - Bump `reactor-netty` from 1.1.23 to 1.2.9 ([#19603](https://github.com/opensearch-project/OpenSearch/pull/19603))
 - Bump `reactor` from 3.5.20 to 3.7.5 ([#19603](https://github.com/opensearch-project/OpenSearch/pull/19603))
+- Bump `com.nimbusds:nimbus-jose-jwt` from 10.0.2 to 10.3 ([#19604](https://github.com/opensearch-project/OpenSearch/pull/19604))
 
 ### Deprecated
 
