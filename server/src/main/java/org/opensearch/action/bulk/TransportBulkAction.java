@@ -51,6 +51,7 @@ import org.opensearch.action.ingest.IngestActionForwarder;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.update.TransportUpdateAction;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
@@ -64,6 +65,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.inject.Inject;
@@ -123,7 +125,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  *
  * @opensearch.internal
  */
-public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
+public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse>
+    implements
+        TransportIndicesResolvingAction<BulkRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
 
@@ -552,6 +556,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
     }
 
+    @Override
+    public ResolvedIndices resolveIndices(BulkRequest request) {
+        return ResolvedIndices.of(request.getIndices());
+    }
+
     /**
      * retries on retryable cluster blocks, resolves item requests,
      * constructs shard bulk requests and delegates execution to shard bulk action
@@ -924,7 +933,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      *
      * @opensearch.internal
      */
-    private static class ConcreteIndices {
+    static class ConcreteIndices {
         private final ClusterState state;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final Map<String, Index> indices = new HashMap<>();

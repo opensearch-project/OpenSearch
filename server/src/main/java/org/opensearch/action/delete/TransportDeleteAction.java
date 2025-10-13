@@ -35,6 +35,7 @@ package org.opensearch.action.delete;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.transport.TransportService;
 
@@ -49,7 +50,12 @@ import org.opensearch.transport.TransportService;
 public class TransportDeleteAction extends TransportSingleItemBulkWriteAction<DeleteRequest, DeleteResponse> {
 
     @Inject
-    public TransportDeleteAction(TransportService transportService, ActionFilters actionFilters, TransportBulkAction bulkAction) {
-        super(DeleteAction.NAME, transportService, actionFilters, DeleteRequest::new, bulkAction);
+    public TransportDeleteAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        TransportBulkAction bulkAction,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(DeleteAction.NAME, transportService, actionFilters, DeleteRequest::new, bulkAction, indexNameExpressionResolver);
     }
 }

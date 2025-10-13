@@ -74,6 +74,10 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     @Override
     public String[] indices() {
+        // TODO: The following comment was possibly true on Elasticsearch, but it is not
+        // true on OpenSearch. Authorization also works with index names if an alias
+        // grants privileges for that particular index name.
+        // Thus, question: Shall we change this?
         // A bulk shard request encapsulates items targeted at a specific shard of an index.
         // However, items could be targeting aliases of the index, so the bulk request although
         // targeting a single concrete index shard might do so using several alias names.

@@ -41,10 +41,12 @@ import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.FailAwareWeightedRouting;
@@ -93,7 +95,7 @@ import static org.opensearch.action.support.TransportActions.isShardNotAvailable
  */
 public class TransportFieldCapabilitiesIndexAction extends HandledTransportAction<
     FieldCapabilitiesIndexRequest,
-    FieldCapabilitiesIndexResponse> {
+    FieldCapabilitiesIndexResponse> implements TransportIndicesResolvingAction<FieldCapabilitiesIndexRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportFieldCapabilitiesIndexAction.class);
 
@@ -211,6 +213,11 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
 
     private ClusterBlockException checkRequestBlock(ClusterState state, String concreteIndex) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.READ, concreteIndex);
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(FieldCapabilitiesIndexRequest request) {
+        return ResolvedIndices.of(request.index());
     }
 
     /**
