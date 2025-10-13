@@ -66,6 +66,7 @@ import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.opensearch.cluster.routing.allocation.FileCacheThresholdSettings;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
@@ -113,6 +114,7 @@ import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
@@ -350,6 +352,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 DiskThresholdSettings.CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
+                FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_THRESHOLD_ENABLED_SETTING,
+                FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING,
+                FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING,
                 SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
                 ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING,
                 InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
@@ -519,6 +524,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
                 IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
                 IndexSettings.TIME_SERIES_INDEX_MERGE_POLICY,
+                MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
                 ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
                 ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,

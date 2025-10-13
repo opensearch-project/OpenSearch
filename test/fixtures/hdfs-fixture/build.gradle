@@ -56,6 +56,8 @@ dependencies {
     exclude module: "commons-configuration2"
     exclude module: "commons-beanutils"
     exclude module: "org.eclipse.jetty"
+    exclude group: "commons-lang"
+    exclude group: "org.jsonschema2pojo"
   }
   api "dnsjava:dnsjava:3.6.3"
   api "org.codehaus.jettison:jettison:${versions.jettison}"
@@ -73,7 +75,7 @@ dependencies {
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
-  api 'org.apache.zookeeper:zookeeper:3.9.3'
+  api 'org.apache.zookeeper:zookeeper:3.9.4'
   api "org.apache.commons:commons-text:1.13.1"
   api "commons-net:commons-net:3.11.1"
   api "ch.qos.logback:logback-core:1.5.18"
@@ -87,7 +89,7 @@ dependencies {
     exclude group: "org.jline"
   }
   runtimeOnly "com.google.guava:guava:${versions.guava}"
-  runtimeOnly("com.squareup.okhttp3:okhttp:5.1.0") {
+  runtimeOnly("com.squareup.okhttp3:okhttp:5.2.1") {
     exclude group: "com.squareup.okio"
   }
   runtimeOnly "com.squareup.okio:okio:3.16.0"
