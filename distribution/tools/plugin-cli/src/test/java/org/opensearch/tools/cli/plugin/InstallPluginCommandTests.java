@@ -33,6 +33,7 @@
 package org.opensearch.tools.cli.plugin;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
@@ -74,6 +75,7 @@ import org.opensearch.plugins.Platforms;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginTestUtil;
 import org.opensearch.semver.SemverRange;
+import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.PosixPermissionsResetter;
 import org.opensearch.test.VersionUtils;
@@ -138,6 +140,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("*")
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     static {
