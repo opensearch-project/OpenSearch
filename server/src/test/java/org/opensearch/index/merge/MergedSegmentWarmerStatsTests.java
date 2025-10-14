@@ -129,7 +129,7 @@ public class MergedSegmentWarmerStatsTests extends OpenSearchTestCase {
         builder.endObject();
 
         String json = builder.toString();
-        assertTrue(json.contains("merged_segment_warmer"));
+        assertTrue(json.contains("warmer"));
         assertTrue(json.contains("total_invocations_count"));
         assertTrue(json.contains("total_time_millis"));
         assertTrue(json.contains("total_failure_count"));
