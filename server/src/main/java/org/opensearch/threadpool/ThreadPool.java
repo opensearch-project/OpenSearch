@@ -495,6 +495,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             String tpName = entry.getKey();
             Settings tpGroup = entry.getValue();
             ExecutorHolder holder = executors.get(tpName);
+            if (holder == null) {
+                throw new IllegalArgumentException("illegal thread_pool name : " + tpName);
+            }
             if (holder.info.type == ThreadPoolType.FORK_JOIN) {
                 continue;
             }

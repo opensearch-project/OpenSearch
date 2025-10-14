@@ -172,6 +172,10 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             return waitTimeNanos;
         }
 
+        public int getParallelism() {
+            return parallelism;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name);

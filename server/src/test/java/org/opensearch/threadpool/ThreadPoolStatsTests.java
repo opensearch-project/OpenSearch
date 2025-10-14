@@ -32,8 +32,11 @@
 
 package org.opensearch.threadpool;
 
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -73,6 +76,71 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
             threads.add(stat.getThreads());
         }
         assertThat(threads, contains(-1, -1, 1, 2, 3, -1, -1));
+    }
+
+    public void testStatsParallelismConstructorAndToXContent() throws IOException {
+        // Test constructor and toXContent with parallelism set
+        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, 8);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String json = builder.toString();
+        assertTrue(json.contains("\"parallelism\":8"));
+
+        // Test with parallelism = -1 (should not output the field)
+        stats = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, -1);
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        json = builder.toString();
+        assertFalse(json.contains("parallelism"));
+    }
+
+    public void testStatsSerializationParallelismVersion() throws IOException {
+        // Serialization for version >= 3.4.0 (parallelism is written and read)
+        ThreadPoolStats.Stats statsOut = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, 9);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_4_0);
+        statsOut.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.V_3_4_0);
+        ThreadPoolStats.Stats statsIn = new ThreadPoolStats.Stats(in);
+        assertEquals(9, statsIn.getParallelism());
+
+        // Serialization for version < 3.4.0 (parallelism is not written, should be -1)
+        out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_3_0);
+        statsOut.writeTo(out);
+        in = out.bytes().streamInput();
+        in.setVersion(Version.V_3_3_0);
+        statsIn = new ThreadPoolStats.Stats(in);
+        assertEquals(-1, statsIn.getParallelism());
+    }
+
+    public void testStatsCompareToWithParallelism() {
+        ThreadPoolStats.Stats s1 = new ThreadPoolStats.Stats("a", 1, 2, 3, 4L, 5, 6L, 7L, 8);
+        ThreadPoolStats.Stats s2 = new ThreadPoolStats.Stats("a", 1, 2, 3, 4L, 5, 6L, 7L, 8);
+        ThreadPoolStats.Stats s3 = new ThreadPoolStats.Stats("a", 2, 2, 3, 4L, 5, 6L, 7L, 8);
+        ThreadPoolStats.Stats s4 = new ThreadPoolStats.Stats("b", 1, 2, 3, 4L, 5, 6L, 7L, 8);
+
+        assertEquals(0, s1.compareTo(s2));
+        assertTrue(s1.compareTo(s3) < 0);
+        assertTrue(s4.compareTo(s1) > 0);
+    }
+
+    public void testStatsGetters() {
+        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, 8);
+        assertEquals("test", stats.getName());
+        assertEquals(1, stats.getThreads());
+        assertEquals(2, stats.getQueue());
+        assertEquals(3, stats.getActive());
+        assertEquals(4L, stats.getRejected());
+        assertEquals(5, stats.getLargest());
+        assertEquals(6L, stats.getCompleted());
+        assertEquals(7L, stats.getWaitTimeNanos());
+        assertEquals(8, stats.getParallelism());
     }
 
     public void testThreadPoolStatsToXContent() throws IOException {

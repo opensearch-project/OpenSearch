@@ -33,12 +33,17 @@
 package org.opensearch.threadpool;
 
 import org.opensearch.Version;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -55,6 +60,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.opensearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.opensearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class ThreadPoolTests extends OpenSearchTestCase {
 
@@ -442,5 +449,110 @@ public class ThreadPoolTests extends OpenSearchTestCase {
 
         // This will exercise the normal serialization logic for ForkJoinPool and current version
         info.writeTo(out);
+    }
+
+    public void testStatsParallelismConstructorAndToXContent() throws IOException {
+        // 1. Test the full constructor and toXContent with parallelism set
+        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, 8);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String json = builder.toString();
+        assertThat(json, containsString("\"parallelism\":8"));
+
+        // 2. Test with parallelism = -1 (should not output the field)
+        stats = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, -1);
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        json = builder.toString();
+        assertThat(json.contains("parallelism"), is(false));
+    }
+
+    public void testStatsSerializationParallelismVersion() throws IOException {
+        // 3. Test serialization for version >= 3.4.0 (parallelism is written and read)
+        ThreadPoolStats.Stats statsOut = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, 9);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_4_0);
+        statsOut.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.V_3_4_0);
+        ThreadPoolStats.Stats statsIn = new ThreadPoolStats.Stats(in);
+        assertThat(statsIn.getName(), equalTo("test"));
+        assertThat(statsIn.getThreads(), equalTo(1));
+        assertThat(statsIn.getQueue(), equalTo(2));
+        assertThat(statsIn.getActive(), equalTo(3));
+        assertThat(statsIn.getRejected(), equalTo(4L));
+        assertThat(statsIn.getLargest(), equalTo(5));
+        assertThat(statsIn.getCompleted(), equalTo(6L));
+        assertThat(statsIn.getWaitTimeNanos(), equalTo(7L));
+        assertThat(statsIn.getParallelism(), equalTo(9));
+
+        // 4. Test serialization for version < 3.4.0 (parallelism is not written, should be -1)
+        out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_3_0);
+        statsOut.writeTo(out);
+        in = out.bytes().streamInput();
+        in.setVersion(Version.V_3_3_0);
+        statsIn = new ThreadPoolStats.Stats(in);
+        assertThat(statsIn.getParallelism(), equalTo(-1));
+    }
+
+    public void testValidateSettingThrowsOnUnknownThreadPoolName() {
+        ThreadPool threadPool = new TestThreadPool("test");
+        try {
+            Settings tpSettings = Settings.builder().put("notarealthreadpool.size", 1).build();
+            Exception e = expectThrows(IllegalArgumentException.class, () -> threadPool.setThreadPool(tpSettings));
+            assertThat(e.getMessage(), containsString("illegal thread_pool name"));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testInfoStreamInputFallbackToFixedOnUnknownTypeAndOldVersion() throws IOException {
+        // Simulate old version and unknown type string
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_3_0); // <= V_3_3_0 triggers fallback
+        out.writeString("foo");
+        out.writeString("unknown_type");
+        out.writeInt(1);
+        out.writeInt(1);
+        out.writeOptionalTimeValue(null);
+        out.writeOptionalWriteable(null);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.V_3_3_0);
+        ThreadPool.Info info = new ThreadPool.Info(in);
+        assertEquals(ThreadPool.ThreadPoolType.FIXED, info.getThreadPoolType());
+    }
+
+    public void testInfoWriteToWritesFixedForResizableOnOldVersion() throws IOException {
+        ThreadPool.Info info = new ThreadPool.Info("foo", ThreadPool.ThreadPoolType.RESIZABLE, 1);
+        BytesStreamOutput out = new BytesStreamOutput();
+        // Use an explicit older version < 3.0.0
+        out.setVersion(Version.fromString("2.9.0"));
+        info.writeTo(out);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.fromString("2.9.0"));
+        in.readString(); // name
+        String typeStr = in.readString();
+        assertEquals("fixed", typeStr);
+    }
+
+    public void testInfoWriteToWritesFixedForForkJoinOnOldVersion() throws IOException {
+        ThreadPool.Info info = new ThreadPool.Info("foo", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
+        BytesStreamOutput out = new BytesStreamOutput();
+        // Use an explicit older version < 3.4.0
+        out.setVersion(Version.fromString("3.3.0"));
+        info.writeTo(out);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.fromString("3.3.0"));
+        in.readString(); // name
+        String typeStr = in.readString();
+        assertEquals("fixed", typeStr);
     }
 }
