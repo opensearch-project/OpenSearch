@@ -341,10 +341,10 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                     float maxScore = Float.NaN;
 
                     for (final Collector collector : subs) {
-                        if (collector instanceof CollapsingTopDocsCollector<?>) {
-                            topFieldDocs.add(((CollapsingTopDocsCollector<?>) collector).getTopDocs());
-                        } else if (collector instanceof MaxScoreCollector) {
-                            float score = ((MaxScoreCollector) collector).getMaxScore();
+                        if (collector instanceof CollapsingTopDocsCollector<?> c) {
+                            topFieldDocs.add(c.getTopDocs());
+                        } else if (collector instanceof MaxScoreCollector msc) {
+                            float score = msc.getMaxScore();
                             if (Float.isNaN(maxScore)) {
                                 maxScore = score;
                             } else {
@@ -562,16 +562,16 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 for (final Collector collector : collectors) {
                     if (collector instanceof MultiCollector m) {
                         for (final Collector sub : (m.getCollectors())) {
-                            if (sub instanceof TopDocsCollector<?>) {
-                                topDocsCollectors.add((TopDocsCollector<?>) sub);
-                            } else if (sub instanceof MaxScoreCollector) {
-                                maxScoreCollectors.add((MaxScoreCollector) sub);
+                            if (sub instanceof TopDocsCollector<?> tdc) {
+                                topDocsCollectors.add(tdc);
+                            } else if (sub instanceof MaxScoreCollector msc) {
+                                maxScoreCollectors.add(msc);
                             }
                         }
-                    } else if (collector instanceof TopDocsCollector<?>) {
-                        topDocsCollectors.add((TopDocsCollector<?>) collector);
-                    } else if (collector instanceof MaxScoreCollector) {
-                        maxScoreCollectors.add((MaxScoreCollector) collector);
+                    } else if (collector instanceof TopDocsCollector<?> c) {
+                        topDocsCollectors.add(c);
+                    } else if (collector instanceof MaxScoreCollector msc) {
+                        maxScoreCollectors.add(msc);
                     }
                 }
 
