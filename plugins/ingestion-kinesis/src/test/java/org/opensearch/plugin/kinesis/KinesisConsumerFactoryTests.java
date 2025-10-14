@@ -42,7 +42,10 @@ public class KinesisConsumerFactoryTests extends OpenSearchTestCase {
             factory.initialize(null);
             Assert.fail("Initialization should throw an exception when params is null");
         } catch (NullPointerException e) {
-            Assert.assertEquals("Cannot invoke \"java.util.Map.get(Object)\" because \"configuration\" is null", e.getMessage());
+            Assert.assertNotNull(
+                "Cannot invoke \"[org.opensearch.cluster.metadata.IngestionSource.params()\" because \"ingestionSource]\" is null",
+                e.getMessage()
+            );
         }
     }
 
