@@ -14,6 +14,7 @@ import org.opensearch.protobufs.services.DocumentServiceGrpc;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.grpc.listeners.BulkRequestActionListener;
 import org.opensearch.transport.grpc.proto.request.document.bulk.BulkRequestProtoUtils;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
 import io.grpc.StatusRuntimeException;
@@ -25,14 +26,17 @@ import io.grpc.stub.StreamObserver;
 public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImplBase {
     private static final Logger logger = LogManager.getLogger(DocumentServiceImpl.class);
     private final Client client;
+    private final boolean detailedErrorsEnabled;
 
     /**
      * Creates a new DocumentServiceImpl.
      *
      * @param client Client for executing actions on the local node
+     * @param detailedErrorsEnabled
      */
-    public DocumentServiceImpl(Client client) {
+    public DocumentServiceImpl(Client client, boolean detailedErrorsEnabled) {
         this.client = client;
+        this.detailedErrorsEnabled = detailedErrorsEnabled;
     }
 
     /**
@@ -43,13 +47,14 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
      */
     @Override
     public void bulk(org.opensearch.protobufs.BulkRequest request, StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver) {
+        ResponseHandlingParams params = new ResponseHandlingParams(detailedErrorsEnabled, request.getGlobalParams().getErrorTrace());
         try {
             org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
-            BulkRequestActionListener listener = new BulkRequestActionListener(responseObserver);
+            BulkRequestActionListener listener = new BulkRequestActionListener(responseObserver, params);
             client.bulk(bulkRequest, listener);
         } catch (RuntimeException e) {
             logger.debug("DocumentServiceImpl failed: {} - {}", e.getClass().getSimpleName(), e.getMessage());
-            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e, params);
             responseObserver.onError(grpcError);
         }
     }

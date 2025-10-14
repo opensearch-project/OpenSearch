@@ -15,6 +15,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ShardFailure;
 import org.opensearch.snapshots.SnapshotShardFailure;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 
@@ -34,15 +35,15 @@ public class ShardOperationFailedExceptionProtoUtils {
      * @param exception The ShardOperationFailedException to convert metadata from
      * @return ShardFailure
      */
-    public static ShardFailure toProto(ShardOperationFailedException exception) throws IOException {
+    public static ShardFailure toProto(ShardOperationFailedException exception, ResponseHandlingParams params) throws IOException {
         if (exception instanceof ShardSearchFailure) {
-            return ShardSearchFailureProtoUtils.toProto((ShardSearchFailure) exception);
+            return ShardSearchFailureProtoUtils.toProto((ShardSearchFailure) exception, params);
         } else if (exception instanceof SnapshotShardFailure) {
-            return SnapshotShardFailureProtoUtils.toProto((SnapshotShardFailure) exception);
+            return SnapshotShardFailureProtoUtils.toProto((SnapshotShardFailure) exception, params);
         } else if (exception instanceof DefaultShardOperationFailedException) {
-            return DefaultShardOperationFailedExceptionProtoUtils.toProto((DefaultShardOperationFailedException) exception);
+            return DefaultShardOperationFailedExceptionProtoUtils.toProto((DefaultShardOperationFailedException) exception, params);
         } else if (exception instanceof ReplicationResponse.ShardInfo.Failure) {
-            return ReplicationResponseShardInfoFailureProtoUtils.toProto((ReplicationResponse.ShardInfo.Failure) exception);
+            return ReplicationResponseShardInfoFailureProtoUtils.toProto((ReplicationResponse.ShardInfo.Failure) exception, params);
         } else {
             throw new UnsupportedOperationException(
                 "Unsupported ShardOperationFailedException " + exception.getClass().getName() + "cannot be converted to proto."

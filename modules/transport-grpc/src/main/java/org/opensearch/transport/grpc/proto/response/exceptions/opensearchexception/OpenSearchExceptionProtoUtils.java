@@ -26,6 +26,7 @@ import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.transport.grpc.proto.response.exceptions.CircuitBreakingExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.FailedNodeExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.ParsingExceptionProtoUtils;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.proto.response.exceptions.ResponseLimitBreachedExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.ScriptExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.SearchParseExceptionProtoUtils;
@@ -59,10 +60,10 @@ public class OpenSearchExceptionProtoUtils {
      * @return A Protocol Buffer ErrorCause representation
      * @throws IOException if there's an error during conversion
      */
-    public static ErrorCause toProto(OpenSearchException exception) throws IOException {
+    public static ErrorCause toProto(OpenSearchException exception, ResponseHandlingParams params) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(exception);
         if (ex != exception) {
-            return generateThrowableProto(ex);
+            return generateThrowableProto(ex, params);
         } else {
             return innerToProto(
                 exception,
@@ -70,7 +71,8 @@ public class OpenSearchExceptionProtoUtils {
                 exception.getMessage(),
                 exception.getHeaders(),
                 exception.getMetadata(),
-                exception.getCause()
+                exception.getCause(),
+                params
             );
         }
     }
@@ -86,13 +88,13 @@ public class OpenSearchExceptionProtoUtils {
      * @return A Protocol Buffer ErrorCause representation
      * @throws IOException if there's an error during conversion
      */
-    public static ErrorCause generateThrowableProto(Throwable t) throws IOException {
+    public static ErrorCause generateThrowableProto(Throwable t, ResponseHandlingParams params) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
         if (t instanceof OpenSearchException) {
-            return toProto((OpenSearchException) t);
+            return toProto((OpenSearchException) t, params);
         } else {
-            return innerToProto(t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
+            return innerToProto(t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause(), params);
         }
     }
 
@@ -115,7 +117,8 @@ public class OpenSearchExceptionProtoUtils {
         String message,
         Map<String, List<String>> headers,
         Map<String, List<String>> metadata,
-        Throwable cause
+        Throwable cause,
+        ResponseHandlingParams params
     ) throws IOException {
         ErrorCause.Builder errorCauseBuilder = ErrorCause.newBuilder();
 
@@ -146,7 +149,7 @@ public class OpenSearchExceptionProtoUtils {
         }
 
         if (cause != null) {
-            errorCauseBuilder.setCausedBy(generateThrowableProto(cause));
+            errorCauseBuilder.setCausedBy(generateThrowableProto(cause, params));
         }
 
         if (headers.isEmpty() == false) {
@@ -157,13 +160,15 @@ public class OpenSearchExceptionProtoUtils {
         }
 
         // Add stack trace
-        errorCauseBuilder.setStackTrace(ExceptionsHelper.stackTrace(throwable));
+        if (params.getErrorTracingLevel() == ResponseHandlingParams.TracingLevel.DETAILED_TRACE) {
+            errorCauseBuilder.setStackTrace(ExceptionsHelper.stackTrace(throwable));
+        }
 
         // Add suppressed exceptions
         Throwable[] allSuppressed = throwable.getSuppressed();
         if (allSuppressed.length > 0) {
             for (Throwable suppressed : allSuppressed) {
-                errorCauseBuilder.addSuppressed(generateThrowableProto(suppressed));
+                errorCauseBuilder.addSuppressed(generateThrowableProto(suppressed, params));
             }
         }
 

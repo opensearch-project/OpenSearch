@@ -186,6 +186,12 @@ public class Netty4GrpcServerTransport extends AuxTransport {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> SETTING_GRPC_DETAILED_ERRORS_ENABLED = Setting.boolSetting(
+        "grpc.detailed_errors.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     /**
      * Port range on which servers bind.
      */

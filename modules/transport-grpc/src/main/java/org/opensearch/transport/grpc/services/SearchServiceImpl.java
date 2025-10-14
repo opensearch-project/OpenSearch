@@ -8,6 +8,8 @@
 
 package org.opensearch.transport.grpc.services;
 
+import java.io.IOException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.protobufs.services.SearchServiceGrpc;
@@ -15,9 +17,8 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.transport.grpc.listeners.SearchRequestActionListener;
 import org.opensearch.transport.grpc.proto.request.search.SearchRequestProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.util.GrpcErrorHandler;
-
-import java.io.IOException;
 
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -31,6 +32,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
     private static final Logger logger = LogManager.getLogger(SearchServiceImpl.class);
     private final Client client;
     private final AbstractQueryBuilderProtoUtils queryUtils;
+    private final boolean detailedErrorsEnabled;
 
     /**
      * Creates a new SearchServiceImpl.
@@ -38,7 +40,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
      * @param client Client for executing actions on the local node
      * @param queryUtils Query utils instance for parsing protobuf queries
      */
-    public SearchServiceImpl(Client client, AbstractQueryBuilderProtoUtils queryUtils) {
+    public SearchServiceImpl(Client client, AbstractQueryBuilderProtoUtils queryUtils, boolean detailedErrorsEnabled) {
         if (client == null) {
             throw new IllegalArgumentException("Client cannot be null");
         }
@@ -48,6 +50,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
 
         this.client = client;
         this.queryUtils = queryUtils;
+        this.detailedErrorsEnabled = detailedErrorsEnabled;
     }
 
     /**
@@ -61,14 +64,14 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
         org.opensearch.protobufs.SearchRequest request,
         StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver
     ) {
-
+        ResponseHandlingParams params = new ResponseHandlingParams(detailedErrorsEnabled, request.getGlobalParams().getErrorTrace());
         try {
             org.opensearch.action.search.SearchRequest searchRequest = SearchRequestProtoUtils.prepareRequest(request, client, queryUtils);
-            SearchRequestActionListener listener = new SearchRequestActionListener(responseObserver);
+            SearchRequestActionListener listener = new SearchRequestActionListener(responseObserver, params);
             client.search(searchRequest, listener);
         } catch (RuntimeException | IOException e) {
             logger.debug("SearchServiceImpl failed to process search request, request=" + request + ", error=" + e.getMessage());
-            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e, params);
             responseObserver.onError(grpcError);
         }
     }
