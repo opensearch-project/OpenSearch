@@ -83,8 +83,10 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
     protected void doReplicaOperation(RemoteStorePublishMergedSegmentRequest shardRequest, IndexShard replica) {
         RemoteStoreMergedSegmentCheckpoint checkpoint = shardRequest.getMergedSegment();
         if (checkpoint.getShardId().equals(replica.shardId())) {
+            long startTime = System.currentTimeMillis();
             replica.getRemoteDirectory().markMergedSegmentsPendingDownload(checkpoint.getLocalToRemoteSegmentFilenameMap());
             replicationService.onNewMergedSegmentCheckpoint(checkpoint, replica);
+            replica.mergedSegmentTransferTracker().addTotalReceiveTimeMillis(System.currentTimeMillis() - startTime);
         } else {
             logger.warn(
                 () -> new ParameterizedMessage(
@@ -114,6 +116,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
         long elapsedTimeMillis = endTimeMillis - startTimeMillis;
         long timeoutMillis = indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout().millis();
         long timeLeftMillis = Math.max(0, timeoutMillis - elapsedTimeMillis);
+        indexShard.mergedSegmentTransferTracker().addTotalSendTimeMillis(elapsedTimeMillis);
 
         if (timeLeftMillis > 0) {
             RemoteStoreMergedSegmentCheckpoint remoteStoreMergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
@@ -126,9 +129,19 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
                 new RemoteStorePublishMergedSegmentRequest(remoteStoreMergedSegmentCheckpoint),
                 "segrep_remote_publish_merged_segment",
                 true,
-                TimeValue.timeValueMillis(timeLeftMillis)
+                TimeValue.timeValueMillis(timeLeftMillis),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        indexShard.mergedSegmentTransferTracker().incrementTotalWarmFailureCount();
+                    }
+                }
             );
         } else {
+            indexShard.mergedSegmentTransferTracker().incrementTotalWarmFailureCount();
             logger.warn(
                 () -> new ParameterizedMessage(
                     "Unable to confirm upload of merged segment {} to remote store. Timeout of {}ms exceeded. Skipping pre-copy.",
@@ -167,6 +180,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
             @Override
             public void onSuccess(String file) {
                 localToRemoteStoreFilenames.put(file, indexShard.getRemoteDirectory().getExistingRemoteFilename(file));
+                indexShard.mergedSegmentTransferTracker().addTotalBytesSent(checkpoint.getMetadataMap().get(file).length());
             }
 
             @Override
