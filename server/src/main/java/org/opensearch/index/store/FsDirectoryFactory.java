@@ -49,6 +49,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.distributed.DistributedSegmentDirectory;
 import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
@@ -96,15 +97,18 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         Set<String> preLoadExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
         switch (type) {
             case HYBRIDFS:
+                // return new DistributedSegmentDirectory(null, location)
                 // Use Lucene defaults
-                final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
-                final Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
-                if (primaryDirectory instanceof MMapDirectory) {
-                    MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
-                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions), nioExtensions);
-                } else {
-                    return primaryDirectory;
-                }
+                final FSDirectory primaryDirectory = new NIOFSDirectory(location, lockFactory);
+                return new DistributedSegmentDirectory(primaryDirectory, location);
+
+                // final Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
+                // if (primaryDirectory instanceof MMapDirectory) {
+                //     MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
+                //     return new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions), nioExtensions);
+                // } else {
+                //     return primaryDirectory;
+                // }
             case MMAPFS:
                 return setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
             // simplefs was removed in Lucene 9; support for enum is maintained for bwc
