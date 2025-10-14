@@ -86,7 +86,7 @@ public class IngestionEngine extends InternalEngine {
         IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
 
         // initialize the ingestion consumer factory
-        this.ingestionConsumerFactory.initialize(ingestionSource.params());
+        this.ingestionConsumerFactory.initialize(ingestionSource);
         String clientId = engineConfig.getIndexSettings().getNodeName()
             + "-"
             + engineConfig.getIndexSettings().getIndex().getName()

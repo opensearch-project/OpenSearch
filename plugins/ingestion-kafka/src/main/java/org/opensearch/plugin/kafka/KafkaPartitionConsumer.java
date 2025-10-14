@@ -132,6 +132,15 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         }
     }
 
+    /**
+     * Read the next batch of messages from Kafka, starting from the provided offset.
+     * @param offset the pointer to start reading from,
+     * @param includeStart whether to include the start pointer in the read
+     * @param maxMessages this setting is not honored for Kafka at this stage. maxMessages is instead set at consumer initialization.
+     * @param timeoutMillis the maximum time to wait for messages
+     * @return
+     * @throws TimeoutException
+     */
     @Override
     public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(
         KafkaOffset offset,
@@ -140,25 +149,22 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         int timeoutMillis
     ) throws TimeoutException {
         List<ReadResult<KafkaOffset, KafkaMessage>> records = AccessController.doPrivileged(
-            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(
-                offset.getOffset(),
-                includeStart,
-                maxMessages,
-                timeoutMillis
-            )
+            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(offset.getOffset(), includeStart, timeoutMillis)
         );
         return records;
     }
 
+    /**
+     * Read the next batch of messages from Kafka.
+     * @param maxMessages this setting is not honored for Kafka at this stage. maxMessages is instead set at consumer initialization.
+     * @param timeoutMillis the maximum time to wait for messages
+     * @return
+     * @throws TimeoutException
+     */
     @Override
     public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(long maxMessages, int timeoutMillis) throws TimeoutException {
         List<ReadResult<KafkaOffset, KafkaMessage>> records = AccessController.doPrivileged(
-            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(
-                lastFetchedOffset,
-                false,
-                maxMessages,
-                timeoutMillis
-            )
+            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(lastFetchedOffset, false, timeoutMillis)
         );
         return records;
     }
@@ -217,12 +223,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         return new KafkaOffset(offsetValue);
     }
 
-    private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(
-        long startOffset,
-        boolean includeStart,
-        long maxMessages,
-        int timeoutMillis
-    ) {
+    private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, boolean includeStart, int timeoutMillis) {
         long kafkaStartOffset = startOffset;
         if (!includeStart) {
             kafkaStartOffset += 1;
@@ -237,23 +238,14 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
 
         ConsumerRecords<byte[], byte[]> consumerRecords = consumer.poll(Duration.ofMillis(timeoutMillis));
         List<ConsumerRecord<byte[], byte[]>> messageAndOffsets = consumerRecords.records(topicPartition);
-
         List<ReadResult<KafkaOffset, KafkaMessage>> results = new ArrayList<>();
-        int messageCount = 0;
 
         for (ConsumerRecord<byte[], byte[]> messageAndOffset : messageAndOffsets) {
-            if (messageCount >= maxMessages) {
-                // fetched enough messages
-                // maxMessages filter is added to have uniform behavior across stream consumers. It is recommended to
-                // tune Kafka config "max.poll.records" if maxMessages is updated to avoid wasted polls.
-                break;
-            }
             long currentOffset = messageAndOffset.offset();
             lastFetchedOffset = currentOffset;
             KafkaOffset kafkaOffset = new KafkaOffset(currentOffset);
             KafkaMessage message = new KafkaMessage(messageAndOffset.key(), messageAndOffset.value(), messageAndOffset.timestamp());
             results.add(new ReadResult<>(kafkaOffset, message));
-            messageCount++;
         }
         return results;
     }
