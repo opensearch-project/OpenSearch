@@ -129,8 +129,9 @@ public class PruneCacheResponse extends BaseNodesResponse<NodePruneCacheResponse
      *
      * @return true if some nodes succeeded and some failed
      */
+    // VisibleForTesting
     public boolean isPartiallySuccessful() {
-        return !getNodes().isEmpty() && !failures().isEmpty();
+        return getNodes().isEmpty() == false && failures().isEmpty() == false;
     }
 
     /**
@@ -138,8 +139,9 @@ public class PruneCacheResponse extends BaseNodesResponse<NodePruneCacheResponse
      *
      * @return true if all targeted nodes succeeded
      */
+    // VisibleForTesting
     public boolean isCompletelySuccessful() {
-        return !getNodes().isEmpty() && failures().isEmpty();
+        return getNodes().isEmpty() == false && failures().isEmpty();
     }
 
     /**

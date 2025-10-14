@@ -1598,7 +1598,7 @@ public class Node implements Closeable {
                 if (fileCache != null) {
                     b.bind(FileCache.class).toInstance(fileCache);
                 } else {
-                    b.bind(FileCache.class).toProvider(() -> null);
+                    b.bind(FileCache.class).toProvider(Providers.of(null));
                 }
                 b.bind(AliasValidator.class).toInstance(aliasValidator);
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);

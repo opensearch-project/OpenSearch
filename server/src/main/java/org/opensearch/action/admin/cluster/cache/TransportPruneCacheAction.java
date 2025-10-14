@@ -24,9 +24,9 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -68,21 +68,31 @@ public class TransportPruneCacheAction extends TransportNodesAction<
     protected void resolveRequest(PruneCacheRequest request, ClusterState clusterState) {
         assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
 
-        String[] nodeIds = clusterState.nodes().resolveNodes(request.nodesIds());
-        List<DiscoveryNode> warmNodes = Arrays.stream(nodeIds)
-            .map(clusterState.nodes()::get)
-            .filter(Objects::nonNull)
+        // First collect all warm nodes from the cluster (more efficient approach)
+        List<DiscoveryNode> allWarmNodes = clusterState.nodes()
+            .getNodes()
+            .values()
+            .stream()
             .filter(DiscoveryNode::isWarmNode)
             .collect(Collectors.toList());
 
-        if (warmNodes.isEmpty() && nodeIds.length > 0) {
-            throw new IllegalArgumentException(
-                "No warm nodes found matching the specified criteria. " + "FileCache operations can only target warm nodes."
-            );
-        }
+        List<DiscoveryNode> warmNodes;
 
-        if (warmNodes.isEmpty() && nodeIds.length == 0) {
-            warmNodes = clusterState.nodes().getNodes().values().stream().filter(DiscoveryNode::isWarmNode).collect(Collectors.toList());
+        // If specific nodes are requested, take intersection with warm nodes
+        if (request.nodesIds() != null && request.nodesIds().length > 0) {
+            String[] resolvedNodeIds = clusterState.nodes().resolveNodes(request.nodesIds());
+            Set<String> requestedIds = Set.of(resolvedNodeIds);
+
+            warmNodes = allWarmNodes.stream().filter(node -> requestedIds.contains(node.getId())).collect(Collectors.toList());
+
+            if (warmNodes.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "No warm nodes found matching the specified criteria. " + "FileCache operations can only target warm nodes."
+                );
+            }
+        } else {
+            // No specific nodes requested - use all warm nodes
+            warmNodes = allWarmNodes;
         }
 
         request.setConcreteNodes(warmNodes.toArray(new DiscoveryNode[warmNodes.size()]));
@@ -109,8 +119,6 @@ public class TransportPruneCacheAction extends TransportNodesAction<
 
     @Override
     protected NodePruneCacheResponse nodeOperation(NodeRequest nodeRequest) {
-        PruneCacheRequest request = nodeRequest.getRequest();
-
         if (fileCache == null) {
             return new NodePruneCacheResponse(transportService.getLocalNode(), 0, 0);
         }

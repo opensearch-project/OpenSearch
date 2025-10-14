@@ -58,7 +58,7 @@ public class NodePruneCacheResponse extends BaseNodeResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof NodePruneCacheResponse)) return false;
+        if ((o instanceof NodePruneCacheResponse) == false) return false;
         if (!super.equals(o)) return false;
         NodePruneCacheResponse that = (NodePruneCacheResponse) o;
         return prunedBytes == that.prunedBytes && cacheCapacity == that.cacheCapacity;
