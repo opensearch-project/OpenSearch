@@ -40,6 +40,10 @@ jobs:
       issues: write # To create an issue if check fails on push.
     runs-on: ubuntu-latest
     timeout-minutes: 130
+    strategy:
+      fail-fast: false
+      matrix:
+        module_name: [ server, non-server ]
     steps:
       - name: Checkout OpenSearch repo
         uses: actions/checkout@v5
@@ -59,6 +63,7 @@ jobs:
           echo "pr_owner=$(jq --raw-output .pull_request.user.login $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_or_commit_description=$(jq --ascii-output .pull_request.body $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "post_merge_action=false" >> $GITHUB_ENV
+          echo "module_name=${{ matrix.module_name }}" >> $GITHUB_ENV
 
       # to get the PR data that can be used for post merge actions
       - uses: actions/github-script@v7
@@ -91,6 +96,7 @@ jobs:
           echo 'pr_number=${{ fromJson(steps.get_pr_data.outputs.result).number }}' >> $GITHUB_ENV
           echo "pr_or_commit_description=$(jq --ascii-output .head_commit.message $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "post_merge_action=true" >> $GITHUB_ENV
+          echo "module_name=${{ matrix.module_name }}" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
         uses: actions/checkout@v5
@@ -113,12 +119,23 @@ jobs:
           echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
           echo "result=$RESULT" >> $GITHUB_ENV
 
-      - name: Upload Coverage Report
+      - name: Upload Coverage Report for Unit Tests
         if: success()
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./codeCoverage.xml
+          files: codeCoverage/testCodeCoverageReport.xml
+          flags: unit
+          name: unit-tests
+
+      - name: Upload Coverage Report for Integration Tests
+        if: success()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: codeCoverage/*Test.xml
+          flags: integration
+          name: integration-tests
 
       - name: Create Comment Success
         if: ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' }}
