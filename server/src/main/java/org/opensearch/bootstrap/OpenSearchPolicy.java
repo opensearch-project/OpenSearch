@@ -33,6 +33,7 @@
 package org.opensearch.bootstrap;
 
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.secure_sm.policy.Policy;
 
 import java.io.FilePermission;
 import java.io.IOException;
@@ -42,7 +43,6 @@ import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
-import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collections;
 import java.util.Map;

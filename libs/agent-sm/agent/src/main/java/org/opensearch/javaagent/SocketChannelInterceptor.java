@@ -9,13 +9,13 @@
 package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
+import org.opensearch.secure_sm.policy.Policy;
 
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.NetPermission;
 import java.net.SocketPermission;
 import java.net.UnixDomainSocketAddress;
-import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collection;
 
@@ -38,7 +38,6 @@ public class SocketChannelInterceptor {
      * @throws Exception exceptions
      */
     @Advice.OnMethodEnter
-    @SuppressWarnings("removal")
     public static void intercept(@Advice.AllArguments Object[] args, @Origin Method method) throws Exception {
         final Policy policy = AgentPolicy.getPolicy();
         if (policy == null) {

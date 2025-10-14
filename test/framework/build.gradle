@@ -55,6 +55,7 @@ dependencies {
   fipsOnly "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
   fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
+  implementation project(":libs:agent-sm:agent-policy")
   compileOnly project(":libs:agent-sm:bootstrap")
   compileOnly "com.github.spotbugs:spotbugs-annotations:4.9.6"
 

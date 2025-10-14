@@ -40,8 +40,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
-@SuppressWarnings("removal")
-public class PolicyFile extends java.security.Policy {
+public class PolicyFile extends Policy {
     public static final Set<String> PERM_CLASSES_TO_SKIP = Set.of(
         "org.opensearch.secure_sm.ThreadContextPermission",
         "org.opensearch.secure_sm.ThreadPermission",
