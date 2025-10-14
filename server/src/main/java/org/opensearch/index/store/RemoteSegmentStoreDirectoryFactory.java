@@ -80,6 +80,16 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         String indexUUID,
         ShardId shardId,
         RemoteStorePathStrategy pathStrategy,
+        String indexFixedPrefix
+    ) throws IOException {
+        return newDirectory(repositoryName, indexUUID, shardId, pathStrategy, indexFixedPrefix, false);
+    }
+
+    public Directory newDirectory(
+        String repositoryName,
+        String indexUUID,
+        ShardId shardId,
+        RemoteStorePathStrategy pathStrategy,
         String indexFixedPrefix,
         boolean isServerSideEncryptionEnabled
     ) throws IOException {
