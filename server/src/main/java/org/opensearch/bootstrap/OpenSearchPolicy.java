@@ -37,7 +37,6 @@ import org.opensearch.secure_sm.policy.Policy;
 
 import java.io.FilePermission;
 import java.io.IOException;
-import java.net.SocketPermission;
 import java.net.URL;
 import java.security.CodeSource;
 import java.security.Permission;
@@ -78,11 +77,7 @@ final class OpenSearchPolicy extends Policy {
         this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
         this.dataPathPermission = dataPathPermission;
         this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
-        if (filterBadDefaults) {
-            this.system = new SystemPolicy(Policy.getPolicy());
-        } else {
-            this.system = Policy.getPolicy();
-        }
+        this.system = Policy.getPolicy();
         this.dynamic = dynamic;
         this.plugins = plugins;
     }
@@ -208,42 +203,5 @@ final class OpenSearchPolicy extends Policy {
             return badDefaultPermission.getActions();
         }
 
-    }
-
-    // default policy file states:
-    // "It is strongly recommended that you either remove this permission
-    // from this policy file or further restrict it to code sources
-    // that you specify, because Thread.stop() is potentially unsafe."
-    // not even sure this method still works...
-    private static final Permission BAD_DEFAULT_NUMBER_ONE = new BadDefaultPermission(new RuntimePermission("stopThread"), p -> true);
-
-    // default policy file states:
-    // "allows anyone to listen on dynamic ports"
-    // specified exactly because that is what we want, and fastest since it won't imply any
-    // expensive checks for the implicit "resolve"
-    private static final Permission BAD_DEFAULT_NUMBER_TWO = new BadDefaultPermission(
-        new SocketPermission("localhost:0", "listen"),
-        // we apply this pre-implies test because some SocketPermission#implies calls do expensive reverse-DNS resolves
-        p -> p instanceof SocketPermission && p.getActions().contains("listen")
-    );
-
-    /**
-     * Wraps the Java system policy, filtering out bad default permissions that
-     * are granted to all domains. Note, before java 8 these were even worse.
-     */
-    static class SystemPolicy extends Policy {
-        final Policy delegate;
-
-        SystemPolicy(Policy delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public boolean implies(ProtectionDomain domain, Permission permission) {
-            if (BAD_DEFAULT_NUMBER_ONE.implies(permission) || BAD_DEFAULT_NUMBER_TWO.implies(permission)) {
-                return false;
-            }
-            return delegate.implies(domain, permission);
-        }
     }
 }

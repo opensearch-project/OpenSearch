@@ -10,6 +10,8 @@ package org.opensearch.secure_sm.policy;
 
 import org.opensearch.secure_sm.AccessController;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
@@ -109,6 +111,17 @@ public abstract class Policy {
      */
     public static Policy getPolicy() {
         Policy.PolicyInfo pi = policyInfo;
+
+        if (pi.initialized == false || pi.policy == null) {
+            try {
+                Path emptyPolicyFile = Files.createTempFile("empty", ".tmp");
+                final Policy emptyPolicy = new PolicyFile(emptyPolicyFile.toUri().toURL());
+                pi = new PolicyInfo(emptyPolicy, true);
+                // IOUtils.rm(emptyPolicyFile);
+            } catch (Exception e) {
+                // ignore
+            }
+        }
         return pi.policy;
     }
 
