@@ -1056,7 +1056,7 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
-        updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
+        updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index(), false);
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -1162,7 +1162,8 @@ public class MetadataCreateIndexService {
         ClusterState clusterState,
         ClusterSettings clusterSettings,
         Settings nodeSettings,
-        String indexName
+        String indexName,
+        boolean isRestoreFromSnapshot
     ) {
         if ((isRemoteDataAttributePresent(nodeSettings)
             && clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(RemoteStoreNodeService.CompatibilityMode.STRICT))
@@ -1178,8 +1179,8 @@ public class MetadataCreateIndexService {
 
             if (remoteNode.isPresent()) {
 
-                if (RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled(remoteNode.get().getAttributes())
-                    && indexName.startsWith("sse-idx-1")) {
+                if (!isRestoreFromSnapshot
+                    && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled(remoteNode.get().getAttributes())) {
                     settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, true);
                 }
 
