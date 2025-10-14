@@ -116,6 +116,7 @@ public abstract class AbstractPublishCheckpointAction<
         TimeValue waitTimeout,
         ActionListener<Void> listener
     ) {
+        ActionListener<Void> notifyOnceListener = ActionListener.notifyOnce(listener);
         String primaryAllocationId = indexShard.routingEntry().allocationId().getId();
         long primaryTerm = indexShard.getPendingPrimaryTerm();
         final ThreadContext threadContext = threadPool.getThreadContext();
@@ -209,21 +210,21 @@ public abstract class AbstractPublishCheckpointAction<
             if (waitForCompletion) {
                 try {
                     if (latch.await(waitTimeout.seconds(), TimeUnit.SECONDS) == false) {
-                        listener.onFailure(
+                        notifyOnceListener.onFailure(
                             new TimeoutException("Timed out waiting for publish checkpoint to complete. Checkpoint: " + checkpoint)
                         );
                     }
                 } catch (InterruptedException e) {
-                    listener.onFailure(e);
+                    notifyOnceListener.onFailure(e);
                     logger.warn(
                         () -> new ParameterizedMessage("Interrupted while waiting for publish checkpoint complete [{}]", checkpoint),
                         e
                     );
                 }
             }
-            listener.onResponse(null);
+            notifyOnceListener.onResponse(null);
         } catch (Exception e) {
-            listener.onFailure(e);
+            notifyOnceListener.onFailure(e);
         }
     }
 

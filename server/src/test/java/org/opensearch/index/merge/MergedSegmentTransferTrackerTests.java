@@ -10,12 +10,7 @@ package org.opensearch.index.merge;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
-
-import static org.opensearch.common.settings.Settings.builder;
-import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
 
 public class MergedSegmentTransferTrackerTests extends OpenSearchTestCase {
 
@@ -24,8 +19,6 @@ public class MergedSegmentTransferTrackerTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ShardId shardId = new ShardId("test", "uuid", 0);
-        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", builder().build()), builder().build());
         tracker = new MergedSegmentTransferTracker();
     }
 
@@ -63,10 +56,10 @@ public class MergedSegmentTransferTrackerTests extends OpenSearchTestCase {
 
     public void testAddTimeAndBytes() {
         tracker.addTotalWarmTimeMillis(100);
-        tracker.addTotalUploadTimeMillis(200);
-        tracker.addTotalDownloadTimeMillis(300);
-        tracker.addTotalBytesUploaded(1024);
-        tracker.addTotalBytesDownloaded(2048);
+        tracker.addTotalSendTimeMillis(200);
+        tracker.addTotalReceiveTimeMillis(300);
+        tracker.addTotalBytesSent(1024);
+        tracker.addTotalBytesReceived(2048);
 
         MergedSegmentWarmerStats stats = tracker.stats();
         assertEquals(new TimeValue(100), stats.getTotalTime());
@@ -81,8 +74,8 @@ public class MergedSegmentTransferTrackerTests extends OpenSearchTestCase {
         tracker.addTotalWarmTimeMillis(50);
         assertEquals(new TimeValue(150), tracker.stats().getTotalTime());
 
-        tracker.addTotalBytesUploaded(1000);
-        tracker.addTotalBytesUploaded(500);
+        tracker.addTotalBytesSent(1000);
+        tracker.addTotalBytesSent(500);
         assertEquals(1500, tracker.stats().getTotalSentSize().getBytes());
     }
 }

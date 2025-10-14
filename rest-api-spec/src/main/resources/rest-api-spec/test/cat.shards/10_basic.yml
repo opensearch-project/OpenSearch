@@ -1,7 +1,7 @@
 "Help":
   - skip:
       version: " - 3.2.99"
-      reason:  merged segment warmer stats were added in 3.3.0
+      reason: search query failure stats is added in 3.3.0
       features: node_selector
   - do:
       cat.shards:
@@ -54,14 +54,6 @@
              merges.total_docs                .+   \n
              merges.total_size                .+   \n
              merges.total_time                .+   \n
-             merges.merged_segment_warmer.total_invocations      .+   \n
-             merges.merged_segment_warmer.total_time             .+   \n
-             merges.merged_segment_warmer.ongoing_count          .+   \n
-             merges.merged_segment_warmer.total_bytes_received   .+   \n
-             merges.merged_segment_warmer.total_bytes_sent       .+   \n
-             merges.merged_segment_warmer.total_receive_time     .+   \n
-             merges.merged_segment_warmer.total_failure_count    .+   \n
-             merges.merged_segment_warmer.total_send_time        .+   \n
              refresh.total                    .+   \n
              refresh.time                     .+   \n
              refresh.external_total           .+   \n
@@ -74,6 +66,7 @@
              search.query_current             .+   \n
              search.query_time                .+   \n
              search.query_total               .+   \n
+             search.query_failed              .+   \n
              search.concurrent_query_current  .+   \n
              search.concurrent_query_time     .+   \n
              search.concurrent_query_total    .+   \n
@@ -81,6 +74,7 @@
              search.startree_query_current    .+   \n
              search.startree_query_time       .+   \n
              search.startree_query_total      .+   \n
+             search.startree_query_failed     .+   \n
              search.scroll_current            .+   \n
              search.scroll_time               .+   \n
              search.scroll_total              .+   \n
@@ -106,7 +100,7 @@
 ---
 "Help from 3.2.0 to 3.2.99":
   - skip:
-      version: " - 3.1.99, 3.3.0-"
+      version: " - 3.1.99, 3.3.0 - "
       reason:  star-tree search stats is only added in 3.2.0
       features: node_selector
   - do:

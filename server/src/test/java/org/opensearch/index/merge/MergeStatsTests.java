@@ -52,6 +52,15 @@ public class MergeStatsTests extends OpenSearchTestCase {
         assertEquals(512, stats.getCurrentSizeInBytes());
         assertEquals(10, stats.getTotalStoppedTimeInMillis());
         assertEquals(20, stats.getTotalThrottledTimeInMillis());
+
+        assertEquals(1, stats.getWarmerStats().getTotalInvocationsCount());
+        assertEquals(10, stats.getWarmerStats().getTotalTime().getMillis());
+        assertEquals(0, stats.getWarmerStats().getTotalFailureCount());
+        assertEquals(new ByteSizeValue(100), stats.getWarmerStats().getTotalSentSize());
+        assertEquals(new ByteSizeValue(200), stats.getWarmerStats().getTotalReceivedSize());
+        assertEquals(0, stats.getWarmerStats().getOngoingCount());
+        assertEquals(5, stats.getWarmerStats().getTotalSendTime().getMillis());
+        assertEquals(15, stats.getWarmerStats().getTotalReceiveTime().getMillis());
     }
 
     public void testAddWithoutMergedSegmentWarmer() {
@@ -67,6 +76,16 @@ public class MergeStatsTests extends OpenSearchTestCase {
         assertEquals(512, stats.getCurrentSizeInBytes());
         assertEquals(10, stats.getTotalStoppedTimeInMillis());
         assertEquals(20, stats.getTotalThrottledTimeInMillis());
+
+        assertNotNull(stats.getWarmerStats());
+        assertEquals(0, stats.getWarmerStats().getTotalInvocationsCount());
+        assertEquals(0, stats.getWarmerStats().getTotalTime().getMillis());
+        assertEquals(0, stats.getWarmerStats().getTotalFailureCount());
+        assertEquals(new ByteSizeValue(0), stats.getWarmerStats().getTotalSentSize());
+        assertEquals(new ByteSizeValue(0), stats.getWarmerStats().getTotalReceivedSize());
+        assertEquals(0, stats.getWarmerStats().getOngoingCount());
+        assertEquals(0, stats.getWarmerStats().getTotalSendTime().getMillis());
+        assertEquals(0, stats.getWarmerStats().getTotalReceiveTime().getMillis());
     }
 
     public void testAddMergeStats() {
@@ -85,6 +104,15 @@ public class MergeStatsTests extends OpenSearchTestCase {
         assertEquals(3, stats1.getCurrent());
         assertEquals(40, stats1.getCurrentNumDocs());
         assertEquals(768, stats1.getCurrentSizeInBytes());
+
+        assertEquals(2, stats1.getWarmerStats().getTotalInvocationsCount());
+        assertEquals(20, stats1.getWarmerStats().getTotalTime().getMillis());
+        assertEquals(0, stats1.getWarmerStats().getTotalFailureCount());
+        assertEquals(new ByteSizeValue(200), stats1.getWarmerStats().getTotalSentSize());
+        assertEquals(new ByteSizeValue(400), stats1.getWarmerStats().getTotalReceivedSize());
+        assertEquals(0, stats1.getWarmerStats().getOngoingCount());
+        assertEquals(10, stats1.getWarmerStats().getTotalSendTime().getMillis());
+        assertEquals(30, stats1.getWarmerStats().getTotalReceiveTime().getMillis());
     }
 
     public void testAddTotals() {
@@ -92,7 +120,7 @@ public class MergeStatsTests extends OpenSearchTestCase {
         MergeStats stats2 = new MergeStats();
 
         MergedSegmentWarmerStats warmerStats = new MergedSegmentWarmerStats();
-        warmerStats.add(1, 10, 0, 100, 200, 5, 15, 0);
+        warmerStats.add(1, 10, 0, 100, 200, 5, 15, 7);
 
         stats1.add(5, 100, 50, 1024, 2, 25, 512, 10, 20, 1.5, warmerStats);
         stats2.add(3, 50, 30, 512, 1, 15, 256, 5, 10, 1.0, warmerStats);
@@ -100,11 +128,23 @@ public class MergeStatsTests extends OpenSearchTestCase {
         stats1.addTotals(stats2);
 
         assertEquals(8, stats1.getTotal());
+        assertEquals(2, stats1.getCurrent()); // not expected to get added with addTotals
+        assertEquals(25, stats1.getCurrentNumDocs()); // not expected to get added with addTotals
+        assertEquals(512, stats1.getCurrentSizeInBytes()); // not expected to get added with addTotals
         assertEquals(150, stats1.getTotalTimeInMillis());
         assertEquals(80, stats1.getTotalNumDocs());
         assertEquals(1536, stats1.getTotalSizeInBytes());
         assertEquals(15, stats1.getTotalStoppedTimeInMillis());
         assertEquals(30, stats1.getTotalThrottledTimeInMillis());
+
+        assertEquals(2, stats1.getWarmerStats().getTotalInvocationsCount());
+        assertEquals(20, stats1.getWarmerStats().getTotalTime().getMillis());
+        assertEquals(0, stats1.getWarmerStats().getTotalFailureCount());
+        assertEquals(new ByteSizeValue(200), stats1.getWarmerStats().getTotalSentSize());
+        assertEquals(new ByteSizeValue(400), stats1.getWarmerStats().getTotalReceivedSize());
+        assertEquals(7, stats1.getWarmerStats().getOngoingCount()); // not expected to get added with addTotals
+        assertEquals(10, stats1.getWarmerStats().getTotalSendTime().getMillis());
+        assertEquals(30, stats1.getWarmerStats().getTotalReceiveTime().getMillis());
     }
 
     public void testAddWithNull() {
@@ -199,6 +239,6 @@ public class MergeStatsTests extends OpenSearchTestCase {
         assertTrue(json.contains("total_time_in_millis"));
         assertTrue(json.contains("total_docs"));
         assertTrue(json.contains("total_size_in_bytes"));
-        assertTrue(json.contains("merged_segment_warmer"));
+        assertTrue(json.contains("warmer"));
     }
 }

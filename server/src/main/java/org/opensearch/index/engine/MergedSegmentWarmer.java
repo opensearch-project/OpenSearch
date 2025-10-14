@@ -82,7 +82,8 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
                     finalElapsedTime
                 );
             });
-        } catch (IOException e) {
+        } catch (Throwable t) {
+            logger.warn(() -> new ParameterizedMessage("Failed to warm segment. Continuing. {}", leafReader), t);
             mergedSegmentTransferTracker.incrementTotalWarmFailureCount();
         } finally {
             mergedSegmentTransferTracker.addTotalWarmTimeMillis(elapsedTime);

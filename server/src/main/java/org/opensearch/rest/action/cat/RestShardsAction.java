@@ -216,35 +216,35 @@ public class RestShardsAction extends AbstractListAction {
         table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
         table.addCell(
-            "merges.merged_segment_warmer.total_invocations",
+            "merges.warmer.total_invocations",
             "alias:mswti,mergedSegmentWarmerTotalInvocations;default:false;text-align:right;desc:total invocations of merged segment warmer"
         );
         table.addCell(
-            "merges.merged_segment_warmer.total_time",
+            "merges.warmer.total_time",
             "alias:mswtt,mergedSegmentWarmerTotalTime;default:false;text-align:right;desc:total wallclock time spent in the warming operation"
         );
         table.addCell(
-            "merges.merged_segment_warmer.ongoing_count",
+            "merges.warmer.ongoing_count",
             "alias:mswoc,mergedSegmentWarmerOngoingCount;default:false;text-align:right;desc:point-in-time metric for number of in-progress warm operations"
         );
         table.addCell(
-            "merges.merged_segment_warmer.total_bytes_received",
+            "merges.warmer.total_bytes_received",
             "alias:mswtbr,mergedSegmentWarmerTotalBytesReceived;default:false;text-align:right;desc:total bytes received by a replica shard during the warm operation"
         );
         table.addCell(
-            "merges.merged_segment_warmer.total_bytes_sent",
+            "merges.warmer.total_bytes_sent",
             "alias:mswtbs,mergedSegmentWarmerTotalBytesSent;default:false;text-align:right;desc:total bytes sent by a primary shard during the warm operation"
         );
         table.addCell(
-            "merges.merged_segment_warmer.total_receive_time",
+            "merges.warmer.total_receive_time",
             "alias:mswtrt,mergedSegmentWarmerTotalReceiveTime;default:false;text-align:right;desc:total wallclock time spent receiving merged segments by a replica shard"
         );
         table.addCell(
-            "merges.merged_segment_warmer.total_failure_count",
+            "merges.warmer.total_failure_count",
             "alias:mswtfc,mergedSegmentWarmerTotalFailureCount;default:false;text-align:right;desc:total failures in merged segment warmer"
         );
         table.addCell(
-            "merges.merged_segment_warmer.total_send_time",
+            "merges.warmer.total_send_time",
             "alias:mswtst,mergedSegmentWarmerTotalSendTime;default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
         );
 

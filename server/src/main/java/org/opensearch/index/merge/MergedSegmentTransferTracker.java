@@ -23,10 +23,10 @@ public class MergedSegmentTransferTracker {
     private final CounterMetric totalWarmInvocationsCount = new CounterMetric();
     private final CounterMetric totalWarmTimeMillis = new CounterMetric();
     private final CounterMetric totalWarmFailureCount = new CounterMetric();
-    private final CounterMetric totalBytesUploaded = new CounterMetric();
-    private final CounterMetric totalBytesDownloaded = new CounterMetric();
-    private final CounterMetric totalUploadTimeMillis = new CounterMetric();
-    private final CounterMetric totalDownloadTimeMillis = new CounterMetric();
+    private final CounterMetric totalBytesSent = new CounterMetric();
+    private final CounterMetric totalBytesReceived = new CounterMetric();
+    private final CounterMetric totalSendTimeMillis = new CounterMetric();
+    private final CounterMetric totalReceiveTimeMillis = new CounterMetric();
     private final CounterMetric ongoingWarms = new CounterMetric();
 
     public void incrementTotalWarmInvocationsCount() {
@@ -49,20 +49,20 @@ public class MergedSegmentTransferTracker {
         totalWarmTimeMillis.inc(time);
     }
 
-    public void addTotalUploadTimeMillis(long time) {
-        totalUploadTimeMillis.inc(time);
+    public void addTotalSendTimeMillis(long time) {
+        totalSendTimeMillis.inc(time);
     }
 
-    public void addTotalDownloadTimeMillis(long time) {
-        totalDownloadTimeMillis.inc(time);
+    public void addTotalReceiveTimeMillis(long time) {
+        totalReceiveTimeMillis.inc(time);
     }
 
-    public void addTotalBytesUploaded(long bytes) {
-        totalBytesUploaded.inc(bytes);
+    public void addTotalBytesSent(long bytes) {
+        totalBytesSent.inc(bytes);
     }
 
-    public void addTotalBytesDownloaded(long bytes) {
-        totalBytesDownloaded.inc(bytes);
+    public void addTotalBytesReceived(long bytes) {
+        totalBytesReceived.inc(bytes);
     }
 
     public MergedSegmentWarmerStats stats() {
@@ -71,10 +71,10 @@ public class MergedSegmentTransferTracker {
             totalWarmInvocationsCount.count(),
             totalWarmTimeMillis.count(),
             totalWarmFailureCount.count(),
-            totalBytesUploaded.count(),
-            totalBytesDownloaded.count(),
-            totalUploadTimeMillis.count(),
-            totalDownloadTimeMillis.count(),
+            totalBytesSent.count(),
+            totalBytesReceived.count(),
+            totalSendTimeMillis.count(),
+            totalReceiveTimeMillis.count(),
             ongoingWarms.count()
         );
         return stats;

@@ -20,17 +20,20 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -55,7 +58,9 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
     public Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
-            .put(ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 5)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 1)
+            .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)
             .build();
     }
 
@@ -72,7 +77,7 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
 
     public void testNodesStats() throws Exception {
         setup();
-        String[] indices = setupIndices(3);
+        String[] indices = setupIndices(1);
 
         ClusterState state = getClusterState();
         List<String> nodes = state.nodes().getNodes().values().stream().map(DiscoveryNode::getName).toList();
@@ -89,7 +94,6 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
             // Shard stats
             List<NodeStats> allNodesStats = response.getNodes();
             assertEquals(2, allNodesStats.size());
-
             for (NodeStats nodeStats : allNodesStats) {
                 assertNotNull(nodeStats.getIndices());
                 MergeStats mergeStats = nodeStats.getIndices().getMerge();
@@ -99,13 +103,24 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
                 assertNotNull(mergedSegmentWarmerStats);
                 assertMergedSegmentWarmerStats(mergedSegmentWarmerStats, StatsScope.AGGREGATED);
             }
+
+            assertEquals(
+                "Expected sent size by node 2 to be equal to recieved size by node 1.",
+                allNodesStats.get(0).getIndices().getMerge().getWarmerStats().getTotalReceivedSize(),
+                allNodesStats.get(1).getIndices().getMerge().getWarmerStats().getTotalSentSize()
+            );
+            assertEquals(
+                "Expected sent size by node 1 to be equal to recieved size by node 2.",
+                allNodesStats.get(0).getIndices().getMerge().getWarmerStats().getTotalSentSize(),
+                allNodesStats.get(1).getIndices().getMerge().getWarmerStats().getTotalReceivedSize()
+            );
         }
     }
 
     public void testShardStats() throws Exception {
         setup();
 
-        String[] indices = setupIndices(2);
+        String[] indices = setupIndices(1);
 
         ClusterState state = getClusterState();
         List<String> nodes = state.nodes().getNodes().values().stream().map(DiscoveryNode::getName).toList();
@@ -114,6 +129,8 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
         for (String index : indices) {
             client().admin().indices().forceMerge(new ForceMergeRequest(index).maxNumSegments(2));
         }
+        Map<String, Map<String, ByteSizeValue>> shardsSentAndReceivedSize = new HashMap<>();
+
         for (String node : nodes) {
             IndicesStatsResponse response = client(node).admin().indices().stats(new IndicesStatsRequest()).get();
 
@@ -131,13 +148,34 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
                 MergedSegmentWarmerStats mergedSegmentWarmerStats = mergeStats.getWarmerStats();
                 assertNotNull(mergedSegmentWarmerStats);
                 assertMergedSegmentWarmerStats(mergedSegmentWarmerStats, type);
+
+                String primaryOrReplica = type.equals(StatsScope.PRIMARY_SHARD) ? "[P]" : "[R]";
+                shardsSentAndReceivedSize.put(shardStats.getShardRouting().shardId() + primaryOrReplica, new HashMap<>() {
+                    {
+                        put("RECEIVED", mergedSegmentWarmerStats.getTotalReceivedSize());
+                        put("SENT", mergedSegmentWarmerStats.getTotalSentSize());
+                    }
+                });
             }
+        }
+
+        for (int shard = 0; shard <= 1; shard++) {
+            assertEquals(
+                "Expected sent size by primary shard to be equal to recieved size by replica shard.",
+                shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][R]").get("RECEIVED"),
+                shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][P]").get("SENT")
+            );
+            assertEquals(
+                "Expected sent size by replica shard to be equal to recieved size by primary shard.",
+                shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][R]").get("SENT"),
+                shardsSentAndReceivedSize.get("[" + indices[0] + "][" + shard + "][P]").get("RECEIVED")
+            );
         }
     }
 
     public void testIndicesStats() throws Exception {
         setup();
-        String[] indices = setupIndices(3);
+        String[] indices = setupIndices(1);
 
         ClusterState state = getClusterState();
         List<String> nodes = state.nodes().getNodes().values().stream().map(DiscoveryNode::getName).toList();
@@ -152,7 +190,7 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
 
             // Shard stats
             Map<String, IndexStats> allIndicesStats = response.getIndices();
-            assertEquals(3, allIndicesStats.size());
+            assertEquals(1, allIndicesStats.size());
             for (String index : indices) {
                 IndexStats indexStats = allIndicesStats.get(index);
                 CommonStats totalStats = indexStats.getTotal();
@@ -181,7 +219,7 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
     }
 
     private void assertMergeStats(MergeStats stats, StatsScope type) {
-        if (type == StatsScope.PRIMARY_SHARD) {
+        if (Arrays.asList(StatsScope.PRIMARY_SHARD, StatsScope.AGGREGATED).contains(type)) {
             assertTrue("Current merges should be >= 0", stats.getCurrent() >= 0);
             assertTrue("Current merge docs should be >= 0", stats.getCurrentNumDocs() >= 0);
             assertTrue("Current merge size should be >= 0", stats.getCurrentSizeInBytes() >= 0);
@@ -209,29 +247,6 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
             assertEquals("Replica shard total stopped time should be 0", 0, stats.getTotalStoppedTime().getMillis());
             assertEquals("Replica shard total throttled time should be 0", 0, stats.getTotalThrottledTime().getMillis());
             assertEquals("Replica shard total throttled time should be 0", 0, stats.getTotalThrottledTimeInMillis());
-        } else if (type == StatsScope.AGGREGATED) {
-            // the node might have both primaries and replicas, only primaries, or only replicas
-            boolean primaryShardStatsResult = false;
-            boolean replicaShardStatsResult = false;
-            List<AssertionError> errors = new ArrayList<>();
-            try {
-                assertMergeStats(stats, StatsScope.PRIMARY_SHARD);
-                primaryShardStatsResult = true;
-            } catch (AssertionError error) {
-                errors.add(error);
-            }
-
-            try {
-                assertMergeStats(stats, StatsScope.REPLICA_SHARD);
-                replicaShardStatsResult = true;
-            } catch (AssertionError error) {
-                errors.add(error);
-            }
-
-            assertTrue(
-                "Stats should match either primary or replica shard patterns or both. Errors: " + errors,
-                primaryShardStatsResult || replicaShardStatsResult
-            );
         }
     }
 
@@ -239,7 +254,7 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
         if (type == StatsScope.PRIMARY_SHARD) {
             assertTrue("Primary shard warm invocations should be >= 1", stats.getTotalInvocationsCount() >= 1);
             assertTrue("Primary shard warm time should be >= 1ms", stats.getTotalTime().getMillis() >= 1);
-            assertTrue("Primary shard warm failures should be >= 0", stats.getTotalFailureCount() >= 0);
+            assertEquals("Primary shard warm failures should be == 0", 0, stats.getTotalFailureCount());
             assertTrue("Primary shard sent size should be >= 0", stats.getTotalSentSize().getBytes() >= 0);
             assertEquals("Primary shard received size should be 0", 0, stats.getTotalReceivedSize().getBytes());
             assertTrue("Primary shard send time should be >= 0", stats.getTotalSendTime().millis() >= 0);
@@ -255,47 +270,35 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
             assertTrue("Replica shard receive time should be >= 1ms", stats.getTotalReceiveTime().millis() >= 1);
             assertEquals("Replica shard ongoing warms should be 0", 0, stats.getOngoingCount());
         } else if (type == StatsScope.AGGREGATED) {
-            // the node might have both primaries and replicas, only primaries, or only replicas
-
-            // would evaluate to true if the node only contains primary shards
-            boolean primaryShardStatsResult = false;
-
-            // would evaluate to true if the node only contains replica shards
-            boolean replicaShardStatsResult = false;
-
-            // would evaluate to true if the node contains a mix of primary and replica shards
-            boolean primaryAndReplicaShardsResult = stats.getOngoingCount() >= 0
-                && stats.getTotalTime().getMillis() >= 1
-                && stats.getTotalSendTime().getMillis() >= 1
-                && stats.getTotalReceiveTime().getMillis() >= 1
-                && stats.getTotalInvocationsCount() >= 1
-                && stats.getTotalReceivedSize().getBytes() >= 1
-                && stats.getTotalSentSize().getBytes() >= 1
-                && stats.getTotalFailureCount() >= 0;
-
-            if (primaryAndReplicaShardsResult = true) {
-                return;
-            }
-
-            List<AssertionError> errors = new ArrayList<>();
-
-            try {
-                assertMergedSegmentWarmerStats(stats, StatsScope.PRIMARY_SHARD);
-                primaryShardStatsResult = true; // would be true if the node contains only primary shard
-            } catch (AssertionError error) {
-                errors.add(error);
-            }
-
-            try {
-                assertMergedSegmentWarmerStats(stats, StatsScope.REPLICA_SHARD);
-                replicaShardStatsResult = true; // would be true if the node only contains replica shards
-            } catch (AssertionError error) {
-                errors.add(error);
-            }
-
+            assertTrue("Expected warmerStats.getOngoingCount >= 0, found " + stats.getOngoingCount(), stats.getOngoingCount() >= 0);
             assertTrue(
-                "Stats should match either primary or replica shard or patterns both. Errors: " + errors,
-                primaryShardStatsResult || replicaShardStatsResult
+                "Expected warmerStats.getTotalTime >= 1, found " + stats.getTotalTime().millis(),
+                stats.getTotalTime().getMillis() >= 1
+            );
+            assertTrue(
+                "Expected warmerStats.getTotalSendTime >= 1, found " + stats.getTotalSendTime().getMillis(),
+                stats.getTotalSendTime().getMillis() >= 1
+            );
+            assertTrue(
+                "Expected warmerStats.getTotalReceiveTime >= 1, found " + stats.getTotalReceiveTime().getMillis(),
+                stats.getTotalReceiveTime().getMillis() >= 1
+            );
+            assertTrue(
+                "Expected warmerStats.getTotalInvocationsCount >= 1, found " + stats.getTotalInvocationsCount(),
+                stats.getTotalInvocationsCount() >= 1
+            );
+            assertTrue(
+                "Expected warmerStats.getTotalReceivedSize >= 1, found " + stats.getTotalReceivedSize().getBytes(),
+                stats.getTotalReceivedSize().getBytes() >= 1
+            );
+            assertTrue(
+                "Expected warmerStats.getTotalSentSize >= 1, found " + stats.getTotalSentSize().getBytes(),
+                stats.getTotalSentSize().getBytes() >= 1
+            );
+            assertEquals(
+                "Expected warmerStats.getTotalFailureCount == 0, found " + stats.getTotalFailureCount(),
+                0,
+                stats.getTotalFailureCount()
             );
         }
     }

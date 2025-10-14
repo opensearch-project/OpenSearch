@@ -135,7 +135,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.MERGED_SEGMENT_WARMER);
+        builder.startObject(Fields.WARMER);
         builder.field(Fields.WARM_INVOCATIONS_COUNT, totalInvocationsCount);
         builder.humanReadableField(Fields.TOTAL_TIME_MILLIS, Fields.TOTAL_TIME, getTotalTime());
         builder.field(Fields.TOTAL_FAILURE_COUNT, totalFailureCount);
@@ -154,7 +154,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
      * @opensearch.internal
      */
     static final class Fields {
-        static final String MERGED_SEGMENT_WARMER = "merged_segment_warmer";
+        static final String WARMER = "warmer";
         static final String WARM_INVOCATIONS_COUNT = "total_invocations_count";
         static final String TOTAL_TIME_MILLIS = "total_time_millis";
         static final String TOTAL_FAILURE_COUNT = "total_failure_count";
