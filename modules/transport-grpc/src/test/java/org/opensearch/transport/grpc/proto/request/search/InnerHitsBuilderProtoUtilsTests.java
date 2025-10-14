@@ -20,6 +20,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -109,7 +110,11 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithFetchFields() throws IOException {
         // Create a protobuf InnerHits with fetch fields
-        InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").addFields("field1").addFields("field2").build();
+        InnerHits innerHits = InnerHits.newBuilder()
+            .setName("test_inner_hits")
+            .addFields(org.opensearch.protobufs.FieldAndFormat.newBuilder().setField("field1").build())
+            .addFields(org.opensearch.protobufs.FieldAndFormat.newBuilder().setField("field2").build())
+            .build();
 
         // Call the method under test
         InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits);
@@ -220,8 +225,10 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         List<InnerHits> innerHitsList = Arrays.asList(innerHits1, innerHits2);
 
-        // Call the method under test
-        List<InnerHitBuilder> innerHitBuilders = InnerHitsBuilderProtoUtils.fromProto(innerHitsList);
+        List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
+        for (InnerHits innerHits : innerHitsList) {
+            innerHitBuilders.add(InnerHitsBuilderProtoUtils.fromProto(innerHits));
+        }
 
         // Verify the result
         assertNotNull("InnerHitBuilder list should not be null", innerHitBuilders);
@@ -239,8 +246,11 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithEmptyList() throws IOException {
-        // Call the method under test with an empty list
-        List<InnerHitBuilder> innerHitBuilders = InnerHitsBuilderProtoUtils.fromProto(Arrays.asList());
+        List<InnerHits> emptyList = Arrays.asList();
+        List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
+        for (InnerHits innerHits : emptyList) {
+            innerHitBuilders.add(InnerHitsBuilderProtoUtils.fromProto(innerHits));
+        }
 
         // Verify the result
         assertNotNull("InnerHitBuilder list should not be null", innerHitBuilders);
@@ -255,16 +265,6 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
         );
 
         assertEquals("InnerHits cannot be null", exception.getMessage());
-    }
-
-    public void testFromProtoWithNullList() {
-        // Test null input validation for InnerHits list
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> InnerHitsBuilderProtoUtils.fromProto((List<InnerHits>) null)
-        );
-
-        assertEquals("InnerHits list cannot be null", exception.getMessage());
     }
 
     public void testFromProtoWithSort() throws IOException {

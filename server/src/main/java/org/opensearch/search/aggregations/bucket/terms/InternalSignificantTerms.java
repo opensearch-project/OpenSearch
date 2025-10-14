@@ -88,7 +88,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         long supersetSize;
         long bucketOrd;
         double score;
-        protected InternalAggregations aggregations;
+        InternalAggregations aggregations;
         final transient DocValueFormat format;
 
         protected Bucket(

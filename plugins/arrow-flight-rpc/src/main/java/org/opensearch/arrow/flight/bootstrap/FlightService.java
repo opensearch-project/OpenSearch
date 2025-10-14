@@ -125,7 +125,7 @@ public class FlightService extends AuxTransport {
             allocator = AccessController.doPrivileged((PrivilegedAction<BufferAllocator>) () -> new RootAllocator(Integer.MAX_VALUE));
             serverComponents.setAllocator(allocator);
             SslContextProvider sslContextProvider = ServerConfig.isSslEnabled()
-                ? new DefaultSslContextProvider(secureTransportSettingsProvider)
+                ? new DefaultSslContextProvider(secureTransportSettingsProvider, serverComponents.clusterService.getSettings())
                 : null;
             serverComponents.setSslContextProvider(sslContextProvider);
             serverComponents.initComponents();

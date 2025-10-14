@@ -108,6 +108,9 @@ public class BucketCollectorProcessor {
             } else if (currentCollector instanceof BucketCollector) {
                 // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator) {
+                    // Call postCollection() before building to ensure collectors finalize their data
+                    // This is critical for aggregators like CardinalityAggregator that defer processing until postCollect()
+                    ((BucketCollector) currentCollector).postCollection();
                     aggregations.add(((Aggregator) currentCollector).buildTopLevelBatch());
                 } else if (currentCollector instanceof MultiBucketCollector) {
                     for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {

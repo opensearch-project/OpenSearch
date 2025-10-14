@@ -56,6 +56,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.FlushMode;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -118,10 +119,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    // if user doesn't provide execution mode, and using stream search
-                    // we use stream aggregation
-                    if (context.isStreamSearch()) {
-                        return createStreamAggregator(
+                    // Check if streaming is enabled and flush mode allows it (null means not yet evaluated)
+                    if (context.isStreamSearch() && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
+                        return createStreamStringTermsAggregator(
                             name,
                             factories,
                             valuesSource,
@@ -207,7 +207,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                             + "include/exclude clauses used to filter numeric fields"
                     );
                 }
-
                 if (subAggCollectMode == null) {
                     subAggCollectMode = pickSubAggCollectMode(factories, bucketCountThresholds.getShardSize(), -1, context);
                 }
@@ -230,6 +229,23 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         longFilter = includeExclude.convertToLongFilter(format);
                     }
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
+                }
+                if (context.isStreamSearch() && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
+                    return createStreamNumericTermsAggregator(
+                        name,
+                        factories,
+                        numericValuesSource,
+                        format,
+                        order,
+                        bucketCountThresholds,
+                        context,
+                        parent,
+                        longFilter,
+                        includeExclude,
+                        showTermDocCountError,
+                        cardinality,
+                        metadata
+                    );
                 }
                 return new NumericTermsAggregator(
                     name,
@@ -355,7 +371,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             // We expect to return all buckets so delaying them won't save any time
             return SubAggCollectionMode.DEPTH_FIRST;
         }
-        if (context.isStreamSearch()) {
+        if (context.isStreamSearch() && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
             return SubAggCollectionMode.DEPTH_FIRST;
         }
         if (maxOrd == -1 || maxOrd > expectedSize) {
@@ -578,7 +594,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
-    static Aggregator createStreamAggregator(
+    static Aggregator createStreamStringTermsAggregator(
         String name,
         AggregatorFactories factories,
         ValuesSource valuesSource,
@@ -608,6 +624,55 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 metadata
             );
         }
+    }
+
+    static Aggregator createStreamNumericTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        DocValueFormat format,
+        BucketOrder order,
+        BucketCountThresholds bucketCountThresholds,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        IncludeExclude.LongFilter longFilter,
+        IncludeExclude includeExclude,
+        boolean showTermDocCountError,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        Function<StreamNumericTermsAggregator, StreamNumericTermsAggregator.ResultStrategy<?, ?>> resultStrategy;
+        if (valuesSource.isFloatingPoint()) {
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToDoubleFilter();
+            }
+            resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
+        } else if (valuesSource.isBigInteger()) {
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToDoubleFilter();
+            }
+            resultStrategy = agg -> agg.new UnsignedLongTermsResults(showTermDocCountError);
+        } else {
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToLongFilter(format);
+            }
+            resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
+        }
+        return new StreamNumericTermsAggregator(
+            name,
+            factories,
+            resultStrategy,
+            valuesSource,
+            format,
+            order,
+            bucketCountThresholds,
+            aggregationContext,
+            parent,
+            SubAggCollectionMode.DEPTH_FIRST,
+            longFilter,
+            cardinality,
+            metadata
+        );
     }
 
     @Override

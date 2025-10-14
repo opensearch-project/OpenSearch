@@ -20,17 +20,25 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -43,18 +51,40 @@ import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCount;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
+import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.Timer;
+import org.opensearch.search.profile.aggregation.AggregationProfileBreakdown;
+import org.opensearch.search.profile.aggregation.AggregationProfiler;
+import org.opensearch.search.profile.aggregation.ProfilingAggregator;
+import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.streaming.FlushMode;
+import org.opensearch.search.streaming.Streamable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
     public void testBuildAggregationsBatchDirectBucketCreation() throws Exception {
@@ -338,14 +368,156 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testBuildAggregationsBatchReset() throws Exception {
+    public void testBuildAggregationsWithContextSearcherNoProfile() throws Exception {
+        doAggOverManySegments(false);
+    }
+
+    public void testBuildAggregationsWithContextSearcherProfile() throws Exception {
+        doAggOverManySegments(true);
+    }
+
+    private void doAggOverManySegments(boolean profile) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                boolean isSegmented = false;
+                for (int i = 0; i < 3; i++) {
+                    Document document = new Document();
+                    document.add(new SortedSetDocValuesField("field", new BytesRef("common")));
+                    indexWriter.addDocument(document);
+                    if (rarely()) {
+                        indexWriter.flush();
+                        isSegmented = true;
+                    }
+                }
+                indexWriter.flush();
+                for (int i = 0; i < 2; i++) {
+                    Document document = new Document();
+                    document.add(new SortedSetDocValuesField("field", new BytesRef("medium")));
+                    indexWriter.addDocument(document);
+                    if (rarely()) {
+                        indexWriter.flush();
+                        isSegmented = true;
+                    }
+                }
+
+                if (!isSegmented) {
+                    indexWriter.flush();
+                }
+
                 Document document = new Document();
-                document.add(new SortedSetDocValuesField("field", new BytesRef("test")));
+                document.add(new SortedSetDocValuesField("field", new BytesRef("rare")));
                 indexWriter.addDocument(document);
 
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    SearchContext searchContext = createSearchContext(
+                        indexSearcher,
+                        createIndexSettings(),
+                        null,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
+                    );
+                    when(searchContext.isStreamSearch()).thenReturn(true);
+                    when(searchContext.getFlushMode()).thenReturn(FlushMode.PER_SEGMENT);
+                    SearchShardTarget searchShardTarget = new SearchShardTarget(
+                        "node_1",
+                        new ShardId("foo", "_na_", 1),
+                        null,
+                        OriginalIndices.NONE
+                    );
+                    when(searchContext.shardTarget()).thenReturn(searchShardTarget);
+                    SearchShardTask task = new SearchShardTask(0, "n/a", "n/a", "test-kind", null, null);
+                    searchContext.setTask(task);
+                    when(searchContext.queryResult()).thenReturn(new QuerySearchResult());
+                    when(searchContext.fetchResult()).thenReturn(new FetchSearchResult());
+                    StreamSearchChannelListener listenerMock = mock(StreamSearchChannelListener.class);
+                    final List<InternalAggregations> perSegAggs = new ArrayList<>();
+                    when(searchContext.getStreamChannelListener()).thenReturn(listenerMock);
+                    doAnswer((invok) -> {
+                        QuerySearchResult querySearchResult = ((QueryFetchSearchResult) invok.getArgument(0, TransportResponse.class))
+                            .queryResult();
+                        InternalAggregations internalAggregations = querySearchResult.aggregations().expand();
+                        perSegAggs.add(internalAggregations);
+                        return null;
+                    }).when(listenerMock).onStreamResponse(any(), anyBoolean());
+                    ContextIndexSearcher contextIndexSearcher = searchContext.searcher();
+
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .order(BucketOrder.count(false));
+
+                    Aggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    if (profile) {
+                        aggregator = wrapByProfilingAgg(aggregator);
+                    }
+
+                    aggregator.preCollection();
+
+                    contextIndexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    InternalAggregation.ReduceContext ctx = InternalAggregation.ReduceContext.forFinalReduction(
+                        new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+                        getMockScriptService(),
+                        b -> {},
+                        PipelineTree.EMPTY
+                    );
+
+                    assertThat(perSegAggs, not(empty()));
+                    InternalAggregations summary = InternalAggregations.reduce(perSegAggs, ctx);
+
+                    StringTerms result = summary.get("test");
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(3));
+
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("common"));
+                    assertThat(buckets.get(0).getDocCount(), equalTo(3L));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("medium"));
+                    assertThat(buckets.get(1).getDocCount(), equalTo(2L));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("rare"));
+                    assertThat(buckets.get(2).getDocCount(), equalTo(1L));
+                }
+            }
+        }
+    }
+
+    private static Aggregator wrapByProfilingAgg(Aggregator aggregator) throws IOException {
+        AggregationProfiler aggregationProfiler = mock(AggregationProfiler.class);
+        AggregationProfileBreakdown aggregationProfileBreakdown = mock(AggregationProfileBreakdown.class);
+        when(aggregationProfileBreakdown.getTimer(any())).thenReturn(mock(Timer.class));
+        when(aggregationProfiler.getQueryBreakdown(any())).thenReturn(aggregationProfileBreakdown);
+        aggregator = new ProfilingAggregator(aggregator, aggregationProfiler);
+        return aggregator;
+    }
+
+    public void testBuildAggregationsBatchReset() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("test")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("best")));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
@@ -369,7 +541,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     aggregator.postCollection();
 
                     StringTerms firstResult = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
-                    assertThat(firstResult.getBuckets().size(), equalTo(1));
+                    assertThat(firstResult.getBuckets().size(), equalTo(2));
 
                     aggregator.doReset();
 
@@ -379,7 +551,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     aggregator.postCollection();
 
                     StringTerms secondResult = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
-                    assertThat(secondResult.getBuckets().size(), equalTo(1));
+                    assertThat(secondResult.getBuckets().size(), equalTo(2));
                     assertThat(secondResult.getBuckets().get(0).getDocCount(), equalTo(1L));
                 }
             }
@@ -426,7 +598,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithMax() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 document.add(new NumericDocValuesField("price", 100));
@@ -442,7 +614,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new NumericDocValuesField("price", 50));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
                     MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG);
@@ -1162,6 +1334,41 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testThrowOnManySegments() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < atLeast(2); i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
+                    indexWriter.addDocument(doc);
+                    indexWriter.commit();
+                }
+                try (IndexReader reader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .order(BucketOrder.count(false)); // Order by count descending
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        searcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    // Execute the aggregator
+                    aggregator.preCollection();
+                    assertThrows(IllegalStateException.class, () -> { searcher.search(new MatchAllDocsQuery(), aggregator); });
+                }
+            }
+        }
+    }
+
     private InternalAggregation buildInternalStreamingAggregation(
         TermsAggregationBuilder builder,
         MappedFieldType fieldType1,
@@ -1209,5 +1416,104 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
         searcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
         return aggregator.buildTopLevel();
+    }
+
+    public void testStreamingCostMetrics() {
+        assertTrue(
+            "StreamStringTermsAggregator should implement Streamable",
+            Streamable.class.isAssignableFrom(StreamStringTermsAggregator.class)
+        );
+    }
+
+    public void testStreamingCostMetricsValues() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 100; i++) {
+                    Document document = new Document();
+                    document.add(new SortedSetDocValuesField("field", new BytesRef("term_" + (i % 10))));
+                    indexWriter.addDocument(document);
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field").size(5);
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    StreamingCostMetrics metrics = aggregator.getStreamingCostMetrics();
+
+                    assertThat(metrics, notNullValue());
+                    assertTrue("Should be streamable", metrics.streamable());
+                    assertTrue("TopN size should be positive", metrics.topNSize() > 0);
+                    assertEquals("Segment count should be 1", 1, metrics.segmentCount());
+                    assertEquals("Should have 10 unique terms", 10, metrics.estimatedBucketCount());
+                    assertEquals("Should have 100 documents", 100, metrics.estimatedDocCount());
+                }
+            }
+        }
+    }
+
+    public void testCollectDebugInfo() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("a")));
+                iw.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
+                iw.addDocument(document);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
+
+                TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("string");
+                StreamStringTermsAggregator aggregator = createStreamAggregator(
+                    null,
+                    aggregationBuilder,
+                    indexSearcher,
+                    createIndexSettings(),
+                    new MultiBucketConsumerService.MultiBucketConsumer(
+                        DEFAULT_MAX_BUCKETS,
+                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                    ),
+                    fieldType
+                );
+
+                // Collect debug info
+                Map<String, Object> debugInfo = new HashMap<>();
+                BiConsumer<String, Object> debugCollector = debugInfo::put;
+                aggregator.collectDebugInfo(debugCollector);
+
+                assertTrue("Should contain result_strategy", debugInfo.containsKey("result_strategy"));
+                assertEquals("streaming_terms", debugInfo.get("result_strategy"));
+
+                assertTrue("Should contain segments_with_single_valued_ords", debugInfo.containsKey("segments_with_single_valued_ords"));
+                assertTrue("Should contain segments_with_multi_valued_ords", debugInfo.containsKey("segments_with_multi_valued_ords"));
+
+                assertTrue("Should contain streaming_enabled", debugInfo.containsKey("streaming_enabled"));
+                assertTrue("Should contain streaming_top_n_size", debugInfo.containsKey("streaming_top_n_size"));
+                assertTrue("Should contain streaming_estimated_buckets", debugInfo.containsKey("streaming_estimated_buckets"));
+                assertTrue("Should contain streaming_estimated_docs", debugInfo.containsKey("streaming_estimated_docs"));
+                assertTrue("Should contain streaming_segment_count", debugInfo.containsKey("streaming_segment_count"));
+
+                assertEquals(Boolean.TRUE, debugInfo.get("streaming_enabled"));
+                assertTrue("streaming_top_n_size should be positive", (Long) debugInfo.get("streaming_top_n_size") > 0);
+                assertTrue("streaming_segment_count should be positive", (Integer) debugInfo.get("streaming_segment_count") > 0);
+            }
+        }
     }
 }

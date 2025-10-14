@@ -305,7 +305,7 @@ public abstract class AggregatorBase extends Aggregator {
         collectableSubAggregators.reset();
     }
 
-    protected void doReset() {}
+    public void doReset() {}
 
     /** Called upon release of the aggregator. */
     @Override

@@ -38,6 +38,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.NodesResourceUsageStats;
@@ -63,6 +64,9 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     @Nullable // if no fakery should take place
     private volatile BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction;
 
+    @Nullable
+    private AggregateFileCacheStats aggregateFileCacheStats;
+
     @Nullable // if no fakery should take place
     private volatile Function<String, NodeResourceUsageStats> resourceUsageFunction;
 
@@ -72,6 +76,11 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
     public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction) {
         this.diskUsageFunction = diskUsageFunction;
+        refresh();
+    }
+
+    public void setAggregateFileCacheStats(AggregateFileCacheStats aggregateFileCacheStats) {
+        this.aggregateFileCacheStats = aggregateFileCacheStats;
         refresh();
     }
 
@@ -134,7 +143,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getSearchBackpressureStats(),
                 nodeStats.getClusterManagerThrottlingStats(),
                 nodeStats.getWeightedRoutingStats(),
-                nodeStats.getFileCacheStats(),
+                this.aggregateFileCacheStats != null ? this.aggregateFileCacheStats : nodeStats.getFileCacheStats(),
                 nodeStats.getTaskCancellationStats(),
                 nodeStats.getSearchPipelineStats(),
                 nodeStats.getSegmentReplicationRejectionStats(),

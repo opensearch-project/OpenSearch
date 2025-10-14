@@ -88,24 +88,24 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     private static final Logger logger = LogManager.getLogger(CardinalityAggregator.class);
 
-    private final CardinalityAggregatorFactory.ExecutionMode executionMode;
-    private final int precision;
-    private final ValuesSource valuesSource;
+    final CardinalityAggregatorFactory.ExecutionMode executionMode;
+    final int precision;
+    final ValuesSource valuesSource;
 
     private final ValuesSourceConfig valuesSourceConfig;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
     @Nullable
-    private HyperLogLogPlusPlus counts;
+    HyperLogLogPlusPlus counts;
 
-    private Collector collector;
+    Collector collector;
 
-    private int emptyCollectorsUsed;
-    private int numericCollectorsUsed;
-    private int ordinalsCollectorsUsed;
-    private int ordinalsCollectorsOverheadTooHigh;
-    private int stringHashingCollectorsUsed;
-    private int dynamicPrunedSegments;
+    int emptyCollectorsUsed;
+    int numericCollectorsUsed;
+    int ordinalsCollectorsUsed;
+    int ordinalsCollectorsOverheadTooHigh;
+    int stringHashingCollectorsUsed;
+    int dynamicPrunedSegments;
 
     public CardinalityAggregator(
         String name,
@@ -349,7 +349,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    private abstract static class Collector extends LeafBucketCollector implements Releasable {
+    abstract static class Collector extends LeafBucketCollector implements Releasable {
 
         public abstract void postCollect() throws IOException;
 
@@ -488,7 +488,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    private static class EmptyCollector extends Collector {
+    static class EmptyCollector extends Collector {
 
         @Override
         public void collect(int doc, long bucketOrd) {

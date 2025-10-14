@@ -59,6 +59,6 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
         // For streaming, we skip the ArraySearchPhaseResults.consumeResult() call
         // since it doesn't support multiple results from the same shard.
         QuerySearchResult querySearchResult = result.queryResult();
-        pendingMerges.consume(querySearchResult, next);
+        pendingReduces.consume(querySearchResult, next);
     }
 }

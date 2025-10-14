@@ -73,8 +73,10 @@ import org.opensearch.plugin.wlm.rule.WorkloadGroupRuleRoutingService;
 import org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
+import org.opensearch.plugin.wlm.spi.AttributeExtractorExtension;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.DiscoveryPlugin;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -134,6 +136,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.opensearch.plugin.wlm.WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.threadpool.ThreadPool.Names.SAME;
@@ -703,6 +706,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             ActionPlugin,
             SystemIndexPlugin,
             DiscoveryPlugin,
+            ExtensiblePlugin,
             RuleFrameworkExtension {
 
         /**
@@ -715,8 +719,10 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         public static final int MAX_RULES_PER_PAGE = 50;
         static FeatureType featureType;
         static RulePersistenceService rulePersistenceService;
+        private static final Map<Attribute, Integer> orderedAttributes = new HashMap<>();
         static RuleRoutingService ruleRoutingService;
         private AutoTaggingActionFilter autoTaggingActionFilter;
+        private final Map<Attribute, AttributeExtractorExtension> attributeExtractorExtensions = new HashMap<>();
 
         /**
          * Default constructor.
@@ -744,7 +750,10 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
                 featureType,
                 DefaultAttributeValueStore::new
             );
-            InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(attributeValueStoreFactory);
+            InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
+                attributeValueStoreFactory,
+                featureType.getOrderedAttributes()
+            );
             rulePersistenceService = new IndexStoredRulePersistenceService(
                 INDEX_NAME,
                 client,
@@ -768,8 +777,14 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
                 wlmClusterSettingValuesProvider
             );
 
-            autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
-            return List.of(refreshMechanism);
+            autoTaggingActionFilter = new AutoTaggingActionFilter(
+                ruleProcessingService,
+                threadPool,
+                attributeExtractorExtensions,
+                wlmClusterSettingValuesProvider,
+                featureType
+            );
+            return List.of(refreshMechanism, rulePersistenceService, featureType);
         }
 
         @Override
@@ -851,6 +866,18 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         }
 
         @Override
-        public void setAttributes(List<Attribute> attributes) {}
+        public void setAttributes(List<Attribute> attributes) {
+            for (Attribute attribute : attributes) {
+                if (attribute.getName().equals(PRINCIPAL_ATTRIBUTE_NAME)) {
+                    orderedAttributes.put(attribute, 1);
+                }
+            }
+        }
+
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            for (AttributeExtractorExtension ext : loader.loadExtensions(AttributeExtractorExtension.class)) {
+                attributeExtractorExtensions.put(ext.getAttributeExtractor().getAttribute(), ext);
+            }
+        }
     }
 }

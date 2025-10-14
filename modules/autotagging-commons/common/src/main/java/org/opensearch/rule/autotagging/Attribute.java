@@ -14,11 +14,17 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.rule.MatchLabel;
+import org.opensearch.rule.attribute_extractor.AttributeExtractor;
+import org.opensearch.rule.storage.AttributeValueStore;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Represents an attribute within the auto-tagging feature. Attributes define characteristics that can
@@ -36,10 +42,10 @@ public interface Attribute extends Writeable {
     String getName();
 
     /**
-     * Returns a map of subfields ordered by priority, where 1 represents the highest priority.
+     * Returns a map of subfields with its weight, which is used to calculate the match score for the attribute.
      */
-    default TreeMap<Integer, String> getPrioritizedSubfields() {
-        return new TreeMap<>();
+    default Map<String, Float> getWeightedSubfields() {
+        return new HashMap<>();
     }
 
     /**
@@ -105,5 +111,29 @@ public interface Attribute extends Writeable {
             throw new IllegalStateException(attributeName + " is not a valid attribute under feature type " + featureType.getName());
         }
         return attribute;
+    }
+
+    /**
+     * Evaluates the matching labels for the attribute
+     * @param attributeExtractor the extractor to get the attribute
+     * @param attributeValueStore in-memory value store for the attribute
+     */
+    default List<MatchLabel<String>> findAttributeMatches(
+        AttributeExtractor<String> attributeExtractor,
+        AttributeValueStore<String, String> attributeValueStore
+    ) {
+        Map<String, Float> scoreMap = new HashMap<>();
+
+        for (String value : attributeExtractor.extract()) {
+            List<MatchLabel<String>> matches = attributeValueStore.getMatches(value);
+            for (MatchLabel<String> entry : matches) {
+                scoreMap.merge(entry.getFeatureValue(), entry.getMatchScore(), Float::sum);
+            }
+        }
+        return scoreMap.entrySet()
+            .stream()
+            .map(e -> new MatchLabel<>(e.getKey(), e.getValue()))
+            .sorted((a, b) -> Float.compare(b.getMatchScore(), a.getMatchScore()))
+            .collect(Collectors.toList());
     }
 }

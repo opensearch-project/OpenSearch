@@ -19,6 +19,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
+import static org.opensearch.search.aggregations.AggregatorTreeEvaluator.evaluateAndRecreateIfNeeded;
+
 /**
  * Common {@link CollectorManager} used by both concurrent and non-concurrent aggregation path and also for global and non-global
  * aggregation operators
@@ -42,7 +44,7 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
 
     @Override
     public Collector newCollector() throws IOException {
-        final Collector collector = createCollector(aggProvider.apply(context));
+        final Collector collector = createCollector(context, aggProvider);
         // For Aggregations we should not have a NO_OP_Collector
         assert collector != BucketCollector.NO_OP_COLLECTOR;
         return collector;
@@ -68,8 +70,13 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
         return new AggregationReduceableSearchResult(internalAggregations);
     }
 
-    static Collector createCollector(List<Aggregator> collectors) throws IOException {
-        Collector collector = MultiBucketCollector.wrap(collectors);
+    static Collector createCollector(SearchContext searchContext, CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider)
+        throws IOException {
+        Collector collector = MultiBucketCollector.wrap(aggProvider.apply(searchContext));
+
+        // Evaluate streaming decision and potentially recreate tree
+        collector = evaluateAndRecreateIfNeeded(collector, searchContext, aggProvider);
+
         ((BucketCollector) collector).preCollection();
         return collector;
     }

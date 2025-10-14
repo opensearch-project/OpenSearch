@@ -9,6 +9,7 @@
 package org.opensearch.rule.storage;
 
 import org.apache.commons.collections4.trie.PatriciaTrie;
+import org.opensearch.rule.MatchLabel;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -78,26 +79,47 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
     }
 
     @Override
-    public List<Set<V>> getAll(String key) {
+    public List<MatchLabel<V>> getExactMatch(K key) {
         readLock.lock();
         try {
-            List<Set<V>> results = new ArrayList<>();
+            List<MatchLabel<V>> results = new ArrayList<>();
+            addMatches(results, trie.get(key), 1f);
+            addMatches(results, trie.get(""), 0f);
+            return results;
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
+    public List<MatchLabel<V>> getMatches(String key) {
+        readLock.lock();
+        try {
+            List<MatchLabel<V>> results = new ArrayList<>();
             StringBuilder prefixBuilder = new StringBuilder(key);
 
             for (int i = key.length(); i >= 0; i--) {
-                String prefix = prefixBuilder.toString();
-                Set<V> value = trie.get(prefix);
-                if (value != null && !value.isEmpty()) {
-                    results.add(value);
+                Set<V> values = trie.get(prefixBuilder.toString());
+                if (values != null && !values.isEmpty()) {
+                    float score = (float) prefixBuilder.length() / key.length();
+                    addMatches(results, values, score);
                 }
                 if (!prefixBuilder.isEmpty()) {
                     prefixBuilder.deleteCharAt(prefixBuilder.length() - 1);
                 }
             }
-
             return results;
         } finally {
             readLock.unlock();
+        }
+    }
+
+    private void addMatches(List<MatchLabel<V>> results, Set<V> values, float score) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        for (V label : values) {
+            results.add(new MatchLabel<>(label, score));
         }
     }
 

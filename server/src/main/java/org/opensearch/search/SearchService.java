@@ -93,6 +93,7 @@ import org.opensearch.index.query.QueryCoordinatorContext;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
+import org.opensearch.index.search.QueryStringQueryParser;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
@@ -280,7 +281,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<Boolean> QUERY_REWRITING_ENABLED_SETTING = Setting.boolSetting(
         "search.query_rewriting.enabled",
-        true,
+        false,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -363,6 +364,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting(
         "indices.query.bool.max_clause_count",
         1024,
+        1,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> SEARCH_MAX_QUERY_STRING_LENGTH = Setting.intSetting(
+        "search.query.max_query_string_length",
+        32_000,
         1,
         Integer.MAX_VALUE,
         Setting.Property.NodeScope,
@@ -523,6 +533,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         IndexSearcher.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, IndexSearcher::setMaxClauseCount);
+
+        QueryStringQueryParser.setMaxQueryStringLength(SEARCH_MAX_QUERY_STRING_LENGTH.get(settings));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SEARCH_MAX_QUERY_STRING_LENGTH, QueryStringQueryParser::setMaxQueryStringLength);
 
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);

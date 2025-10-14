@@ -48,7 +48,7 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
             BulkRequestActionListener listener = new BulkRequestActionListener(responseObserver);
             client.bulk(bulkRequest, listener);
         } catch (RuntimeException e) {
-            logger.error("DocumentServiceImpl failed to process bulk request, request=" + request + ", error=" + e.getMessage());
+            logger.debug("DocumentServiceImpl failed: {} - {}", e.getClass().getSimpleName(), e.getMessage());
             StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
             responseObserver.onError(grpcError);
         }
