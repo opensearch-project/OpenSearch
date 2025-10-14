@@ -8,7 +8,6 @@
 
 package org.opensearch.index.translog;
 
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.RepositoriesService;
@@ -38,7 +37,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
 
     private final RemoteStoreSettings remoteStoreSettings;
 
-    private final IndexSettings indexSettings;
+    private final boolean isServerSideEncryptionEnabled;
 
     public RemoteBlobStoreInternalTranslogFactory(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
@@ -46,7 +45,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         String repositoryName,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
         RemoteStoreSettings remoteStoreSettings,
-        IndexSettings indexSettings
+        boolean isServerSideEncryptionEnabled
     ) {
         Repository repository;
         try {
@@ -58,7 +57,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         this.threadPool = threadPool;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         this.remoteStoreSettings = remoteStoreSettings;
-        this.indexSettings = indexSettings;
+        this.isServerSideEncryptionEnabled = isServerSideEncryptionEnabled;
     }
 
     @Override
@@ -113,7 +112,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 remoteTranslogTransferTracker,
                 remoteStoreSettings,
                 translogOperationHelper,
-                indexSettings
+                isServerSideEncryptionEnabled
             );
         } else {
             return new RemoteFsTranslog(
@@ -130,7 +129,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 remoteStoreSettings,
                 translogOperationHelper,
                 null,
-                indexSettings
+                isServerSideEncryptionEnabled
             );
         }
     }

@@ -108,7 +108,6 @@ import org.opensearch.core.util.BytesRefUtils;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
@@ -567,8 +566,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final SetOnce<BlobContainer> snapshotShardPathBlobContainer = new SetOnce<>();
 
-//    private final SetOnce<BlobStore> blobStore = new SetOnce<>();
-    private final SetOnce<BlobStoreProvider> blobStore = new SetOnce<>();
+    private final SetOnce<BlobStoreProviderFactory> blobStoreProvideFactory = new SetOnce<>();
+    private final SetOnce<BlobStoreProvider> blobStoreProvider = new SetOnce<>();
 
     protected final ClusterService clusterService;
 
@@ -684,22 +683,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     protected void doClose() {
-        BlobStore store = null;
+        BlobStoreProvider provider = null;
         // to close blobStore if blobStore initialization is started during close
         synchronized (lock) {
-            BlobStoreProvider provider = blobStore.get();
+            provider = blobStoreProvider.get();
+            // Moving this inside synchronized block
             if (provider != null) {
-                store = provider.getBlobStore(null);
+                try {
+                    provider.close();
+                    closed = true;
+                } catch (Exception t) {
+                    logger.warn("cannot close blob store", t);
+                }
             }
         }
-        if (store != null) {
-            try {
-                closed = true;
-                store.close();
-            } catch (Exception t) {
-                logger.warn("cannot close blob store", t);
-            }
-        }
+
     }
 
     @Override
@@ -987,7 +985,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // for test purposes only
     protected BlobStore getBlobStore() {
-        return blobStore.get().getBlobStore(null);
+        return blobStoreProvider.get() != null ? blobStoreProvider.get().getBlobStore(false) : null;
     }
 
     boolean getPrefixModeVerification() {
@@ -1056,26 +1054,36 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Public for testing.
      */
     public BlobStore blobStore() {
-        return blobStore(null);
+        return blobStore(false);
     }
 
     /**
      * Calls the existing blobStore() method. Specific repositories can implement the support for
      * Server side encryption
-     * @param indexSettings IndexSetting.
+     * @param serverSideEncryptionEnabled ServerSideEncryptionEnabled Value.
      * @return BlobStore `Blobstore` for the repository
      */
-    public BlobStore blobStore(IndexSettings indexSettings) {
-        System.out.println("metadata = " + metadata);
-        BlobStoreProviderFactory providerFactory = new BlobStoreProviderFactory(this, metadata, lifecycle, lock);
-        BlobStoreProvider provider = providerFactory.getBlobStoreProvider();
-        if (provider == null) {
-            System.out.println("provider is null ");
-            return null;
+    public BlobStore blobStore(boolean serverSideEncryptionEnabled) {
+        BlobStoreProviderFactory providerFactory = this.blobStoreProvideFactory.get();
+        logger.info("providerFactory = " + providerFactory);
+        if (providerFactory == null) {
+            synchronized (lock) {
+                providerFactory = new BlobStoreProviderFactory(this, metadata, lifecycle, lock);
+                blobStoreProvideFactory.set(providerFactory);
+            }
         }
-        System.out.println("provider = " + provider.getClass().getName());
-        provider.blobStore(indexSettings);
-        return provider.getBlobStore(indexSettings);
+        logger.info("2.providerFactory = " + providerFactory);
+
+        BlobStoreProvider provider = this.blobStoreProvider.get();
+        logger.info("1.provider = " + provider);
+        if (provider == null) {
+            synchronized (lock) {
+                provider = providerFactory.getBlobStoreProvider();
+                this.blobStoreProvider.set(provider);
+            }
+        }
+        logger.info("2.provider = " + provider);
+        return provider.blobStore(serverSideEncryptionEnabled);
     }
 
     /**
@@ -1131,12 +1139,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public RepositoryStats stats() {
-        BlobStoreProvider provider = blobStore.get();
+        BlobStoreProvider provider = blobStoreProvider.get();
         BlobStore store = null;
         if (provider == null) {
             return RepositoryStats.EMPTY_STATS;
         }
-        store = provider.getBlobStore(null);
+        store = provider.getBlobStore(false);
         if (store == null) {
             return RepositoryStats.EMPTY_STATS;
         } else if (store.extendedStats() != null && store.extendedStats().isEmpty() == false) {
@@ -2409,7 +2417,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             remoteStorePathStrategy,
             remoteStoreSettings,
             indexMetadataEnabled,
-            null
+            false
         );
         try {
             RemoteFsTimestampAwareTranslog.cleanupOfDeletedIndex(translogTransferManager, forceClean);
@@ -4533,7 +4541,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public String toString() {
-        return "BlobStoreRepository[" + "[" + metadata.name() + "], [" + blobStore.get() + ']' + ']';
+        return "BlobStoreRepository[" + "[" + metadata.name() + "], [" + blobStoreProvider.get() + ']' + ']';
     }
 
     /**

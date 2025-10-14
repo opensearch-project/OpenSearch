@@ -9,6 +9,7 @@
 package org.opensearch.repositories.blobstore;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 
@@ -20,8 +21,8 @@ public class BlobStoreProviderFactory {
     private final RepositoryMetadata metadata;
     private final Object lock;
     private final BlobStoreRepository repository;
-    private static ServerSideEncryptionEnabledBlobStoreProvider serverSideEncryptionEnabledBlobStoreProvider;
-    private static BlobStoreProvider blobStoreProvider;
+    private final SetOnce<ServerSideEncryptionEnabledBlobStoreProvider> serverSideEncryptionEnabledBlobStoreProvider = new SetOnce<>();
+    private final SetOnce<BlobStoreProvider> blobStoreProvider = new SetOnce<>();
 
     public BlobStoreProviderFactory(BlobStoreRepository repository, RepositoryMetadata metadata, Lifecycle lifecycle, Object lock) {
         this.lifecycle = lifecycle;
@@ -32,15 +33,18 @@ public class BlobStoreProviderFactory {
 
     public BlobStoreProvider getBlobStoreProvider() {
         if (RemoteStoreNodeAttribute.isRemoteStoreMetadata(metadata.settings())) {
-            if (serverSideEncryptionEnabledBlobStoreProvider == null) {
-                serverSideEncryptionEnabledBlobStoreProvider = new ServerSideEncryptionEnabledBlobStoreProvider(repository, metadata, lifecycle, lock);
+            if (serverSideEncryptionEnabledBlobStoreProvider.get() == null) {
+                ServerSideEncryptionEnabledBlobStoreProvider serverSideEncryptionEnabledBlobStoreProvider =
+                    new ServerSideEncryptionEnabledBlobStoreProvider(repository, metadata, lifecycle, lock);
+                this.serverSideEncryptionEnabledBlobStoreProvider.set(serverSideEncryptionEnabledBlobStoreProvider);
             }
-            return serverSideEncryptionEnabledBlobStoreProvider;
+            return serverSideEncryptionEnabledBlobStoreProvider.get();
         } else {
-            if (blobStoreProvider == null) {
-                blobStoreProvider = new BlobStoreProvider(repository, metadata, lifecycle, lock);
+            if (blobStoreProvider.get() == null) {
+                BlobStoreProvider blobStoreProvider = new BlobStoreProvider(repository, metadata, lifecycle, lock);
+                this.blobStoreProvider.set(blobStoreProvider);
             }
-            return blobStoreProvider;
+            return blobStoreProvider.get();
         }
     }
 }

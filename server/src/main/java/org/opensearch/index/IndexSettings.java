@@ -1038,9 +1038,6 @@ public final class IndexSettings {
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isServerSideEncryptionEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false);
-
-        System.out.println("[PRANIT]: IndexSettings.IndexSettings is for index " + this.index.getName() + " SSE ENABLED VALUE is " + isServerSideEncryptionEnabled);
-
         isWarmIndex = settings.getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
 
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
@@ -1249,7 +1246,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(ALLOW_DERIVED_FIELDS, this::setAllowDerivedField);
         scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, this::setRemoteStoreEnabled);
 
-        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_SSE_ENABLED_SETTING, this::setServerSideEncryptionEnabled);
+        scopedSettings.addSettingsUpdateConsumer(
+            IndexMetadata.INDEX_REMOTE_STORE_SSE_ENABLED_SETTING,
+            this::setServerSideEncryptionEnabled
+        );
 
         scopedSettings.addSettingsUpdateConsumer(
             IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,

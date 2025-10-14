@@ -743,7 +743,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                         settings.getRemoteStoreTranslogRepository(),
                         new RemoteTranslogTransferTracker(shardRouting.shardId(), 20),
                         DefaultRemoteStoreSettings.INSTANCE,
-                        settings
+                        settings.isServerSideEncryptionEnabled()
                     );
                 }
                 return new InternalTranslogFactory();

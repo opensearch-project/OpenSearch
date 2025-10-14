@@ -15,7 +15,6 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
@@ -78,7 +77,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
         RemoteStoreSettings remoteStoreSettings,
         TranslogOperationHelper translogOperationHelper,
-        IndexSettings indexSettings
+        boolean isServerSideEncryptionEnabled
     ) throws IOException {
         super(
             config,
@@ -94,7 +93,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
             remoteStoreSettings,
             translogOperationHelper,
             null,
-            indexSettings
+            isServerSideEncryptionEnabled
         );
         logger = Loggers.getLogger(getClass(), shardId);
         this.metadataFilePinnedTimestampMap = new HashMap<>();

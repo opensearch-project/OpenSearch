@@ -251,8 +251,7 @@ public class RemoteStoreNodeAttribute {
 
     public static boolean isRemoteStoreMetadata(Settings settings) {
         for (String metadataKey : settings.keySet()) {
-            System.out.println("metadataKey = " + metadataKey);
-            if(metadataKey.equals("sse_enabled")) {
+            if (metadataKey.equals("sse_enabled")) {
                 return true;
             }
         }

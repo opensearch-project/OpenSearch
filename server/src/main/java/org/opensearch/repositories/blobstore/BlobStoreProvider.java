@@ -8,15 +8,14 @@
 
 package org.opensearch.repositories.blobstore;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.EncryptedBlobStore;
 import org.opensearch.common.lifecycle.Lifecycle;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.repositories.RepositoryException;
-
-import java.util.function.Supplier;
 
 /**
  * Provide for the BlobStore class
@@ -24,6 +23,7 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 public class BlobStoreProvider {
+    private static final Logger logger = LogManager.getLogger(BlobStoreProvider.class);
     protected final Lifecycle lifecycle;
     protected final RepositoryMetadata metadata;
     protected final Object lock;
@@ -37,19 +37,19 @@ public class BlobStoreProvider {
         this.repository = repository;
     }
 
-    protected BlobStore blobStore(IndexSettings indexSettings) {
-        boolean serverSideEncryption = indexSettings != null && indexSettings.isServerSideEncryptionEnabled();
-        return createBlobStore(blobStore, serverSideEncryption);
+    protected BlobStore blobStore(boolean serverSideEncryptionEnabled) {
+        return createBlobStore(blobStore, serverSideEncryptionEnabled);
     }
 
     public BlobStore blobStore() {
         // Assertion not true as Kraken threads use blobStore
-        return blobStore(null);
+        return blobStore(false);
     }
 
     protected BlobStore createBlobStore(SetOnce<BlobStore> blobStore, boolean serverSideEncryption) {
         // assertSnapshotOrGenericThread();
         BlobStore store = blobStore.get();
+        logger.info("1.store = " + store);
         if (store == null) {
             synchronized (lock) {
                 store = blobStore.get();
@@ -62,19 +62,20 @@ public class BlobStoreProvider {
                 }
             }
         }
+        logger.info("2.store = " + store);
         return store;
     }
 
-    public BlobStore getBlobStore(IndexSettings indexSettings) {
-        if (indexSettings != null && indexSettings.isServerSideEncryptionEnabled()) {
+    public BlobStore getBlobStore(boolean serverSideEncryptionEnabled) {
+        if (serverSideEncryptionEnabled) {
             throw new IllegalArgumentException("Provider Instance Type is not correct");
         }
         return blobStore.get();
     }
 
-    public BlobStore getBlobStore() {
-        return blobStore.get();
-    }
+    // public BlobStore getBlobStore() {
+    // return blobStore.get();
+    // }
 
     protected BlobStore initBlobStore(boolean serverSideEncryption) {
         if (lifecycle.started() == false) {
@@ -86,6 +87,16 @@ public class BlobStoreProvider {
             throw e;
         } catch (Exception e) {
             throw new RepositoryException(metadata.name(), "cannot create blob store", e);
+        }
+    }
+
+    public void close() {
+        try {
+            if (blobStore.get() != null) {
+                blobStore.get().close();
+            }
+        } catch (Exception t) {
+            logger.warn("cannot close blob store", t);
         }
     }
 }

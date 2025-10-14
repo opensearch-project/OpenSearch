@@ -203,7 +203,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             DefaultRemoteStoreSettings.INSTANCE,
             TranslogOperationHelper.DEFAULT,
             null,
-            null
+            false
         );
     }
 
@@ -478,7 +478,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
                 TranslogOperationHelper.DEFAULT,
-                null
+                null,
+                false
             )
         ) {
             addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
@@ -1524,7 +1525,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
                 TranslogOperationHelper.DEFAULT,
-                channelFactory
+                channelFactory,
+                false
             )
         ) {
             TranslogWriter writer = translog.getCurrent();
@@ -1631,7 +1633,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
                 TranslogOperationHelper.DEFAULT,
-                channelFactory
+                channelFactory,
+                false
             )
         ) {
             TranslogWriter writer = translog.getCurrent();
