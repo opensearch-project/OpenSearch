@@ -92,9 +92,9 @@ public abstract class Assertion implements ExecutableSection {
                 return Double.parseDouble(actualValue.toString());
             } else if (expectedValue instanceof Integer) {
                 try {
-                    return Integer.parseInt(actualValue.toString());
-                } catch (NumberFormatException e) {
                     return Long.parseLong(actualValue.toString());
+                } catch (NumberFormatException e) {
+                    return Integer.parseInt(actualValue.toString());
                 }
             } else if (expectedValue instanceof Long) {
                 return Long.parseLong(actualValue.toString());
