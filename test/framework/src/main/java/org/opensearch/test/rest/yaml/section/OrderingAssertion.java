@@ -23,7 +23,7 @@ import static org.junit.Assert.fail;
 /**
  * Base class for all ordering assertions (gt/gte/lt/lte).
  * It provides:
- *  - shared YAML parse boilerplate (via {@link #parseCommon})
+ *  - shared YAML parse boilerplate (via {@link #parseOrderingAssertion})
  *  - numeric normalization so both sides are Comparable of the same class
  *  - common comparison logic based on a {@link Relation}
  */
@@ -53,14 +53,17 @@ public abstract class OrderingAssertion extends Assertion {
     /**
      * Common parser for {gt|gte|lt|lte}: { field: expectedValue }
      */
-    protected static <T extends OrderingAssertion> T parseCommon(XContentParser parser, String sectionName, OrderingAssertionFactory<T> factory)
-        throws IOException {
+    protected static <T extends OrderingAssertion> T parseOrderingAssertion(
+        XContentParser parser,
+        Relation relation,
+        OrderingAssertionFactory<T> factory
+    ) throws IOException {
         XContentLocation location = parser.getTokenLocation();
         Tuple<String, Object> t = ParserUtils.parseTuple(parser);
         Object expected = t.v2();
         if (!(expected instanceof Comparable)) {
             throw new IllegalArgumentException(
-                sectionName
+                relation
                     + " section can only be used with objects that support natural ordering, found "
                     + expected.getClass().getSimpleName()
             );
@@ -122,28 +125,14 @@ public abstract class OrderingAssertion extends Assertion {
      *  - Else return as-is (let Comparable semantics handle it).
      */
     private static Tuple<Object, Object> normalizePair(Object a, Object b) {
-        if (a instanceof Number && b instanceof Number) {
-            boolean floaty = (a instanceof Float) || (a instanceof Double) || (b instanceof Float) || (b instanceof Double);
-            if (floaty) {
-                return Tuple.tuple(asDouble(a), asDouble(b));
+        if (a instanceof Number aNum && b instanceof Number bNum) {
+            boolean isFloating = aNum instanceof Float || aNum instanceof Double || bNum instanceof Float || bNum instanceof Double;
+            if (isFloating) {
+                return Tuple.tuple(aNum.doubleValue(), bNum.doubleValue());
             } else {
-                return Tuple.tuple(asLong(a), asLong(b));
+                return Tuple.tuple(aNum.longValue(), bNum.longValue());
             }
         }
         return Tuple.tuple(a, b);
-    }
-
-    private static Double asDouble(Object n) {
-        if (n instanceof Number) {
-            return ((Number) n).doubleValue();
-        }
-        return Double.parseDouble(n.toString());
-    }
-
-    private static Long asLong(Object n) {
-        if (n instanceof Number) {
-            return ((Number) n).longValue();
-        }
-        return Long.parseLong(n.toString());
     }
 }
