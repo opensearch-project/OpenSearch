@@ -192,23 +192,29 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     ) {
         RoutingPool shardRoutingPool = RoutingPool.getShardPool(shardRouting, allocation);
         RoutingPool nodeRoutingPool = RoutingPool.getNodePool(node);
+        // TargetPoolAllocationDecider will handle for this case, hence short-circuiting from here
         if (shardRoutingPool != nodeRoutingPool) {
             return Decision.ALWAYS;
         }
 
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        final int indexShardLimit = nodeRoutingPool == RoutingPool.REMOTE_CAPABLE
-            ? indexMetadata.getIndexTotalRemoteCapableShardsPerNodeLimit()
-            : indexMetadata.getIndexTotalShardsPerNodeLimit();
-        final int indexPrimaryShardLimit = nodeRoutingPool == RoutingPool.REMOTE_CAPABLE
-            ? -1
-            : indexMetadata.getIndexTotalPrimaryShardsPerNodeLimit();
-        // Capture the limit here in case it changes during this method's
-        // execution
-        final int clusterShardLimit = nodeRoutingPool == RoutingPool.REMOTE_CAPABLE
-            ? this.clusterRemoteCapableShardLimit
-            : this.clusterShardLimit;
-        final int clusterPrimaryShardLimit = nodeRoutingPool == RoutingPool.REMOTE_CAPABLE ? -1 : this.clusterPrimaryShardLimit;
+        final int indexShardLimit;
+        final int indexPrimaryShardLimit;
+        final int clusterShardLimit;
+        final int clusterPrimaryShardLimit;
+        // Capture the limit here in case it changes during this method's execution
+        if (nodeRoutingPool == RoutingPool.REMOTE_CAPABLE) {
+            indexShardLimit = indexMetadata.getIndexTotalRemoteCapableShardsPerNodeLimit();
+            indexPrimaryShardLimit = -1; // No primary shard limit for remote capable nodes
+            clusterShardLimit = this.clusterRemoteCapableShardLimit;
+            clusterPrimaryShardLimit = -1; // No primary shard limit for remote capable nodes
+        } else {
+            indexShardLimit = indexMetadata.getIndexTotalShardsPerNodeLimit();
+            indexPrimaryShardLimit = indexMetadata.getIndexTotalPrimaryShardsPerNodeLimit();
+            clusterShardLimit = this.clusterShardLimit;
+            clusterPrimaryShardLimit = this.clusterPrimaryShardLimit;
+        }
+
         if (indexShardLimit <= 0 && indexPrimaryShardLimit <= 0 && clusterShardLimit <= 0 && clusterPrimaryShardLimit <= 0) {
             return allocation.decision(
                 Decision.YES,
