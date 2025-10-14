@@ -36,6 +36,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private static final Logger logger = LogManager.getLogger(DefaultStreamPoller.class);
     private static final int DEFAULT_POLLER_SLEEP_PERIOD_MS = 100;
     private static final int CONSUMER_INIT_RETRY_INTERVAL_MS = 10000;
+    private static final int POINTER_BASED_LAG_UPDATE_INTERVAL_MS = 10000; // Update pointer based lag every 10 seconds
 
     private volatile State state = State.NONE;
 
@@ -49,6 +50,8 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile boolean isWriteBlockEnabled;
 
     private volatile long lastPolledMessageTimestamp = 0;
+    private volatile long cachedPointerBasedLag = 0;
+    private volatile long lastPointerBasedLagUpdateTime = 0;
 
     @Nullable
     private IngestionShardConsumer consumer;
@@ -191,6 +194,9 @@ public class DefaultStreamPoller implements StreamPoller {
 
                 // reset the consumer offset
                 handleResetState();
+
+                // Update lag periodically
+                updatePointerBasedLagIfNeeded();
 
                 if (paused || isWriteBlockEnabled) {
                     state = State.PAUSED;
@@ -363,14 +369,15 @@ public class DefaultStreamPoller implements StreamPoller {
         builder.setTotalConsumerErrorCount(totalConsumerErrorCount.count());
         builder.setTotalPollerMessageFailureCount(totalPollerMessageFailureCount.count());
         builder.setTotalPollerMessageDroppedCount(totalPollerMessageDroppedCount.count());
-        builder.setLagInMillis(computeLag());
+        builder.setLagInMillis(computeTimeBasedLag());
+        builder.setPointerBasedLag(cachedPointerBasedLag);
         return builder.build();
     }
 
     /**
      * Returns the lag in milliseconds since the last polled message
      */
-    private long computeLag() {
+    private long computeTimeBasedLag() {
         if (lastPolledMessageTimestamp == 0 || paused) {
             return 0;
         }
@@ -381,6 +388,23 @@ public class DefaultStreamPoller implements StreamPoller {
     private void setLastPolledMessageTimestamp(long timestamp) {
         if (lastPolledMessageTimestamp != timestamp) {
             lastPolledMessageTimestamp = timestamp;
+        }
+    }
+
+    /**
+     * Update the cached pointer-based lag if enough time has elapsed since the last update.
+     * {@code consumer.getPointerBasedLag()} is called from the poller thread, so it's safe to access the consumer.
+     */
+    private void updatePointerBasedLagIfNeeded() {
+        long currentTime = System.currentTimeMillis();
+        if (consumer != null && (currentTime - lastPointerBasedLagUpdateTime >= POINTER_BASED_LAG_UPDATE_INTERVAL_MS)) {
+            try {
+                // update the lastPointerBasedLagUpdateTime first, to avoid load on streaming source in case of errors
+                lastPointerBasedLagUpdateTime = currentTime;
+                cachedPointerBasedLag = consumer.getPointerBasedLag(initialBatchStartPointer);
+            } catch (Exception e) {
+                logger.warn("Failed to update lag for index {} shard {}: {}", indexName, shardId, e.getMessage());
+            }
         }
     }
 
