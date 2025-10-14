@@ -5331,6 +5331,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ShardId shardId,
         RemoteStorePathStrategy remoteStorePathStrategy,
         boolean isTranslogMetadataEnabled,
+        long timestamp
+    ) throws IOException {
+        this.syncTranslogFilesFromGivenRemoteTranslog(
+            repository,
+            shardId,
+            remoteStorePathStrategy,
+            isTranslogMetadataEnabled,
+            timestamp,
+            false
+        );
+    }
+
+    public void syncTranslogFilesFromGivenRemoteTranslog(
+        Repository repository,
+        ShardId shardId,
+        RemoteStorePathStrategy remoteStorePathStrategy,
+        boolean isTranslogMetadataEnabled,
         long timestamp,
         boolean isServerSideEncryptionEnabled
     ) throws IOException {
