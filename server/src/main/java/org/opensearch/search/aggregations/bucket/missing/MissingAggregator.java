@@ -56,6 +56,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_DOCS;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Aggregate all docs that are missing a value.
@@ -118,15 +119,21 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
 
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-        // When fieldname does not exist, we cannot collect through the precomputation.
+        // When fieldname does not exist or when weight is not set,
+        // we cannot collect through the precomputation.
         if (fieldName == null || weight == null) {
             return false;
         }
 
-        // we do not collect any documents through the missing aggregation when the missing parameter
-        // is up.
-        if (valuesSourceConfig != null && valuesSourceConfig.missing() != null) {
+        // The optimization could only be used if there are no deleted documents and the top-level
+        // query matches all documents in the segment.
+        if (weight.count(ctx) == 0) {
+            // No documents matches top level query on this segment, we can skip the segment entirely.
             return true;
+        } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
+            // weight.count(ctx) == ctx.reader().maxDoc() implies there are no deleted documents and
+            // top-level query matches all docs in the segment.
+            return false;
         }
 
         // The optimization does not work when there are subaggregations.
@@ -134,12 +141,10 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
             return false;
         }
 
-        // The optimization could only be used if there are no deleted documents and the top-level
-        // query matches all documents in the segment.
-        if (weight.count(ctx) == 0) {
+        // we do not collect any documents through the missing aggregation when the missing parameter
+        // is up.
+        if (valuesSourceConfig != null && valuesSourceConfig.missing() != null) {
             return true;
-        } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
-            return false;
         }
 
         Set<String> indexedFields = new HashSet<>(FieldInfos.getIndexedFields(ctx.reader()));
