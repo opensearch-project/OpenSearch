@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commonscodec` from 1.16.1 to 1.18.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19242))
 - Replace commons-lang:commons-lang with org.apache.commons:commons-lang3 ([#19229](https://github.com/opensearch-project/OpenSearch/pull/19229))
 - Bump bouncycastle from 1.79 to 1.82 ([#19552](https://github.com/opensearch-project/OpenSearch/pull/19552))
+- Bump `org.ajoberstar.grgit:grgit-core` from 5.2.1 to 5.3.2 ([#19606](https://github.com/opensearch-project/OpenSearch/pull/19606))
 - Bump `reactor-netty` from 1.1.23 to 1.2.9 ([#19603](https://github.com/opensearch-project/OpenSearch/pull/19603))
 - Bump `reactor` from 3.5.20 to 3.7.5 ([#19603](https://github.com/opensearch-project/OpenSearch/pull/19603))
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.1 to 3.4.2 ([#19605](https://github.com/opensearch-project/OpenSearch/pull/19605))
