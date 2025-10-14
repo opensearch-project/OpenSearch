@@ -106,7 +106,7 @@
              docs.deleted                     .+   \n
         $/
 ---
-"Help":
+"Help from 3.3.0 to 3.3.99":
   - skip:
       version: " - 3.2.99"
       reason: search query failure stats is added in 3.3.0
