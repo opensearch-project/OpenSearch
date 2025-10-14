@@ -246,7 +246,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
                     indexSettings.getRemoteStoreTranslogRepository(),
                     new RemoteTranslogTransferTracker(shardRouting.shardId(), 10),
                     DefaultRemoteStoreSettings.INSTANCE,
-                    indexSettings
+                    indexSettings.isServerSideEncryptionEnabled()
                 );
             }
             return new InternalTranslogFactory();

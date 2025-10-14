@@ -425,7 +425,7 @@ final class StoreRecovery {
                     shardId,
                     shallowCopyShardMetadata.getRemoteStorePathStrategy(),
                     null,
-                    indexShard.indexSettings
+                    indexShard.indexSettings.isServerSideEncryptionEnabled()
                 );
                 RemoteSegmentMetadata remoteSegmentMetadata = sourceRemoteDirectory.initializeToSpecificCommit(
                     primaryTerm,
@@ -509,7 +509,7 @@ final class StoreRecovery {
                         shardId,
                         remoteStorePathStrategy,
                         null,
-                        indexSettings
+                        indexSettings.isServerSideEncryptionEnabled()
                     );
                     RemoteSegmentMetadata remoteSegmentMetadata = sourceRemoteDirectory.initializeToSpecificTimestamp(
                         recoverySource.pinnedTimestamp()
@@ -530,7 +530,7 @@ final class StoreRecovery {
                         remoteStorePathStrategy,
                         RemoteStoreUtils.determineTranslogMetadataEnabled(prevIndexMetadata),
                         recoverySource.pinnedTimestamp(),
-                        indexSettings
+                        indexSettings.isServerSideEncryptionEnabled()
                     );
 
                     assert indexShard.shardRouting.primary() : "only primary shards can recover from store";

@@ -151,7 +151,8 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             primaryMode::get,
             new RemoteTranslogTransferTracker(shardId, 10),
             DefaultRemoteStoreSettings.INSTANCE,
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            false
         );
     }
 
@@ -622,7 +623,8 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
                 TranslogOperationHelper.DEFAULT,
-                channelFactory
+                channelFactory,
+                false
             )
         ) {
             addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
