@@ -561,7 +561,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
 
                 for (final Collector collector : collectors) {
                     if (collector instanceof MultiCollector m) {
-                        for (final Collector sub : (m.getCollectors())) {
+                        for (final Collector sub : m.getCollectors()) {
                             if (sub instanceof TopDocsCollector<?> tdc) {
                                 topDocsCollectors.add(tdc);
                             } else if (sub instanceof MaxScoreCollector msc) {
