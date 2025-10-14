@@ -44,7 +44,7 @@ import java.io.IOException;
  */
 public class LessThanOrEqualToAssertion extends OrderingAssertion {
     public static LessThanOrEqualToAssertion parse(XContentParser parser) throws IOException {
-        return parseCommon(parser, "lte", LessThanOrEqualToAssertion::new);
+        return parseOrderingAssertion(parser, Relation.LTE, LessThanOrEqualToAssertion::new);
     }
 
     public LessThanOrEqualToAssertion(XContentLocation loc, String field, Object expected) {

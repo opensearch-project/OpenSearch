@@ -44,7 +44,7 @@ import java.io.IOException;
  */
 public class GreaterThanEqualToAssertion extends OrderingAssertion {
     public static GreaterThanEqualToAssertion parse(XContentParser parser) throws IOException {
-        return parseCommon(parser, "gte", GreaterThanEqualToAssertion::new);
+        return parseOrderingAssertion(parser, Relation.GTE, GreaterThanEqualToAssertion::new);
     }
 
     public GreaterThanEqualToAssertion(XContentLocation loc, String field, Object expected) {
