@@ -39,7 +39,7 @@ plugins.withId('java') {
 
 plugins.withId('opensearch.testclusters') {
   testClusters.all { cluster ->
-    if (BuildParams.inFipsJvm) {
+    if (BuildParams.isInFipsJvm()) {
       keystorePassword 'notarealpasswordphrase'
       extraConfigFile 'opensearch-fips-truststore.bcfks',
           file("${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks")
@@ -58,7 +58,7 @@ plugins.withId('opensearch.testclusters') {
 ['java', 'java-base'].each { pluginId ->
   plugins.withId(pluginId) {
     tasks.withType(Test).configureEach { testTask ->
-      if (BuildParams.inFipsJvm) {
+      if (BuildParams.isInFipsJvm()) {
         testTask.systemProperty 'javax.net.ssl.trustStore', "${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks"
         testTask.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
         testTask.systemProperty 'javax.net.ssl.trustStoreProvider', 'BCFIPS'

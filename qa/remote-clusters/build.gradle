@@ -73,7 +73,7 @@ tasks.named("preProcessFixture").configure {
 dockerCompose {
   tcpPortsToIgnoreWhenWaiting = [9600, 9601]
   def composeFiles = ['docker-compose.yml']
-  if (BuildParams.inFipsJvm) {
+  if (BuildParams.isInFipsJvm()) {
     composeFiles.add('docker-compose.fips.yml')
   }
   useComposeFiles = composeFiles

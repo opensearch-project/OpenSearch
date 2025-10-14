@@ -425,7 +425,7 @@ gradle.projectsEvaluated {
           dependsOn(project(':libs:agent-sm:agent').prepareAgent)
           jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
         }
-        if (BuildParams.inFipsJvm) {
+        if (BuildParams.isInFipsJvm()) {
           def fipsSecurityFile = project.rootProject.file('distribution/src/config/fips_java.security')
           task.jvmArgs += [
               "-Dorg.bouncycastle.fips.approved_only=true",

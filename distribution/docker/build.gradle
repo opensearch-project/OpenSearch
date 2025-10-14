@@ -298,7 +298,7 @@ tasks.named("composeUp").configure {
 
 dockerCompose {
   useComposeFiles = ['docker-compose.yml']
-  if (BuildParams.inFipsJvm) {
+  if (BuildParams.isInFipsJvm()) {
     environment.put("KEYSTORE_PASSWORD", "notarealpasswordphrase")
     environment.put("FIPS_GENERATE_TRUSTSTORE", "true")
   }

@@ -14,7 +14,6 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
  * ThreadFilter to exclude ThreadLeak checks for BC’s global background threads
  *
  * <p>clone from the original, which is located in ':test:framework'</p>
- * @see org.opensearch.test.BouncyCastleThreadFilter
  */
 public class BouncyCastleThreadFilter implements ThreadFilter {
     @Override

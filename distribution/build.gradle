@@ -347,7 +347,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
-        if ( BuildParams.inFipsJvm ) {
+        if ( BuildParams.isInFipsJvm() ) {
           from(configurations.bcFips)
         }
         into('tools/plugin-cli') {

@@ -94,7 +94,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         // create a compileOnly configuration as others might expect it
         project.configurations.create("compileOnly")
         project.dependencies.add('testImplementation', project.project(':test:framework'))
-        if (BuildParams.inFipsJvm) {
+        if (BuildParams.isInFipsJvm()) {
             VersionCatalog libs = project.extensions.getByType(VersionCatalogsExtension).named("libs")
             project.dependencies.add('testImplementation', libs.findBundle("bouncycastle").get())
         }
