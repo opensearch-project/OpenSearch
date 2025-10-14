@@ -136,7 +136,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
         TestGroup.testGetBlock(blockedSnapshotFile, blockSize, FILE_SIZE);
         TestGroup.testGetBlockOffset(blockedSnapshotFile, blockSize, FILE_SIZE);
         TestGroup.testGetBlockStart(blockedSnapshotFile, blockSize);
-        TestGroup.testGetBlobParts(blockedSnapshotFile);
+        TestGroup.testGetBlobParts(blockedSnapshotFile, blockSizeShift);
         TestGroup.testCurrentBlockStart(blockedSnapshotFile, blockSize);
         TestGroup.testCurrentBlockPosition(blockedSnapshotFile, blockSize);
         TestGroup.testClone(blockedSnapshotFile, blockSize);
@@ -274,11 +274,11 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
             assertEquals(blockSize * 2, blockedSnapshotFile.getBlockStart(2));
         }
 
-        public static void testGetBlobParts(OnDemandBlockSnapshotIndexInput blockedSnapshotFile) {
+        public static void testGetBlobParts(OnDemandBlockSnapshotIndexInput blockedSnapshotFile, int blockSizeShift) {
             // block id 0
             int blockId = 0;
             long blockStart = blockedSnapshotFile.getBlockStart(blockId);
-            long blockEnd = blockStart + blockedSnapshotFile.getActualBlockSize(blockId);
+            long blockEnd = blockStart + AbstractBlockIndexInput.getActualBlockSize(blockId, blockSizeShift, FILE_SIZE);
             assertEquals(
                 (blockEnd - blockStart),
                 blockedSnapshotFile.getBlobParts(blockStart, blockEnd).stream().mapToLong(o -> o.getLength()).sum()
@@ -287,7 +287,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
             // block 1
             blockId = 1;
             blockStart = blockedSnapshotFile.getBlockStart(blockId);
-            blockEnd = blockStart + blockedSnapshotFile.getActualBlockSize(blockId);
+            blockEnd = blockStart + AbstractBlockIndexInput.getActualBlockSize(blockId, blockSizeShift, FILE_SIZE);
             assertEquals(
                 (blockEnd - blockStart),
                 blockedSnapshotFile.getBlobParts(blockStart, blockEnd).stream().mapToLong(o -> o.getLength()).sum()
@@ -296,7 +296,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
             // block 2
             blockId = 2;
             blockStart = blockedSnapshotFile.getBlockStart(blockId);
-            blockEnd = blockStart + blockedSnapshotFile.getActualBlockSize(blockId);
+            blockEnd = blockStart + AbstractBlockIndexInput.getActualBlockSize(blockId, blockSizeShift, FILE_SIZE);
             assertEquals(
                 (blockEnd - blockStart),
                 blockedSnapshotFile.getBlobParts(blockStart, blockEnd).stream().mapToLong(o -> o.getLength()).sum()

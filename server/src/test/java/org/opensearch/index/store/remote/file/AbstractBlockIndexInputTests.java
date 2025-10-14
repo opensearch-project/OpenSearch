@@ -31,12 +31,16 @@ public class AbstractBlockIndexInputTests extends OpenSearchTestCase {
 
     public void testBuilderDefaults() {
         AbstractBlockIndexInput.Builder<?> builder = AbstractBlockIndexInput.builder();
-        assertEquals(AbstractBlockIndexInput.Builder.DEFAULT_BLOCK_SIZE_SHIFT, 23);
-        assertEquals(AbstractBlockIndexInput.Builder.DEFAULT_BLOCK_SIZE, 1 << 23);
+        assertEquals(builder.blockSizeShift, AbstractBlockIndexInput.Builder.DEFAULT_BLOCK_SIZE_SHIFT);
+        assertEquals(builder.blockSize, AbstractBlockIndexInput.Builder.DEFAULT_BLOCK_SIZE);
     }
 
     public void testBuilderBlockSizeShiftValidation() {
         expectThrows(AssertionError.class, () -> { AbstractBlockIndexInput.builder().blockSizeShift(31); });
+    }
+
+    public void testGetActualBlockSizeThrowsErrorForNegativeBlockId() {
+        expectThrows(AssertionError.class, () -> { AbstractBlockIndexInput.getActualBlockSize(-1, 23, 23); });
     }
 
     public void testStaticBlockCalculations() {
@@ -222,7 +226,10 @@ public class AbstractBlockIndexInputTests extends OpenSearchTestCase {
 
         @Override
         protected IndexInput fetchBlock(int blockId) throws IOException {
-            return new ByteArrayIndexInput("", new byte[(int) getActualBlockSize(blockId)]);
+            return new ByteArrayIndexInput(
+                "",
+                new byte[(int) AbstractBlockIndexInput.getActualBlockSize(blockId, this.blockSizeShift, this.length)]
+            );
         }
 
         @Override

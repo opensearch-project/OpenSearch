@@ -137,7 +137,7 @@ public class OnDemandBlockSnapshotIndexInput extends AbstractBlockIndexInput {
     @Override
     protected IndexInput fetchBlock(int blockId) throws IOException {
         logger.trace("fetchBlock called with blockId -> {}", blockId);
-        final String blockFileName = fileName + "_block_" + blockId;
+        final String blockFileName = getBlockFileName(fileName, blockId);
 
         final long blockStart = getBlockStart(blockId);
         final long blockEnd = blockStart + getActualBlockSize(blockId, blockSizeShift, originalFileSize);

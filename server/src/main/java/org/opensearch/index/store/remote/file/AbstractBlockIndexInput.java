@@ -83,7 +83,7 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
     private final BlockHolder blockHolder = new BlockHolder();
     protected final Cleaner.Cleanable cleanable;
 
-    public AbstractBlockIndexInput(Builder builder) {
+    protected AbstractBlockIndexInput(Builder builder) {
         super(builder.resourceDescription);
         this.isClone = builder.isClone;
         this.offset = builder.offset;
@@ -91,7 +91,6 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
         this.blockSizeShift = builder.blockSizeShift;
         this.blockSize = builder.blockSize;
         this.blockMask = builder.blockMask;
-        CLEANER.register(this, blockHolder);
         this.cleanable = CLEANER.register(this, blockHolder);
     }
 
@@ -111,7 +110,7 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
     public abstract AbstractBlockIndexInput clone();
 
     @Override
-    public IndexInput slice(String sliceDescription, long offset, long length) {
+    public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if (offset < 0 || length < 0 || offset + length > this.length()) {
             throw new IllegalArgumentException(
                 "slice() "
@@ -307,49 +306,103 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
 
     }
 
-    protected long getActualBlockSize(int blockId) {
-        return (blockId != getBlock(length - 1, blockSize)) ? blockSize : getBlockOffset(length - 1, blockSizeShift) + 1;
-    }
-
+    /**
+     * Utility method to get the blockSize given blockSizeShift.
+     * @param blockSizeShift blockSizeShift used to calculate blockSize.
+     * @return returns blockSize
+     */
     public static int getBlockSize(int blockSizeShift) {
         return 1 << blockSizeShift;
     }
 
+    /**
+     * Utility method to get the blockId corresponding to the file offset passed.
+     * @param pos file offset whose blockId is requested.
+     * @param blockSizeShift blockSizeShift used to calculate blockSize.
+     * @return blockId for the given pos.
+     */
     public static int getBlock(long pos, int blockSizeShift) {
         return (int) (pos >>> blockSizeShift);
     }
 
+    /**
+     * Utility method to convert file offset to block level offset.
+     * @param pos fileOffset whose block offset is requested.
+     * @param blockSizeShift blockSizeShift used to calculate blockSize.
+     * @return returns block offset for the given pos.
+     */
     public static long getBlockOffset(long pos, int blockSizeShift) {
         return (long) (pos & (getBlockSize(blockSizeShift) - 1));
     }
 
+    /**
+     * Utility method to get the starting file offset of the given block.
+     * @param blockId blockId whose start offset is requested.
+     * @param blockSizeShift blockSizeShift used to calculate blockSize.
+     * @return  returns the file offset corresponding to the start of the block.
+     */
     public static long getBlockStart(int blockId, int blockSizeShift) {
         return (long) blockId << blockSizeShift;
     }
 
+    /**
+     * Utility method to get the number of blocks in a file.
+     * @param fileSize fileSize of the original file.
+     * @param blockSizeShift blockSizeShift used to calculate blockSize.
+     * @return returns the number of blocks in the file.
+     */
     public static int getNumberOfBlocks(long fileSize, int blockSizeShift) {
-        int blockSize = getBlockSize(blockSizeShift);
-        return (int) Math.ceil((double) fileSize / blockSize);
+        return (int) getBlock(fileSize - 1, blockSizeShift) + 1;
     }
 
+    /**
+     * Utility method get the size of the given blockId.
+     * @param blockId blockId whose size is requested
+     * @param blockSizeShift blockSizeShift used to calculate blockSize.
+     * @param fileSize fileSize of the original file.
+     * @return returns the size of the block whose blockId is passed.
+     */
     public static long getActualBlockSize(int blockId, int blockSizeShift, long fileSize) {
+        assert blockId >= 0 : "blockId cannot be negative";
         return (blockId != getBlock(fileSize - 1, blockSizeShift))
             ? getBlockSize(blockSizeShift)
             : getBlockOffset(fileSize - 1, blockSizeShift) + 1;
     }
 
+    /**
+     * Utility method to a list of blockIds for a given fileSize.
+     * @param fileSize size of the file for which blockIds are requested.
+     * @param blockSizeShift blockSizeShift (used to calculate blockSize) used to create blocks.
+     * @return returns a list of integers representing blockIds.
+     */
     public static List<Integer> getAllBlockIdsForFile(long fileSize, int blockSizeShift) {
         return IntStream.rangeClosed(0, getNumberOfBlocks(fileSize, blockSizeShift) - 1).boxed().collect(Collectors.toList());
     }
 
+    /**
+     * Utility method to validate if a given fileName is a blockFileName.
+     * @param fileName fileName to check
+     * @return returns true if the passed fileName is a valid block file name.
+     */
     public static boolean isBlockFilename(String fileName) {
         return fileName.contains("_block_");
     }
 
+    /**
+     * Utility method to generate block file name for a given fileName and blockId as per naming convention.
+     * @param fileName fileName whose block file name is required
+     * @param blockId blockId of the file whose block file name is required
+     * @return returns the blockFileName
+     */
     public static String getBlockFileName(String fileName, int blockId) {
         return fileName + "_block_" + blockId;
     }
 
+    /**
+     * Utility method to get the original file name given the block file name. .
+     * @param blockFileName name of the block file whose original file name is required.
+     * @return returns the original file name, No op if blockFileName is not a valid name for a block file.
+     */
     public static String getFileNameFromBlockFileName(String blockFileName) {
         return blockFileName.contains("_block_") ? blockFileName.substring(0, blockFileName.indexOf("_block_")) : blockFileName;
     }
