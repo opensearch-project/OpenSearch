@@ -32,7 +32,7 @@ public class BlobStoreProviderFactory {
     }
 
     public BlobStoreProvider getBlobStoreProvider() {
-        if (RemoteStoreNodeAttribute.isRemoteStoreMetadata(metadata.settings())) {
+        if (RemoteStoreNodeAttribute.isServerSideEncryptionEnabled(metadata.settings())) {
             if (serverSideEncryptionEnabledBlobStoreProvider.get() == null) {
                 ServerSideEncryptionEnabledBlobStoreProvider serverSideEncryptionEnabledBlobStoreProvider =
                     new ServerSideEncryptionEnabledBlobStoreProvider(repository, metadata, lifecycle, lock);
