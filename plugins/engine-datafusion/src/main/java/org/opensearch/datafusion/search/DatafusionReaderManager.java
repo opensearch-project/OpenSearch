@@ -8,6 +8,7 @@
 
 package org.opensearch.datafusion.search;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -74,9 +75,11 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
         if (didRefresh && catalogSnapshot != null) {
             DatafusionReader old = this.current;
             Collection<WriterFileSet> newFiles = catalogSnapshot.getSearchableFiles(dataFormat);
-            processFileChanges(old.files, newFiles);
             if(old !=null) {
                 release(old);
+                processFileChanges(old.files, newFiles);
+            } else {
+                processFileChanges(List.of(), newFiles);
             }
             this.current = new DatafusionReader(this.path, newFiles);
             this.current.incRef();
@@ -104,9 +107,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
             .flatMap(writerFileSet -> writerFileSet.getFiles().stream())
             .toArray(String[]::new);
         Set<String> paths = new HashSet<>();
-        for (String file : fileNames) {
-            paths.add(this.path.concat(file));
-        }
+        paths.addAll(Arrays.asList(fileNames));
         return paths;
     }
 }

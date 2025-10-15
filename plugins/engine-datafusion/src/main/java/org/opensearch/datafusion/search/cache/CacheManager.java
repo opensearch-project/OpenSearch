@@ -67,11 +67,11 @@ public class CacheManager {
                 .collect(Collectors.toList());
     }
 
-    public boolean removeFiles(String path, List<String> files) {
+    public boolean removeFiles(List<String> files) {
         boolean allSuccessful = true;
         for (CacheAccessor cache : getAllCaches()) {
             for (String filename : files) {
-                allSuccessful &= cache.remove(path.concat("/"+filename));
+                allSuccessful &= cache.remove(filename);
             }
         }
 
@@ -87,11 +87,11 @@ public class CacheManager {
         return allSuccessful;
     }
 
-    public boolean addToCache(String path, List<String> files) {
+    public boolean addToCache(List<String> files) {
         boolean allSuccessful = true;
         for (CacheAccessor cache : getAllCaches()) {
             for (String filename : files) {
-                allSuccessful &= cache.put(path.concat("/" + filename));
+                allSuccessful &= cache.put(filename);
             }
         }
         return allSuccessful;

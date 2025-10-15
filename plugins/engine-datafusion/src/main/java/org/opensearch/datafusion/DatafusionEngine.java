@@ -70,7 +70,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         this.cacheManager = datafusionService.getCacheManager();
         datafusionReaderManager.setOnFilesAdded(files -> {
             // Handle new files added during refresh
-            cacheManager.addToCache(shardPath.getDataPath().toString(),files);
+            cacheManager.addToCache(files);
         });
     }
 
@@ -121,6 +121,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 }
             };
         } catch (Exception ex) {
+            logger.error("Failed to acquire searcher {}", ex.toString(), ex);
             // TODO
         }
         return searcher;
