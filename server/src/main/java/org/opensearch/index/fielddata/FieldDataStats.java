@@ -82,7 +82,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         memorySize = in.readVLong();
         evictions = in.readVLong();
         fieldMemorySizes = in.readOptionalWriteable(FieldMemoryStats::new);
-        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
             itemCount = in.readVLong();
             fieldItemCounts = in.readOptionalWriteable(FieldCountStats::new);
         }
@@ -175,7 +175,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         out.writeVLong(memorySize);
         out.writeVLong(evictions);
         out.writeOptionalWriteable(fieldMemorySizes);
-        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
             out.writeVLong(itemCount);
             out.writeOptionalWriteable(fieldItemCounts);
         }
