@@ -493,16 +493,16 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_metadat
     _class: JClass,
     cache_ptr: jlong,
     file_path: JString,
-) -> i32 {
+) -> bool {
     let file_path: String = match env.get_string(&file_path) {
         Ok(s) => s.into(),
-        Err(_) => return -1,
+        Err(_) => return false
     };
     let cache = unsafe { &*(cache_ptr as *const Arc<MutexFileMetadataCache>) };
     let data_format = if file_path.to_lowercase().ends_with(".parquet") {
         "parquet"
     } else {
-        return 0; // Skip unsupported formats
+        return false; // Skip unsupported formats
     };
 
     let object_meta = create_object_meta_from_file(&file_path);
@@ -517,10 +517,15 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_metadat
                 .expect("Failed to construct file metadata")
         });
 
-    cache.put(&object_meta, metadata);
+    let metadata = cache.put(&object_meta, metadata);
+
+    if metadata.is_none() {
+        println!("Failed to cache metadata for: {}", file_path);
+        return false;
+    }
 
     println!("Cached metadata for: {}", file_path);
-    1
+    true
 }
 
 #[no_mangle]
@@ -553,10 +558,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_metadat
     _class: JClass,
     cache_ptr: jlong,
     file_path: JString,
-) -> jlong {
+) -> bool {
     let file_path: String = match env.get_string(&file_path) {
         Ok(s) => s.into(),
-        Err(_) => return 0,
+        Err(_) => return false,
     };
 
     let cache = unsafe { &*(cache_ptr as *const Arc<MutexFileMetadataCache>) };
@@ -565,11 +570,11 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_metadat
     match cache.get(&object_meta) {
         Some(metadata) => {
             println!("Retrieved metadata for: {} - size: {:?}", file_path, metadata.memory_size());
-            Box::into_raw(Box::new(metadata)) as jlong
+            true
         },
         None => {
             println!("No metadata found for: {}", file_path);
-            0
+            false
         },
     }
 }
