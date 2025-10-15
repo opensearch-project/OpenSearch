@@ -24,6 +24,7 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -68,13 +69,8 @@ public class TransportPruneCacheAction extends TransportNodesAction<
     protected void resolveRequest(PruneCacheRequest request, ClusterState clusterState) {
         assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
 
-        // First collect all warm nodes from the cluster (more efficient approach)
-        List<DiscoveryNode> allWarmNodes = clusterState.nodes()
-            .getNodes()
-            .values()
-            .stream()
-            .filter(DiscoveryNode::isWarmNode)
-            .collect(Collectors.toList());
+        // Use cached warm nodes map for optimal performance (now available after rebase)
+        List<DiscoveryNode> allWarmNodes = new ArrayList<>(clusterState.nodes().getWarmNodes().values());
 
         List<DiscoveryNode> warmNodes;
 
