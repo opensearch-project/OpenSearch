@@ -105,12 +105,22 @@ public class FieldMemoryStatsTests extends OpenSearchTestCase {
         assertEquals(stats3, stats4);
     }
 
-    public static FieldMemoryStats randomFieldMemoryStats() {
+    private static Map<String, Long> randomStats() {
         final Map<String, Long> map = new HashMap<>();
         int keys = randomIntBetween(1, 1000);
         for (int i = 0; i < keys; i++) {
             map.put(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), randomNonNegativeLong());
         }
-        return new FieldMemoryStats(map);
+        return map;
+    }
+
+    public static FieldMemoryStats randomFieldMemoryStats() {
+        return new FieldMemoryStats(randomStats());
+    }
+
+    // For some reason the jenkins gradle check doesn't like casting FieldMemoryStats --> FieldCountStats
+    // although it passes locally, so make a second function
+    public static FieldCountStats randomFieldCountStats() {
+        return new FieldCountStats(randomStats());
     }
 }

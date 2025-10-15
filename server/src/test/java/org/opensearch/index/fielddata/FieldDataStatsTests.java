@@ -44,7 +44,7 @@ public class FieldDataStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats memoryStats = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        FieldCountStats countStats = randomBoolean() ? null : (FieldCountStats) FieldMemoryStatsTests.randomFieldMemoryStats();
+        FieldCountStats countStats = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldCountStats();
         // test both ctors
         FieldDataStats stats = randomBoolean()
             ? new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), memoryStats)
