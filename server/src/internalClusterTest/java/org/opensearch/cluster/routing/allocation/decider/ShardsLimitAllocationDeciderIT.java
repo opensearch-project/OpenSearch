@@ -44,6 +44,7 @@ import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAlloc
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
@@ -321,11 +322,11 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
 
     /**
      * Integration test to verify the behavior of INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING
-     * in a non-remote store environment.
+     * or INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING in a non-remote store environment.
      *
      * Scenario:
      * An end-user attempts to create an index with INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING
-     * on a cluster where remote store is not enabled.
+     * or INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING on a cluster where remote store is not enabled.
      *
      * Expected Outcome:
      * The system should reject the index creation request and throw an appropriate exception,
@@ -337,7 +338,7 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 3)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 1)
+            .put(getIndexLevelShardsPerNodeKey(true), 1)
             .build();
 
         // Assert that creating the index throws an exception
@@ -351,7 +352,9 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
             "Exception should mention that the setting requires remote store",
             exception.getMessage()
                 .contains(
-                    "Setting [index.routing.allocation.total_primary_shards_per_node] can only be used with remote store enabled clusters"
+                    "Setting [index.routing.allocation.total_primary_shards_per_node] or "
+                        + "[index.routing.allocation.total_remote_capable_primary_shards_per_node] "
+                        + "can only be used with remote store enabled clusters"
                 )
         );
     }
@@ -387,7 +390,7 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
                 )
         );
 
-        // Attempt to create an index with INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING
+        // Attempt to create an index with INDEX_TOTAL_SHARDS_PER_NODE_SETTING
         Settings indexSettings = Settings.builder()
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 3)
@@ -432,7 +435,9 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
     private String getIndexLevelShardsPerNodeKey(boolean primary) {
         boolean isWarmIndex = WRITABLE_WARM_INDEX_SETTING.get(settings);
         if (isWarmIndex) {
-            return INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING.getKey();
+            return primary
+                ? INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
+                : INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING.getKey();
         } else {
             return primary ? INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() : INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey();
         }

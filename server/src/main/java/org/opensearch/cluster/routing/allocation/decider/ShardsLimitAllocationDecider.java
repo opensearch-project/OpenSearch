@@ -113,6 +113,18 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     );
 
     /**
+     * Controls the maximum number of remote capable primary shards per index on a single OpenSearch
+     * node. Negative values are interpreted as unlimited.
+     */
+    public static final Setting<Integer> INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING = Setting.intSetting(
+        "index.routing.allocation.total_remote_capable_primary_shards_per_node",
+        -1,
+        -1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
      * Controls the maximum number of shards per node on a cluster level.
      * Negative values are interpreted as unlimited.
      */
@@ -205,7 +217,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         // Capture the limit here in case it changes during this method's execution
         if (nodeRoutingPool == RoutingPool.REMOTE_CAPABLE) {
             indexShardLimit = indexMetadata.getIndexTotalRemoteCapableShardsPerNodeLimit();
-            indexPrimaryShardLimit = -1; // No primary shard limit for remote capable nodes
+            indexPrimaryShardLimit = indexMetadata.getIndexTotalRemoteCapablePrimaryShardsPerNodeLimit();
             clusterShardLimit = this.clusterRemoteCapableShardLimit;
             clusterPrimaryShardLimit = -1; // No primary shard limit for remote capable nodes
         } else {
@@ -279,7 +291,9 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
                     "too many primary shards [%d] allocated to this node for index [%s], index setting [%s=%d]",
                     indexPrimaryShardCount,
                     shardRouting.getIndexName(),
-                    INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(),
+                    shardRoutingPool == RoutingPool.REMOTE_CAPABLE
+                        ? INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
+                        : INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(),
                     indexPrimaryShardLimit
                 );
             }

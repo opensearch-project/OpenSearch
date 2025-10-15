@@ -336,7 +336,7 @@ public class ShardLimitValidator {
                 getRemoteCapableShardLimitPerNode(),
                 getRemoteCapableShardLimitPerCluster(),
                 state.getNodes().getWarmNodes().size(),
-                "Warm"
+                shardPool
             )
             : checkShardLimit(
                 newShards,
@@ -344,7 +344,7 @@ public class ShardLimitValidator {
                 getShardLimitPerNode(),
                 getShardLimitPerCluster(),
                 state.getNodes().getDataNodes().size(),
-                "Hot"
+                shardPool
             );
     }
 
@@ -355,7 +355,7 @@ public class ShardLimitValidator {
         int maxShardsPerNodeSetting,
         int maxShardsPerClusterSetting,
         int nodeCount,
-        String shardPool
+        RoutingPool shardPool
     ) {
         // Only enforce the shard limit if we have at least one data node, so that we don't block
         // index creation during cluster setup
