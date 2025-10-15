@@ -8,25 +8,25 @@
 
 package org.opensearch.transport.grpc.services.document;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
-
-import java.io.IOException;
-
-import org.junit.Before;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import com.google.protobuf.ByteString;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
 import org.opensearch.protobufs.IndexOperation;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.transport.grpc.services.DocumentServiceImpl;
-import com.google.protobuf.ByteString;
+import org.junit.Before;
+
+import java.io.IOException;
 
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 
 public class DocumentServiceImplTests extends OpenSearchTestCase {
 
@@ -83,9 +83,9 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
 
     public void testErrorTracingConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsTracing() {
         // Setup request and the service, server setting is off and request does not require tracing
-        BulkRequest request = createTestBulkRequest().toBuilder().setGlobalParams(
-            org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(false)
-        ).build();
+        BulkRequest request = createTestBulkRequest().toBuilder()
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(false))
+            .build();
         DocumentServiceImpl serviceWithDisabledErrorsTracing = new DocumentServiceImpl(client, false);
 
         // Call bulk method
@@ -99,13 +99,13 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
         IndexOperation indexOp = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
         BulkRequestBody requestBody = BulkRequestBody.newBuilder()
-                                                     .setOperationContainer(org.opensearch.protobufs.OperationContainer.newBuilder().setIndex(indexOp).build())
-                                                     .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
-                                                     .build();
+            .setOperationContainer(org.opensearch.protobufs.OperationContainer.newBuilder().setIndex(indexOp).build())
+            .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
+            .build();
 
         return BulkRequest.newBuilder()
-                          .addRequestBody(requestBody)
-                          .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true))
-                          .build();
+            .addRequestBody(requestBody)
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true))
+            .build();
     }
 }

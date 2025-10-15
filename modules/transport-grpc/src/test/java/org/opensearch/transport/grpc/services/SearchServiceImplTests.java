@@ -8,24 +8,24 @@
 
 package org.opensearch.transport.grpc.services;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
-
-import java.io.IOException;
-
-import org.junit.Before;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
+import org.junit.Before;
+
+import java.io.IOException;
 
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 
 public class SearchServiceImplTests extends OpenSearchTestCase {
 
@@ -47,7 +47,10 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
 
     public void testConstructorWithNullClient() {
         // Test that constructor throws IllegalArgumentException when client is null
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(null, queryUtils, true));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchServiceImpl(null, queryUtils, true)
+        );
 
         assertEquals("Client cannot be null", exception.getMessage());
     }
@@ -106,9 +109,9 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
 
     public void testErrorTracingConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsTracing() {
         // Setup request and the service, server setting is off and request skips tracing
-        SearchRequest request = createTestSearchRequest().toBuilder().setGlobalParams(
-            org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(false)
-        ).build();
+        SearchRequest request = createTestSearchRequest().toBuilder()
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(false))
+            .build();
         SearchServiceImpl serviceWithDisabledErrorsTracing = new SearchServiceImpl(client, queryUtils, false);
 
         // Call search method
@@ -120,9 +123,9 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
 
     private SearchRequest createTestSearchRequest() {
         return SearchRequest.newBuilder()
-                            .addIndex("test-index")
-                            .setRequestBody(SearchRequestBody.newBuilder().setSize(10).build())
-                            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true).build())
-                            .build();
+            .addIndex("test-index")
+            .setRequestBody(SearchRequestBody.newBuilder().setSize(10).build())
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true).build())
+            .build();
     }
 }
