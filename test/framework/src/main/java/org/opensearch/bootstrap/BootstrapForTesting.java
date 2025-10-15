@@ -85,6 +85,8 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
  * The idea is to mimic as much as possible what happens with ES in production
  * mode (e.g. assign permissions and install security manager the same way)
  */
+@SuppressWarnings("removal")
+@SuppressForbidden(reason = "https://github.com/opensearch-project/OpenSearch/issues/19640")
 public class BootstrapForTesting {
     private static final String[] TEST_RUNNER_PACKAGES = new String[] {
         // gradle worker
