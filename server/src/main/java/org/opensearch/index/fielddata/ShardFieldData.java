@@ -33,6 +33,7 @@
 package org.opensearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
+import org.opensearch.common.FieldCountStats;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.metrics.CounterMetric;
@@ -76,7 +77,7 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
             evictionsMetric.count(),
             fieldTotals == null ? null : new FieldMemoryStats(fieldTotals),
             countMetric.count(),
-            fieldCounts == null ? null : new FieldMemoryStats(fieldCounts)
+            fieldCounts == null ? null : new FieldCountStats(fieldCounts)
         );
     }
 

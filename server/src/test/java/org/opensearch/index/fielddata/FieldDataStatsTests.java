@@ -31,6 +31,7 @@
 
 package org.opensearch.index.fielddata;
 
+import org.opensearch.common.FieldCountStats;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.FieldMemoryStatsTests;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -42,11 +43,12 @@ import java.io.IOException;
 public class FieldDataStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
-        FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
+        FieldMemoryStats memoryStats = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
+        FieldCountStats countStats = randomBoolean() ? null : (FieldCountStats) FieldMemoryStatsTests.randomFieldMemoryStats();
         // test both ctors
         FieldDataStats stats = randomBoolean()
-            ? new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map)
-            : new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map, randomNonNegativeLong(), map);
+            ? new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), memoryStats)
+            : new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), memoryStats, randomNonNegativeLong(), countStats);
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput input = out.bytes().streamInput();

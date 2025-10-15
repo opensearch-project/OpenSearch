@@ -33,6 +33,7 @@
 package org.opensearch.index.fielddata;
 
 import org.opensearch.Version;
+import org.opensearch.common.FieldCountStats;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -44,6 +45,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -67,7 +69,10 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
     @Nullable
     private FieldMemoryStats fieldMemorySizes;
     @Nullable
-    private FieldMemoryStats fieldItemCounts;
+    private FieldCountStats fieldItemCounts;
+
+    private static final List<String> ORDERED_FIELD_LEVEL_API_RAW_KEYS = List.of(MEMORY_SIZE_IN_BYTES, ITEM_COUNT);
+    private static final List<String> ORDERED_FIELD_LEVEL_API_READABLE_KEYS = List.of(MEMORY_SIZE, ITEM_COUNT);
 
     public FieldDataStats() {
 
@@ -79,7 +84,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         fieldMemorySizes = in.readOptionalWriteable(FieldMemoryStats::new);
         if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
             itemCount = in.readVLong();
-            fieldItemCounts = in.readOptionalWriteable(FieldMemoryStats::new);
+            fieldItemCounts = in.readOptionalWriteable(FieldCountStats::new);
         }
     }
 
@@ -91,7 +96,6 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
      */
     @Deprecated
     public FieldDataStats(long memorySize, long evictions, @Nullable FieldMemoryStats fields) {
-        // TODO: Remove usage of this ctor in tests?
         this(memorySize, evictions, fields, 0, null);
     }
 
@@ -100,7 +104,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         long evictions,
         @Nullable FieldMemoryStats fieldMemorySizes,
         long itemCount,
-        @Nullable FieldMemoryStats fieldItemCounts
+        @Nullable FieldCountStats fieldItemCounts
     ) {
         this.memorySize = memorySize;
         this.evictions = evictions;
@@ -191,18 +195,14 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             fields = fieldItemCounts.getStats().keySet();
         }
         if (fields != null) {
-            builder.startObject(FIELDS);
-            for (String field : fields) {
-                builder.startObject(field);
-                if (fieldMemorySizes != null) {
-                    builder.humanReadableField(MEMORY_SIZE_IN_BYTES, MEMORY_SIZE, new ByteSizeValue(fieldMemorySizes.get(field)));
-                }
-                if (fieldItemCounts != null) {
-                    builder.field(ITEM_COUNT, fieldItemCounts.get(field));
-                }
-                builder.endObject();
-            }
-            builder.endObject();
+            FieldMemoryStats.toXContent(
+                builder,
+                fields,
+                FIELDS,
+                List.of(fieldMemorySizes, fieldItemCounts),
+                ORDERED_FIELD_LEVEL_API_RAW_KEYS,
+                ORDERED_FIELD_LEVEL_API_READABLE_KEYS
+            );
         }
         builder.endObject();
         return builder;
