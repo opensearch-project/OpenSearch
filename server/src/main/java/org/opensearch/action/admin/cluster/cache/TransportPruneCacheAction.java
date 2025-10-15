@@ -69,12 +69,9 @@ public class TransportPruneCacheAction extends TransportNodesAction<
     protected void resolveRequest(PruneCacheRequest request, ClusterState clusterState) {
         assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
 
-        // Use cached warm nodes map for optimal performance (now available after rebase)
         List<DiscoveryNode> allWarmNodes = new ArrayList<>(clusterState.nodes().getWarmNodes().values());
 
         List<DiscoveryNode> warmNodes;
-
-        // If specific nodes are requested, take intersection with warm nodes
         if (request.nodesIds() != null && request.nodesIds().length > 0) {
             String[] resolvedNodeIds = clusterState.nodes().resolveNodes(request.nodesIds());
             Set<String> requestedIds = Set.of(resolvedNodeIds);
@@ -87,7 +84,6 @@ public class TransportPruneCacheAction extends TransportNodesAction<
                 );
             }
         } else {
-            // No specific nodes requested - use all warm nodes
             warmNodes = allWarmNodes;
         }
 
