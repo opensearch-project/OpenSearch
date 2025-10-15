@@ -96,11 +96,15 @@ public class ClusterMaxMergesAtOnceIT extends AbstractSnapshotIntegTestCase {
         assertEquals(20, ((OpenSearchTieredMergePolicy) indexService.getIndexSettings().getMergePolicy(true)).getMaxMergeAtOnce());
         assertEquals(20, ((OpenSearchTieredMergePolicy) secondIndexService.getIndexSettings().getMergePolicy(true)).getMaxMergeAtOnce());
 
+        int replicas = randomIntBetween(1, Math.max(1, internalCluster().numDataNodes() - 1));
         // Create index with index level override in settings
         indexName = "log-myindex-3";
         createIndex(
             indexName,
-            Settings.builder().put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), 15).build()
+            Settings.builder()
+                .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), 15)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas)
+                .build()
         );
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
