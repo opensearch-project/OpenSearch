@@ -1559,7 +1559,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         context.trackScores(source.trackScores());
-        context.includeNamedQueriesScore(source.includeNamedQueriesScore());
+        if (source.includeNamedQueriesScore() != null) {
+            context.includeNamedQueriesScore(source.includeNamedQueriesScore());
+        }
         if (source.trackTotalHitsUpTo() != null
             && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
             && context.scrollContext() != null) {
