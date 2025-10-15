@@ -210,7 +210,7 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         KafkaOffset expectedStartPointer = new KafkaOffset(0L);
         long lag = consumer.getPointerBasedLag(expectedStartPointer);
 
-        // Should return 0 on exception
-        assertEquals(0L, lag);
+        // Should return -1 on exception
+        assertEquals(-1, lag);
     }
 }

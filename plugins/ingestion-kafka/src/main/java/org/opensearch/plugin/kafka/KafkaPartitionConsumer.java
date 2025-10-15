@@ -261,7 +261,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
      * access to KafkaConsumer.
      *
      * @param expectedStartPointer the pointer where ingestion would start if no messages have been consumed yet
-     * @return offset based lag
+     * @return offset based lag. -1 is returned if errors are encountered.
      */
     @Override
     public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
@@ -280,7 +280,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             return endOffset - lastFetchedOffset - 1;
         } catch (Exception e) {
             logger.warn("Failed to calculate pointer based lag for partition {}: {}", topicPartition.partition(), e.getMessage());
-            return 0;
+            return -1;
         }
     }
 
