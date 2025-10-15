@@ -53,7 +53,7 @@ use datafusion::execution::{
 use datafusion_expr::{
     dml::InsertOp, Expr, SortExpr, TableProviderFilterPushDown, TableType,
 };
-use datafusion::physical_expr::schema_rewriter::PhysicalExprAdapterFactory;
+use datafusion::physical_expr_adapter::schema_rewriter::PhysicalExprAdapterFactory;
 use datafusion::physical_expr_common::sort_expr::LexOrdering;
 use datafusion::physical_plan::{empty::EmptyExec, ExecutionPlan, Statistics};
 use futures::{future, stream, Stream, StreamExt, TryStreamExt};

@@ -8,8 +8,12 @@
 
 package org.opensearch.datafusion.core;
 
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.datafusion.search.cache.CacheManager;
+
 import static org.opensearch.datafusion.DataFusionQueryJNI.closeGlobalRuntime;
 import static org.opensearch.datafusion.DataFusionQueryJNI.createGlobalRuntime;
+import static org.opensearch.datafusion.DataFusionQueryJNI.createGlobalRuntimev1;
 import static org.opensearch.datafusion.DataFusionQueryJNI.createTokioRuntime;
 
 /**
@@ -20,12 +24,21 @@ public class GlobalRuntimeEnv implements AutoCloseable {
     // ptr to runtime environment in df
     private final long ptr;
     private final long tokio_runtime_ptr;
+    private CacheManager cacheManager;
+
 
     /**
      * Creates a new global runtime environment.
      */
     public GlobalRuntimeEnv() {
         this.ptr = createGlobalRuntime();
+        this.tokio_runtime_ptr = createTokioRuntime();
+        this.cacheManager = null;
+    }
+
+    public GlobalRuntimeEnv(ClusterSettings clusterSettings) {
+        this.cacheManager = CacheManager.fromConfig(clusterSettings);
+        this.ptr = createGlobalRuntimev1(cacheManager.getCacheManagerPtr());
         this.tokio_runtime_ptr = createTokioRuntime();
     }
 
@@ -44,5 +57,9 @@ public class GlobalRuntimeEnv implements AutoCloseable {
     @Override
     public void close() {
         closeGlobalRuntime(this.ptr);
+    }
+
+    public CacheManager getCacheManager() {
+        return cacheManager;
     }
 }

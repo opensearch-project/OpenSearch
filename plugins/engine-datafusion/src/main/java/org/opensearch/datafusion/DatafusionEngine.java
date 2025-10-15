@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
+import java.util.List;
 import org.opensearch.datafusion.core.DefaultRecordBatchStream;
 import org.opensearch.datafusion.search.DatafusionContext;
 import org.opensearch.datafusion.search.DatafusionQuery;
@@ -25,6 +26,8 @@ import org.opensearch.datafusion.search.DatafusionReader;
 import org.opensearch.datafusion.search.DatafusionReaderManager;
 import org.opensearch.datafusion.search.DatafusionSearcher;
 import org.opensearch.datafusion.search.DatafusionSearcherSupplier;
+import org.opensearch.datafusion.search.cache.CacheManager;
+import org.opensearch.datafusion.search.cache.CacheType;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
@@ -58,12 +61,17 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     private DataFormat dataFormat;
     private DatafusionReaderManager datafusionReaderManager;
     private DataFusionService datafusionService;
+    private CacheManager cacheManager;
 
     public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService, ShardPath shardPath) throws IOException {
         this.dataFormat = dataFormat;
-
         this.datafusionReaderManager = new DatafusionReaderManager(shardPath.getDataPath().toString(), formatCatalogSnapshot, dataFormat.getName());
         this.datafusionService = dataFusionService;
+        this.cacheManager = datafusionService.getCacheManager();
+        datafusionReaderManager.setOnFilesAdded(files -> {
+            // Handle new files added during refresh
+            cacheManager.addToCache(shardPath.getDataPath().toString(),files);
+        });
     }
 
     @Override
@@ -105,6 +113,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 @Override
                 protected void doClose() {
                     try {
+                        cacheManager.removeFilesByDirectory(reader.directoryPath);
                         reader.decRef();
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -164,7 +173,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         Map<String, Object[]> finalRes = new HashMap<>();
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
-            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer());
+            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer(), datafusionService.getRuntimePointer());
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getTokioRuntimePointer() , allocator);
 
