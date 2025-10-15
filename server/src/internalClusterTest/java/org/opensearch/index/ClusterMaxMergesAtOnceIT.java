@@ -64,7 +64,6 @@ public class ClusterMaxMergesAtOnceIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startClusterManagerOnlyNode();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18056")
     public void testClusterLevelDefaultUpdatesMergePolicy() throws ExecutionException, InterruptedException {
         String clusterManagerName = internalCluster().getClusterManagerName();
         List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
