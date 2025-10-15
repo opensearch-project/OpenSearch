@@ -21,6 +21,7 @@ import org.opensearch.core.compress.NotXContentException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
@@ -36,6 +37,19 @@ public class GrpcErrorHandler {
 
     private GrpcErrorHandler() {
         // Utility class, no instances
+    }
+
+    /**
+     * Validates if error tracing is allowed based on server configuration and request parameters.
+     *
+     * @param detailedErrorsEnabled Whether detailed errors are enabled on the server
+     * @param globalRequestParams The global parameters from the gRPC request
+     * @throws IllegalArgumentException if error tracing is requested but disabled by the server side
+     */
+    public static void validateErrorTracingConfiguration(boolean detailedErrorsEnabled, GlobalParams globalRequestParams) {
+        if (detailedErrorsEnabled == false && globalRequestParams.getErrorTrace()) {
+            throw new IllegalArgumentException("error traces in responses are disabled.");
+        }
     }
 
     /**

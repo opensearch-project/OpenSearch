@@ -25,14 +25,17 @@ import io.grpc.stub.StreamObserver;
 public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImplBase {
     private static final Logger logger = LogManager.getLogger(DocumentServiceImpl.class);
     private final Client client;
+    private final boolean detailedErrorsEnabled;
 
     /**
      * Creates a new DocumentServiceImpl.
      *
      * @param client Client for executing actions on the local node
+     * @param detailedErrorsEnabled Whether detailed error tracing is enabled
      */
-    public DocumentServiceImpl(Client client) {
+    public DocumentServiceImpl(Client client, boolean detailedErrorsEnabled) {
         this.client = client;
+        this.detailedErrorsEnabled = detailedErrorsEnabled;
     }
 
     /**
@@ -44,6 +47,7 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
     @Override
     public void bulk(org.opensearch.protobufs.BulkRequest request, StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver) {
         try {
+            GrpcErrorHandler.validateErrorTracingConfiguration(detailedErrorsEnabled, request.getGlobalParams());
             org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
             BulkRequestActionListener listener = new BulkRequestActionListener(responseObserver);
             client.bulk(bulkRequest, listener);

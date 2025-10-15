@@ -31,14 +31,16 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
     private static final Logger logger = LogManager.getLogger(SearchServiceImpl.class);
     private final Client client;
     private final AbstractQueryBuilderProtoUtils queryUtils;
+    private final boolean detailedErrorsEnabled;
 
     /**
      * Creates a new SearchServiceImpl.
      *
      * @param client Client for executing actions on the local node
      * @param queryUtils Query utils instance for parsing protobuf queries
+     * @param detailedErrorsEnabled Whether detailed error tracing is enabled
      */
-    public SearchServiceImpl(Client client, AbstractQueryBuilderProtoUtils queryUtils) {
+    public SearchServiceImpl(Client client, AbstractQueryBuilderProtoUtils queryUtils, boolean detailedErrorsEnabled) {
         if (client == null) {
             throw new IllegalArgumentException("Client cannot be null");
         }
@@ -48,6 +50,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
 
         this.client = client;
         this.queryUtils = queryUtils;
+        this.detailedErrorsEnabled = detailedErrorsEnabled;
     }
 
     /**
@@ -61,8 +64,8 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
         org.opensearch.protobufs.SearchRequest request,
         StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver
     ) {
-
         try {
+            GrpcErrorHandler.validateErrorTracingConfiguration(detailedErrorsEnabled, request.getGlobalParams());
             org.opensearch.action.search.SearchRequest searchRequest = SearchRequestProtoUtils.prepareRequest(request, client, queryUtils);
             SearchRequestActionListener listener = new SearchRequestActionListener(responseObserver);
             client.search(searchRequest, listener);
