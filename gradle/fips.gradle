@@ -1,6 +1,6 @@
 import org.opensearch.gradle.info.BuildParams
 
-// Only configure FIPS dependencies for Java projects
+// Configure FIPS dependencies for full Java projects
 plugins.withId('java') {
   // Create isolated configurations for FIPS-specific dependencies.
   // These are used to isolate BC FIPS libraries from regular build classpaths,
@@ -28,6 +28,38 @@ plugins.withId('java') {
   afterEvaluate {
     def allFipsConfigs = fipsWiring.values().flatten().toSet();
     allFipsConfigs.each { config ->
+      config.dependencies.configureEach { dep ->
+        if (dep.metaClass.hasProperty(dep, "transitive")) {
+          dep.transitive = false
+        }
+      }
+    }
+  }
+}
+
+// Configure FIPS dependencies for java-base projects (e.g., StandaloneRestTestPlugin)
+// JavaBasePlugin doesn't create all standard configurations, so we only create test-related FIPS configs
+plugins.withId('java-base') {
+  // Only create test FIPS configurations for java-base projects
+  def testFipsOnly = configurations.maybeCreate("testFipsOnly")
+  def testFipsRuntimeOnly = configurations.maybeCreate("testFipsRuntimeOnly")
+
+  // Wire FIPS configurations only if the target configurations exist
+  afterEvaluate {
+    def fipsWiring = [
+        testCompileClasspath: [testFipsOnly],
+        testRuntimeClasspath: [testFipsOnly, testFipsRuntimeOnly]
+    ]
+
+    fipsWiring.each { configName, fipsConfigs ->
+      def config = configurations.findByName(configName)
+      if (config != null) {
+        config.extendsFrom(*fipsConfigs)
+      }
+    }
+
+    // This prevents unintended BC transitive dependencies (like bcutil, bc-fips) from being pulled in.
+    [testFipsOnly, testFipsRuntimeOnly].each { config ->
       config.dependencies.configureEach { dep ->
         if (dep.metaClass.hasProperty(dep, "transitive")) {
           dep.transitive = false

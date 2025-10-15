@@ -10,19 +10,16 @@ package org.opensearch.tools.cli.fips.truststore;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.StringWriter;
-
 public class ConfigurationPropertiesTests extends OpenSearchTestCase {
 
-    public void testLogoutWithPasswordSet() {
+    public void testToStringWithPasswordSet() {
         // given
         var config = new ConfigurationProperties("/path/to/truststore.bcfks", "BCFKS", "p@ssw0rd!", "BCFIPS");
 
         // when
-        StringWriter result = config.logout();
+        String output = config.toString();
 
         // then
-        String output = result.toString();
         assertTrue(output.contains("javax.net.ssl.trustStore: /path/to/truststore.bcfks"));
         assertTrue(output.contains("javax.net.ssl.trustStoreType: BCFKS"));
         assertTrue(output.contains("javax.net.ssl.trustStoreProvider: BCFIPS"));
@@ -30,15 +27,14 @@ public class ConfigurationPropertiesTests extends OpenSearchTestCase {
         assertFalse(output.contains("changeit"));
     }
 
-    public void testLogoutWithEmptyPassword() {
+    public void testToStringWithEmptyPassword() {
         // given
         var config = new ConfigurationProperties("/path/to/truststore.jks", "JKS", "", "SUN");
 
         // when
-        StringWriter result = config.logout();
+        String output = config.toString();
 
         // then
-        String output = result.toString();
         assertTrue(output.contains("javax.net.ssl.trustStore: /path/to/truststore.jks"));
         assertTrue(output.contains("javax.net.ssl.trustStoreType: JKS"));
         assertTrue(output.contains("javax.net.ssl.trustStoreProvider: SUN"));

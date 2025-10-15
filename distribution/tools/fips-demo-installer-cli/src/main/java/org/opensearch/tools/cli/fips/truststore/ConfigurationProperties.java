@@ -8,8 +8,6 @@
 
 package org.opensearch.tools.cli.fips.truststore;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.Locale;
 
 /**
@@ -21,24 +19,30 @@ import java.util.Locale;
  * @param trustStorePassword password for the trust store
  * @param trustStoreProvider security provider name for the trust store
  */
-public record ConfigurationProperties(String trustStorePath, String trustStoreType, String trustStorePassword, String trustStoreProvider) {
+record ConfigurationProperties(String trustStorePath, String trustStoreType, String trustStorePassword, String trustStoreProvider) {
 
     public static final String JAVAX_NET_SSL_TRUST_STORE = "javax.net.ssl.trustStore";
     public static final String JAVAX_NET_SSL_TRUST_STORE_TYPE = "javax.net.ssl.trustStoreType";
     public static final String JAVAX_NET_SSL_TRUST_STORE_PROVIDER = "javax.net.ssl.trustStoreProvider";
     public static final String JAVAX_NET_SSL_TRUST_STORE_PASSWORD = "javax.net.ssl.trustStorePassword";
 
-    StringWriter logout() {
-        var detailLog = new StringWriter();
-        var writer = new PrintWriter(detailLog);
-        var passwordSetStatus = trustStorePassword.isEmpty() ? "[NOT SET]" : "[SET]";
-
-        writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE + ": " + trustStorePath);
-        writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_TYPE + ": " + trustStoreType);
-        writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_PROVIDER + ": " + trustStoreProvider);
-        writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_PASSWORD + ": " + passwordSetStatus);
-        writer.flush();
-
-        return detailLog;
+    @Override
+    public String toString() {
+        return String.format(
+            Locale.ROOT,
+            """
+                %s: %s
+                %s: %s
+                %s: %s
+                %s: %s""",
+            JAVAX_NET_SSL_TRUST_STORE,
+            trustStorePath,
+            JAVAX_NET_SSL_TRUST_STORE_TYPE,
+            trustStoreType,
+            JAVAX_NET_SSL_TRUST_STORE_PROVIDER,
+            trustStoreProvider,
+            JAVAX_NET_SSL_TRUST_STORE_PASSWORD,
+            trustStorePassword.isEmpty() ? "[NOT SET]" : "[SET]"
+        );
     }
 }

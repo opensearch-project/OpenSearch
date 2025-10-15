@@ -163,7 +163,7 @@ public class TrustStoreService {
         spec.commandLine().getOut().println("### Success!");
         spec.commandLine().getOut().println("### Execute this script on all your nodes and then start all nodes");
         spec.commandLine().getOut().println("### Trust Store Configuration:");
-        spec.commandLine().getOut().print(properties.logout());
+        spec.commandLine().getOut().print(properties.toString());
         spec.commandLine().getOut().println();
     }
 }

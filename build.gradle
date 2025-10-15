@@ -73,7 +73,7 @@ apply from: 'gradle/code-coverage.gradle'
 
 // Apply FIPS configuration to all projects
 allprojects {
-  apply from: "${rootProject.projectDir}/gradle/fips.gradle"
+  apply from: "$rootDir/gradle/fips.gradle"
 }
 
 // common maven publishing configuration
