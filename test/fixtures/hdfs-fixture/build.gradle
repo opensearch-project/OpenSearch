@@ -89,7 +89,7 @@ dependencies {
     exclude group: "org.jline"
   }
   runtimeOnly "com.google.guava:guava:${versions.guava}"
-  runtimeOnly("com.squareup.okhttp3:okhttp:5.1.0") {
+  runtimeOnly("com.squareup.okhttp3:okhttp:5.2.1") {
     exclude group: "com.squareup.okio"
   }
   runtimeOnly "com.squareup.okio:okio:3.16.0"

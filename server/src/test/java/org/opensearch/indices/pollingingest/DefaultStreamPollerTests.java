@@ -19,7 +19,6 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardConsumer;
-import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.test.IndexSettingsModule;
@@ -31,9 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -61,7 +58,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     private MessageProcessorRunnable processorRunnable;
     private MessageProcessorRunnable.MessageProcessor processor;
     private List<byte[]> messages;
-    private Set<IngestionShardPointer> persistedPointers;
     private final int awaitTime = 300;
     private final int sleepTime = 300;
     private DropIngestionErrorStrategy errorStrategy;
@@ -79,13 +75,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         processor = mock(MessageProcessorRunnable.MessageProcessor.class);
         errorStrategy = new DropIngestionErrorStrategy("ingestion_source");
         processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(5), processor, errorStrategy, "test_index", 0);
-        persistedPointers = new HashSet<>();
         partitionedBlockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
         engine = mock(IngestionEngine.class);
         indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
-            persistedPointers,
             fakeConsumerFactory,
             "",
             0,
@@ -142,40 +136,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         verify(processor, times(2)).process(any(), any());
     }
 
-    public void testSkipProcessed() throws InterruptedException {
-        messages.add("{\"name\":\"cathy\", \"age\": 21}".getBytes(StandardCharsets.UTF_8));
-        messages.add("{\"name\":\"danny\", \"age\": 31}".getBytes(StandardCharsets.UTF_8));
-        persistedPointers.add(new FakeIngestionSource.FakeIngestionShardPointer(1));
-        persistedPointers.add(new FakeIngestionSource.FakeIngestionShardPointer(2));
-        poller = new DefaultStreamPoller(
-            new FakeIngestionSource.FakeIngestionShardPointer(0),
-            persistedPointers,
-            fakeConsumerFactory,
-            "",
-            0,
-            partitionedBlockingQueueContainer,
-            StreamPoller.ResetState.NONE,
-            "",
-            errorStrategy,
-            StreamPoller.State.NONE,
-            1000,
-            1000,
-            indexSettings
-        );
-
-        CountDownLatch latch = new CountDownLatch(2);
-        doAnswer(invocation -> {
-            latch.countDown();
-            return null;
-        }).when(processor).process(any(), any());
-
-        poller.start();
-        latch.await();
-        // 2 messages are processed, 2 messages are skipped
-        verify(processor, times(2)).process(any(), any());
-        assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(2), poller.getMaxPersistedPointer());
-    }
-
     public void testCloseWithoutStart() {
         poller.close();
         assertTrue(poller.isClosed());
@@ -192,7 +152,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     public void testResetStateEarliest() throws InterruptedException {
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(1),
-            persistedPointers,
             fakeConsumerFactory,
             "",
             0,
@@ -221,7 +180,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     public void testResetStateLatest() throws InterruptedException {
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
-            persistedPointers,
             fakeConsumerFactory,
             "",
             0,
@@ -246,7 +204,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     public void testResetStateRewindByOffset() throws InterruptedException {
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(2),
-            persistedPointers,
             fakeConsumerFactory,
             "",
             0,
@@ -331,7 +288,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
-            persistedPointers,
             mockConsumerFactory,
             "",
             0,
@@ -393,7 +349,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
-            persistedPointers,
             mockConsumerFactory,
             "",
             0,
@@ -429,7 +384,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
-            persistedPointers,
             fakeConsumerFactory,
             "",
             0,
@@ -501,7 +455,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
-            persistedPointers,
             mockConsumerFactory,
             "",
             0,
@@ -570,7 +523,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Create a poller with the mock factory
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
-            persistedPointers,
             mockConsumerFactory,
             "",
             0,
