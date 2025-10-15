@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollector;
@@ -37,6 +38,7 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
     private final BucketCollector collectableSubAggregators;
     private final LeafReaderContext leafCtx;
 
+    private final Bits liveDocs;
     private final FixedBitSet bitSet;
     private final BitDocIdSet bitDocIdSet;
 
@@ -53,6 +55,7 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
         this.getBucketOrd = getBucketOrd;
         this.collectableSubAggregators = subAggCollectorParam.collectableSubAggregators();
         this.leafCtx = subAggCollectorParam.leafCtx();
+        this.liveDocs = leafCtx.reader().getLiveDocs();
         int numDocs = leafCtx.reader().maxDoc();
         bitSet = new FixedBitSet(numDocs);
         bitDocIdSet = new BitDocIdSet(bitSet);
@@ -65,12 +68,20 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
 
     @Override
     public void collectDocId(int docId) {
-        bitSet.set(docId);
+        if (liveDocs.get(docId)) {
+            bitSet.set(docId);
+        }
     }
 
     @Override
     public void collectDocIdSet(DocIdSetIterator iter) throws IOException {
-        bitSet.or(iter);
+        // Explicitly OR iter intoBitSet to filter out deleted docs
+        iter.nextDoc();
+        for (int doc = iter.docID(); doc < DocIdSetIterator.NO_MORE_DOCS; doc = iter.nextDoc()) {
+            if (liveDocs.get(doc)) {
+                bitSet.set(doc);
+            }
+        }
     }
 
     @Override
