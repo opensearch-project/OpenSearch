@@ -44,6 +44,7 @@ import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.common.Priority;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
@@ -855,40 +856,38 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * dataNodes;
-        String shardType = getShardType();
         String expectedError = "Validation Failed: 1: this action would add ["
             + totalShards
             + "] total "
-            + shardType
+            + getShardType()
             + " shards, but this cluster currently has ["
             + currentShards
             + "]/["
             + maxShards
             + "] maximum "
-            + shardType
+            + getShardType()
             + " shards open;";
         assertEquals(expectedError, e.getMessage());
     }
 
     private void verifyException(int maxShards, int currentShards, int extraShards, IllegalArgumentException e) {
-        String shardType = getShardType();
         String expectedError = "Validation Failed: 1: this action would add ["
             + extraShards
             + "] total "
-            + shardType
+            + getShardType()
             + " shards, but this cluster currently has ["
             + currentShards
             + "]/["
             + maxShards
             + "] maximum "
-            + shardType
+            + getShardType()
             + " shards open;";
         assertEquals(expectedError, e.getMessage());
     }
 
-    private String getShardType() {
+    private RoutingPool getShardType() {
         Boolean isWarmIndex = WRITABLE_WARM_INDEX_SETTING.get(settings);
-        return isWarmIndex ? "Warm" : "Hot";
+        return isWarmIndex ? RoutingPool.REMOTE_CAPABLE : RoutingPool.LOCAL_ONLY;
     }
 
     private Settings warmNodeSettings(ByteSizeValue cacheSize) {
