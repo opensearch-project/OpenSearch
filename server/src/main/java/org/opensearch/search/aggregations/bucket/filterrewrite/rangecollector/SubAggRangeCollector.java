@@ -66,9 +66,13 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
         return true;
     }
 
+    private boolean isDocLive(int docId) {
+        return liveDocs == null || liveDocs.get(docId);
+    }
+
     @Override
     public void collectDocId(int docId) {
-        if (liveDocs.get(docId)) {
+        if (isDocLive(docId)) {
             bitSet.set(docId);
         }
     }
@@ -78,7 +82,7 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
         // Explicitly OR iter intoBitSet to filter out deleted docs
         iter.nextDoc();
         for (int doc = iter.docID(); doc < DocIdSetIterator.NO_MORE_DOCS; doc = iter.nextDoc()) {
-            if (liveDocs.get(doc)) {
+            if (isDocLive(doc)) {
                 bitSet.set(doc);
             }
         }
