@@ -555,4 +555,43 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         String typeStr = in.readString();
         assertEquals("fixed", typeStr);
     }
+
+    public void testStatsAndValidateSettingForForkJoinPool() {
+        // Register a ForkJoinPool-based executor in ThreadPool
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int parallelism = 3;
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", parallelism));
+        try {
+            // --- Cover stats() branch for FORK_JOIN ---
+            ThreadPoolStats stats = threadPool.stats();
+            boolean found = false;
+            for (ThreadPoolStats.Stats stat : stats) {
+                if ("jvector".equals(stat.getName())) {
+                    found = true;
+                    // For ForkJoinPool, stats fields should be as in the branch: 0, 0, 0, 0, 0, 0, -1, parallelism
+                    assertEquals(0, stat.getThreads());
+                    assertEquals(0, stat.getQueue());
+                    assertEquals(0, stat.getActive());
+                    assertEquals(0, stat.getRejected());
+                    assertEquals(0, stat.getLargest());
+                    assertEquals(0, stat.getCompleted());
+                    assertEquals(-1, stat.getWaitTimeNanos());
+                    assertEquals(parallelism, stat.getParallelism());
+                }
+            }
+            assertTrue("ForkJoinPool stats entry should exist", found);
+
+            // --- Cover validateSetting skip/continue for FORK_JOIN ---
+            // We intentionally supply a bogus config for jvector. Should hit the continue branch and NOT throw.
+            Settings bogus = Settings.builder().put("jvector.size", "99").build();
+            threadPool.setThreadPool(bogus); // Should not throw!
+
+            // Also cover the branch in validateSetting that throws for unknown thread pool name
+            Settings unknown = Settings.builder().put("notarealthreadpool.size", 1).build();
+            Exception e = expectThrows(IllegalArgumentException.class, () -> threadPool.setThreadPool(unknown));
+            assertTrue(e.getMessage().contains("illegal thread_pool name"));
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
 }
