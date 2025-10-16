@@ -8,14 +8,14 @@
 
 package org.opensearch.threadpool;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
-
-import org.opensearch.common.settings.Settings;
-import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 /**
  * Single-node IT that defines an inline plugin to register a ForkJoin executor ("jvector")
