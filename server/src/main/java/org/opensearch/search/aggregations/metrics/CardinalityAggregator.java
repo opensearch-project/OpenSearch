@@ -77,6 +77,7 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
@@ -601,7 +602,20 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private ObjectArray<BitArray> visitedOrds;
         private long currentMemoryUsage = 0;
 
+        private final long memoryThreshold;
+        private final Optional<BiConsumer<Integer, Long>> onMemoryLimitReached;
+
         OrdinalsCollector(HyperLogLogPlusPlus counts, SortedSetDocValues values, BigArrays bigArrays) {
+            this(counts, values, bigArrays, Long.MAX_VALUE, Optional.empty());
+        }
+
+        OrdinalsCollector(
+            HyperLogLogPlusPlus counts,
+            SortedSetDocValues values,
+            BigArrays bigArrays,
+            long memoryThreshold,
+            Optional<BiConsumer<Integer, Long>> onMemoryLimitReached
+        ) {
             if (values.getValueCount() > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException();
             }
@@ -609,6 +623,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             this.bigArrays = bigArrays;
             this.counts = counts;
             this.values = values;
+            this.memoryThreshold = memoryThreshold;
+            this.onMemoryLimitReached = onMemoryLimitReached;
             visitedOrds = bigArrays.newObjectArray(1);
         }
 
@@ -619,8 +635,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             if (bits == null) {
                 bits = new BitArray(maxOrd, bigArrays);
                 visitedOrds.set(bucketOrd, bits);
-                // Update memory usage when new BitArray is created
                 currentMemoryUsage += memoryOverhead(maxOrd);
+
+                if (currentMemoryUsage > memoryThreshold && onMemoryLimitReached.isPresent()) {
+                    onMemoryLimitReached.get().accept(doc, bucketOrd);
+                    return;
+                }
             }
             if (values.advanceExact(doc)) {
                 int count = values.docValueCount();
@@ -815,7 +835,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         private Collector activeCollector;
         private final OrdinalsCollector ordinalsCollector;
-        private boolean switchedToDirectCollector = false;
 
         HybridCollector(
             HyperLogLogPlusPlus counts,
@@ -829,17 +848,28 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             this.memoryThreshold = memoryThreshold;
 
             // Start with OrdinalsCollector
-            this.ordinalsCollector = new OrdinalsCollector(counts, ordinalValues, bigArrays);
+            this.ordinalsCollector = new OrdinalsCollector(
+                counts,
+                ordinalValues,
+                bigArrays,
+                memoryThreshold,
+                Optional.of(this::handleMemoryLimitReached)
+            );
             this.activeCollector = ordinalsCollector;
         }
 
         @Override
         public void collect(int doc, long bucketOrd) throws IOException {
             activeCollector.collect(doc, bucketOrd);
+        }
 
-            // Check memory usage after collection
-            if (!switchedToDirectCollector && ordinalsCollector.getCurrentMemoryUsage() > memoryThreshold) {
+        private void handleMemoryLimitReached(int doc, long bucketOrd) {
+            try {
                 switchToDirectCollector();
+                // Collect the document that triggered the switch
+                activeCollector.collect(doc, bucketOrd);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to switch to direct collector", e);
             }
         }
 
@@ -852,7 +882,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             // Pass computed data to Direct Collector.
             activeCollector = new DirectCollector(counts, hashValues);
-            switchedToDirectCollector = true;
         }
 
         @Override
