@@ -49,7 +49,7 @@ public class BlobStoreProvider {
     protected BlobStore createBlobStore(SetOnce<BlobStore> blobStore, boolean serverSideEncryption) {
         // assertSnapshotOrGenericThread();
         BlobStore store = blobStore.get();
-        logger.info("1.store = " + store);
+        logger.debug("blob store fetched = " + store);
         if (store == null) {
             synchronized (lock) {
                 store = blobStore.get();
@@ -62,7 +62,6 @@ public class BlobStoreProvider {
                 }
             }
         }
-        logger.info("2.store = " + store);
         return store;
     }
 

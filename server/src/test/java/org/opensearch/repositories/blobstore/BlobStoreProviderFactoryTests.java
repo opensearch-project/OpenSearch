@@ -8,21 +8,19 @@
 
 package org.opensearch.repositories.blobstore;
 
-
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
-
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.atLeastOnce;
-
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
+
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class BlobStoreProviderFactoryTests extends OpenSearchTestCase {
 
@@ -45,14 +43,12 @@ public class BlobStoreProviderFactoryTests extends OpenSearchTestCase {
         lock = new Object();
     }
 
-    @Test
     public void testConstructor() {
         // Test successful construction
         factory = new BlobStoreProviderFactory(mockRepository, mockMetadata, mockLifecycle, lock);
         assertNotNull(factory);
     }
 
-    @Test
     public void testGetBlobStoreProviderWithServerSideEncryptionEnabled() {
         // Setup
         Settings settings = Settings.builder()
@@ -71,7 +67,6 @@ public class BlobStoreProviderFactoryTests extends OpenSearchTestCase {
         verify(mockMetadata, atLeastOnce()).settings();
     }
 
-    @Test
     public void testGetBlobStoreProviderWithServerSideEncryptionDisabled() {
         // Setup
         Settings settings = Settings.builder()
@@ -86,13 +81,11 @@ public class BlobStoreProviderFactoryTests extends OpenSearchTestCase {
 
         // Verify
         assertNotNull(provider);
-        System.out.println("provider.getClass().getName() = " + provider.getClass().getName());
         assertFalse(provider instanceof ServerSideEncryptionEnabledBlobStoreProvider);
         assertTrue(provider instanceof BlobStoreProvider);
         verify(mockMetadata, atLeastOnce()).settings();
     }
 
-    @Test
     public void testGetBlobStoreProviderWithDefaultSettings() {
         // Setup - empty settings (default behavior)
         Settings settings = Settings.EMPTY;
@@ -109,7 +102,6 @@ public class BlobStoreProviderFactoryTests extends OpenSearchTestCase {
         assertTrue(provider instanceof BlobStoreProvider);
     }
 
-    @Test
     public void testGetBlobStoreProviderSingletonBehaviorWithEncryption() {
         // Setup
         Settings settings = Settings.builder()
@@ -128,7 +120,6 @@ public class BlobStoreProviderFactoryTests extends OpenSearchTestCase {
         assertTrue(provider1 instanceof ServerSideEncryptionEnabledBlobStoreProvider);
     }
 
-    @Test
     public void testGetBlobStoreProviderSingletonBehaviorWithoutEncryption() {
         // Setup
         Settings settings = Settings.builder()
@@ -147,7 +138,6 @@ public class BlobStoreProviderFactoryTests extends OpenSearchTestCase {
         assertFalse(provider1 instanceof ServerSideEncryptionEnabledBlobStoreProvider);
     }
 
-    @Test
     public void testGetBlobStoreProviderThreadSafety() throws InterruptedException {
         // Setup
         Settings settings = Settings.builder()
@@ -174,7 +164,6 @@ public class BlobStoreProviderFactoryTests extends OpenSearchTestCase {
         assertSame(providers[0], providers[1]);
     }
 
-    @Test
     public void testGetBlobStoreProviderParameterPassing() {
         // Setup
         Settings settings = Settings.EMPTY;
@@ -193,7 +182,6 @@ public class BlobStoreProviderFactoryTests extends OpenSearchTestCase {
         // or if we could verify the constructor calls through mocking
     }
 
-    @Test
     public void testFactoryStateConsistency() {
         // Setup
         Settings encryptedSettings = Settings.builder()

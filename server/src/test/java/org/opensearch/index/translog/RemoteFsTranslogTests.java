@@ -179,7 +179,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         BlobStoreRepository repository,
         String translogUUID,
         int extraGenToKeep,
-        boolean isServerSideEncryptionEnabled) throws IOException {
+        boolean isServerSideEncryptionEnabled
+    ) throws IOException {
         this.repository = repository;
         globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final TranslogConfig translogConfig = getTranslogConfig(path, extraGenToKeep);
@@ -213,12 +214,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         );
     }
 
-    private RemoteFsTranslog create(
-        Path path,
-        BlobStoreRepository repository,
-        String translogUUID,
-        boolean isServerSideEncryptionEnabled) throws IOException {
-        return create(path, repository, translogUUID, 0,isServerSideEncryptionEnabled);
+    private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID, boolean isServerSideEncryptionEnabled)
+        throws IOException {
+        return create(path, repository, translogUUID, 0, isServerSideEncryptionEnabled);
     }
 
     private TranslogConfig getTranslogConfig(final Path path) {

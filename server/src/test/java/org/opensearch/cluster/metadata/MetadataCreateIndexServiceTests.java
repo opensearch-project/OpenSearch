@@ -2630,9 +2630,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .nodes(DiscoveryNodes.builder().add(remoteNode).build())
             .build();
 
-        Settings settings = Settings.builder()
-            .put("node.attr.remote_store.segment.repository", "my-segment-repo-1")
-            .build();
+        Settings settings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
         final Settings.Builder requestSettings = Settings.builder()
             .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), -1)
             .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
@@ -2643,18 +2641,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .build();
         clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        new RemoteStoreSettings(
-            clusterSettingsSetting,
-            clusterSettings
-        );
+        new RemoteStoreSettings(clusterSettingsSetting, clusterSettings);
 
-        MetadataCreateIndexService.updateRemoteStoreSettings(
-            requestSettings,
-            clusterState,
-            clusterSettings,
-            settings,
-            "test-index",
-            false);
+        MetadataCreateIndexService.updateRemoteStoreSettings(requestSettings, clusterState, clusterSettings, settings, "test-index", false);
 
         assertTrue(requestSettings.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false));
     }
@@ -2672,9 +2661,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .nodes(DiscoveryNodes.builder().add(remoteNode).build())
             .build();
 
-        Settings settings = Settings.builder()
-            .put("node.attr.remote_store.segment.repository", "my-segment-repo-1")
-            .build();
+        Settings settings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
         final Settings.Builder requestSettings = Settings.builder()
             .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), -1)
             .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
@@ -2685,26 +2672,20 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .build();
         clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        new RemoteStoreSettings(
-            clusterSettingsSetting,
-            clusterSettings
-        );
+        new RemoteStoreSettings(clusterSettingsSetting, clusterSettings);
 
-        MetadataCreateIndexService.updateRemoteStoreSettings(
-            requestSettings,
-            clusterState,
-            clusterSettings,
-            settings,
-            "test-index",
-            true);
+        MetadataCreateIndexService.updateRemoteStoreSettings(requestSettings, clusterState, clusterSettings, settings, "test-index", true);
 
         assertFalse(requestSettings.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false));
     }
 
     private static Map<String, String> getNodeAttributes() {
         String segmentRepositoryName = "my-segment-repo-1";
-        String serverSideEncryptionAttribute = String.format(Locale.getDefault(),
-            RemoteStoreNodeAttribute.REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT, segmentRepositoryName);
+        String serverSideEncryptionAttribute = String.format(
+            Locale.getDefault(),
+            RemoteStoreNodeAttribute.REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT,
+            segmentRepositoryName
+        );
         Map<String, String> attributes = new HashMap<>();
 
         attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
