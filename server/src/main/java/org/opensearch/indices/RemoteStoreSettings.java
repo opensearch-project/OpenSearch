@@ -8,6 +8,7 @@
 
 package org.opensearch.indices;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
@@ -184,6 +185,16 @@ public class RemoteStoreSettings {
         Property.Final
     );
 
+    /**
+     * Controls the ServerSideEncryption Settings.
+     */
+    public static final Setting<Boolean> CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED = Setting.boolSetting(
+        "cluster.server_side_encryption.repo.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
     private volatile TimeValue clusterRemoteTranslogTransferTimeout;
@@ -191,6 +202,7 @@ public class RemoteStoreSettings {
     private volatile RemoteStoreEnums.PathType pathType;
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
+    private static volatile boolean isClusterServerSideEncryptionRepoEnabled;
     private volatile boolean isTranslogMetadataEnabled;
     private static volatile boolean isPinnedTimestampsEnabled;
     private static volatile TimeValue pinnedTimestampsSchedulerInterval;
@@ -233,6 +245,12 @@ public class RemoteStoreSettings {
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING,
             this::setClusterRemoteSegmentTransferTimeout
+        );
+
+        isClusterServerSideEncryptionRepoEnabled = CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED,
+            RemoteStoreSettings::setClusterServerSideEncryptionRepoEnabled
         );
 
         pinnedTimestampsSchedulerInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL.get(settings);
@@ -309,6 +327,14 @@ public class RemoteStoreSettings {
         this.maxRemoteTranslogReaders = maxRemoteTranslogReaders;
     }
 
+    public static boolean isClusterServerSideEncryptionRepoEnabled() {
+        return isClusterServerSideEncryptionRepoEnabled;
+    }
+
+    private static void setClusterServerSideEncryptionRepoEnabled(boolean clusterServerSideEncryptionRepoEnabled) {
+        isClusterServerSideEncryptionRepoEnabled = clusterServerSideEncryptionRepoEnabled;
+    }
+
     public static TimeValue getPinnedTimestampsSchedulerInterval() {
         return pinnedTimestampsSchedulerInterval;
     }
@@ -332,5 +358,10 @@ public class RemoteStoreSettings {
 
     public String getSegmentsPathFixedPrefix() {
         return segmentsPathFixedPrefix;
+    }
+
+    public static boolean isServerSideEncryptionRepoEnabled(Version minNodeVersion) {
+        return Version.V_3_1_0.compareTo(minNodeVersion) <= 0
+            && isClusterServerSideEncryptionRepoEnabled();
     }
 }
