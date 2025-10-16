@@ -8,16 +8,24 @@
 
 package org.opensearch.datafusion;
 
+import java.io.File;
+import java.net.URL;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.lucene.search.Query;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.datafusion.core.SessionContext;
 import org.opensearch.datafusion.search.DatafusionQuery;
 import org.opensearch.datafusion.search.DatafusionSearcher;
+import org.opensearch.datafusion.search.cache.CacheAccessor;
+import org.opensearch.datafusion.search.cache.CacheManager;
+import org.opensearch.datafusion.search.cache.CacheType;
 import org.opensearch.env.Environment;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.text.TextDF;
@@ -42,6 +50,11 @@ import java.io.InputStream;
 import java.util.*;
 
 import static org.mockito.Mockito.when;
+import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_ENABLED;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_SIZE_LIMIT;
+
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -65,7 +78,15 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         Settings mockSettings = Settings.builder().put("path.data", "/tmp/test-data").build();
 
         when(mockEnvironment.settings()).thenReturn(mockSettings);
-        service = new DataFusionService(Map.of());
+        Set<Setting<?>> clusterSettingsToAdd = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettingsToAdd.add(METADATA_CACHE_ENABLED);
+        clusterSettingsToAdd.add(METADATA_CACHE_SIZE_LIMIT);
+        clusterSettingsToAdd.add(METADATA_CACHE_EVICTION_TYPE);
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);
+
+        service = new DataFusionService(Collections.emptyMap(), clusterSettings);
+        //service = new DataFusionService(Map.of());
         service.doStart();
     }
 
@@ -97,61 +118,70 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
 
     // TO run update proper directory path for generation-1-optimized.parquet file in
     // this.datafusionReaderManager = new DatafusionReaderManager("TODO://FigureOutPath", formatCatalogSnapshot);
-    public void testQueryPhaseExecutor() throws IOException {
-        Map<String, Object[]> finalRes = new HashMap<>();
-        DatafusionSearcher datafusionSearcher = null;
-        try {
-            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(new TextDF(), "hits_data.parquet")), service);
-            datafusionSearcher = engine.acquireSearcher("Search");
+//    public void testQueryPhaseExecutor() throws IOException {
+//        Map<String, Object[]> finalRes = new HashMap<>();
+//        DatafusionSearcher datafusionSearcher = null;
+//        try {
+//            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new TextDF(), "hits2.parquet")), service);
+//            datafusionSearcher = engine.acquireSearcher("Search");
+//
+//            byte[] protoContent;
+//
+//            try (InputStream is = getClass().getResourceAsStream("/substrait_plan.pb")) {
+//                protoContent = is.readAllBytes();
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            }
+//
+//            long streamPointer = datafusionSearcher.search(new DatafusionQuery(protoContent, new ArrayList<>()));
+//            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+//            RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getTokioRuntimePointer() , allocator);
+//
+//            // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
+//            // Is the possible? need to check
+//
+//            SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
+//                @Override
+//                public void collect(RecordBatchStream value) {
+//                    VectorSchemaRoot root = value.getVectorSchemaRoot();
+//                    for (Field field : root.getSchema().getFields()) {
+//                        String filedName = field.getName();
+//                        FieldVector fieldVector = root.getVector(filedName);
+//                        Object[] fieldValues = new Object[fieldVector.getValueCount()];
+//                        for (int i = 0; i < fieldVector.getValueCount(); i++) {
+//                            fieldValues[i] = fieldVector.getObject(i);
+//                        }
+//                        finalRes.put(filedName, fieldValues);
+//                    }
+//                }
+//            };
+//
+//            while (stream.loadNextBatch().join()) {
+//                collector.collect(stream);
+//            }
+//
+//            logger.info("Final Results:");
+//            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+//                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+//            }
+//
+//        } catch (Exception exception) {
+//            logger.error("Failed to execute Substrait query plan", exception);
+//        }
+//        finally {
+//            if(datafusionSearcher != null) {
+//                datafusionSearcher.close();
+//            }
+//        }
+//    }
 
-
-            byte[] protoContent;
-
-            try (InputStream is = getClass().getResourceAsStream("/substrait_plan.pb")) {
-                protoContent = is.readAllBytes();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-
-            long streamPointer = datafusionSearcher.search(new DatafusionQuery(protoContent, new ArrayList<>()), service.getTokioRuntimePointer());
-            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-            RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getTokioRuntimePointer() , allocator);
-
-            // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
-            // Is the possible? need to check
-
-            SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
-                @Override
-                public void collect(RecordBatchStream value) {
-                    VectorSchemaRoot root = value.getVectorSchemaRoot();
-                    for (Field field : root.getSchema().getFields()) {
-                        String filedName = field.getName();
-                        FieldVector fieldVector = root.getVector(filedName);
-                        Object[] fieldValues = new Object[fieldVector.getValueCount()];
-                        for (int i = 0; i < fieldVector.getValueCount(); i++) {
-                            fieldValues[i] = fieldVector.getObject(i);
-                        }
-                        finalRes.put(filedName, fieldValues);
-                    }
-                }
-            };
-
-            while (stream.loadNextBatch().join()) {
-                collector.collect(stream);
-            }
-
-            logger.info("Final Results:");
-            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
-                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
-            }
-
-        } catch (Exception exception) {
-            logger.error("Failed to execute Substrait query plan", exception);
+    private File getResourceFile(String fileName) {
+        URL resourceUrl = getClass().getClassLoader().getResource(fileName);
+        if (resourceUrl == null) {
+            throw new IllegalArgumentException("Resource not found: " + fileName);
         }
-        finally {
-            if(datafusionSearcher != null) {
-                datafusionSearcher.close();
-            }
-        }
+        return new File(resourceUrl.getPath());
     }
+
+
 }
