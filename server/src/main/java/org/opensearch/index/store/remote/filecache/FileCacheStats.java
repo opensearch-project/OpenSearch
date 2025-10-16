@@ -41,6 +41,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
     private final long used;
     private final long pinned;
     private final long evicted;
+    private final long removed;
     private final long hits;
     private final long misses;
     private final FileCacheStatsType statsType;
@@ -52,6 +53,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         final long used,
         final long pinned,
         final long evicted,
+        final long removed,
         final long hits,
         long misses,
         FileCacheStatsType statsType
@@ -61,6 +63,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         this.used = used;
         this.pinned = pinned;
         this.evicted = evicted;
+        this.removed = removed;
         this.hits = hits;
         this.misses = misses;
         this.statsType = statsType;
@@ -74,6 +77,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         this.used = in.readLong();
         this.pinned = in.readLong();
         this.evicted = in.readLong();
+        this.removed = in.readLong();
         this.hits = in.readLong();
         this.misses = in.readLong();
     }
@@ -86,6 +90,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         out.writeLong(used);
         out.writeLong(pinned);
         out.writeLong(evicted);
+        out.writeLong(removed);
         out.writeLong(hits);
         out.writeLong(misses);
     }
@@ -100,6 +105,10 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
 
     public long getEvicted() {
         return evicted;
+    }
+
+    public long getRemoved() {
+        return removed;
     }
 
     public long getHits() {
@@ -138,8 +147,11 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         static final String USED_IN_BYTES = "used_in_bytes";
         static final String EVICTIONS = "evictions";
         static final String EVICTIONS_IN_BYTES = "evictions_in_bytes";
+        static final String REMOVED = "removed";
+        static final String REMOVED_IN_BYTES = "removed_in_bytes";
         static final String ACTIVE_PERCENT = "active_percent";
         static final String HIT_COUNT = "hit_count";
+        static final String MISS_COUNT = "miss_count";
     }
 
     @Override
@@ -153,8 +165,10 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
             FileCacheStats.Fields.EVICTIONS,
             new ByteSizeValue(getEvicted())
         );
+        builder.humanReadableField(FileCacheStats.Fields.REMOVED_IN_BYTES, FileCacheStats.Fields.REMOVED, new ByteSizeValue(getRemoved()));
         builder.field(FileCacheStats.Fields.ACTIVE_PERCENT, getActivePercent());
         builder.field(FileCacheStats.Fields.HIT_COUNT, getHits());
+        builder.field(FileCacheStats.Fields.MISS_COUNT, getCacheMisses());
         builder.endObject();
         return builder;
     }
