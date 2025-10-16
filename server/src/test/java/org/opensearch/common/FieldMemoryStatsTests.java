@@ -36,13 +36,16 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class FieldMemoryStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
-        FieldMemoryStats stats = randomFieldMemoryStats();
+        List<String> fieldNames = FieldMemoryStatsTests.randomFieldNames();
+        FieldMemoryStats stats = randomFieldMemoryStats(fieldNames);
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput input = out.bytes().streamInput();
@@ -52,7 +55,8 @@ public class FieldMemoryStatsTests extends OpenSearchTestCase {
     }
 
     public void testHashCodeEquals() {
-        FieldMemoryStats stats = randomFieldMemoryStats();
+        List<String> fieldNames = FieldMemoryStatsTests.randomFieldNames();
+        FieldMemoryStats stats = randomFieldMemoryStats(fieldNames);
         assertEquals(stats, stats);
         assertEquals(stats.hashCode(), stats.hashCode());
         final Map<String, Long> map1 = new HashMap<>();
@@ -105,22 +109,30 @@ public class FieldMemoryStatsTests extends OpenSearchTestCase {
         assertEquals(stats3, stats4);
     }
 
-    private static Map<String, Long> randomStats() {
-        final Map<String, Long> map = new HashMap<>();
+    public static List<String> randomFieldNames() {
+        List<String> fieldNames = new ArrayList<>();
         int keys = randomIntBetween(1, 1000);
         for (int i = 0; i < keys; i++) {
-            map.put(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), randomNonNegativeLong());
+            fieldNames.add(randomRealisticUnicodeOfCodepointLengthBetween(1, 20));
+        }
+        return fieldNames;
+    }
+
+    private static Map<String, Long> randomStats(List<String> fieldNames) {
+        final Map<String, Long> map = new HashMap<>();
+        for (String fieldName : fieldNames) {
+            map.put(fieldName, randomNonNegativeLong());
         }
         return map;
     }
 
-    public static FieldMemoryStats randomFieldMemoryStats() {
-        return new FieldMemoryStats(randomStats());
+    public static FieldMemoryStats randomFieldMemoryStats(List<String> fieldNames) {
+        return new FieldMemoryStats(randomStats(fieldNames));
     }
 
     // For some reason the jenkins gradle check doesn't like casting FieldMemoryStats --> FieldCountStats
     // although it passes locally, so make a second function
-    public static FieldCountStats randomFieldCountStats() {
-        return new FieldCountStats(randomStats());
+    public static FieldCountStats randomFieldCountStats(List<String> fieldNames) {
+        return new FieldCountStats(randomStats(fieldNames));
     }
 }

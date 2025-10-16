@@ -39,12 +39,14 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 public class FieldDataStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
-        FieldMemoryStats memoryStats = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        FieldCountStats countStats = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldCountStats();
+        List<String> fieldNames = FieldMemoryStatsTests.randomFieldNames();
+        FieldMemoryStats memoryStats = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats(fieldNames);
+        FieldCountStats countStats = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldCountStats(fieldNames);
         // test both ctors
         FieldDataStats stats = randomBoolean()
             ? new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), memoryStats)
