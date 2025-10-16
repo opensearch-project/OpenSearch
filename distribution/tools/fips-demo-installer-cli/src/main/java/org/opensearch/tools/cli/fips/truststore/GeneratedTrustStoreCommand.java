@@ -31,7 +31,7 @@ public class GeneratedTrustStoreCommand implements Callable<Integer> {
     public final Integer call() throws Exception {
         var confPath = Path.of(System.getProperty("opensearch.path.conf"));
         ConfigurationService.verifyJvmOptionsFile(spec, common, confPath);
-        return new TrustStoreService().generateTrustStore(spec, common, confPath);
+        return new TrustStoreService(UserInteractionService.getInstance()).generateTrustStore(spec, common, confPath);
     }
 
 }

@@ -70,7 +70,7 @@ public class FipsTrustStoreCommand implements Callable<Integer> {
 
         var confPath = Path.of(System.getProperty("opensearch.path.conf"));
         ConfigurationService.verifyJvmOptionsFile(spec, common, confPath);
-        return new TrustStoreService().executeInteractiveSelection(spec, common, confPath);
+        return new TrustStoreService(UserInteractionService.getInstance()).executeInteractiveSelection(spec, common, confPath);
     }
 
     /**

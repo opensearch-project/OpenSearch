@@ -13,13 +13,17 @@ import java.util.function.Function;
 
 import picocli.CommandLine.Model.CommandSpec;
 
-import static org.opensearch.tools.cli.fips.truststore.UserInteractionService.CONSOLE_SCANNER;
-
 /**
  * Service for managing trust store operations.
  * Handles generation and configuration of FIPS-compliant trust stores.
  */
 public class TrustStoreService {
+
+    private final UserInteractionService userInteraction;
+
+    public TrustStoreService(UserInteractionService userInteraction) {
+        this.userInteraction = userInteraction;
+    }
 
     /**
      * Generates a new BCFKS trust store from the JVM default trust store.
@@ -30,32 +34,23 @@ public class TrustStoreService {
      * @return exit code (0 for success, 1 for failure)
      */
     public Integer generateTrustStore(CommandSpec spec, CommonOptions options, Path confPath) {
-        if (!UserInteractionService.confirmAction(spec, options, "Generate new BCFKS trust store from system defaults?")) {
+        if (!userInteraction.confirmAction(spec, options, "Generate new BCFKS trust store from system defaults?")) {
             spec.commandLine().getOut().println("Operation cancelled.");
             return 0;
         }
 
-        var password = UserInteractionService.promptForPasswordWithConfirmation(spec, options, "Enter trust store password");
-
+        var password = userInteraction.promptForPasswordWithConfirmation(spec, options, "Enter trust store password");
         spec.commandLine().getOut().println("Generating BCFKS trust store...");
+        var properties = Function.<Path>identity()
+            .andThen(path -> CreateFipsTrustStore.loadJvmDefaultTrustStore(spec, path))
+            .andThen(trustStore -> CreateFipsTrustStore.convertToBCFKS(spec, trustStore, options, password, confPath))
+            .andThen(bcfksPath -> CreateFipsTrustStore.configureBCFKSTrustStore(bcfksPath, password))
+            .apply(Path.of(System.getProperty("java.home")));
 
-        try {
-            ConfigurationProperties properties = Function.<Path>identity()
-                .andThen(path -> CreateFipsTrustStore.loadJvmDefaultTrustStore(spec, path))
-                .andThen(trustStore -> CreateFipsTrustStore.convertToBCFKS(spec, trustStore, options, password, confPath))
-                .andThen(bcfksPath -> CreateFipsTrustStore.configureBCFKSTrustStore(bcfksPath, password))
-                .apply(Path.of(System.getProperty("java.home")));
+        new ConfigurationService().writeSecurityConfigToJvmOptionsFile(properties, confPath);
+        finishInstallation(spec, properties);
 
-            new ConfigurationService().writeSecurityConfigToJvmOptionsFile(properties, confPath);
-            finishInstallation(spec, properties);
-
-            return 0;
-        } catch (Exception e) {
-            spec.commandLine()
-                .getErr()
-                .println(spec.commandLine().getColorScheme().errorText("Error generating trust store: " + e.getMessage()));
-            return 1;
-        }
+        return 0;
     }
 
     /**
@@ -68,48 +63,35 @@ public class TrustStoreService {
      * @return exit code (0 for success, 1 for failure)
      */
     public Integer useSystemTrustStore(CommandSpec spec, CommonOptions options, String preselectedPKCS11Provider, Path confPath) {
-        if (!UserInteractionService.confirmAction(spec, options, "Use system PKCS11 trust store?")) {
+        if (!userInteraction.confirmAction(spec, options, "Use system PKCS11 trust store?")) {
             spec.commandLine().getOut().println("Operation cancelled.");
             return 0;
         }
 
         spec.commandLine().getOut().println("Configuring system PKCS11 trust store...");
 
-        try {
-            var serviceProviderList = ConfigureSystemTrustStore.findPKCS11ProviderService();
-            if (serviceProviderList.isEmpty()) {
-                spec.commandLine()
-                    .getErr()
-                    .println(
-                        spec.commandLine()
-                            .getColorScheme()
-                            .errorText(
-                                "ERROR: No PKCS11 provider found. Please check 'java.security' configuration file for installed providers."
-                            )
-                    );
-                return 1;
-            }
-
-            var selectedService = new ProviderSelectionService().selectProvider(
-                spec,
-                options,
-                serviceProviderList,
-                preselectedPKCS11Provider
+        var serviceProviderList = ConfigureSystemTrustStore.findPKCS11ProviderService();
+        if (serviceProviderList.isEmpty()) {
+            throw new IllegalStateException(
+                "No PKCS11 provider found. Please check 'java.security' configuration file for installed providers."
             );
-            spec.commandLine().getOut().println("Using PKCS11 provider: " + selectedService.getProvider().getName());
-
-            var properties = ConfigureSystemTrustStore.configurePKCS11TrustStore(selectedService);
-
-            new ConfigurationService().writeSecurityConfigToJvmOptionsFile(properties, confPath);
-            finishInstallation(spec, properties);
-
-            return 0;
-        } catch (Exception e) {
-            spec.commandLine()
-                .getErr()
-                .println(spec.commandLine().getColorScheme().errorText("Error configuring system trust store: " + e.getMessage()));
-            return 1;
         }
+
+        var selectedService = new ProviderSelectionService(userInteraction).selectProvider(
+            spec,
+            options,
+            serviceProviderList,
+            preselectedPKCS11Provider
+        );
+        if (selectedService == null) {
+            spec.commandLine().getOut().println("Operation cancelled.");
+            return 0;
+        }
+        spec.commandLine().getOut().println("Using PKCS11 provider: " + selectedService.getProvider().getName());
+        var properties = ConfigureSystemTrustStore.configurePKCS11TrustStore(selectedService);
+        new ConfigurationService().writeSecurityConfigToJvmOptionsFile(properties, confPath);
+        finishInstallation(spec, properties);
+        return 0;
     }
 
     /**
@@ -126,36 +108,15 @@ public class TrustStoreService {
             return generateTrustStore(spec, options, confPath);
         }
 
-        spec.commandLine().getOut().println("OpenSearch FIPS Demo Configuration Installer");
-        spec.commandLine().getOut().println("Please select trust store configuration:");
-        spec.commandLine().getOut().println("  1. Generate new BCFKS trust store from system defaults");
-        spec.commandLine().getOut().println("  2. Use existing system PKCS11 trust store");
+        var out = spec.commandLine().getOut();
+        out.println("OpenSearch FIPS Demo Configuration Installer");
+        out.println("Please select trust store configuration:");
+        out.println("  1. Generate new BCFKS trust store from system defaults");
+        out.println("  2. Use existing system PKCS11 trust store");
 
-        while (true) {
-            spec.commandLine().getOut().print("Enter choice (1-2) [1]: ");
-            spec.commandLine().getOut().flush();
+        var choice = userInteraction.promptForChoice(spec, 2, 1);
 
-            if (!CONSOLE_SCANNER.hasNextLine()) {
-                spec.commandLine()
-                    .getErr()
-                    .println(
-                        spec.commandLine()
-                            .getColorScheme()
-                            .errorText("\nERROR: No input available. Use --non-interactive for automated execution.")
-                    );
-                return 1;
-            }
-
-            var input = CONSOLE_SCANNER.nextLine().trim();
-
-            if (input.isEmpty() || input.equals("1")) {
-                return generateTrustStore(spec, options, confPath);
-            } else if (input.equals("2")) {
-                return useSystemTrustStore(spec, options, null, confPath);
-            } else {
-                spec.commandLine().getOut().println("Invalid choice. Please enter 1 or 2.");
-            }
-        }
+        return choice == 1 ? generateTrustStore(spec, options, confPath) : useSystemTrustStore(spec, options, null, confPath);
     }
 
     private static void finishInstallation(CommandSpec spec, ConfigurationProperties properties) {

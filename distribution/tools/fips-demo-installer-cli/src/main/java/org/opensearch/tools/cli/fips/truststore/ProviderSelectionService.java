@@ -14,13 +14,17 @@ import java.util.Optional;
 
 import picocli.CommandLine;
 
-import static org.opensearch.tools.cli.fips.truststore.UserInteractionService.CONSOLE_SCANNER;
-
 /**
  * Service for selecting appropriate security providers.
  * Handles interactive and non-interactive provider selection for PKCS11 configurations.
  */
 public class ProviderSelectionService {
+
+    private final UserInteractionService userInteraction;
+
+    public ProviderSelectionService(UserInteractionService userInteraction) {
+        this.userInteraction = userInteraction;
+    }
 
     /**
      * Selects a PKCS11 provider service based on configuration and user interaction.
@@ -66,26 +70,25 @@ public class ProviderSelectionService {
             }
         }
 
+        // Non-interactive mode: always use first available provider
+        if (options.nonInteractive) {
+            var service = serviceProviderList.get(0);
+            spec.commandLine().getOut().println("Using PKCS11 provider: " + service.getProvider().getName());
+            return service;
+        }
+
+        // Interactive mode: single provider requires confirmation
         if (serviceProviderList.size() == 1) {
             var service = serviceProviderList.get(0);
             var providerName = service.getProvider().getName();
-            if (options.nonInteractive) {
-                spec.commandLine().getOut().println("Using PKCS11 provider: " + providerName);
-                return service;
-            } else if (UserInteractionService.confirmAction(spec, options, "Use PKCS11 provider '" + providerName + "'?")) {
+            if (userInteraction.confirmAction(spec, options, "Use PKCS11 provider '" + providerName + "'?")) {
                 return service;
             } else {
-                throw new RuntimeException("Operation cancelled by user.");
+                return null;
             }
         }
 
-        if (options.nonInteractive) {
-            var service = serviceProviderList.get(0);
-            spec.commandLine()
-                .getOut()
-                .println("Non-interactive mode: Using first available PKCS11 provider: " + service.getProvider().getName());
-            return service;
-        }
+        // Interactive mode: multiple providers - let user choose
         return selectProviderInteractively(spec, serviceProviderList);
     }
 
@@ -94,38 +97,20 @@ public class ProviderSelectionService {
      *
      * @param spec the command specification for output
      * @param serviceProviderList list of available PKCS11 provider services
-     * @return the user-selected provider service
-     * @throws RuntimeException if no input is available
+     * @return the user-selected provider service, or null if operation is cancelled
      */
     protected Provider.Service selectProviderInteractively(CommandLine.Model.CommandSpec spec, List<Provider.Service> serviceProviderList) {
         var out = spec.commandLine().getOut();
         out.println("Multiple PKCS11 providers found:");
         for (int i = 0; i < serviceProviderList.size(); i++) {
-            Provider.Service service = serviceProviderList.get(i);
+            var service = serviceProviderList.get(i);
             out.println("  " + (i + 1) + ". " + service.getProvider().getName() + " (Algorithm: " + service.getAlgorithm() + ")");
         }
+        out.println("Select PKCS11 provider");
 
-        while (true) {
-            out.print("Select PKCS11 provider (1-" + serviceProviderList.size() + "): ");
-            out.flush();
+        var choice = userInteraction.promptForChoice(spec, serviceProviderList.size(), 1);
 
-            if (!CONSOLE_SCANNER.hasNextLine()) {
-                throw new RuntimeException("No input available. Specify provider with --pkcs11-provider option.");
-            }
-
-            var input = CONSOLE_SCANNER.nextLine().trim();
-
-            try {
-                int choice = Integer.parseInt(input);
-                if (choice >= 1 && choice <= serviceProviderList.size()) {
-                    return serviceProviderList.get(choice - 1);
-                }
-            } catch (NumberFormatException e) {
-                // ignore
-            }
-
-            out.println("Invalid choice. Please enter a number between 1 and " + serviceProviderList.size());
-        }
+        return serviceProviderList.get(choice - 1);
     }
 
 }

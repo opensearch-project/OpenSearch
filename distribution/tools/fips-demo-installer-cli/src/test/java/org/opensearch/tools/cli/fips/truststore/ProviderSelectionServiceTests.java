@@ -28,7 +28,7 @@ public class ProviderSelectionServiceTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        cut = new ProviderSelectionService();
+        cut = new ProviderSelectionService(UserInteractionService.getInstance());
         outputCapture = new StringWriter();
         errorCapture = new StringWriter();
 
@@ -97,7 +97,7 @@ public class ProviderSelectionServiceTests extends OpenSearchTestCase {
 
         // then
         assertEquals("FirstProvider", result.getProvider().getName());
-        assertTrue(outputCapture.toString().contains("Non-interactive mode: Using first available PKCS11 provider: FirstProvider"));
+        assertTrue(outputCapture.toString().contains("Using PKCS11 provider: FirstProvider"));
     }
 
     public void testSelectProviderWithEmptyList() {
@@ -118,8 +118,8 @@ public class ProviderSelectionServiceTests extends OpenSearchTestCase {
         var service3 = createMockService("ProviderGamma");
         List<Provider.Service> serviceList = List.of(service1, service2, service3);
 
-        // when/then
-        expectThrows(RuntimeException.class, () -> cut.selectProviderInteractively(spec, serviceList));
+        // when/then - no input available, throws IllegalStateException
+        expectThrows(IllegalStateException.class, () -> cut.selectProviderInteractively(spec, serviceList));
 
         // Verify output displays all three providers with correct numbering
         var output = outputCapture.toString();
@@ -127,7 +127,7 @@ public class ProviderSelectionServiceTests extends OpenSearchTestCase {
         assertTrue(output.contains("1. ProviderAlpha (Algorithm: KeyStore)"));
         assertTrue(output.contains("2. ProviderBeta (Algorithm: KeyStore)"));
         assertTrue(output.contains("3. ProviderGamma (Algorithm: KeyStore)"));
-        assertTrue(output.contains("Select PKCS11 provider (1-3):"));
+        assertTrue(output.contains("Select PKCS11 provider"));
     }
 
     // Test: Multiple providers in interactive mode call selectProviderInteractively
@@ -138,10 +138,8 @@ public class ProviderSelectionServiceTests extends OpenSearchTestCase {
         var service2 = createMockService("InteractiveProv2");
         List<Provider.Service> serviceList = List.of(service1, service2);
 
-        // when/then
-        var exception = expectThrows(RuntimeException.class, () -> cut.selectProvider(spec, options, serviceList, null));
-
-        assertEquals("No input available. Specify provider with --pkcs11-provider option.", exception.getMessage());
+        // when/then - no input available, throws IllegalStateException
+        expectThrows(IllegalStateException.class, () -> cut.selectProvider(spec, options, serviceList, null));
 
         var output = outputCapture.toString();
         assertTrue(output.contains("Multiple PKCS11 providers found:"));

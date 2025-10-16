@@ -9,7 +9,7 @@
 package org.opensearch.tools.cli.fips.truststore;
 
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
+import java.util.Locale;
 import java.util.Scanner;
 
 import picocli.CommandLine;
@@ -18,7 +18,7 @@ import picocli.CommandLine;
  * Service for handling user interaction in console applications.
  * Provides utilities for confirmations and password input.
  */
-public class UserInteractionService {
+public abstract class UserInteractionService {
 
     /** Shared scanner for reading console input. */
     public static final Scanner CONSOLE_SCANNER = new Scanner(System.in, StandardCharsets.UTF_8);
@@ -26,6 +26,17 @@ public class UserInteractionService {
 
     static {
         Runtime.getRuntime().addShutdownHook(new Thread(CONSOLE_SCANNER::close));
+    }
+
+    protected abstract Scanner getScanner();
+
+    public static UserInteractionService getInstance() {
+        return new UserInteractionService() {
+            @Override
+            protected Scanner getScanner() {
+                return CONSOLE_SCANNER;
+            }
+        };
     }
 
     /**
@@ -36,9 +47,8 @@ public class UserInteractionService {
      * @param message confirmation message to display
      * @return true if user confirms, false otherwise
      */
-    public static boolean confirmAction(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
+    public boolean confirmAction(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
         var out = spec.commandLine().getOut();
-        var err = spec.commandLine().getErr();
 
         if (options.nonInteractive) {
             out.println(message + " - Auto-confirmed (non-interactive mode)");
@@ -48,13 +58,10 @@ public class UserInteractionService {
         out.print(message + " [y/N] ");
         out.flush();
 
-        if (!CONSOLE_SCANNER.hasNextLine()) {
-            err.println(
-                spec.commandLine().getColorScheme().errorText("\nERROR: No input available. Use --non-interactive to skip confirmations.")
-            );
-            return false;
+        if (!getScanner().hasNextLine()) {
+            throwNoInputException();
         }
-        var response = CONSOLE_SCANNER.nextLine().trim();
+        var response = getScanner().nextLine().trim();
         return response.equalsIgnoreCase("yes") || response.equalsIgnoreCase("y");
     }
 
@@ -67,16 +74,15 @@ public class UserInteractionService {
      * @return the entered password
      * @throws RuntimeException if passwords don't match or input is canceled
      */
-    public static String promptForPasswordWithConfirmation(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
+    public String promptForPasswordWithConfirmation(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
         if (options.nonInteractive) {
-            // Generate a secure random password for non-interactive mode
             var password = generateSecurePassword();
             spec.commandLine().getOut().println("Generated secure password for trust store (non-interactive mode)");
             return password;
         }
 
-        var password = promptForPassword(spec, options, message);
-        var confirmPassword = promptForPassword(spec, options, "Confirm " + message.toLowerCase(java.util.Locale.ROOT));
+        var password = promptForPassword(spec, message);
+        var confirmPassword = promptForPassword(spec, "Confirm " + message.toLowerCase(java.util.Locale.ROOT));
 
         if (!password.equals(confirmPassword)) {
             throw new RuntimeException("Passwords do not match. Operation cancelled.");
@@ -85,18 +91,18 @@ public class UserInteractionService {
         return password;
     }
 
-    private static String promptForPassword(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
+    protected String promptForPassword(CommandLine.Model.CommandSpec spec, String message) {
         var out = spec.commandLine().getOut();
         var ansi = spec.commandLine().getColorScheme().ansi();
 
         out.print(ansi.string("@|yellow " + message + " (WARNING: will be visible): |@"));
         out.flush();
 
-        if (!CONSOLE_SCANNER.hasNextLine()) {
-            throw new RuntimeException("No input available for password.");
+        if (!getScanner().hasNextLine()) {
+            throwNoInputException();
         }
 
-        var password = CONSOLE_SCANNER.nextLine().trim();
+        var password = getScanner().nextLine().trim();
         if (password.isEmpty()) {
             throw new RuntimeException("Password cannot be empty.");
         }
@@ -104,15 +110,59 @@ public class UserInteractionService {
         return password;
     }
 
-    private static String generateSecurePassword() {
-        var random = new SecureRandom();
+    /**
+     * Prompts the user to select from a numbered list of choices.
+     *
+     * @param spec          the command specification for output
+     * @param choiceCount   the number of valid choices (1-based)
+     * @param defaultChoice the default choice if user enters empty string (1-based, must be within valid range)
+     * @return the user's choice (1-based index)
+     */
+    public int promptForChoice(CommandLine.Model.CommandSpec spec, int choiceCount, int defaultChoice) {
+        assert choiceCount > 0 : "Choice count must be greater than 0.";
+        assert defaultChoice >= 1 && defaultChoice <= choiceCount : "Default choice must be between 1 and " + choiceCount;
+
+        var out = spec.commandLine().getOut();
+        var scanner = getScanner();
+
+        while (true) {
+            out.printf(Locale.ROOT, "Enter choice (1-%s) [%s]:  ", choiceCount, defaultChoice);
+            out.flush();
+
+            if (!scanner.hasNextLine()) {
+                throwNoInputException();
+            }
+
+            var input = scanner.nextLine().trim();
+
+            if (input.isEmpty()) {
+                return defaultChoice;
+            }
+
+            try {
+                var choice = Integer.parseInt(input);
+                if (choice >= 1 && choice <= choiceCount) {
+                    return choice;
+                }
+            } catch (NumberFormatException e) {
+                // fall through to the last statement
+            }
+            out.println("Invalid choice.");
+        }
+    }
+
+    protected String generateSecurePassword() {
         var password = new StringBuilder();
 
         for (int i = 0; i < 24; i++) { // 24 characters for a strong password
-            password.append(ALPHA_NUMERIC.charAt(random.nextInt(ALPHA_NUMERIC.length())));
+            password.append(ALPHA_NUMERIC.charAt(SecureRandomHolder.RANDOM.nextInt(ALPHA_NUMERIC.length())));
         }
 
         return password.toString();
+    }
+
+    private static void throwNoInputException() {
+        throw new IllegalStateException("\nNo input available. Use the '--non-interactive option' to skip confirmations.");
     }
 
 }

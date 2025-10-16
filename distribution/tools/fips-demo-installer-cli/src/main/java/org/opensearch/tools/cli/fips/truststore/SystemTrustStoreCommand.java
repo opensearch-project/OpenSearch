@@ -35,7 +35,12 @@ public class SystemTrustStoreCommand implements Callable<Integer> {
     public final Integer call() {
         var confPath = Path.of(System.getProperty("opensearch.path.conf"));
         ConfigurationService.verifyJvmOptionsFile(spec, common, confPath);
-        return new TrustStoreService().useSystemTrustStore(spec, common, preselectedPKCS11Provider, confPath);
+        return new TrustStoreService(UserInteractionService.getInstance()).useSystemTrustStore(
+            spec,
+            common,
+            preselectedPKCS11Provider,
+            confPath
+        );
     }
 
 }

@@ -51,7 +51,7 @@ public class CreateFipsTrustStoreTests extends OpenSearchTestCase {
                 walk.sorted(Comparator.reverseOrder()).forEach(path -> {
                     try {
                         Files.delete(path);
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         // Ignore
                     }
                 });
