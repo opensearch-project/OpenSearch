@@ -125,7 +125,6 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1091,7 +1090,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     public void testMaxScoreWithSortOnScoreAndCollapsingResults() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig();
+        final Sort sort = new Sort(new SortField("user", SortField.Type.INT));
+        IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
 
         // Always end up with uneven buckets so collapsing is predictable
@@ -1126,13 +1126,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         CollapseTopFieldDocs topDocs = (CollapseTopFieldDocs) context.queryResult().topDocs().topDocs;
         assertThat(topDocs.collapseValues.length, equalTo(2));
-        // Order is non-deterministic when scores are equal, so check both values are present
-        assertThat(Arrays.asList(topDocs.collapseValues), containsInAnyOrder(0L, 1L));
+        assertThat(topDocs.collapseValues[0], equalTo(0L)); // user == 0
+        assertThat(topDocs.collapseValues[1], equalTo(1L)); // user == 1
 
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].score, equalTo(context.queryResult().getMaxScore()));
 
-        Sort sort = new Sort(new SortField(null, SortField.Type.SCORE), new SortField(null, SortField.Type.DOC));
-        SortAndFormats sortAndFormats = new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+        Sort scoreSort = new Sort(new SortField(null, SortField.Type.SCORE), new SortField(null, SortField.Type.DOC));
+        SortAndFormats sortAndFormats = new SortAndFormats(scoreSort, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
         context.sort(sortAndFormats);
         QueryPhase.executeInternal(context.withCleanQueryResult(), queryPhaseSearcher);
         assertFalse(Float.isNaN(context.queryResult().getMaxScore()));
@@ -1142,8 +1142,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         topDocs = (CollapseTopFieldDocs) context.queryResult().topDocs().topDocs;
         assertThat(topDocs.collapseValues.length, equalTo(2));
-        // Order is non-deterministic when scores are equal, so check both values are present
-        assertThat(Arrays.asList(topDocs.collapseValues), containsInAnyOrder(0L, 1L));
+        assertThat(topDocs.collapseValues[0], equalTo(0L)); // user == 0
+        assertThat(topDocs.collapseValues[1], equalTo(1L)); // user == 1
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].score, equalTo(context.queryResult().getMaxScore()));
 
         reader.close();
