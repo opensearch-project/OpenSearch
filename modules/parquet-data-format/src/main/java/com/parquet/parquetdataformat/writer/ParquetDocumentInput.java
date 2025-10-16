@@ -1,6 +1,7 @@
 package com.parquet.parquetdataformat.writer;
 
 import com.parquet.parquetdataformat.fields.ArrowFieldRegistry;
+import com.parquet.parquetdataformat.fields.ParquetField;
 import org.opensearch.index.engine.exec.DocumentInput;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -37,7 +38,16 @@ public class ParquetDocumentInput implements DocumentInput<ManagedVSR> {
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
-        ArrowFieldRegistry.getParquetField(fieldType.typeName()).createField(fieldType, managedVSR, value);
+        final String fieldTypeName = fieldType.typeName();
+        final ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldTypeName);
+
+        if (parquetField == null) {
+            throw new IllegalArgumentException(
+                String.format("Unsupported field type: %s. Field type is not registered in ArrowFieldRegistry.", fieldTypeName)
+            );
+        }
+
+        parquetField.createField(fieldType, managedVSR, value);
     }
 
     @Override

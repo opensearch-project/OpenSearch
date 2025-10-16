@@ -842,23 +842,25 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        context.compositeDocumentInput().addField(fieldType(), timestamp);
-
-//        if (indexed) {
-//            context.doc().add(new LongPoint(fieldType().name(), timestamp));
-//        }
-//        if (hasDocValues) {
-//            if (skiplist) {
-//                context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
-//            } else {
-//                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
-//            }
-//        } else if (store || indexed) {
-//            createFieldNamesField(context);
-//        }
-//        if (store) {
-//            context.doc().add(new StoredField(fieldType().name(), timestamp));
-//        }
+        if (isPluggableDataFormatFeatureEnabled()) {
+            context.compositeDocumentInput().addField(fieldType(), timestamp);
+        } else {
+            if (indexed) {
+                context.doc().add(new LongPoint(fieldType().name(), timestamp));
+            }
+            if (hasDocValues) {
+                if (skiplist) {
+                    context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
+                } else {
+                    context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+                }
+            } else if (store || indexed) {
+                createFieldNamesField(context);
+            }
+            if (store) {
+                context.doc().add(new StoredField(fieldType().name(), timestamp));
+            }
+        }
     }
 
     public Long getNullValue() {
