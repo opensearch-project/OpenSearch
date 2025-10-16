@@ -567,7 +567,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
     public void testGetAsyncIndexRoutingReadAction() throws Exception {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
-        String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
+        String uploadedFileName = "index-routing/" + indexName;
         when(blobContainer.readBlob(indexName)).thenReturn(
             INDEX_ROUTING_TABLE_FORMAT.serialize(
                 clusterState.getRoutingTable().getIndicesRouting().get(indexName),
@@ -598,7 +598,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
         RoutingTableIncrementalDiff diff = new RoutingTableIncrementalDiff(previousState.getRoutingTable(), currentState.getRoutingTable());
 
-        String uploadedFileName = String.format(Locale.ROOT, "routing-table-diff/" + indexName);
+        String uploadedFileName = "routing-table-diff/" + indexName;
         when(blobContainer.readBlob(indexName)).thenReturn(
             REMOTE_ROUTING_TABLE_DIFF_FORMAT.serialize(diff, uploadedFileName, compressor).streamInput()
         );
