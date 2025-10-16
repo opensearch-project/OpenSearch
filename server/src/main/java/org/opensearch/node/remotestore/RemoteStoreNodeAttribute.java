@@ -255,8 +255,7 @@ public class RemoteStoreNodeAttribute {
 
     public static boolean isServerSideEncryptionEnabled(Settings settings) {
         for (String metadataKey : settings.keySet()) {
-            if (metadataKey.equals(REPOSITORY_METADATA_SERVER_SIDE_ENCRYPTION_ENABLED_KEY)
-                && settings.getAsBoolean(metadataKey, false)) {
+            if (metadataKey.equals(REPOSITORY_METADATA_SERVER_SIDE_ENCRYPTION_ENABLED_KEY) && settings.getAsBoolean(metadataKey, false)) {
                 return true;
             }
         }
@@ -361,9 +360,7 @@ public class RemoteStoreNodeAttribute {
         return true;
     }
 
-    public static boolean isRemoteStoreServerSideEncryptionEnabled(
-        Map<String, String> nodeAttributes,
-        String repoName) {
+    public static boolean isRemoteStoreServerSideEncryptionEnabled(Map<String, String> nodeAttributes, String repoName) {
 
         String attributeKey = String.format(Locale.getDefault(), REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT, repoName);
         String attributeValue = nodeAttributes.get(attributeKey);

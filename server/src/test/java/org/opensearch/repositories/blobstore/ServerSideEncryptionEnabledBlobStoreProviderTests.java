@@ -8,18 +8,20 @@
 
 package org.opensearch.repositories.blobstore;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.repositories.RepositoryException;
-
-import static org.mockito.Mockito.*;
-
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
+
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearchTestCase {
 
@@ -50,22 +52,15 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         MockitoAnnotations.openMocks(this);
         lock = new Object();
         when(mockMetadata.name()).thenReturn("test-repository");
-        provider = new ServerSideEncryptionEnabledBlobStoreProvider(
-            mockRepository,
-            mockMetadata,
-            mockLifecycle,
-            lock
-        );
+        provider = new ServerSideEncryptionEnabledBlobStoreProvider(mockRepository, mockMetadata, mockLifecycle, lock);
     }
 
-    @Test
     public void testConstructor() {
         assertNotNull(provider);
         // Verify that the provider extends BlobStoreProvider
         assertTrue(provider instanceof BlobStoreProvider);
     }
 
-    @Test
     public void testGetBlobStoreWithServerSideEncryptionEnabled() {
         // Setup: Mock the serverSideEncryptedBlobStore to return a value
         // Note: Since SetOnce is used internally, we need to first call blobStore() to initialize it
@@ -82,7 +77,6 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         assertEquals(mockServerSideEncryptedBlobStore, result);
     }
 
-    @Test
     public void testGetBlobStoreWithServerSideEncryptionDisabled() {
         // Setup: Mock the regular blobStore
         when(mockLifecycle.started()).thenReturn(true);
@@ -98,7 +92,6 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         assertEquals(mockRegularBlobStore, result);
     }
 
-    @Test
     public void testBlobStoreWithServerSideEncryptionEnabledFirstTime() {
         // Setup
         when(mockLifecycle.started()).thenReturn(true);
@@ -112,7 +105,6 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         verify(mockRepository).createServerSideEncryptedBlobStore();
     }
 
-    @Test
     public void testBlobStoreWithServerSideEncryptionEnabledSubsequentCalls() {
         // Setup
         when(mockLifecycle.started()).thenReturn(true);
@@ -132,7 +124,6 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         verify(mockRepository, times(1)).createServerSideEncryptedBlobStore();
     }
 
-    @Test
     public void testBlobStoreWithServerSideEncryptionDisabled() {
         // Setup
         when(mockLifecycle.started()).thenReturn(true);
@@ -145,7 +136,6 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         assertEquals(mockClientSideEncryptedBlobStore, result);
     }
 
-    @Test
     public void testInitBlobStoreWithServerSideEncryptionEnabled() {
         // Setup
         when(mockLifecycle.started()).thenReturn(true);
@@ -159,7 +149,6 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         verify(mockRepository).createServerSideEncryptedBlobStore();
     }
 
-    @Test
     public void testInitBlobStoreWithServerSideEncryptionDisabled() {
         // Setup
         when(mockLifecycle.started()).thenReturn(true);
@@ -173,17 +162,15 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         verify(mockRepository).createClientSideEncryptedBlobStore();
     }
 
-    @Test(expected = RepositoryException.class)
     public void testInitBlobStoreWhenLifecycleNotStarted() {
         // Setup
         when(mockLifecycle.started()).thenReturn(false);
         when(mockLifecycle.state()).thenReturn(Lifecycle.State.STOPPED);
 
         // Test - should throw RepositoryException
-        provider.initBlobStore(true);
+        expectThrows(RepositoryException.class, () -> provider.initBlobStore(true));
     }
 
-    @Test(expected = RepositoryException.class)
     public void testInitBlobStoreWhenRepositoryThrowsRepositoryException() {
         // Setup
         when(mockLifecycle.started()).thenReturn(true);
@@ -191,10 +178,9 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         when(mockRepository.createServerSideEncryptedBlobStore()).thenThrow(repositoryException);
 
         // Test - should re-throw RepositoryException
-        provider.initBlobStore(true);
+        expectThrows(RepositoryException.class, () -> provider.initBlobStore(true));
     }
 
-    @Test(expected = RepositoryException.class)
     public void testInitBlobStoreWhenRepositoryThrowsGenericException() {
         // Setup
         when(mockLifecycle.started()).thenReturn(true);
@@ -203,16 +189,14 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
 
         // Test - should wrap in RepositoryException
         try {
-            provider.initBlobStore(true);
+            expectThrows(RepositoryException.class, () -> provider.initBlobStore(true));
         } catch (RepositoryException e) {
             assertEquals("test-repository", e.repository());
             assertEquals("[test-repository] cannot create blob store", e.getMessage());
             assertEquals(genericException, e.getCause());
-            throw e;
         }
     }
 
-    @Test
     public void testCloseWithServerSideEncryptedBlobStore() throws Exception {
         // Setup
         when(mockLifecycle.started()).thenReturn(true);
@@ -228,7 +212,6 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         verify(mockServerSideEncryptedBlobStore).close();
     }
 
-    @Test
     public void testCloseWithoutServerSideEncryptedBlobStore() throws Exception {
         // Test - close without initializing server-side encrypted blob store
         provider.close();
@@ -237,7 +220,6 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         // This test passes if no exception is thrown
     }
 
-    @Test
     public void testCloseWhenServerSideEncryptedBlobStoreThrowsException() throws Exception {
         // Setup
         when(mockLifecycle.started()).thenReturn(true);
@@ -255,7 +237,6 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         // Test passes if no exception is propagated
     }
 
-    @Test
     public void testMixedUsageServerSideAndClientSide() {
         // Setup
         when(mockLifecycle.started()).thenReturn(true);
@@ -275,7 +256,6 @@ public class ServerSideEncryptionEnabledBlobStoreProviderTests extends OpenSearc
         verify(mockRepository).createClientSideEncryptedBlobStore();
     }
 
-    @Test
     public void testGetBlobStoreReturnsNullWhenNotInitialized() {
         // Test - getBlobStore when server-side encrypted store is not initialized
         BlobStore result = provider.getBlobStore(true);

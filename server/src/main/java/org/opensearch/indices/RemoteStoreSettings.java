@@ -361,7 +361,6 @@ public class RemoteStoreSettings {
     }
 
     public static boolean isServerSideEncryptionRepoEnabled(Version minNodeVersion) {
-        return Version.V_3_1_0.compareTo(minNodeVersion) <= 0
-            && isClusterServerSideEncryptionRepoEnabled();
+        return Version.V_3_1_0.compareTo(minNodeVersion) <= 0 && isClusterServerSideEncryptionRepoEnabled();
     }
 }
