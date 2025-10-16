@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package com.parquet.parquetdataformat.fields.number;
+package com.parquet.parquetdataformat.fields.core.data.number;
 
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
@@ -45,11 +45,7 @@ public class HalfFloatParquetField extends ParquetField {
     public void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         Float2Vector float2Vector = (Float2Vector) managedVSR.getVector(mappedFieldType.name());
         int rowCount = managedVSR.getRowCount();
-        if (parseValue == null) {
-            float2Vector.setNull(rowCount);
-        } else {
-            float2Vector.setSafe(rowCount, (Short) parseValue);
-        }
+        float2Vector.setSafe(rowCount, (Short) parseValue);
     }
 
     @Override

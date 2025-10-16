@@ -6,8 +6,9 @@
  * compatible open source license.
  */
 
-package com.parquet.parquetdataformat.fields;
+package com.parquet.parquetdataformat.fields.core.data;
 
+import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 import org.apache.arrow.vector.DateMilliVector;
 import org.apache.arrow.vector.types.TimeUnit;

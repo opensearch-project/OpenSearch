@@ -6,11 +6,12 @@
  * compatible open source license.
  */
 
-package com.parquet.parquetdataformat.fields;
+package com.parquet.parquetdataformat.fields.core.data;
 
+import com.parquet.parquetdataformat.fields.ArrowFieldRegistry;
+import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 import org.apache.arrow.vector.VarCharVector;
-import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;

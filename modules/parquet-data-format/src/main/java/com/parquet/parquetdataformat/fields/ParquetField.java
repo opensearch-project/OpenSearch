@@ -49,7 +49,7 @@ public abstract class ParquetField {
      * @throws IllegalArgumentException if any parameter is invalid for this field type
      * @throws ClassCastException if parseValue cannot be cast to the expected type
      */
-    public abstract void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue);
+    protected abstract void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue);
 
     /**
      * Creates and processes a field entry if the field type supports columnar storage.

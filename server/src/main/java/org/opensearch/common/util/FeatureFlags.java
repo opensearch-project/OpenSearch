@@ -69,6 +69,17 @@ public class FeatureFlags {
      */
     public static final String MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG = "opensearch.experimental.feature.merged_segment_warmer.enabled";
 
+    /**
+     * Gates the functionality of pluggable dataformat feature
+     */
+    public static final String PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG = FEATURE_FLAG_PREFIX + "pluggable.dataformat.enabled";
+
+    // It is not allowing me use Property.Consistent, will have to see what other options we have to make this a Cluster level setting
+    public static final Setting<Boolean> PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTINGS = Setting.boolSetting(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG,
+        true,
+        Property.NodeScope
+    );
+
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
         false,
@@ -146,6 +157,7 @@ public class FeatureFlags {
                 put(ARROW_STREAMS_SETTING, ARROW_STREAMS_SETTING.getDefault(Settings.EMPTY));
                 put(STREAM_TRANSPORT_SETTING, STREAM_TRANSPORT_SETTING.getDefault(Settings.EMPTY));
                 put(MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING, MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
+                put(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTINGS, PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTINGS.get(Settings.EMPTY));
             }
         };
 

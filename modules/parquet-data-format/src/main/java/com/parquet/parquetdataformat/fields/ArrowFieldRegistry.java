@@ -8,23 +8,13 @@
 
 package com.parquet.parquetdataformat.fields;
 
-import com.parquet.parquetdataformat.fields.number.ByteParquetField;
-import com.parquet.parquetdataformat.fields.number.DoubleParquetField;
-import com.parquet.parquetdataformat.fields.number.FloatParquetField;
-import com.parquet.parquetdataformat.fields.number.HalfFloatParquetField;
-import com.parquet.parquetdataformat.fields.number.IntegerParquetField;
-import com.parquet.parquetdataformat.fields.number.LongParquetField;
-import com.parquet.parquetdataformat.fields.number.ShortParquetField;
-import com.parquet.parquetdataformat.fields.number.UnsignedLongParquetField;
-import org.opensearch.index.mapper.BooleanFieldMapper;
-import org.opensearch.index.mapper.DateFieldMapper;
-import org.opensearch.index.mapper.KeywordFieldMapper;
-import org.opensearch.index.mapper.NumberFieldMapper;
-import org.opensearch.index.mapper.TextFieldMapper;
+import com.parquet.parquetdataformat.plugins.fields.CoreDataFieldPlugin;
+import com.parquet.parquetdataformat.plugins.fields.ParquetFieldPlugin;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Registry for mapping OpenSearch field types to their corresponding Parquet field implementations.
@@ -38,14 +28,13 @@ import java.util.Map;
 public final class ArrowFieldRegistry {
 
     /**
-     * Immutable map containing the mapping from OpenSearch field type names to ParquetField instances.
-     * This map is populated during class initialization and remains constant throughout the application lifecycle.
+     * All registered field mappings (thread-safe, mutable)
      */
-    private static final Map<String, ParquetField> PARQUET_FIELD_MAP;
+    private static final Map<String, ParquetField> FIELD_REGISTRY = new ConcurrentHashMap<>();
 
     // Static initialization block to populate the field registry
     static {
-        PARQUET_FIELD_MAP = Collections.unmodifiableMap(createParquetFieldMap());
+        initialize();
     }
 
     // Private constructor to prevent instantiation of utility class
@@ -54,90 +43,113 @@ public final class ArrowFieldRegistry {
     }
 
     /**
-     * Creates and populates the mapping between OpenSearch field types and ParquetField instances.
-     * This method is called once during class initialization to set up all supported field type mappings.
-     *
-     * @return a mutable map containing all field type mappings
+     * Initialize the registry with all available plugins.
+     * This method should be called during node startup after all plugins are loaded.
      */
-    private static Map<String, ParquetField> createParquetFieldMap() {
-        final Map<String, ParquetField> fieldMap = new HashMap<>();
-
-        // Register numeric field types
-        registerNumericFields(fieldMap);
-
-        // Register temporal field types
-        registerTemporalFields(fieldMap);
-
-        // Register boolean field types
-        registerBooleanFields(fieldMap);
-
-        // Register text-based field types
-        registerTextFields(fieldMap);
-
-        return fieldMap;
+    public static synchronized void initialize() {
+        // Always register core plugins first
+        registerCorePlugins();
     }
 
     /**
-     * Registers all numeric field type mappings.
-     *
-     * @param fieldMap the map to populate with numeric field mappings
+     * Register core OpenSearch field plugins.
+     * These are always available and provide the foundation field type support.
      */
-    private static void registerNumericFields(final Map<String, ParquetField> fieldMap) {
-        // Floating point types
-        fieldMap.put(NumberFieldMapper.NumberType.HALF_FLOAT.typeName(), new HalfFloatParquetField());
-        fieldMap.put(NumberFieldMapper.NumberType.FLOAT.typeName(), new FloatParquetField());
-        fieldMap.put(NumberFieldMapper.NumberType.DOUBLE.typeName(), new DoubleParquetField());
+    private static void registerCorePlugins() {
+        // Register core data fields
+        registerPlugin(new CoreDataFieldPlugin(), "CoreDataFields");
+    }
+    /**
+     * Register a single plugin's field types.
+     */
+    private static void registerPlugin(ParquetFieldPlugin plugin, String pluginName) {
+        Map<String, ParquetField> fields = plugin.getParquetFields();
 
-        // Integer types
-        fieldMap.put(NumberFieldMapper.NumberType.BYTE.typeName(), new ByteParquetField());
-        fieldMap.put(NumberFieldMapper.NumberType.SHORT.typeName(), new ShortParquetField());
-        fieldMap.put(NumberFieldMapper.NumberType.INTEGER.typeName(), new IntegerParquetField());
-        fieldMap.put(NumberFieldMapper.NumberType.LONG.typeName(), new LongParquetField());
-        fieldMap.put(NumberFieldMapper.NumberType.UNSIGNED_LONG.typeName(), new UnsignedLongParquetField());
+        if (fields != null && !fields.isEmpty()) {
+            for (Map.Entry<String, ParquetField> entry : fields.entrySet()) {
+                String fieldType = entry.getKey();
+                ParquetField parquetField = entry.getValue();
+
+                // Validate registration
+                validateFieldRegistration(fieldType, parquetField, pluginName);
+
+                // Check for conflicts
+                if (FIELD_REGISTRY.containsKey(fieldType)) {
+                    throw new IllegalArgumentException(
+                        String.format("Field type [%s] is already registered. Plugin [%s] cannot override it.",
+                            fieldType, pluginName)
+                    );
+                }
+
+                FIELD_REGISTRY.put(fieldType, parquetField);
+            }
+        }
     }
 
-    /**
-     * Registers all temporal field type mappings.
-     *
-     * @param fieldMap the map to populate with temporal field mappings
-     */
-    private static void registerTemporalFields(final Map<String, ParquetField> fieldMap) {
-        fieldMap.put(DateFieldMapper.CONTENT_TYPE, new DateParquetField());
-    }
-
-    /**
-     * Registers all boolean field type mappings.
-     *
-     * @param fieldMap the map to populate with boolean field mappings
-     */
-    private static void registerBooleanFields(final Map<String, ParquetField> fieldMap) {
-        fieldMap.put(BooleanFieldMapper.CONTENT_TYPE, new BooleanParquetField());
-    }
-
-    /**
-     * Registers all text-based field type mappings.
-     *
-     * @param fieldMap the map to populate with text field mappings
-     */
-    private static void registerTextFields(final Map<String, ParquetField> fieldMap) {
-        fieldMap.put(TextFieldMapper.CONTENT_TYPE, new TextParquetField());
-        fieldMap.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordParquetField());
-    }
-
-    /**
-     * Retrieves the ParquetField instance associated with the specified OpenSearch field type name.
-     * This method provides thread-safe access to the field registry.
-     *
-     * @param typeName the OpenSearch field type name to look up
-     * @return the corresponding ParquetField instance, or null if the type is not supported
-     * @throws IllegalArgumentException if typeName is null or empty
-     */
-    public static ParquetField getParquetField(final String typeName) {
-        if (typeName == null || typeName.trim().isEmpty()) {
+    private static void validateFieldRegistration(String fieldType, ParquetField parquetField, String source) {
+        if (fieldType == null || fieldType.trim().isEmpty()) {
             throw new IllegalArgumentException("Field type name cannot be null or empty");
         }
 
-        return PARQUET_FIELD_MAP.get(typeName);
+        if (parquetField == null) {
+            throw new IllegalArgumentException("ParquetField implementation cannot be null");
+        }
+
+        // Validate that the ParquetField can provide required Arrow types
+        try {
+            parquetField.getArrowType();
+            parquetField.getFieldType();
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                String.format("Invalid ParquetField implementation for type [%s] from source [%s]: %s",
+                    fieldType, source, e.getMessage()), e
+            );
+        }
+    }
+
+    /**
+     * Get registry statistics for monitoring and debugging.
+     */
+    public static RegistryStats getStats() {
+        Set<String> allTypes = getRegisteredFieldNames();
+
+        return new RegistryStats(
+            FIELD_REGISTRY.size(),  // Single source of truth
+            allTypes
+        );
+    }
+
+    /**
+     * Get all registered field type names.
+     */
+    public static Set<String> getRegisteredFieldNames() {
+        return Collections.unmodifiableSet(FIELD_REGISTRY.keySet());
+    }
+
+    /**
+     * Returns the ParquetField implementation for the specified OpenSearch field type, or null if not found.
+     */
+    public static ParquetField getParquetField(String fieldType) {
+        return FIELD_REGISTRY.get(fieldType);
+    }
+
+    public static class RegistryStats {
+        private final int totalFields;
+        private final Set<String> allFieldTypes;
+
+        public RegistryStats(int totalFields, Set<String> allFieldTypes) {
+            this.totalFields = totalFields;
+            this.allFieldTypes = allFieldTypes;
+        }
+
+        // Getters
+        public int getTotalFields() { return totalFields; }
+        public Set<String> getAllFieldTypes() { return allFieldTypes; }
+
+        @Override
+        public String toString() {
+            return String.format("RegistryStats{total=%d, }", totalFields);
+        }
     }
 
 }

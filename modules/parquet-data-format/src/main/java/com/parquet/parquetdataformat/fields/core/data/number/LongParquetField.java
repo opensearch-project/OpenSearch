@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package com.parquet.parquetdataformat.fields.number;
+package com.parquet.parquetdataformat.fields.core.data.number;
 
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
@@ -44,11 +44,7 @@ public class LongParquetField extends ParquetField {
     public void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         BigIntVector bigIntVector = (BigIntVector) managedVSR.getVector(mappedFieldType.name());
         int rowCount = managedVSR.getRowCount();
-        if (parseValue == null) {
-            bigIntVector.setNull(rowCount);
-        } else {
-            bigIntVector.setSafe(rowCount, (Long) parseValue);
-        }
+        bigIntVector.setSafe(rowCount, (Long) parseValue);
     }
 
     @Override
