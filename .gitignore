@@ -83,3 +83,6 @@ doc-tools/missing-doclet/bin/
 /modules/parquet-data-format/jni/target/debug
 /modules/parquet-data-format/jni/target/.rustc_info.json
 
+/modules/parquet-data-format/jni/target/release
+**/Cargo.lock
+/modules/parquet-data-format/jni/

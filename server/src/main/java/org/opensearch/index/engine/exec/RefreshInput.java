@@ -13,17 +13,17 @@ import java.util.List;
 
 public class RefreshInput {
 
-    private List<FileMetadata> files;
+    private final List<WriterFileSet> writerFiles;
 
     public RefreshInput() {
-        this.files = new ArrayList<>();
+        this.writerFiles = new ArrayList<>();
     }
 
-    public void add(FileMetadata fileMetadata) {
-        this.files.add(fileMetadata);
+    public void add(WriterFileSet writerFileSetGroup) {
+        this.writerFiles.add(writerFileSetGroup);
     }
 
-    public List<FileMetadata> getFiles() {
-        return files;
+    public List<WriterFileSet> getWriterFiles() {
+        return writerFiles;
     }
 }
