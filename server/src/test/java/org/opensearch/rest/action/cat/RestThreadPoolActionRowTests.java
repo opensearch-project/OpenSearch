@@ -23,7 +23,6 @@ import org.opensearch.threadpool.ThreadPoolInfo;
 import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.client.node.NodeClient;
 
-import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -335,17 +334,8 @@ public class RestThreadPoolActionRowTests extends OpenSearchTestCase {
         // 6. Fake REST request
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
 
-        // Act: Call private buildTable via reflection
-        RestThreadPoolAction action = new RestThreadPoolAction();
-        Method buildTableMethod = RestThreadPoolAction.class.getDeclaredMethod(
-            "buildTable",
-            RestRequest.class,
-            ClusterStateResponse.class,
-            NodesInfoResponse.class,
-            NodesStatsResponse.class
-        );
-        buildTableMethod.setAccessible(true);
-        Table table = (Table) buildTableMethod.invoke(action, request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse);
+        // Act: Call buildTable directly
+        Table table = action.buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse);
 
         // Assert
         List<Table.Cell> row = table.getRows().get(0);
