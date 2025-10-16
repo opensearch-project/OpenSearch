@@ -17,13 +17,13 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 
 public class CacheSettings {
 
-    public static final String METADATA_CACHE_SIZE_LIMIT_KEY = "metadata.cache.size.limit";
+    public static final String METADATA_CACHE_SIZE_LIMIT_KEY = "datafusion.metadata.cache.size.limit";
     public static final Setting<ByteSizeValue> METADATA_CACHE_SIZE_LIMIT =
         new Setting<>(METADATA_CACHE_SIZE_LIMIT_KEY, "50mb",
             (s) -> ByteSizeValue.parseBytesSizeValue(s, new ByteSizeValue(1000, ByteSizeUnit.KB),METADATA_CACHE_SIZE_LIMIT_KEY), Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     public static final Setting<String> METADATA_CACHE_EVICTION_TYPE = new Setting<String>(
-        "metadata.cache.eviction.type",
+        "datafusion.metadata.cache.eviction.type",
         "LFU",
         Function.identity(),
         Setting.Property.NodeScope,
@@ -31,7 +31,7 @@ public class CacheSettings {
     );
 
 
-    public static final String METADATA_CACHE_ENABLED_KEY = "metadata.cache.enabled";
+    public static final String METADATA_CACHE_ENABLED_KEY = "datafusion.metadata.cache.enabled";
     public static final Setting<Boolean> METADATA_CACHE_ENABLED =
         Setting.boolSetting(METADATA_CACHE_ENABLED_KEY, true, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
