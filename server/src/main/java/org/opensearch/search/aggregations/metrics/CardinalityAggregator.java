@@ -78,6 +78,7 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
@@ -874,29 +875,28 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     static class HybridCollector extends Collector {
         private final HyperLogLogPlusPlus counts;
         private final MurmurHash3Values hashValues;
-        private final CardinalityAggregationContext cardinalityContext;
+        private final long memoryThreshold;
 
         private Collector activeCollector;
         private final OrdinalsCollector ordinalsCollector;
-        private boolean switchedToDirectCollector = false;
 
         HybridCollector(
             HyperLogLogPlusPlus counts,
             SortedSetDocValues ordinalValues,
             MurmurHash3Values hashValues,
             BigArrays bigArrays,
-            CardinalityAggregationContext cardinalityContext
+            long memoryThreshold
         ) {
             this.counts = counts;
             this.hashValues = hashValues;
-            this.cardinalityContext = cardinalityContext;
+            this.memoryThreshold = memoryThreshold;
 
             // Start with OrdinalsCollector with memory monitoring enabled
             this.ordinalsCollector = new OrdinalsCollector(
                 counts, 
                 ordinalValues, 
                 bigArrays, 
-                cardinalityContext.getMemoryThreshold(), 
+                memoryThreshold, 
                 true
             );
             this.activeCollector = ordinalsCollector;
@@ -936,8 +936,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         private void switchToDirectCollector() throws IOException {
-            if (switchedToDirectCollector) return; // Already switched
-            
             // Post collect all the already computed data from OrdinalsCollector
             ordinalsCollector.postCollect();
             ordinalsCollector.close();
@@ -945,7 +943,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             // Create DirectCollector with computed data
             activeCollector = new DirectCollector(counts, hashValues);
-            switchedToDirectCollector = true;
         }
 
         @Override
