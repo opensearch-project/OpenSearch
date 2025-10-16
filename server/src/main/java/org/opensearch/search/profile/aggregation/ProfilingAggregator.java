@@ -56,7 +56,7 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
     private final AggregationProfiler profiler;
     private AggregationProfileBreakdown profileBreakdown;
 
-    public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) throws IOException {
+    public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) {
         this.profiler = profiler;
         this.delegate = delegate;
     }
@@ -158,19 +158,13 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
         return delegate.toString();
     }
 
-    public static Aggregator unwrap(Aggregator agg) {
-        if (agg instanceof ProfilingAggregator) {
-            return ((ProfilingAggregator) agg).delegate;
-        }
-        return agg;
-    }
-
-    public Aggregator getDelegate() {
-        return delegate;
-    }
-
     @Override
     public StreamingCostMetrics getStreamingCostMetrics() {
         return delegate instanceof Streamable ? ((Streamable) delegate).getStreamingCostMetrics() : StreamingCostMetrics.nonStreamable();
+    }
+
+    @Override
+    public Aggregator unwrapAggregator() {
+        return delegate;
     }
 }
