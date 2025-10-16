@@ -8,9 +8,8 @@
 
 package org.opensearch.plugin.kinesis;
 
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
-
-import java.util.Map;
 
 /**
  * Factory for creating Kinesis consumers
@@ -28,8 +27,8 @@ public class KinesisConsumerFactory implements IngestionConsumerFactory<KinesisS
     public KinesisConsumerFactory() {}
 
     @Override
-    public void initialize(Map<String, Object> params) {
-        config = new KinesisSourceConfig(params);
+    public void initialize(IngestionSource ingestionSource) {
+        config = new KinesisSourceConfig(ingestionSource.params());
     }
 
     @Override

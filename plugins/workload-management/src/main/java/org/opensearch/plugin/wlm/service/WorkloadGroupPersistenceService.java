@@ -236,14 +236,18 @@ public class WorkloadGroupPersistenceService {
      */
     ClusterState deleteWorkloadGroupInClusterState(final String name, final ClusterState currentClusterState) {
         final Metadata metadata = currentClusterState.metadata();
-        final WorkloadGroup workloadGroupToRemove = metadata.workloadGroups()
+        final WorkloadGroup workloadGroupToRemove = getWorkloadGroup(name, metadata);
+
+        return ClusterState.builder(currentClusterState).metadata(Metadata.builder(metadata).remove(workloadGroupToRemove).build()).build();
+    }
+
+    private static WorkloadGroup getWorkloadGroup(String name, Metadata metadata) {
+        return metadata.workloadGroups()
             .values()
             .stream()
             .filter(workloadGroup -> workloadGroup.getName().equals(name))
             .findAny()
             .orElseThrow(() -> new ResourceNotFoundException("No WorkloadGroup exists with the provided name: " + name));
-
-        return ClusterState.builder(currentClusterState).metadata(Metadata.builder(metadata).remove(workloadGroupToRemove).build()).build();
     }
 
     /**

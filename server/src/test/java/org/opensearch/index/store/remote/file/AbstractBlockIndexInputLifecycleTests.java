@@ -24,12 +24,12 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Unit test to ensure that {@link OnDemandBlockIndexInput} properly closes
+ * Unit test to ensure that {@link AbstractBlockIndexInput} properly closes
  * all of its backing IndexInput instances, as the reference counting logic
  * relies on this behavior.
  */
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
-public class OnDemandBlockIndexInputLifecycleTests extends OpenSearchTestCase {
+public class AbstractBlockIndexInputLifecycleTests extends OpenSearchTestCase {
     private static final int ONE_MB_SHIFT = 20;
     private static final int ONE_MB = 1 << ONE_MB_SHIFT;
     private static final int TWO_MB = ONE_MB * 2;
@@ -47,13 +47,13 @@ public class OnDemandBlockIndexInputLifecycleTests extends OpenSearchTestCase {
     }
 
     public void testClose() throws IOException {
-        try (OnDemandBlockIndexInput indexInput = createTestOnDemandBlockIndexInput()) {
+        try (AbstractBlockIndexInput indexInput = createTestAbstractBlockIndexInput()) {
             indexInput.seek(0);
         }
     }
 
     public void testCloseWhenSeekingMultipleChunks() throws IOException {
-        try (OnDemandBlockIndexInput indexInput = createTestOnDemandBlockIndexInput()) {
+        try (AbstractBlockIndexInput indexInput = createTestAbstractBlockIndexInput()) {
             indexInput.seek(0);
             indexInput.seek(ONE_MB + 1);
         }
@@ -61,7 +61,7 @@ public class OnDemandBlockIndexInputLifecycleTests extends OpenSearchTestCase {
     }
 
     public void testUnclosedCloneIsClosed() throws IOException {
-        try (OnDemandBlockIndexInput indexInput = createTestOnDemandBlockIndexInput()) {
+        try (AbstractBlockIndexInput indexInput = createTestAbstractBlockIndexInput()) {
             indexInput.seek(0);
 
             // Clone is abandoned without closing
@@ -70,7 +70,7 @@ public class OnDemandBlockIndexInputLifecycleTests extends OpenSearchTestCase {
     }
 
     public void testUnclosedSliceIsClosed() throws IOException {
-        try (OnDemandBlockIndexInput indexInput = createTestOnDemandBlockIndexInput()) {
+        try (AbstractBlockIndexInput indexInput = createTestAbstractBlockIndexInput()) {
             indexInput.seek(0);
 
             // Clone is abandoned without closing
@@ -78,8 +78,8 @@ public class OnDemandBlockIndexInputLifecycleTests extends OpenSearchTestCase {
         }
     }
 
-    private OnDemandBlockIndexInput createTestOnDemandBlockIndexInput() {
-        return new TestOnDemandBlockIndexInput(this::createCloseTrackingIndexInput, false);
+    private AbstractBlockIndexInput createTestAbstractBlockIndexInput() {
+        return new TestAbstractBlockIndexInput(this::createCloseTrackingIndexInput, false);
     }
 
     private IndexInput createCloseTrackingIndexInput() {
@@ -89,27 +89,27 @@ public class OnDemandBlockIndexInputLifecycleTests extends OpenSearchTestCase {
     }
 
     /**
-     * Concrete implementation of {@link OnDemandBlockIndexInput} that creates
+     * Concrete implementation of {@link AbstractBlockIndexInput} that creates
      * {@link CloseTrackingIndexInput} index inputs when it needs to fetch a
      * new block.
      */
-    private static class TestOnDemandBlockIndexInput extends OnDemandBlockIndexInput {
+    private static class TestAbstractBlockIndexInput extends AbstractBlockIndexInput {
         private final Supplier<IndexInput> indexInputSupplier;
 
-        TestOnDemandBlockIndexInput(Supplier<IndexInput> indexInputSupplier, boolean isClone) {
+        TestAbstractBlockIndexInput(Supplier<IndexInput> indexInputSupplier, boolean isClone) {
             super(
                 builder().blockSizeShift(ONE_MB_SHIFT)
                     .offset(0)
                     .length(TWO_MB)
                     .isClone(isClone)
-                    .resourceDescription(TestOnDemandBlockIndexInput.class.getName())
+                    .resourceDescription(TestAbstractBlockIndexInput.class.getName())
             );
             this.indexInputSupplier = indexInputSupplier;
         }
 
         @Override
-        protected OnDemandBlockIndexInput buildSlice(String sliceDescription, long offset, long length) {
-            return new TestOnDemandBlockIndexInput(this.indexInputSupplier, true);
+        protected AbstractBlockIndexInput buildSlice(String sliceDescription, long offset, long length) {
+            return new TestAbstractBlockIndexInput(this.indexInputSupplier, true);
         }
 
         @Override
@@ -118,8 +118,8 @@ public class OnDemandBlockIndexInputLifecycleTests extends OpenSearchTestCase {
         }
 
         @Override
-        public OnDemandBlockIndexInput clone() {
-            return new TestOnDemandBlockIndexInput(this.indexInputSupplier, true);
+        public AbstractBlockIndexInput clone() {
+            return new TestAbstractBlockIndexInput(this.indexInputSupplier, true);
         }
     }
 

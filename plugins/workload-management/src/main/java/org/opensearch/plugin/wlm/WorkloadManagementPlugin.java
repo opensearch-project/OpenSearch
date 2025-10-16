@@ -171,7 +171,7 @@ public class WorkloadManagementPlugin extends Plugin
             wlmClusterSettingValuesProvider,
             featureType
         );
-        return List.of(refreshMechanism);
+        return List.of(refreshMechanism, featureType, rulePersistenceService);
     }
 
     @Override

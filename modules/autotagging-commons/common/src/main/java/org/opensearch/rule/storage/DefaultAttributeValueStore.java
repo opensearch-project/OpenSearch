@@ -12,7 +12,6 @@ import org.apache.commons.collections4.trie.PatriciaTrie;
 import org.opensearch.rule.MatchLabel;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -80,12 +79,12 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
     }
 
     @Override
-    public Set<V> getExactMatch(K key) {
+    public List<MatchLabel<V>> getExactMatch(K key) {
         readLock.lock();
         try {
-            Set<V> results = new HashSet<>();
-            results.addAll(trie.getOrDefault(key, Collections.emptySet()));
-            results.addAll(trie.getOrDefault("", Collections.emptySet()));
+            List<MatchLabel<V>> results = new ArrayList<>();
+            addMatches(results, trie.get(key), 1f);
+            addMatches(results, trie.get(""), 0f);
             return results;
         } finally {
             readLock.unlock();
@@ -100,13 +99,10 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
             StringBuilder prefixBuilder = new StringBuilder(key);
 
             for (int i = key.length(); i >= 0; i--) {
-                String prefix = prefixBuilder.toString();
-                Set<V> value = trie.get(prefix);
-                if (value != null && !value.isEmpty()) {
-                    float matchScore = (float) prefixBuilder.length() / key.length();
-                    for (V label : value) {
-                        results.add(new MatchLabel<>(label, matchScore));
-                    }
+                Set<V> values = trie.get(prefixBuilder.toString());
+                if (values != null && !values.isEmpty()) {
+                    float score = (float) prefixBuilder.length() / key.length();
+                    addMatches(results, values, score);
                 }
                 if (!prefixBuilder.isEmpty()) {
                     prefixBuilder.deleteCharAt(prefixBuilder.length() - 1);
@@ -115,6 +111,15 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
             return results;
         } finally {
             readLock.unlock();
+        }
+    }
+
+    private void addMatches(List<MatchLabel<V>> results, Set<V> values, float score) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        for (V label : values) {
+            results.add(new MatchLabel<>(label, score));
         }
     }
 

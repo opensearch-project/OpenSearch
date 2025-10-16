@@ -229,6 +229,35 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expectedDocValues, onlyDocValues.termsQuery(sortedStrings, null));
     }
 
+    public void testTermsQuery_WhenDocValuesTrickyRewrite() {
+        MappedFieldType ft = new KeywordFieldType("field") {
+            @Override
+            protected Object rewriteForDocValue(Object value) {
+                String strVal = (String) value;
+                if (strVal.compareTo("a") >= 0) { // prepend letters in DV with underscore
+                    return "_" + strVal;
+                } else {
+                    if (randomBoolean()) {
+                        return super.rewriteForDocValue(value);
+                    } else {
+                        return randomBoolean() ? value : new String(strVal);
+                    }
+                }
+            }
+        };
+        List<String> strings = List.of("1", "2", "3", "4", "5", "a", "b", "c", "d", "e");
+        List<String> dvStrings = List.of("1", "2", "3", "4", "5", "_a", "_b", "_c", "_d", "_e");
+        Query expected = new IndexOrDocValuesQuery(
+            new TermInSetQuery("field", strings.stream().map(BytesRef::new).toList()),
+            new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", dvStrings.stream().map(BytesRef::new).toList())
+        );
+        if (rarely()) {
+            strings = new ArrayList<>(strings);
+            Collections.shuffle(strings, random());
+        }
+        assertEquals(expected, ft.termsQuery(strings, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+    }
+
     public void testExistsQuery() {
         {
             KeywordFieldType ft = new KeywordFieldType("field");

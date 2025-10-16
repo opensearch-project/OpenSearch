@@ -11,10 +11,8 @@ package org.opensearch.rule.storage;
 import org.opensearch.rule.MatchLabel;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * This interface provides apis to store Rule attribute values
@@ -56,8 +54,8 @@ public interface AttributeValueStore<K, V> {
      * Returns the values that exactly match the given key.
      * @param key the key to look up
      */
-    default Set<V> getExactMatch(K key) {
-        return new HashSet<>();
+    default List<MatchLabel<V>> getExactMatch(K key) {
+        return new ArrayList<>();
     }
 
     /**

@@ -217,9 +217,9 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         mapperService.merge("_doc", new CompressedXContent(BytesReference.bytes(mapping)), reason);
     }
 
-    protected final XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+    protected final XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
-        buildFields.accept(builder);
+        mapping.accept(builder);
         return builder.endObject().endObject();
     }
 
@@ -227,6 +227,23 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
         buildFields.accept(builder);
         return builder.endObject().endObject().endObject();
+    }
+
+    protected final CheckedConsumer<XContentBuilder, IOException> properties(CheckedConsumer<XContentBuilder, IOException> buildFields)
+        throws IOException {
+        return builder -> {
+            builder.startObject("properties");
+            buildFields.accept(builder);
+            builder.endObject();
+        };
+    }
+
+    protected final CheckedConsumer<XContentBuilder, IOException> contextAwareGrouping(String field) throws IOException {
+        return builder -> {
+            builder.startObject("context_aware_grouping");
+            builder.startArray("fields").value(field).endArray();
+            builder.endObject();
+        };
     }
 
     protected final XContentBuilder derivedMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {

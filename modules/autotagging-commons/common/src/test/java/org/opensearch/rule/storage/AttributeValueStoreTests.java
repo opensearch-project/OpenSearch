@@ -174,5 +174,8 @@ public class AttributeValueStoreTests extends OpenSearchTestCase {
         List<MatchLabel<String>> result = store.getMatches("foo");
         assertNotNull(result);
         assertTrue(result.isEmpty());
+        List<MatchLabel<String>> exactMatches = store.getExactMatch("foo");
+        assertNotNull(exactMatches);
+        assertTrue(exactMatches.isEmpty());
     }
 }

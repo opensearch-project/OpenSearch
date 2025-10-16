@@ -568,7 +568,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
         PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
             .getPollingIngestStats();
-        assertThat(stats.getConsumerStats().totalDuplicateMessageSkippedCount(), is(0L));
+        assertThat(stats.getConsumerStats().totalPolledCount(), is(3L));
+        assertThat(stats.getConsumerStats().totalPollerMessageFailureCount(), is(0L));
     }
 
     public void testConsumerResetByTimestamp() throws Exception {
@@ -625,10 +626,12 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         resumeResponse = resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.TIMESTAMP, "102");
         assertTrue(resumeResponse.isAcknowledged());
         assertTrue(resumeResponse.isShardsAcknowledged());
+
+        waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
         waitForState(() -> {
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
-            return stats.getConsumerStats().totalDuplicateMessageSkippedCount() == 3;
+            return stats.getConsumerStats().totalPolledCount() == 3;
         });
     }
 
@@ -694,10 +697,10 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
         assertHitCount(client().prepareSearch(indexName).get(), 4);
 
-        // after index is restored, it should only poll remaining 2 messages
+        // after index is restored, it should resume ingestion from batchStartPointer available in the latest commit
         PollingIngestStats stats2 = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
             .getPollingIngestStats();
-        assertEquals(2, stats2.getConsumerStats().totalPolledCount());
+        assertEquals(3, stats2.getConsumerStats().totalPolledCount());
         assertEquals(0, stats2.getMessageProcessorStats().totalVersionConflictsCount());
     }
 

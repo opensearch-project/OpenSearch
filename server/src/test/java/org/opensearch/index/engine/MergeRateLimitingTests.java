@@ -19,6 +19,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -77,7 +78,11 @@ public class MergeRateLimitingTests extends OpenSearchTestCase {
         IndexSettings indexSettings = new IndexSettings(newIndexMeta("test_index", indexBuilder.build()), nodeSettings);
         ShardId shardId = new ShardId("test_index", "test_uuid", 0);
 
-        OpenSearchConcurrentMergeScheduler scheduler = new OpenSearchConcurrentMergeScheduler(shardId, indexSettings);
+        OpenSearchConcurrentMergeScheduler scheduler = new OpenSearchConcurrentMergeScheduler(
+            shardId,
+            indexSettings,
+            new MergedSegmentTransferTracker()
+        );
 
         // Should use cluster-level setting
         assertThat(scheduler.getForceMergeMBPerSec(), equalTo(75.0));
@@ -85,7 +90,7 @@ public class MergeRateLimitingTests extends OpenSearchTestCase {
         // Test with both index and cluster-level settings - index should take precedence
         indexBuilder.put(MAX_FORCE_MERGE_MB_PER_SEC_SETTING.getKey(), "25.0");
         indexSettings = new IndexSettings(newIndexMeta("test_index", indexBuilder.build()), nodeSettings);
-        scheduler = new OpenSearchConcurrentMergeScheduler(shardId, indexSettings);
+        scheduler = new OpenSearchConcurrentMergeScheduler(shardId, indexSettings, new MergedSegmentTransferTracker());
 
         // Should use index-level setting
         assertThat(scheduler.getForceMergeMBPerSec(), equalTo(25.0));
@@ -104,7 +109,11 @@ public class MergeRateLimitingTests extends OpenSearchTestCase {
         IndexSettings indexSettings = new IndexSettings(newIndexMeta("test_index", builder.build()), Settings.EMPTY);
         ShardId shardId = new ShardId("test_index", "test_uuid", 0);
 
-        OpenSearchConcurrentMergeScheduler scheduler = new OpenSearchConcurrentMergeScheduler(shardId, indexSettings);
+        OpenSearchConcurrentMergeScheduler scheduler = new OpenSearchConcurrentMergeScheduler(
+            shardId,
+            indexSettings,
+            new MergedSegmentTransferTracker()
+        );
 
         // Should have no rate limiting
         assertThat(scheduler.getForceMergeMBPerSec(), equalTo(Double.POSITIVE_INFINITY));
@@ -130,7 +139,11 @@ public class MergeRateLimitingTests extends OpenSearchTestCase {
             IndexSettings indexSettings = new IndexSettings(newIndexMeta("test_index", builder.build()), Settings.EMPTY);
             ShardId shardId = new ShardId("test_index", "test_uuid", 0);
 
-            OpenSearchConcurrentMergeScheduler scheduler = new OpenSearchConcurrentMergeScheduler(shardId, indexSettings);
+            OpenSearchConcurrentMergeScheduler scheduler = new OpenSearchConcurrentMergeScheduler(
+                shardId,
+                indexSettings,
+                new MergedSegmentTransferTracker()
+            );
             assertThat(scheduler.getForceMergeMBPerSec(), equalTo(10.0));
 
             // Update to a different rate limit
@@ -190,7 +203,11 @@ public class MergeRateLimitingTests extends OpenSearchTestCase {
             IndexSettings indexSettings = new IndexSettings(newIndexMeta("test_index", builder.build()), nodeSettings);
             ShardId shardId = new ShardId("test_index", "test_uuid", 0);
 
-            OpenSearchConcurrentMergeScheduler scheduler = new OpenSearchConcurrentMergeScheduler(shardId, indexSettings);
+            OpenSearchConcurrentMergeScheduler scheduler = new OpenSearchConcurrentMergeScheduler(
+                shardId,
+                indexSettings,
+                new MergedSegmentTransferTracker()
+            );
 
             // Should initially use index-level setting
             assertThat(scheduler.getForceMergeMBPerSec(), equalTo(25.0));
