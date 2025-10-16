@@ -32,19 +32,21 @@ public class BlobStoreProviderFactory {
     }
 
     public BlobStoreProvider getBlobStoreProvider() {
-        if (RemoteStoreNodeAttribute.isServerSideEncryptionEnabled(metadata.settings())) {
-            if (serverSideEncryptionEnabledBlobStoreProvider.get() == null) {
-                ServerSideEncryptionEnabledBlobStoreProvider serverSideEncryptionEnabledBlobStoreProvider =
-                    new ServerSideEncryptionEnabledBlobStoreProvider(repository, metadata, lifecycle, lock);
-                this.serverSideEncryptionEnabledBlobStoreProvider.set(serverSideEncryptionEnabledBlobStoreProvider);
+        synchronized (lock) {
+            if (RemoteStoreNodeAttribute.isServerSideEncryptionEnabled(metadata.settings())) {
+                if (serverSideEncryptionEnabledBlobStoreProvider.get() == null) {
+                    ServerSideEncryptionEnabledBlobStoreProvider serverSideEncryptionEnabledBlobStoreProvider =
+                        new ServerSideEncryptionEnabledBlobStoreProvider(repository, metadata, lifecycle, lock);
+                    this.serverSideEncryptionEnabledBlobStoreProvider.set(serverSideEncryptionEnabledBlobStoreProvider);
+                }
+                return serverSideEncryptionEnabledBlobStoreProvider.get();
+            } else {
+                if (blobStoreProvider.get() == null) {
+                    BlobStoreProvider blobStoreProvider = new BlobStoreProvider(repository, metadata, lifecycle, lock);
+                    this.blobStoreProvider.set(blobStoreProvider);
+                }
+                return blobStoreProvider.get();
             }
-            return serverSideEncryptionEnabledBlobStoreProvider.get();
-        } else {
-            if (blobStoreProvider.get() == null) {
-                BlobStoreProvider blobStoreProvider = new BlobStoreProvider(repository, metadata, lifecycle, lock);
-                this.blobStoreProvider.set(blobStoreProvider);
-            }
-            return blobStoreProvider.get();
         }
     }
 }

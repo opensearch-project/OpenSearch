@@ -93,6 +93,7 @@ import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -174,6 +175,7 @@ import static org.opensearch.node.Node.NODE_ATTRIBUTES;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
@@ -2615,6 +2617,103 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
     }
 
+    public void testUpdateRemoteStoreSettings() {
+        Map<String, String> attributes = getNodeAttributes();
+        DiscoveryNode remoteNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            attributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(remoteNode).build())
+            .build();
+
+        Settings settings = Settings.builder()
+            .put("node.attr.remote_store.segment.repository", "my-segment-repo-1")
+            .build();
+        final Settings.Builder requestSettings = Settings.builder()
+            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), -1)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
+
+        Settings clusterSettingsSetting = Settings.builder()
+            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true)
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+            .build();
+        clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        new RemoteStoreSettings(
+            clusterSettingsSetting,
+            clusterSettings
+        );
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            requestSettings,
+            clusterState,
+            clusterSettings,
+            settings,
+            "test-index",
+            false);
+
+        assertTrue(requestSettings.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false));
+    }
+
+    public void testUpdateRemoteStoreSettings_For_Snapshot_restore() {
+        Map<String, String> attributes = getNodeAttributes();
+        DiscoveryNode remoteNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            attributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(remoteNode).build())
+            .build();
+
+        Settings settings = Settings.builder()
+            .put("node.attr.remote_store.segment.repository", "my-segment-repo-1")
+            .build();
+        final Settings.Builder requestSettings = Settings.builder()
+            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), -1)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
+
+        Settings clusterSettingsSetting = Settings.builder()
+            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true)
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+            .build();
+        clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        new RemoteStoreSettings(
+            clusterSettingsSetting,
+            clusterSettings
+        );
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            requestSettings,
+            clusterState,
+            clusterSettings,
+            settings,
+            "test-index",
+            true);
+
+        assertFalse(requestSettings.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false));
+    }
+
+    private static Map<String, String> getNodeAttributes() {
+        String segmentRepositoryName = "my-segment-repo-1";
+        String serverSideEncryptionAttribute = String.format(Locale.getDefault(),
+            RemoteStoreNodeAttribute.REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT, segmentRepositoryName);
+        Map<String, String> attributes = new HashMap<>();
+
+        attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
+        attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepositoryName);
+        attributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
+        attributes.put(serverSideEncryptionAttribute, "true");
+        return attributes;
+    }
+
     public void testIndexTotalPrimaryShardsPerNodeSettingValidationWithDefaultValue() {
         // Test case with default value (-1) without remote store (should succeed)
         Settings settings = Settings.builder().build();
@@ -2704,6 +2803,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
         attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
         attributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
+        attributes.put(REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT, "my-translog-repo-1");
         return new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),

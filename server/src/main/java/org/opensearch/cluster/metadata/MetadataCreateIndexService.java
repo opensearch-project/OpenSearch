@@ -1179,14 +1179,14 @@ public class MetadataCreateIndexService {
                 .findFirst();
 
             if (remoteNode.isPresent()) {
-
+                segmentRepo = RemoteStoreNodeAttribute.getSegmentRepoName(remoteNode.get().getAttributes());
                 if (!isRestoreFromSnapshot
-                    && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled(remoteNode.get().getAttributes())) {
+                    && RemoteStoreSettings.isServerSideEncryptionRepoEnabled(clusterState.nodes().getMinNodeVersion())
+                    && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled(remoteNode.get().getAttributes(), segmentRepo)) {
                     settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, true);
                 }
 
                 translogRepo = RemoteStoreNodeAttribute.getTranslogRepoName(remoteNode.get().getAttributes());
-                segmentRepo = RemoteStoreNodeAttribute.getSegmentRepoName(remoteNode.get().getAttributes());
                 if (segmentRepo != null) {
                     settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true).put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo);
                     if (translogRepo != null) {

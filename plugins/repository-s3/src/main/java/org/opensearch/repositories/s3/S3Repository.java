@@ -531,7 +531,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             null,
             false,
             null,
-            ""
+            null
         );
     }
 
