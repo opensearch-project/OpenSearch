@@ -582,7 +582,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.pointer.init.reset", "earliest")
-                .put("ingestion_source.pointer_based_lag_update_interval", 3000)
+                .put("ingestion_source.pointer_based_lag_update_interval", "3s")
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"

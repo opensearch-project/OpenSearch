@@ -69,7 +69,7 @@ public class DefaultStreamPoller implements StreamPoller {
 
     private long maxPollSize;
     private int pollTimeout;
-    private int pointerBasedLagUpdateIntervalMs;
+    private long pointerBasedLagUpdateIntervalMs;
 
     private final String indexName;
 
@@ -95,7 +95,7 @@ public class DefaultStreamPoller implements StreamPoller {
         int pollTimeout,
         int numProcessorThreads,
         int blockingQueueSize,
-        int pointerBasedLagUpdateInterval
+        long pointerBasedLagUpdateIntervalMs
     ) {
         this(
             startPointer,
@@ -109,7 +109,7 @@ public class DefaultStreamPoller implements StreamPoller {
             initialState,
             maxPollSize,
             pollTimeout,
-            pointerBasedLagUpdateInterval,
+            pointerBasedLagUpdateIntervalMs,
             ingestionEngine.config().getIndexSettings()
         );
     }
@@ -129,7 +129,7 @@ public class DefaultStreamPoller implements StreamPoller {
         State initialState,
         long maxPollSize,
         int pollTimeout,
-        int pointerBasedLagUpdateInterval,
+        long pointerBasedLagUpdateIntervalMs,
         IndexSettings indexSettings
     ) {
         this.consumerFactory = Objects.requireNonNull(consumerFactory);
@@ -141,7 +141,7 @@ public class DefaultStreamPoller implements StreamPoller {
         this.state = initialState;
         this.maxPollSize = maxPollSize;
         this.pollTimeout = pollTimeout;
-        this.pointerBasedLagUpdateIntervalMs = pointerBasedLagUpdateInterval;
+        this.pointerBasedLagUpdateIntervalMs = pointerBasedLagUpdateIntervalMs;
         this.blockingQueueContainer = blockingQueueContainer;
         this.consumerThread = Executors.newSingleThreadExecutor(
             r -> new Thread(r, String.format(Locale.ROOT, "stream-poller-consumer-%d-%d", shardId, System.currentTimeMillis()))
@@ -532,7 +532,7 @@ public class DefaultStreamPoller implements StreamPoller {
         private int pollTimeout = 1000;
         private int numProcessorThreads = 1;
         private int blockingQueueSize = 100;
-        private int pointerBasedLagUpdateInterval = 10000;
+        private long pointerBasedLagUpdateIntervalMs = 10000;
 
         /**
          * Initialize the builder with mandatory parameters
@@ -617,10 +617,10 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
-         * Set pointer-based lag update interval
+         * Set pointer-based lag update interval in milliseconds
          */
-        public Builder pointerBasedLagUpdateInterval(int pointerBasedLagUpdateInterval) {
-            this.pointerBasedLagUpdateInterval = pointerBasedLagUpdateInterval;
+        public Builder pointerBasedLagUpdateInterval(long pointerBasedLagUpdateInterval) {
+            this.pointerBasedLagUpdateIntervalMs = pointerBasedLagUpdateInterval;
             return this;
         }
 
@@ -642,7 +642,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 pollTimeout,
                 numProcessorThreads,
                 blockingQueueSize,
-                pointerBasedLagUpdateInterval
+                pointerBasedLagUpdateIntervalMs
             );
         }
     }

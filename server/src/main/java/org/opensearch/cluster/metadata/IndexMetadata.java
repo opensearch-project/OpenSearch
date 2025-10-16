@@ -51,6 +51,7 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.Strings;
@@ -93,6 +94,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
@@ -908,16 +910,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
-     * Defines the pointer-based lag update interval in milliseconds for pull-based ingestion.
+     * Defines the pointer-based lag update interval for pull-based ingestion.
      * This controls how frequently the lag between the latest available message and the last consumed message is calculated.
      * Setting this to 0 disables pointer-based lag calculation entirely.
      */
     public static final String SETTING_INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL =
         "index.ingestion_source.pointer_based_lag_update_interval";
-    public static final Setting<Integer> INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING = Setting.intSetting(
+    public static final Setting<TimeValue> INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING = Setting.positiveTimeSetting(
         SETTING_INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL,
-        10000,
-        0,
+        new TimeValue(10, TimeUnit.SECONDS),
         Property.IndexScope,
         Property.Final
     );
@@ -1225,7 +1226,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int numProcessorThreads = INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING.get(settings);
             final int blockingQueueSize = INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING.get(settings);
             final boolean allActiveIngestionEnabled = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings);
-            final int pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.get(settings);
+            final TimeValue pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.get(settings);
 
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)

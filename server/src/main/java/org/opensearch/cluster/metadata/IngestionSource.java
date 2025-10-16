@@ -10,6 +10,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.StreamPoller;
 
@@ -38,7 +39,7 @@ public class IngestionSource {
     private int numProcessorThreads;
     private int blockingQueueSize;
     private final boolean allActiveIngestion;
-    private final int pointerBasedLagUpdateInterval;
+    private final TimeValue pointerBasedLagUpdateInterval;
 
     private IngestionSource(
         String type,
@@ -50,7 +51,7 @@ public class IngestionSource {
         int numProcessorThreads,
         int blockingQueueSize,
         boolean allActiveIngestion,
-        int pointerBasedLagUpdateInterval
+        TimeValue pointerBasedLagUpdateInterval
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
@@ -100,7 +101,7 @@ public class IngestionSource {
         return allActiveIngestion;
     }
 
-    public int getPointerBasedLagUpdateInterval() {
+    public TimeValue getPointerBasedLagUpdateInterval() {
         return pointerBasedLagUpdateInterval;
     }
 
@@ -221,7 +222,9 @@ public class IngestionSource {
         private int numProcessorThreads = INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING.getDefault(Settings.EMPTY);
         private int blockingQueueSize = INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING.getDefault(Settings.EMPTY);
         private boolean allActiveIngestion = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getDefault(Settings.EMPTY);
-        private int pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.getDefault(Settings.EMPTY);
+        private TimeValue pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.getDefault(
+            Settings.EMPTY
+        );
 
         public Builder(String type) {
             this.type = type;
@@ -283,7 +286,7 @@ public class IngestionSource {
             return this;
         }
 
-        public Builder setPointerBasedLagUpdateInterval(int pointerBasedLagUpdateInterval) {
+        public Builder setPointerBasedLagUpdateInterval(TimeValue pointerBasedLagUpdateInterval) {
             this.pointerBasedLagUpdateInterval = pointerBasedLagUpdateInterval;
             return this;
         }
