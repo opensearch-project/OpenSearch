@@ -311,9 +311,9 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
             @Override
             public void setSubCollectors() throws IOException {
                 for (Aggregator aggregator : subAggregators) {
-                    if (aggregator instanceof StarTreePreComputeCollector collector) {
-                        this.subCollectors.add(collector.getStarTreeBucketCollector(ctx, starTree, this));
-                    }
+                    this.subCollectors.add(
+                        ((StarTreePreComputeCollector) aggregator.unwrapAggregator()).getStarTreeBucketCollector(ctx, starTree, this)
+                    );
                 }
             }
 
