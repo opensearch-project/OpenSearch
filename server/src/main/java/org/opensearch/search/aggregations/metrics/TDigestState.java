@@ -70,7 +70,7 @@ public class TDigestState extends MergingDigest {
     }
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_3_1_0)) {
+        if (out.getVersion().before(Version.V_3_4_0)) {
             out.writeDouble(state.compression);
             out.writeVInt(state.centroidCount());
             for (Centroid centroid : state.centroids()) {
@@ -87,7 +87,7 @@ public class TDigestState extends MergingDigest {
     }
 
     public static TDigestState read(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_3_1_0)) {
+        if (in.getVersion().before(Version.V_3_4_0)) {
             // In older versions TDigestState was based on AVLTreeDigest. Load centroids into this class, then add it to MergingDigest.
             double compression = in.readDouble();
             AVLTreeDigest treeDigest = new AVLTreeDigest(compression);
