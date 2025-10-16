@@ -7,6 +7,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
 import static org.opensearch.datafusion.DataFusionQueryJNI.createMetadataCache;
+import static org.opensearch.datafusion.DataFusionQueryJNI.metadataCacheClear;
 import static org.opensearch.datafusion.DataFusionQueryJNI.metadataCacheContainsFile;
 import static org.opensearch.datafusion.DataFusionQueryJNI.metadataCacheGet;
 import static org.opensearch.datafusion.DataFusionQueryJNI.metadataCacheGetEntries;
@@ -66,12 +67,12 @@ public class MetadataCacheAccessor extends CacheAccessor {
 
     @Override
     public void evict() {
-        return;
+        throw new UnsupportedOperationException("Explicit Eviction Not Supported");
     }
 
     @Override
     public void clear() {
-        return;
+        metadataCacheClear(this.pointer);
     }
 
     @Override

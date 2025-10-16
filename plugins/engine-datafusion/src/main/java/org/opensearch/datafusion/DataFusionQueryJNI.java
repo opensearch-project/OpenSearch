@@ -115,9 +115,9 @@ public class DataFusionQueryJNI {
      * @param substraitPlan the serialized Substrait query plan
      * @return stream pointer for result iteration
      */
-    public static native long executeSubstraitQuery(long cachePtr, byte[] substraitPlan, long runtimePtr);
+  //  public static native long executeSubstraitQuery(long cachePtr, byte[] substraitPlan, long runtimePtr);
 
-    public static native long executeSubstraitQueryv1(long cachePtr, byte[] substraitPlan, long tokioRuntimePtr, long runtimePtr);
+    public static native long executeSubstraitQuery(long cachePtr, byte[] substraitPlan, long tokioRuntimePtr, long runtimePtr);
 
     public static native long createDatafusionReader(String path, String[] files);
 
@@ -222,7 +222,7 @@ public class DataFusionQueryJNI {
     public static native String[] metadataCacheGetEntries(long cachePtr);
 
         /**
-     * Check if a file exists in metadataCache
+     * Clears all entries from the metadata cache
      * @param cachePtr the cache pointer
      */
     public static native void metadataCacheClear(long cachePtr);

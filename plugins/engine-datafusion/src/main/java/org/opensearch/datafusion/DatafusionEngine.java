@@ -107,7 +107,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             searcher = new DatafusionSearcherSupplier(null) {
                 @Override
                 protected DatafusionSearcher acquireSearcherInternal(String source) {
-                    return new DatafusionSearcher(source, reader, () -> {});
+                    return new DatafusionSearcher(source, reader, datafusionService.getTokioRuntimePointer(),
+                        datafusionService.getRuntimePointer(), () -> {});
                 }
 
                 @Override
@@ -147,6 +148,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             return new DatafusionSearcher(
                 source,
                 searcher.getReader(),
+                datafusionService.getTokioRuntimePointer(),
+                datafusionService.getRuntimePointer(),
                 () -> Releasables.close(searcher, searcherSupplier)
             );
         } finally {
@@ -174,7 +177,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         Map<String, Object[]> finalRes = new HashMap<>();
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
-            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer(), datafusionService.getRuntimePointer());
+            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery());
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getTokioRuntimePointer() , allocator);
 

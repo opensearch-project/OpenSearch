@@ -19,7 +19,7 @@ use arrow_schema::ffi::FFI_ArrowSchema;
 mod util;
 mod row_id_optimizer;
 mod listing_table;
-mod metadata_cache;
+mod cache;
 
 use datafusion::execution::context::SessionContext;
 
@@ -36,7 +36,7 @@ use prost::Message;
 use tokio::runtime::Runtime;
 use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
 use crate::row_id_optimizer::FilterRowIdOptimizer;
-use crate::metadata_cache::{MutexFileMetadataCache};
+use crate::cache::{MutexFileMetadataCache};
 use crate::util::{construct_file_metadata, create_object_meta_from_file, create_object_meta_from_filenames, parse_string_arr, set_object_result_error, set_object_result_ok};
 
 use datafusion::datasource::file_format::csv::CsvFormat;

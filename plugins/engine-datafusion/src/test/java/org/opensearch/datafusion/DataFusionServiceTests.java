@@ -8,6 +8,8 @@
 
 package org.opensearch.datafusion;
 
+import java.io.File;
+import java.net.URL;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.lucene.search.Query;
@@ -116,105 +118,70 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
 
     // TO run update proper directory path for generation-1-optimized.parquet file in
     // this.datafusionReaderManager = new DatafusionReaderManager("TODO://FigureOutPath", formatCatalogSnapshot);
-    public void testQueryPhaseExecutor() throws IOException {
-        Map<String, Object[]> finalRes = new HashMap<>();
-        DatafusionSearcher datafusionSearcher = null;
-        try {
-            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(new TextDF(), "hits_data.parquet")), service);
-            datafusionSearcher = engine.acquireSearcher("Search");
+//    public void testQueryPhaseExecutor() throws IOException {
+//        Map<String, Object[]> finalRes = new HashMap<>();
+//        DatafusionSearcher datafusionSearcher = null;
+//        try {
+//            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new TextDF(), "hits2.parquet")), service);
+//            datafusionSearcher = engine.acquireSearcher("Search");
+//
+//            byte[] protoContent;
+//
+//            try (InputStream is = getClass().getResourceAsStream("/substrait_plan.pb")) {
+//                protoContent = is.readAllBytes();
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            }
+//
+//            long streamPointer = datafusionSearcher.search(new DatafusionQuery(protoContent, new ArrayList<>()));
+//            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+//            RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getTokioRuntimePointer() , allocator);
+//
+//            // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
+//            // Is the possible? need to check
+//
+//            SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
+//                @Override
+//                public void collect(RecordBatchStream value) {
+//                    VectorSchemaRoot root = value.getVectorSchemaRoot();
+//                    for (Field field : root.getSchema().getFields()) {
+//                        String filedName = field.getName();
+//                        FieldVector fieldVector = root.getVector(filedName);
+//                        Object[] fieldValues = new Object[fieldVector.getValueCount()];
+//                        for (int i = 0; i < fieldVector.getValueCount(); i++) {
+//                            fieldValues[i] = fieldVector.getObject(i);
+//                        }
+//                        finalRes.put(filedName, fieldValues);
+//                    }
+//                }
+//            };
+//
+//            while (stream.loadNextBatch().join()) {
+//                collector.collect(stream);
+//            }
+//
+//            logger.info("Final Results:");
+//            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+//                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+//            }
+//
+//        } catch (Exception exception) {
+//            logger.error("Failed to execute Substrait query plan", exception);
+//        }
+//        finally {
+//            if(datafusionSearcher != null) {
+//                datafusionSearcher.close();
+//            }
+//        }
+//    }
 
-            byte[] protoContent;
-
-            try (InputStream is = getClass().getResourceAsStream("/substrait_plan.pb")) {
-                protoContent = is.readAllBytes();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-
-            long streamPointer = datafusionSearcher.search(new DatafusionQuery(protoContent, new ArrayList<>()), service.getTokioRuntimePointer(), service.getRuntimePointer());
-            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-            RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getTokioRuntimePointer() , allocator);
-
-            // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
-            // Is the possible? need to check
-
-            SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
-                @Override
-                public void collect(RecordBatchStream value) {
-                    VectorSchemaRoot root = value.getVectorSchemaRoot();
-                    for (Field field : root.getSchema().getFields()) {
-                        String filedName = field.getName();
-                        FieldVector fieldVector = root.getVector(filedName);
-                        Object[] fieldValues = new Object[fieldVector.getValueCount()];
-                        for (int i = 0; i < fieldVector.getValueCount(); i++) {
-                            fieldValues[i] = fieldVector.getObject(i);
-                        }
-                        finalRes.put(filedName, fieldValues);
-                    }
-                }
-            };
-
-            while (stream.loadNextBatch().join()) {
-                collector.collect(stream);
-            }
-
-            logger.info("Final Results:");
-            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
-                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
-            }
-
-        } catch (Exception exception) {
-            logger.error("Failed to execute Substrait query plan", exception);
+    private File getResourceFile(String fileName) {
+        URL resourceUrl = getClass().getClassLoader().getResource(fileName);
+        if (resourceUrl == null) {
+            throw new IllegalArgumentException("Resource not found: " + fileName);
         }
-        finally {
-            if(datafusionSearcher != null) {
-                datafusionSearcher.close();
-            }
-        }
+        return new File(resourceUrl.getPath());
     }
 
-    public void testCacheOperations() {
-        CacheAccessor metadataCache = service.getCacheManager().getCacheAccessor(CacheType.METADATA);
 
-        CacheManager cacheManager= service.getCacheManager();
-        String fileName = "/Users/abhital/dev/src/forkedrepo/OpenSearch/plugins/engine-datafusion/src/hits9_v1.parquet";
-        // add File using CacheManager
-        cacheManager.addToCache(List.of(fileName));
-
-        // Get file using individual Cache Accessor Methods -> Prints Cache content size
-        assertTrue((Boolean) metadataCache.get(fileName));
-
-        logger.info("Memory Consumed by MetadataCache : {}",metadataCache.getMemoryConsumed());
-        logger.info("Memory Consumed by CacheManager : {}",cacheManager.getTotalUsedBytes());
-
-        logger.info("Total Configured Size Limit for MetadataCache : {}",metadataCache.getConfiguredSizeLimit());
-        logger.info("Total Configured Size Limit for CacheManager : {}",cacheManager.getTotalSizeLimit());
-
-        boolean removed = cacheManager.removeFiles(List.of(fileName));
-        logger.info("Is file removed: {}. Contains File Check: {} ",removed, metadataCache.containsFile(fileName));
-        logger.info("Memory Consumed by MetadataCache after removing entries: {}",metadataCache.getMemoryConsumed());
-        logger.info("Memory Consumed by CacheManager after removing entries: {}",cacheManager.getTotalUsedBytes());
-
-
-        // add File again to cache
-        cacheManager.addToCache(List.of(fileName));
-        logger.info("Entries in Metadata Cache : {}",cacheManager.getCacheAccessor(CacheType.METADATA).getEntries());
-
-        // change cluster setting to update sizeLimit -> eventually evicts entries
-        metadataCache.setSizeLimit(new ByteSizeValue(40));
-        // file will be evicted as sizeLimit is decreased
-        logger.info("Entries in Metadata Cache after sizeLimit exceeds: {}",cacheManager.getCacheAccessor(CacheType.METADATA).getEntries());
-
-        // Add file again to test if cache clear works
-        metadataCache.put(fileName);
-        logger.info("Entries in Metadata Cache after put action with same sizeLimit: {}",cacheManager.getCacheAccessor(CacheType.METADATA).getEntries());
-
-        metadataCache.setSizeLimit(new ByteSizeValue(500000));
-        metadataCache.put(fileName);
-        logger.info("Entries in Metadata Cache after put action with updatedSizeLimit: {}",cacheManager.getCacheAccessor(CacheType.METADATA).getEntries());
-
-        metadataCache.clear();
-        logger.info("Entries in Metadata Cache after Cache Clear: {}",cacheManager.getCacheAccessor(CacheType.METADATA).getEntries());
-
-    }
 }

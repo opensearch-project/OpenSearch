@@ -25,10 +25,15 @@ import java.util.concurrent.CompletableFuture;
 public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, RecordBatchStream> {
     private final String source;
     private DatafusionReader reader;
+    private Long tokioRuntimePtr;
+    private Long globalRuntimeEnvId;
     private Closeable closeable;
-    public DatafusionSearcher(String source, DatafusionReader reader, Closeable close) {
+
+    public DatafusionSearcher(String source, DatafusionReader reader, Long tokioRuntimePtr, Long globalRuntimeEnvId, Closeable close) {
         this.source = source;
         this.reader = reader;
+        this.tokioRuntimePtr = tokioRuntimePtr;
+        this.globalRuntimeEnvId = globalRuntimeEnvId;
     }
 
     @Override
@@ -40,7 +45,7 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
     public void search(DatafusionQuery datafusionQuery, List<SearchResultsCollector<RecordBatchStream>> collectors) throws IOException {
         // TODO : call search here to native
         // TODO : change RunTimePtr
-        long nativeStreamPtr = DataFusionQueryJNI.executeSubstraitQuery(reader.getCachePtr(), datafusionQuery.getSubstraitBytes(), 0);
+        long nativeStreamPtr = DataFusionQueryJNI.executeSubstraitQuery(reader.getCachePtr(), datafusionQuery.getSubstraitBytes(), tokioRuntimePtr, globalRuntimeEnvId);
         RecordBatchStream stream = new DefaultRecordBatchStream(nativeStreamPtr);
         while(stream.hasNext()) {
             for(SearchResultsCollector<RecordBatchStream> collector : collectors) {
@@ -50,13 +55,8 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
     }
 
     @Override
-    public long search(DatafusionQuery datafusionQuery, Long contextPtr) {
-        return DataFusionQueryJNI.executeSubstraitQuery(reader.getCachePtr(), datafusionQuery.getSubstraitBytes(), contextPtr);
-    }
-
-    @Override
-    public long search(DatafusionQuery datafusionQuery, Long contextPtr, Long globalRuntimeEnvId) {
-        return DataFusionQueryJNI.executeSubstraitQueryv1(reader.getCachePtr(), datafusionQuery.getSubstraitBytes(), contextPtr, globalRuntimeEnvId);
+    public long search(DatafusionQuery datafusionQuery) {
+        return DataFusionQueryJNI.executeSubstraitQuery(reader.getCachePtr(), datafusionQuery.getSubstraitBytes(), tokioRuntimePtr, globalRuntimeEnvId);
     }
 
     public DatafusionReader getReader() {

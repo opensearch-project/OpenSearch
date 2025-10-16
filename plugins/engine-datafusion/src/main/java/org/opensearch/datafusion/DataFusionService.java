@@ -33,27 +33,26 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final ConcurrentMapLong<DataSourceCodec> sessionEngines = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
     private final DataSourceRegistry dataSourceRegistry;
+    private final Long tokioRuntimePtr;
     private final GlobalRuntimeEnv globalRuntimeEnv;
     private CacheManager cacheManager;
 
     /**
      * Creates a new DataFusion service instance.
      */
-    public DataFusionService(Map<DataFormat, DataSourceCodec> dataSourceCodecs) {
-        this.dataSourceRegistry = new DataSourceRegistry(dataSourceCodecs);
-
-        // to verify jni
-        String version = DataFusionQueryJNI.getVersionInfo();
-        this.globalRuntimeEnv = new GlobalRuntimeEnv();
-    }
 
     public DataFusionService(Map<DataFormat, DataSourceCodec> dataSourceCodecs, ClusterSettings clusterSettings) {
         this.dataSourceRegistry = new DataSourceRegistry(dataSourceCodecs);
 
         // to verify jni
         String version = DataFusionQueryJNI.getVersionInfo();
+        this.tokioRuntimePtr = DataFusionQueryJNI.createTokioRuntime();
         this.globalRuntimeEnv = new GlobalRuntimeEnv(clusterSettings);
         this.cacheManager = globalRuntimeEnv.getCacheManager();
+    }
+
+    public Long getTokioRuntimePointer() {
+        return tokioRuntimePtr;
     }
 
     @Override
@@ -177,9 +176,9 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return globalRuntimeEnv.getPointer();
     }
 
-    public long getTokioRuntimePointer() {
-        return globalRuntimeEnv.getTokioRuntimePtr();
-    }
+    //public long getTokioRuntimePointer() {
+   //     return globalRuntimeEnv.getTokioRuntimePtr();
+   // }
 
     /**
      * Close the session context and clean up resources

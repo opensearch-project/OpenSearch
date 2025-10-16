@@ -8,5 +8,5 @@
 
 package org.opensearch.index.engine.exec;
 
-public record FileMetadata(org.opensearch.index.engine.exec.text.TextDF directory, String file) {
+public record FileMetadata(String directory, String file) {
 }
