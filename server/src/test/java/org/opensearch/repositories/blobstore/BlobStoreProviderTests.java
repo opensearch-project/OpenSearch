@@ -22,6 +22,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Test class for {@link BlobStoreProvider}.
+ */
 public class BlobStoreProviderTests extends OpenSearchTestCase {
     @Mock
     private BlobStoreRepository mockRepository;
