@@ -908,6 +908,21 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Defines the pointer-based lag update interval in milliseconds for pull-based ingestion.
+     * This controls how frequently the lag between the latest available message and the last consumed message is calculated.
+     * Setting this to 0 disables pointer-based lag calculation entirely.
+     */
+    public static final String SETTING_INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL =
+        "index.ingestion_source.pointer_based_lag_update_interval";
+    public static final Setting<Integer> INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING = Setting.intSetting(
+        SETTING_INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL,
+        10000,
+        0,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * Defines if all-active pull-based ingestion is enabled. In this mode, replicas will directly consume from the
      * streaming source and process the updates. In the default document replication mode, this setting must be enabled.
      * This mode is currently not supported with segment replication.
@@ -1210,6 +1225,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int numProcessorThreads = INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING.get(settings);
             final int blockingQueueSize = INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING.get(settings);
             final boolean allActiveIngestionEnabled = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings);
+            final int pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.get(settings);
 
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
@@ -1219,6 +1235,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setNumProcessorThreads(numProcessorThreads)
                 .setBlockingQueueSize(blockingQueueSize)
                 .setAllActiveIngestion(allActiveIngestionEnabled)
+                .setPointerBasedLagUpdateInterval(pointerBasedLagUpdateInterval)
                 .build();
         }
         return null;

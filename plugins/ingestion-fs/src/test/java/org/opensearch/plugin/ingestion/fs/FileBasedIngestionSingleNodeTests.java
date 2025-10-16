@@ -265,6 +265,7 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("ingestion_source.type", "FILE")
                 .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.pointer_based_lag_update_interval", 3000)
                 .put("ingestion_source.param.stream", stream)
                 .put("ingestion_source.param.base_directory", ingestionDir.toString())
                 .put("index.replication.type", "SEGMENT")
@@ -330,6 +331,7 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("ingestion_source.type", "FILE")
                 .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.pointer_based_lag_update_interval", 3000)
                 .put("ingestion_source.param.stream", stream)
                 .put("ingestion_source.param.base_directory", ingestionDir.toString())
                 .put("index.replication.type", "SEGMENT")
@@ -374,7 +376,7 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
             channel.force(true);
         }
 
-        // Wait for lag to be calculated (lag is updated every 10 seconds)
+        // Wait for lag to be calculated (lag is updated every 3 seconds in this test)
         waitForState(() -> {
             PollingIngestStats stats = getPollingIngestStats(index);
             return stats != null && stats.getConsumerStats().pointerBasedLag() == 3L;

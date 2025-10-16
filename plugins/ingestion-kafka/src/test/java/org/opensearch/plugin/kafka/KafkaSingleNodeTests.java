@@ -80,6 +80,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.pointer_based_lag_update_interval", 0)
                 .build(),
             mappings
         );

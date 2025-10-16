@@ -21,6 +21,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_ALL
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT;
 
 /**
@@ -37,6 +38,7 @@ public class IngestionSource {
     private int numProcessorThreads;
     private int blockingQueueSize;
     private final boolean allActiveIngestion;
+    private final int pointerBasedLagUpdateInterval;
 
     private IngestionSource(
         String type,
@@ -47,7 +49,8 @@ public class IngestionSource {
         int pollTimeout,
         int numProcessorThreads,
         int blockingQueueSize,
-        boolean allActiveIngestion
+        boolean allActiveIngestion,
+        int pointerBasedLagUpdateInterval
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
@@ -58,6 +61,7 @@ public class IngestionSource {
         this.numProcessorThreads = numProcessorThreads;
         this.blockingQueueSize = blockingQueueSize;
         this.allActiveIngestion = allActiveIngestion;
+        this.pointerBasedLagUpdateInterval = pointerBasedLagUpdateInterval;
     }
 
     public String getType() {
@@ -96,6 +100,10 @@ public class IngestionSource {
         return allActiveIngestion;
     }
 
+    public int getPointerBasedLagUpdateInterval() {
+        return pointerBasedLagUpdateInterval;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -109,7 +117,8 @@ public class IngestionSource {
             && Objects.equals(pollTimeout, ingestionSource.pollTimeout)
             && Objects.equals(numProcessorThreads, ingestionSource.numProcessorThreads)
             && Objects.equals(blockingQueueSize, ingestionSource.blockingQueueSize)
-            && Objects.equals(allActiveIngestion, ingestionSource.allActiveIngestion);
+            && Objects.equals(allActiveIngestion, ingestionSource.allActiveIngestion)
+            && Objects.equals(pointerBasedLagUpdateInterval, ingestionSource.pointerBasedLagUpdateInterval);
     }
 
     @Override
@@ -123,7 +132,8 @@ public class IngestionSource {
             pollTimeout,
             numProcessorThreads,
             blockingQueueSize,
-            allActiveIngestion
+            allActiveIngestion,
+            pointerBasedLagUpdateInterval
         );
     }
 
@@ -151,6 +161,8 @@ public class IngestionSource {
             + blockingQueueSize
             + ", allActiveIngestion="
             + allActiveIngestion
+            + ", pointerBasedLagUpdateInterval="
+            + pointerBasedLagUpdateInterval
             + '}';
     }
 
@@ -209,6 +221,7 @@ public class IngestionSource {
         private int numProcessorThreads = INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING.getDefault(Settings.EMPTY);
         private int blockingQueueSize = INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING.getDefault(Settings.EMPTY);
         private boolean allActiveIngestion = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getDefault(Settings.EMPTY);
+        private int pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.getDefault(Settings.EMPTY);
 
         public Builder(String type) {
             this.type = type;
@@ -222,6 +235,7 @@ public class IngestionSource {
             this.params = ingestionSource.params;
             this.blockingQueueSize = ingestionSource.blockingQueueSize;
             this.allActiveIngestion = ingestionSource.allActiveIngestion;
+            this.pointerBasedLagUpdateInterval = ingestionSource.pointerBasedLagUpdateInterval;
         }
 
         public Builder setPointerInitReset(PointerInitReset pointerInitReset) {
@@ -269,6 +283,11 @@ public class IngestionSource {
             return this;
         }
 
+        public Builder setPointerBasedLagUpdateInterval(int pointerBasedLagUpdateInterval) {
+            this.pointerBasedLagUpdateInterval = pointerBasedLagUpdateInterval;
+            return this;
+        }
+
         public IngestionSource build() {
             return new IngestionSource(
                 type,
@@ -279,7 +298,8 @@ public class IngestionSource {
                 pollTimeout,
                 numProcessorThreads,
                 blockingQueueSize,
-                allActiveIngestion
+                allActiveIngestion,
+                pointerBasedLagUpdateInterval
             );
         }
 
