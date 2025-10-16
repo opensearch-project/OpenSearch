@@ -134,16 +134,6 @@ public class ScriptScoreQuery extends Query {
                 Weight weight = this;
                 return new ScorerSupplier() {
                     @Override
-                    public Scorer get(long leadCost) throws IOException {
-                        Scorer subQueryScorer = subQueryScorerSupplier.get(leadCost);
-                        Scorer scriptScorer = new ScriptScorer(weight, makeScoreScript(context), subQueryScorer, subQueryScoreMode, boost, null);
-                        if (minScore != null) {
-                            scriptScorer = new MinScoreScorer(weight, scriptScorer, minScore);
-                        }
-                        return scriptScorer;
-                    }
-
-                    @Override
                     public BulkScorer bulkScorer() throws IOException {
                         if (minScore == null) {
                             final BulkScorer subQueryBulkScorer = subQueryScorerSupplier.bulkScorer();
@@ -151,6 +141,23 @@ public class ScriptScoreQuery extends Query {
                         } else {
                             return super.bulkScorer();
                         }
+                    }
+
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        Scorer subQueryScorer = subQueryScorerSupplier.get(leadCost);
+                        Scorer scriptScorer = new ScriptScorer(
+                            weight,
+                            makeScoreScript(context),
+                            subQueryScorer,
+                            subQueryScoreMode,
+                            boost,
+                            null
+                        );
+                        if (minScore != null) {
+                            scriptScorer = new MinScoreScorer(weight, scriptScorer, minScore);
+                        }
+                        return scriptScorer;
                     }
 
                     @Override
