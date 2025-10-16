@@ -493,14 +493,14 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         refresh(indexName);
         waitForSearchableDocs(40, List.of(nodeA, nodeB));
 
-        // Verify both primary and replica have polled only remaining 20 messages
+        // Verify both primary and replica have indexed remaining messages
         Map<String, PollingIngestStats> shardTypeToStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
         assertNotNull(shardTypeToStats.get("primary"));
         assertNotNull(shardTypeToStats.get("replica"));
-        assertThat(shardTypeToStats.get("primary").getConsumerStats().totalPolledCount(), is(20L));
+        assertThat(shardTypeToStats.get("primary").getConsumerStats().totalPolledCount(), is(21L));
         assertThat(shardTypeToStats.get("primary").getConsumerStats().totalPollerMessageDroppedCount(), is(0L));
         assertThat(shardTypeToStats.get("primary").getConsumerStats().totalPollerMessageFailureCount(), is(0L));
-        assertThat(shardTypeToStats.get("replica").getConsumerStats().totalPolledCount(), is(20L));
+        assertThat(shardTypeToStats.get("replica").getConsumerStats().totalPolledCount(), is(21L));
         assertThat(shardTypeToStats.get("replica").getConsumerStats().totalPollerMessageDroppedCount(), is(0L));
         assertThat(shardTypeToStats.get("replica").getConsumerStats().totalPollerMessageFailureCount(), is(0L));
     }
@@ -557,13 +557,13 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                     );
         });
 
-        // validate there are 8 duplicate messages encountered after reset
+        // validate there are 8 messages polled after reset
         waitForState(() -> {
             Map<String, PollingIngestStats> shardTypeToStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
             assertNotNull(shardTypeToStats.get("primary"));
             assertNotNull(shardTypeToStats.get("replica"));
-            return shardTypeToStats.get("primary").getConsumerStats().totalDuplicateMessageSkippedCount() == 8
-                && shardTypeToStats.get("replica").getConsumerStats().totalDuplicateMessageSkippedCount() == 8;
+            return shardTypeToStats.get("primary").getConsumerStats().totalPolledCount() == 8
+                && shardTypeToStats.get("replica").getConsumerStats().totalPolledCount() == 8;
         });
     }
 
