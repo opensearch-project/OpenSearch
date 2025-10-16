@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix pull-based ingestion out-of-bounds offset scenarios and remove persisted offsets ([#19607](https://github.com/opensearch-project/OpenSearch/pull/19607))
 - [Star Tree] Fix sub-aggregator casting for search with profile=true ([19652](https://github.com/opensearch-project/OpenSearch/pull/19652))
 - Remove default enable skip_list for @timestamp field or index sort field to fix upgrades ([19611](https://github.com/opensearch-project/OpenSearch/pull/19661))
+- Fix issue with updating core with a patch number other than 0 ([#19377](https://github.com/opensearch-project/OpenSearch/pull/19377))
 
 ### Dependencies
 - Update to Gradle 9.1 ([#19575](https://github.com/opensearch-project/OpenSearch/pull/19575))
