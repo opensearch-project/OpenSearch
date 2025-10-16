@@ -9,15 +9,18 @@
 package org.opensearch.rule;
 
 import org.opensearch.rule.action.UpdateRuleRequest;
+import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.autotagging.RuleTests;
 import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_MAP;
 import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
@@ -32,6 +35,8 @@ import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_TWO;
 import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
 import static org.opensearch.rule.utils.RuleTestUtils.ruleTwo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RuleUtilsTests extends OpenSearchTestCase {
 
@@ -124,5 +129,35 @@ public class RuleUtilsTests extends OpenSearchTestCase {
         assertEquals(DESCRIPTION_TWO, updatedRule.getDescription());
         assertEquals(FEATURE_VALUE_TWO, updatedRule.getFeatureValue());
         assertEquals(RuleTestUtils.MockRuleFeatureType.INSTANCE, updatedRule.getFeatureType());
+    }
+
+    public void testBuildAttributeFiltersWithMock() {
+        Attribute indexPattern = mock(Attribute.class);
+        when(indexPattern.getName()).thenReturn("index_pattern");
+        when(indexPattern.getWeightedSubfields()).thenReturn(new TreeMap<>());
+
+        Attribute principal = mock(Attribute.class);
+        when(principal.getName()).thenReturn("principal");
+        when(principal.getWeightedSubfields()).thenReturn(Map.of("username", 1f, "role", 0.09f));
+
+        Set<String> indexValues = Set.of("my-index");
+        Set<String> principalValues = Set.of("username|admin", "role|user");
+
+        Map<Attribute, Set<String>> attributeMap = new HashMap<>();
+        attributeMap.put(indexPattern, indexValues);
+        attributeMap.put(principal, principalValues);
+
+        Rule rule = mock(Rule.class);
+        when(rule.getAttributeMap()).thenReturn(attributeMap);
+
+        Map<String, Set<String>> result = RuleUtils.buildAttributeFilters(rule);
+
+        assertEquals(3, result.size());
+        assertTrue(result.containsKey("index_pattern"));
+        assertEquals(Set.of("my-index"), result.get("index_pattern"));
+        assertTrue(result.containsKey("principal.username"));
+        assertEquals(Set.of("admin"), result.get("principal.username"));
+        assertTrue(result.containsKey("principal.role"));
+        assertEquals(Set.of("user"), result.get("principal.role"));
     }
 }

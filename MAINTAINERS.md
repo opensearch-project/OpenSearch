@@ -20,6 +20,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Binlong Gao       | [gaobinlong](https://github.com/gaobinlong)             | Amazon      |
 | Gaurav Bafna      | [gbbafna](https://github.com/gbbafna)                   | Amazon      |
 | Jay Deng          | [jed326](https://github.com/jed326)                     | Amazon      |
+| Karen Xu          | [karenyrx](https://github.com/karenyrx)                 | Uber        |
 | Ke Wei            | [kkewwei](https://github.com/kkewwei)                   | ByteDance   |
 | Kunal Kotwani     | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
 | Varun Bansal      | [linuxpi](https://github.com/linuxpi)                   | Amazon      |
@@ -33,9 +34,11 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Rishabh Maurya    | [rishabhmaurya](https://github.com/rishabhmaurya)       | Amazon      |
 | Rishikesh Pasham  | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
 | Sachin Kale       | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |
+| Sandesh Kumar     | [sandeshkr419](https://github.com/sandeshkr419)         | Amazon      |
 | Sarat Vemulapalli | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |
 | Shweta Thareja    | [shwetathareja](https://github.com/shwetathareja)       | Amazon      |
 | Sorabh Hamirwasia | [sohami](https://github.com/sohami)                     | Amazon      |
+| Varun Bharadwaj   | [varunbharadwaj](https://github.com/varunbharadwaj)     | Uber        |
 | Yupeng Fu         | [yupeng9](https://github.com/yupeng9)                   | Uber        |
 
 ## Emeritus

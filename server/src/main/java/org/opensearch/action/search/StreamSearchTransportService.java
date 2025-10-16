@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.StreamSearchChannelListener;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -53,6 +54,13 @@ public class StreamSearchTransportService extends SearchTransportService {
         super(transportService, responseWrapper);
         this.transportService = transportService;
     }
+
+    public static final Setting<Boolean> STREAM_SEARCH_ENABLED = Setting.boolSetting(
+        "stream.search.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     public static void registerStreamRequestHandler(StreamTransportService transportService, SearchService searchService) {
         transportService.registerRequestHandler(

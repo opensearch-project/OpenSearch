@@ -157,6 +157,7 @@ import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
@@ -389,6 +390,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MergedSegmentPublisher mergedSegmentPublisher;
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
+    private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
     @InternalApi
     public IndexShard(
@@ -452,6 +454,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.isAssignedOnRemoteNode(),
             () -> getRemoteTranslogUploadBufferInterval(remoteStoreSettings::getClusterRemoteTranslogBufferInterval)
         );
+        this.mergedSegmentTransferTracker = new MergedSegmentTransferTracker();
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats(threadPool);
@@ -1199,7 +1202,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ensureWriteAllowed(origin);
         Engine.Index operation;
         try {
-            operation = prepareIndex(
+            operation = engine.prepareIndex(
                 docMapper(),
                 sourceToParse,
                 seqNo,
@@ -1228,6 +1231,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return index(engine, operation);
     }
 
+    /**
+     * Prepares an index operation by parsing the source document and creating an Engine.Index operation.
+     *
+     * @deprecated This static method has been moved to {@link Engine#prepareIndex} as an instance method.
+     */
+    @Deprecated(since = "3.4.0", forRemoval = true)
     public static Engine.Index prepareIndex(
         DocumentMapperForType docMapper,
         SourceToParse source,
@@ -1418,10 +1427,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + getOperationPrimaryTerm()
             + "]";
         ensureWriteAllowed(origin);
-        final Engine.Delete delete = prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+        final Engine.Delete delete = engine.prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
         return delete(engine, delete);
     }
 
+    /**
+     * Prepares a delete operation by creating an Engine.Delete operation.
+     *
+     * @deprecated This static method has been moved to {@link Engine#prepareDelete} as an instance method.
+     */
+    @Deprecated(since = "3.4.0", forRemoval = true)
     public static Engine.Delete prepareDelete(
         String id,
         long seqNo,
@@ -2263,6 +2278,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
+    }
+
+    public MergedSegmentTransferTracker mergedSegmentTransferTracker() {
+        return mergedSegmentTransferTracker;
     }
 
     /**
@@ -4310,7 +4329,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // timeseries
             () -> docMapper(),
             mergedSegmentWarmerFactory.get(this),
-            clusterApplierService
+            clusterApplierService,
+            mergedSegmentTransferTracker
         );
     }
 

@@ -54,6 +54,7 @@ import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -214,6 +215,39 @@ public class RestShardsAction extends AbstractListAction {
         table.addCell("merges.total_size", "alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged");
         table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
+        table.addCell(
+            "merges.warmer.total_invocations",
+            "alias:mswti,mergedSegmentWarmerTotalInvocations;default:false;text-align:right;desc:total invocations of merged segment warmer"
+        );
+        table.addCell(
+            "merges.warmer.total_time",
+            "alias:mswtt,mergedSegmentWarmerTotalTime;default:false;text-align:right;desc:total wallclock time spent in the warming operation"
+        );
+        table.addCell(
+            "merges.warmer.ongoing_count",
+            "alias:mswoc,mergedSegmentWarmerOngoingCount;default:false;text-align:right;desc:point-in-time metric for number of in-progress warm operations"
+        );
+        table.addCell(
+            "merges.warmer.total_bytes_received",
+            "alias:mswtbr,mergedSegmentWarmerTotalBytesReceived;default:false;text-align:right;desc:total bytes received by a replica shard during the warm operation"
+        );
+        table.addCell(
+            "merges.warmer.total_bytes_sent",
+            "alias:mswtbs,mergedSegmentWarmerTotalBytesSent;default:false;text-align:right;desc:total bytes sent by a primary shard during the warm operation"
+        );
+        table.addCell(
+            "merges.warmer.total_receive_time",
+            "alias:mswtrt,mergedSegmentWarmerTotalReceiveTime;default:false;text-align:right;desc:total wallclock time spent receiving merged segments by a replica shard"
+        );
+        table.addCell(
+            "merges.warmer.total_failure_count",
+            "alias:mswtfc,mergedSegmentWarmerTotalFailureCount;default:false;text-align:right;desc:total failures in merged segment warmer"
+        );
+        table.addCell(
+            "merges.warmer.total_send_time",
+            "alias:mswtst,mergedSegmentWarmerTotalSendTime;default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
+        );
+
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
         table.addCell("refresh.external_total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total external refreshes");
@@ -233,6 +267,7 @@ public class RestShardsAction extends AbstractListAction {
         table.addCell("search.query_current", "alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
         table.addCell("search.query_time", "alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
         table.addCell("search.query_total", "alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
+        table.addCell("search.query_failed", "alias:sqf,searchQueryFailed;default:false;text-align:right;desc:failed query phase ops");
         table.addCell(
             "search.concurrent_query_current",
             "alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
@@ -261,6 +296,10 @@ public class RestShardsAction extends AbstractListAction {
         table.addCell(
             "search.startree_query_total",
             "alias:stqto,startreeQueryTotal;default:false;text-align:right;desc:total star tree resolved queries"
+        );
+        table.addCell(
+            "search.startree_query_failed",
+            "alias:stqf,startreeQueryFailed;default:false;text-align:right;desc:failed star tree query ops"
         );
 
         table.addCell("search.scroll_current", "alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
@@ -445,6 +484,63 @@ public class RestShardsAction extends AbstractListAction {
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotalSize));
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotalTime));
 
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalInvocationsCount
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalTime
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getOngoingCount
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalReceivedSize
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalSentSize
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalReceiveTime
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalFailureCount
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalSendTime
+                )
+            );
+
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotal));
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotalTime));
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getExternalTotal));
@@ -458,6 +554,7 @@ public class RestShardsAction extends AbstractListAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryFailedCount()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentQueryCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentQueryTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentQueryCount()));
@@ -466,6 +563,7 @@ public class RestShardsAction extends AbstractListAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getStarTreeQueryCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getStarTreeQueryTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getStarTreeQueryCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getStarTreeQueryFailed()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollTime()));
