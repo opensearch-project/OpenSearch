@@ -122,7 +122,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_3_1_0 = new Version(3010099, org.apache.lucene.util.Version.LUCENE_10_2_1);
     public static final Version V_3_2_0 = new Version(3020099, org.apache.lucene.util.Version.LUCENE_10_2_2);
     public static final Version V_3_3_0 = new Version(3030099, org.apache.lucene.util.Version.LUCENE_10_3_1);
-    public static final Version CURRENT = V_3_3_0;
+    public static final Version V_3_3_1 = new Version(3030199, org.apache.lucene.util.Version.LUCENE_10_3_1);
+    public static final Version CURRENT = V_3_3_1;
 
     public static Version fromId(int id) {
         final Version known = LegacyESVersion.idToVersion.get(id);
