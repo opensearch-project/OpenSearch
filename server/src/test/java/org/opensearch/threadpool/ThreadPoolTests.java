@@ -496,7 +496,7 @@ public class ThreadPoolTests extends OpenSearchTestCase {
             for (ThreadPoolStats.Stats stat : stats) {
                 if ("jvector".equals(stat.getName())) {
                     found = true;
-                    // For ForkJoinPool, stats fields should be as in the branch: 0, 0, 0, 0, 0, 0, -1, parallelism
+
                     assertEquals(0, stat.getThreads());
                     assertEquals(0, stat.getQueue());
                     assertEquals(0, stat.getActive());
