@@ -56,6 +56,7 @@ import io.grpc.BindableService;
 
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
+import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_DETAILED_ERRORS_ENABLED;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_KEEPALIVE_TIMEOUT;
@@ -205,9 +206,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new IllegalStateException("createComponents must be called before getAuxTransports to initialize the registry");
         }
 
+        boolean detailedErrorsEnabled = SETTING_GRPC_DETAILED_ERRORS_ENABLED.get(settings);
         List<BindableService> grpcServices = registerGRPCServices(
-            new DocumentServiceImpl(client),
-            new SearchServiceImpl(client, queryUtils)
+            new DocumentServiceImpl(client, detailedErrorsEnabled),
+            new SearchServiceImpl(client, queryUtils, detailedErrorsEnabled)
         );
         return Collections.singletonMap(
             GRPC_TRANSPORT_SETTING_KEY,
@@ -248,9 +250,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new IllegalStateException("createComponents must be called before getSecureAuxTransports to initialize the registry");
         }
 
+        boolean detailedErrorsEnabled = SETTING_GRPC_DETAILED_ERRORS_ENABLED.get(settings);
         List<BindableService> grpcServices = registerGRPCServices(
-            new DocumentServiceImpl(client),
-            new SearchServiceImpl(client, queryUtils)
+            new DocumentServiceImpl(client, detailedErrorsEnabled),
+            new SearchServiceImpl(client, queryUtils, detailedErrorsEnabled)
         );
         return Collections.singletonMap(
             GRPC_SECURE_TRANSPORT_SETTING_KEY,

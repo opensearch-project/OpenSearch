@@ -19,6 +19,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -40,10 +41,10 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
-        service = new DocumentServiceImpl(client);
+        service = new DocumentServiceImpl(client, true);
     }
 
-    public void testBulkSuccess() throws IOException {
+    public void testBulkSuccess() {
         // Create a test request
         BulkRequest request = createTestBulkRequest();
 
@@ -54,7 +55,7 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
         verify(client).bulk(any(org.opensearch.action.bulk.BulkRequest.class), any());
     }
 
-    public void testBulkError() throws IOException {
+    public void testBulkError() {
         // Create a test request
         BulkRequest request = createTestBulkRequest();
 
@@ -68,6 +69,32 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
         verify(responseObserver).onError(any(RuntimeException.class));
     }
 
+    public void testErrorTracingConfigValidationFailsWhenServerSettingIsDisabledAndRequestRequiresTracing() {
+        // Setup request and the service, server setting is off and request requires tracing
+        BulkRequest request = createTestBulkRequest();
+        DocumentServiceImpl serviceWithDisabledErrorsTracing = new DocumentServiceImpl(client, false);
+
+        // Call bulk method
+        serviceWithDisabledErrorsTracing.bulk(request, responseObserver);
+
+        // Verify that an error was sent
+        verify(responseObserver).onError(any(StatusRuntimeException.class));
+    }
+
+    public void testErrorTracingConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsTracing() {
+        // Setup request and the service, server setting is off and request does not require tracing
+        BulkRequest request = createTestBulkRequest().toBuilder()
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(false))
+            .build();
+        DocumentServiceImpl serviceWithDisabledErrorsTracing = new DocumentServiceImpl(client, false);
+
+        // Call bulk method
+        serviceWithDisabledErrorsTracing.bulk(request, responseObserver);
+
+        // Verify that client.bulk was called
+        verify(client).bulk(any(org.opensearch.action.bulk.BulkRequest.class), any());
+    }
+
     private BulkRequest createTestBulkRequest() {
         IndexOperation indexOp = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
@@ -76,6 +103,9 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
             .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
             .build();
 
-        return BulkRequest.newBuilder().addRequestBody(requestBody).build();
+        return BulkRequest.newBuilder()
+            .addRequestBody(requestBody)
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true))
+            .build();
     }
 }
