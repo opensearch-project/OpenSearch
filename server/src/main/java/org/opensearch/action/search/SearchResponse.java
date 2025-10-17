@@ -103,6 +103,11 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private final long tookInMillis;
     private final PhaseTook phaseTook;
 
+    // Fields for streaming responses
+    private boolean isPartial = false;
+    private int sequenceNumber = 0;
+    private int totalPartials = 0;
+
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
         internalResponse = new InternalSearchResponse(in);
@@ -300,6 +305,31 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public String getScrollId() {
         return scrollId;
+    }
+
+    // Streaming response methods
+    public boolean isPartial() {
+        return isPartial;
+    }
+
+    public void setPartial(boolean partial) {
+        this.isPartial = partial;
+    }
+
+    public int getSequenceNumber() {
+        return sequenceNumber;
+    }
+
+    public void setSequenceNumber(int sequenceNumber) {
+        this.sequenceNumber = sequenceNumber;
+    }
+
+    public int getTotalPartials() {
+        return totalPartials;
+    }
+
+    public void setTotalPartials(int totalPartials) {
+        this.totalPartials = totalPartials;
     }
 
     /**

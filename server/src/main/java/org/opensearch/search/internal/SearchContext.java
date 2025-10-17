@@ -78,6 +78,7 @@ import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.streaming.FlushMode;
@@ -576,6 +577,24 @@ public abstract class SearchContext implements Releasable {
     @ExperimentalApi
     public boolean isStreamSearch() {
         return false;
+    }
+
+    // Streaming search support - default no-op implementations for compatibility
+
+    public StreamingSearchMode getStreamingMode() {
+        return null;
+    }
+
+    public void setStreamingMode(StreamingSearchMode mode) {
+        // no-op
+    }
+
+    public boolean isStreamingSearch() {
+        return getStreamingMode() != null;
+    }
+
+    public int getStreamingBatchSize() {
+        return 10;
     }
 
     /**

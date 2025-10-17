@@ -107,6 +107,22 @@ public interface NetworkPlugin {
     }
 
     /**
+     * Returns a map of streaming {@link Transport} suppliers.
+     * See {@link org.opensearch.common.network.NetworkModule#STREAM_TRANSPORT_TYPE_KEY} to configure a specific implementation.
+     */
+    default Map<String, Supplier<Transport>> getStreamTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService,
+        Tracer tracer
+    ) {
+        return Collections.emptyMap();
+    }
+
+    /**
      * Returns a map of {@link HttpServerTransport} suppliers.
      * See {@link org.opensearch.common.network.NetworkModule#HTTP_TYPE_SETTING} to configure a specific implementation.
      */
