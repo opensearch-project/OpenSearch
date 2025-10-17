@@ -72,7 +72,18 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         List<TokenFilterFactory> previousTokenFilters,
         Function<String, TokenFilterFactory> allFilters
     ) {
-        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters);
+        return getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters, name -> null);
+    }
+
+    @Override
+    public TokenFilterFactory getChainAwareTokenFilterFactory(
+        TokenizerFactory tokenizer,
+        List<CharFilterFactory> charFilters,
+        List<TokenFilterFactory> previousTokenFilters,
+        Function<String, TokenFilterFactory> allFilters,
+        Function<String, Analyzer> analyzersBuiltSoFar
+    ) {
+        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters, analyzersBuiltSoFar);
         final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
         final String name = name();
         return new TokenFilterFactory() {
