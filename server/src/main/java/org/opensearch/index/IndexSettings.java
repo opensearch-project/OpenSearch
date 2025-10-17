@@ -810,6 +810,13 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static Setting<Integer> INDEX_CONTEXT_AWARE_CRITERIA_CACHE_SETTING = Setting.intSetting(
+        "index.context_aware.search.criteria_cache",
+        1000,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;

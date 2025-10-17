@@ -112,6 +112,7 @@ import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
+import org.opensearch.search.contextaware.ContextAwareCriteriaQueryExtraction;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.dfs.DfsPhase;
 import org.opensearch.search.dfs.DfsSearchResult;
@@ -1071,7 +1072,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard shard = indexService.getShard(request.shardId().id());
-        Engine.SearcherSupplier reader = shard.acquireSearcherSupplier();
+        Set<String> groupingCriterias = Collections.emptySet();
+        if (request.source() != null) {
+            groupingCriterias = new ContextAwareCriteriaQueryExtraction(indexService.mapperService()).extractCriteria(
+                request.source().query()
+            );
+        }
+        Engine.SearcherSupplier reader = shard.acquireSearcherSupplier(groupingCriterias);
         return createAndPutReaderContext(request, indexService, shard, reader, keepStatesInContext);
     }
 
