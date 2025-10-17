@@ -35,6 +35,7 @@ package org.opensearch.search.profile.aggregation;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.profile.AbstractProfiler;
+import org.opensearch.search.profile.aggregation.startree.StarTreeProfileBreakdown;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -48,6 +49,8 @@ import java.util.Map;
 public class AggregationProfiler extends AbstractProfiler<AggregationProfileBreakdown, Aggregator> {
 
     private final Map<Aggregator, AggregationProfileBreakdown> profileBreakdownLookup = new HashMap<>();
+    // Keeps track of the progress for the star tree profiling breakdown.
+    private final Map<Aggregator, StarTreeProfileBreakdown> starTreeProfileBreakdownLookup = new HashMap<>();
 
     public AggregationProfiler() {
         super(new InternalAggregationProfileTree());
@@ -67,5 +70,18 @@ public class AggregationProfiler extends AbstractProfiler<AggregationProfileBrea
             profileBreakdownLookup.put(agg, aggregationProfileBreakdown);
         }
         return aggregationProfileBreakdown;
+    }
+
+    /**
+     * The {@link StarTreeProfileBreakdown} for each Aggregation operator, represent the
+     * star tree profiling information
+     */
+    public StarTreeProfileBreakdown getStarTreeProfileBreakdown(Aggregator agg) {
+        StarTreeProfileBreakdown starTreeProfileBreakdown = starTreeProfileBreakdownLookup.get(agg);
+        if (starTreeProfileBreakdown == null) {
+            starTreeProfileBreakdown = new StarTreeProfileBreakdown();
+            starTreeProfileBreakdownLookup.put(agg, starTreeProfileBreakdown);
+        }
+        return starTreeProfileBreakdown;
     }
 }
