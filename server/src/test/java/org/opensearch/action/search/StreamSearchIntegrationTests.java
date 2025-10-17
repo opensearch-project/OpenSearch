@@ -18,12 +18,9 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.action.search.SearchAction;
-import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -32,12 +29,10 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
-import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Max;
-import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -52,7 +47,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
-
 
 /**
  * Integration tests for streaming search functionality.

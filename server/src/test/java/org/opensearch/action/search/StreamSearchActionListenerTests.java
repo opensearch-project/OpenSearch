@@ -10,7 +10,6 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;

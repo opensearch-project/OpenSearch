@@ -36,11 +36,7 @@ public class StreamingCollectorContextsTests extends OpenSearchTestCase {
     }
 
     public void testStreamingUnsortedCollectorContextInstantiation() throws IOException {
-        StreamingUnsortedCollectorContext context1 = new StreamingUnsortedCollectorContext(
-            "test_unsorted",
-            10,
-            mockSearchContext
-        );
+        StreamingUnsortedCollectorContext context1 = new StreamingUnsortedCollectorContext("test_unsorted", 10, mockSearchContext);
         assertNotNull(context1);
         assertEquals(10, context1.numHits());
 
@@ -86,11 +82,7 @@ public class StreamingCollectorContextsTests extends OpenSearchTestCase {
     }
 
     public void testStreamingSortedCollectorContextInstantiation() throws IOException {
-        StreamingSortedCollectorContext context1 = new StreamingSortedCollectorContext(
-            "test_sorted",
-            10,
-            mockSearchContext
-        );
+        StreamingSortedCollectorContext context1 = new StreamingSortedCollectorContext("test_sorted", 10, mockSearchContext);
         assertNotNull(context1);
         assertEquals(10, context1.numHits());
 
