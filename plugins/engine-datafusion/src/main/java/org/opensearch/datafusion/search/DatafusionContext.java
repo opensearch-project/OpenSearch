@@ -16,9 +16,9 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
-import org.opensearch.index.engine.EngineSearcher;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -77,6 +77,9 @@ public class DatafusionContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private DatafusionQuery datafusionQuery;
     private Map<String, Object[]> dfResults;
+
+    private List<Long> dfQueryResult;
+    private List<BytesReference> dfFetchResult; // TODO: make this Map<docIds, BytesRef>?
     private SearchContextAggregations aggregations;
     private final BigArrays bigArrays;
     private final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
@@ -103,6 +106,8 @@ public class DatafusionContext extends SearchContext {
         this.engineSearcher = engine.acquireSearcher("search");//null;//TODO readerContext.contextEngineSearcher();
         this.queryResult = new QuerySearchResult(readerContext.id(), searchShardTarget, request);
         this.fetchResult = new FetchSearchResult(readerContext.id(), searchShardTarget);
+        this.dfQueryResult = null;
+        this.dfFetchResult = null;
         this.indexService = readerContext.indexService();
         this.queryShardContext = indexService.newQueryShardContext(
             request.shardId().id(),
@@ -131,6 +136,23 @@ public class DatafusionContext extends SearchContext {
         this.datafusionQuery = datafusionQuery;
         return this;
     }
+
+    /**
+     * Sets datafusion query phase row ids
+     * @param dfQueryResult The datafusion query phase result
+     */
+    public void setDfQueryPhaseResult(List<Long> dfQueryResult) {
+        this.dfQueryResult = dfQueryResult;
+    }
+
+    /**
+     * Sets datafusion fetch phase row ids
+     * @param dfFetchResult The datafusion fetch phase result
+     */
+    public void setDfFetchPhaseResult(List<BytesReference> dfFetchResult) {
+        this.dfFetchResult = dfFetchResult;
+    }
+
     /**
      * Gets the datafusion query
      * @return The datafusion query
@@ -159,6 +181,25 @@ public class DatafusionContext extends SearchContext {
     @Override
     public SearchShardTask getTask() {
         return null;
+    }
+
+
+    /**
+     * Gets df query result.
+     *
+     * @return the df query result
+     */
+    public List<Long> getDfQueryResult() {
+        return dfQueryResult;
+    }
+
+    /**
+     * Gets df fetch result.
+     *
+     * @return the df fetch result
+     */
+    public List<BytesReference> getDfFetchResult() {
+        return dfFetchResult;
     }
 
     @Override
@@ -378,7 +419,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public MapperService mapperService() {
-        return null;
+        return indexService.mapperService();
     }
 
     @Override

@@ -600,7 +600,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * Method to create derived source generator for this field mapper, it is illegal to enable the
      * derived source feature and not implement this method for a field mapper
      */
-    protected DerivedFieldGenerator derivedFieldGenerator() {
+    public DerivedFieldGenerator derivedFieldGenerator() {
         return null;
     }
 

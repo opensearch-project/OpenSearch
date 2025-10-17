@@ -1238,7 +1238,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
      * Derive source using stored field, which would always be present for derived source enabled index field
      */
     @Override
-    protected DerivedFieldGenerator derivedFieldGenerator() {
+    public DerivedFieldGenerator derivedFieldGenerator() {
         return new DerivedFieldGenerator(mappedFieldType, null, new StoredFieldFetcher(mappedFieldType, simpleName())) {
             @Override
             public FieldValueType getDerivedFieldPreference() {
