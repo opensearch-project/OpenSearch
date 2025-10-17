@@ -39,11 +39,13 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 public class CompletionsStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
-        FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
+        List<String> fieldNames = FieldMemoryStatsTests.randomFieldNames();
+        FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats(fieldNames);
         CompletionStats stats = new CompletionStats(randomNonNegativeLong(), map);
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);

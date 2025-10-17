@@ -42,8 +42,10 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A reusable class to encode {@code field -&gt; memory size} mappings
@@ -51,9 +53,8 @@ import java.util.Objects;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<String, Long>> {
-
-    private final Map<String, Long> stats;
+public class FieldMemoryStats implements Writeable, Iterable<Map.Entry<String, Long>> {
+    protected final Map<String, Long> stats;
 
     /**
      * Creates a new FieldMemoryStats instance
@@ -101,6 +102,10 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
         builder.endObject();
     }
 
+    public Map<String, Long> getStats() {
+        return stats;
+    }
+
     /**
      * Creates a deep copy of this stats instance
      */
@@ -138,5 +143,59 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
      */
     public boolean containsField(String field) {
         return stats.containsKey(field);
+    }
+
+    /**
+     * Convenience method for adding XContent for a single field to the builder.
+     */
+    public void toXContentField(XContentBuilder builder, String field, String rawKey, String readableKey) throws IOException {
+        Objects.requireNonNull(rawKey);
+        Objects.requireNonNull(readableKey);
+        Objects.requireNonNull(field);
+        builder.humanReadableField(rawKey, readableKey, new ByteSizeValue(get(field)));
+    }
+
+    /**
+     * Convenience method for converting multiple FieldMemoryStats to XContent, such that the top-level grouping
+     * is the field names rather than the different FieldMemoryStats objects.
+     * @param builder the builder
+     * @param fieldNames the field names all stats objects share
+     * @param statsList Ordered list of FieldMemoryStats objects. Can be null, in which case they are skipped. Field names for non-null stats must match the provided list.
+     * @param rawKeys Ordered list of raw key values for each object. Should match the order of statsList.
+     * @param readableKeys Ordered list of readable key values for each object. Should match the order of statsList.
+     */
+    public static void toXContent(
+        XContentBuilder builder,
+        Set<String> fieldNames,
+        String topLevelKey,
+        List<FieldMemoryStats> statsList,
+        List<String> rawKeys,
+        List<String> readableKeys
+    ) throws IOException {
+        for (FieldMemoryStats stats : statsList) {
+            if (stats != null) {
+                if (!stats.stats.keySet().equals(fieldNames)) {
+                    throw new IllegalArgumentException("All provided stats must have field names matching the provided fieldNames set");
+                }
+            }
+        }
+        if (statsList.size() != rawKeys.size() || statsList.size() != readableKeys.size()) {
+            throw new IllegalArgumentException("statsList, rawKeys, and readableKeys must have the same size");
+        }
+
+        builder.startObject(topLevelKey);
+        for (String field : fieldNames) {
+            builder.startObject(field);
+            for (int i = 0; i < statsList.size(); i++) {
+                FieldMemoryStats stats = statsList.get(i);
+                String rawKey = rawKeys.get(i);
+                String readableKey = readableKeys.get(i);
+                if (stats != null) {
+                    stats.toXContentField(builder, field, rawKey, readableKey);
+                }
+            }
+            builder.endObject();
+        }
+        builder.endObject();
     }
 }

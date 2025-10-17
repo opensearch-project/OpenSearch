@@ -31,6 +31,7 @@
 
 package org.opensearch.index.fielddata;
 
+import org.opensearch.common.FieldCountStats;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.FieldMemoryStatsTests;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -38,12 +39,18 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 public class FieldDataStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
-        FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        FieldDataStats stats = new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map);
+        List<String> fieldNames = FieldMemoryStatsTests.randomFieldNames();
+        FieldMemoryStats memoryStats = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats(fieldNames);
+        FieldCountStats countStats = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldCountStats(fieldNames);
+        // test both ctors
+        FieldDataStats stats = randomBoolean()
+            ? new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), memoryStats)
+            : new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), memoryStats, randomNonNegativeLong(), countStats);
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput input = out.bytes().streamInput();
@@ -52,5 +59,7 @@ public class FieldDataStatsTests extends OpenSearchTestCase {
         assertEquals(stats.getEvictions(), read.getEvictions());
         assertEquals(stats.getMemorySize(), read.getMemorySize());
         assertEquals(stats.getFields(), read.getFields());
+        assertEquals(stats.getItemCount(), read.getItemCount());
+        assertEquals(stats.getFieldItemCounts(), read.getFieldItemCounts());
     }
 }

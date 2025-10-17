@@ -1370,7 +1370,13 @@ public class NodeStatsTests extends OpenSearchTestCase {
         commonStats.indexing = new IndexingStats();
         commonStats.completion = new CompletionStats();
         commonStats.flush = new FlushStats(randomLongBetween(0, 100), randomLongBetween(0, 100), randomLongBetween(0, 100));
-        commonStats.fieldData = new FieldDataStats(randomLongBetween(0, 100), randomLongBetween(0, 100), null);
+        commonStats.fieldData = new FieldDataStats(
+            randomLongBetween(0, 100),
+            randomLongBetween(0, 100),
+            null,
+            randomLongBetween(0, 100),
+            null
+        );
         commonStats.queryCache = new QueryCacheStats(
             randomLongBetween(0, 100),
             randomLongBetween(0, 100),
