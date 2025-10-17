@@ -751,7 +751,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<SearchPhaseResult> listener,
         String executorName
     ) {
-        executeQueryPhase(request, keepStatesInContext, task, listener, executorName, false);
+        // Determine if this is a streaming search request
+        boolean isStreamSearch = request.isStreamingSearch() || request.getStreamingSearchMode() != null;
+        executeQueryPhase(request, keepStatesInContext, task, listener, executorName, isStreamSearch);
     }
 
     public void executeQueryPhase(

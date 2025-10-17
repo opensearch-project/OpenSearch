@@ -879,7 +879,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
     public static TopDocsCollectorContext createTopDocsCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
         throws IOException {
 
-        // NEW: Check for streaming search first
+        // Check for streaming search first
         if (searchContext.isStreamingSearch() && searchContext.getStreamingMode() != null) {
             return createStreamingTopDocsCollectorContext(searchContext, hasFilterCollector);
         }
