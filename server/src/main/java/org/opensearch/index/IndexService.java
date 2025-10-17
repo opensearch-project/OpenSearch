@@ -252,7 +252,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        Supplier<Integer> clusterDefaultMaxMergeCountSupplier,
+        Supplier<Integer> clusterDefaultMaxThreadCountSupplier,
+        Supplier<Boolean> clusterDefaultAutoThrottleEnabledSupplier
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -352,6 +355,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
+        indexSettings.setDefaultMaxThreadAndMergeCount(
+            clusterDefaultMaxThreadCountSupplier.get(),
+            clusterDefaultMaxMergeCountSupplier.get()
+        );
+        indexSettings.setDefaultAutoThrottleEnabled(clusterDefaultAutoThrottleEnabledSupplier.get());
         updateFsyncTaskIfNecessary();
         synchronized (refreshMutex) {
             if (shardLevelRefreshEnabled == false) {
@@ -400,7 +408,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         boolean shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnce
+        Supplier<Integer> clusterDefaultMaxMergeAtOnce,
+        Supplier<Integer> clusterDefaultMaxMergeCountSupplier,
+        Supplier<Integer> clusterDefaultMaxThreadCountSupplier,
+        Supplier<Boolean> clusterDefaultAutoThrottleEnabledSupplier
     ) {
         this(
             indexSettings,
@@ -445,7 +456,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             null,
             s -> {},
             (shardId) -> ReplicationStats.empty(),
-            clusterDefaultMaxMergeAtOnce
+            clusterDefaultMaxMergeAtOnce,
+            clusterDefaultMaxMergeCountSupplier,
+            clusterDefaultMaxThreadCountSupplier,
+            clusterDefaultAutoThrottleEnabledSupplier
         );
     }
 
@@ -1233,6 +1247,21 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      */
     public void onDefaultMaxMergeAtOnceChanged(int newDefaultMaxMergeAtOnce) {
         indexSettings.setDefaultMaxMergesAtOnce(newDefaultMaxMergeAtOnce);
+    }
+
+    /**
+     * Called when the cluster level settings: {@code cluster.default.index.merge.scheduler.max_merge_count} OR
+     * {@code cluster.default.index.merge.scheduler.max_thread_count} change.
+     */
+    public void onDefaultMaxMergeOrThreadCountUpdate(int maxThreadCount, int maxMergeCount) {
+        indexSettings.setDefaultMaxThreadAndMergeCount(maxThreadCount, maxMergeCount);
+    }
+
+    /**
+     * Called whenever the cluster level {@code cluster.default.index.merge.scheduler.auto_throttle} changes.
+     */
+    public void onDefaultAutoThrottleEnabledUpdate(boolean enabled) {
+        indexSettings.setDefaultAutoThrottleEnabled(enabled);
     }
 
     /**

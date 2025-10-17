@@ -668,7 +668,10 @@ public final class IndexModule {
         Supplier<Boolean> shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        Supplier<Integer> clusterDefaultMaxMergeCountSupplier,
+        Supplier<Integer> clusterDefaultMaxMergeThreadCountSupplier,
+        Supplier<Boolean> clusterDefaultMergeAutoThrottleEnabledSupplier
     ) throws IOException {
         return newIndexService(
             indexCreationContext,
@@ -696,7 +699,10 @@ public final class IndexModule {
             remoteStoreSettings,
             (s) -> {},
             shardId -> ReplicationStats.empty(),
-            clusterDefaultMaxMergeAtOnceSupplier
+            clusterDefaultMaxMergeAtOnceSupplier,
+            clusterDefaultMaxMergeCountSupplier,
+            clusterDefaultMaxMergeThreadCountSupplier,
+            clusterDefaultMergeAutoThrottleEnabledSupplier
         );
     }
 
@@ -726,7 +732,10 @@ public final class IndexModule {
         RemoteStoreSettings remoteStoreSettings,
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        Supplier<Integer> clusterDefaultMaxMergeCountSupplier,
+        Supplier<Integer> clusterDefaultMaxMergeThreadCountSupplier,
+        Supplier<Boolean> clusterDefaultAutoThrottleEnabledSupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -798,7 +807,10 @@ public final class IndexModule {
                 compositeIndexSettings,
                 replicator,
                 segmentReplicationStatsProvider,
-                clusterDefaultMaxMergeAtOnceSupplier
+                clusterDefaultMaxMergeAtOnceSupplier,
+                clusterDefaultMaxMergeCountSupplier,
+                clusterDefaultMaxMergeThreadCountSupplier,
+                clusterDefaultAutoThrottleEnabledSupplier
             );
             success = true;
             return indexService;

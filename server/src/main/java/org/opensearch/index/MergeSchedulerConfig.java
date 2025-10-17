@@ -32,12 +32,17 @@
 
 package org.opensearch.index;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+
+import java.util.Objects;
 
 /**
  * The merge scheduler (<code>ConcurrentMergeScheduler</code>) controls the execution of
@@ -91,24 +96,26 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
  */
 @PublicApi(since = "1.0.0")
 public final class MergeSchedulerConfig {
+    static Logger logger = LogManager.getLogger(MergeSchedulerConfig.class);
+    public static final boolean DEFAULT_AUTO_THROTTLE = true;
 
     public static final Setting<Integer> MAX_THREAD_COUNT_SETTING = new Setting<>(
         "index.merge.scheduler.max_thread_count",
-        (s) -> Integer.toString(Math.max(1, Math.min(4, OpenSearchExecutors.allocatedProcessors(s) / 2))),
+        MergeSchedulerConfig::getDefaultMaxThreadCount,
         (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_thread_count"),
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<Integer> MAX_MERGE_COUNT_SETTING = new Setting<>(
         "index.merge.scheduler.max_merge_count",
-        (s) -> Integer.toString(MAX_THREAD_COUNT_SETTING.get(s) + 5),
+        MergeSchedulerConfig::getDefaultMergeCount,
         (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_merge_count"),
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<Boolean> AUTO_THROTTLE_SETTING = Setting.boolSetting(
         "index.merge.scheduler.auto_throttle",
-        true,
+        DEFAULT_AUTO_THROTTLE,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -130,17 +137,59 @@ public final class MergeSchedulerConfig {
         Property.NodeScope
     );
 
+    private final String indexName;
     private volatile boolean autoThrottle;
     private volatile int maxThreadCount;
     private volatile int maxMergeCount;
     private volatile double maxForceMergeMBPerSec;
+    private static volatile Boolean cachedAutoThrottleEnabledDefault;
+    private static volatile Integer cachedMaxThreadCountDefault;
+    private static volatile Integer cachedMaxMergeCountDefault;
 
     MergeSchedulerConfig(IndexSettings indexSettings) {
-        int maxThread = indexSettings.getValue(MAX_THREAD_COUNT_SETTING);
-        int maxMerge = indexSettings.getValue(MAX_MERGE_COUNT_SETTING);
-        setMaxThreadAndMergeCount(maxThread, maxMerge);
-        this.autoThrottle = indexSettings.getValue(AUTO_THROTTLE_SETTING);
+        indexName = indexSettings.getIndex().getName();
+        initMergeConfigs(indexSettings);
         updateMaxForceMergeMBPerSec(indexSettings);
+    }
+
+    public synchronized void setDefaultMaxThreadAndMergeCount(int threadCount, int mergeCount, boolean updateActuals) {
+        cachedMaxThreadCountDefault = threadCount;
+        cachedMaxMergeCountDefault = mergeCount;
+        if (updateActuals == true) {
+            setMaxThreadAndMergeCount(threadCount, mergeCount);
+        }
+    }
+
+    public synchronized void setDefaultAutoThrottleEnabled(boolean enabled, boolean updateActuals) {
+        cachedAutoThrottleEnabledDefault = enabled;
+        if (updateActuals == true) {
+            setAutoThrottle(enabled);
+        }
+    }
+
+    private void initMergeConfigs(IndexSettings indexSettings) {
+        Settings settings = indexSettings.getSettings();
+        int maxThread = (MAX_THREAD_COUNT_SETTING.exists(settings) == false && cachedMaxThreadCountDefault != null)
+            ? cachedMaxThreadCountDefault
+            : MAX_THREAD_COUNT_SETTING.get(settings);
+        int maxMerge = (MAX_MERGE_COUNT_SETTING.exists(settings) == false && cachedAutoThrottleEnabledDefault != null)
+            ? cachedMaxMergeCountDefault
+            : MAX_MERGE_COUNT_SETTING.get(settings);
+        boolean autoThrottleEnabled = (AUTO_THROTTLE_SETTING.exists(settings) == false && cachedAutoThrottleEnabledDefault != null)
+            ? cachedAutoThrottleEnabledDefault
+            : AUTO_THROTTLE_SETTING.get(settings);
+
+        setAutoThrottle(autoThrottleEnabled);
+        setMaxThreadAndMergeCount(maxThread, maxMerge);
+        logger.info(
+            new ParameterizedMessage(
+                "Initialized index {} with maxMergeCount={}, maxThreadCount={}, autoThrottleEnabled={}",
+                this.indexName,
+                this.maxMergeCount,
+                this.maxThreadCount,
+                this.autoThrottle
+            )
+        );
     }
 
     /**
@@ -155,7 +204,16 @@ public final class MergeSchedulerConfig {
     /**
      * Enables / disables auto throttling on the {@link ConcurrentMergeScheduler}
      */
-    void setAutoThrottle(boolean autoThrottle) {
+    public void setAutoThrottle(boolean autoThrottle) {
+        logger.info("setAutoThrottle called with " + autoThrottle);
+        logger.info(
+            new ParameterizedMessage(
+                "Updating autoThrottle for index {} from [{}] to [{}]",
+                this.indexName,
+                this.autoThrottle,
+                autoThrottle
+            )
+        );
         this.autoThrottle = autoThrottle;
     }
 
@@ -170,20 +228,40 @@ public final class MergeSchedulerConfig {
      * Expert: directly set the maximum number of merge threads and
      * simultaneous merges allowed.
      */
-    void setMaxThreadAndMergeCount(int maxThreadCount, int maxMergeCount) {
+    public void setMaxThreadAndMergeCount(int newMaxThreadCount, int newMaxMergeCount) {
+        if (newMaxThreadCount == this.maxThreadCount && newMaxMergeCount == this.maxMergeCount) {
+            return;
+        }
+        validateMaxThreadAndMergeCount(newMaxThreadCount, newMaxMergeCount);
+        logger.info(
+            new ParameterizedMessage(
+                "Updating maxThreadCount from [{}] to [{}] and maxMergeCount from [{}] to [{}] for index {}.",
+                this.maxThreadCount,
+                newMaxThreadCount,
+                this.maxMergeCount,
+                newMaxMergeCount,
+                this.indexName
+            )
+        );
+        this.maxThreadCount = newMaxThreadCount;
+        this.maxMergeCount = newMaxMergeCount;
+    }
+
+    /**
+     * Validate the values of {@code maxMergeCount} and {@code maxThreadCount}
+     */
+    public static void validateMaxThreadAndMergeCount(int maxThreadCount, int maxMergeCount) {
         if (maxThreadCount < 1) {
-            throw new IllegalArgumentException("maxThreadCount should be at least 1");
+            throw new IllegalArgumentException("maxThreadCount (= " + maxThreadCount + ") should be at least 1");
         }
         if (maxMergeCount < 1) {
-            throw new IllegalArgumentException("maxMergeCount should be at least 1");
+            throw new IllegalArgumentException("maxMergeCount (= " + maxMergeCount + ") should be at least 1");
         }
         if (maxThreadCount > maxMergeCount) {
             throw new IllegalArgumentException(
                 "maxThreadCount (= " + maxThreadCount + ") should be <= maxMergeCount (= " + maxMergeCount + ")"
             );
         }
-        this.maxThreadCount = maxThreadCount;
-        this.maxMergeCount = maxMergeCount;
     }
 
     /**
@@ -221,5 +299,27 @@ public final class MergeSchedulerConfig {
         } else {
             this.maxForceMergeMBPerSec = CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING.get(indexSettings.getNodeSettings());
         }
+    }
+
+    public static String getDefaultMaxThreadCount(Settings settings) {
+        if (cachedMaxThreadCountDefault != null) {
+            return Integer.toString(cachedMaxThreadCountDefault);
+        }
+        return Integer.toString(
+            Objects.requireNonNullElseGet(
+                cachedMaxThreadCountDefault,
+                () -> Math.max(1, Math.min(4, OpenSearchExecutors.allocatedProcessors(settings) / 2))
+            )
+        );
+
+    }
+
+    private static String getDefaultMergeCount(Settings settings) {
+        if (cachedMaxMergeCountDefault != null) {
+            return Integer.toString(cachedMaxMergeCountDefault);
+        }
+        return Integer.toString(
+            Objects.requireNonNullElseGet(cachedMaxMergeCountDefault, () -> MAX_THREAD_COUNT_SETTING.get(settings) + 5)
+        );
     }
 }
