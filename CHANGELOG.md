@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fixed
 - Fix issue with updating core with a patch number other than 0 ([#19377](https://github.com/opensearch-project/OpenSearch/pull/19377))
+- Fix bwc @timestamp upgrade issue by adding a version check on skip_list param ([19671](https://github.com/opensearch-project/OpenSearch/pull/19671))
 
 ### Dependencies
 
