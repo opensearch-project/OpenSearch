@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -77,9 +78,16 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         this.used = in.readLong();
         this.pinned = in.readLong();
         this.evicted = in.readLong();
-        this.removed = in.readLong();
         this.hits = in.readLong();
-        this.misses = in.readLong();
+
+        // Version guard for enhanced fields - backward compatibility for rolling upgrades
+        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+            this.removed = in.readLong();
+            this.misses = in.readLong();
+        } else {
+            this.removed = 0L;
+            this.misses = 0L;
+        }
     }
 
     @Override
@@ -90,9 +98,13 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         out.writeLong(used);
         out.writeLong(pinned);
         out.writeLong(evicted);
-        out.writeLong(removed);
         out.writeLong(hits);
-        out.writeLong(misses);
+
+        // Version guard for enhanced fields - backward compatibility for rolling upgrades
+        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+            out.writeLong(removed);
+            out.writeLong(misses);
+        }
     }
 
     public long getActive() {
@@ -145,6 +157,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         static final String USED = "used";
         static final String PINNED = "pinned";
         static final String USED_IN_BYTES = "used_in_bytes";
+        static final String PINNED_IN_BYTES = "pinned_in_bytes";
         static final String EVICTIONS = "evictions";
         static final String EVICTIONS_IN_BYTES = "evictions_in_bytes";
         static final String REMOVED = "removed";
@@ -159,7 +172,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         builder.startObject(statsType.toString());
         builder.humanReadableField(FileCacheStats.Fields.ACTIVE_IN_BYTES, FileCacheStats.Fields.ACTIVE, new ByteSizeValue(getActive()));
         builder.humanReadableField(FileCacheStats.Fields.USED_IN_BYTES, FileCacheStats.Fields.USED, new ByteSizeValue(getUsed()));
-        builder.humanReadableField(FileCacheStats.Fields.USED_IN_BYTES, Fields.PINNED, new ByteSizeValue(getPinnedUsage()));
+        builder.humanReadableField(FileCacheStats.Fields.PINNED_IN_BYTES, Fields.PINNED, new ByteSizeValue(getPinnedUsage()));
         builder.humanReadableField(
             FileCacheStats.Fields.EVICTIONS_IN_BYTES,
             FileCacheStats.Fields.EVICTIONS,
