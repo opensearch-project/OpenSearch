@@ -96,8 +96,7 @@ public class PruneFileCacheIT extends AbstractSnapshotIntegTestCase {
         client.execute(PruneFileCacheAction.INSTANCE, request, future);
         PruneFileCacheResponse response = future.actionGet();
 
-        logger.info("--> Prune response: pruned {} bytes from {} nodes", 
-            response.getTotalPrunedBytes(), response.getNodes().size());
+        logger.info("--> Prune response: pruned {} bytes from {} nodes", response.getTotalPrunedBytes(), response.getNodes().size());
 
         // Verify response first - this is the key assertion
         assertNotNull("Response should not be null", response);
@@ -105,21 +104,20 @@ public class PruneFileCacheIT extends AbstractSnapshotIntegTestCase {
         assertEquals("Should have no failures", 0, response.failures().size());
         assertTrue("Operation should be successful", response.isCompletelySuccessful());
         assertTrue("Operation should be acknowledged", response.isAcknowledged());
-        
+
         // The key assertion: pruned bytes should be > 0 (proves API actually worked)
         assertTrue("Should have pruned bytes", response.getTotalPrunedBytes() > 0);
-        
+
         // Verify cache usage after prune
         long usageAfter = getFileCacheUsage();
         logger.info("--> File cache usage after prune: {} bytes", usageAfter);
-        
+
         // Cache should be reduced (might not be zero if files are still referenced)
         assertTrue("Cache usage should be reduced after prune", usageAfter <= usageBefore);
-        
+
         // The pruned bytes should roughly match the reduction
         long actualReduction = usageBefore - usageAfter;
-        logger.info("--> Actual cache reduction: {} bytes, reported pruned: {} bytes", 
-            actualReduction, response.getTotalPrunedBytes());
+        logger.info("--> Actual cache reduction: {} bytes, reported pruned: {} bytes", actualReduction, response.getTotalPrunedBytes());
 
         assertDocCount(restoredIndexName, 100L);
     }
