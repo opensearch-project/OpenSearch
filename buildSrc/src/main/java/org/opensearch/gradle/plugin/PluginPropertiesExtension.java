@@ -47,6 +47,12 @@ public class PluginPropertiesExtension {
 
     private String version;
 
+    /**
+     * Optional semver-like range string (e.g., "~2.12.0", "^2.13.0", "&gt;=2.12.0 &lt;2.14.0", etc.)
+     * This will be expanded into plugin-descriptor.properties as 'opensearch.version.ranges'.
+     */
+    private String versionRange;
+
     private String description;
 
     private String classname;
@@ -100,6 +106,14 @@ public class PluginPropertiesExtension {
 
     public void setVersion(String version) {
         this.version = version;
+    }
+
+    public String getVersionRange() {
+        return versionRange;
+    }
+
+    public void setVersionRange(String versionRange) {
+        this.versionRange = versionRange;
     }
 
     public String getDescription() {
@@ -170,5 +184,37 @@ public class PluginPropertiesExtension {
 
     public void setHasClientJar(boolean hasClientJar) {
         this.hasClientJar = hasClientJar;
+    }
+
+    @Override
+    public String toString() {
+        return "PluginPropertiesExtension{"
+            + "name='"
+            + getName()
+            + "'"
+            + ", version='"
+            + getVersion()
+            + "'"
+            + ", versionRange='"
+            + versionRange
+            + "'"
+            + ", description='"
+            + description
+            + "'"
+            + ", classname='"
+            + classname
+            + "'"
+            + ", customFolderName='"
+            + customFolderName
+            + "'"
+            + ", extendedPlugins="
+            + extendedPlugins
+            + ", hasNativeController="
+            + hasNativeController
+            + ", requiresKeystore="
+            + requiresKeystore
+            + ", hasClientJar="
+            + hasClientJar
+            + "}";
     }
 }
