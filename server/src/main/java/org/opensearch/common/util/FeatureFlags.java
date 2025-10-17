@@ -101,7 +101,8 @@ public class FeatureFlags {
      * Gates the functionality of pluggable dataformat feature
      */
     public static final String PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG = FEATURE_FLAG_PREFIX + "pluggable.dataformat.enabled";
-    public static final Setting<Boolean> PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTINGS = Setting.boolSetting(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG,
+    public static final Setting<Boolean> PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTINGS = Setting.boolSetting(
+        PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG,
         false,
         Property.NodeScope
     );
