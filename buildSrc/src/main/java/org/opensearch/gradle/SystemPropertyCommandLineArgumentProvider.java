@@ -15,7 +15,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -24,48 +24,51 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
+ * Modifications Copyright OpenSearch Contributors.
+ * See GitHub history for details.
  */
 
 package org.opensearch.gradle;
 
-import org.gradle.api.tasks.Input;
 import org.gradle.process.CommandLineArgumentProvider;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
-public class SystemPropertyCommandLineArgumentProvider implements CommandLineArgumentProvider {
-    private final Map<String, Object> systemProperties = new LinkedHashMap<>();
+/**
+ * A {@link CommandLineArgumentProvider} implementation that returns a fixed list of arguments.
+ * This implementation does not track any arguments as inputs, so it is useful for passing
+ * arguments that should not be considered for Gradle input snapshotting.
+ */
+public class SimpleCommandLineArgumentProvider implements CommandLineArgumentProvider {
 
-    public void systemProperty(String key, Supplier<String> value) {
-        systemProperties.put(key, value);
-    }
+    private final List<String> arguments;
 
-    public void systemProperty(String key, Object value) {
-        systemProperties.put(key, value);
+    /**
+     * Creates a new argument provider with the given arguments.
+     *
+     * @param arguments The command-line arguments to provide. May be empty but not null.
+     */
+    public SimpleCommandLineArgumentProvider(String... arguments) {
+        if (arguments == null) {
+            this.arguments = Collections.emptyList();
+        } else {
+            this.arguments = List.of(arguments); // Immutable list (Java 9+)
+        }
     }
 
     @Override
     public Iterable<String> asArguments() {
-        return systemProperties.entrySet()
-            .stream()
-            .map(
-                entry -> "-D"
-                    + entry.getKey()
-                    + "="
-                    + (entry.getValue() instanceof Supplier ? ((Supplier) entry.getValue()).get() : entry.getValue())
-            )
-            .collect(Collectors.toList());
+        return arguments;
     }
 
-    // Track system property keys as an input so our build cache key will change if we add properties but values are still ignored
-    @Input
-    public Iterable<String> getPropertyNames() {
-        return systemProperties.keySet();
+    @Override
+    public String toString() {
+        return "SimpleCommandLineArgumentProvider{" +
+                "arguments=" + arguments +
+                '}';
     }
 }
