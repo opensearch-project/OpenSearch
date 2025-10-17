@@ -199,7 +199,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
      *    2. When using stored field, order and duplicate values would be preserved
      */
     @Override
-    protected DerivedFieldGenerator derivedFieldGenerator() {
+    public DerivedFieldGenerator derivedFieldGenerator() {
         return new DerivedFieldGenerator(
             mappedFieldType,
             new SortedSetDocValuesFetcher(mappedFieldType, simpleName()),

@@ -83,7 +83,6 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.engine.SearchExecutionEngine;
 import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.mapper.DerivedFieldResolver;
@@ -142,7 +141,6 @@ import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QueryRewriterRegistry;
-import org.opensearch.search.query.QueryPhaseExecutor;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ScrollQuerySearchResult;
@@ -838,8 +836,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // TODO : figure out how to tie this
             byte[] substraitQuery = request.source().queryPlanIR();
             if (substraitQuery != null) {
-                Map<String, Object[]> result = searchExecEngine.execute(context);
-                context.setDFResults(result);
+                // setDFResults in context
+                searchExecEngine.executeQueryPhase(context);
             }
 
             if (isStreamSearch) {

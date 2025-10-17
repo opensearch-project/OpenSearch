@@ -319,4 +319,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
         throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
     }
+
+    public DerivedFieldGenerator derivedFieldGenerator() throws IOException {
+        throw new UnsupportedOperationException("Converting [" + name() + "] is not supported for [" + name() + "] field");
+    }
 }
