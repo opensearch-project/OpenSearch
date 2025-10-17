@@ -49,7 +49,7 @@ public class PluginPropertiesExtension {
 
     /**
      * Optional semver-like range string (e.g., "~2.12.0", "^2.13.0", "&gt;=2.12.0 &lt;2.14.0", etc.)
-     * This will be expanded into plugin-descriptor.properties as 'opensearch.version.ranges'.
+     * This will be expanded into plugin-descriptor.properties as 'dependencies'.
      */
     private String versionRange;
 
