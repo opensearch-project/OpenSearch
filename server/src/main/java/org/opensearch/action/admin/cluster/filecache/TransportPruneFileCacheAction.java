@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.cache;
+package org.opensearch.action.admin.cluster.filecache;
 
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
@@ -35,16 +35,16 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class TransportPruneCacheAction extends TransportNodesAction<
-    PruneCacheRequest,
-    PruneCacheResponse,
-    TransportPruneCacheAction.NodeRequest,
-    NodePruneCacheResponse> {
+public class TransportPruneFileCacheAction extends TransportNodesAction<
+    PruneFileCacheRequest,
+    PruneFileCacheResponse,
+    TransportPruneFileCacheAction.NodeRequest,
+    NodePruneFileCacheResponse> {
 
     private final FileCache fileCache;
 
     @Inject
-    public TransportPruneCacheAction(
+    public TransportPruneFileCacheAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
@@ -52,21 +52,21 @@ public class TransportPruneCacheAction extends TransportNodesAction<
         @Nullable FileCache fileCache
     ) {
         super(
-            PruneCacheAction.NAME,
+            PruneFileCacheAction.NAME,
             threadPool,
             clusterService,
             transportService,
             actionFilters,
-            PruneCacheRequest::new,
+            PruneFileCacheRequest::new,
             NodeRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            NodePruneCacheResponse.class
+            NodePruneFileCacheResponse.class
         );
         this.fileCache = fileCache;
     }
 
     @Override
-    protected void resolveRequest(PruneCacheRequest request, ClusterState clusterState) {
+    protected void resolveRequest(PruneFileCacheRequest request, ClusterState clusterState) {
         assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
 
         List<DiscoveryNode> allWarmNodes = new ArrayList<>(clusterState.nodes().getWarmNodes().values());
@@ -91,35 +91,35 @@ public class TransportPruneCacheAction extends TransportNodesAction<
     }
 
     @Override
-    protected PruneCacheResponse newResponse(
-        PruneCacheRequest request,
-        List<NodePruneCacheResponse> responses,
+    protected PruneFileCacheResponse newResponse(
+        PruneFileCacheRequest request,
+        List<NodePruneFileCacheResponse> responses,
         List<FailedNodeException> failures
     ) {
-        return new PruneCacheResponse(clusterService.getClusterName(), responses, failures);
+        return new PruneFileCacheResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
-    protected NodeRequest newNodeRequest(PruneCacheRequest request) {
+    protected NodeRequest newNodeRequest(PruneFileCacheRequest request) {
         return new NodeRequest(request);
     }
 
     @Override
-    protected NodePruneCacheResponse newNodeResponse(StreamInput in) throws IOException {
-        return new NodePruneCacheResponse(in);
+    protected NodePruneFileCacheResponse newNodeResponse(StreamInput in) throws IOException {
+        return new NodePruneFileCacheResponse(in);
     }
 
     @Override
-    protected NodePruneCacheResponse nodeOperation(NodeRequest nodeRequest) {
+    protected NodePruneFileCacheResponse nodeOperation(NodeRequest nodeRequest) {
         if (fileCache == null) {
-            return new NodePruneCacheResponse(transportService.getLocalNode(), 0, 0);
+            return new NodePruneFileCacheResponse(transportService.getLocalNode(), 0, 0);
         }
 
         try {
             long capacity = fileCache.capacity();
             long prunedBytes = fileCache.prune();
 
-            return new NodePruneCacheResponse(transportService.getLocalNode(), prunedBytes, capacity);
+            return new NodePruneFileCacheResponse(transportService.getLocalNode(), prunedBytes, capacity);
 
         } catch (Exception e) {
             throw new RuntimeException("FileCache prune operation failed on node " + transportService.getLocalNode().getId(), e);
@@ -130,18 +130,18 @@ public class TransportPruneCacheAction extends TransportNodesAction<
      * Node-level request for cache pruning operation.
      */
     public static class NodeRequest extends TransportRequest {
-        private PruneCacheRequest request;
+        private PruneFileCacheRequest request;
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            request = new PruneCacheRequest(in);
+            request = new PruneFileCacheRequest(in);
         }
 
-        public NodeRequest(PruneCacheRequest request) {
-            this.request = Objects.requireNonNull(request, "PruneCacheRequest cannot be null");
+        public NodeRequest(PruneFileCacheRequest request) {
+            this.request = Objects.requireNonNull(request, "PruneFileCacheRequest cannot be null");
         }
 
-        public PruneCacheRequest getRequest() {
+        public PruneFileCacheRequest getRequest() {
             return request;
         }
 

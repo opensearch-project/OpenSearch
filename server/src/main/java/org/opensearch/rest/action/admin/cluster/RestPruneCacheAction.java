@@ -8,8 +8,8 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.admin.cluster.cache.PruneCacheAction;
-import org.opensearch.action.admin.cluster.cache.PruneCacheRequest;
+import org.opensearch.action.admin.cluster.filecache.PruneFileCacheAction;
+import org.opensearch.action.admin.cluster.filecache.PruneFileCacheRequest;
 import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -33,22 +33,22 @@ public class RestPruneCacheAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(Method.POST, "/_cache/filecache/prune"));
+        return singletonList(new Route(Method.POST, "/_filecache/prune"));
     }
 
     @Override
     public String getName() {
-        return "prune_cache_action";
+        return "prune_filecache_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] nodeIds = parseNodeTargeting(request);
 
-        PruneCacheRequest pruneCacheRequest = new PruneCacheRequest(nodeIds);
-        pruneCacheRequest.timeout(request.paramAsTime("timeout", pruneCacheRequest.timeout()));
+        PruneFileCacheRequest pruneFileCacheRequest = new PruneFileCacheRequest(nodeIds);
+        pruneFileCacheRequest.timeout(request.paramAsTime("timeout", pruneFileCacheRequest.timeout()));
 
-        return channel -> client.execute(PruneCacheAction.INSTANCE, pruneCacheRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(PruneFileCacheAction.INSTANCE, pruneFileCacheRequest, new RestToXContentListener<>(channel));
     }
 
     private String[] parseNodeTargeting(RestRequest request) {

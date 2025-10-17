@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.cache;
+package org.opensearch.action.admin.cluster.filecache;
 
 import org.opensearch.Version;
 import org.opensearch.action.FailedNodeException;
@@ -37,10 +37,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link TransportPruneCacheAction} using TransportNodesAction pattern.
+ * Tests for {@link TransportPruneFileCacheAction} using TransportNodesAction pattern.
  * Tests enhanced multi-node architecture and warm node intelligence.
  */
-public class TransportPruneCacheActionTests extends OpenSearchTestCase {
+public class TransportPruneFileCacheActionTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
@@ -48,7 +48,7 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
     private TransportService transportService;
     private ActionFilters actionFilters;
     private FileCache fileCache;
-    private TransportPruneCacheAction action;
+    private TransportPruneFileCacheAction action;
 
     @Before
     public void setUp() throws Exception {
@@ -74,7 +74,7 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
 
         setupClusterWithWarmNodes();
 
-        action = new TransportPruneCacheAction(threadPool, clusterService, transportService, actionFilters, fileCache);
+        action = new TransportPruneFileCacheAction(threadPool, clusterService, transportService, actionFilters, fileCache);
     }
 
     @After
@@ -124,9 +124,9 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
     }
 
     public void testRequestPreparationAndTargeting() {
-        PruneCacheRequest request = new PruneCacheRequest();
+        PruneFileCacheRequest request = new PruneFileCacheRequest();
 
-        TransportPruneCacheAction.NodeRequest nodeRequest = action.newNodeRequest(request);
+        TransportPruneFileCacheAction.NodeRequest nodeRequest = action.newNodeRequest(request);
         assertNotNull("Node request should not be null", nodeRequest);
         assertEquals("Node request should wrap original request", request, nodeRequest.getRequest());
     }
@@ -135,10 +135,10 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
         when(fileCache.capacity()).thenReturn(10737418240L);
         when(fileCache.prune()).thenReturn(1048576L);
 
-        PruneCacheRequest globalRequest = new PruneCacheRequest();
-        TransportPruneCacheAction.NodeRequest nodeRequest = new TransportPruneCacheAction.NodeRequest(globalRequest);
+        PruneFileCacheRequest globalRequest = new PruneFileCacheRequest();
+        TransportPruneFileCacheAction.NodeRequest nodeRequest = new TransportPruneFileCacheAction.NodeRequest(globalRequest);
 
-        NodePruneCacheResponse response = action.nodeOperation(nodeRequest);
+        NodePruneFileCacheResponse response = action.nodeOperation(nodeRequest);
 
         assertNotNull("Response should not be null", response);
         assertEquals("Pruned bytes should match", 1048576L, response.getPrunedBytes());
@@ -164,7 +164,7 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
         nullTransportService.acceptIncomingRequests();
 
         try {
-            TransportPruneCacheAction nullCacheAction = new TransportPruneCacheAction(
+            TransportPruneFileCacheAction nullCacheAction = new TransportPruneFileCacheAction(
                 threadPool,
                 clusterService,
                 nullTransportService,
@@ -172,10 +172,10 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
                 null
             );
 
-            PruneCacheRequest globalRequest = new PruneCacheRequest();
-            TransportPruneCacheAction.NodeRequest nodeRequest = new TransportPruneCacheAction.NodeRequest(globalRequest);
+            PruneFileCacheRequest globalRequest = new PruneFileCacheRequest();
+            TransportPruneFileCacheAction.NodeRequest nodeRequest = new TransportPruneFileCacheAction.NodeRequest(globalRequest);
 
-            NodePruneCacheResponse response = nullCacheAction.nodeOperation(nodeRequest);
+            NodePruneFileCacheResponse response = nullCacheAction.nodeOperation(nodeRequest);
 
             assertEquals("Pruned bytes should be 0 for null cache", 0L, response.getPrunedBytes());
             assertEquals("Capacity should be 0 for null cache", 0L, response.getCacheCapacity());
@@ -187,7 +187,7 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
 
     public void testWarmNodeResolution() {
 
-        PruneCacheRequest defaultRequest = new PruneCacheRequest();
+        PruneFileCacheRequest defaultRequest = new PruneFileCacheRequest();
 
         try {
             action.resolveRequest(defaultRequest, clusterService.state());
@@ -208,7 +208,7 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
 
     public void testSpecificNodeTargeting() {
 
-        PruneCacheRequest specificRequest = new PruneCacheRequest("warm-node-1");
+        PruneFileCacheRequest specificRequest = new PruneFileCacheRequest("warm-node-1");
 
         action.resolveRequest(specificRequest, clusterService.state());
 
@@ -218,7 +218,7 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
 
     public void testInvalidNodeTargeting() {
 
-        PruneCacheRequest invalidRequest = new PruneCacheRequest("data-node-1");
+        PruneFileCacheRequest invalidRequest = new PruneFileCacheRequest("data-node-1");
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -234,8 +234,8 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
     public void testFileCacheException() {
         when(fileCache.prune()).thenThrow(new RuntimeException("Cache corruption"));
 
-        PruneCacheRequest globalRequest = new PruneCacheRequest();
-        TransportPruneCacheAction.NodeRequest nodeRequest = new TransportPruneCacheAction.NodeRequest(globalRequest);
+        PruneFileCacheRequest globalRequest = new PruneFileCacheRequest();
+        TransportPruneFileCacheAction.NodeRequest nodeRequest = new TransportPruneFileCacheAction.NodeRequest(globalRequest);
 
         RuntimeException exception = expectThrows(
             RuntimeException.class,
@@ -247,16 +247,16 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
     }
 
     public void testResponseAggregation() {
-        PruneCacheRequest request = new PruneCacheRequest();
+        PruneFileCacheRequest request = new PruneFileCacheRequest();
 
-        List<NodePruneCacheResponse> responses = Arrays.asList(
-            new NodePruneCacheResponse(clusterService.state().nodes().get("warm-node-1"), 1048576L, 10737418240L),
-            new NodePruneCacheResponse(clusterService.state().nodes().get("warm-node-2"), 2097152L, 10737418240L)
+        List<NodePruneFileCacheResponse> responses = Arrays.asList(
+            new NodePruneFileCacheResponse(clusterService.state().nodes().get("warm-node-1"), 1048576L, 10737418240L),
+            new NodePruneFileCacheResponse(clusterService.state().nodes().get("warm-node-2"), 2097152L, 10737418240L)
         );
 
         List<FailedNodeException> failures = Collections.emptyList();
 
-        PruneCacheResponse aggregatedResponse = action.newResponse(request, responses, failures);
+        PruneFileCacheResponse aggregatedResponse = action.newResponse(request, responses, failures);
 
         assertNotNull("Aggregated response should not be null", aggregatedResponse);
         assertEquals("Should have 2 successful nodes", 2, aggregatedResponse.getNodes().size());

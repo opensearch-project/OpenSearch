@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.cache;
+package org.opensearch.action.admin.cluster.filecache;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
@@ -21,17 +21,17 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class PruneCacheRequest extends BaseNodesRequest<PruneCacheRequest> {
+public class PruneFileCacheRequest extends BaseNodesRequest<PruneFileCacheRequest> {
 
-    public PruneCacheRequest() {
+    public PruneFileCacheRequest() {
         super((String[]) null);
     }
 
-    public PruneCacheRequest(String... nodesIds) {
+    public PruneFileCacheRequest(String... nodesIds) {
         super(nodesIds);
     }
 
-    public PruneCacheRequest(StreamInput in) throws IOException {
+    public PruneFileCacheRequest(StreamInput in) throws IOException {
         super(in);
     }
 

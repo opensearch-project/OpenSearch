@@ -6,12 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.cache;
+package org.opensearch.action.admin.cluster.filecache;
 
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,18 +25,18 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class NodePruneCacheResponse extends BaseNodeResponse {
+public class NodePruneFileCacheResponse extends BaseNodeResponse implements ToXContentFragment {
 
     private final long prunedBytes;
     private final long cacheCapacity;
 
-    public NodePruneCacheResponse(StreamInput in) throws IOException {
+    public NodePruneFileCacheResponse(StreamInput in) throws IOException {
         super(in);
         this.prunedBytes = in.readLong();
         this.cacheCapacity = in.readLong();
     }
 
-    public NodePruneCacheResponse(DiscoveryNode node, long prunedBytes, long cacheCapacity) {
+    public NodePruneFileCacheResponse(DiscoveryNode node, long prunedBytes, long cacheCapacity) {
         super(node);
         this.prunedBytes = prunedBytes;
         this.cacheCapacity = cacheCapacity;
@@ -58,9 +60,9 @@ public class NodePruneCacheResponse extends BaseNodeResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if ((o instanceof NodePruneCacheResponse) == false) return false;
+        if ((o instanceof NodePruneFileCacheResponse) == false) return false;
         if (!super.equals(o)) return false;
-        NodePruneCacheResponse that = (NodePruneCacheResponse) o;
+        NodePruneFileCacheResponse that = (NodePruneFileCacheResponse) o;
         return prunedBytes == that.prunedBytes && cacheCapacity == that.cacheCapacity;
     }
 
@@ -71,7 +73,7 @@ public class NodePruneCacheResponse extends BaseNodeResponse {
 
     @Override
     public String toString() {
-        return "NodePruneCacheResponse{"
+        return "NodePruneFileCacheResponse{"
             + "node="
             + getNode().getId()
             + ", prunedBytes="
@@ -79,5 +81,25 @@ public class NodePruneCacheResponse extends BaseNodeResponse {
             + ", cacheCapacity="
             + cacheCapacity
             + '}';
+    }
+
+    /**
+     * Serializes this node response to XContent format.
+     * Outputs node identification fields and cache operation metrics.
+     *
+     * @param builder the XContent builder
+     * @param params serialization parameters
+     * @return the XContent builder for method chaining
+     * @throws IOException if an I/O error occurs during serialization
+     */
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("name", getNode().getName());
+        builder.field("transport_address", getNode().getAddress().toString());
+        builder.field("host", getNode().getHostName());
+        builder.field("ip", getNode().getHostAddress());
+        builder.field("pruned_bytes", prunedBytes);
+        builder.field("cache_capacity", cacheCapacity);
+        return builder;
     }
 }

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.cache;
+package org.opensearch.action.admin.cluster.filecache;
 
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
@@ -27,7 +27,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class PruneCacheResponse extends BaseNodesResponse<NodePruneCacheResponse> implements ToXContentObject {
+public class PruneFileCacheResponse extends BaseNodesResponse<NodePruneFileCacheResponse> implements ToXContentObject {
 
     /**
      * Constructor for stream input deserialization
@@ -35,7 +35,7 @@ public class PruneCacheResponse extends BaseNodesResponse<NodePruneCacheResponse
      * @param in the stream input
      * @throws IOException if an I/O exception occurs
      */
-    public PruneCacheResponse(StreamInput in) throws IOException {
+    public PruneFileCacheResponse(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -46,17 +46,17 @@ public class PruneCacheResponse extends BaseNodesResponse<NodePruneCacheResponse
      * @param nodes the successful node responses
      * @param failures the failed node responses
      */
-    public PruneCacheResponse(ClusterName clusterName, List<NodePruneCacheResponse> nodes, List<FailedNodeException> failures) {
+    public PruneFileCacheResponse(ClusterName clusterName, List<NodePruneFileCacheResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
-    protected List<NodePruneCacheResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodePruneCacheResponse::new);
+    protected List<NodePruneFileCacheResponse> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(NodePruneFileCacheResponse::new);
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<NodePruneCacheResponse> nodes) throws IOException {
+    protected void writeNodesTo(StreamOutput out, List<NodePruneFileCacheResponse> nodes) throws IOException {
         out.writeList(nodes);
     }
 
@@ -75,7 +75,7 @@ public class PruneCacheResponse extends BaseNodesResponse<NodePruneCacheResponse
         builder.field("total_nodes_targeted", getNodes().size() + failures().size());
         builder.field("successful_nodes", getNodes().size());
         builder.field("failed_nodes", failures().size());
-        for (NodePruneCacheResponse nodeResponse : getNodes()) {
+        for (NodePruneFileCacheResponse nodeResponse : getNodes()) {
             if (nodeResponse != null) {
                 totalCacheCapacity += nodeResponse.getCacheCapacity();
             }
@@ -85,15 +85,10 @@ public class PruneCacheResponse extends BaseNodesResponse<NodePruneCacheResponse
         builder.endObject();
 
         builder.startObject("nodes");
-        for (NodePruneCacheResponse nodeResponse : getNodes()) {
+        for (NodePruneFileCacheResponse nodeResponse : getNodes()) {
             if (nodeResponse != null && nodeResponse.getNode() != null) {
                 builder.startObject(nodeResponse.getNode().getId());
-                builder.field("name", nodeResponse.getNode().getName());
-                builder.field("transport_address", nodeResponse.getNode().getAddress().toString());
-                builder.field("host", nodeResponse.getNode().getHostName());
-                builder.field("ip", nodeResponse.getNode().getHostAddress());
-                builder.field("pruned_bytes", nodeResponse.getPrunedBytes());
-                builder.field("cache_capacity", nodeResponse.getCacheCapacity());
+                nodeResponse.toXContent(builder, params);
                 builder.endObject();
             }
         }
@@ -121,7 +116,7 @@ public class PruneCacheResponse extends BaseNodesResponse<NodePruneCacheResponse
      * @return total bytes freed by all successful prune operations
      */
     public long getTotalPrunedBytes() {
-        return getNodes().stream().filter(Objects::nonNull).mapToLong(NodePruneCacheResponse::getPrunedBytes).sum();
+        return getNodes().stream().filter(Objects::nonNull).mapToLong(NodePruneFileCacheResponse::getPrunedBytes).sum();
     }
 
     /**

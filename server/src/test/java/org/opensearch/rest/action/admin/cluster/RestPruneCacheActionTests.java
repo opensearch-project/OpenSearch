@@ -8,10 +8,10 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.admin.cluster.cache.NodePruneCacheResponse;
-import org.opensearch.action.admin.cluster.cache.PruneCacheAction;
-import org.opensearch.action.admin.cluster.cache.PruneCacheRequest;
-import org.opensearch.action.admin.cluster.cache.PruneCacheResponse;
+import org.opensearch.action.admin.cluster.filecache.NodePruneFileCacheResponse;
+import org.opensearch.action.admin.cluster.filecache.PruneFileCacheAction;
+import org.opensearch.action.admin.cluster.filecache.PruneFileCacheRequest;
+import org.opensearch.action.admin.cluster.filecache.PruneFileCacheResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.rest.RestRequest;
@@ -43,7 +43,7 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
         controller().registerHandler(action);
     }
 
-    private PruneCacheResponse createMockMultiNodeResponse() {
+    private PruneFileCacheResponse createMockMultiNodeResponse() {
         DiscoveryNode mockNode = mock(DiscoveryNode.class);
         when(mockNode.getId()).thenReturn("node1");
         when(mockNode.getName()).thenReturn("test-node");
@@ -51,22 +51,22 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
         when(mockNode.getHostAddress()).thenReturn("127.0.0.1");
         when(mockNode.getAddress()).thenReturn(buildNewFakeTransportAddress());
 
-        List<NodePruneCacheResponse> nodeResponses = Arrays.asList(new NodePruneCacheResponse(mockNode, 1024L, 10737418240L));
+        List<NodePruneFileCacheResponse> nodeResponses = Arrays.asList(new NodePruneFileCacheResponse(mockNode, 1024L, 10737418240L));
 
-        return new PruneCacheResponse(new ClusterName("test-cluster"), nodeResponses, Collections.emptyList());
+        return new PruneFileCacheResponse(new ClusterName("test-cluster"), nodeResponses, Collections.emptyList());
     }
 
     public void testRoutes() {
         assertEquals(1, action.routes().size());
         assertEquals(RestRequest.Method.POST, action.routes().get(0).getMethod());
-        assertEquals("/_cache/filecache/prune", action.routes().get(0).getPath());
+        assertEquals("/_filecache/prune", action.routes().get(0).getPath());
     }
 
     /**
      * Verifies that the action has the correct registered name.
      */
     public void testGetName() {
-        assertEquals("prune_cache_action", action.getName());
+        assertEquals("prune_filecache_action", action.getName());
     }
 
     /**
@@ -74,17 +74,17 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
      */
     public void testPrepareRequestDefaults() throws Exception {
         verifyingClient.setExecuteVerifier((actionType, request) -> {
-            assertEquals(PruneCacheAction.INSTANCE, actionType);
-            assertThat(request, instanceOf(PruneCacheRequest.class));
+            assertEquals(PruneFileCacheAction.INSTANCE, actionType);
+            assertThat(request, instanceOf(PruneFileCacheRequest.class));
 
-            PruneCacheRequest pruneCacheRequest = (PruneCacheRequest) request;
-            assertNull("Default should target all nodes", pruneCacheRequest.nodesIds());
+            PruneFileCacheRequest pruneFileCacheRequest = (PruneFileCacheRequest) request;
+            assertNull("Default should target all nodes", pruneFileCacheRequest.nodesIds());
 
             return createMockMultiNodeResponse();
         });
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_cache/filecache/prune")
+            .withPath("/_filecache/prune")
             .build();
 
         dispatchRequest(request);
@@ -95,12 +95,12 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
      */
     public void testEnhancedParameterHandling() throws Exception {
         verifyingClient.setExecuteVerifier((actionType, request) -> {
-            assertEquals(PruneCacheAction.INSTANCE, actionType);
-            assertThat(request, instanceOf(PruneCacheRequest.class));
+            assertEquals(PruneFileCacheAction.INSTANCE, actionType);
+            assertThat(request, instanceOf(PruneFileCacheRequest.class));
 
-            PruneCacheRequest pruneCacheRequest = (PruneCacheRequest) request;
-            assertArrayEquals("Node targeting should work", new String[] { "node1", "node2" }, pruneCacheRequest.nodesIds());
-            assertEquals("Timeout should be set", 30000, pruneCacheRequest.timeout().getMillis());
+            PruneFileCacheRequest pruneFileCacheRequest = (PruneFileCacheRequest) request;
+            assertArrayEquals("Node targeting should work", new String[] { "node1", "node2" }, pruneFileCacheRequest.nodesIds());
+            assertEquals("Timeout should be set", 30000, pruneFileCacheRequest.timeout().getMillis());
 
             return createMockMultiNodeResponse();
         });
@@ -110,7 +110,7 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
         params.put("timeout", "30s");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_cache/filecache/prune")
+            .withPath("/_filecache/prune")
             .withParams(params)
             .build();
 
@@ -122,11 +122,11 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
      */
     public void testSingleNodeParameter() throws Exception {
         verifyingClient.setExecuteVerifier((actionType, request) -> {
-            assertEquals(PruneCacheAction.INSTANCE, actionType);
-            assertThat(request, instanceOf(PruneCacheRequest.class));
+            assertEquals(PruneFileCacheAction.INSTANCE, actionType);
+            assertThat(request, instanceOf(PruneFileCacheRequest.class));
 
-            PruneCacheRequest pruneCacheRequest = (PruneCacheRequest) request;
-            assertArrayEquals("Single node should be targeted", new String[] { "node1" }, pruneCacheRequest.nodesIds());
+            PruneFileCacheRequest pruneFileCacheRequest = (PruneFileCacheRequest) request;
+            assertArrayEquals("Single node should be targeted", new String[] { "node1" }, pruneFileCacheRequest.nodesIds());
 
             return createMockMultiNodeResponse();
         });
@@ -135,7 +135,7 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
         params.put("node", "node1");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_cache/filecache/prune")
+            .withPath("/_filecache/prune")
             .withParams(params)
             .build();
 
@@ -147,12 +147,12 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
      */
     public void testParameterPriority() throws Exception {
         verifyingClient.setExecuteVerifier((actionType, request) -> {
-            assertEquals(PruneCacheAction.INSTANCE, actionType);
-            assertThat(request, instanceOf(PruneCacheRequest.class));
+            assertEquals(PruneFileCacheAction.INSTANCE, actionType);
+            assertThat(request, instanceOf(PruneFileCacheRequest.class));
 
-            PruneCacheRequest pruneCacheRequest = (PruneCacheRequest) request;
+            PruneFileCacheRequest pruneFileCacheRequest = (PruneFileCacheRequest) request;
 
-            assertArrayEquals("Nodes parameter should take priority", new String[] { "node1", "node2" }, pruneCacheRequest.nodesIds());
+            assertArrayEquals("Nodes parameter should take priority", new String[] { "node1", "node2" }, pruneFileCacheRequest.nodesIds());
 
             return createMockMultiNodeResponse();
         });
@@ -162,7 +162,7 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
         params.put("node", "node3");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_cache/filecache/prune")
+            .withPath("/_filecache/prune")
             .withParams(params)
             .build();
 
@@ -174,11 +174,11 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
      */
     public void testWarmNodeTargetingSyntax() throws Exception {
         verifyingClient.setExecuteVerifier((actionType, request) -> {
-            assertEquals(PruneCacheAction.INSTANCE, actionType);
-            assertThat(request, instanceOf(PruneCacheRequest.class));
+            assertEquals(PruneFileCacheAction.INSTANCE, actionType);
+            assertThat(request, instanceOf(PruneFileCacheRequest.class));
 
-            PruneCacheRequest pruneCacheRequest = (PruneCacheRequest) request;
-            assertArrayEquals("Should target warm nodes", new String[] { "warm:true" }, pruneCacheRequest.nodesIds());
+            PruneFileCacheRequest pruneFileCacheRequest = (PruneFileCacheRequest) request;
+            assertArrayEquals("Should target warm nodes", new String[] { "warm:true" }, pruneFileCacheRequest.nodesIds());
 
             return createMockMultiNodeResponse();
         });
@@ -187,7 +187,7 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
         params.put("nodes", "warm:true");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_cache/filecache/prune")
+            .withPath("/_filecache/prune")
             .withParams(params)
             .build();
 
@@ -199,12 +199,12 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
      */
     public void testParameterCleaning() throws Exception {
         verifyingClient.setExecuteVerifier((actionType, request) -> {
-            assertEquals(PruneCacheAction.INSTANCE, actionType);
-            assertThat(request, instanceOf(PruneCacheRequest.class));
+            assertEquals(PruneFileCacheAction.INSTANCE, actionType);
+            assertThat(request, instanceOf(PruneFileCacheRequest.class));
 
-            PruneCacheRequest pruneCacheRequest = (PruneCacheRequest) request;
+            PruneFileCacheRequest pruneFileCacheRequest = (PruneFileCacheRequest) request;
             // Should clean whitespace and filter empty strings
-            assertArrayEquals("Should clean parameters", new String[] { "node1", "node2" }, pruneCacheRequest.nodesIds());
+            assertArrayEquals("Should clean parameters", new String[] { "node1", "node2" }, pruneFileCacheRequest.nodesIds());
 
             return createMockMultiNodeResponse();
         });
@@ -213,7 +213,7 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
         params.put("nodes", " node1 ,  node2  , ,   ");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_cache/filecache/prune")
+            .withPath("/_filecache/prune")
             .withParams(params)
             .build();
 
@@ -232,11 +232,15 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
      */
     public void testComprehensiveParameterCombinations() throws Exception {
         verifyingClient.setExecuteVerifier((actionType, request) -> {
-            assertEquals(PruneCacheAction.INSTANCE, actionType);
-            assertThat(request, instanceOf(PruneCacheRequest.class));
+            assertEquals(PruneFileCacheAction.INSTANCE, actionType);
+            assertThat(request, instanceOf(PruneFileCacheRequest.class));
 
-            PruneCacheRequest pruneCacheRequest = (PruneCacheRequest) request;
-            assertArrayEquals("Node targeting should work", new String[] { "warm-node-1", "warm-node-2" }, pruneCacheRequest.nodesIds());
+            PruneFileCacheRequest pruneFileCacheRequest = (PruneFileCacheRequest) request;
+            assertArrayEquals(
+                "Node targeting should work",
+                new String[] { "warm-node-1", "warm-node-2" },
+                pruneFileCacheRequest.nodesIds()
+            );
 
             return createMockMultiNodeResponse();
         });
@@ -246,7 +250,7 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
         params.put("timeout", "5m");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_cache/filecache/prune")
+            .withPath("/_filecache/prune")
             .withParams(params)
             .build();
 
@@ -258,11 +262,11 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
      */
     public void testEmptyParameterHandling() throws Exception {
         verifyingClient.setExecuteVerifier((actionType, request) -> {
-            assertEquals(PruneCacheAction.INSTANCE, actionType);
-            assertThat(request, instanceOf(PruneCacheRequest.class));
+            assertEquals(PruneFileCacheAction.INSTANCE, actionType);
+            assertThat(request, instanceOf(PruneFileCacheRequest.class));
 
-            PruneCacheRequest pruneCacheRequest = (PruneCacheRequest) request;
-            assertNull("Empty nodes parameter should result in null", pruneCacheRequest.nodesIds());
+            PruneFileCacheRequest pruneFileCacheRequest = (PruneFileCacheRequest) request;
+            assertNull("Empty nodes parameter should result in null", pruneFileCacheRequest.nodesIds());
 
             return createMockMultiNodeResponse();
         });
@@ -273,7 +277,7 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
         params.put("node", "");
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_cache/filecache/prune")
+            .withPath("/_filecache/prune")
             .withParams(params)
             .build();
 
@@ -285,12 +289,12 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
      */
     public void testLargeNodeListHandling() throws Exception {
         verifyingClient.setExecuteVerifier((actionType, request) -> {
-            assertEquals(PruneCacheAction.INSTANCE, actionType);
-            assertThat(request, instanceOf(PruneCacheRequest.class));
+            assertEquals(PruneFileCacheAction.INSTANCE, actionType);
+            assertThat(request, instanceOf(PruneFileCacheRequest.class));
 
-            PruneCacheRequest pruneCacheRequest = (PruneCacheRequest) request;
+            PruneFileCacheRequest pruneFileCacheRequest = (PruneFileCacheRequest) request;
 
-            assertEquals("Should handle large node list", 10, pruneCacheRequest.nodesIds().length);
+            assertEquals("Should handle large node list", 10, pruneFileCacheRequest.nodesIds().length);
 
             return createMockMultiNodeResponse();
         });
@@ -306,7 +310,7 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
         params.put("nodes", largeNodeList.toString());
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_cache/filecache/prune")
+            .withPath("/_filecache/prune")
             .withParams(params)
             .build();
 

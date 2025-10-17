@@ -7,6 +7,6 @@
  */
 
 /**
- * Cache management actions for cluster administration.
+ * File cache management actions for cluster administration.
  */
-package org.opensearch.action.admin.cluster.cache;
+package org.opensearch.action.admin.cluster.filecache;

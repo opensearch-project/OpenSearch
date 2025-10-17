@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.cache;
+package org.opensearch.action.admin.cluster.filecache;
 
 import org.opensearch.Version;
 import org.opensearch.action.FailedNodeException;
@@ -25,10 +25,10 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Tests for {@link PruneCacheRequest} and {@link PruneCacheResponse} with enhanced multi-node architecture.
+ * Tests for {@link PruneFileCacheRequest} and {@link PruneFileCacheResponse} with enhanced multi-node architecture.
  * Covers node targeting and rich response aggregation.
  */
-public class PruneCacheRequestResponseTests extends OpenSearchTestCase {
+public class PruneFileCacheRequestResponseTests extends OpenSearchTestCase {
 
     private DiscoveryNode createRealNode(String nodeId, String nodeName) {
         return new DiscoveryNode(
@@ -41,55 +41,55 @@ public class PruneCacheRequestResponseTests extends OpenSearchTestCase {
         );
     }
 
-    private PruneCacheResponse createMultiNodeResponse(long... prunedBytesPerNode) {
+    private PruneFileCacheResponse createMultiNodeResponse(long... prunedBytesPerNode) {
         ClusterName clusterName = new ClusterName("test-cluster");
 
-        List<NodePruneCacheResponse> nodeResponses = Arrays.asList();
+        List<NodePruneFileCacheResponse> nodeResponses = Arrays.asList();
         if (prunedBytesPerNode.length > 0) {
             nodeResponses = new java.util.ArrayList<>();
             for (int i = 0; i < prunedBytesPerNode.length; i++) {
                 DiscoveryNode node = createRealNode("node" + i, "test-node-" + i);
-                nodeResponses.add(new NodePruneCacheResponse(node, prunedBytesPerNode[i], 10737418240L));
+                nodeResponses.add(new NodePruneFileCacheResponse(node, prunedBytesPerNode[i], 10737418240L));
             }
         }
 
         List<FailedNodeException> failures = Collections.emptyList();
 
-        return new PruneCacheResponse(clusterName, nodeResponses, failures);
+        return new PruneFileCacheResponse(clusterName, nodeResponses, failures);
     }
 
     public void testPruneCacheRequestSerialization() throws IOException {
-        PruneCacheRequest originalRequest = new PruneCacheRequest("node1", "node2");
+        PruneFileCacheRequest originalRequest = new PruneFileCacheRequest("node1", "node2");
 
         BytesStreamOutput out = new BytesStreamOutput();
         originalRequest.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();
-        PruneCacheRequest deserializedRequest = new PruneCacheRequest(in);
+        PruneFileCacheRequest deserializedRequest = new PruneFileCacheRequest(in);
 
         assertArrayEquals(originalRequest.nodesIds(), deserializedRequest.nodesIds());
     }
 
     public void testPruneCacheRequestDefaultParameters() throws IOException {
-        PruneCacheRequest originalRequest = new PruneCacheRequest();
+        PruneFileCacheRequest originalRequest = new PruneFileCacheRequest();
 
         BytesStreamOutput out = new BytesStreamOutput();
         originalRequest.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();
-        PruneCacheRequest deserializedRequest = new PruneCacheRequest(in);
+        PruneFileCacheRequest deserializedRequest = new PruneFileCacheRequest(in);
 
         assertEquals(originalRequest.timeout(), deserializedRequest.timeout());
     }
 
     public void testPruneCacheResponseMultiNodeSerialization() throws IOException {
-        PruneCacheResponse originalResponse = createMultiNodeResponse(1048576L, 2097152L);
+        PruneFileCacheResponse originalResponse = createMultiNodeResponse(1048576L, 2097152L);
 
         BytesStreamOutput out = new BytesStreamOutput();
         originalResponse.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();
-        PruneCacheResponse deserializedResponse = new PruneCacheResponse(in);
+        PruneFileCacheResponse deserializedResponse = new PruneFileCacheResponse(in);
         assertEquals("Node count should match", 2, deserializedResponse.getNodes().size());
         assertEquals("Total pruned bytes should match", 3145728L, deserializedResponse.getTotalPrunedBytes());
         assertEquals("getPrunedBytes should work", 3145728L, deserializedResponse.getPrunedBytes());
@@ -100,14 +100,14 @@ public class PruneCacheRequestResponseTests extends OpenSearchTestCase {
 
     public void testPruneCacheResponseWithFailures() {
         ClusterName clusterName = new ClusterName("test-cluster");
-        List<NodePruneCacheResponse> successfulNodes = Arrays.asList(
-            new NodePruneCacheResponse(createRealNode("node1", "successful-node"), 1048576L, 10737418240L)
+        List<NodePruneFileCacheResponse> successfulNodes = Arrays.asList(
+            new NodePruneFileCacheResponse(createRealNode("node1", "successful-node"), 1048576L, 10737418240L)
         );
         List<FailedNodeException> failures = Arrays.asList(
             new FailedNodeException("node2", "Cache operation failed", new RuntimeException("Test failure"))
         );
 
-        PruneCacheResponse response = new PruneCacheResponse(clusterName, successfulNodes, failures);
+        PruneFileCacheResponse response = new PruneFileCacheResponse(clusterName, successfulNodes, failures);
 
         assertEquals("Should have one successful node", 1, response.getNodes().size());
         assertEquals("Should have one failure", 1, response.failures().size());
@@ -116,7 +116,7 @@ public class PruneCacheRequestResponseTests extends OpenSearchTestCase {
     }
 
     public void testPruneCacheResponseEnhancedJSON() throws IOException {
-        PruneCacheResponse response = createMultiNodeResponse(1048576L, 2097152L);
+        PruneFileCacheResponse response = createMultiNodeResponse(1048576L, 2097152L);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -132,14 +132,14 @@ public class PruneCacheRequestResponseTests extends OpenSearchTestCase {
 
     public void testPruneCacheResponseJSONWithFailures() throws IOException {
         ClusterName clusterName = new ClusterName("test-cluster");
-        List<NodePruneCacheResponse> successfulNodes = Arrays.asList(
-            new NodePruneCacheResponse(createRealNode("node1", "good-node"), 1048576L, 10737418240L)
+        List<NodePruneFileCacheResponse> successfulNodes = Arrays.asList(
+            new NodePruneFileCacheResponse(createRealNode("node1", "good-node"), 1048576L, 10737418240L)
         );
         List<FailedNodeException> failures = Arrays.asList(
             new FailedNodeException("node2", "Test failure message", new RuntimeException("Root cause"))
         );
 
-        PruneCacheResponse response = new PruneCacheResponse(clusterName, successfulNodes, failures);
+        PruneFileCacheResponse response = new PruneFileCacheResponse(clusterName, successfulNodes, failures);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -153,53 +153,53 @@ public class PruneCacheRequestResponseTests extends OpenSearchTestCase {
     }
 
     public void testPruneCacheResponseScenarios() {
-        PruneCacheResponse zeroResponse = createMultiNodeResponse(0L, 0L);
+        PruneFileCacheResponse zeroResponse = createMultiNodeResponse(0L, 0L);
         assertEquals("Zero bytes should sum correctly", 0L, zeroResponse.getTotalPrunedBytes());
 
-        PruneCacheResponse mixedResponse = createMultiNodeResponse(1048576L, 0L, 2097152L);
+        PruneFileCacheResponse mixedResponse = createMultiNodeResponse(1048576L, 0L, 2097152L);
         assertEquals("Mixed results should sum correctly", 3145728L, mixedResponse.getTotalPrunedBytes());
 
-        PruneCacheResponse largeResponse = createMultiNodeResponse(Long.MAX_VALUE / 2, Long.MAX_VALUE / 2);
+        PruneFileCacheResponse largeResponse = createMultiNodeResponse(Long.MAX_VALUE / 2, Long.MAX_VALUE / 2);
         assertEquals("Large values should sum correctly", Long.MAX_VALUE - 1, largeResponse.getTotalPrunedBytes());
     }
 
     public void testPruneCacheRequestValidation() {
-        PruneCacheRequest request = new PruneCacheRequest();
+        PruneFileCacheRequest request = new PruneFileCacheRequest();
         assertNull("Validation should be null", request.validate());
 
-        PruneCacheRequest targetedRequest = new PruneCacheRequest("node1", "node2");
+        PruneFileCacheRequest targetedRequest = new PruneFileCacheRequest("node1", "node2");
         assertNull("Targeted request validation should be null", targetedRequest.validate());
     }
 
     public void testPruneCacheRequestNodeTargeting() {
-        PruneCacheRequest defaultRequest = new PruneCacheRequest();
+        PruneFileCacheRequest defaultRequest = new PruneFileCacheRequest();
         assertNull("Default request should have null nodeIds", defaultRequest.nodesIds());
 
-        PruneCacheRequest singleNodeRequest = new PruneCacheRequest("node1");
+        PruneFileCacheRequest singleNodeRequest = new PruneFileCacheRequest("node1");
         assertArrayEquals("Single node should be set", new String[] { "node1" }, singleNodeRequest.nodesIds());
 
-        PruneCacheRequest multiNodeRequest = new PruneCacheRequest("node1", "node2", "node3");
+        PruneFileCacheRequest multiNodeRequest = new PruneFileCacheRequest("node1", "node2", "node3");
         assertArrayEquals("Multiple nodes should be set", new String[] { "node1", "node2", "node3" }, multiNodeRequest.nodesIds());
 
-        PruneCacheRequest emptyRequest = new PruneCacheRequest(new String[0]);
+        PruneFileCacheRequest emptyRequest = new PruneFileCacheRequest(new String[0]);
         assertArrayEquals("Empty array should be preserved", new String[0], emptyRequest.nodesIds());
     }
 
     public void testNodePruneCacheResponseSerialization() throws IOException {
         DiscoveryNode realNode = createRealNode("test-node", "test-node-name");
-        NodePruneCacheResponse originalResponse = new NodePruneCacheResponse(realNode, 1048576L, 10737418240L);
+        NodePruneFileCacheResponse originalResponse = new NodePruneFileCacheResponse(realNode, 1048576L, 10737418240L);
 
         BytesStreamOutput out = new BytesStreamOutput();
         originalResponse.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();
-        NodePruneCacheResponse deserializedResponse = new NodePruneCacheResponse(in);
+        NodePruneFileCacheResponse deserializedResponse = new NodePruneFileCacheResponse(in);
         assertEquals("Pruned bytes should match", originalResponse.getPrunedBytes(), deserializedResponse.getPrunedBytes());
         assertEquals("Cache capacity should match", originalResponse.getCacheCapacity(), deserializedResponse.getCacheCapacity());
     }
 
     public void testResponseAggregationEdgeCases() {
-        PruneCacheResponse emptyResponse = new PruneCacheResponse(
+        PruneFileCacheResponse emptyResponse = new PruneFileCacheResponse(
             new ClusterName("test"),
             Collections.emptyList(),
             Collections.emptyList()
@@ -208,7 +208,7 @@ public class PruneCacheRequestResponseTests extends OpenSearchTestCase {
         assertFalse("Empty response should not be completely successful (no nodes processed)", emptyResponse.isCompletelySuccessful());
         assertFalse("Empty response should not be partially successful (no nodes processed)", emptyResponse.isPartiallySuccessful());
 
-        PruneCacheResponse allFailureResponse = new PruneCacheResponse(
+        PruneFileCacheResponse allFailureResponse = new PruneFileCacheResponse(
             new ClusterName("test"),
             Collections.emptyList(),
             Arrays.asList(new FailedNodeException("node1", "Test failure", new RuntimeException()))

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.cache;
+package org.opensearch.action.admin.cluster.filecache;
 
 import org.opensearch.action.ActionType;
 
@@ -15,12 +15,12 @@ import org.opensearch.action.ActionType;
  *
  * @opensearch.internal
  */
-public class PruneCacheAction extends ActionType<PruneCacheResponse> {
+public class PruneFileCacheAction extends ActionType<PruneFileCacheResponse> {
 
-    public static final PruneCacheAction INSTANCE = new PruneCacheAction();
+    public static final PruneFileCacheAction INSTANCE = new PruneFileCacheAction();
     public static final String NAME = "cluster:admin/filecache/prune";
 
-    private PruneCacheAction() {
-        super(NAME, PruneCacheResponse::new);
+    private PruneFileCacheAction() {
+        super(NAME, PruneFileCacheResponse::new);
     }
 }
