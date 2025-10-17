@@ -18,10 +18,10 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.IndexService;
@@ -72,15 +72,17 @@ public class DefaultSearchContextStreamingTests extends OpenSearchTestCase {
             when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
             when(indexShard.getThreadPool()).thenReturn(threadPool);
 
-            org.opensearch.cluster.metadata.IndexMetadata indexMetadata =
-                org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
-                    .settings(Settings.builder()
+            org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder(
+                "test-index"
+            )
+                .settings(
+                    Settings.builder()
                         .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
                         .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .build();
-            org.opensearch.index.IndexSettings indexSettings =
-                new org.opensearch.index.IndexSettings(indexMetadata, Settings.EMPTY);
+                        .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .build();
+            org.opensearch.index.IndexSettings indexSettings = new org.opensearch.index.IndexSettings(indexMetadata, Settings.EMPTY);
             when(indexShard.indexSettings()).thenReturn(indexSettings);
 
             IndexService indexService = mock(IndexService.class);
@@ -161,15 +163,17 @@ public class DefaultSearchContextStreamingTests extends OpenSearchTestCase {
             when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
             when(indexShard.getThreadPool()).thenReturn(threadPool);
 
-            org.opensearch.cluster.metadata.IndexMetadata indexMetadata =
-                org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
-                    .settings(Settings.builder()
+            org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder(
+                "test-index"
+            )
+                .settings(
+                    Settings.builder()
                         .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
                         .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .build();
-            org.opensearch.index.IndexSettings indexSettings =
-                new org.opensearch.index.IndexSettings(indexMetadata, Settings.EMPTY);
+                        .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .build();
+            org.opensearch.index.IndexSettings indexSettings = new org.opensearch.index.IndexSettings(indexMetadata, Settings.EMPTY);
             when(indexShard.indexSettings()).thenReturn(indexSettings);
 
             IndexService indexService = mock(IndexService.class);
@@ -250,15 +254,17 @@ public class DefaultSearchContextStreamingTests extends OpenSearchTestCase {
             when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
             when(indexShard.getThreadPool()).thenReturn(threadPool);
 
-            org.opensearch.cluster.metadata.IndexMetadata indexMetadata =
-                org.opensearch.cluster.metadata.IndexMetadata.builder("test-index")
-                    .settings(Settings.builder()
+            org.opensearch.cluster.metadata.IndexMetadata indexMetadata = org.opensearch.cluster.metadata.IndexMetadata.builder(
+                "test-index"
+            )
+                .settings(
+                    Settings.builder()
                         .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
                         .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .build();
-            org.opensearch.index.IndexSettings indexSettings =
-                new org.opensearch.index.IndexSettings(indexMetadata, Settings.EMPTY);
+                        .put(org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .build();
+            org.opensearch.index.IndexSettings indexSettings = new org.opensearch.index.IndexSettings(indexMetadata, Settings.EMPTY);
             when(indexShard.indexSettings()).thenReturn(indexSettings);
 
             IndexService indexService = mock(IndexService.class);

@@ -31,10 +31,7 @@ public class TopDocsCollectorContextEntrypointTests extends OpenSearchTestCase {
         when(mockSearchContext.size()).thenReturn(10);
         when(mockSearchContext.bigArrays()).thenReturn(mockBigArrays);
 
-        TopDocsCollectorContext context = TopDocsCollectorContext.createTopDocsCollectorContext(
-            mockSearchContext,
-            false
-        );
+        TopDocsCollectorContext context = TopDocsCollectorContext.createTopDocsCollectorContext(mockSearchContext, false);
 
         assertNotNull(context);
         assertTrue(context instanceof StreamingUnsortedCollectorContext);
@@ -51,10 +48,7 @@ public class TopDocsCollectorContextEntrypointTests extends OpenSearchTestCase {
         when(mockSearchContext.bigArrays()).thenReturn(mockBigArrays);
         when(mockSearchContext.sort()).thenReturn(null);
 
-        TopDocsCollectorContext context = TopDocsCollectorContext.createTopDocsCollectorContext(
-            mockSearchContext,
-            false
-        );
+        TopDocsCollectorContext context = TopDocsCollectorContext.createTopDocsCollectorContext(mockSearchContext, false);
 
         assertNotNull(context);
         assertTrue(context instanceof StreamingSortedCollectorContext);
@@ -70,10 +64,7 @@ public class TopDocsCollectorContextEntrypointTests extends OpenSearchTestCase {
         when(mockSearchContext.size()).thenReturn(10);
         when(mockSearchContext.bigArrays()).thenReturn(mockBigArrays);
 
-        TopDocsCollectorContext context = TopDocsCollectorContext.createTopDocsCollectorContext(
-            mockSearchContext,
-            false
-        );
+        TopDocsCollectorContext context = TopDocsCollectorContext.createTopDocsCollectorContext(mockSearchContext, false);
 
         assertNotNull(context);
         assertTrue(context instanceof StreamingScoredUnsortedCollectorContext);

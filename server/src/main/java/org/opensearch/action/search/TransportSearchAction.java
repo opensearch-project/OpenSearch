@@ -1247,7 +1247,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // Check if streaming transport is actually available and enabled
         final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
         final boolean canUseStreamingTransport = (streamSearchTransportService != null) && streamingEnabledSetting;
-        
+
         // Use streaming transport for streaming search requests
         final boolean useStreamingTransport = isStreamingCandidate && canUseStreamingTransport;
 

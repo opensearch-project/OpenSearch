@@ -10,8 +10,8 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
@@ -267,7 +267,8 @@ public class StreamTransportResponseHandlerContractTests extends OpenSearchTestC
             public void handleStreamResponse(StreamTransportResponse<SearchPhaseResult> response) {
                 try {
                     SearchPhaseResult result;
-                    while ((result = response.nextResponse()) != null) {}
+                    while ((result = response.nextResponse()) != null) {
+                    }
                     response.close();
                 } catch (Exception e) {
                     response.cancel("Error", e);

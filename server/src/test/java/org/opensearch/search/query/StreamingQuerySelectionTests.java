@@ -12,7 +12,6 @@ import org.apache.lucene.search.Sort;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
-import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.test.OpenSearchTestCase;

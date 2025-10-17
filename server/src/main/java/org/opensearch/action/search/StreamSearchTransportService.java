@@ -11,9 +11,9 @@ package org.opensearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -267,10 +267,10 @@ public class StreamSearchTransportService extends SearchTransportService {
             }
         };
         transportService.sendChildRequest(
-            connection, 
-            FETCH_ID_ACTION_NAME, 
-            request, 
-            task, 
+            connection,
+            FETCH_ID_ACTION_NAME,
+            request,
+            task,
             TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
             transportHandler
         );
