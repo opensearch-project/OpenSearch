@@ -370,47 +370,6 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         pool.shutdown();
     }
 
-    public void testThreadPoolInfoWriteToForkJoinLegacyVersion() throws IOException {
-        ThreadPool.Info info = new ThreadPool.Info("jvector", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
-
-        // Stub StreamOutput that sets legacy version and implements required methods
-        StreamOutput out = new StreamOutput() {
-            private Version version = Version.V_3_1_0;
-
-            @Override
-            public void writeByte(byte b) {}
-
-            @Override
-            public void writeBytes(byte[] b, int offset, int length) {}
-
-            @Override
-            public void writeBytes(byte[] b) {}
-
-            @Override
-            public void setVersion(Version v) {
-                this.version = v;
-            }
-
-            @Override
-            public Version getVersion() {
-                return version;
-            }
-
-            @Override
-            public void flush() throws IOException {} // required by abstract base class
-
-            @Override
-            public void reset() throws IOException {} // required by abstract base class
-
-            @Override
-            public void close() throws IOException {} // required by abstract base class
-        };
-        out.setVersion(Version.V_3_1_0);
-
-        // This will exercise the fallback logic for ForkJoinPool and legacy version
-        info.writeTo(out);
-    }
-
     public void testThreadPoolInfoWriteToForkJoinCurrentVersion() throws IOException {
         ThreadPool.Info info = new ThreadPool.Info("jvector", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
 
@@ -511,23 +470,6 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         }
     }
 
-    public void testInfoStreamInputFallbackToFixedOnUnknownTypeAndOldVersion() throws IOException {
-        // Simulate old version and unknown type string
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.V_3_3_0); // <= V_3_3_0 triggers fallback
-        out.writeString("foo");
-        out.writeString("unknown_type");
-        out.writeInt(1);
-        out.writeInt(1);
-        out.writeOptionalTimeValue(null);
-        out.writeOptionalWriteable(null);
-
-        StreamInput in = out.bytes().streamInput();
-        in.setVersion(Version.V_3_3_0);
-        ThreadPool.Info info = new ThreadPool.Info(in);
-        assertEquals(ThreadPool.ThreadPoolType.FIXED, info.getThreadPoolType());
-    }
-
     public void testInfoWriteToWritesFixedForResizableOnOldVersion() throws IOException {
         ThreadPool.Info info = new ThreadPool.Info("foo", ThreadPool.ThreadPoolType.RESIZABLE, 1);
         BytesStreamOutput out = new BytesStreamOutput();
@@ -537,20 +479,6 @@ public class ThreadPoolTests extends OpenSearchTestCase {
 
         StreamInput in = out.bytes().streamInput();
         in.setVersion(Version.fromString("2.9.0"));
-        in.readString(); // name
-        String typeStr = in.readString();
-        assertEquals("fixed", typeStr);
-    }
-
-    public void testInfoWriteToWritesFixedForForkJoinOnOldVersion() throws IOException {
-        ThreadPool.Info info = new ThreadPool.Info("foo", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
-        BytesStreamOutput out = new BytesStreamOutput();
-        // Use an explicit older version < 3.4.0
-        out.setVersion(Version.fromString("3.3.0"));
-        info.writeTo(out);
-
-        StreamInput in = out.bytes().streamInput();
-        in.setVersion(Version.fromString("3.3.0"));
         in.readString(); // name
         String typeStr = in.readString();
         assertEquals("fixed", typeStr);
@@ -593,5 +521,32 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
+    }
+
+    public void testInfoStreamInputThrowsOnUnknownTypeAndNewVersion() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.CURRENT);
+        out.writeString("foo");
+        out.writeString("unknown_type");
+        out.writeInt(1);
+        out.writeInt(1);
+        out.writeOptionalTimeValue(null);
+        out.writeOptionalWriteable(null);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.CURRENT);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new ThreadPool.Info(in));
+        assertTrue(e.getMessage().contains("Unknown ThreadPoolType"));
+    }
+
+    public void testStatsSerializationParallelismNegativeValue() throws IOException {
+        ThreadPoolStats.Stats statsOut = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, -1);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_4_0);
+        statsOut.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.V_3_4_0);
+        ThreadPoolStats.Stats statsIn = new ThreadPoolStats.Stats(in);
+        assertEquals(-1, statsIn.getParallelism());
     }
 }
