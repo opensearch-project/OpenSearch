@@ -11,6 +11,8 @@ package org.opensearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.Nullable;
 import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
@@ -53,6 +55,14 @@ public class StreamSearchTransportService extends SearchTransportService {
     ) {
         super(transportService, responseWrapper);
         this.transportService = transportService;
+    }
+
+    @Override
+    public Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
+        // Delegate to StreamTransportService to get connections from the streaming connection manager.
+        // This ensures connections understand the streaming protocol and call handleStreamResponse()
+        // instead of handleResponse() on StreamTransportResponseHandler instances.
+        return transportService.getConnection(node);
     }
 
     public static final Setting<Boolean> STREAM_SEARCH_ENABLED = Setting.boolSetting(
@@ -211,7 +221,14 @@ public class StreamSearchTransportService extends SearchTransportService {
                 fetchDocuments
             );
         }
-        transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task, transportHandler);
+        transportService.sendChildRequest(
+            connection,
+            QUERY_ACTION_NAME,
+            request,
+            task,
+            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+            transportHandler
+        );
     }
 
     @Override
@@ -249,7 +266,14 @@ public class StreamSearchTransportService extends SearchTransportService {
                 return new FetchSearchResult(in);
             }
         };
-        transportService.sendChildRequest(connection, FETCH_ID_ACTION_NAME, request, task, transportHandler);
+        transportService.sendChildRequest(
+            connection, 
+            FETCH_ID_ACTION_NAME, 
+            request, 
+            task, 
+            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+            transportHandler
+        );
     }
 
     @Override

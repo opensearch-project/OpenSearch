@@ -1147,7 +1147,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final DiscoveryNodes nodes = clusterState.nodes();
         final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
             && (searchRequest.source() == null || searchRequest.source().size() > 0);
-        final SearchTransportService connectionTransport = isStreamingCandidate && streamSearchTransportService != null
+        final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
+        final boolean useStreamingTransportForConnection = isStreamingCandidate
+            && streamSearchTransportService != null
+            && streamingEnabledSetting;
+        final SearchTransportService connectionTransport = useStreamingTransportForConnection
             ? streamSearchTransportService
             : searchTransportService;
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(
@@ -1290,6 +1294,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // Check if streaming transport is actually available and enabled
         final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
         final boolean canUseStreamingTransport = (streamSearchTransportService != null) && streamingEnabledSetting;
+        
+        // Use streaming transport for streaming search requests
+        final boolean useStreamingTransport = isStreamingCandidate && canUseStreamingTransport;
 
         if (preFilter) {
             if (logger.isTraceEnabled()) {
@@ -1303,7 +1310,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             return new CanMatchPreFilterSearchPhase(
                 logger,
-                (isStreamingCandidate && canUseStreamingTransport) ? streamSearchTransportService : searchTransportService,
+                (isStreamingCandidate && useStreamingTransport) ? streamSearchTransportService : searchTransportService,
                 connectionLookup,
                 aliasFilter,
                 concreteIndexBoosts,
@@ -1347,7 +1354,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final boolean isStreamingRequest = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
                 && (searchRequest.source() == null || searchRequest.source().size() > 0);
 
-            final SearchProgressListener progressListener = (isStreamingRequest && canUseStreamingTransport)
+            final SearchProgressListener progressListener = (isStreamingRequest && useStreamingTransport)
                 ? new StreamingSearchProgressListener(listener, searchPhaseController, searchRequest)
                 : task.getProgressListener();
 
@@ -1363,7 +1370,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "STREAM DEBUG: query phase using transport [{}] (streamingRequest={}, enabled={}, canUse={})",
-                    ((isStreamingRequest && canUseStreamingTransport) ? "stream" : "classic"),
+                    ((isStreamingRequest && useStreamingTransport) ? "stream" : "classic"),
                     isStreamingRequest,
                     streamingEnabledSetting,
                     canUseStreamingTransport

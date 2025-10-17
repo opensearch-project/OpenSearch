@@ -67,13 +67,13 @@ public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
 
             switch (mode) {
                 case NO_SCORING:
-                    assertEquals("NO_SCORING should always use batch size 1", 1, batchSize);
+                    assertEquals(1, batchSize);
                     break;
                 case SCORED_UNSORTED:
-                    assertEquals("SCORED_UNSORTED should use 5 * 2", 10, batchSize);
+                    assertEquals(10, batchSize);
                     break;
                 case SCORED_SORTED:
-                    assertEquals("SCORED_SORTED should use 5 * 10", 50, batchSize);
+                    assertEquals(50, batchSize);
                     break;
             }
         }
@@ -97,11 +97,9 @@ public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
             exc -> {}
         );
 
-        // Verify getBatchReduceSize returns expected value for SCORED_UNSORTED (minBatchSize * 2)
         int batchSize = consumer.getBatchReduceSize(100, 10);
-        assertEquals("SCORED_UNSORTED should use hard-coded multiplier of 2", 20, batchSize);
+        assertEquals(20, batchSize);
 
-        // Test NO_SCORING mode
         request.setStreamingSearchMode(StreamingSearchMode.NO_SCORING.toString());
         StreamQueryPhaseResultConsumer noScoringConsumer = new StreamQueryPhaseResultConsumer(
             request,
@@ -115,7 +113,57 @@ public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
         );
 
         int noScoringBatchSize = noScoringConsumer.getBatchReduceSize(100, 10);
-        assertEquals("NO_SCORING should always use batch size 1", 1, noScoringBatchSize);
+        assertEquals(1, noScoringBatchSize);
+    }
+
+    /**
+     * Test that StreamQueryPhaseResultConsumer for SCORED_SORTED uses appropriate batch sizing
+     * to maintain global ordering when consuming interleaved partial results from multiple shards.
+     */
+    public void testConsumeInterleavedPartials_ScoredSorted_RespectsGlobalOrdering() {
+        SearchRequest request = new SearchRequest();
+        request.setStreamingSearchMode(StreamingSearchMode.SCORED_SORTED.toString());
+
+        // Create consumer for 3 shards
+        StreamQueryPhaseResultConsumer consumer = new StreamQueryPhaseResultConsumer(
+            request,
+            threadPool.executor(ThreadPool.Names.SEARCH),
+            circuitBreaker,
+            searchPhaseController,
+            SearchProgressListener.NOOP,
+            namedWriteableRegistry,
+            3,
+            exc -> {}
+        );
+
+        int batchSize = consumer.getBatchReduceSize(100, 5);
+        assertEquals(50, batchSize);
+        assertTrue(batchSize >= 10);
+    }
+
+    /**
+     * Test that StreamQueryPhaseResultConsumer for SCORED_UNSORTED uses smaller batch sizing
+     * to enable faster partial reductions without strict ordering requirements.
+     */
+    public void testConsumeInterleavedPartials_ScoredUnsorted_MergesAllWithoutOrdering() {
+        SearchRequest request = new SearchRequest();
+        request.setStreamingSearchMode(StreamingSearchMode.SCORED_UNSORTED.toString());
+
+        // Create consumer for 3 shards
+        StreamQueryPhaseResultConsumer consumer = new StreamQueryPhaseResultConsumer(
+            request,
+            threadPool.executor(ThreadPool.Names.SEARCH),
+            circuitBreaker,
+            searchPhaseController,
+            SearchProgressListener.NOOP,
+            namedWriteableRegistry,
+            3,
+            exc -> {}
+        );
+
+        int batchSize = consumer.getBatchReduceSize(100, 5);
+        assertEquals(10, batchSize);
+        assertTrue(batchSize < 50);
     }
 
 }
