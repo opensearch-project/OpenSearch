@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -54,7 +55,10 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.ParallelFlux;
 import reactor.netty.http.Http11SslContextSpec;
 import reactor.netty.http.Http2SslContextSpec;
+import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.client.HttpClient;
+import reactor.netty.http.client.PrematureCloseException;
+import reactor.util.retry.Retry;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
@@ -65,6 +69,7 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 public class ReactorHttpClient implements Closeable {
     private final boolean compression;
     private final boolean secure;
+    private final boolean useHttp11Only;
 
     static Collection<String> returnHttpResponseBodies(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
@@ -85,6 +90,7 @@ public class ReactorHttpClient implements Closeable {
     public ReactorHttpClient(boolean compression, boolean secure) {
         this.compression = compression;
         this.secure = secure;
+        this.useHttp11Only = OpenSearchTestCase.randomBoolean();
     }
 
     public static ReactorHttpClient create() {
@@ -252,6 +258,7 @@ public class ReactorHttpClient implements Closeable {
                             )
                         )
                 )
+                .retryWhen(Retry.backoff(3, Duration.ofSeconds(1)).filter(throwable -> throwable instanceof PrematureCloseException))
                 .blockLast();
 
         } finally {
@@ -265,25 +272,36 @@ public class ReactorHttpClient implements Closeable {
             .runOn(eventLoopGroup)
             .host(remoteAddress.getHostString())
             .port(remoteAddress.getPort())
-            .compress(compression);
+            .compress(compression)
+            .protocol(HttpProtocol.H2, HttpProtocol.HTTP11);
 
         if (secure) {
-            return client.secure(
-                spec -> spec.sslContext(
-                    OpenSearchTestCase.randomBoolean()
-                        /* switch between HTTP 1.1/HTTP 2 randomly, both are supported */ ? Http11SslContextSpec.forClient()
-                            .configure(s -> s.clientAuth(ClientAuth.NONE).trustManager(InsecureTrustManagerFactory.INSTANCE))
-                        : Http2SslContextSpec.forClient()
-                            .configure(s -> s.clientAuth(ClientAuth.NONE).trustManager(InsecureTrustManagerFactory.INSTANCE))
-                )
+            return client.protocol(
+                useHttp11Only ? new HttpProtocol[] { HttpProtocol.HTTP11 } : new HttpProtocol[] { HttpProtocol.HTTP11, HttpProtocol.H2 }
+            )
+                .secure(
+                    spec -> spec.sslContext(
+                        useHttp11Only
+                            /* switch between HTTP 1.1/HTTP 2 randomly, both are supported */
+                            ? Http11SslContextSpec.forClient()
+                                .configure(s -> s.clientAuth(ClientAuth.NONE).trustManager(InsecureTrustManagerFactory.INSTANCE))
+                            : Http2SslContextSpec.forClient()
+                                .configure(s -> s.clientAuth(ClientAuth.NONE).trustManager(InsecureTrustManagerFactory.INSTANCE))
+                    ).handshakeTimeout(Duration.ofSeconds(30))
+                );
+        } else {
+            return client.protocol(
+                useHttp11Only ? new HttpProtocol[] { HttpProtocol.HTTP11 } : new HttpProtocol[] { HttpProtocol.HTTP11, HttpProtocol.H2C }
             );
         }
-
-        return client;
     }
 
     @Override
     public void close() {
 
+    }
+
+    public boolean useHttp11only() {
+        return useHttp11Only;
     }
 }

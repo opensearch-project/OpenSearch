@@ -13,16 +13,13 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.rule.CreateRuleResponse;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.Map;
 
-import static org.opensearch.rule.action.GetRuleResponseTests.ruleOne;
-import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
-import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRules;
+import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRule;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
 import static org.mockito.Mockito.mock;
 
 public class CreateRuleResponseTests extends OpenSearchTestCase {
@@ -31,14 +28,14 @@ public class CreateRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify serialization and deserialization of CreateRuleResponse
      */
     public void testSerialization() throws IOException {
-        CreateRuleResponse response = new CreateRuleResponse(_ID_ONE, ruleOne);
+        CreateRuleResponse response = new CreateRuleResponse(ruleOne);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
         CreateRuleResponse otherResponse = new CreateRuleResponse(streamInput);
         Rule responseRule = response.getRule();
         Rule otherResponseRule = otherResponse.getRule();
-        assertEqualRules(Map.of(_ID_ONE, responseRule), Map.of(_ID_ONE, otherResponseRule), false);
+        assertEqualRule(responseRule, otherResponseRule, false);
     }
 
     /**
@@ -46,10 +43,10 @@ public class CreateRuleResponseTests extends OpenSearchTestCase {
      */
     public void testToXContentCreateRule() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        CreateRuleResponse response = new CreateRuleResponse(_ID_ONE, ruleOne);
+        CreateRuleResponse response = new CreateRuleResponse(ruleOne);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
-            + "  \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n"
+            + "  \"id\" : \"e9f35a73-ece2-3fa7-857e-7c1af877fc75\",\n"
             + "  \"description\" : \"description_1\",\n"
             + "  \"mock_attribute_one\" : [\n"
             + "    \"mock_attribute_one\"\n"

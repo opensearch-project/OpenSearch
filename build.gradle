@@ -47,6 +47,7 @@ import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.api.Project;
 import org.gradle.process.ExecResult;
 import org.opensearch.gradle.CheckCompatibilityTask
+import groovy.xml.XmlParser;
 
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
 
@@ -118,10 +119,11 @@ subprojects {
         }
         maven {
           name = 'Snapshots'
-          url = 'https://aws.oss.sonatype.org/content/repositories/snapshots'
-          credentials {
-            username = "$System.env.SONATYPE_USERNAME"
-            password = "$System.env.SONATYPE_PASSWORD"
+          url = System.getenv("MAVEN_SNAPSHOTS_S3_REPO")
+          credentials(AwsCredentials) {
+            accessKey = System.getenv("AWS_ACCESS_KEY_ID")
+            secretKey = System.getenv("AWS_SECRET_ACCESS_KEY")
+            sessionToken = System.getenv("AWS_SESSION_TOKEN")
           }
         }
       }
@@ -232,26 +234,8 @@ tasks.register("verifyVersions") {
 
 boolean bwc_tests_enabled = true
 
-/* place an issue link here when committing bwc changes */
-String bwc_tests_disabled_issue = ""
-
-/* there's no existing MacOS release, therefore disable bcw tests */
-if (Os.isFamily(Os.FAMILY_MAC)) {
-  bwc_tests_enabled = false
-  bwc_tests_disabled_issue = "https://github.com/opensearch-project/OpenSearch/issues/4173"
-}
-
-if (bwc_tests_enabled == false) {
-  if (bwc_tests_disabled_issue.isEmpty()) {
-    throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
-  }
-  println "========================= WARNING ========================="
-  println "         Backwards compatibility tests are disabled!"
-  println "See ${bwc_tests_disabled_issue}"
-  println "==========================================================="
-}
 if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
-  // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
+  // Disable BWC tests for checkPart* tasks as it's expected that this will run in it's own check
   bwc_tests_enabled = false
 }
 
@@ -428,7 +412,8 @@ gradle.projectsEvaluated {
       if (task != null) {
         task.jvmArgs += [
             "--add-modules=jdk.incubator.vector",
-            "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED"
+            "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED",
+            "--enable-native-access=ALL-UNNAMED"
         ]
 
         // Add Java Agent for security sandboxing

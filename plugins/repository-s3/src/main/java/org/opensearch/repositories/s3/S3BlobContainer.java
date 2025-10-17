@@ -81,6 +81,7 @@ import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -99,6 +100,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -114,6 +117,7 @@ import static org.opensearch.repositories.s3.utils.SseKmsUtil.configureEncryptio
 class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamBlobContainer {
 
     private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
+    private static final long DEFAULT_OPERATION_TIMEOUT = TimeUnit.SECONDS.toSeconds(30);
 
     private final S3BlobStore blobStore;
     private final String keyPath;
@@ -400,7 +404,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
     private <T> T getFutureValue(PlainActionFuture<T> future) throws IOException {
         try {
-            return future.get();
+            return future.get(DEFAULT_OPERATION_TIMEOUT, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Future got interrupted", e);
@@ -409,6 +413,9 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 throw (IOException) e.getCause();
             }
             throw new RuntimeException(e.getCause());
+        } catch (TimeoutException e) {
+            FutureUtils.cancel(future);
+            throw new IOException("Delete operation timed out after 30 seconds", e);
         }
     }
 
@@ -798,6 +805,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
     @Override
     public void deleteAsync(ActionListener<DeleteResult> completionListener) {
+        logger.debug("Starting async deletion for path [{}]", keyPath);
         try (AmazonAsyncS3Reference asyncClientReference = blobStore.asyncClientReference()) {
             S3AsyncClient s3AsyncClient = asyncClientReference.get().client();
 
@@ -821,6 +829,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 @Override
                 public void onSubscribe(Subscription s) {
                     this.subscription = s;
+                    logger.debug("Subscribed to list objects publisher for path [{}]", keyPath);
                     subscription.request(1);
                 }
 
@@ -832,6 +841,8 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                         objectsToDelete.add(s3Object.key());
                     });
 
+                    logger.debug("Found {} objects to delete in current batch for path [{}]", response.contents().size(), keyPath);
+
                     int bulkDeleteSize = blobStore.getBulkDeletesSize();
                     if (objectsToDelete.size() >= bulkDeleteSize) {
                         int fullBatchesCount = objectsToDelete.size() / bulkDeleteSize;
@@ -840,6 +851,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                         List<String> batchToDelete = new ArrayList<>(objectsToDelete.subList(0, itemsToDelete));
                         objectsToDelete.subList(0, itemsToDelete).clear();
 
+                        logger.debug("Executing bulk delete of {} objects for path [{}]", batchToDelete.size(), keyPath);
                         deletionChain = S3AsyncDeleteHelper.executeDeleteChain(
                             s3AsyncClient,
                             blobStore,
@@ -854,12 +866,19 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
                 @Override
                 public void onError(Throwable t) {
+                    logger.error(() -> new ParameterizedMessage("Failed to list objects for deletion in path [{}]", keyPath), t);
                     listingFuture.completeExceptionally(new IOException("Failed to list objects for deletion", t));
                 }
 
                 @Override
                 public void onComplete() {
+                    logger.debug(
+                        "Completed listing objects for path [{}], remaining objects to delete: {}",
+                        keyPath,
+                        objectsToDelete.size()
+                    );
                     if (!objectsToDelete.isEmpty()) {
+                        logger.debug("Executing final bulk delete of {} objects for path [{}]", objectsToDelete.size(), keyPath);
                         deletionChain = S3AsyncDeleteHelper.executeDeleteChain(
                             s3AsyncClient,
                             blobStore,
@@ -870,8 +889,13 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     }
                     deletionChain.whenComplete((v, throwable) -> {
                         if (throwable != null) {
+                            logger.error(
+                                () -> new ParameterizedMessage("Failed to complete deletion chain for path [{}]", keyPath),
+                                throwable
+                            );
                             listingFuture.completeExceptionally(throwable);
                         } else {
+                            logger.debug("Successfully completed deletion chain for path [{}]", keyPath);
                             listingFuture.complete(null);
                         }
                     });
@@ -880,16 +904,24 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
             listingFuture.whenComplete((v, throwable) -> {
                 if (throwable != null) {
+                    logger.error(() -> new ParameterizedMessage("Failed to complete async deletion for path [{}]", keyPath), throwable);
                     completionListener.onFailure(
                         throwable instanceof Exception
                             ? (Exception) throwable
                             : new IOException("Unexpected error during async deletion", throwable)
                     );
                 } else {
+                    logger.debug(
+                        "Successfully completed async deletion for path [{}]. Deleted {} blobs totaling {} bytes",
+                        keyPath,
+                        deletedBlobs.get(),
+                        deletedBytes.get()
+                    );
                     completionListener.onResponse(new DeleteResult(deletedBlobs.get(), deletedBytes.get()));
                 }
             });
         } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("Failed to initiate async deletion for path [{}]", keyPath), e);
             completionListener.onFailure(new IOException("Failed to initiate async deletion", e));
         }
     }

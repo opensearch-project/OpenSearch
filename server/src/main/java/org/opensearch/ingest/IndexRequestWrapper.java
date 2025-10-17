@@ -22,17 +22,26 @@ public class IndexRequestWrapper {
      * It can be used to map the ingested result or exception to right index request.
      */
     private final int slot;
+
+    /**
+     * Child slot maps a index request to its potential parent action request.
+     * For example, update requests with doc and upsert defined can have two child index requests
+     * with the same slot but different results/failures, differentiated by their child slot
+     */
+    private final int childSlot;
     private final IndexRequest indexRequest;
     private final DocWriteRequest<?> actionRequest;
     private final List<IngestPipelineInfo> pipelineInfoList;
 
     public IndexRequestWrapper(
         int slot,
+        int childSlot,
         IndexRequest indexRequest,
         DocWriteRequest<?> actionRequest,
         List<IngestPipelineInfo> pipelineInfoList
     ) {
         this.slot = slot;
+        this.childSlot = childSlot;
         this.indexRequest = indexRequest;
         this.actionRequest = actionRequest;
         this.pipelineInfoList = pipelineInfoList;
@@ -40,6 +49,10 @@ public class IndexRequestWrapper {
 
     public int getSlot() {
         return slot;
+    }
+
+    public int getChildSlot() {
+        return childSlot;
     }
 
     public IndexRequest getIndexRequest() {

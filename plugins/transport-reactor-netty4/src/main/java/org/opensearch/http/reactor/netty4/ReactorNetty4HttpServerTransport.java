@@ -8,6 +8,7 @@
 
 package org.opensearch.http.reactor.netty4;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -27,6 +28,7 @@ import org.opensearch.http.HttpReadTimeoutException;
 import org.opensearch.http.HttpServerChannel;
 import org.opensearch.http.reactor.netty4.ssl.SslUtils;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider.SecureHttpTransportParameters;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -34,28 +36,28 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.reactor.SharedGroupFactory;
 import org.opensearch.transport.reactor.netty4.Netty4Utils;
 
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLSessionContext;
+import javax.net.ssl.KeyManagerFactory;
 
 import java.net.InetSocketAddress;
 import java.net.SocketOption;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
-import io.netty.handler.ssl.ApplicationProtocolNegotiator;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.netty.handler.ssl.ApplicationProtocolNames;
+import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import io.netty.handler.timeout.ReadTimeoutException;
-import io.netty.util.ReferenceCountUtil;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -242,6 +244,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .runOn(sharedGroup.getLowLevelGroup())
                 .bindAddress(() -> socketAddress)
                 .compress(true)
+                .http2Settings(spec -> spec.maxHeaderListSize(maxHeaderSize.bytesAsInt()))
                 .httpRequestDecoder(
                     spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
                         .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
@@ -306,59 +309,35 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
         // Configure SSL context if available
         if (secureHttpTransportSettingsProvider != null) {
-            final SSLEngine engine = secureHttpTransportSettingsProvider.buildSecureHttpServerEngine(settings, this)
-                .orElseGet(SslUtils::createDefaultServerSSLEngine);
+            final Optional<SecureHttpTransportParameters> parameters = secureHttpTransportSettingsProvider.parameters(settings);
 
-            try {
-                final List<String> cipherSuites = Arrays.asList(engine.getEnabledCipherSuites());
-                final List<String> applicationProtocols = Arrays.asList(engine.getSSLParameters().getApplicationProtocols());
+            final KeyManagerFactory keyManagerFactory = parameters.flatMap(SecureHttpTransportParameters::keyManagerFactory)
+                .orElseThrow(() -> new OpenSearchException("The KeyManagerFactory instance is not provided"));
 
-                configured = configured.secure(spec -> spec.sslContext(new SslContext() {
-                    @Override
-                    public SSLSessionContext sessionContext() {
-                        throw new UnsupportedOperationException(); /* server only, should never be called */
-                    }
+            final SslContextBuilder sslContextBuilder = SslContextBuilder.forServer(keyManagerFactory);
+            parameters.flatMap(SecureHttpTransportParameters::trustManagerFactory).ifPresent(sslContextBuilder::trustManager);
+            parameters.map(SecureHttpTransportParameters::cipherSuites)
+                .ifPresent(ciphers -> sslContextBuilder.ciphers(ciphers, SupportedCipherSuiteFilter.INSTANCE));
+            parameters.flatMap(SecureHttpTransportParameters::clientAuth)
+                .ifPresent(clientAuth -> sslContextBuilder.clientAuth(ClientAuth.valueOf(clientAuth)));
 
-                    @Override
-                    public SSLEngine newEngine(ByteBufAllocator alloc, String peerHost, int peerPort) {
-                        throw new UnsupportedOperationException(); /* server only, should never be called */
-                    }
+            final SslContext sslContext = sslContextBuilder.protocols(
+                parameters.map(SecureHttpTransportParameters::protocols).orElseGet(() -> Arrays.asList(SslUtils.DEFAULT_SSL_PROTOCOLS))
+            )
+                .applicationProtocolConfig(
+                    new ApplicationProtocolConfig(
+                        ApplicationProtocolConfig.Protocol.ALPN,
+                        // NO_ADVERTISE is currently the only mode supported by both OpenSsl and JDK providers.
+                        ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                        // ACCEPT is currently the only mode supported by both OpenSsl and JDK providers.
+                        ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                        ApplicationProtocolNames.HTTP_2,
+                        ApplicationProtocolNames.HTTP_1_1
+                    )
+                )
+                .build();
 
-                    @Override
-                    public SSLEngine newEngine(ByteBufAllocator alloc) {
-                        try {
-                            return secureHttpTransportSettingsProvider.buildSecureHttpServerEngine(
-                                settings,
-                                ReactorNetty4HttpServerTransport.this
-                            ).orElseGet(SslUtils::createDefaultServerSSLEngine);
-                        } catch (final SSLException ex) {
-                            throw new UnsupportedOperationException("Unable to create SSLEngine", ex);
-                        }
-                    }
-
-                    @Override
-                    public boolean isClient() {
-                        return false; /* server only */
-                    }
-
-                    @Override
-                    public List<String> cipherSuites() {
-                        return cipherSuites;
-                    }
-
-                    @Override
-                    public ApplicationProtocolNegotiator applicationProtocolNegotiator() {
-                        return new ApplicationProtocolNegotiator() {
-                            @Override
-                            public List<String> protocols() {
-                                return applicationProtocols;
-                            }
-                        };
-                    }
-                }).build()).protocol(HttpProtocol.HTTP11, HttpProtocol.H2);
-            } finally {
-                ReferenceCountUtil.release(engine);
-            }
+            configured = configured.secure(spec -> spec.sslContext(sslContext)).protocol(HttpProtocol.HTTP11, HttpProtocol.H2);
         } else {
             configured = configured.protocol(HttpProtocol.HTTP11, HttpProtocol.H2C);
         }
@@ -373,6 +352,12 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
      * @return response publisher
      */
     protected Publisher<Void> incomingRequest(HttpServerRequest request, HttpServerResponse response) {
+        // At least now, Reactor Netty does not respect maxInitialLineLength setting for HTTP/2 (but
+        // does respect it for H2C and HTTP/1.1)
+        if (request.uri().length() > maxInitialLineLength.bytesAsInt()) {
+            return response.status(HttpResponseStatus.REQUEST_URI_TOO_LONG).send();
+        }
+
         final Method method = HttpConversionUtil.convertMethod(request.method());
         final Optional<RestHandler> dispatchHandlerOpt = dispatcher.dispatchHandler(
             request.uri(),

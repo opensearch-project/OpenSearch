@@ -1,0 +1,74 @@
+setup:
+  - do:
+      indices.create:
+        index: test_fetch_profile
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+          mappings:
+            properties:
+              text_field:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+              numeric_field:
+                type: integer
+              date_field:
+                type: date
+              object_field:
+                type: nested
+                properties:
+                  nested_field:
+                    type: keyword
+              stored_field:
+                type: keyword
+                store: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_fetch_profile
+        body: |
+          { "index": {} }
+          { "text_field": "Hello world", "numeric_field": 42, "date_field": "2023-01-01", "object_field": { "nested_field": "nested value" }, "stored_field": "stored value" }
+          { "index": {} }
+          { "text_field": "Another document", "numeric_field": 100, "date_field": "2023-02-01", "object_field": { "nested_field": "another nested" }, "stored_field": "another stored" }
+          { "index": {} }
+          { "text_field": "Third document with more text", "numeric_field": 200, "date_field": "2023-03-01", "object_field": { "nested_field": "third nested" }, "stored_field": "third stored" }
+
+
+---
+"Script fields phase profiling":
+  - skip:
+      features: "contains"
+
+  - do:
+      indices.forcemerge:
+        index: test_fetch_profile
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          query:
+            match_all: {}
+          script_fields:
+            my_field:
+              script:
+                lang: painless
+                source: "doc['numeric_field'].value * 2"
+
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "ScriptFieldsPhase"
+        description: "ScriptFieldsPhase"
+  - length: { profile.shards.0.fetch.0.children: 1 }
+
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.set_next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.set_next_reader_count: 1 }

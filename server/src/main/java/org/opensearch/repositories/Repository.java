@@ -303,6 +303,11 @@ public interface Repository extends LifecycleComponent {
     long getRemoteDownloadThrottleTimeInNanos();
 
     /**
+     * Returns low priority remote download throttle time in nanoseconds
+     */
+    long getLowPriorityRemoteDownloadThrottleTimeInNanos();
+
+    /**
      * Returns stats on the repository usage
      */
     default RepositoryStats stats() {
@@ -599,6 +604,10 @@ public interface Repository extends LifecycleComponent {
      * @return true if the repository can be reloaded inplace, false otherwise
      */
     default boolean isReloadable() {
+        return false;
+    }
+
+    default boolean isReloadableSettings(RepositoryMetadata newRepositoryMetadata) {
         return false;
     }
 

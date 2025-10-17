@@ -107,6 +107,11 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             (searchRequest, bytes) -> {
                 SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
                 if (searchTemplateRequest.getScript() != null) {
+                    // Set the search request pipeline
+                    String pipeline = searchTemplateRequest.getSearchPipeline();
+                    if (pipeline != null && !pipeline.isEmpty()) {
+                        searchRequest.pipeline(pipeline);
+                    }
                     searchTemplateRequest.setRequest(searchRequest);
                     multiRequest.add(searchTemplateRequest);
                 } else {

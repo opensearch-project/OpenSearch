@@ -27,6 +27,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.transport.client.Requests;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -37,6 +38,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -55,6 +57,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     @Before
     public void setup() {
+        Assume.assumeTrue("Docker is not available", DockerClientFactory.instance().isDockerAvailable());
         setupKafka();
     }
 
@@ -102,7 +105,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
             return ingestionState.getFailedShards() == 0
                 && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
         });
 
         produceData("{\"_id\":\"1\",\"_version\":\"2\",\"_op_type\":\"index\",\"_source\":{\"name\":\"name\", \"age\": 30}}");
@@ -118,16 +121,39 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
             return Arrays.stream(ingestionState.getShardStates())
                 .allMatch(
                     state -> state.isPollerPaused() == false
-                        && (state.pollerState().equalsIgnoreCase("polling") || state.pollerState().equalsIgnoreCase("processing"))
+                        && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
                 );
         });
 
-        // validate duplicate messages are skipped
+        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(29);
         waitForState(() -> {
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
-            return stats.getConsumerStats().totalDuplicateMessageSkippedCount() == 2;
+
+            return response.getHits().getTotalHits().value() == 2
+                && stats != null
+                && stats.getConsumerStats().totalPolledCount() == 4
+                && stats.getConsumerStats().totalPollerMessageFailureCount() == 0;
         });
+    }
+
+    // This test validates shard initialization does not fail due to kafka connection errors.
+    public void testShardInitializationUsingUnknownTopic() throws Exception {
+        createIndexWithMappingSource(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", "unknownTopic")
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            mappings
+        );
+        ensureGreen(indexName);
     }
 
     private void setupKafka() {

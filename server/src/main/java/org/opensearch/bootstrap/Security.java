@@ -74,9 +74,9 @@ import java.util.regex.Pattern;
 
 import static org.opensearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_PORT_DEFAULTS;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PORT;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
+import static org.opensearch.transport.AuxTransport.AUX_PORT_DEFAULTS;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_PORT;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
 
 /**
  * Initializes SecurityManager with necessary permissions.

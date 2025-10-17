@@ -257,8 +257,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     query
                 );
             } else if (expectedFieldName.equals(INT_FIELD_NAME)) {
-                assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+                assertThat(query, instanceOf(ApproximateScoreQuery.class));
+                Query approximationQuery = ((ApproximateScoreQuery) query).getApproximationQuery();
+                assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
+                Query originalQuery = ((ApproximateScoreQuery) query).getOriginalQuery();
+                assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
+                query = ((IndexOrDocValuesQuery) originalQuery).getIndexQuery();
                 assertThat(query, instanceOf(PointRangeQuery.class));
                 Integer min = (Integer) queryBuilder.from();
                 Integer max = (Integer) queryBuilder.to();
@@ -299,6 +303,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     public void testToQueryNumericField() throws IOException {
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
+        if (parsedQuery instanceof ApproximateScoreQuery) {
+            parsedQuery = ((ApproximateScoreQuery) parsedQuery).getOriginalQuery();
+        }
         // since age is automatically registered in data, we encode it as numeric
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
@@ -440,14 +447,22 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "        }\n"
             + "    }\n"
             + "}";
+
+        // TODO what else can we assert
         QueryShardContext context = createShardContext();
         Query parsedQuery = parseQuery(query).toQuery(context);
-        assertThat(parsedQuery, instanceOf(DateRangeIncludingNowQuery.class));
-        parsedQuery = ((DateRangeIncludingNowQuery) parsedQuery).getQuery();
+
         assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
-        parsedQuery = ((ApproximateScoreQuery) parsedQuery).getApproximationQuery();
-        assertThat(parsedQuery, instanceOf(ApproximateQuery.class));
-        // TODO what else can we assert
+
+        // Get the exact query from ApproximateScoreQuery (which should be DateRangeIncludingNowQuery)
+        ApproximateScoreQuery approximateScoreQuery = (ApproximateScoreQuery) parsedQuery;
+        Query exactQuery = approximateScoreQuery.getOriginalQuery();
+
+        // The exact query should be DateRangeIncludingNowQuery
+        assertThat(exactQuery, instanceOf(DateRangeIncludingNowQuery.class));
+
+        ApproximateQuery approximationQuery = approximateScoreQuery.getApproximationQuery();
+        assertThat(approximationQuery, instanceOf(ApproximatePointRangeQuery.class));
 
         query = "{\n"
             + "    \"range\" : {\n"

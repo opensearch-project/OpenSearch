@@ -6,35 +6,12 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.IndexWriter;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.transport.TransportService;
@@ -58,14 +35,15 @@ public class MergedSegmentWarmerFactory {
     }
 
     public IndexWriter.IndexReaderWarmer get(IndexShard shard) {
-        if (shard.indexSettings().isAssignedOnRemoteNode()) {
-            return new RemoteStoreMergedSegmentWarmer(transportService, recoverySettings, clusterService);
-        } else if (shard.indexSettings().isSegRepLocalEnabled()) {
-            return new LocalMergedSegmentWarmer(transportService, recoverySettings, clusterService);
-        } else if (shard.indexSettings().isDocumentReplication()) {
-            // MergedSegmentWarmerFactory#get is called when IndexShard is initialized. In scenario document replication,
-            // IndexWriter.IndexReaderWarmer should be null.
+        if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG) == false
+            || shard.indexSettings().isDocumentReplication()) {
+            // MergedSegmentWarmerFactory#get is called by IndexShard#newEngineConfig on the initialization of a new indexShard and
+            // in cases of updates to shard state.
+            // 1. IndexWriter.IndexReaderWarmer should be null when IndexMetadata.INDEX_REPLICATION_TYPE_SETTING == ReplicationType.DOCUMENT
+            // 2. IndexWriter.IndexReaderWarmer should be null when the FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG == false
             return null;
+        } else if (shard.indexSettings().isSegRepLocalEnabled() || shard.indexSettings().isRemoteStoreEnabled()) {
+            return new MergedSegmentWarmer(transportService, recoverySettings, clusterService, shard);
         }
         // We just handle known cases and throw exception at the last. This will allow predictability on the IndexReaderWarmer behaviour.
         throw new IllegalStateException(shard.shardId() + " can't determine IndexReaderWarmer");

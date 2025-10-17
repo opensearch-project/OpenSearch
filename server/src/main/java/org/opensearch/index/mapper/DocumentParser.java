@@ -47,6 +47,7 @@ import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
+import org.opensearch.script.ContextAwareGroupingScript;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -55,6 +56,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
@@ -417,6 +420,7 @@ final class DocumentParser {
         }
 
         innerParseObject(context, mapper, parser, currentFieldName, token);
+
         // restore the enable path flag
         if (nested.isNested()) {
             nested(context, nested);
@@ -462,8 +466,31 @@ final class DocumentParser {
                 }
                 token = parser.nextToken();
             }
+            generateGroupingCriteria(context);
         } finally {
             context.decrementFieldCurrentDepth();
+        }
+    }
+
+    private static void generateGroupingCriteria(ParseContext context) {
+        if (context.docMapper() != null && context.docMapper().mappers() != null) {
+            final Mapper mapper = context.docMapper().mappers().getMapper(ContextAwareGroupingFieldMapper.CONTENT_TYPE);
+            if (mapper != null) {
+                final ContextAwareGroupingFieldMapper groupingFieldMapper = (ContextAwareGroupingFieldMapper) mapper;
+                final ContextAwareGroupingScript script = groupingFieldMapper.fieldType().compiledScript();
+                ParseContext.Document doc = context.doc();
+                if (script != null) {
+                    doc.setGroupingCriteria(script.execute(doc.getGroupingCriteriaParams()));
+                } else {
+                    Map<String, Object> groupingCriteriaParams = doc.getGroupingCriteriaParams();
+                    String criteria = groupingFieldMapper.fieldType()
+                        .fields()
+                        .stream()
+                        .map(field -> groupingCriteriaParams.get(field).toString())
+                        .collect(Collectors.joining("-"));
+                    doc.setGroupingCriteria(criteria);
+                }
+            }
         }
     }
 
@@ -554,6 +581,7 @@ final class DocumentParser {
                     throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), mapper.fullPath(), currentFieldName);
                 case TRUE:
                 case STRICT_ALLOW_TEMPLATES:
+                case FALSE_ALLOW_TEMPLATES:
                     Mapper.Builder builder = findTemplateBuilder(
                         context,
                         currentFieldName,
@@ -563,6 +591,10 @@ final class DocumentParser {
                     );
 
                     if (builder == null) {
+                        if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                            context.parser().skipChildren();
+                            break;
+                        }
                         builder = new ObjectMapper.Builder(currentFieldName).enabled(true);
                     }
                     Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
@@ -614,6 +646,7 @@ final class DocumentParser {
                         );
                     case TRUE:
                     case STRICT_ALLOW_TEMPLATES:
+                    case FALSE_ALLOW_TEMPLATES:
                         Mapper.Builder builder = findTemplateBuilder(
                             context,
                             arrayFieldName,
@@ -622,6 +655,10 @@ final class DocumentParser {
                             parentMapper.fullPath()
                         );
                         if (builder == null) {
+                            if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                                context.parser().skipChildren();
+                                break;
+                            }
                             parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                         } else {
                             Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
@@ -786,13 +823,13 @@ final class DocumentParser {
             if (parseableAsLong && context.root().numericDetection()) {
                 Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG, dynamic, fullPath);
                 if (builder == null) {
-                    builder = newLongBuilder(currentFieldName, context.indexSettings().getSettings());
+                    return handleNoTemplateFound(dynamic, () -> newLongBuilder(currentFieldName, context.indexSettings().getSettings()));
                 }
                 return builder;
             } else if (parseableAsDouble && context.root().numericDetection()) {
                 Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE, dynamic, fullPath);
                 if (builder == null) {
-                    builder = newFloatBuilder(currentFieldName, context.indexSettings().getSettings());
+                    return handleNoTemplateFound(dynamic, () -> newFloatBuilder(currentFieldName, context.indexSettings().getSettings()));
                 }
                 return builder;
             } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
@@ -808,14 +845,16 @@ final class DocumentParser {
                     }
                     Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, dateTimeFormatter, dynamic, fullPath);
                     if (builder == null) {
-                        boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
-                        builder = new DateFieldMapper.Builder(
-                            currentFieldName,
-                            DateFieldMapper.Resolution.MILLISECONDS,
-                            dateTimeFormatter,
-                            ignoreMalformed,
-                            IndexMetadata.indexCreated(context.indexSettings().getSettings())
-                        );
+                        return handleNoTemplateFound(dynamic, () -> {
+                            boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
+                            return new DateFieldMapper.Builder(
+                                currentFieldName,
+                                DateFieldMapper.Resolution.MILLISECONDS,
+                                dateTimeFormatter,
+                                ignoreMalformed,
+                                IndexMetadata.indexCreated(context.indexSettings().getSettings())
+                            );
+                        });
                     }
                     return builder;
 
@@ -824,8 +863,11 @@ final class DocumentParser {
 
             Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING, dynamic, fullPath);
             if (builder == null) {
-                builder = new TextFieldMapper.Builder(currentFieldName, context.mapperService().getIndexAnalyzers()).addMultiField(
-                    new KeywordFieldMapper.Builder("keyword").ignoreAbove(256)
+                return handleNoTemplateFound(
+                    dynamic,
+                    () -> new TextFieldMapper.Builder(currentFieldName, context.mapperService().getIndexAnalyzers()).addMultiField(
+                        new KeywordFieldMapper.Builder("keyword").ignoreAbove(256)
+                    )
                 );
             }
             return builder;
@@ -836,7 +878,7 @@ final class DocumentParser {
                 || numberType == XContentParser.NumberType.BIG_INTEGER) {
                 Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG, dynamic, fullPath);
                 if (builder == null) {
-                    builder = newLongBuilder(currentFieldName, context.indexSettings().getSettings());
+                    return handleNoTemplateFound(dynamic, () -> newLongBuilder(currentFieldName, context.indexSettings().getSettings()));
                 }
                 return builder;
             } else if (numberType == XContentParser.NumberType.FLOAT
@@ -847,20 +889,23 @@ final class DocumentParser {
                         // no templates are defined, we use float by default instead of double
                         // since this is much more space-efficient and should be enough most of
                         // the time
-                        builder = newFloatBuilder(currentFieldName, context.indexSettings().getSettings());
+                        return handleNoTemplateFound(
+                            dynamic,
+                            () -> newFloatBuilder(currentFieldName, context.indexSettings().getSettings())
+                        );
                     }
                     return builder;
                 }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.BOOLEAN, dynamic, fullPath);
             if (builder == null) {
-                builder = new BooleanFieldMapper.Builder(currentFieldName);
+                return handleNoTemplateFound(dynamic, () -> new BooleanFieldMapper.Builder(currentFieldName));
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
             Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.BINARY, dynamic, fullPath);
             if (builder == null) {
-                builder = new BinaryFieldMapper.Builder(currentFieldName);
+                return handleNoTemplateFound(dynamic, () -> new BinaryFieldMapper.Builder(currentFieldName));
             }
             return builder;
         } else {
@@ -873,6 +918,16 @@ final class DocumentParser {
         throw new IllegalStateException(
             "Can't handle serializing a dynamic type with content token [" + token + "] and field name [" + currentFieldName + "]"
         );
+    }
+
+    private static Mapper.Builder<?> handleNoTemplateFound(
+        ObjectMapper.Dynamic dynamic,
+        java.util.function.Supplier<Mapper.Builder<?>> builderSupplier
+    ) {
+        if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+            return null;
+        }
+        return builderSupplier.get();
     }
 
     private static void parseDynamicValue(
@@ -888,8 +943,16 @@ final class DocumentParser {
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             return;
         }
-        final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
         final Mapper.Builder<?> builder = createBuilderFromDynamicValue(context, token, currentFieldName, dynamic, parentMapper.fullPath());
+        if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES && builder == null) {
+            // For FALSE_ALLOW_TEMPLATES, if no template matches, we still need to consume the token
+            // to maintain proper JSON parsing state
+            if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                context.parser().skipChildren();
+            }
+            return;
+        }
+        final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
         Mapper mapper = builder.build(builderContext);
         context.addDynamicMapper(mapper);
 
@@ -978,8 +1041,9 @@ final class DocumentParser {
                 switch (dynamic) {
                     case STRICT:
                         throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), parent.fullPath(), paths[i]);
-                    case STRICT_ALLOW_TEMPLATES:
                     case TRUE:
+                    case STRICT_ALLOW_TEMPLATES:
+                    case FALSE_ALLOW_TEMPLATES:
                         Mapper.Builder builder = findTemplateBuilder(
                             context,
                             paths[i],
@@ -988,6 +1052,9 @@ final class DocumentParser {
                             parent.fullPath()
                         );
                         if (builder == null) {
+                            if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                                return new Tuple<>(pathsAdded, parent);
+                            }
                             builder = new ObjectMapper.Builder(paths[i]).enabled(true);
                         }
                         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(

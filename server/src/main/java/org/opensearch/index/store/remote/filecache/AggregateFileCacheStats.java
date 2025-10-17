@@ -67,6 +67,10 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return max <= 0 ? 0 : (short) (Math.round((100d * used) / max));
     }
 
+    public static double calculatePercentageWithDecimals(long used, long max) {
+        return max <= 0 ? 0.0 : Math.round((100d * used) / max * 100.0) / 100.0;
+    }
+
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeLong(timestamp);
@@ -92,6 +96,10 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return calculatePercentage(overallFileCacheStats.getActive(), overallFileCacheStats.getUsed());
     }
 
+    public double getOverallActivePercent() {
+        return calculatePercentageWithDecimals(overallFileCacheStats.getActive(), overallFileCacheStats.getTotal());
+    }
+
     public ByteSizeValue getUsed() {
         return new ByteSizeValue(overallFileCacheStats.getUsed());
     }
@@ -114,6 +122,11 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
 
     public long getCacheMisses() {
         return overallFileCacheStats.getCacheMisses();
+    }
+
+    // visible for testing.
+    public FileCacheStats getBlockFileCacheStats() {
+        return blockFileCacheStats;
     }
 
     @Override

@@ -88,12 +88,32 @@ public class IndexNameExpressionResolver {
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
-    private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, wildcardExpressionResolver);
+    private final List<ExpressionResolver> expressionResolvers;
+    private final List<ExpressionResolver> customResolvers = new ArrayList<>();
 
     private final ThreadContext threadContext;
 
     public IndexNameExpressionResolver(ThreadContext threadContext) {
+        expressionResolvers = new ArrayList<>();
+        expressionResolvers.add(dateMathExpressionResolver);
+        expressionResolvers.add(wildcardExpressionResolver);
         this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
+    }
+
+    public IndexNameExpressionResolver(ThreadContext threadContext, List<ExpressionResolver> resolvers) {
+        // Set custom resolvers to the top of the list to ensure to WildcardExpressionResolver is triggered at the end,
+        // otherwise it will throw exception in case it cannot resolve any keywords which are expected to be handled
+        // by custom resolvers.
+        customResolvers.addAll(resolvers);
+        expressionResolvers = new ArrayList<>(customResolvers);
+        expressionResolvers.add(dateMathExpressionResolver);
+        expressionResolvers.add(wildcardExpressionResolver);
+        this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
+    }
+
+    // Visible for testing
+    public List<ExpressionResolver> getExpressionResolvers() {
+        return new ArrayList<>(this.expressionResolvers);
     }
 
     /**
@@ -171,7 +191,14 @@ public class IndexNameExpressionResolver {
             indexExpressions = new String[] { "*" };
         }
 
-        List<String> dataStreams = wildcardExpressionResolver.resolve(context, Arrays.asList(indexExpressions));
+        // Using customResolvers to filter out invalid expressions
+        List<String> finalExpressions = Arrays.asList(indexExpressions);
+        for (ExpressionResolver resolver : customResolvers) {
+            finalExpressions = resolver.resolve(context, finalExpressions);
+        }
+
+        List<String> dataStreams = wildcardExpressionResolver.resolve(context, finalExpressions);
+
         return ((dataStreams == null) ? List.<String>of() : dataStreams).stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
@@ -778,6 +805,7 @@ public class IndexNameExpressionResolver {
      *
      * @opensearch.internal
      */
+    @PublicApi(since = "3.1.0")
     public static class Context {
 
         private final ClusterState state;
@@ -789,7 +817,7 @@ public class IndexNameExpressionResolver {
         private final boolean preserveDataStreams;
         private final boolean isSystemIndexAccessAllowed;
 
-        Context(ClusterState state, IndicesOptions options, boolean isSystemIndexAccessAllowed) {
+        public Context(ClusterState state, IndicesOptions options, boolean isSystemIndexAccessAllowed) {
             this(state, options, System.currentTimeMillis(), isSystemIndexAccessAllowed);
         }
 
@@ -903,7 +931,13 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private interface ExpressionResolver {
+    /**
+     * Expression resolver for index name expressions.
+     *
+     * @opensearch.internal
+     */
+    @PublicApi(since = "3.1.0")
+    public interface ExpressionResolver {
 
         /**
          * Resolves the list of expressions into other expressions if possible (possible concrete indices and aliases, but

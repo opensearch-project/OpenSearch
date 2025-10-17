@@ -337,6 +337,16 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return indexService.getShard(0);
     }
 
+    protected IndexShard getIndexShardFromShardId(String dataNode, String indexName, Integer shardId) throws ExecutionException,
+        InterruptedException {
+        String clusterManagerName = internalCluster().getClusterManagerName();
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNode);
+        GetIndexResponse getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
+        String uuid = getIndexResponse.getSettings().get(indexName).get(IndexMetadata.SETTING_INDEX_UUID);
+        IndexService indexService = indicesService.indexService(new Index(indexName, uuid));
+        return indexService.getShard(shardId);
+    }
+
     protected void restore(boolean restoreAllShards, String... indices) {
         if (restoreAllShards) {
             assertAcked(client().admin().indices().prepareClose(indices));

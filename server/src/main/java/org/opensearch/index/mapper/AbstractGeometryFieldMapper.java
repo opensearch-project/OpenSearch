@@ -452,7 +452,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    public Explicit<Boolean> ignoreMalformed() {
+    @Override
+    protected Explicit<Boolean> ignoreMalformed() {
         return ignoreMalformed;
     }
 

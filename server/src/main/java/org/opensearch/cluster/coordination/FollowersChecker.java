@@ -86,6 +86,10 @@ public class FollowersChecker {
     private static final Logger logger = LogManager.getLogger(FollowersChecker.class);
 
     public static final String FOLLOWER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/follower_check";
+    public static final String NODE_LEFT_REASON_LAGGING = "lagging";
+    public static final String NODE_LEFT_REASON_DISCONNECTED = "disconnected";
+    public static final String NODE_LEFT_REASON_HEALTHCHECK_FAIL = "health check failed";
+    public static final String NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL = "followers check retry count exceeded";
 
     // the time between checks sent to each node
     public static final Setting<TimeValue> FOLLOWER_CHECK_INTERVAL_SETTING = Setting.timeSetting(
@@ -398,13 +402,13 @@ public class FollowersChecker {
                         final String reason;
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                             logger.info(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
-                            reason = "disconnected";
+                            reason = NODE_LEFT_REASON_DISCONNECTED;
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
                             logger.info(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
-                            reason = "health check failed";
+                            reason = NODE_LEFT_REASON_HEALTHCHECK_FAIL;
                         } else if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
                             logger.info(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
-                            reason = "followers check retry count exceeded";
+                            reason = NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL;
                         } else {
                             logger.info(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();

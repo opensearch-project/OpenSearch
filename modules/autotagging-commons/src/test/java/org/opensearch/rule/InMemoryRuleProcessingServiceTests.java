@@ -17,10 +17,13 @@ import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
+import static org.opensearch.rule.attribute_extractor.AttributeExtractor.LogicalOperator.OR;
 
 public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     InMemoryRuleProcessingService sut;
@@ -31,7 +34,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
             WLMFeatureType.WLM,
             DefaultAttributeValueStore::new
         );
-        sut = new InMemoryRuleProcessingService(attributeValueStoreFactory);
+        sut = new InMemoryRuleProcessingService(attributeValueStoreFactory, WLMFeatureType.WLM.getOrderedAttributes());
     }
 
     public void testAdd() {
@@ -49,6 +52,16 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         sut.remove(rule);
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("test"));
+        Optional<String> label = sut.evaluateLabel(extractors);
+        assertFalse(label.isPresent());
+    }
+
+    public void testAddThenRemoveWithWildcard() {
+        Rule rule = getRule(Set.of("test-*"), "test_id");
+        sut.add(rule);
+        sut.remove(rule);
+
+        List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("test-index"));
         Optional<String> label = sut.evaluateLabel(extractors);
         assertFalse(label.isPresent());
     }
@@ -112,7 +125,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     }
 
     private static List<AttributeExtractor<String>> getAttributeExtractors(List<String> extractedAttributes) {
-        List<AttributeExtractor<String>> extractors = List.of(new AttributeExtractor<String>() {
+        List<AttributeExtractor<String>> extractors = new ArrayList<>();
+        extractors.add(new AttributeExtractor<String>() {
             @Override
             public Attribute getAttribute() {
                 return TestAttribute.TEST_ATTRIBUTE;
@@ -121,6 +135,11 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
             @Override
             public Iterable<String> extract() {
                 return extractedAttributes;
+            }
+
+            @Override
+            public LogicalOperator getLogicalOperator() {
+                return OR;
             }
         });
         return extractors;
@@ -139,8 +158,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Map<String, Attribute> getAllowedAttributesRegistry() {
-            return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
+        public Map<Attribute, Integer> getOrderedAttributes() {
+            return Map.of(TestAttribute.TEST_ATTRIBUTE, 1);
         }
     }
 

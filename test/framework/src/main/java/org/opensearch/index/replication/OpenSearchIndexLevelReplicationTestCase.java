@@ -101,8 +101,11 @@ import org.opensearch.index.shard.IndexShardTestUtils;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.recovery.DefaultRecoverySettings;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -150,17 +153,48 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
     protected ReplicationGroup createGroup(int replicas, Settings settings, String mappings, EngineFactory engineFactory)
         throws IOException {
+        return createGroup(replicas, settings, mappings, engineFactory, DefaultRecoverySettings.INSTANCE, MergedSegmentPublisher.EMPTY);
+    }
+
+    protected ReplicationGroup createGroup(
+        int replicas,
+        Settings settings,
+        String mappings,
+        EngineFactory engineFactory,
+        RecoverySettings recoverySettings,
+        MergedSegmentPublisher mergedSegmentPublisher
+    ) throws IOException {
         Path remotePath = null;
         if ("true".equals(settings.get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED))) {
             remotePath = createTempDir();
         }
-        return createGroup(replicas, settings, mappings, engineFactory, remotePath);
+        return createGroup(replicas, settings, mappings, engineFactory, recoverySettings, remotePath, mergedSegmentPublisher);
     }
 
     protected ReplicationGroup createGroup(int replicas, Settings settings, String mappings, EngineFactory engineFactory, Path remotePath)
         throws IOException {
+        return createGroup(
+            replicas,
+            settings,
+            mappings,
+            engineFactory,
+            DefaultRecoverySettings.INSTANCE,
+            remotePath,
+            MergedSegmentPublisher.EMPTY
+        );
+    }
+
+    protected ReplicationGroup createGroup(
+        int replicas,
+        Settings settings,
+        String mappings,
+        EngineFactory engineFactory,
+        RecoverySettings recoverySettings,
+        Path remotePath,
+        MergedSegmentPublisher mergedSegmentPublisher
+    ) throws IOException {
         IndexMetadata metadata = buildIndexMetadata(replicas, settings, mappings);
-        return new ReplicationGroup(metadata, remotePath) {
+        return new ReplicationGroup(metadata, recoverySettings, remotePath, mergedSegmentPublisher) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
                 return engineFactory;
@@ -253,6 +287,15 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         }
 
         protected ReplicationGroup(final IndexMetadata indexMetadata, Path remotePath) throws IOException {
+            this(indexMetadata, DefaultRecoverySettings.INSTANCE, remotePath, MergedSegmentPublisher.EMPTY);
+        }
+
+        protected ReplicationGroup(
+            final IndexMetadata indexMetadata,
+            RecoverySettings recoverySettings,
+            Path remotePath,
+            MergedSegmentPublisher mergedSegmentPublisher
+        ) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
             primary = newShard(
                 primaryRouting,
@@ -261,7 +304,9 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 getEngineFactory(primaryRouting),
                 () -> {},
                 retentionLeaseSyncer,
-                remotePath
+                recoverySettings,
+                remotePath,
+                mergedSegmentPublisher
             );
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetadata = indexMetadata;
@@ -377,6 +422,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                     }
                 }
             }
+            // Update the status of the replicas in the routing table to IndexShardState.STARTED.
+            updateAllocationIDsOnPrimary();
             return started;
         }
 

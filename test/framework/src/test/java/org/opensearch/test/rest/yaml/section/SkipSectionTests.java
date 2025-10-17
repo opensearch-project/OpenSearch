@@ -32,7 +32,6 @@
 
 package org.opensearch.test.rest.yaml.section;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.opensearch.core.common.ParsingException;
@@ -72,7 +71,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             "foobar"
         );
         assertFalse(section.skip(Version.CURRENT));
-        assertTrue(section.skip(LegacyESVersion.fromString("6.0.0")));
+        assertTrue(section.skip(Version.fromString("6.0.0")));
         section = new SkipSection(randomBoolean() ? null : "6.0.0 - 6.1.0", Collections.singletonList("boom"), "foobar");
         assertTrue(section.skip(Version.CURRENT));
     }

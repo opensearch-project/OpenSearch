@@ -12,14 +12,12 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.RuleQueryMapper;
-import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.action.GetRuleRequest;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-
-import static org.opensearch.rule.autotagging.Rule._ID_STRING;
 
 /**
  * This class is used to build opensearch index based query object
@@ -35,24 +33,33 @@ public class IndexBasedRuleQueryMapper implements RuleQueryMapper<QueryBuilder> 
     @Override
     public QueryBuilder from(GetRuleRequest request) {
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
-        final Map<Attribute, Set<String>> attributeFilters = request.getAttributeFilters();
+        final Map<String, Set<String>> attributeFilters = request.getAttributeFilters();
         final String id = request.getId();
 
         boolQuery.filter(QueryBuilders.existsQuery(request.getFeatureType().getName()));
         if (id != null) {
-            return boolQuery.must(QueryBuilders.termQuery(_ID_STRING, id));
+            return boolQuery.must(QueryBuilders.termQuery("_id", id));
         }
-        for (Map.Entry<Attribute, Set<String>> entry : attributeFilters.entrySet()) {
-            Attribute attribute = entry.getKey();
+        Map<String, BoolQueryBuilder> groupedQueries = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : attributeFilters.entrySet()) {
+            String attribute = entry.getKey();
             Set<String> values = entry.getValue();
             if (values != null && !values.isEmpty()) {
-                BoolQueryBuilder attributeQuery = QueryBuilders.boolQuery();
+                String topLevelAttribute = attribute.contains(".") ? attribute.substring(0, attribute.indexOf('.')) : attribute;
+                BoolQueryBuilder groupQuery = groupedQueries.computeIfAbsent(topLevelAttribute, k -> QueryBuilders.boolQuery());
                 for (String value : values) {
-                    attributeQuery.should(QueryBuilders.matchQuery(attribute.getName(), value));
+                    groupQuery.should(QueryBuilders.termQuery(attribute + ".keyword", value));
                 }
-                boolQuery.must(attributeQuery);
             }
         }
+        for (BoolQueryBuilder groupQuery : groupedQueries.values()) {
+            boolQuery.must(groupQuery);
+        }
         return boolQuery;
+    }
+
+    @Override
+    public QueryBuilder getCardinalityQuery() {
+        return QueryBuilders.matchAllQuery();
     }
 }

@@ -131,7 +131,9 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Stats for consumer (poller)
+     * Stats for consumer (poller).
+     *
+     * totalDuplicateMessageSkippedCount has been deprecated as of version 3.4  and will be removed in a future version.
      */
     @ExperimentalApi
     public record ConsumerStats(long totalPolledCount, long lagInMillis, long totalConsumerErrorCount, long totalPollerMessageFailureCount,
@@ -213,6 +215,10 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             return this;
         }
 
+        /**
+         * @deprecated As of 3.4, this field is no longer used and will be removed in a future version.
+         */
+        @Deprecated(since = "3.4", forRemoval = true)
         public Builder setTotalDuplicateMessageSkippedCount(long totalDuplicateMessageSkippedCount) {
             this.totalDuplicateMessageSkippedCount = totalDuplicateMessageSkippedCount;
             return this;

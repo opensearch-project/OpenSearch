@@ -53,7 +53,6 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.List;
@@ -100,13 +99,11 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     private final DiskThresholdSettings diskThresholdSettings;
     private final boolean enableForSingleDataNode;
-    private final FileCacheSettings fileCacheSettings;
 
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         assert Version.CURRENT.major < 9 : "remove enable_for_single_data_node in 9";
         this.enableForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
-        this.fileCacheSettings = new FileCacheSettings(settings, clusterSettings);
     }
 
     /**

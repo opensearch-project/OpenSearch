@@ -57,6 +57,7 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
@@ -115,6 +116,7 @@ public final class EngineConfig {
     private final Comparator<LeafReader> leafSorter;
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
     private final ClusterApplierService clusterApplierService;
+    private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -306,6 +308,7 @@ public final class EngineConfig {
         this.documentMapperForTypeSupplier = builder.documentMapperForTypeSupplier;
         this.indexReaderWarmer = builder.indexReaderWarmer;
         this.clusterApplierService = builder.clusterApplierService;
+        this.mergedSegmentTransferTracker = builder.mergedSegmentTransferTracker;
     }
 
     /**
@@ -315,6 +318,45 @@ public final class EngineConfig {
      */
     public void setEnableGcDeletes(boolean enableGcDeletes) {
         this.enableGcDeletes = enableGcDeletes;
+    }
+
+    /**
+     * Creates a new Builder pre-populated with all values from this EngineConfig.
+     * This allows for easy modification of specific fields while preserving all others.
+     *
+     * @return a new Builder instance with all current configuration values
+     */
+    public Builder toBuilder() {
+        return new Builder().shardId(this.shardId)
+            .threadPool(this.threadPool)
+            .indexSettings(this.indexSettings)
+            .warmer(this.warmer)
+            .store(this.store)
+            .mergePolicy(this.mergePolicy)
+            .analyzer(this.analyzer)
+            .similarity(this.similarity)
+            .codecService(this.codecService)
+            .eventListener(this.eventListener)
+            .queryCache(this.queryCache)
+            .queryCachingPolicy(this.queryCachingPolicy)
+            .translogConfig(this.translogConfig)
+            .translogDeletionPolicyFactory(this.translogDeletionPolicyFactory)
+            .flushMergesAfter(this.flushMergesAfter)
+            .externalRefreshListener(this.externalRefreshListener)
+            .internalRefreshListener(this.internalRefreshListener)
+            .indexSort(this.indexSort)
+            .circuitBreakerService(this.circuitBreakerService)
+            .globalCheckpointSupplier(this.globalCheckpointSupplier)
+            .retentionLeasesSupplier(this.retentionLeasesSupplier)
+            .primaryTermSupplier(this.primaryTermSupplier)
+            .tombstoneDocSupplier(this.tombstoneDocSupplier)
+            .readOnlyReplica(this.isReadOnlyReplica)
+            .startedPrimarySupplier(this.startedPrimarySupplier)
+            .translogFactory(this.translogFactory)
+            .leafSorter(this.leafSorter)
+            .documentMapperForTypeSupplier(this.documentMapperForTypeSupplier)
+            .indexReaderWarmer(this.indexReaderWarmer)
+            .clusterApplierService(this.clusterApplierService);
     }
 
     /**
@@ -587,10 +629,18 @@ public final class EngineConfig {
     }
 
     /**
+     * Returns the MergedSegmentTransferTracker instance.
+     */
+    public MergedSegmentTransferTracker getMergedSegmentTransferTracker() {
+        return this.mergedSegmentTransferTracker;
+    }
+
+    /**
      * Builder for EngineConfig class
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "3.3.0")
     public static class Builder {
         private ShardId shardId;
         private ThreadPool threadPool;
@@ -622,6 +672,7 @@ public final class EngineConfig {
         Comparator<LeafReader> leafSorter;
         private IndexWriter.IndexReaderWarmer indexReaderWarmer;
         private ClusterApplierService clusterApplierService;
+        private MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
         public Builder shardId(ShardId shardId) {
             this.shardId = shardId;
@@ -770,6 +821,11 @@ public final class EngineConfig {
 
         public Builder clusterApplierService(ClusterApplierService clusterApplierService) {
             this.clusterApplierService = clusterApplierService;
+            return this;
+        }
+
+        public Builder mergedSegmentTransferTracker(MergedSegmentTransferTracker mergedSegmentTransferTracker) {
+            this.mergedSegmentTransferTracker = mergedSegmentTransferTracker;
             return this;
         }
 

@@ -58,6 +58,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.indices.IndicesModule;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -606,4 +607,151 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertThat(indexMetadataAfterDiffApplied.getVersion(), equalTo(nextIndexMetadata.getVersion()));
     }
 
+    /**
+     * Test validation for remote store segment path prefix setting
+     */
+    public void testRemoteStoreSegmentPathPrefixValidation() {
+        // Test empty value (should be allowed)
+        final Settings emptySettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "")
+            .build();
+
+        IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(emptySettings);
+
+        final Settings whitespaceSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "   ")
+            .build();
+
+        IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(whitespaceSettings);
+
+        final Settings validSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer-node-1")
+            .build();
+
+        String value = IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(validSettings);
+        assertEquals("writer-node-1", value);
+
+        final Settings disabledSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), false)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer-node-1")
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(disabledSettings);
+        });
+        assertTrue(e.getMessage().contains("can only be set when"));
+
+        final Settings noRemoteStoreSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer-node-1")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(noRemoteStoreSettings); }
+        );
+        assertTrue(e.getMessage().contains("can only be set when"));
+
+        final Settings invalidPathSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer/node")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(invalidPathSettings); }
+        );
+        assertTrue(e.getMessage().contains("cannot contain path separators"));
+
+        final Settings backslashSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer\\node")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(backslashSettings); }
+        );
+        assertTrue(e.getMessage().contains("cannot contain path separators"));
+
+        final Settings colonSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer:node")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(colonSettings); }
+        );
+        assertTrue(e.getMessage().contains("cannot contain path separators"));
+    }
+
+    /**
+     * Test validation for pull-based ingestion all-active settings.
+     */
+    public void testAllActivePullBasedIngestionSettings() {
+        // all-active ingestion enabled with default (document) replication mode
+        final Settings settings1 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), true)
+            .put(IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.getKey(), "kafka")
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
+            .build();
+
+        boolean isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings1);
+        assertTrue(isAllActiveIngestionEnabled);
+
+        // all-active ingestion disabled in segment replication mode
+        final Settings settings2 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), false)
+            .put(IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.getKey(), "kafka")
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .build();
+
+        isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings2);
+        assertFalse(isAllActiveIngestionEnabled);
+
+        // all-active ingestion disabled in document replication mode
+        final Settings settings3 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), false)
+            .put(IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.getKey(), "kafka")
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
+            .build();
+
+        IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> {
+            IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings3);
+        });
+        assertTrue(e1.getMessage().contains("is not supported in pull-based ingestion"));
+
+        // all-active ingestion enabled in segment replication mode
+        final Settings settings4 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), true)
+            .put(IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.getKey(), "kafka")
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .build();
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> {
+            IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings4);
+        });
+        assertTrue(e2.getMessage().contains("is not supported in pull-based ingestion"));
+
+        // all-active ingestion validations do not apply when pull-based ingestion is not enabled
+        final Settings settings5 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .build();
+
+        isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings5);
+        assertTrue(isAllActiveIngestionEnabled);
+
+        // all-active ingestion validations do not apply when pull-based ingestion is not enabled
+        final Settings settings6 = Settings.builder()
+            .put(IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey(), false)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
+            .build();
+
+        isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings6);
+        assertFalse(isAllActiveIngestionEnabled);
+    }
 }

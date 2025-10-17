@@ -106,9 +106,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
         long bucketOrd;
 
-        protected long docCount;
+        long docCount;
         protected long docCountError;
-        protected InternalAggregations aggregations;
+        InternalAggregations aggregations;
         protected final boolean showDocCountError;
         protected final DocValueFormat format;
 
@@ -341,14 +341,17 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         while (pq.size() > 0) {
             final IteratorAndCurrent<B> top = pq.top();
             assert lastBucket == null || cmp.compare(top.current(), lastBucket) >= 0;
+
             if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
                 // the key changes, reduce what we already buffered and reset the buffer for current buckets
                 final B reduced = reduceBucket(currentBuckets, reduceContext);
                 reducedBuckets.add(reduced);
                 currentBuckets.clear();
             }
+
             lastBucket = top.current();
             currentBuckets.add(top.current());
+
             if (top.hasNext()) {
                 top.next();
                 assert cmp.compare(top.current(), lastBucket) > 0 : "shards must return data sorted by key";
@@ -455,6 +458,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         } else {
             reducedBuckets = reduceLegacy(aggregations, reduceContext);
         }
+
         final B[] list;
         if (reduceContext.isFinalReduce() || reduceContext.isSliceLevel()) {
             final int size = Math.min(localBucketCountThresholds.getRequiredSize(), reducedBuckets.size());
@@ -528,7 +532,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         // the errors from the shards that did respond with the terms and
         // subtract that from the sum of the error from all shards
         long docCountError = 0;
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+
+        List<InternalAggregations> aggregationsList = new ArrayList<>();
         for (B bucket : buckets) {
             docCount += bucket.getDocCount();
             if (docCountError != -1) {
@@ -538,10 +543,20 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                     docCountError += bucket.getDocCountError();
                 }
             }
-            aggregationsList.add((InternalAggregations) bucket.getAggregations());
+
+            InternalAggregations subAggs = (InternalAggregations) bucket.getAggregations();
+            if (subAggs != null && subAggs.subAggSize() > 0) {
+                aggregationsList.add(subAggs);
+            }
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-        return createBucket(docCount, aggs, docCountError, buckets.get(0));
+
+        InternalAggregations subAggs;
+        if (aggregationsList.isEmpty()) {
+            subAggs = InternalAggregations.EMPTY;
+        } else {
+            subAggs = InternalAggregations.reduce(aggregationsList, context);
+        }
+        return createBucket(docCount, subAggs, docCountError, buckets.get(0));
     }
 
     protected abstract void setDocCountError(long docCountError);

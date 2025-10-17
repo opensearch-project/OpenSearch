@@ -209,6 +209,14 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         assertThat(headers.get(3).value, equalTo("uuid"));
         assertThat(headers.get(4).value, equalTo("pri"));
         assertThat(headers.get(5).value, equalTo("rep"));
+        // Check for new columns (at the end)
+        boolean foundRaw = false, foundString = false;
+        for (Table.Cell cell : headers) {
+            if ("last_index_request_timestamp".equals(cell.value)) foundRaw = true;
+            if ("last_index_request_timestamp_string".equals(cell.value)) foundString = true;
+        }
+        assertTrue(foundRaw);
+        assertTrue(foundString);
     }
 
     private void assertTableRows(Table table) {
@@ -239,6 +247,66 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
                 assertThat(row.get(4).value, nullValue());
                 assertThat(row.get(5).value, nullValue());
             }
+        }
+    }
+
+    public void testLastIndexRequestTimestampColumns() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final Settings settings = Settings.builder().build();
+        final ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        final RestIndicesAction action = new RestIndicesAction(responseLimitSettings);
+        // Setup a known timestamp
+        long knownTs = 1710000000000L;
+        IndexStats indexStats = mock(IndexStats.class);
+        CommonStats commonStats = mock(CommonStats.class);
+        org.opensearch.index.shard.IndexingStats indexingStats = mock(org.opensearch.index.shard.IndexingStats.class);
+        org.opensearch.index.shard.IndexingStats.Stats stats = mock(org.opensearch.index.shard.IndexingStats.Stats.class);
+        when(indexStats.getTotal()).thenReturn(commonStats);
+        when(indexStats.getPrimaries()).thenReturn(commonStats);
+        when(commonStats.getIndexing()).thenReturn(indexingStats);
+        when(indexingStats.getTotal()).thenReturn(stats);
+        when(stats.getMaxLastIndexRequestTimestamp()).thenReturn(knownTs);
+        Map<String, IndexStats> testStats = new LinkedHashMap<>();
+        String testIndex = "test-index";
+        testStats.put(testIndex, indexStats);
+        Map<String, Settings> testSettings = new LinkedHashMap<>();
+        testSettings.put(testIndex, Settings.EMPTY);
+        Map<String, IndexMetadata> testMetadatas = new LinkedHashMap<>();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build();
+        testMetadatas.put(
+            testIndex,
+            IndexMetadata.builder(testIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build()
+        );
+        Map<String, ClusterIndexHealth> testHealths = new LinkedHashMap<>();
+        Table table = action.buildTable(
+            new FakeRestRequest(),
+            testSettings,
+            testHealths,
+            testStats,
+            testMetadatas,
+            action.getTableIterator(new String[] { testIndex }, testSettings),
+            null
+        );
+        // Find the columns
+        List<Table.Cell> header = table.getHeaders();
+        int rawIdx = -1, strIdx = -1;
+        for (int i = 0; i < header.size(); i++) {
+            if ("last_index_request_timestamp".equals(header.get(i).value)) rawIdx = i;
+            if ("last_index_request_timestamp_string".equals(header.get(i).value)) strIdx = i;
+        }
+        assertTrue(rawIdx != -1);
+        assertTrue(strIdx != -1);
+        List<List<Table.Cell>> rows = table.getRows();
+        assertEquals(1, rows.size());
+        List<Table.Cell> row = rows.get(0);
+        assertEquals(String.valueOf(knownTs), row.get(rawIdx).value.toString());
+        // Robust: parse the string as ISO-8601 and compare to knownTs
+        String timestampString = row.get(strIdx).value.toString();
+        try {
+            java.time.Instant parsed = java.time.Instant.parse(timestampString);
+            assertEquals(knownTs, parsed.toEpochMilli());
+        } catch (java.time.format.DateTimeParseException e) {
+            fail("Timestamp string is not a valid ISO-8601 date: " + timestampString);
         }
     }
 }

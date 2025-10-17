@@ -126,6 +126,7 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
             SearchRequest searchRequest = new SearchRequest(indices);
             // scroll is not supported in the current msearch or msearchtemplate api, so unset it:
             searchRequest.scroll((Scroll) null);
+            searchRequest.pipeline("pipeline");
             // batched reduce size is currently not set-able on a per-request basis as it is a query string parameter only
             searchRequest.setBatchedReduceSize(SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE);
             SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
@@ -133,6 +134,7 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
             searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
             searchTemplateRequest.setScriptType(ScriptType.INLINE);
             searchTemplateRequest.setProfile(randomBoolean());
+            searchTemplateRequest.setSearchPipeline("pipeline");
 
             Map<String, Object> scriptParams = new HashMap<>();
             scriptParams.put("field", "name");
@@ -164,6 +166,34 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
 
         // Finally, serialize the deserialized request to compare JSON equivalence (in case Object.equals() fails to reveal a discrepancy)
         assertEquals(serialized, toJsonString(deser));
+    }
+
+    public void testParseRequestWithSearchPipeline() throws Exception {
+        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/opensearch/script/mustache/simple-msearch-template.json");
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), MediaTypeRegistry.JSON)
+            .build();
+
+        MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+
+        assertThat(request.requests().size(), equalTo(3));
+        SearchTemplateRequest searchTemplateRequest = request.requests().get(0);
+
+        assertThat(request.requests().get(0).getRequest().indices()[0], equalTo("test0"));
+        assertThat(request.requests().get(0).getRequest().indices()[1], equalTo("test1"));
+        assertThat(request.requests().get(0).getRequest().indices(), arrayContaining("test0", "test1"));
+        assertThat(request.requests().get(0).getRequest().pipeline(), equalTo("my_pipeline"));
+        assertThat(request.requests().get(1).getRequest().indices()[0], equalTo("test2"));
+        assertThat(request.requests().get(1).getRequest().indices()[1], equalTo("test3"));
+        assertThat(request.requests().get(1).getRequest().indices(), arrayContaining("test2", "test3"));
+        assertThat(request.requests().get(1).getRequest().pipeline(), equalTo("my_pipeline1"));
+        assertThat(request.requests().get(2).getRequest().indices()[0], equalTo("test4"));
+        assertThat(request.requests().get(2).getRequest().indices()[1], equalTo("test1"));
+        assertThat(request.requests().get(2).getRequest().indices(), arrayContaining("test4", "test1"));
+        assertThat(request.requests().get(2).getRequest().pipeline(), equalTo("my_pipeline2"));
+
+        // Additional validation
+        assertEquals("{\"query\":{\"match_{{template}}\":{}}}", searchTemplateRequest.getScript());
+        assertEquals("all", searchTemplateRequest.getScriptParams().get("template"));
     }
 
     protected String toJsonString(MultiSearchTemplateRequest multiSearchTemplateRequest) throws IOException {

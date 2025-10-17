@@ -56,6 +56,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.search.backpressure.SearchBackpressureTestHelpers.createMockTaskWithResourceStats;
@@ -74,6 +75,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SearchBackpressureServiceTests extends OpenSearchTestCase {
+    final BooleanSupplier resourceCacheExpiryChecker = () -> true;
     MockTransportService transportService;
     TaskManager taskManager;
     ThreadPool threadPool;
@@ -101,8 +103,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         AtomicReference<Double> cpuUsage = new AtomicReference<>();
         AtomicReference<Double> heapUsage = new AtomicReference<>();
-        NodeDuressTracker cpuUsageTracker = new NodeDuressTracker(() -> cpuUsage.get() >= 0.5, () -> 3);
-        NodeDuressTracker heapUsageTracker = new NodeDuressTracker(() -> heapUsage.get() >= 0.5, () -> 3);
+        NodeDuressTracker cpuUsageTracker = new NodeDuressTracker(() -> cpuUsage.get() >= 0.5, () -> 5);
+        NodeDuressTracker heapUsageTracker = new NodeDuressTracker(() -> heapUsage.get() >= 0.5, () -> 6);
 
         EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
             {
@@ -121,7 +123,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             System::nanoTime,
-            new NodeDuressTrackers(duressTrackers),
+            new NodeDuressTrackers(duressTrackers, resourceCacheExpiryChecker),
             new TaskResourceUsageTrackers(),
             new TaskResourceUsageTrackers(),
             taskManager,
@@ -167,7 +169,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            new NodeDuressTrackers(new EnumMap<>(ResourceType.class)),
+            new NodeDuressTrackers(new EnumMap<>(ResourceType.class), resourceCacheExpiryChecker),
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             taskManager,
@@ -201,7 +203,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            new NodeDuressTrackers(new EnumMap<>(ResourceType.class)),
+            new NodeDuressTrackers(new EnumMap<>(ResourceType.class), resourceCacheExpiryChecker),
             new TaskResourceUsageTrackers(),
             taskResourceUsageTrackers,
             taskManager,
@@ -256,7 +258,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            new NodeDuressTrackers(duressTrackers),
+            new NodeDuressTrackers(duressTrackers, resourceCacheExpiryChecker),
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             mockTaskManager,
@@ -329,7 +331,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 put(CPU, mockNodeDuressTracker);
             }
         };
-        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers);
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers, resourceCacheExpiryChecker);
 
         TaskResourceUsageTracker mockTaskResourceUsageTracker = getMockedTaskResourceUsageTracker(
             TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
@@ -427,7 +429,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             }
         };
 
-        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers);
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers, resourceCacheExpiryChecker);
 
         // Creating heap and cpu usage trackers where heap tracker will always evaluate with reasons to cancel the
         // tasks but heap based cancellation should not happen because heap is not in duress
@@ -525,7 +527,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             }
         };
 
-        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers);
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers, resourceCacheExpiryChecker);
 
         // Creating heap and cpu usage trackers where heap tracker will always evaluate with reasons to cancel the
         // tasks but heap based cancellation should not happen because heap is not in duress

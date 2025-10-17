@@ -415,10 +415,10 @@ public class LocalShardsBalancer extends ShardsBalancer {
                             logger.trace(
                                 "Stop balancing index [{}]  min_node [{}] weight: [{}]" + "  max_node [{}] weight: [{}]  delta: [{}]",
                                 index,
-                                maxNode.getNodeId(),
-                                weights[highIdx],
                                 minNode.getNodeId(),
                                 weights[lowIdx],
+                                maxNode.getNodeId(),
+                                weights[highIdx],
                                 delta
                             );
                         }

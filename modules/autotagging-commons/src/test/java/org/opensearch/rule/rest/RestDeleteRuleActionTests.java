@@ -20,8 +20,6 @@ public class RestDeleteRuleActionTests extends OpenSearchTestCase {
     public void testRoutes() {
         var routes = action.routes();
         assertEquals(1, routes.size());
-        assertTrue(
-            routes.stream().anyMatch(r -> r.getMethod().name().equals("DELETE") && r.getPath().equals("_rules/{featureType}/{_id}"))
-        );
+        assertTrue(routes.stream().anyMatch(r -> r.getMethod().name().equals("DELETE") && r.getPath().equals("_rules/{featureType}/{id}")));
     }
 }

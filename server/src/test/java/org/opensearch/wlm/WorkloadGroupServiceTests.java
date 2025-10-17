@@ -477,7 +477,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         task.setWorkloadGroupId(mockThreadPool.getThreadContext());
         assertTrue(workloadGroupService.shouldSBPHandle(task));
 
-        // Valid query group task but wlm not enabled
+        // Valid workload group task but wlm not enabled
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
         activeWorkloadGroups.add(
             new WorkloadGroup(

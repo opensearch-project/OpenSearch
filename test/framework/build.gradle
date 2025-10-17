@@ -39,6 +39,7 @@ dependencies {
   api project(':libs:opensearch-nio')
   api project(":server")
   api project(":libs:opensearch-cli")
+  api project(":libs:opensearch-telemetry")
   api project(":test:telemetry")
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
@@ -55,7 +56,7 @@ dependencies {
   fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   compileOnly project(":libs:agent-sm:bootstrap")
-  compileOnly "com.github.spotbugs:spotbugs-annotations:4.9.3"
+  compileOnly "com.github.spotbugs:spotbugs-annotations:4.9.6"
 
   annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 }

@@ -216,7 +216,8 @@ public class GoogleCloudStorageService {
                     mapBuilder.put("user-agent", clientSettings.getApplicationName());
                 }
                 return mapBuilder.immutableMap();
-            });
+            })
+            .setStorageRetryStrategy(new GoogleShouldRetryStorageStrategy());
         if (Strings.hasLength(clientSettings.getHost())) {
             storageOptionsBuilder.setHost(clientSettings.getHost());
         }

@@ -69,6 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
@@ -104,6 +105,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
         public static final String SEARCH = "search";
+        public static final String STREAM_SEARCH = "stream_search";
         public static final String SEARCH_THROTTLED = "search_throttled";
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
@@ -139,7 +141,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         DIRECT("direct"),
         FIXED("fixed"),
         RESIZABLE("resizable"),
-        SCALING("scaling");
+        SCALING("scaling"),
+        FORK_JOIN("fork_join");
 
         private final String type;
 
@@ -181,6 +184,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
         map.put(Names.WRITE, ThreadPoolType.FIXED);
         map.put(Names.SEARCH, ThreadPoolType.RESIZABLE);
+        map.put(Names.STREAM_SEARCH, ThreadPoolType.RESIZABLE);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
@@ -260,6 +264,17 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(
             Names.SEARCH,
             new ResizableExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, runnableTaskListener)
+        );
+        // TODO: configure the appropriate size and explore use of virtual threads
+        builders.put(
+            Names.STREAM_SEARCH,
+            new ResizableExecutorBuilder(
+                settings,
+                Names.STREAM_SEARCH,
+                searchThreadPoolSize(allocatedProcessors),
+                1000,
+                runnableTaskListener
+            )
         );
         builders.put(Names.SEARCH_THROTTLED, new ResizableExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, runnableTaskListener));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
@@ -436,11 +451,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         Map<String, Settings> tpGroups = tpSettings.getAsGroups();
         for (Map.Entry<String, Settings> entry : tpGroups.entrySet()) {
             String tpName = entry.getKey();
-            if (THREAD_POOL_TYPES.containsKey(tpName) == false) {
+            if (executors.containsKey(tpName) == false) {
                 throw new IllegalArgumentException("illegal thread_pool name : " + tpName);
             }
             Settings tpGroup = entry.getValue();
             ExecutorHolder holder = executors.get(tpName);
+            // Skip validation for ForkJoinPool type since it does not support setting updates
+            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
+                continue;
+            }
             assert holder.executor instanceof OpenSearchThreadPoolExecutor;
             OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) holder.executor;
             if (holder.info.type == ThreadPoolType.SCALING) {
@@ -476,6 +495,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             String tpName = entry.getKey();
             Settings tpGroup = entry.getValue();
             ExecutorHolder holder = executors.get(tpName);
+            if (holder == null) {
+                throw new IllegalArgumentException("illegal thread_pool name : " + tpName);
+            }
+            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
+                continue;
+            }
             assert holder.executor instanceof OpenSearchThreadPoolExecutor;
             OpenSearchThreadPoolExecutor executor = (OpenSearchThreadPoolExecutor) holder.executor;
             if (holder.info.type == ThreadPoolType.SCALING) {
@@ -515,6 +540,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             if ("same".equals(name)) {
                 continue;
             }
+            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
+                stats.add(new ThreadPoolStats.Stats(name, 0, 0, 0, 0, 0, 0, -1, holder.info.getMax()));
+                continue;
+            }
             int threads = -1;
             int queue = -1;
             int active = -1;
@@ -522,6 +551,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             int largest = -1;
             long completed = -1;
             long waitTimeNanos = -1;
+            int parallelism = -1;
+
             if (holder.executor() instanceof OpenSearchThreadPoolExecutor) {
                 OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) holder.executor();
                 threads = threadPoolExecutor.getPoolSize();
@@ -530,12 +561,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 largest = threadPoolExecutor.getLargestPoolSize();
                 completed = threadPoolExecutor.getCompletedTaskCount();
                 waitTimeNanos = threadPoolExecutor.getPoolWaitTimeNanos();
+
                 RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
                 if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
                     rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
                 }
             }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed, waitTimeNanos));
+            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed, waitTimeNanos, parallelism));
         }
         return new ThreadPoolStats(stats);
     }
@@ -636,8 +668,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         stopCachedTimeThread();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor) {
-                executor.executor().shutdown();
+            ExecutorService es = executor.executor();
+            if (es instanceof ThreadPoolExecutor || es instanceof ForkJoinPool) {
+                es.shutdown();
             }
         }
     }
@@ -646,8 +679,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         stopCachedTimeThread();
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor) {
-                executor.executor().shutdownNow();
+            ExecutorService es = executor.executor();
+            if (es instanceof ThreadPoolExecutor || es instanceof ForkJoinPool) {
+                es.shutdownNow();
             }
         }
     }
@@ -655,7 +689,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         boolean result = scheduler.awaitTermination(timeout, unit);
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor) {
+            if (executor.executor() instanceof ThreadPoolExecutor || executor.executor() instanceof ForkJoinPool) {
                 result &= executor.executor().awaitTermination(timeout, unit);
             }
         }
@@ -856,7 +890,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public final Info info;
 
         ExecutorHolder(ExecutorService executor, Info info) {
-            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR;
+            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR || executor instanceof ForkJoinPool;
             this.executor = executor;
             this.info = info;
         }
@@ -901,12 +935,30 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public Info(StreamInput in) throws IOException {
             name = in.readString();
             final String typeStr = in.readString();
+            ThreadPoolType resolvedType;
             // Opensearch on or after 3.0.0 version doesn't know about "fixed_auto_queue_size" thread pool. Convert it to RESIZABLE.
             if (typeStr.equalsIgnoreCase("fixed_auto_queue_size")) {
-                type = ThreadPoolType.RESIZABLE;
+                resolvedType = ThreadPoolType.RESIZABLE;
             } else {
-                type = ThreadPoolType.fromType(typeStr);
+                try {
+                    resolvedType = ThreadPoolType.fromType(typeStr);
+                } catch (IllegalArgumentException e) {
+                    // Only fallback for older versions
+                    if (in.getVersion().onOrBefore(Version.V_3_3_0)) { // ForkJoinPool Introduced in 3.4.0 onwards
+                        resolvedType = ThreadPoolType.FIXED;
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Unknown ThreadPoolType '"
+                                + typeStr
+                                + "' for version "
+                                + in.getVersion()
+                                + ". "
+                                + "This may be a protocol or node version mismatch."
+                        );
+                    }
+                }
             }
+            type = resolvedType;
             min = in.readInt();
             max = in.readInt();
             keepAlive = in.readOptionalTimeValue();
@@ -919,6 +971,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             if (type == ThreadPoolType.RESIZABLE && out.getVersion().before(Version.V_3_0_0)) {
                 // Opensearch on older version doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
                 // to avoid serialization/de-serization issue between nodes with different OpenSearch version
+                out.writeString(ThreadPoolType.FIXED.getType());
+            } else if (type == ThreadPoolType.FORK_JOIN && out.getVersion().before(Version.V_3_4_0)) {
+                // Opensearch on older version doesn't know about "fork_join" thread pool. Convert FORK_JOIN to FIXED
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else {
                 out.writeString(type.getType());
@@ -965,17 +1020,27 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 builder.field("core", min);
                 assert max != -1;
                 builder.field("max", max);
+                if (keepAlive != null) {
+                    builder.field("keep_alive", keepAlive.toString());
+                }
+                if (queueSize == null) {
+                    builder.field("queue_size", -1);
+                } else {
+                    builder.field("queue_size", queueSize.singles());
+                }
+            } else if (type == ThreadPoolType.FORK_JOIN) {
+                builder.field("parallelism", max);
             } else {
                 assert max != -1;
                 builder.field("size", max);
-            }
-            if (keepAlive != null) {
-                builder.field("keep_alive", keepAlive.toString());
-            }
-            if (queueSize == null) {
-                builder.field("queue_size", -1);
-            } else {
-                builder.field("queue_size", queueSize.singles());
+                if (keepAlive != null) {
+                    builder.field("keep_alive", keepAlive.toString());
+                }
+                if (queueSize == null) {
+                    builder.field("queue_size", -1);
+                } else {
+                    builder.field("queue_size", queueSize.singles());
+                }
             }
             builder.endObject();
             return builder;

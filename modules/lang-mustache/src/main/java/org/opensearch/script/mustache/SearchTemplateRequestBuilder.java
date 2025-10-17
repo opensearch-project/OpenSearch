@@ -89,4 +89,9 @@ public class SearchTemplateRequestBuilder extends ActionRequestBuilder<SearchTem
         request.setScriptParams(scriptParams);
         return this;
     }
+
+    public SearchTemplateRequestBuilder setSearchPipeline(String searchPipeline) {
+        request.setSearchPipeline(searchPipeline);
+        return this;
+    }
 }

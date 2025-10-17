@@ -32,6 +32,7 @@
 
 package org.opensearch.search.fetch;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -40,6 +41,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
@@ -55,6 +57,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     private SearchHits hits;
     // client side counter
     private transient int counter;
+    private ProfileShardResult profileShardResults;
 
     public FetchSearchResult() {}
 
@@ -62,6 +65,11 @@ public final class FetchSearchResult extends SearchPhaseResult {
         super(in);
         contextId = new ShardSearchContextId(in);
         hits = new SearchHits(in);
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+            profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
+        } else {
+            profileShardResults = null;
+        }
     }
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
@@ -104,9 +112,20 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return counter++;
     }
 
+    public void profileResults(ProfileShardResult shardResults) {
+        this.profileShardResults = shardResults;
+    }
+
+    public ProfileShardResult getProfileResults() {
+        return profileShardResults;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
         hits.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+            out.writeOptionalWriteable(profileShardResults);
+        }
     }
 }

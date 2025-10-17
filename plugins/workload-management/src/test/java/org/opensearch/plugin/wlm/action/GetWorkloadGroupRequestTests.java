@@ -10,7 +10,7 @@ package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
+import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -21,8 +21,8 @@ public class GetWorkloadGroupRequestTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetWorkloadGroupRequest.
      */
     public void testSerialization() throws IOException {
-        GetWorkloadGroupRequest request = new GetWorkloadGroupRequest(WorkloadGroupTestUtils.NAME_ONE);
-        assertEquals(WorkloadGroupTestUtils.NAME_ONE, request.getName());
+        GetWorkloadGroupRequest request = new GetWorkloadGroupRequest(WorkloadManagementTestUtils.NAME_ONE);
+        assertEquals(WorkloadManagementTestUtils.NAME_ONE, request.getName());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();

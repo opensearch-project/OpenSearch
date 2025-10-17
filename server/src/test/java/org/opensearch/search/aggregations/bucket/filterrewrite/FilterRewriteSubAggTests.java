@@ -422,7 +422,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         public ParseContext.Document toDocument() {
             ParseContext.Document doc = new ParseContext.Document();
 
-            List<Field> fieldList = numberType.createFields(longFieldName, metric, true, true, false);
+            List<Field> fieldList = numberType.createFields(longFieldName, metric, true, true, false, false);
             for (Field fld : fieldList)
                 doc.add(fld);
             doc.add(new LongField(dateFieldName, dateFieldType.parse(timestamp.toString()), Field.Store.NO));

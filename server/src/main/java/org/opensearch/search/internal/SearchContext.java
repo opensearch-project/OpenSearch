@@ -37,6 +37,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
@@ -54,6 +55,8 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.SearchExtBuilder;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
@@ -77,6 +80,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Collection;
@@ -517,7 +521,26 @@ public abstract class SearchContext implements Releasable {
 
     public abstract int getTargetMaxSliceCount();
 
+    @ExperimentalApi
+    public long getStreamingMaxEstimatedBucketCount() {
+        return 100_000L;
+    }
+
+    @ExperimentalApi
+    public double getStreamingMinCardinalityRatio() {
+        return 0.01;
+    }
+
+    @ExperimentalApi
+    public long getStreamingMinEstimatedBucketCount() {
+        return 1000L;
+    }
+
     public abstract boolean shouldUseTimeSeriesDescSortOptimization();
+
+    public boolean getStarTreeIndexEnabled() {
+        return false;
+    }
 
     public int maxAggRewriteFilters() {
         return 0;
@@ -532,7 +555,43 @@ public abstract class SearchContext implements Releasable {
         return 0;
     }
 
+    public int bucketSelectionStrategyFactor() {
+        return SearchService.DEFAULT_BUCKET_SELECTION_STRATEGY_FACTOR;
+    }
+
     public boolean keywordIndexOrDocValuesEnabled() {
         return false;
     }
+
+    @ExperimentalApi
+    public void setStreamChannelListener(StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> listener) {
+        throw new IllegalStateException("Set search channel listener should be implemented for stream search");
+    }
+
+    @ExperimentalApi
+    public StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> getStreamChannelListener() {
+        throw new IllegalStateException("Get search channel listener should be implemented for stream search");
+    }
+
+    @ExperimentalApi
+    public boolean isStreamSearch() {
+        return false;
+    }
+
+    /**
+     * Gets the resolved flush mode for this search context.
+     */
+    @ExperimentalApi
+    public FlushMode getFlushMode() {
+        return null;
+    }
+
+    /**
+     * Atomically sets the flush mode if not already set. Returns true if successful.
+     */
+    @ExperimentalApi
+    public boolean setFlushModeIfAbsent(FlushMode flushMode) {
+        return false;
+    }
+
 }

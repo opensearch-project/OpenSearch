@@ -9,7 +9,6 @@
 package org.opensearch.rule.action;
 
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.rule.DeleteRuleRequest;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RulePersistenceServiceRegistry;
 import org.opensearch.test.OpenSearchTestCase;

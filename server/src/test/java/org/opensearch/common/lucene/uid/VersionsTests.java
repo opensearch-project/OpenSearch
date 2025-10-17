@@ -39,7 +39,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -220,7 +219,7 @@ public class VersionsTests extends OpenSearchTestCase {
         assertEquals(VersionUtils.getPreviousVersion(Version.fromString("2.1.3")).luceneVersion, version.luceneVersion);
 
         // too old version, major should be the oldest supported lucene version minus 1
-        version = LegacyESVersion.fromString("5.2.1");
+        version = Version.fromString("5.2.1");
         assertEquals(VersionUtils.getFirstVersion().luceneVersion.major - 1, version.luceneVersion.major);
 
         // future version, should be the same version as today

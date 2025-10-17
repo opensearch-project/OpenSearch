@@ -9,9 +9,13 @@
 package org.opensearch.rule.storage;
 
 import org.apache.commons.collections4.trie.PatriciaTrie;
+import org.opensearch.rule.MatchLabel;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -21,7 +25,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * ref: https://commons.apache.org/proper/commons-collections/javadocs/api-4.4/org/apache/commons/collections4/trie/PatriciaTrie.html
  */
 public class DefaultAttributeValueStore<K extends String, V> implements AttributeValueStore<K, V> {
-    private final PatriciaTrie<V> trie;
+    private final PatriciaTrie<Set<V>> trie;
     private static final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private static final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
     private static final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
@@ -37,7 +41,7 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
      * Main constructor
      * @param trie A Patricia Trie
      */
-    public DefaultAttributeValueStore(PatriciaTrie<V> trie) {
+    public DefaultAttributeValueStore(PatriciaTrie<Set<V>> trie) {
         this.trie = trie;
     }
 
@@ -45,66 +49,78 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
     public void put(K key, V value) {
         writeLock.lock();
         try {
-            trie.put(key, value);
+            trie.computeIfAbsent(key, k -> new HashSet<>()).add(value);
         } finally {
             writeLock.unlock();
         }
     }
 
     @Override
-    public void remove(String key) {
+    public void remove(K key, V value) {
         writeLock.lock();
         try {
-            trie.remove(key);
+            trie.computeIfPresent(key, (k, values) -> {
+                values.remove(value);
+                return values.isEmpty() ? null : values;
+            });
         } finally {
             writeLock.unlock();
         }
     }
 
     @Override
-    public Optional<V> get(String key) {
+    public void remove(K key) {
+        throw new UnsupportedOperationException("This remove(K key) function is not supported within DefaultAttributeValueStore.");
+    }
+
+    @Override
+    public Optional<V> get(K key) {
+        throw new UnsupportedOperationException("This get(K key) function is not supported within DefaultAttributeValueStore.");
+    }
+
+    @Override
+    public List<MatchLabel<V>> getExactMatch(K key) {
         readLock.lock();
         try {
-            /**
-             * Since we are inserting prefixes into the trie and searching for larger strings
-             * It is important to find the largest matching prefix key in the trie efficiently
-             * Hence we can do binary search
-             */
-            final String longestMatchingPrefix = findLongestMatchingPrefix(key);
-
-            /**
-             * Now there are following cases for this prefix
-             * 1. There is a Rule which has this prefix as one of the attribute values. In this case we should return the
-             *     Rule's label otherwise send empty
-             */
-            for (Map.Entry<String, V> possibleMatch : trie.prefixMap(longestMatchingPrefix).entrySet()) {
-                if (key.startsWith(possibleMatch.getKey())) {
-                    return Optional.of(possibleMatch.getValue());
-                }
-            }
+            List<MatchLabel<V>> results = new ArrayList<>();
+            addMatches(results, trie.get(key), 1f);
+            addMatches(results, trie.get(""), 0f);
+            return results;
         } finally {
             readLock.unlock();
         }
-        return Optional.empty();
     }
 
-    private String findLongestMatchingPrefix(String key) {
-        int low = 0;
-        int high = key.length() - 1;
+    @Override
+    public List<MatchLabel<V>> getMatches(String key) {
+        readLock.lock();
+        try {
+            List<MatchLabel<V>> results = new ArrayList<>();
+            StringBuilder prefixBuilder = new StringBuilder(key);
 
-        while (low < high) {
-            int mid = (high + low + 1) / 2;
-            /**
-             * This operation has O(1) complexity because prefixMap returns only the iterator
-             */
-            if (!trie.prefixMap(key.substring(0, mid)).isEmpty()) {
-                low = mid;
-            } else {
-                high = mid - 1;
+            for (int i = key.length(); i >= 0; i--) {
+                Set<V> values = trie.get(prefixBuilder.toString());
+                if (values != null && !values.isEmpty()) {
+                    float score = (float) prefixBuilder.length() / key.length();
+                    addMatches(results, values, score);
+                }
+                if (!prefixBuilder.isEmpty()) {
+                    prefixBuilder.deleteCharAt(prefixBuilder.length() - 1);
+                }
             }
+            return results;
+        } finally {
+            readLock.unlock();
         }
+    }
 
-        return key.substring(0, low);
+    private void addMatches(List<MatchLabel<V>> results, Set<V> values, float score) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        for (V label : values) {
+            results.add(new MatchLabel<>(label, score));
+        }
     }
 
     @Override

@@ -1,7 +1,7 @@
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
 RUN apt-get update -qqy
-RUN apt-get install -qqy openjdk-11-jre-headless
+RUN apt-get install -qqy openjdk-21-jre-headless
 
 ARG fixtureClass
 ARG port

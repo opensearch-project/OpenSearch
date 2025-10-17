@@ -23,9 +23,9 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.BoundTransportAddress;
-import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
 
 import java.security.AccessController;
@@ -36,8 +36,16 @@ import java.util.Objects;
  * FlightService manages the Arrow Flight server and client for OpenSearch.
  * It handles the initialization, startup, and shutdown of the Flight server and client,
  * as well as managing the stream operations through a FlightStreamManager.
+ *
+ * @opensearch.internal
  */
-public class FlightService extends NetworkPlugin.AuxTransport {
+public class FlightService extends AuxTransport {
+    /**
+     * Setting identifier for this transport.
+     * Public for testing.
+     */
+    public static final String ARROW_FLIGHT_TRANSPORT_SETTING_KEY = "experimental-transport-arrow-flight-rpc";
+
     private static final Logger logger = LogManager.getLogger(FlightService.class);
     private final ServerComponents serverComponents;
     private FlightStreamManager streamManager;
@@ -53,33 +61,56 @@ public class FlightService extends NetworkPlugin.AuxTransport {
      */
     public FlightService(Settings settings) {
         Objects.requireNonNull(settings, "Settings cannot be null");
-        try {
-            ServerConfig.init(settings);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize Arrow Flight server", e);
-        }
         this.serverComponents = new ServerComponents(settings);
         this.streamManager = new FlightStreamManager();
     }
 
-    void setClusterService(ClusterService clusterService) {
+    /**
+     * Identifier for enabling and configuring this transport in settings.
+     */
+    @Override
+    public String settingKey() {
+        return ARROW_FLIGHT_TRANSPORT_SETTING_KEY;
+    }
+
+    /**
+     * Sets the cluster service for the Flight service.
+     * @param clusterService The cluster service instance
+     */
+    public void setClusterService(ClusterService clusterService) {
         serverComponents.setClusterService(Objects.requireNonNull(clusterService, "ClusterService cannot be null"));
     }
 
-    void setNetworkService(NetworkService networkService) {
+    /**
+     * Sets the network service for the Flight service.
+     * @param networkService The network service instance
+     */
+    public void setNetworkService(NetworkService networkService) {
         serverComponents.setNetworkService(Objects.requireNonNull(networkService, "NetworkService cannot be null"));
     }
 
-    void setThreadPool(ThreadPool threadPool) {
+    /**
+     * Sets the thread pool for the Flight service.
+     * @param threadPool The thread pool instance
+     */
+    public void setThreadPool(ThreadPool threadPool) {
         this.threadPool = Objects.requireNonNull(threadPool, "ThreadPool cannot be null");
         serverComponents.setThreadPool(threadPool);
     }
 
-    void setClient(Client client) {
+    /**
+     * Sets the client for the Flight service.
+     * @param client The client instance
+     */
+    public void setClient(Client client) {
         this.client = client;
     }
 
-    void setSecureTransportSettingsProvider(SecureTransportSettingsProvider secureTransportSettingsProvider) {
+    /**
+     * Sets the secure transport settings provider for the Flight service.
+     * @param secureTransportSettingsProvider The secure transport settings provider
+     */
+    public void setSecureTransportSettingsProvider(SecureTransportSettingsProvider secureTransportSettingsProvider) {
         this.secureTransportSettingsProvider = secureTransportSettingsProvider;
     }
 
@@ -90,10 +121,11 @@ public class FlightService extends NetworkPlugin.AuxTransport {
     @Override
     protected void doStart() {
         try {
+            logger.info("Starting FlightService...");
             allocator = AccessController.doPrivileged((PrivilegedAction<BufferAllocator>) () -> new RootAllocator(Integer.MAX_VALUE));
             serverComponents.setAllocator(allocator);
             SslContextProvider sslContextProvider = ServerConfig.isSslEnabled()
-                ? new DefaultSslContextProvider(secureTransportSettingsProvider)
+                ? new DefaultSslContextProvider(secureTransportSettingsProvider, serverComponents.clusterService.getSettings())
                 : null;
             serverComponents.setSslContextProvider(sslContextProvider);
             serverComponents.initComponents();
@@ -108,7 +140,6 @@ public class FlightService extends NetworkPlugin.AuxTransport {
             initializeStreamManager(clientManager);
             serverComponents.setFlightProducer(new BaseFlightProducer(clientManager, streamManager, allocator));
             serverComponents.start();
-
         } catch (Exception e) {
             logger.error("Failed to start Flight server", e);
             doClose();

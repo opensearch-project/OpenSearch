@@ -8,7 +8,8 @@
 
 package org.opensearch.index.store.remote.filecache;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -32,7 +33,7 @@ import static org.opensearch.index.store.remote.filecache.AggregateFileCacheStat
  *
  * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "2.7.0")
 public class FileCacheStats implements Writeable, ToXContentFragment {
 
     private final long active;
@@ -44,6 +45,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
     private final long misses;
     private final FileCacheStatsType statsType;
 
+    @InternalApi
     public FileCacheStats(
         final long active,
         long total,
@@ -64,6 +66,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         this.statsType = statsType;
     }
 
+    @InternalApi
     public FileCacheStats(final StreamInput in) throws IOException {
         this.statsType = FileCacheStatsType.fromString(in.readString());
         this.active = in.readLong();

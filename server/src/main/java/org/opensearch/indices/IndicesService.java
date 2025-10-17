@@ -61,6 +61,7 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.service.CacheService;
@@ -105,6 +106,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
@@ -155,6 +157,8 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
@@ -214,7 +218,6 @@ import static org.opensearch.index.TieredMergePolicyProvider.DEFAULT_MAX_MERGE_A
 import static org.opensearch.index.TieredMergePolicyProvider.MIN_DEFAULT_MAX_MERGE_AT_ONCE;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
@@ -381,7 +384,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MapperRegistry mapperRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final IndexingMemoryController indexingMemoryController;
-    private final TimeValue cleanInterval;
+    private final TimeValue cleanInterval; // clean interval for the field data cache
     final IndicesRequestCache indicesRequestCache; // pkg-private for testing
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
@@ -390,6 +393,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories;
     private final Map<String, IngestionConsumerFactory> ingestionConsumerFactories;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
@@ -420,6 +424,7 @@ public class IndicesService extends AbstractLifecycleComponent
         threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
     }
 
+    @InternalApi
     public IndicesService(
         Settings settings,
         PluginsService pluginsService,
@@ -442,6 +447,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        Map<String, IndexStorePlugin.StoreFactory> storeFactories,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         SearchRequestStats searchRequestStats,
@@ -471,7 +477,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             return Optional.of(new IndexShardCacheEntity(indexService.getShardOrNull(shardId.id())));
         }), cacheService, threadPool, clusterService, nodeEnv);
-        this.indicesQueryCache = new IndicesQueryCache(settings);
+        this.indicesQueryCache = new IndicesQueryCache(settings, clusterService.getClusterSettings());
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
         indexingMemoryController = new IndexingMemoryController(
@@ -497,7 +503,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     + "]";
                 circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(-sizeInBytes);
             }
-        });
+        }, clusterService, threadPool);
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
@@ -506,6 +512,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.directoryFactories = directoryFactories;
         this.compositeDirectoryFactories = compositeDirectoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.storeFactories = storeFactories;
         this.ingestionConsumerFactories = ingestionConsumerFactories;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
@@ -585,8 +592,14 @@ public class IndicesService extends AbstractLifecycleComponent
         this.defaultMaxMergeAtOnce = CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING, this::onDefaultMaxMergeAtOnceUpdate);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
+                this::onClusterLevelForceMergeMBPerSecUpdate
+            );
     }
 
+    @InternalApi
     public IndicesService(
         Settings settings,
         PluginsService pluginsService,
@@ -639,6 +652,7 @@ public class IndicesService extends AbstractLifecycleComponent
             Collections.emptyMap(),
             valuesSourceRegistry,
             recoveryStateFactories,
+            Collections.emptyMap(),
             remoteDirectoryFactory,
             repositoriesServiceSupplier,
             searchRequestStats,
@@ -686,6 +700,20 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
+    /**
+     * The changes to dynamic cluster setting {@code cluster.merge.scheduler.max_force_merge_mb_per_sec} needs to be updated. This
+     * method gets called whenever the setting changes. We notify the change to all IndexService instances that are created on this node
+     * so they can update their merge schedulers accordingly.
+     *
+     * @param maxForceMergeMBPerSec the updated cluster max force merge MB per second rate.
+     */
+    private void onClusterLevelForceMergeMBPerSecUpdate(double maxForceMergeMBPerSec) {
+        for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
+            IndexService indexService = entry.getValue();
+            indexService.onClusterLevelForceMergeMBPerSecUpdate(maxForceMergeMBPerSec);
+        }
+    }
+
     private static BiFunction<IndexSettings, ShardRouting, TranslogFactory> getTranslogFactorySupplier(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
@@ -702,7 +730,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId()),
                     remoteStoreSettings
                 );
-            } else if (isRemoteDataAttributePresent(settings) && shardRouting.primary()) {
+            } else if (RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings) && shardRouting.primary()) {
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceSupplier,
                     threadPool,
@@ -1056,6 +1084,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
+            storeFactories,
             fileCache,
             compositeIndexSettings
         );
@@ -1175,6 +1204,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
+            storeFactories,
             fileCache,
             compositeIndexSettings
         );
@@ -1193,9 +1223,9 @@ public class IndicesService extends AbstractLifecycleComponent
         final List<Closeable> closeables = new ArrayList<>();
         try {
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            });
+            }, clusterService, threadPool);
             closeables.add(indicesFieldDataCache);
-            IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
+            IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings, clusterService.getClusterSettings());
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service = createIndexService(
@@ -1215,7 +1245,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
-    @Override
+    @Deprecated(forRemoval = true)
     public IndexShard createShard(
         final ShardRouting shardRouting,
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
@@ -1230,6 +1260,43 @@ public class IndicesService extends AbstractLifecycleComponent
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         final DiscoveryNodes discoveryNodes,
         final MergedSegmentWarmerFactory mergedSegmentWarmerFactory
+    ) throws IOException {
+        return createShard(
+            shardRouting,
+            checkpointPublisher,
+            recoveryTargetService,
+            recoveryListener,
+            repositoriesService,
+            onShardFailure,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            targetNode,
+            sourceNode,
+            remoteStoreStatsTrackerFactory,
+            discoveryNodes,
+            mergedSegmentWarmerFactory,
+            null,
+            null
+        );
+    }
+
+    @Override
+    public IndexShard createShard(
+        final ShardRouting shardRouting,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        final PeerRecoveryTargetService recoveryTargetService,
+        final RecoveryListener recoveryListener,
+        final RepositoriesService repositoriesService,
+        final Consumer<IndexShard.ShardFailure> onShardFailure,
+        final Consumer<ShardId> globalCheckpointSyncer,
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final DiscoveryNode targetNode,
+        final DiscoveryNode sourceNode,
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        final DiscoveryNodes discoveryNodes,
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+        final MergedSegmentPublisher mergedSegmentPublisher,
+        final ReferencedSegmentsPublisher referencedSegmentsPublisher
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
@@ -1246,7 +1313,9 @@ public class IndicesService extends AbstractLifecycleComponent
             targetNode,
             sourceNode,
             discoveryNodes,
-            mergedSegmentWarmerFactory
+            mergedSegmentWarmerFactory,
+            mergedSegmentPublisher,
+            referencedSegmentsPublisher
         );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
@@ -1828,7 +1897,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 logger.trace("running periodic field data cache cleanup");
             }
             try {
-                this.cache.getCache().refresh();
+                this.cache.clear();
             } catch (Exception e) {
                 logger.warn("Exception during periodic field data cache cleanup:", e);
             }
@@ -1858,6 +1927,12 @@ public class IndicesService extends AbstractLifecycleComponent
         // They modify the search context during their execution so using the cache
         // may invalidate the scroll for the next query.
         if (request.scroll() != null) {
+            return false;
+        }
+
+        // Currently, we cannot cache stream search results as we never compute and reduce full resultset per
+        // shard at data nodes and let coordinator handle the reduce from batched results from shards.
+        if (context.isStreamSearch()) {
             return false;
         }
 
@@ -2068,6 +2143,8 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * Clears the caches for the given shard id if the shard is still allocated on this node
+     * Query cache and field data cache keys are cleared immediately by this method; request cache keys are only marked for cleanup
+     * TODO: In a future PR field data cache keys will also only be marked for cleanup.
      */
     public void clearIndexShardCache(ShardId shardId, boolean queryCache, boolean fieldDataCache, boolean requestCache, String... fields) {
         final IndexService service = indexService(shardId.getIndex());
@@ -2078,6 +2155,14 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesRequestCache.clear(new IndexShardCacheEntity(shard));
             }
         }
+    }
+
+    /**
+     * Force clear node-wide request cache, which will remove any keys which have been previously marked for cleanup.
+     */
+    public void forceClearNodewideCaches() {
+        indicesRequestCache.forceCleanCache();
+        // TODO: Field data cache will also be cleared here in a future PR.
     }
 
     /**

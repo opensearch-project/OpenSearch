@@ -9,9 +9,7 @@
 package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -19,7 +17,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
-import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
@@ -30,7 +27,6 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.Translog;
@@ -49,6 +45,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
@@ -93,6 +90,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private volatile Iterator<TimeValue> backoffDelayIterator;
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
     private final RemoteStoreSettings remoteStoreSettings;
+    private final RemoteStoreUploader remoteStoreUploader;
 
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
@@ -106,6 +104,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
             .getDelegate()).getDelegate();
+        remoteStoreUploader = new RemoteStoreUploaderService(indexShard, storeDirectory, remoteDirectory);
         localSegmentChecksumMap = new HashMap<>();
         RemoteSegmentMetadata remoteSegmentMetadata = null;
         if (indexShard.routingEntry().primary()) {
@@ -325,6 +324,32 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     }
 
     /**
+     * Uploads new segment files to the remote store.
+     *
+     * @param localSegmentsPostRefresh collection of segment files present after refresh
+     * @param localSegmentsSizeMap map of segment file names to their sizes
+     * @param segmentUploadsCompletedListener listener to be notified when upload completes
+     */
+    private void uploadNewSegments(
+        Collection<String> localSegmentsPostRefresh,
+        Map<String, Long> localSegmentsSizeMap,
+        ActionListener<Void> segmentUploadsCompletedListener
+    ) {
+        Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
+        Function<Map<String, Long>, UploadListener> uploadListenerFunction = (Map<String, Long> sizeMap) -> createUploadListener(
+            localSegmentsSizeMap
+        );
+
+        remoteStoreUploader.uploadSegments(
+            filteredFiles,
+            localSegmentsSizeMap,
+            segmentUploadsCompletedListener,
+            uploadListenerFunction,
+            isLowPriorityUpload()
+        );
+    }
+
+    /**
      * Clears the stale files from the latest local segment checksum map.
      *
      * @param localSegmentsPostRefresh list of segment files present post refresh
@@ -421,45 +446,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 replicationCheckpoint,
                 indexShard.getNodeId()
             );
-        }
-    }
-
-    private void uploadNewSegments(
-        Collection<String> localSegmentsPostRefresh,
-        Map<String, Long> localSegmentsSizeMap,
-        ActionListener<Void> listener
-    ) {
-        Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
-        if (filteredFiles.size() == 0) {
-            logger.debug("No new segments to upload in uploadNewSegments");
-            listener.onResponse(null);
-            return;
-        }
-
-        logger.debug("Effective new segments files to upload {}", filteredFiles);
-        ActionListener<Collection<Void>> mappedListener = ActionListener.map(listener, resp -> null);
-        GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, filteredFiles.size());
-        Directory directory = ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
-
-        for (String src : filteredFiles) {
-            // Initializing listener here to ensure that the stats increment operations are thread-safe
-            UploadListener statsListener = createUploadListener(localSegmentsSizeMap);
-            ActionListener<Void> aggregatedListener = ActionListener.wrap(resp -> {
-                statsListener.onSuccess(src);
-                batchUploadListener.onResponse(resp);
-                if (directory instanceof CompositeDirectory) {
-                    ((CompositeDirectory) directory).afterSyncToRemote(src);
-                }
-            }, ex -> {
-                logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
-                if (ex instanceof CorruptIndexException) {
-                    indexShard.failShard(ex.getMessage(), ex);
-                }
-                statsListener.onFailure(src);
-                batchUploadListener.onFailure(ex);
-            });
-            statsListener.beforeUpload(src);
-            remoteDirectory.copyFrom(storeDirectory, src, IOContext.DEFAULT, aggregatedListener, isLowPriorityUpload());
         }
     }
 

@@ -51,6 +51,7 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogOperationHelper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,7 +79,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
         super(config, null, null, true, Function.identity(), true);
         this.segmentsStats = new SegmentsStats();
         Directory directory = store.directory();
-        try (DirectoryReader reader = openDirectory(directory, config.getIndexSettings().isSoftDeleteEnabled())) {
+        try (DirectoryReader reader = openDirectory(directory, config.getIndexSettings().isSoftDeleteEnabled(), config.getLeafSorter())) {
             for (LeafReaderContext ctx : reader.getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 fillSegmentStats(segmentReader, true, segmentsStats);
@@ -169,7 +170,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
                 public void trimUnreferencedTranslogFiles() throws TranslogException {
                     final Store store = engineConfig.getStore();
                     store.incRef();
-                    try (ReleasableLock ignored = readLock.acquire()) {
+                    try (ReleasableLock ignored = writeLock.acquire()) {
                         ensureOpen();
                         final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
                         if (commits.size() == 1 && translogStats.getTranslogSizeInBytes() > translogStats.getUncommittedSizeInBytes()) {
@@ -191,7 +192,8 @@ public final class NoOpEngine extends ReadOnlyEngine {
                                         engineConfig.getGlobalCheckpointSupplier(),
                                         engineConfig.getPrimaryTermSupplier(),
                                         seqNo -> {},
-                                        engineConfig.getStartedPrimarySupplier()
+                                        engineConfig.getStartedPrimarySupplier(),
+                                        TranslogOperationHelper.create(engineConfig)
                                     )
                             ) {
                                 translog.trimUnreferencedReaders();

@@ -21,28 +21,28 @@ public class StaticValueAggregatorTests extends OpenSearchTestCase {
         double expected = 1;
 
         // initializing our sum aggregator to derive exact sum using kahan summation
-        double aggregatedValue = getAggregatedValue(numbers);
-        assertEquals(expected, aggregatedValue, 0);
+        CompensatedSum aggregatedSum = getAggregatedValue(numbers);
+        assertEquals(expected, aggregatedSum.value(), 0);
 
         // assert kahan summation plain logic with our aggregated value
         double actual = kahanSum(numbers);
-        assertEquals(actual, aggregatedValue, 0);
+        assertEquals(actual, aggregatedSum.value(), 0);
 
         // assert that normal sum fails for this case
         double normalSum = normalSum(numbers);
         assertNotEquals(expected, normalSum, 0);
         assertNotEquals(actual, normalSum, 0);
-        assertNotEquals(aggregatedValue, normalSum, 0);
-
+        assertNotEquals(aggregatedSum.value(), normalSum, 0);
     }
 
-    private static double getAggregatedValue(double[] numbers) {
-        // explicitly took double to test for most precision
-        // hard to run similar tests for different data types dynamically as inputs and precision vary
+    private static CompensatedSum getAggregatedValue(double[] numbers) {
         SumValueAggregator aggregator = new SumValueAggregator(NumberFieldMapper.NumberType.DOUBLE);
-        double aggregatedValue = aggregator.getInitialAggregatedValueForSegmentDocValue(NumericUtils.doubleToSortableLong(numbers[0]));
-        aggregatedValue = aggregator.mergeAggregatedValueAndSegmentValue(aggregatedValue, NumericUtils.doubleToSortableLong(numbers[1]));
-        aggregatedValue = aggregator.mergeAggregatedValueAndSegmentValue(aggregatedValue, NumericUtils.doubleToSortableLong(numbers[2]));
+        long sortableLong1 = NumericUtils.doubleToSortableLong(numbers[0]);
+        CompensatedSum aggregatedValue = aggregator.getInitialAggregatedValueForSegmentDocValue(sortableLong1);
+        long sortableLong2 = NumericUtils.doubleToSortableLong(numbers[1]);
+        aggregatedValue = aggregator.mergeAggregatedValueAndSegmentValue(aggregatedValue, sortableLong2);
+        long sortableLong3 = NumericUtils.doubleToSortableLong(numbers[2]);
+        aggregatedValue = aggregator.mergeAggregatedValueAndSegmentValue(aggregatedValue, sortableLong3);
         return aggregatedValue;
     }
 
@@ -129,5 +129,4 @@ public class StaticValueAggregatorTests extends OpenSearchTestCase {
         }
         assertEquals(expected, aggregatedValue, 0);
     }
-
 }

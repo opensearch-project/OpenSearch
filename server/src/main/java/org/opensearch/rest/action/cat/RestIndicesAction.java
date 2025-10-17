@@ -62,6 +62,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -591,6 +592,78 @@ public class RestIndicesAction extends AbstractListAction {
         );
         table.addCell("pri.merges.total_time", "default:false;text-align:right;desc:time spent in merges");
 
+        table.addCell(
+            "merges.warmer.total_invocations",
+            "alias:mswti,mergedSegmentWarmerTotalInvocations;default:false;text-align:right;desc:total invocations of merged segment warmer"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_invocations",
+            "default:false;text-align:right;desc:total invocations of merged segment warmer"
+        );
+
+        table.addCell(
+            "merges.warmer.total_time",
+            "alias:mswtt,mergedSegmentWarmerTotalTime;default:false;text-align:right;desc:total wallclock time spent in the warming operation"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_time",
+            "default:false;text-align:right;desc:total wallclock time spent in the warming operation"
+        );
+
+        table.addCell(
+            "merges.warmer.ongoing_count",
+            "alias:mswoc,mergedSegmentWarmerOngoingCount;default:false;text-align:right;desc:point-in-time metric for number of in-progress warm operations"
+        );
+        table.addCell(
+            "pri.merges.warmer.ongoing_count",
+            "default:false;text-align:right;desc:point-in-time metric for number of in-progress warm operations"
+        );
+
+        table.addCell(
+            "merges.warmer.total_bytes_received",
+            "alias:mswtbr,mergedSegmentWarmerTotalBytesReceived;default:false;text-align:right;desc:total bytes received by a replica shard during the warm operation"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_bytes_received",
+            "default:false;text-align:right;desc:total bytes received by a replica shard during the warm operation"
+        );
+
+        table.addCell(
+            "merges.warmer.total_bytes_sent",
+            "alias:mswtbs,mergedSegmentWarmerTotalBytesSent;default:false;text-align:right;desc:total bytes sent by a primary shard during the warm operation"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_bytes_sent",
+            "default:false;text-align:right;desc:total bytes sent by a primary shard during the warm operation"
+        );
+
+        table.addCell(
+            "merges.warmer.total_receive_time",
+            "alias:mswtrt,mergedSegmentWarmerTotalReceiveTime;default:false;text-align:right;desc:total wallclock time spent receiving merged segments by a replica shard"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_receive_time",
+            "default:false;text-align:right;desc:total wallclock time spent receiving merged segments by a replica shard"
+        );
+
+        table.addCell(
+            "merges.warmer.total_failure_count",
+            "alias:mswtfc,mergedSegmentWarmerTotalFailureCount;default:false;text-align:right;desc:total failures in merged segment warmer"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_failure_count",
+            "default:false;text-align:right;desc:total failures in merged segment warmer"
+        );
+
+        table.addCell(
+            "merges.warmer.total_send_time",
+            "alias:mswtst,mergedSegmentWarmerTotalSendTime;default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_send_time",
+            "default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
+        );
+
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("pri.refresh.total", "default:false;text-align:right;desc:total refreshes");
 
@@ -653,6 +726,13 @@ public class RestIndicesAction extends AbstractListAction {
             "sibling:pri;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops"
         );
         table.addCell("pri.search.query_total", "default:false;text-align:right;desc:total query phase ops");
+
+        table.addCell(
+            "search.query_failed",
+            "sibling:pri;alias:sqf,searchQueryFailed;default:false;text-align:right;desc:failed query phase ops"
+        );
+        table.addCell("pri.search.query_failed", "default:false;text-align:right;desc:failed query phase ops");
+
         table.addCell(
             "search.concurrent_query_current",
             "sibling:pri;alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
@@ -676,6 +756,30 @@ public class RestIndicesAction extends AbstractListAction {
             "sibling:pri;alias:casc,searchConcurrentAvgSliceCount;default:false;text-align:right;desc:average query concurrency"
         );
         table.addCell("pri.search.concurrent_avg_slice_count", "default:false;text-align:right;desc:average query concurrency");
+
+        table.addCell(
+            "search.startree_query_current",
+            "sibling:pri;alias:stqc,startreeQueryCurrent;default:false;text-align:right;desc:current star tree query ops"
+        );
+        table.addCell("pri.search.startree.query_current", "default:false;text-align:right;desc:current star tree query ops");
+
+        table.addCell(
+            "search.startree_query_time",
+            "sibling:pri;alias:stqti,startreeQueryTime;default:false;text-align:right;desc:time spent in star tree queries"
+        );
+        table.addCell("pri.search.startree.query_time", "default:false;text-align:right;desc:time spent in star tree queries");
+
+        table.addCell(
+            "search.startree_query_failed",
+            "sibling:pri;alias:stqf,startreeQueryFailed;default:false;text-align:right;desc:failed star tree query phase ops"
+        );
+        table.addCell("pri.search.startree_query_failed", "default:false;text-align:right;desc:failed star tree query phase ops");
+
+        table.addCell(
+            "search.startree_query_total",
+            "sibling:pri;alias:stqto,startreeQueryCurrent;default:false;text-align:right;desc:total star tree resolved queries"
+        );
+        table.addCell("pri.search.startree.query_total", "default:false;text-align:right;desc:total star tree resolved queries");
 
         table.addCell(
             "search.scroll_current",
@@ -770,6 +874,15 @@ public class RestIndicesAction extends AbstractListAction {
         table.addCell("pri.memory.total", "default:false;text-align:right;desc:total user memory");
 
         table.addCell("search.throttled", "alias:sth;default:false;desc:indicates if the index is search throttled");
+
+        table.addCell(
+            "last_index_request_timestamp",
+            "alias:last_index_ts,lastIndexRequestTimestamp;default:false;text-align:right;desc:timestamp of the last processed index request (epoch millis)"
+        );
+        table.addCell(
+            "last_index_request_timestamp_string",
+            "alias:last_index_ts_string,lastIndexRequestTimestampString;default:false;text-align:right;desc:timestamp of the last processed index request (ISO8601 string)"
+        );
 
         table.endHeaders();
         return table;
@@ -954,6 +1067,37 @@ public class RestIndicesAction extends AbstractListAction {
             table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalTime());
             table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalTime());
 
+            MergedSegmentWarmerStats mergedSegmentWarmerTotalStats = totalStats.getMerge() == null
+                ? null
+                : totalStats.getMerge().getWarmerStats();
+            MergedSegmentWarmerStats mergedSegmentWarmerPrimaryStats = primaryStats.getMerge() == null
+                ? null
+                : primaryStats.getMerge().getWarmerStats();
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalInvocationsCount());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalInvocationsCount());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalTime());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalTime());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getOngoingCount());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getOngoingCount());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalReceivedSize());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalReceivedSize());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalSentSize());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalSentSize());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalReceiveTime());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalReceiveTime());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalFailureCount());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalFailureCount());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalSendTime());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalSendTime());
+
             table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotal());
             table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotal());
 
@@ -990,6 +1134,9 @@ public class RestIndicesAction extends AbstractListAction {
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCount());
 
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryFailedCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryFailedCount());
+
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCurrent());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCurrent());
 
@@ -1001,6 +1148,18 @@ public class RestIndicesAction extends AbstractListAction {
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentAvgSliceCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentAvgSliceCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryCurrent());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryCurrent());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryTime());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryTime());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryFailed());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryFailed());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryCount());
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCurrent());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCurrent());
@@ -1058,8 +1217,13 @@ public class RestIndicesAction extends AbstractListAction {
 
             table.addCell(searchThrottled);
 
-            table.endRow();
+            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getMaxLastIndexRequestTimestamp());
+            Long ts = totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getMaxLastIndexRequestTimestamp();
+            table.addCell(
+                ts == null || ts == 0 ? null : STRICT_DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(ts).atZone(ZoneOffset.UTC))
+            );
 
+            table.endRow();
         }
 
         return table;

@@ -42,6 +42,7 @@ import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTre
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
+import org.opensearch.index.compositeindex.datacube.startree.utils.CompensatedSumType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
@@ -50,6 +51,7 @@ import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.FieldValueConverter;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.search.aggregations.metrics.CompensatedSum;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -488,6 +490,13 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                             ((SortedNumericDocValuesWriterWrapper) (metricWriters.get(i))).addValue(
                                 docId,
                                 NumericUtils.doubleToSortableLong((Double) starTreeDocument.metrics[i])
+                            );
+                        }
+                    } else if (aggregatedValueType instanceof CompensatedSumType) {
+                        if (starTreeDocument.metrics[i] != null) {
+                            ((SortedNumericDocValuesWriterWrapper) (metricWriters.get(i))).addValue(
+                                docId,
+                                NumericUtils.doubleToSortableLong(((CompensatedSum) starTreeDocument.metrics[i]).value())
                             );
                         }
                     } else {
@@ -990,7 +999,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             Long dimensionValue = getDimensionValue(i, dimensionId);
             if (Objects.equals(dimensionValue, nodeDimensionValue) == false) {
                 addChildNode(node, i, dimensionId, nodeStartDocId, nodeDimensionValue);
-
                 nodeStartDocId = i;
                 nodeDimensionValue = dimensionValue;
             }

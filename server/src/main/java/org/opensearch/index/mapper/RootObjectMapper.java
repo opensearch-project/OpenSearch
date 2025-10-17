@@ -32,13 +32,17 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -178,12 +182,16 @@ public class RootObjectMapper extends ObjectMapper {
             RootObjectMapper.Builder builder = new Builder(name);
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             Object compositeField = null;
+            Object contextAwareGoupingField = null;
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("composite")) {
                     compositeField = fieldNode;
+                    iterator.remove();
+                } else if (fieldName.equals(ContextAwareGroupingFieldMapper.CONTENT_TYPE)) {
+                    contextAwareGoupingField = fieldNode;
                     iterator.remove();
                 } else {
                     if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
@@ -197,7 +205,26 @@ public class RootObjectMapper extends ObjectMapper {
             if (compositeField != null) {
                 parseCompositeField(builder, (Map<String, Object>) compositeField, parserContext);
             }
+
+            if (contextAwareGoupingField != null) {
+                parseContextAwareGroupingField(builder, (Map<String, Object>) contextAwareGoupingField, parserContext);
+            }
             return builder;
+        }
+
+        protected static void parseContextAwareGroupingField(
+            ObjectMapper.Builder objBuilder,
+            Map<String, Object> contextAwareGroupingNode,
+            ParserContext parserContext
+        ) {
+            Mapper.TypeParser typeParser = parserContext.typeParser(ContextAwareGroupingFieldMapper.CONTENT_TYPE);
+            Mapper.Builder<?> mapperBuilder = typeParser.parse(
+                ContextAwareGroupingFieldMapper.CONTENT_TYPE,
+                contextAwareGroupingNode,
+                parserContext,
+                objBuilder
+            );
+            objBuilder.add(mapperBuilder);
         }
 
         protected boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode, ParserContext parserContext) {
@@ -530,5 +557,21 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         return false;
+    }
+
+    public BytesReference deriveSource(LeafReader leafReader, int docId) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        try {
+            Iterator<Mapper> mappers = this.iterator();
+            while (mappers.hasNext()) {
+                Mapper mapper = mappers.next();
+                mapper.deriveSource(builder, leafReader, docId);
+            }
+        } catch (Exception e) {
+            throw new OpenSearchException("Failed to derive source for doc id [" + docId + "]", e);
+        } finally {
+            builder.endObject();
+        }
+        return BytesReference.bytes(builder);
     }
 }

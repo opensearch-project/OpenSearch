@@ -49,12 +49,20 @@ import io.netty.util.concurrent.Future;
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.settings.Setting.intSetting;
 import static org.opensearch.common.settings.Setting.listSetting;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PORT;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_PORT;
 import static org.opensearch.transport.Transport.resolveTransportPublishPort;
 
+/**
+ * Server components for Arrow Flight RPC integration with OpenSearch.
+ * Manages the lifecycle of Flight server instances and their configuration.
+ * @opensearch.internal
+ */
 @SuppressWarnings("removal")
-final class ServerComponents implements AutoCloseable {
+public final class ServerComponents implements AutoCloseable {
 
+    /**
+     * Setting for Arrow Flight host addresses.
+     */
     public static final Setting<List<String>> SETTING_FLIGHT_HOST = listSetting(
         "arrow.flight.host",
         emptyList(),
@@ -62,6 +70,9 @@ final class ServerComponents implements AutoCloseable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting for Arrow Flight bind host addresses.
+     */
     public static final Setting<List<String>> SETTING_FLIGHT_BIND_HOST = listSetting(
         "arrow.flight.bind_host",
         SETTING_FLIGHT_HOST,
@@ -69,6 +80,9 @@ final class ServerComponents implements AutoCloseable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting for Arrow Flight publish host addresses.
+     */
     public static final Setting<List<String>> SETTING_FLIGHT_PUBLISH_HOST = listSetting(
         "arrow.flight.publish_host",
         SETTING_FLIGHT_HOST,
@@ -76,6 +90,9 @@ final class ServerComponents implements AutoCloseable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting for Arrow Flight publish port.
+     */
     public static final Setting<Integer> SETTING_FLIGHT_PUBLISH_PORT = intSetting(
         "arrow.flight.publish_port",
         -1,
@@ -89,7 +106,14 @@ final class ServerComponents implements AutoCloseable {
     private static final String GRPC_BOSS_ELG = "os-grpc-boss-ELG";
     private static final int SHUTDOWN_TIMEOUT_SECONDS = 5;
 
+    /**
+     * The setting key for Flight transport configuration.
+     */
     public static final String FLIGHT_TRANSPORT_SETTING_KEY = "transport-flight";
+
+    /**
+     * Setting for Arrow Flight port range.
+     */
     public static final Setting<PortsRange> SETTING_FLIGHT_PORTS = AUX_TRANSPORT_PORT.getConcreteSettingForNamespace(
         FLIGHT_TRANSPORT_SETTING_KEY
     );
@@ -111,6 +135,7 @@ final class ServerComponents implements AutoCloseable {
     private EventLoopGroup bossEventLoopGroup;
     EventLoopGroup workerEventLoopGroup;
     private ExecutorService serverExecutor;
+    private ExecutorService grpcExecutor;
 
     ServerComponents(Settings settings) {
         this.settings = settings;
@@ -156,7 +181,7 @@ final class ServerComponents implements AutoCloseable {
             .channelType(ServerConfig.serverChannelType())
             .bossEventLoopGroup(bossEventLoopGroup)
             .workerEventLoopGroup(workerEventLoopGroup)
-            .executor(serverExecutor)
+            .executor(grpcExecutor)
             .build();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
@@ -221,8 +246,10 @@ final class ServerComponents implements AutoCloseable {
         bossEventLoopGroup = ServerConfig.createELG(GRPC_BOSS_ELG, 1);
         workerEventLoopGroup = ServerConfig.createELG(GRPC_WORKER_ELG, NettyRuntime.availableProcessors() * 2);
         serverExecutor = threadPool.executor(ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME);
+        grpcExecutor = threadPool.executor(ServerConfig.GRPC_EXECUTOR_THREAD_POOL_NAME);
     }
 
+    /** {@inheritDoc} */
     @Override
     public void close() {
         try {
@@ -231,6 +258,9 @@ final class ServerComponents implements AutoCloseable {
             gracefullyShutdownELG(workerEventLoopGroup, GRPC_WORKER_ELG);
             if (serverExecutor != null) {
                 serverExecutor.shutdown();
+            }
+            if (grpcExecutor != null) {
+                grpcExecutor.shutdown();
             }
         } catch (Exception e) {
             logger.error("Error while closing server components", e);

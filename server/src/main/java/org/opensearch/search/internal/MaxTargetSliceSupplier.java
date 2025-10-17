@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.PriorityQueue;
 
 /**
  * Supplier to compute leaf slices based on passed in leaves and max target slice count to limit the number of computed slices. It sorts
@@ -44,12 +45,34 @@ final class MaxTargetSliceSupplier {
         for (int i = 0; i < targetSliceCount; ++i) {
             groupedLeaves.add(new ArrayList<>());
         }
-        // distribute the slices in round-robin fashion
-        for (int idx = 0; idx < sortedLeaves.size(); ++idx) {
-            int currentGroup = idx % targetSliceCount;
-            groupedLeaves.get(currentGroup).add(IndexSearcher.LeafReaderContextPartition.createForEntireSegment(sortedLeaves.get(idx)));
+
+        PriorityQueue<Group> groupQueue = new PriorityQueue<>();
+        for (int i = 0; i < targetSliceCount; i++) {
+            groupQueue.offer(new Group(i));
+        }
+        Group minGroup;
+        for (int i = 0; i < sortedLeaves.size(); ++i) {
+            minGroup = groupQueue.poll();
+            groupedLeaves.get(minGroup.index).add(IndexSearcher.LeafReaderContextPartition.createForEntireSegment(sortedLeaves.get(i)));
+            minGroup.sum += sortedLeaves.get(i).reader().maxDoc();
+            groupQueue.offer(minGroup);
         }
 
         return groupedLeaves.stream().map(IndexSearcher.LeafSlice::new).toArray(IndexSearcher.LeafSlice[]::new);
+    }
+
+    static class Group implements Comparable<Group> {
+        final int index;
+        int sum;
+
+        public Group(int index) {
+            this.index = index;
+            this.sum = 0;
+        }
+
+        @Override
+        public int compareTo(Group other) {
+            return Integer.compare(this.sum, other.sum);
+        }
     }
 }

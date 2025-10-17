@@ -32,13 +32,18 @@
 
 package org.opensearch.rest.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.XContentParser;
@@ -50,6 +55,8 @@ import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.StoredFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -70,6 +77,7 @@ import java.util.function.IntConsumer;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.search.StreamSearchTransportService.STREAM_SEARCH_ENABLED;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
@@ -81,6 +89,7 @@ import static org.opensearch.search.suggest.SuggestBuilders.termSuggestion;
  * @opensearch.api
  */
 public class RestSearchAction extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestSearchAction.class);
     /**
      * Indicates whether hits.total should be rendered as an integer or an object
      * in the rest search response.
@@ -89,6 +98,14 @@ public class RestSearchAction extends BaseRestHandler {
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     public static final String INCLUDE_NAMED_QUERIES_SCORE_PARAM = "include_named_queries_score";
     private static final Set<String> RESPONSE_PARAMS;
+
+    private ClusterSettings clusterSettings;
+
+    public RestSearchAction() {}
+
+    public RestSearchAction(ClusterSettings clusterSettings) {
+        this.clusterSettings = clusterSettings;
+    }
 
     static {
         final Set<String> responseParams = new HashSet<>(
@@ -134,6 +151,20 @@ public class RestSearchAction extends BaseRestHandler {
             parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
+        if (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) {
+            if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
+                if (canUseStreamSearch(searchRequest)) {
+                    return channel -> {
+                        RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                        cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                    };
+                } else {
+                    logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
+                }
+            } else {
+                throw new IllegalArgumentException("You need to enable stream transport first to use stream search.");
+            }
+        }
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
@@ -421,5 +452,25 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public boolean allowsUnsafeBuffers() {
         return true;
+    }
+
+    /**
+     * Determines if a search request can use stream search.
+     *
+     * @param searchRequest the search request to validate
+     * @return true if the request can use stream search, false otherwise
+     */
+    static boolean canUseStreamSearch(SearchRequest searchRequest) {
+        if (searchRequest.source() == null || searchRequest.source().aggregations() == null) {
+            return false; // No aggregations, stream search is not allowed
+        }
+
+        AggregatorFactories.Builder aggregations = searchRequest.source().aggregations();
+        if (aggregations.count() != 1) {
+            return false; // Must have exactly one aggregation
+        }
+
+        // Check if the single aggregation is a terms aggregation
+        return aggregations.getAggregatorFactories().stream().anyMatch(factory -> factory instanceof TermsAggregationBuilder);
     }
 }

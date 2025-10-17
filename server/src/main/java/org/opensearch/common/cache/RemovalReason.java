@@ -21,5 +21,6 @@ public enum RemovalReason {
     INVALIDATED,
     EVICTED,
     EXPLICIT,
-    CAPACITY
+    CAPACITY,
+    RESTARTED // This is used by testing framework to close the CachedIndexInput during node restart.
 }

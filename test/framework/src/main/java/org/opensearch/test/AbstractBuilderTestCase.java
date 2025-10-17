@@ -46,8 +46,10 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.termvectors.MultiTermVectorsRequest;
 import org.opensearch.action.termvectors.MultiTermVectorsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -90,6 +92,8 @@ import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchModule;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -109,6 +113,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -177,6 +182,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
     private static Settings nodeSettings;
     private static Index index;
     private static long nowInMillis;
+    private static ThreadPool threadPool;
 
     protected static Index getIndex() {
         return index;
@@ -198,6 +204,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
 
         index = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
         nowInMillis = randomNonNegativeLong();
+        threadPool = new TestThreadPool("random_threadpool_name");
     }
 
     @Override
@@ -240,6 +247,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
     public static void afterClass() throws Exception {
         IOUtils.close(serviceHolder);
         IOUtils.close(serviceHolderWithNoType);
+        ThreadPool.terminate(threadPool, 1, TimeUnit.MINUTES);
         serviceHolder = null;
         serviceHolderWithNoType = null;
     }
@@ -427,12 +435,20 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 null
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
-            });
+            },
+                new ClusterService(
+                    Settings.EMPTY,
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    threadPool
+                ),
+                threadPool
+            );
             indexFieldDataService = new IndexFieldDataService(
                 idxSettings,
                 indicesFieldDataCache,
                 new NoneCircuitBreakerService(),
-                mapperService
+                mapperService,
+                threadPool
             );
             bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
                 @Override

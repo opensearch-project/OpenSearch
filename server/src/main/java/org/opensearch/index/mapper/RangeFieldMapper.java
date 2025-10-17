@@ -135,7 +135,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         private final RangeType type;
         private final Version indexCreatedVersion;
         private final boolean ignoreMalformedByDefault;
-        private final Parameter<Boolean> ignoreMalformed;
+        private final Parameter<Explicit<Boolean>> ignoreMalformed;
 
         public Builder(String name, RangeType type, Settings settings) {
             this(
@@ -163,7 +163,12 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
             this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             this.indexCreatedVersion = indexCreatedVersion;
             this.ignoreMalformedByDefault = ignoreMalformedByDefault;
-            this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+            this.ignoreMalformed = Parameter.explicitBoolParam(
+                "ignore_malformed",
+                true,
+                m -> toType(m).ignoreMalformed,
+                ignoreMalformedByDefault
+            );
             if (this.type != RangeType.DATE) {
                 format.neverSerialize();
                 locale.neverSerialize();
@@ -414,7 +419,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
     private final boolean coerceByDefault;
     private final Version indexCreatedVersion;
-    private final boolean ignoreMalformed;
+    private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
 
     private RangeFieldMapper(
@@ -515,7 +520,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
                             }
                         } catch (final IllegalArgumentException e) {
                             // We have to consume the JSON object in full
-                            if (ignoreMalformed) {
+                            if (ignoreMalformed().value()) {
                                 rangeIsMalformed = true;
                             } else {
                                 throw e;
@@ -534,7 +539,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
                 try {
                     range = parseIpRangeFromCidr(parser);
                 } catch (IllegalArgumentException e) {
-                    if (ignoreMalformed) {
+                    if (ignoreMalformed().value()) {
                         context.addIgnoredField(fieldType().name());
                         return;
                     } else {
@@ -569,6 +574,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         } catch (UnknownHostException bogus) {
             throw new AssertionError(bogus);
         }
+    }
+
+    @Override
+    protected Explicit<Boolean> ignoreMalformed() {
+        return ignoreMalformed;
     }
 
     /**

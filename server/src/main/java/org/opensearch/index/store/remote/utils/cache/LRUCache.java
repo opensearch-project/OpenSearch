@@ -184,6 +184,24 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
         }
     }
 
+    // To be used only in testing framework.
+    public void closeIndexInputReferences() {
+        lock.lock();
+        try {
+            int closedEntries = 0;
+            final Iterator<Node<K, V>> iterator = data.values().iterator();
+            while (iterator.hasNext()) {
+                closedEntries++;
+                Node<K, V> node = iterator.next();
+                iterator.remove();
+                listener.onRemoval(new RemovalNotification<>(node.key, node.value, RemovalReason.RESTARTED));
+            }
+            logger.trace("Reference cleanup completed - Total entries: {}", closedEntries);
+        } finally {
+            lock.unlock();
+        }
+    }
+
     @Override
     public void clear() {
         lock.lock();
@@ -246,6 +264,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
                 if (node.evictable()) {
                     // if it becomes evictable, we should add it to eviction list
                     lru.put(node.key, node);
+                    evict(); // If cache usage is already overflowing trigger evictions
                 }
 
                 if (node.refCount == 0) {

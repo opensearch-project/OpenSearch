@@ -29,6 +29,7 @@
  */
 
 import org.opensearch.gradle.info.BuildParams
+import groovy.xml.XmlParser
 
 plugins {
   id('com.google.protobuf') version 'latest.release'
@@ -37,6 +38,7 @@ plugins {
   id('opensearch.internal-cluster-test')
   id('opensearch.optional-dependencies')
   id('me.champeau.gradle.japicmp') version '0.4.6'
+  id 'test-report-aggregation'
 }
 
 apply from: "$rootDir/gradle/fips.gradle"
@@ -364,8 +366,48 @@ tasks.named("dependencyLicenses").configure {
     }.files
 }
 
+if (System.getProperty("moduletests.coverage")) {
+  reporting {
+    reports {
+      testAggregateTestReport(AggregateTestReport) {
+        testSuiteName = "test"
+      }
+    }
+  }
+  tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
+    dependsOn tasks.named('testAggregateTestReport')
+  }
+}
 tasks.named("filepermissions").configure {
   mustRunAfter("generateProto")
+}
+
+if (System.getProperty("moduletests.coverage")) {
+  plugins.withId('jacoco') {
+    tasks.register('testCodeCoverageReport', JacocoReport) {
+      dependsOn tasks.named('test')
+      executionData fileTree(buildDir.absolutePath + "/jacoco").include("test.exec")
+      sourceDirectories.setFrom files(project(':server').sourceSets.main.allSource.srcDirs)
+      classDirectories.setFrom(files(sourceSets.main.output).filter { it.exists() })
+      reports {
+        xml.required = true
+      }
+    }
+
+    tasks.register('testCodeCoverageReportInternalClusterTest', JacocoReport) {
+      dependsOn tasks.named('internalClusterTest')
+      executionData fileTree(buildDir.absolutePath + "/jacoco").include("internalClusterTest.exec")
+      classDirectories.setFrom(files(sourceSets.main.output).filter { it.exists() })
+
+      reports {
+        xml.required = true
+      }
+    }
+
+    tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
+      dependsOn (tasks.named('testCodeCoverageReport'), tasks.named('testCodeCoverageReportInternalClusterTest'))
+    }
+  }
 }
 
 tasks.named("licenseHeaders").configure {
@@ -395,7 +437,7 @@ tasks.named("sourcesJar").configure {
 tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     logger.info("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
     // See please https://github.com/siom79/japicmp/issues/201
-    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT" ]
+    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT", "METHOD_ADDED_TO_INTERFACE" ]
     oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
     newClasspath.from(tasks.named('jar'))
     onlyModified = true
@@ -403,7 +445,7 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     ignoreMissingClasses = true
     failOnSourceIncompatibility = true
     annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
-    annotationExcludes = ['@org.opensearch.common.annotation.InternalApi']
+    annotationExcludes = ['@org.opensearch.common.annotation.InternalApi', '@org.opensearch.common.annotation.ExperimentalApi']
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
     htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
     dependsOn downloadJapicmpCompareTarget

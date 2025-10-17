@@ -13,7 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.OpenSearchCorruptionException;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -30,11 +32,15 @@ import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.TimeUnit;
+
+import reactor.util.annotation.NonNull;
 
 /**
  * This class is responsible for managing segment replication events on replicas.
@@ -48,8 +54,9 @@ public class SegmentReplicator {
     private static final Logger logger = LogManager.getLogger(SegmentReplicator.class);
 
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
+    private final ReplicationCollection<MergedSegmentReplicationTarget> onGoingMergedSegmentReplications;
     private final Map<ShardId, SegmentReplicationState> completedReplications = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<ShardId, ConcurrentNavigableMap<Long, ReplicationCheckpointStats>> replicationCheckpointStats =
+    protected final ConcurrentMap<ShardId, ConcurrentNavigableMap<Long, ReplicationCheckpointStats>> replicationCheckpointStats =
         ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<ShardId, ReplicationCheckpoint> primaryCheckpoint = ConcurrentCollections.newConcurrentMap();
 
@@ -58,6 +65,7 @@ public class SegmentReplicator {
 
     public SegmentReplicator(ThreadPool threadPool) {
         this.onGoingReplications = new ReplicationCollection<>(logger, threadPool);
+        this.onGoingMergedSegmentReplications = new ReplicationCollection<>(logger, threadPool);
         this.threadPool = threadPool;
         this.sourceFactory = new SetOnce<>();
     }
@@ -112,6 +120,37 @@ public class SegmentReplicator {
     }
 
     /**
+     * Start a round of replication merged segment.
+     * @param indexShard - {@link IndexShard} replica shard
+     * @param checkpoint - {@link ReplicationCheckpoint} merged segment to replicate
+     * @param listener - {@link ReplicationListener}
+     */
+    public void startMergedSegmentReplication(
+        final IndexShard indexShard,
+        final ReplicationCheckpoint checkpoint,
+        final SegmentReplicationSource source,
+        final SegmentReplicationTargetService.SegmentReplicationListener listener
+    ) {
+        final MergedSegmentReplicationTarget target = new MergedSegmentReplicationTarget(indexShard, checkpoint, source, listener);
+        startMergedSegmentReplication(target, indexShard.getRecoverySettings().activityTimeout());
+    }
+
+    void startMergedSegmentReplication(final MergedSegmentReplicationTarget target, TimeValue timeout) {
+        final long replicationId;
+        try {
+            replicationId = onGoingMergedSegmentReplications.start(target, timeout);
+        } catch (ReplicationFailedException e) {
+            // replication already running for shard.
+            target.fail(e, false);
+            return;
+        }
+        logger.trace(() -> new ParameterizedMessage("Added new merged segment replication to collection {}", target.description()));
+        // Currently, we have not counted the completion information of the pre-copy merged segment, so the completedReplications parameter
+        // is null.
+        threadPool.generic().execute(new ReplicationRunner(replicationId, onGoingMergedSegmentReplications, null));
+    }
+
+    /**
      * Retrieves segment replication statistics for a specific shard.
      * Its computed based on the last and first entry in the replicationCheckpointStats map.
      * The Last entry gives the Bytes behind, and the difference in the first and last entry provides the lag.
@@ -121,18 +160,21 @@ public class SegmentReplicator {
      */
     public ReplicationStats getSegmentReplicationStats(final ShardId shardId) {
         final ConcurrentNavigableMap<Long, ReplicationCheckpointStats> existingCheckpointStats = replicationCheckpointStats.get(shardId);
-        if (existingCheckpointStats == null || existingCheckpointStats.isEmpty()) {
+        if (existingCheckpointStats == null) {
             return ReplicationStats.empty();
         }
 
         Map.Entry<Long, ReplicationCheckpointStats> lowestEntry = existingCheckpointStats.firstEntry();
         Map.Entry<Long, ReplicationCheckpointStats> highestEntry = existingCheckpointStats.lastEntry();
 
+        if (lowestEntry == null || highestEntry == null) {
+            return ReplicationStats.empty();
+        }
+
         long bytesBehind = highestEntry.getValue().getBytesBehind();
         long replicationLag = bytesBehind > 0L
-            ? TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lowestEntry.getValue().getTimestamp())
+            ? Duration.ofNanos(DateUtils.toLong(Instant.now()) - lowestEntry.getValue().getTimestamp()).toMillis()
             : 0;
-
         return new ReplicationStats(bytesBehind, bytesBehind, replicationLag);
     }
 
@@ -180,7 +222,7 @@ public class SegmentReplicator {
             );
 
             if (existingCheckpointStats != null && !existingCheckpointStats.isEmpty()) {
-                existingCheckpointStats.keySet().removeIf(key -> key < segmentInfoVersion);
+                existingCheckpointStats.keySet().removeIf(key -> key <= segmentInfoVersion);
                 Map.Entry<Long, ReplicationCheckpointStats> lastEntry = existingCheckpointStats.lastEntry();
                 if (lastEntry != null) {
                     lastEntry.getValue().setBytesBehind(calculateBytesBehind(latestCheckpoint, indexReplicationCheckPoint));
@@ -243,12 +285,20 @@ public class SegmentReplicator {
     /**
      * Runnable implementation to trigger a replication event.
      */
-    private class ReplicationRunner extends AbstractRunnable {
+    private class ReplicationRunner<R extends AbstractSegmentReplicationTarget> extends AbstractRunnable {
 
         final long replicationId;
+        final ReplicationCollection<R> onGoingReplications;
+        final Map<ShardId, SegmentReplicationState> completedReplications;
 
-        public ReplicationRunner(long replicationId) {
+        public ReplicationRunner(
+            long replicationId,
+            @NonNull ReplicationCollection<R> onGoingReplications,
+            @Nullable Map<ShardId, SegmentReplicationState> completedReplications
+        ) {
             this.replicationId = replicationId;
+            this.onGoingReplications = onGoingReplications;
+            this.completedReplications = completedReplications;
         }
 
         @Override
@@ -258,13 +308,21 @@ public class SegmentReplicator {
 
         @Override
         public void doRun() {
-            start(replicationId);
+            start(replicationId, onGoingReplications, completedReplications);
         }
     }
 
-    private void start(final long replicationId) {
-        final SegmentReplicationTarget target;
-        try (ReplicationCollection.ReplicationRef<SegmentReplicationTarget> replicationRef = onGoingReplications.get(replicationId)) {
+    private void start(
+        final long replicationId,
+        ReplicationCollection<? extends AbstractSegmentReplicationTarget> onGoingReplications,
+        Map<ShardId, SegmentReplicationState> completedReplications
+    ) {
+        final AbstractSegmentReplicationTarget target;
+        try (
+            ReplicationCollection.ReplicationRef<? extends AbstractSegmentReplicationTarget> replicationRef = onGoingReplications.get(
+                replicationId
+            )
+        ) {
             // This check is for handling edge cases where the reference is removed before the ReplicationRunner is started by the
             // threadpool.
             if (replicationRef == null) {
@@ -278,7 +336,9 @@ public class SegmentReplicator {
                 logger.debug(() -> new ParameterizedMessage("Finished replicating {} marking as done.", target.description()));
                 pruneCheckpointsUpToLastSync(target.indexShard());
                 onGoingReplications.markAsDone(replicationId);
-                if (target.state().getIndex().recoveredFileCount() != 0 && target.state().getIndex().recoveredBytes() != 0) {
+                if (target.state().getIndex().recoveredFileCount() != 0
+                    && target.state().getIndex().recoveredBytes() != 0
+                    && null != completedReplications) {
                     completedReplications.put(target.shardId(), target.state());
                 }
             }
@@ -306,10 +366,10 @@ public class SegmentReplicator {
             return;
         }
         logger.trace(() -> new ParameterizedMessage("Added new replication to collection {}", target.description()));
-        threadPool.generic().execute(new ReplicationRunner(replicationId));
+        threadPool.generic().execute(new ReplicationRunner(replicationId, onGoingReplications, completedReplications));
     }
 
-    private boolean isStoreCorrupt(SegmentReplicationTarget target) {
+    private boolean isStoreCorrupt(AbstractSegmentReplicationTarget target) {
         // ensure target is not already closed. In that case
         // we can assume the store is not corrupt and that the replication
         // event completed successfully.
@@ -336,12 +396,18 @@ public class SegmentReplicator {
 
     void cancel(ShardId shardId, String reason) {
         onGoingReplications.cancelForShard(shardId, reason);
+        onGoingMergedSegmentReplications.cancelForShard(shardId, reason);
         replicationCheckpointStats.remove(shardId);
         primaryCheckpoint.remove(shardId);
+        completedReplications.remove(shardId);
     }
 
     SegmentReplicationTarget get(ShardId shardId) {
         return onGoingReplications.getOngoingReplicationTarget(shardId);
+    }
+
+    List<MergedSegmentReplicationTarget> getMergedSegmentReplicationTarget(ShardId shardId) {
+        return onGoingMergedSegmentReplications.getOngoingReplicationTargetList(shardId);
     }
 
     ReplicationCheckpoint getPrimaryCheckpoint(ShardId shardId) {
@@ -358,5 +424,13 @@ public class SegmentReplicator {
 
     ReplicationCollection.ReplicationRef<SegmentReplicationTarget> get(long id, ShardId shardId) {
         return onGoingReplications.getSafe(id, shardId);
+    }
+
+    ReplicationCollection.ReplicationRef<MergedSegmentReplicationTarget> getMergeReplicationRef(long id) {
+        return onGoingMergedSegmentReplications.get(id);
+    }
+
+    ReplicationCollection.ReplicationRef<MergedSegmentReplicationTarget> getMergeReplicationRef(long id, ShardId shardId) {
+        return onGoingMergedSegmentReplications.getSafe(id, shardId);
     }
 }

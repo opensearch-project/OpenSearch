@@ -39,7 +39,11 @@
 
 ---
 "Test auto-injected field via index template":
+  - skip:
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "index template [example_template] has index patterns [auto-template-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [example_template] will take precedence during new index creation"
       indices.put_index_template:
         name: example_template
         body:
@@ -62,6 +66,8 @@
 
 ---
 "Test auto-injected field via legacy create template API":
+  - skip:
+      features: allowed_warnings
   - do:
       indices.put_template:
         name: legacy_template
@@ -72,6 +78,8 @@
               mapping_transform_trigger_field:
                 type: keyword
   - do:
+      allowed_warnings:
+        - "index [legacy-1] matches multiple legacy templates [global, legacy_template], composable templates will only match a single template"
       indices.create:
         index: legacy-1
   - do:

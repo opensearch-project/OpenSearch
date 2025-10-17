@@ -8,15 +8,20 @@
 
 package org.opensearch.example.systemingestprocessor;
 
+import org.opensearch.common.settings.Settings;
 import org.opensearch.ingest.AbstractBatchingSystemProcessor;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.example.systemingestprocessor.ExampleSystemIngestProcessorPlugin.TRIGGER_SETTING;
 import static org.opensearch.plugins.IngestPlugin.SystemIngestPipelineConfigKeys.INDEX_MAPPINGS;
+import static org.opensearch.plugins.IngestPlugin.SystemIngestPipelineConfigKeys.INDEX_SETTINGS;
 import static org.opensearch.plugins.IngestPlugin.SystemIngestPipelineConfigKeys.INDEX_TEMPLATE_MAPPINGS;
+import static org.opensearch.plugins.IngestPlugin.SystemIngestPipelineConfigKeys.INDEX_TEMPLATE_SETTINGS;
 
 /**
  * A factory to create the example system ingest processor
@@ -55,17 +60,26 @@ public class ExampleSystemIngestProcessorFactory extends AbstractBatchingSystemP
     @Override
     protected AbstractBatchingSystemProcessor newProcessor(String tag, String description, Map<String, Object> config) {
         final List<Map<String, Object>> mappings = new ArrayList<>();
+        final List<Settings> settings = new ArrayList<>();
         final Object mappingFromIndex = config.get(INDEX_MAPPINGS);
         final Object mappingFromTemplates = config.get(INDEX_TEMPLATE_MAPPINGS);
+        final Object settingsFromIndex = config.get(INDEX_SETTINGS);
+        final Object settingsFromTemplates = config.get(INDEX_TEMPLATE_SETTINGS);
         if (mappingFromTemplates instanceof List) {
             mappings.addAll((List<Map<String, Object>>) mappingFromTemplates);
         }
         if (mappingFromIndex instanceof Map) {
             mappings.add((Map<String, Object>) mappingFromIndex);
         }
+        if (settingsFromTemplates instanceof List) {
+            settings.addAll((Collection<? extends Settings>) settingsFromTemplates);
+        }
+        if (settingsFromIndex instanceof Settings) {
+            settings.add((Settings) settingsFromIndex);
+        }
 
         // If no config we are not able to create a processor so simply return a null to show no processor created
-        if (mappings.isEmpty()) {
+        if (mappings.isEmpty() && settings.isEmpty()) {
             return null;
         }
 
@@ -84,6 +98,15 @@ public class ExampleSystemIngestProcessorFactory extends AbstractBatchingSystemP
 
             if (properties.containsKey(TRIGGER_FIELD_NAME)) {
                 isTriggerFieldFound = true;
+            }
+        }
+
+        // If the trigger setting is configured then use it directly.
+        // When we rely on the v1 template to create the index there can be multiple settings and the later one can
+        // override the previous one so we need to loop through all the settings.
+        for (final Settings setting : settings) {
+            if (setting.hasValue(TRIGGER_SETTING.getKey())) {
+                isTriggerFieldFound = TRIGGER_SETTING.get(setting);
             }
         }
 

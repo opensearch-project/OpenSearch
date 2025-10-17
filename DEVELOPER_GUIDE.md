@@ -76,9 +76,9 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 #### JDK
 
-OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 11 is the minimum supported, and JDK-23 is the newest supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`. 
+OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 11 is the minimum supported, and JDK-24 is the newest supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`.
 
-Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11). 
+Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11).
 
 
 In addition, certain backward compatibility tests check out and compile the previous major version of OpenSearch, and therefore require installing [JDK 11](https://adoptium.net/temurin/releases/?version=11) and [JDK 17](https://adoptium.net/temurin/releases/?version=17) and setting the `JAVA11_HOME` and `JAVA17_HOME` environment variables. More to that, since 8.10 release, Gradle has deprecated the usage of the any JDKs below JDK-16. For smooth development experience, the recommendation is to install at least [JDK 17](https://adoptium.net/temurin/releases/?version=17) or [JDK 21](https://adoptium.net/temurin/releases/?version=21). If you still want to build with JDK-11 only, please add `-Dorg.gradle.warning.mode=none` when invoking any Gradle build task from command line, for example:
@@ -87,11 +87,11 @@ In addition, certain backward compatibility tests check out and compile the prev
 ./gradlew check -Dorg.gradle.warning.mode=none
 ```
 
-By default, the test tasks use bundled JDK runtime, configured in version catalog [gradle/libs.versions.toml](gradle/libs.versions.toml), and set to JDK 23 (non-LTS).
+By default, the test tasks use bundled JDK runtime, configured in version catalog [gradle/libs.versions.toml](gradle/libs.versions.toml), and set to JDK 24 (non-LTS).
 
 ```
 bundled_jdk_vendor = adoptium
-bundled_jdk = 23.0.1+11
+bundled_jdk = 24.0.1+9
 ```
 
 #### Custom Runtime JDK
@@ -178,6 +178,23 @@ Run OpenSearch using `gradlew run`.
 ./gradlew run -PinstalledPlugins="['plugin1', 'plugin2']"
 ```
 
+External plugins may also be fetched and installed from maven snapshots:
+
+```bash
+./gradlew run -PinstalledPlugins="['opensearch-job-scheduler', 'opensearch-sql-plugin']"
+```
+
+You can specify a plugin version to pull to test a specific version in the org.opensearch.plugin groupId:
+```bash
+./gradlew run -PinstalledPlugins="['opensearch-job-scheduler:3.3.x.x']"
+```
+
+or install with fully qualified maven coordinates:
+```bash
+./gradlew run -PinstalledPlugins="['com.example:my-cool-plugin:3.3.x.x']"
+```
+
+
 That will build OpenSearch and start it, writing its log above Gradle's status message. We log a lot of stuff on startup, specifically these lines tell you that OpenSearch is ready.
 
 ```
@@ -189,7 +206,9 @@ It's typically easier to wait until the console stops scrolling, and then run `c
 
 ```bash
 curl localhost:9200
-
+```
+The expected reponse should be
+```
 {
   "name" : "runTask-0",
   "cluster_name" : "runTask",

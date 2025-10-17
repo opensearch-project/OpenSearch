@@ -96,6 +96,7 @@ import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
+import org.opensearch.test.telemetry.TestInMemoryMetricsRegistry;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportInterceptor;
@@ -1059,6 +1060,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             private RepositoriesService repositoriesService;
             private RemoteStoreNodeService remoteStoreNodeService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
+            private TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
 
             ClusterNode(int nodeIndex, boolean clusterManagerEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
                 this(
@@ -1188,7 +1190,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     nodeHealthService,
                     persistedStateRegistry,
                     remoteStoreNodeService,
-                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+                    new ClusterManagerMetrics(metricsRegistry),
                     null
                 );
                 coordinator.setNodeConnectionsService(nodeConnectionsService);
@@ -1209,6 +1211,10 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                 gatewayService.start();
                 clusterService.start();
                 coordinator.startInitialJoin();
+            }
+
+            public TestInMemoryMetricsRegistry getMetricsRegistry() {
+                return metricsRegistry;
             }
 
             void close() {

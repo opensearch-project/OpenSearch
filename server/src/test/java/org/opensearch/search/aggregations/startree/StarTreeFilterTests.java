@@ -11,7 +11,7 @@ package org.opensearch.search.aggregations.startree;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -28,7 +28,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.codec.composite.composite101.Composite101Codec;
+import org.opensearch.index.codec.composite.composite103.Composite103Codec;
 import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -44,8 +44,6 @@ import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
 import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,7 +55,6 @@ import java.util.Map;
 
 import org.mockito.Mockito;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 
 public class StarTreeFilterTests extends AggregatorTestCase {
@@ -78,16 +75,6 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         DIMENSION_TYPE_MAP.put(DV, "integer");
     }
 
-    @Before
-    public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-    }
-
-    @After
-    public void teardown() throws IOException {
-        fflock.close();
-    }
-
     protected Codec getCodec(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension) {
         final Logger testLogger = LogManager.getLogger(StarTreeFilterTests.class);
         MapperService mapperService;
@@ -98,7 +85,7 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        return new Composite103Codec(Lucene103Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
     public void testStarTreeFilterWithNoDocsInSVDField() throws IOException {

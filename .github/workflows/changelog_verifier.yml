@@ -9,10 +9,15 @@ jobs:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.event.pull_request.head.sha }}
       - uses: dangoslen/changelog-enforcer@v3
         with:
           skipLabels: "autocut, skip-changelog"
+          changeIsMissingMessage: |
+            ❌ ERROR: No update to CHANGELOG.md found!
+            This project requires a changelog entry for every user-facing change.
+            Please add an entry to the changelog or ask a maintainer to add the skip-changelog label.
+            See https://github.com/opensearch-project/OpenSearch/blob/main/CONTRIBUTING.md#changelog for more details.

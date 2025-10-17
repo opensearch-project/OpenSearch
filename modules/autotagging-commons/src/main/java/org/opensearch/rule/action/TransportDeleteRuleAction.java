@@ -13,7 +13,6 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.rule.DeleteRuleRequest;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RulePersistenceServiceRegistry;
 import org.opensearch.tasks.Task;

@@ -44,7 +44,7 @@ public class ExampleSystemIngestProcessorTests extends OpenSearchTestCase {
 
     private IngestDocumentWrapper createIngestDocumentWrapper(int slot) {
         final IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
-        return new IngestDocumentWrapper(slot, ingestDocument, null);
+        return new IngestDocumentWrapper(slot, 0, ingestDocument, null);
     }
 
     public void testGetType() {

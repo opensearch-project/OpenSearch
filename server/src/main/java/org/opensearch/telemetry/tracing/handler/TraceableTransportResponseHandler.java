@@ -15,6 +15,7 @@ import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -70,6 +71,15 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
     public void handleResponse(T response) {
         try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.handleResponse(response);
+        } finally {
+            span.endSpan();
+        }
+    }
+
+    @Override
+    public void handleStreamResponse(StreamTransportResponse<T> response) {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
+            delegate.handleStreamResponse(response);
         } finally {
             span.endSpan();
         }

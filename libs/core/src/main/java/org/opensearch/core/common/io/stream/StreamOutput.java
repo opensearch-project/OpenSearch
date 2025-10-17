@@ -789,6 +789,8 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 27);
             o.writeSemverRange((SemverRange) v);
         });
+        // Have registered ScriptedAvg class with byte 28 in Streamables.java, so that we do not need the implementation reside in the
+        // server module
         WRITERS = Collections.unmodifiableMap(writers);
     }
 

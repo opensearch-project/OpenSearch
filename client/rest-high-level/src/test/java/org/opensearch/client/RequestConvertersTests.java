@@ -1367,6 +1367,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         scriptParams.put("field", "name");
         scriptParams.put("value", "soren");
         searchTemplateRequest.setScriptParams(scriptParams);
+        searchTemplateRequest.setSearchPipeline("pipeline");
 
         // Verify that the resulting REST request looks as expected.
         Request request = RequestConverters.searchTemplate(searchTemplateRequest);
@@ -1391,6 +1392,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         searchTemplateRequest.setScript("template1");
         searchTemplateRequest.setScriptType(ScriptType.STORED);
         searchTemplateRequest.setProfile(randomBoolean());
+        searchTemplateRequest.setSearchPipeline("pipeline");
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("field", "name");
@@ -1431,6 +1433,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
             searchTemplateRequest.setScriptType(ScriptType.INLINE);
             searchTemplateRequest.setProfile(randomBoolean());
+            searchTemplateRequest.setSearchPipeline("pipeline");
 
             Map<String, Object> scriptParams = new HashMap<>();
             scriptParams.put("field", "name");

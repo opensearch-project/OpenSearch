@@ -623,6 +623,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final int bufferSize = randomIntBetween(1024, 2048);
         final int blobSize = randomIntBetween(0, bufferSize);
 
+        // Build the payload first so we know/keep its exact length
+        final byte[] payload = randomByteArrayOfLength(blobSize);
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(payload);
+
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
@@ -656,24 +660,29 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final AmazonS3Reference clientReference = new AmazonS3Reference(client);
         when(blobStore.clientReference()).thenReturn(clientReference);
 
-        final ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
-        final ArgumentCaptor<RequestBody> requestBodyArgumentCaptor = ArgumentCaptor.forClass(RequestBody.class);
-        when(client.putObject(putObjectRequestArgumentCaptor.capture(), requestBodyArgumentCaptor.capture())).thenReturn(
-            PutObjectResponse.builder().build()
-        );
+        final ArgumentCaptor<PutObjectRequest> putReqCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        final ArgumentCaptor<RequestBody> bodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
+        when(client.putObject(putReqCaptor.capture(), bodyCaptor.capture())).thenReturn(PutObjectResponse.builder().build());
 
-        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
+        // Pass the known-length stream + tell the code the exact size
         blobContainer.executeSingleUpload(blobStore, blobName, inputStream, blobSize, metadata);
 
-        final PutObjectRequest request = putObjectRequestArgumentCaptor.getValue();
-        final RequestBody requestBody = requestBodyArgumentCaptor.getValue();
+        final PutObjectRequest request = putReqCaptor.getValue();
+        final RequestBody requestBody = bodyCaptor.getValue();
+
         assertEquals(bucketName, request.bucket());
         assertEquals(blobPath.buildAsString() + blobName, request.key());
-        byte[] expectedBytes = inputStream.readAllBytes();
+
+        // Read back what the SDK will send and compare to the original payload
         try (InputStream is = requestBody.contentStreamProvider().newStream()) {
-            assertArrayEquals(expectedBytes, is.readAllBytes());
+            byte[] actual = is.readAllBytes();
+            assertEquals(payload.length, actual.length);
+            assertArrayEquals(payload, actual);
         }
+
+        // Explicit content length must be set on the request
         assertEquals(blobSize, request.contentLength().longValue());
+
         assertEquals(storageClass, request.storageClass());
         assertEquals(cannedAccessControlList, request.acl());
         assertEquals(metadata, request.metadata());
@@ -1752,18 +1761,25 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final ListObjectsV2Publisher listPublisher = mock(ListObjectsV2Publisher.class);
         doAnswer(invocation -> {
-            Subscriber<? super ListObjectsV2Response> subscriber = invocation.getArgument(0);
-            subscriber.onSubscribe(new Subscription() {
+            Subscriber<? super ListObjectsV2Response> sub = invocation.getArgument(0);
+            sub.onSubscribe(new Subscription() {
+                volatile boolean done;
+
                 @Override
                 public void request(long n) {
-                    subscriber.onNext(
-                        ListObjectsV2Response.builder().contents(S3Object.builder().key("test-key").size(100L).build()).build()
-                    );
-                    subscriber.onComplete();
+                    if (done || n <= 0) return;
+                    done = true; // emit once
+                    CompletableFuture.runAsync(
+                        () -> sub.onNext(
+                            ListObjectsV2Response.builder().contents(S3Object.builder().key("test-key").size(100L).build()).build()
+                        )
+                    ).thenRun(sub::onComplete);
                 }
 
                 @Override
-                public void cancel() {}
+                public void cancel() {
+                    done = true;
+                }
             });
             return null;
         }).when(listPublisher).subscribe(ArgumentMatchers.<Subscriber<ListObjectsV2Response>>any());
@@ -2125,6 +2141,72 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         IOException e = expectThrows(IOException.class, () -> blobContainer.deleteBlobsIgnoringIfNotExists(blobNames));
         assertEquals("Failed to delete blobs " + blobNames, e.getMessage());
         assertEquals(simulatedError, e.getCause().getCause());
+    }
+
+    public void testDeleteTimeoutWithNeverCompletingAsyncDeletionFuture() throws Exception {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.getBulkDeletesSize()).thenReturn(1000);
+
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
+        final AmazonAsyncS3Reference asyncClientReference = mock(AmazonAsyncS3Reference.class);
+        when(blobStore.asyncClientReference()).thenReturn(asyncClientReference);
+        AmazonAsyncS3WithCredentials amazonAsyncS3WithCredentials = AmazonAsyncS3WithCredentials.create(
+            s3AsyncClient,
+            s3AsyncClient,
+            s3AsyncClient,
+            null
+        );
+        when(asyncClientReference.get()).thenReturn(amazonAsyncS3WithCredentials);
+
+        // Create a future that never completes
+        CompletableFuture<DeleteObjectsResponse> neverCompletingFuture = new CompletableFuture<>();
+        when(s3AsyncClient.deleteObjects(any(DeleteObjectsRequest.class))).thenReturn(neverCompletingFuture);
+
+        // Create a publisher that emits one item and completes
+        final ListObjectsV2Publisher listPublisher = mock(ListObjectsV2Publisher.class);
+        final CountDownLatch publisherCompletedLatch = new CountDownLatch(1);
+        final AtomicBoolean hasEmittedItem = new AtomicBoolean(false);
+
+        doAnswer(invocation -> {
+            Subscriber<? super ListObjectsV2Response> subscriber = invocation.getArgument(0);
+            subscriber.onSubscribe(new Subscription() {
+                @Override
+                public void request(long n) {
+                    if (!hasEmittedItem.getAndSet(true)) {
+                        subscriber.onNext(
+                            ListObjectsV2Response.builder()
+                                .contents(Collections.singletonList(S3Object.builder().key("test-key").size(100L).build()))
+                                .build()
+                        );
+                        publisherCompletedLatch.countDown();
+                    } else {
+                        subscriber.onComplete();
+                    }
+                }
+
+                @Override
+                public void cancel() {}
+            });
+            return null;
+        }).when(listPublisher).subscribe(ArgumentMatchers.<Subscriber<ListObjectsV2Response>>any());
+
+        when(s3AsyncClient.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listPublisher);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        IOException ex = assertThrows(IOException.class, blobContainer::delete);
+        assertEquals("Delete operation timed out after 30 seconds", ex.getMessage());
+
+        // Wait for publisher to complete
+        assertTrue("Publisher should complete", publisherCompletedLatch.await(1, TimeUnit.SECONDS));
+
+        verify(s3AsyncClient, times(1)).listObjectsV2Paginator(any(ListObjectsV2Request.class));
+        verify(s3AsyncClient, times(1)).deleteObjects(any(DeleteObjectsRequest.class));
     }
 
     private void mockObjectResponse(S3AsyncClient s3AsyncClient, String bucketName, String blobName, int objectSize) {

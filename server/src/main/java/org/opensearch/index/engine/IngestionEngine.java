@@ -8,10 +8,8 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
@@ -20,12 +18,10 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionConsumerFactory;
-import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.DocumentMapperForType;
@@ -48,11 +44,9 @@ import org.opensearch.indices.pollingingest.StreamPoller;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.opensearch.action.index.IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
@@ -92,27 +86,22 @@ public class IngestionEngine extends InternalEngine {
         IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
 
         // initialize the ingestion consumer factory
-        this.ingestionConsumerFactory.initialize(ingestionSource.params());
+        this.ingestionConsumerFactory.initialize(ingestionSource);
         String clientId = engineConfig.getIndexSettings().getNodeName()
             + "-"
             + engineConfig.getIndexSettings().getIndex().getName()
             + "-"
             + engineConfig.getShardId().getId();
-        IngestionShardConsumer ingestionShardConsumer = this.ingestionConsumerFactory.createShardConsumer(
-            clientId,
-            engineConfig.getShardId().getId()
-        );
-        logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
+
         Map<String, String> commitData = commitDataAsMap(indexWriter);
         StreamPoller.ResetState resetState = ingestionSource.getPointerInitReset().getType();
         String resetValue = ingestionSource.getPointerInitReset().getValue();
         IngestionShardPointer startPointer = null;
-        Set<IngestionShardPointer> persistedPointers = new HashSet<>();
         boolean forceResetPoller = resetStateOverride != null
             && Strings.isNullOrEmpty(resetValueOverride) == false
             && startPointerOverride != null;
 
-        // load persisted pointers
+        // initialize ingestion start pointer
         if (commitData.containsKey(StreamPoller.BATCH_START) || forceResetPoller) {
             if (forceResetPoller) {
                 startPointer = startPointerOverride;
@@ -123,13 +112,6 @@ public class IngestionEngine extends InternalEngine {
 
                 // reset to none so the poller will poll from the startPointer
                 resetState = StreamPoller.ResetState.NONE;
-            }
-
-            try (Searcher searcher = acquireSearcher("restore_offset", SearcherScope.INTERNAL)) {
-                persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()), startPointer);
-                logger.debug("recovered persisted pointers: {}", persistedPointers);
-            } catch (IOException e) {
-                throw new EngineCreationFailureException(config().getShardId(), "failed to restore offset", e);
             }
         }
 
@@ -146,20 +128,24 @@ public class IngestionEngine extends InternalEngine {
         StreamPoller.State initialPollerState = indexMetadata.getIngestionStatus().isPaused()
             ? StreamPoller.State.PAUSED
             : StreamPoller.State.NONE;
-        streamPoller = new DefaultStreamPoller(
+
+        // initialize the stream poller
+        DefaultStreamPoller.Builder streamPollerBuilder = new DefaultStreamPoller.Builder(
             startPointer,
-            persistedPointers,
-            ingestionShardConsumer,
-            this,
-            resetState,
-            resetValue,
-            ingestionErrorStrategy,
-            initialPollerState,
-            ingestionSource.getMaxPollSize(),
-            ingestionSource.getPollTimeout(),
-            ingestionSource.getNumProcessorThreads(),
-            ingestionSource.getBlockingQueueSize()
+            ingestionConsumerFactory,
+            clientId,
+            engineConfig.getShardId().getId(),
+            this
         );
+        streamPoller = streamPollerBuilder.resetState(resetState)
+            .resetValue(resetValue)
+            .errorStrategy(ingestionErrorStrategy)
+            .initialState(initialPollerState)
+            .maxPollSize(ingestionSource.getMaxPollSize())
+            .pollTimeout(ingestionSource.getPollTimeout())
+            .numProcessorThreads(ingestionSource.getNumProcessorThreads())
+            .blockingQueueSize(ingestionSource.getBlockingQueueSize())
+            .build();
         registerStreamPollerListener();
 
         // start the polling loop
@@ -183,27 +169,6 @@ public class IngestionEngine extends InternalEngine {
         if (engineConfig.getClusterApplierService() != null) {
             engineConfig.getClusterApplierService().removeListener(streamPoller);
         }
-    }
-
-    protected Set<IngestionShardPointer> fetchPersistedOffsets(DirectoryReader directoryReader, IngestionShardPointer batchStart)
-        throws IOException {
-        final IndexSearcher searcher = new IndexSearcher(directoryReader);
-        searcher.setQueryCache(null);
-        var query = batchStart.newRangeQueryGreaterThan(IngestionShardPointer.OFFSET_FIELD);
-
-        // Execute the search
-        var topDocs = searcher.search(query, Integer.MAX_VALUE);
-        Set<IngestionShardPointer> result = new HashSet<>();
-        var storedFields = searcher.getIndexReader().storedFields();
-        for (var scoreDoc : topDocs.scoreDocs) {
-            var doc = storedFields.document(scoreDoc.doc);
-            String valueStr = doc.get(IngestionShardPointer.OFFSET_FIELD);
-            IngestionShardPointer value = ingestionConsumerFactory.parsePointerFromString(valueStr);
-            result.add(value);
-        }
-
-        refresh("restore_offset", SearcherScope.INTERNAL, true);
-        return result;
     }
 
     @Override
@@ -575,6 +540,10 @@ public class IngestionEngine extends InternalEngine {
             throw new IllegalStateException("Cannot reset consumer when poller is not paused");
         }
 
+        if (streamPoller.getConsumer() == null) {
+            throw new IllegalStateException("Consumer is not yet initialized");
+        }
+
         try {
             // refresh is needed for persisted pointers to be visible
             refresh("reset poller", SearcherScope.INTERNAL, true);
@@ -606,6 +575,7 @@ public class IngestionEngine extends InternalEngine {
      */
     public ShardIngestionState getIngestionState() {
         IngestionShardPointer shardPointer = streamPoller.getBatchStartPointer();
+
         return new ShardIngestionState(
             engineConfig.getIndexSettings().getIndex().getName(),
             engineConfig.getShardId().getId(),

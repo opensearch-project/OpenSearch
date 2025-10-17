@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
+import static org.opensearch.index.store.remote.utils.FileTypeUtils.INDICES_FOLDER_IDENTIFIER;
 
 /**
  * IndexStoreListener to clean up file cache when the index is deleted. The cached entries will be eligible
@@ -55,29 +56,54 @@ public class FileCacheCleaner implements IndexStoreListener {
     public void beforeShardPathDeleted(ShardId shardId, IndexSettings indexSettings, NodeEnvironment nodeEnvironment) {
         if (indexSettings.isRemoteSnapshot()) {
             final ShardPath shardPath = ShardPath.loadFileCachePath(nodeEnvironment, shardId);
-            cleanupShardFileCache(shardPath);
+            cleanupShardFileCache(shardPath, false, true);
             deleteShardFileCacheDirectory(shardPath);
+        } else if (indexSettings.isWarmIndex()) {
+            try {
+                final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnvironment, shardId, indexSettings.customDataPath());
+                if (shardPath != null) {
+                    cleanupShardFileCache(shardPath, true, false);
+                    deleteShardFileCacheDirectory(shardPath);
+                }
+            } catch (IOException e) {
+                logger.error("failed to delete warm index shard file cache directory", e);
+            }
         }
     }
 
     /**
      * Cleans up the corresponding index file path entries from FileCache
      *
-     * @param shardPath the shard path
+     * @param isWarmIndex flag indicating if this is a remote index
+     * @param isRemoteSnapshot flag indicating if this is a remote snapshot
      */
-    private void cleanupShardFileCache(ShardPath shardPath) {
+    private void cleanupShardFileCache(ShardPath shardPath, boolean isWarmIndex, boolean isRemoteSnapshot) {
         try {
             final FileCache fc = fileCacheProvider.get();
             assert fc != null;
-            final Path localStorePath = shardPath.getDataPath().resolve(LOCAL_STORE_LOCATION);
+
+            final Path localStorePath;
+            if (isWarmIndex) {
+                localStorePath = shardPath.getDataPath().resolve(INDICES_FOLDER_IDENTIFIER);
+            } else if (isRemoteSnapshot) {
+                localStorePath = shardPath.getDataPath().resolve(LOCAL_STORE_LOCATION);
+            } else {
+                return;
+            }
+
             try (DirectoryStream<Path> ds = Files.newDirectoryStream(localStorePath)) {
                 for (Path subPath : ds) {
                     fc.remove(subPath.toRealPath());
                 }
             }
         } catch (IOException ioe) {
+            String operationType = isWarmIndex ? "warm index" : "remote snapshot";
             logger.error(
-                () -> new ParameterizedMessage("Error removing items from cache during shard deletion {}", shardPath.getShardId()),
+                () -> new ParameterizedMessage(
+                    "Error removing items from cache during {} shard deletion {}",
+                    operationType,
+                    shardPath.getShardId()
+                ),
                 ioe
             );
         }
@@ -110,6 +136,15 @@ public class FileCacheCleaner implements IndexStoreListener {
                     IOUtils.rm(indexCachePath);
                 } catch (IOException e) {
                     logger.error(() -> new ParameterizedMessage("Failed to delete cache path for index {}", index), e);
+                }
+            }
+        } else if (indexSettings.isWarmIndex()) {
+            final Path indicesPathInCache = nodeEnvironment.fileCacheNodePath().indicesPath.resolve(index.getUUID());
+            if (Files.exists(indicesPathInCache)) {
+                try {
+                    IOUtils.rm(indicesPathInCache);
+                } catch (IOException e) {
+                    logger.error(() -> new ParameterizedMessage("Failed to delete indices path in cache for index {}", index), e);
                 }
             }
         }

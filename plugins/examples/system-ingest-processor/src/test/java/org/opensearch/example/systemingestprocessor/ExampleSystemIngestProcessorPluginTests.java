@@ -11,8 +11,10 @@ package org.opensearch.example.systemingestprocessor;
 import org.opensearch.ingest.Processor;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.example.systemingestprocessor.ExampleSystemIngestProcessorPlugin.TRIGGER_SETTING;
 import static org.mockito.Mockito.mock;
 
 public class ExampleSystemIngestProcessorPluginTests extends OpenSearchTestCase {
@@ -26,5 +28,9 @@ public class ExampleSystemIngestProcessorPluginTests extends OpenSearchTestCase 
             "Should return the example system ingest processor factory.",
             factories.get(ExampleSystemIngestProcessorFactory.TYPE) instanceof ExampleSystemIngestProcessorFactory
         );
+    }
+
+    public void testGetSettings() {
+        assertEquals(List.of(TRIGGER_SETTING), plugin.getSettings());
     }
 }

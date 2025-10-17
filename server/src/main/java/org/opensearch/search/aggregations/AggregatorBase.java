@@ -38,6 +38,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -298,6 +299,14 @@ public abstract class AggregatorBase extends Aggregator {
         collectableSubAggregators.postCollection();
     }
 
+    @Override
+    public void reset() {
+        doReset();
+        collectableSubAggregators.reset();
+    }
+
+    public void doReset() {}
+
     /** Called upon release of the aggregator. */
     @Override
     public void close() {
@@ -327,5 +336,11 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public String toString() {
         return name;
+    }
+
+    protected void checkCancelled() {
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("The query has been cancelled");
+        }
     }
 }

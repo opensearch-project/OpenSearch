@@ -134,4 +134,11 @@ public class StarTreeIndexSettings {
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
+
+    public static final Setting<Boolean> STAR_TREE_SEARCH_ENABLED_SETTING = Setting.boolSetting(
+        "index.search.star_tree_index.enabled",
+        true,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
 }

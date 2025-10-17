@@ -66,14 +66,18 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.LoggerInfoStream;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.DerivedSourceDirectoryReader;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.uid.Versions;
@@ -100,10 +104,12 @@ import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.merge.OnGoingMerge;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
 import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
@@ -111,6 +117,7 @@ import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -252,7 +259,11 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
+            mergeScheduler = scheduler = new EngineMergeScheduler(
+                engineConfig.getShardId(),
+                engineConfig.getIndexSettings(),
+                getMergedSegmentTransferTracker()
+            );
             throttle = new IndexThrottle();
             try {
                 store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
@@ -369,7 +380,8 @@ public class InternalEngine extends Engine {
             translogEventListener,
             this::ensureOpen,
             engineConfig.getTranslogFactory(),
-            engineConfig.getStartedPrimarySupplier()
+            engineConfig.getStartedPrimarySupplier(),
+            TranslogOperationHelper.create(engineConfig)
         );
     }
 
@@ -641,7 +653,7 @@ public class InternalEngine extends Engine {
                                 if (operation != null) {
                                     // in the case of a already pruned translog generation we might get null here - yet very unlikely
                                     final Translog.Index index = (Translog.Index) operation;
-                                    TranslogLeafReader reader = new TranslogLeafReader(index);
+                                    TranslogLeafReader reader = new TranslogLeafReader(index, config());
                                     return new GetResult(
                                         new Engine.Searcher(
                                             "realtime_get",
@@ -2379,6 +2391,9 @@ public class InternalEngine extends Engine {
         iwc.setUseCompoundFile(engineConfig.useCompoundFile());
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
+            if (config().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_3_2_0)) {
+                iwc.setParentField(Lucene.PARENT_FIELD);
+            }
         }
         if (config().getLeafSorter() != null) {
             iwc.setLeafSorter(config().getLeafSorter()); // The default segment search order
@@ -2465,8 +2480,8 @@ public class InternalEngine extends Engine {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
 
-        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
-            super(shardId, indexSettings);
+        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings, MergedSegmentTransferTracker mergedSegmentTransferTracker) {
+            super(shardId, indexSettings, mergedSegmentTransferTracker);
         }
 
         @Override
@@ -2721,6 +2736,29 @@ public class InternalEngine extends Engine {
         return numDocUpdates.count();
     }
 
+    private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
+        assert OpenSearchDirectoryReader.unwrap(searcher.getDirectoryReader()) != null
+            : "DirectoryReader must be an instance of OpenSearchDirectoryReader";
+        boolean success = false;
+        try {
+            final Engine.Searcher newSearcher = IndexShard.wrapSearcher(
+                searcher,
+                reader -> DerivedSourceDirectoryReader.wrap(
+                    reader,
+                    config().getDocumentMapperForTypeSupplier().get().getDocumentMapper().root()::deriveSource
+                )
+            );
+            success = true;
+            return newSearcher;
+        } catch (IOException ex) {
+            throw new OpenSearchException("failed to wrap searcher", ex);
+        } finally {
+            if (success == false) {
+                Releasables.close(success, searcher);
+            }
+        }
+    }
+
     @Override
     public Translog.Snapshot newChangesSnapshot(
         String source,
@@ -2731,8 +2769,13 @@ public class InternalEngine extends Engine {
     ) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
-        Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
+        Searcher searcher = null;
         try {
+            if (config().getIndexSettings().isDerivedSourceEnabled()) {
+                searcher = acquireSearcher(source, SearcherScope.INTERNAL, this::wrapSearcher);
+            } else {
+                searcher = acquireSearcher(source, SearcherScope.INTERNAL);
+            }
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
                 searcher,
                 LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,

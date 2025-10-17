@@ -156,6 +156,8 @@ public interface TransferService {
 
     void listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit, ActionListener<List<BlobMetadata>> listener);
 
+    List<BlobMetadata> listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit) throws IOException;
+
     void listAllInSortedOrderAsync(
         String threadpoolName,
         Iterable<String> path,

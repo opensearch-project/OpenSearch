@@ -8,11 +8,12 @@
 
 package org.opensearch.rule.action;
 
+import org.apache.lucene.util.SameThreadExecutorService;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RulePersistenceServiceRegistry;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -35,7 +36,9 @@ public class TransportGetRuleActionTests extends OpenSearchTestCase {
 
         when(rulePersistenceServiceRegistry.getRulePersistenceService(any())).thenReturn(rulePersistenceService);
         doNothing().when(rulePersistenceService).getRule(any(), any());
-        sut = new TransportGetRuleAction(transportService, actionFilters, rulePersistenceServiceRegistry);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(any())).thenReturn(new SameThreadExecutorService());
+        sut = new TransportGetRuleAction(transportService, threadPool, actionFilters, rulePersistenceServiceRegistry);
         sut.doExecute(null, getRuleRequest, null);
         verify(rulePersistenceService, times(1)).getRule(any(), any());
     }

@@ -51,11 +51,10 @@ import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.geoip.IngestGeoIpModulePlugin.GeoIpCache;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -221,17 +220,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
     @SuppressWarnings("removal")
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
-        CityResponse response = AccessController.doPrivileged(
-            (PrivilegedAction<CityResponse>) () -> cache.putIfAbsent(ipAddress, CityResponse.class, ip -> {
-                try {
-                    return lazyLoader.get().city(ip);
-                } catch (AddressNotFoundException e) {
-                    throw new AddressNotFoundRuntimeException(e);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            })
-        );
+        CityResponse response = AccessController.doPrivileged(() -> cache.putIfAbsent(ipAddress, CityResponse.class, ip -> {
+            try {
+                return lazyLoader.get().city(ip);
+            } catch (AddressNotFoundException e) {
+                throw new AddressNotFoundRuntimeException(e);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }));
 
         Country country = response.getCountry();
         City city = response.getCity();
@@ -309,17 +306,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
     @SuppressWarnings("removal")
     private Map<String, Object> retrieveCountryGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
-        CountryResponse response = AccessController.doPrivileged(
-            (PrivilegedAction<CountryResponse>) () -> cache.putIfAbsent(ipAddress, CountryResponse.class, ip -> {
-                try {
-                    return lazyLoader.get().country(ip);
-                } catch (AddressNotFoundException e) {
-                    throw new AddressNotFoundRuntimeException(e);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            })
-        );
+        CountryResponse response = AccessController.doPrivileged(() -> cache.putIfAbsent(ipAddress, CountryResponse.class, ip -> {
+            try {
+                return lazyLoader.get().country(ip);
+            } catch (AddressNotFoundException e) {
+                throw new AddressNotFoundRuntimeException(e);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }));
 
         Country country = response.getCountry();
         Continent continent = response.getContinent();
@@ -356,17 +351,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
     @SuppressWarnings("removal")
     private Map<String, Object> retrieveAsnGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
-        AsnResponse response = AccessController.doPrivileged(
-            (PrivilegedAction<AsnResponse>) () -> cache.putIfAbsent(ipAddress, AsnResponse.class, ip -> {
-                try {
-                    return lazyLoader.get().asn(ip);
-                } catch (AddressNotFoundException e) {
-                    throw new AddressNotFoundRuntimeException(e);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            })
-        );
+        AsnResponse response = AccessController.doPrivileged(() -> cache.putIfAbsent(ipAddress, AsnResponse.class, ip -> {
+            try {
+                return lazyLoader.get().asn(ip);
+            } catch (AddressNotFoundException e) {
+                throw new AddressNotFoundRuntimeException(e);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }));
 
         Long asn = response.getAutonomousSystemNumber();
         String organization_name = response.getAutonomousSystemOrganization();

@@ -34,4 +34,9 @@ public class MatchNoneFilter implements DimensionFilter {
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
         return false;
     }
+
+    @Override
+    public String getDimensionName() {
+        return null;
+    }
 }

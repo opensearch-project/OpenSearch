@@ -18,6 +18,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
+import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -34,9 +35,11 @@ import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Assert;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -45,8 +48,11 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.hamcrest.core.StringContains.containsString;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, supportsDedicatedMasters = false)
@@ -189,19 +195,9 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL.name())
             .build();
 
         assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_2).setSettings(settings).get());
-
-        // Verify from the cluster settings if the data locality is partial
-        GetIndexResponse getIndexResponse = client().admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices(INDEX_NAME_2).includeDefaults(true))
-            .get();
-
-        Settings indexSettings = getIndexResponse.settings().get(INDEX_NAME_2);
-        assertEquals(IndexModule.DataLocalityType.PARTIAL.name(), indexSettings.get(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey()));
 
         // Ingesting docs again before force merge
         indexBulk(INDEX_NAME_2, NUM_DOCS_IN_BULK);
@@ -256,5 +252,42 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
 
     private boolean isFileCacheEmpty(AggregateFileCacheStats stats) {
         return stats.getUsed().getBytes() == 0L && stats.getActive().getBytes() == 0L;
+    }
+
+    public void testNoResizeOnWarm() {
+        InternalTestCluster internalTestCluster = internalCluster();
+        internalTestCluster.startClusterManagerOnlyNode();
+        internalCluster().startDataAndWarmNodes(1).get(0);
+        Settings idxSettings = Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
+            .build();
+
+        createIndex(INDEX_NAME, idxSettings);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        ResizeType type = randomFrom(ResizeType.CLONE, ResizeType.SHRINK, ResizeType.SPLIT);
+        try {
+            client().admin()
+                .indices()
+                .prepareResizeIndex(INDEX_NAME, "target")
+                .setResizeType(type)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", 2)
+                        .putNull("index.blocks.write")
+                        .build()
+                )
+                .get();
+            fail();
+        } catch (Exception e) {
+            Assert.assertThat(e.getMessage(), containsString("cannot resize warm index"));
+        }
     }
 }

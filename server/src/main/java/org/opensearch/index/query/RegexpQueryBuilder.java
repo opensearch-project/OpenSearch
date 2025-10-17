@@ -38,6 +38,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
@@ -60,6 +61,9 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RegexpQueryBuilder.class);
+
     public static final String NAME = "regexp";
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
@@ -294,12 +298,25 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                     + "] index level setting."
             );
         }
+
+        // Check if COMPLEMENT flag is being used
+        // The COMPLEMENT flag maps to Lucene's DEPRECATED_COMPLEMENT which is marked for removal in Lucene 11
+        // This deprecation warning helps users migrate their queries before the feature is completely removed
+        if ((syntaxFlagsValue & RegexpFlag.COMPLEMENT.value()) != 0) {
+            deprecationLogger.deprecate(
+                "regexp_complement_operator",
+                "The complement operator (~) for arbitrary patterns in regexp queries is deprecated and will be removed in a future version. "
+                    + "Consider rewriting your query to use character class negation [^...] or other query types."
+            );
+        }
+
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
         int matchFlagsValue = caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0;
         Query query = null;
         // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
-        int sanitisedSyntaxFlag = syntaxFlagsValue & RegExp.ALL;
+        // The hexadecimal for DEPRECATED_COMPLEMENT is 0x10000. The OR condition ensures COMPLEMENT ~ is preserved
+        int sanitisedSyntaxFlag = syntaxFlagsValue & (RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
 
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {

@@ -67,12 +67,18 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.profile.query.ProfileWeight;
@@ -82,6 +88,7 @@ import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.streaming.FlushMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -156,6 +163,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.profiler = profiler;
     }
 
+    public QueryProfiler getProfiler() {
+        return profiler;
+    }
+
     /**
      * Add a {@link Runnable} that will be run on a regular basis while accessing documents in the
      * DirectoryReader but also while collecting them and check for query cancellation or timeout.
@@ -213,7 +224,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
-            ContextualProfileBreakdown<QueryTimingType> profile = profiler.getQueryBreakdown(query);
+            ContextualProfileBreakdown profile = profiler.getQueryBreakdown(query);
             Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT);
             timer.start();
             final Weight weight;
@@ -385,9 +396,42 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
 
+        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
+            logger.debug(
+                "Stream intermediate aggregation for segment [{}], shard [{}]",
+                ctx.ord,
+                searchContext.shardTarget().getShardId().id()
+            );
+            List<InternalAggregation> internalAggregation = searchContext.bucketCollectorProcessor().buildAggBatch(collector);
+            if (!internalAggregation.isEmpty()) {
+                sendBatch(internalAggregation);
+            }
+        }
+
         // Note: this is called if collection ran successfully, including the above special cases of
         // CollectionTerminatedException and TimeExceededException, but no other exception.
         leafCollector.finish();
+    }
+
+    void sendBatch(List<InternalAggregation> batch) {
+        InternalAggregations batchAggResult = new InternalAggregations(batch);
+
+        final QuerySearchResult queryResult = searchContext.queryResult();
+        // clone the query result to avoid issue in concurrent scenario
+        final QuerySearchResult cloneResult = new QuerySearchResult(
+            queryResult.getContextId(),
+            queryResult.getSearchShardTarget(),
+            queryResult.getShardSearchRequest()
+        );
+        cloneResult.aggregations(batchAggResult);
+        // set a dummy topdocs
+        cloneResult.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
+        // set a dummy fetch
+        final FetchSearchResult fetchResult = searchContext.fetchResult();
+        fetchResult.hits(SearchHits.empty());
+        final QueryFetchSearchResult result = new QueryFetchSearchResult(cloneResult, fetchResult);
+        // flush back
+        searchContext.getStreamChannelListener().onStreamResponse(result, false);
     }
 
     private Weight wrapWeight(Weight weight) {

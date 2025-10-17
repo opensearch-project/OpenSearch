@@ -128,7 +128,9 @@ public class MemorySizeSettingsTests extends OpenSearchTestCase {
         assertMemorySizeSetting(
             IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
             "indices.fielddata.cache.size",
-            new ByteSizeValue(-1)
+            new ByteSizeValue(
+                (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * IndicesFieldDataCache.MAX_SIZE_PERCENTAGE.getAsRatio())
+            )
         );
     }
 

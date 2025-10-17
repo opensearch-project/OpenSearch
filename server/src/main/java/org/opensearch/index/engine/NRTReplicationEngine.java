@@ -21,6 +21,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -29,6 +30,7 @@ import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -58,6 +60,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 public class NRTReplicationEngine extends Engine {
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
+    private final Object lastCommittedSegmentInfosMutex = new Object();
     private final NRTReplicationReaderManager readerManager;
     private final CompletionStatsCache completionStatsCache;
     private final LocalCheckpointTracker localCheckpointTracker;
@@ -125,7 +128,8 @@ public class NRTReplicationEngine extends Engine {
                 },
                 this,
                 engineConfig.getTranslogFactory(),
-                engineConfig.getStartedPrimarySupplier()
+                engineConfig.getStartedPrimarySupplier(),
+                TranslogOperationHelper.create(engineConfig)
             );
             this.translogManager = translogManagerRef;
             success = true;
@@ -150,7 +154,8 @@ public class NRTReplicationEngine extends Engine {
         return new NRTReplicationReaderManager(
             OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId),
             replicaFileTracker::incRef,
-            replicaFileTracker::decRef
+            replicaFileTracker::decRef,
+            engineConfig
         );
     }
 
@@ -191,9 +196,11 @@ public class NRTReplicationEngine extends Engine {
         // get a reference to the previous commit files so they can be decref'd once a new commit is made.
         final Collection<String> previousCommitFiles = getLastCommittedSegmentInfos().files(true);
         store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
-        this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-        // incref the latest on-disk commit.
-        replicaFileTracker.incRef(this.lastCommittedSegmentInfos.files(true));
+        synchronized (lastCommittedSegmentInfosMutex) {
+            this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            // incref the latest on-disk commit.
+            replicaFileTracker.incRef(this.lastCommittedSegmentInfos.files(true));
+        }
         // decref the prev commit.
         replicaFileTracker.decRef(previousCommitFiles);
         translogManager.syncTranslog();
@@ -410,8 +417,12 @@ public class NRTReplicationEngine extends Engine {
             flush(false, true);
         }
         try {
-            final IndexCommit indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, store.directory());
-            return new GatedCloseable<>(indexCommit, () -> {});
+            synchronized (lastCommittedSegmentInfosMutex) {
+                final IndexCommit indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, store.directory());
+                final Collection<String> files = indexCommit.getFileNames();
+                replicaFileTracker.incRef(files);
+                return new GatedCloseable<>(indexCommit, () -> { replicaFileTracker.decRef(files); });
+            }
         } catch (IOException e) {
             throw new EngineException(shardId, "Unable to build latest IndexCommit", e);
         }
@@ -490,6 +501,13 @@ public class NRTReplicationEngine extends Engine {
     public void maybePruneDeletes() {}
 
     @Override
+    public MergeStats getMergeStats() {
+        MergeStats mergeStats = new MergeStats();
+        mergeStats.add(engineConfig.getMergedSegmentTransferTracker().stats());
+        return mergeStats;
+    }
+
+    @Override
     public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {}
 
     @Override
@@ -537,6 +555,9 @@ public class NRTReplicationEngine extends Engine {
 
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
-        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(store.directory()), Lucene.SOFT_DELETES_FIELD);
+        return new SoftDeletesDirectoryReaderWrapper(
+            DirectoryReader.open(store.directory(), engineConfig.getLeafSorter()),
+            Lucene.SOFT_DELETES_FIELD
+        );
     }
 }

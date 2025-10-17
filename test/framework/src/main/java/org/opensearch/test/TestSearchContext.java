@@ -713,6 +713,11 @@ public class TestSearchContext extends SearchContext {
             && sort.sort.getSort()[0].getReverse() == false;
     }
 
+    @Override
+    public boolean getStarTreeIndexEnabled() {
+        return indexService != null && indexService.getIndexSettings().getStarTreeIndexEnabled();
+    }
+
     /**
      * Clean the query results by consuming all of it
      */
@@ -726,7 +731,7 @@ public class TestSearchContext extends SearchContext {
      * Add profilers to the query
      */
     public TestSearchContext withProfilers() {
-        this.profilers = new Profilers(searcher, concurrentSegmentSearchEnabled);
+        this.profilers = new Profilers(searcher, concurrentSegmentSearchEnabled, query -> List.of());
         return this;
     }
 }

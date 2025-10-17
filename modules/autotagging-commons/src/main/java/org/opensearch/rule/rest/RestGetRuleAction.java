@@ -18,14 +18,12 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
-import org.opensearch.rule.GetRuleRequest;
-import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.action.GetRuleAction;
-import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.action.GetRuleRequest;
+import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.transport.client.node.NodeClient;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.rest.RestRequest.Method.GET;
-import static org.opensearch.rule.autotagging.Rule._ID_STRING;
+import static org.opensearch.rule.autotagging.Rule.ID_STRING;
 
 /**
  * Rest action to get a Rule
@@ -63,33 +61,28 @@ public class RestGetRuleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new RestHandler.Route(GET, "_rules/{featureType}/"), new RestHandler.Route(GET, "_rules/{featureType}/{_id}"));
+        return List.of(new RestHandler.Route(GET, "_rules/{featureType}/"), new RestHandler.Route(GET, "_rules/{featureType}/{id}"));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final Map<Attribute, Set<String>> attributeFilters = new HashMap<>();
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        final Map<String, Set<String>> attributeFilters = new HashMap<>();
 
         if (!request.hasParam(FEATURE_TYPE)) {
             throw new IllegalArgumentException("Invalid route.");
         }
 
         final FeatureType featureType = FeatureType.from(request.param(FEATURE_TYPE));
-        final List<String> requestParams = request.params()
+        final List<String> attributeParams = request.params()
             .keySet()
             .stream()
-            .filter(key -> !key.equals(FEATURE_TYPE) && !key.equals(_ID_STRING) && !key.equals(SEARCH_AFTER_STRING))
+            .filter(key -> featureType.getAllowedAttributesRegistry().containsKey(key.split("\\.", 2)[0]))
             .toList();
-
-        for (String attributeName : requestParams) {
-            Attribute attribute = featureType.getAttributeFromName(attributeName);
-            if (attribute == null) {
-                throw new IllegalArgumentException(attributeName + " is not a valid attribute under feature type " + featureType.getName());
-            }
-            attributeFilters.put(attribute, parseAttributeValues(request.param(attributeName), attributeName, featureType));
+        for (String attributeName : attributeParams) {
+            attributeFilters.put(attributeName, parseAttributeValues(request.param(attributeName), attributeName, featureType));
         }
         final GetRuleRequest getRuleRequest = new GetRuleRequest(
-            request.param(_ID_STRING),
+            request.param(ID_STRING),
             attributeFilters,
             request.param(SEARCH_AFTER_STRING),
             featureType

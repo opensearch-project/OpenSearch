@@ -45,6 +45,7 @@ import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 
@@ -108,6 +109,9 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public PointValues getPointValues(String field) throws IOException {
+            if (Strings.isEmpty(field)) {
+                return null;
+            }
             final PointValues pointValues = in.getPointValues(field);
             if (pointValues == null) {
                 return null;

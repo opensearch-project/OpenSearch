@@ -32,8 +32,15 @@
 
 package org.opensearch.search.profile.query;
 
+import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.opensearch.search.profile.ProfileMetric;
+import org.opensearch.search.profile.ProfileMetricUtil;
 import org.opensearch.search.profile.ProfileResult;
+
+import java.util.Collection;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * This class returns a list of {@link ProfileResult} that can be serialized back to the client in the non-concurrent execution.
@@ -42,8 +49,14 @@ import org.opensearch.search.profile.ProfileResult;
  */
 public class InternalQueryProfileTree extends AbstractQueryProfileTree {
 
+    private final Function<Query, Collection<Supplier<ProfileMetric>>> customProfileMetrics;
+
+    public InternalQueryProfileTree(Function<Query, Collection<Supplier<ProfileMetric>>> customProfileMetrics) {
+        this.customProfileMetrics = customProfileMetrics;
+    }
+
     @Override
-    protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new QueryProfileBreakdown();
+    protected ContextualProfileBreakdown createProfileBreakdown(Query query) {
+        return new QueryProfileBreakdown(ProfileMetricUtil.getQueryProfileMetrics(customProfileMetrics.apply(query)));
     }
 }

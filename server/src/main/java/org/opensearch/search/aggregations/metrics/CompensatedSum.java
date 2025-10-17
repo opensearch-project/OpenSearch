@@ -32,6 +32,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import java.util.Objects;
+
 /**
  * Used to calculate sums using the Kahan summation algorithm.
  *
@@ -108,6 +110,24 @@ public class CompensatedSum {
         }
 
         return this;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CompensatedSum that = (CompensatedSum) o;
+        return Double.compare(that.value, value) == 0 && Double.compare(that.delta, delta) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(value, delta);
+    }
+
+    @Override
+    public String toString() {
+        return value + " " + delta;
     }
 
 }

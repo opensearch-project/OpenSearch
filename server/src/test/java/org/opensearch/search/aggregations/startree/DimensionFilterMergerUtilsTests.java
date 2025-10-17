@@ -27,17 +27,21 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
+import static org.mockito.Mockito.mock;
+
 public class DimensionFilterMergerUtilsTests extends OpenSearchTestCase {
 
     private DimensionFilterMapper numericMapper;
     private DimensionFilterMapper keywordMapper;
+    private final SearchContext searchContext = mock(SearchContext.class);
 
     @Before
     public void setup() {
         numericMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-            new NumberFieldMapper.NumberFieldType("status", NumberFieldMapper.NumberType.LONG)
+            new NumberFieldMapper.NumberFieldType("status", NumberFieldMapper.NumberType.LONG),
+            searchContext
         );
-        keywordMapper = DimensionFilterMapper.Factory.fromMappedFieldType(new KeywordFieldMapper.KeywordFieldType("method"));
+        keywordMapper = DimensionFilterMapper.Factory.fromMappedFieldType(new KeywordFieldMapper.KeywordFieldType("method"), searchContext);
     }
 
     public void testRangeIntersection() {
@@ -214,7 +218,8 @@ public class DimensionFilterMergerUtilsTests extends OpenSearchTestCase {
     public void testUnsignedLongRangeIntersection() {
         // Setup unsigned long mapper
         DimensionFilterMapper unsignedLongMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-            new NumberFieldMapper.NumberFieldType("unsigned_field", NumberFieldMapper.NumberType.UNSIGNED_LONG)
+            new NumberFieldMapper.NumberFieldType("unsigned_field", NumberFieldMapper.NumberType.UNSIGNED_LONG),
+            searchContext
         );
 
         // Test case 1: Regular positive values

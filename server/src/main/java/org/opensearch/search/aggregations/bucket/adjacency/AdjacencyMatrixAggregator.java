@@ -208,6 +208,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        checkCancelled();
         // Buckets are ordered into groups - [keyed filters] [key1&key2 intersects]
         int maxOrd = owningBucketOrds.length * totalNumKeys;
         int totalBucketsToBuild = 0;

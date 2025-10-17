@@ -169,7 +169,7 @@ public final class Randomness {
                 return (SecureRandom) drbgInstance;
             }
 
-            return SecureRandom.getInstanceStrong();
+            return new SecureRandom();
         } catch (ReflectiveOperationException | GeneralSecurityException e) {
             try {
                 return SecureRandom.getInstanceStrong();

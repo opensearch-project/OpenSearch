@@ -213,6 +213,8 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.ingest.SystemIngestPipelineCache;
@@ -474,7 +476,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 )
             );
         }
-        ClusterInfo clusterInfo = new ClusterInfo(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), nodeFileCacheStats);
+        ClusterInfo clusterInfo = new ClusterInfo(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), nodeFileCacheStats, Map.of());
         testClusterNodes.nodes.values().forEach(node -> when(node.getMockClusterInfoService().getClusterInfo()).thenReturn(clusterInfo));
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseListener = new StepListener<>();
@@ -2188,7 +2190,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     RetentionLeaseSyncer.EMPTY,
                     SegmentReplicationCheckpointPublisher.EMPTY,
                     mock(RemoteStoreStatsTrackerFactory.class),
-                    new MergedSegmentWarmerFactory(null, null, null)
+                    new MergedSegmentWarmerFactory(null, null, null),
+                    MergedSegmentPublisher.EMPTY,
+                    ReferencedSegmentsPublisher.EMPTY
                 );
 
                 final SystemIndices systemIndices = new SystemIndices(emptyMap());
@@ -2362,6 +2366,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new NoneCircuitBreakerService(),
                     null,
                     new TaskResourceTrackingService(settings, clusterSettings, threadPool),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
