@@ -26,30 +26,47 @@
  */
 
 /*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
+ * Modifications Copyright OpenSearch Contributors.
+ * See GitHub history for details.
  */
 
 package org.opensearch.gradle;
 
 import org.gradle.process.CommandLineArgumentProvider;
-
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
- * A {@link CommandLineArgumentProvider} implementation that simply returns the given list. This implementation does not track any
- * arguments as inputs, so this is useful for passing arguments that should not be used for the purposes of input snapshotting.
+ * Provides a fixed list of command-line arguments to Gradle tasks.
+ * This implementation does not track these arguments as inputs,
+ * which is useful for arguments that should not affect Gradle input snapshotting.
  */
 public class SimpleCommandLineArgumentProvider implements CommandLineArgumentProvider {
+
     private final List<String> arguments;
 
+    /**
+     * Constructs a new SimpleCommandLineArgumentProvider.
+     *
+     * @param arguments the command-line arguments to provide; may be null or empty.
+     */
     public SimpleCommandLineArgumentProvider(String... arguments) {
-        this.arguments = Arrays.asList(arguments);
+        if (arguments == null) {
+            this.arguments = Collections.emptyList();
+        } else {
+            this.arguments = List.of(arguments); // Immutable list (Java 9+)
+        }
     }
 
     @Override
     public Iterable<String> asArguments() {
         return arguments;
+    }
+
+    @Override
+    public String toString() {
+        return "SimpleCommandLineArgumentProvider{" +
+                "arguments=" + arguments +
+                '}';
     }
 }
