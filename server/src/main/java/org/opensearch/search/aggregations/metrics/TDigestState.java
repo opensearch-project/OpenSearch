@@ -90,17 +90,19 @@ public class TDigestState extends MergingDigest {
         if (in.getVersion().before(Version.V_3_4_0)) {
             // In older versions TDigestState was based on AVLTreeDigest. Load centroids into this class, then add it to MergingDigest.
             double compression = in.readDouble();
-            AVLTreeDigest treeDigest = new AVLTreeDigest(compression);
+
             int n = in.readVInt();
-            if (n > 0) {
-                for (int i = 0; i < n; i++) {
-                    treeDigest.add(in.readDouble(), in.readVInt());
-                }
-                TDigestState state = new TDigestState(compression);
-                state.add(List.of(treeDigest));
-                return state;
+            if (n <= 0) {
+                return new TDigestState(compression);
             }
-            return new TDigestState(compression);
+            AVLTreeDigest treeDigest = new AVLTreeDigest(compression);
+            for (int i = 0; i < n; i++) {
+                treeDigest.add(in.readDouble(), in.readVInt());
+            }
+            TDigestState state = new TDigestState(compression);
+            state.add(List.of(treeDigest));
+            return state;
+
         } else {
             // For MergingDigest, adding the original centroids in ascending order to a new, empty MergingDigest isn't guaranteed
             // to produce a MergingDigest whose centroids are exactly equal to the originals.
