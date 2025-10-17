@@ -10,7 +10,6 @@ package org.opensearch.datafusion.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.datafusion.DataFusionQueryJNI;
-import org.opensearch.datafusion.DataFusionService;
 import org.opensearch.datafusion.core.DefaultRecordBatchStream;
 import org.opensearch.index.engine.EngineSearcher;
 import org.opensearch.search.aggregations.SearchResultsCollector;
@@ -20,7 +19,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.Objects;
 
 public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, RecordBatchStream> {
     private final String source;
@@ -40,7 +39,7 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
     public void search(DatafusionQuery datafusionQuery, List<SearchResultsCollector<RecordBatchStream>> collectors) throws IOException {
         // TODO : call search here to native
         // TODO : change RunTimePtr
-        long nativeStreamPtr = DataFusionQueryJNI.executeSubstraitQuery(reader.getCachePtr(), datafusionQuery.toString(), datafusionQuery.getSubstraitBytes(), 0);
+        long nativeStreamPtr = DataFusionQueryJNI.executeQueryPhase(reader.getCachePtr(), datafusionQuery.toString(), datafusionQuery.getSubstraitBytes(), 0);
         RecordBatchStream stream = new DefaultRecordBatchStream(nativeStreamPtr);
         while(stream.hasNext()) {
             for(SearchResultsCollector<RecordBatchStream> collector : collectors) {
@@ -51,7 +50,16 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
 
     @Override
     public long search(DatafusionQuery datafusionQuery, Long contextPtr) {
-        return DataFusionQueryJNI.executeSubstraitQuery(reader.getCachePtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), contextPtr);
+        if (datafusionQuery.isFetchPhase()) {
+            long[] row_ids = datafusionQuery.getQueryPhaseRowIds()
+                .stream()
+                .mapToLong(Long::longValue)
+                .toArray();
+            String[] projections = Objects.isNull(datafusionQuery.getProjections()) ? new String[]{} : datafusionQuery.getProjections().toArray(String[]::new);
+
+            return DataFusionQueryJNI.executeFetchPhase(reader.getCachePtr(), row_ids, projections, contextPtr);
+        }
+        return DataFusionQueryJNI.executeQueryPhase(reader.getCachePtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), contextPtr);
     }
 
     public DatafusionReader getReader() {

@@ -157,11 +157,13 @@ public class QueryPhase {
         // here to make sure it happens during the QUERY phase
         aggregationProcessor.preProcess(searchContext.getOriginalContext());
 
-        searchContext.queryResult()
-            .topDocs(
-                new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                new DocValueFormat[0]
-            );
+        if(Optional.ofNullable(searchContext.queryResult().topDocs().topDocs.totalHits).isEmpty() || searchContext.queryResult().topDocs().topDocs.totalHits.value() == 0) {
+            searchContext.queryResult()
+                .topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]
+                );
+        }
 
         // boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
 
