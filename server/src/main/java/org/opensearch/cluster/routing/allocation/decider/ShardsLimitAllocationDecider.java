@@ -166,6 +166,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         this.settings = settings;
         this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
         this.clusterPrimaryShardLimit = CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(settings);
+        this.clusterRemoteCapableShardLimit = CLUSTER_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING, this::setClusterPrimaryShardLimit);
         clusterSettings.addSettingsUpdateConsumer(
