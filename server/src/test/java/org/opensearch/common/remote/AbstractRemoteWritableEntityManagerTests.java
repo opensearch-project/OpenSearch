@@ -53,10 +53,10 @@ public class AbstractRemoteWritableEntityManagerTests extends OpenSearchTestCase
         }
 
         @Override
-        protected ActionListener<Object> getWrappedReadListener(
+        protected ActionListener<RemoteReadResult<Object>> getWrappedReadListener(
             String component,
             AbstractClusterMetadataWriteableBlobEntity remoteEntity,
-            ActionListener<RemoteReadResult> listener
+            ActionListener<RemoteReadResult<Object>> listener
         ) {
             return null;
         }
