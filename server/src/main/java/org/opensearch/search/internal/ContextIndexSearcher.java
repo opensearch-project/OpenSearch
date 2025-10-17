@@ -577,7 +577,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return slicesInternal(leaves, searchContext.getTargetMaxSliceCount());
+        return slicesInternal(leaves, new MaxTargetSliceSupplier.SliceInputConfig(searchContext));
     }
 
     public DirectoryReader getDirectoryReader() {
@@ -647,15 +647,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     // package-private for testing
-    LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, int targetMaxSlice) {
+    LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, MaxTargetSliceSupplier.SliceInputConfig sliceInputConfig) {
         LeafSlice[] leafSlices;
-        if (targetMaxSlice == 0) {
+        if (sliceInputConfig.targetMaxSliceCount == 0) {
             // use the default lucene slice calculation
             leafSlices = super.slices(leaves);
             logger.debug("Slice count using lucene default [{}]", leafSlices.length);
         } else {
             // use the custom slice calculation based on targetMaxSlice
-            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
+            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, sliceInputConfig);
             logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
         }
         return leafSlices;

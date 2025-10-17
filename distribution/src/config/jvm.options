@@ -19,8 +19,11 @@
 # Xms represents the initial size of total heap space
 # Xmx represents the maximum size of total heap space
 
--Xms${heap.min}
--Xmx${heap.max}
+#-Xms${heap.min}
+#-Xmx${heap.max}
+
+-Xms4g
+-Xmx4g
 
 ################################################################
 ## Expert settings

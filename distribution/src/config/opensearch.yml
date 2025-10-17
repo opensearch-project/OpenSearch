@@ -30,7 +30,8 @@
 #
 # Path to directory where to store the data (separate multiple locations by comma):
 #
-${path.data}
+#${path.data}
+path.data: aj/opensearch/opensearch-intrasegment-search-data
 #
 # Path to log files:
 #

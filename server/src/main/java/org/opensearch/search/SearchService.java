@@ -341,6 +341,46 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
+
+    public static final String CONCURRENT_INTRA_SEGMENT_PARTITION_SIZE_KEY = "search.concurrent_intra_segment_search.partition_size";
+    public static final int CONCURRENT_INTRA_SEGMENT_DEFAULT_PARTITION_SIZE_VALUE = 10_000;
+    public static final int CONCURRENT_INTRA_SEGMENT_MINIMUM_PARTITION_SIZE_VALUE = 2;
+
+    // Allow concurrent intra segment search for all requests
+    public static final String CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_ALL = "all";
+
+    // Disallow concurrent intra segment search for all requests
+    public static final String CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_NONE = "none";
+
+    // Make decision for concurrent intra segment search based on concurrent search deciders
+    public static final String CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_AUTO = "auto";
+
+    public static final Setting<String> CLUSTER_INTRA_CONCURRENT_SEGMENT_SEARCH_MODE = Setting.simpleString(
+        "search.concurrent_intra_segment_search.mode",
+        CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_AUTO,
+        value -> {
+            switch (value) {
+                case CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_ALL:
+                case CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_NONE:
+                case CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_AUTO:
+                    // valid setting
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [all, none, auto]");
+            }
+        },
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Integer> CONCURRENT_INTRA_SEGMENT_SEARCH_PARTITION_SIZE_SETTING = Setting.intSetting(
+        CONCURRENT_INTRA_SEGMENT_PARTITION_SIZE_KEY,
+        CONCURRENT_INTRA_SEGMENT_DEFAULT_PARTITION_SIZE_VALUE,
+        CONCURRENT_INTRA_SEGMENT_MINIMUM_PARTITION_SIZE_VALUE,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // value 0 means rewrite filters optimization in aggregations will be disabled
     @ExperimentalApi
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
@@ -1520,6 +1560,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // nothing to parse...
         if (source == null) {
             context.evaluateRequestShouldUseConcurrentSearch();
+            context.evaluateRequestShouldUseIntraSegmentConcurrentSearch();
             return;
         }
 
@@ -1711,6 +1752,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.collapse(collapseContext);
         }
         context.evaluateRequestShouldUseConcurrentSearch();
+        context.evaluateRequestShouldUseIntraSegmentConcurrentSearch();
         if (source.profile()) {
             final Function<Query, Collection<Supplier<ProfileMetric>>> pluginProfileMetricsSupplier = (query) -> pluginProfilers.stream()
                 .flatMap(p -> p.getQueryProfileMetrics(context, query).stream())
