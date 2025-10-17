@@ -80,8 +80,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         this.evicted = in.readLong();
         this.hits = in.readLong();
 
-        // Version guard for enhanced fields - backward compatibility for rolling upgrades
-        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
             this.removed = in.readLong();
             this.misses = in.readLong();
         } else {
@@ -100,8 +99,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         out.writeLong(evicted);
         out.writeLong(hits);
 
-        // Version guard for enhanced fields - backward compatibility for rolling upgrades
-        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
             out.writeLong(removed);
             out.writeLong(misses);
         }
