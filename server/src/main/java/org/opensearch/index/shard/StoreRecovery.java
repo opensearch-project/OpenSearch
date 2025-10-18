@@ -56,6 +56,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.mapper.MapperService;
@@ -422,7 +423,9 @@ final class StoreRecovery {
                     remoteStoreRepository,
                     indexUUID,
                     shardId,
-                    shallowCopyShardMetadata.getRemoteStorePathStrategy()
+                    shallowCopyShardMetadata.getRemoteStorePathStrategy(),
+                    null,
+                    RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexShard.indexSettings.getIndexMetadata())
                 );
                 RemoteSegmentMetadata remoteSegmentMetadata = sourceRemoteDirectory.initializeToSpecificCommit(
                     primaryTerm,
@@ -498,12 +501,15 @@ final class StoreRecovery {
                             prevIndexMetadata.getSettings()
                         );
                     }
+                    IndexSettings indexSettings = new IndexSettings(prevIndexMetadata, prevIndexMetadata.getSettings());
                     RemoteStorePathStrategy remoteStorePathStrategy = RemoteStoreUtils.determineRemoteStorePathStrategy(prevIndexMetadata);
                     RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                         remoteSegmentStoreRepository,
                         prevIndexMetadata.getIndexUUID(),
                         shardId,
-                        remoteStorePathStrategy
+                        remoteStorePathStrategy,
+                        null,
+                        RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexShard.indexSettings.getIndexMetadata())
                     );
                     RemoteSegmentMetadata remoteSegmentMetadata = sourceRemoteDirectory.initializeToSpecificTimestamp(
                         recoverySource.pinnedTimestamp()
@@ -523,7 +529,8 @@ final class StoreRecovery {
                         new ShardId(prevIndexMetadata.getIndex(), shardId.id()),
                         remoteStorePathStrategy,
                         RemoteStoreUtils.determineTranslogMetadataEnabled(prevIndexMetadata),
-                        recoverySource.pinnedTimestamp()
+                        recoverySource.pinnedTimestamp(),
+                        RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexShard.indexSettings.getIndexMetadata())
                     );
 
                     assert indexShard.shardRouting.primary() : "only primary shards can recover from store";

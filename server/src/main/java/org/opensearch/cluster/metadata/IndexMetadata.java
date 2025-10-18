@@ -373,6 +373,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
+    // public static final String SETTING_REMOTE_STORE_SSE_ENABLED = "index.remote_store.sse.enabled";
     public static final String SETTING_INDEX_APPEND_ONLY_ENABLED = "index.append_only.enabled";
 
     public static final String SETTING_REMOTE_SEGMENT_STORE_REPOSITORY = "index.remote_store.segment.repository";
@@ -1008,6 +1009,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
     public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
     public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
+    public static final String REMOTE_STORE_SSE_ENABLED_INDEX_KEY = "sse_enabled_index";
     public static final String CONTEXT_KEY = "context";
     public static final String INGESTION_SOURCE_KEY = "ingestion_source";
     public static final String INGESTION_STATUS_KEY = "ingestion_status";
