@@ -41,7 +41,7 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
     private static final ByteSizeValue SMALL_SHARD_MAX_SEGMENT = new ByteSizeValue(50, ByteSizeUnit.MB);
     private static final ByteSizeValue MEDIUM_SHARD_MAX_SEGMENT = new ByteSizeValue(200, ByteSizeUnit.MB);
     private static final ByteSizeValue LARGE_SHARD_MAX_SEGMENT = new ByteSizeValue(1, ByteSizeUnit.GB);
-    private static final ByteSizeValue VERY_LARGE_SHARD_MAX_SEGMENT = new ByteSizeValue(2, ByteSizeUnit.GB);
+    private static final ByteSizeValue VERY_LARGE_SHARD_MAX_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
 
     // Adaptive floor segment sizes
     private static final ByteSizeValue SMALL_SHARD_FLOOR = new ByteSizeValue(10, ByteSizeUnit.MB);
@@ -136,36 +136,12 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
     }
 
     private void applyAdaptiveSettings(ShardSizeCategory category) {
-        ByteSizeValue maxSegmentSize;
-        ByteSizeValue floorSegmentSize;
-        double segmentsPerTier;
+        // Use smooth interpolation instead of discrete categories to avoid dramatic parameter jumps
+        long shardSizeBytes = estimateShardSize();
 
-        switch (category) {
-            case SMALL:
-                maxSegmentSize = SMALL_SHARD_MAX_SEGMENT;
-                floorSegmentSize = SMALL_SHARD_FLOOR;
-                segmentsPerTier = SMALL_SHARD_SEGMENTS_PER_TIER;
-                break;
-            case MEDIUM:
-                maxSegmentSize = MEDIUM_SHARD_MAX_SEGMENT;
-                floorSegmentSize = MEDIUM_SHARD_FLOOR;
-                segmentsPerTier = MEDIUM_SHARD_SEGMENTS_PER_TIER;
-                break;
-            case LARGE:
-                maxSegmentSize = LARGE_SHARD_MAX_SEGMENT;
-                floorSegmentSize = LARGE_SHARD_FLOOR;
-                segmentsPerTier = LARGE_SHARD_SEGMENTS_PER_TIER;
-                break;
-            case VERY_LARGE:
-                maxSegmentSize = VERY_LARGE_SHARD_MAX_SEGMENT;
-                floorSegmentSize = VERY_LARGE_SHARD_FLOOR;
-                segmentsPerTier = VERY_LARGE_SHARD_SEGMENTS_PER_TIER;
-                break;
-            default:
-                maxSegmentSize = MEDIUM_SHARD_MAX_SEGMENT;
-                floorSegmentSize = MEDIUM_SHARD_FLOOR;
-                segmentsPerTier = MEDIUM_SHARD_SEGMENTS_PER_TIER;
-        }
+        ByteSizeValue maxSegmentSize = calculateSmoothMaxSegmentSize(shardSizeBytes);
+        ByteSizeValue floorSegmentSize = calculateSmoothFloorSegmentSize(shardSizeBytes);
+        double segmentsPerTier = calculateSmoothSegmentsPerTier(shardSizeBytes);
 
         // Apply the adaptive settings
         tieredMergePolicy.setMaxMergedSegmentMB(maxSegmentSize.getMbFrac());
@@ -184,6 +160,90 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
             floorSegmentSize,
             segmentsPerTier
         );
+    }
+
+    /**
+     * Calculate smooth max segment size using logarithmic interpolation
+     * to avoid dramatic jumps at category boundaries
+     */
+    private ByteSizeValue calculateSmoothMaxSegmentSize(long shardSizeBytes) {
+        // Use logarithmic interpolation between reference points
+        // Reference points: 50MB@100MB, 200MB@1GB, 1GB@10GB, 5GB@100GB
+        double logSize = Math.log10(shardSizeBytes);
+
+        if (logSize < 8.0) { // < 100MB
+            return SMALL_SHARD_MAX_SEGMENT;
+        } else if (logSize < 9.0) { // 100MB - 1GB
+            // Linear interpolation between 50MB and 200MB
+            double ratio = (logSize - 8.0) / 1.0;
+            long interpolatedSize = (long) (SMALL_SHARD_MAX_SEGMENT.getBytes() + ratio * (MEDIUM_SHARD_MAX_SEGMENT.getBytes()
+                - SMALL_SHARD_MAX_SEGMENT.getBytes()));
+            return new ByteSizeValue(interpolatedSize);
+        } else if (logSize < 10.0) { // 1GB - 10GB
+            // Linear interpolation between 200MB and 1GB
+            double ratio = (logSize - 9.0) / 1.0;
+            long interpolatedSize = (long) (MEDIUM_SHARD_MAX_SEGMENT.getBytes() + ratio * (LARGE_SHARD_MAX_SEGMENT.getBytes()
+                - MEDIUM_SHARD_MAX_SEGMENT.getBytes()));
+            return new ByteSizeValue(interpolatedSize);
+        } else if (logSize < 11.0) { // 10GB - 100GB
+            // Linear interpolation between 1GB and 5GB
+            double ratio = (logSize - 10.0) / 1.0;
+            long interpolatedSize = (long) (LARGE_SHARD_MAX_SEGMENT.getBytes() + ratio * (VERY_LARGE_SHARD_MAX_SEGMENT.getBytes()
+                - LARGE_SHARD_MAX_SEGMENT.getBytes()));
+            return new ByteSizeValue(interpolatedSize);
+        } else { // >= 100GB
+            return VERY_LARGE_SHARD_MAX_SEGMENT;
+        }
+    }
+
+    /**
+     * Calculate smooth floor segment size using logarithmic interpolation
+     */
+    private ByteSizeValue calculateSmoothFloorSegmentSize(long shardSizeBytes) {
+        double logSize = Math.log10(shardSizeBytes);
+
+        if (logSize < 8.0) { // < 100MB
+            return SMALL_SHARD_FLOOR;
+        } else if (logSize < 9.0) { // 100MB - 1GB
+            double ratio = (logSize - 8.0) / 1.0;
+            long interpolatedSize = (long) (SMALL_SHARD_FLOOR.getBytes() + ratio * (MEDIUM_SHARD_FLOOR.getBytes() - SMALL_SHARD_FLOOR
+                .getBytes()));
+            return new ByteSizeValue(interpolatedSize);
+        } else if (logSize < 10.0) { // 1GB - 10GB
+            double ratio = (logSize - 9.0) / 1.0;
+            long interpolatedSize = (long) (MEDIUM_SHARD_FLOOR.getBytes() + ratio * (LARGE_SHARD_FLOOR.getBytes() - MEDIUM_SHARD_FLOOR
+                .getBytes()));
+            return new ByteSizeValue(interpolatedSize);
+        } else if (logSize < 11.0) { // 10GB - 100GB
+            double ratio = (logSize - 10.0) / 1.0;
+            long interpolatedSize = (long) (LARGE_SHARD_FLOOR.getBytes() + ratio * (VERY_LARGE_SHARD_FLOOR.getBytes() - LARGE_SHARD_FLOOR
+                .getBytes()));
+            return new ByteSizeValue(interpolatedSize);
+        } else { // >= 100GB
+            return VERY_LARGE_SHARD_FLOOR;
+        }
+    }
+
+    /**
+     * Calculate smooth segments per tier using logarithmic interpolation
+     */
+    private double calculateSmoothSegmentsPerTier(long shardSizeBytes) {
+        double logSize = Math.log10(shardSizeBytes);
+
+        if (logSize < 8.0) { // < 100MB
+            return SMALL_SHARD_SEGMENTS_PER_TIER;
+        } else if (logSize < 9.0) { // 100MB - 1GB
+            double ratio = (logSize - 8.0) / 1.0;
+            return SMALL_SHARD_SEGMENTS_PER_TIER + ratio * (MEDIUM_SHARD_SEGMENTS_PER_TIER - SMALL_SHARD_SEGMENTS_PER_TIER);
+        } else if (logSize < 10.0) { // 1GB - 10GB
+            double ratio = (logSize - 9.0) / 1.0;
+            return MEDIUM_SHARD_SEGMENTS_PER_TIER + ratio * (LARGE_SHARD_SEGMENTS_PER_TIER - MEDIUM_SHARD_SEGMENTS_PER_TIER);
+        } else if (logSize < 11.0) { // 10GB - 100GB
+            double ratio = (logSize - 10.0) / 1.0;
+            return LARGE_SHARD_SEGMENTS_PER_TIER + ratio * (VERY_LARGE_SHARD_SEGMENTS_PER_TIER - LARGE_SHARD_SEGMENTS_PER_TIER);
+        } else { // >= 100GB
+            return VERY_LARGE_SHARD_SEGMENTS_PER_TIER;
+        }
     }
 
     private void applyDefaultSettings() {
