@@ -168,45 +168,100 @@ public class SegmentTopologyAnalyzer implements Writeable {
     }
 
     private long calculateRecommendedMaxSegmentSize() {
-        // Base recommendation on total size and current distribution
-        long totalSize = totalSizeBytes;
+        // Use smooth interpolation to avoid dramatic parameter jumps
+        return calculateSmoothMaxSegmentSize(totalSizeBytes);
+    }
 
-        if (totalSize < 100 * 1024 * 1024) { // < 100MB
+    /**
+     * Calculate smooth max segment size using logarithmic interpolation
+     * to avoid dramatic jumps at category boundaries
+     */
+    private long calculateSmoothMaxSegmentSize(long shardSizeBytes) {
+        // Reference points: 50MB@100MB, 200MB@1GB, 1GB@10GB, 5GB@100GB
+        double logSize = Math.log10(shardSizeBytes);
+
+        if (logSize < 8.0) { // < 100MB
             return 50 * 1024 * 1024; // 50MB
-        } else if (totalSize < 1024 * 1024 * 1024) { // < 1GB
-            return 200 * 1024 * 1024; // 200MB
-        } else if (totalSize < 10L * 1024 * 1024 * 1024) { // < 10GB
-            return 1024 * 1024 * 1024; // 1GB
-        } else { // >= 10GB
-            return 2L * 1024 * 1024 * 1024; // 2GB
+        } else if (logSize < 9.0) { // 100MB - 1GB
+            // Linear interpolation between 50MB and 200MB
+            double ratio = (logSize - 8.0) / 1.0;
+            long smallSize = 50 * 1024 * 1024;
+            long mediumSize = 200 * 1024 * 1024;
+            return (long) (smallSize + ratio * (mediumSize - smallSize));
+        } else if (logSize < 10.0) { // 1GB - 10GB
+            // Linear interpolation between 200MB and 1GB
+            double ratio = (logSize - 9.0) / 1.0;
+            long mediumSize = 200 * 1024 * 1024;
+            long largeSize = 1024 * 1024 * 1024;
+            return (long) (mediumSize + ratio * (largeSize - mediumSize));
+        } else if (logSize < 11.0) { // 10GB - 100GB
+            // Linear interpolation between 1GB and 5GB
+            double ratio = (logSize - 10.0) / 1.0;
+            long largeSize = 1024 * 1024 * 1024;
+            long veryLargeSize = 5L * 1024 * 1024 * 1024;
+            return (long) (largeSize + ratio * (veryLargeSize - largeSize));
+        } else { // >= 100GB
+            return 5L * 1024 * 1024 * 1024; // 5GB
         }
     }
 
     private long calculateRecommendedFloorSegmentSize() {
-        long totalSize = totalSizeBytes;
+        // Use smooth interpolation to avoid dramatic parameter jumps
+        return calculateSmoothFloorSegmentSize(totalSizeBytes);
+    }
 
-        if (totalSize < 100 * 1024 * 1024) { // < 100MB
+    /**
+     * Calculate smooth floor segment size using logarithmic interpolation
+     */
+    private long calculateSmoothFloorSegmentSize(long shardSizeBytes) {
+        double logSize = Math.log10(shardSizeBytes);
+
+        if (logSize < 8.0) { // < 100MB
             return 10 * 1024 * 1024; // 10MB
-        } else if (totalSize < 1024 * 1024 * 1024) { // < 1GB
-            return 25 * 1024 * 1024; // 25MB
-        } else if (totalSize < 10L * 1024 * 1024 * 1024) { // < 10GB
-            return 50 * 1024 * 1024; // 50MB
-        } else { // >= 10GB
+        } else if (logSize < 9.0) { // 100MB - 1GB
+            double ratio = (logSize - 8.0) / 1.0;
+            long smallSize = 10 * 1024 * 1024;
+            long mediumSize = 25 * 1024 * 1024;
+            return (long) (smallSize + ratio * (mediumSize - smallSize));
+        } else if (logSize < 10.0) { // 1GB - 10GB
+            double ratio = (logSize - 9.0) / 1.0;
+            long mediumSize = 25 * 1024 * 1024;
+            long largeSize = 50 * 1024 * 1024;
+            return (long) (mediumSize + ratio * (largeSize - mediumSize));
+        } else if (logSize < 11.0) { // 10GB - 100GB
+            double ratio = (logSize - 10.0) / 1.0;
+            long largeSize = 50 * 1024 * 1024;
+            long veryLargeSize = 100 * 1024 * 1024;
+            return (long) (largeSize + ratio * (veryLargeSize - largeSize));
+        } else { // >= 100GB
             return 100 * 1024 * 1024; // 100MB
         }
     }
 
     private int calculateOptimalSegmentCount() {
-        long totalSize = totalSizeBytes;
+        // Use smooth interpolation to avoid dramatic parameter jumps
+        return (int) Math.round(calculateSmoothSegmentsPerTier(totalSizeBytes));
+    }
 
-        if (totalSize < 100 * 1024 * 1024) { // < 100MB
-            return 5;
-        } else if (totalSize < 1024 * 1024 * 1024) { // < 1GB
-            return 8;
-        } else if (totalSize < 10L * 1024 * 1024 * 1024) { // < 10GB
-            return 10;
-        } else { // >= 10GB
-            return 12;
+    /**
+     * Calculate smooth segments per tier using logarithmic interpolation
+     */
+    private double calculateSmoothSegmentsPerTier(long shardSizeBytes) {
+        double logSize = Math.log10(shardSizeBytes);
+
+        if (logSize < 8.0) { // < 100MB
+            return 5.0;
+        } else if (logSize < 9.0) { // 100MB - 1GB
+            double ratio = (logSize - 8.0) / 1.0;
+            return 5.0 + ratio * (8.0 - 5.0);
+        } else if (logSize < 10.0) { // 1GB - 10GB
+            double ratio = (logSize - 9.0) / 1.0;
+            return 8.0 + ratio * (10.0 - 8.0);
+        } else if (logSize < 11.0) { // 10GB - 100GB
+            double ratio = (logSize - 10.0) / 1.0;
+            return 10.0 + ratio * (12.0 - 10.0);
+        } else { // >= 100GB
+            return 12.0;
         }
     }
 
