@@ -28,7 +28,8 @@ public class BlobStoreProvider {
     protected final RepositoryMetadata metadata;
     protected final Object lock;
     protected final BlobStoreRepository repository;
-    protected final SetOnce<BlobStore> blobStore = new SetOnce<>();
+    private final SetOnce<BlobStore> blobStore = new SetOnce<>();
+    private final SetOnce<BlobStore> serverSideEncryptedBlobStore = new SetOnce<>();
 
     public BlobStoreProvider(BlobStoreRepository repository, RepositoryMetadata metadata, Lifecycle lifecycle, Object lock) {
         this.lifecycle = lifecycle;
@@ -38,7 +39,12 @@ public class BlobStoreProvider {
     }
 
     protected BlobStore blobStore(boolean serverSideEncryptionEnabled) {
-        return createBlobStore(blobStore, serverSideEncryptionEnabled);
+        if (serverSideEncryptionEnabled) {
+            logger.info("[BlobStoreProvider]: Using serverSideEncryptedBlobStore");
+            return createBlobStore(serverSideEncryptedBlobStore, true);
+        }
+        logger.info("[BlobStoreProvider]: Using blobStore");
+        return createBlobStore(blobStore, false);
     }
 
     public BlobStore blobStore() {
@@ -54,7 +60,7 @@ public class BlobStoreProvider {
             synchronized (lock) {
                 store = blobStore.get();
                 if (store == null) {
-                    store = initBlobStore(serverSideEncryption);
+                    store = initBlobStore();
                     if (!serverSideEncryption && metadata.cryptoMetadata() != null) {
                         store = new EncryptedBlobStore(store, metadata.cryptoMetadata());
                     }
@@ -66,17 +72,10 @@ public class BlobStoreProvider {
     }
 
     public BlobStore getBlobStore(boolean serverSideEncryptionEnabled) {
-        if (serverSideEncryptionEnabled) {
-            throw new IllegalArgumentException("Provider Instance Type is not correct");
-        }
-        return blobStore.get();
+        return blobStore(serverSideEncryptionEnabled);
     }
 
-    // public BlobStore getBlobStore() {
-    // return blobStore.get();
-    // }
-
-    protected BlobStore initBlobStore(boolean serverSideEncryption) {
+    protected BlobStore initBlobStore() {
         if (lifecycle.started() == false) {
             throw new RepositoryException(metadata.name(), "repository is not in started state" + lifecycle.state());
         }
@@ -93,6 +92,9 @@ public class BlobStoreProvider {
         try {
             if (blobStore.get() != null) {
                 blobStore.get().close();
+            }
+            if (serverSideEncryptedBlobStore.get() != null) {
+                serverSideEncryptedBlobStore.get().close();
             }
         } catch (Exception t) {
             logger.warn("cannot close blob store", t);

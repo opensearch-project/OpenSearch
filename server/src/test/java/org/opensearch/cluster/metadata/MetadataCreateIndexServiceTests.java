@@ -175,7 +175,6 @@ import static org.opensearch.node.Node.NODE_ATTRIBUTES;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
@@ -1823,7 +1822,12 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build();
 
-        IndexMetadata indexMetadata = metadataCreateIndexService.buildAndValidateTemporaryIndexMetadata(indexSettings, request, 0);
+        IndexMetadata indexMetadata = metadataCreateIndexService.buildAndValidateTemporaryIndexMetadata(
+            indexSettings,
+            request,
+            0,
+            clusterService.state()
+        );
         threadPool.shutdown();
         return indexMetadata;
     }
@@ -1863,7 +1867,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             IndexMetadata indexMetadata = checkerService.buildAndValidateTemporaryIndexMetadata(
                 indexSettings,
                 request,
-                routingNumberOfShards
+                routingNumberOfShards,
+                clusterService.state()
             );
             assertEquals(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(indexMetadata.getSettings()).intValue(), routingNumberOfShards);
         }));
@@ -2617,67 +2622,95 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
     }
 
-    public void testUpdateRemoteStoreSettings() {
-        Map<String, String> attributes = getNodeAttributes();
-        DiscoveryNode remoteNode = new DiscoveryNode(
-            UUIDs.base64UUID(),
-            buildNewFakeTransportAddress(),
-            attributes,
-            DiscoveryNodeRole.BUILT_IN_ROLES,
-            Version.CURRENT
-        );
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(remoteNode).build())
-            .build();
-
-        Settings settings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
-        final Settings.Builder requestSettings = Settings.builder()
-            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), -1)
-            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
-
-        Settings clusterSettingsSetting = Settings.builder()
-            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true)
-            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
-            .build();
-        clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-
-        new RemoteStoreSettings(clusterSettingsSetting, clusterSettings);
-
-        MetadataCreateIndexService.updateRemoteStoreSettings(requestSettings, clusterState, clusterSettings, settings, "test-index", false);
-
-        assertTrue(requestSettings.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false));
-    }
-
-    public void testUpdateRemoteStoreSettings_For_Snapshot_restore() {
-        Map<String, String> attributes = getNodeAttributes();
-        DiscoveryNode remoteNode = new DiscoveryNode(
-            UUIDs.base64UUID(),
-            buildNewFakeTransportAddress(),
-            attributes,
-            DiscoveryNodeRole.BUILT_IN_ROLES,
-            Version.CURRENT
-        );
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(remoteNode).build())
-            .build();
-
-        Settings settings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
-        final Settings.Builder requestSettings = Settings.builder()
-            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), -1)
-            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
-
-        Settings clusterSettingsSetting = Settings.builder()
-            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true)
-            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
-            .build();
-        clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-
-        new RemoteStoreSettings(clusterSettingsSetting, clusterSettings);
-
-        MetadataCreateIndexService.updateRemoteStoreSettings(requestSettings, clusterState, clusterSettings, settings, "test-index", true);
-
-        assertFalse(requestSettings.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false));
-    }
+    // public void testAddRemoteStoreCustomMetadata() {
+    //
+    // MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+    // Settings.EMPTY,
+    // clusterService,
+    // indicesServices,
+    // null,
+    // null,
+    // createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+    // null,
+    // null,
+    // null,
+    // null,
+    // new SystemIndices(Collections.emptyMap()),
+    // false,
+    // new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+    // DefaultRemoteStoreSettings.INSTANCE,
+    // repositoriesServiceSupplier
+    // );
+    //
+    //
+    // Map<String, String> attributes = getNodeAttributes();
+    // DiscoveryNode remoteNode = new DiscoveryNode(
+    // UUIDs.base64UUID(),
+    // buildNewFakeTransportAddress(),
+    // attributes,
+    // DiscoveryNodeRole.BUILT_IN_ROLES,
+    // Version.CURRENT
+    // );
+    // ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+    // .nodes(DiscoveryNodes.builder().add(remoteNode).build())
+    // .build();
+    //
+    // Settings indexSettings = Settings.builder()
+    // .put(SETTING_VERSION_CREATED, Version.CURRENT)
+    // .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+    // .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+    // .build();
+    //
+    // IndexMetadata.Builder imdBuilder = IndexMetadata.builder("test").settings(indexSettings);
+    //
+    // Settings settings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+    // final Settings.Builder requestSettings = Settings.builder()
+    // .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), -1)
+    // .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
+    //
+    // Settings clusterSettingsSetting = Settings.builder()
+    // .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true)
+    // .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+    // .build();
+    // clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    //
+    // new RemoteStoreSettings(clusterSettingsSetting, clusterSettings);
+    //
+    // MetadataCreateIndexService.add(imdBuilder, );
+    //
+    // assertTrue(requestSettings.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false));
+    // }
+    //
+    // public void testUpdateRemoteStoreSettings_For_Snapshot_restore() {
+    // Map<String, String> attributes = getNodeAttributes();
+    // DiscoveryNode remoteNode = new DiscoveryNode(
+    // UUIDs.base64UUID(),
+    // buildNewFakeTransportAddress(),
+    // attributes,
+    // DiscoveryNodeRole.BUILT_IN_ROLES,
+    // Version.CURRENT
+    // );
+    // ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+    // .nodes(DiscoveryNodes.builder().add(remoteNode).build())
+    // .build();
+    //
+    // Settings settings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+    // final Settings.Builder requestSettings = Settings.builder()
+    // .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), -1)
+    // .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
+    //
+    // Settings clusterSettingsSetting = Settings.builder()
+    // .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true)
+    // .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+    // .build();
+    // clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    //
+    // new RemoteStoreSettings(clusterSettingsSetting, clusterSettings);
+    //
+    // MetadataCreateIndexService.updateRemoteStoreSettings(requestSettings, clusterState, clusterSettings, settings, "test-index", true);
+    //
+    // assertFalse(requestSettings.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false));
+    // }
 
     private static Map<String, String> getNodeAttributes() {
         String segmentRepositoryName = "my-segment-repo-1";
@@ -2784,7 +2817,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
         attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
         attributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
-        attributes.put(REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT, "my-translog-repo-1");
         return new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),

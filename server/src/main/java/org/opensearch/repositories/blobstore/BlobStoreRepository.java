@@ -566,7 +566,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final SetOnce<BlobContainer> snapshotShardPathBlobContainer = new SetOnce<>();
 
-    private final SetOnce<BlobStoreProviderFactory> blobStoreProvideFactory = new SetOnce<>();
     private final SetOnce<BlobStoreProvider> blobStoreProvider = new SetOnce<>();
 
     protected final ClusterService clusterService;
@@ -1064,25 +1063,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return BlobStore `Blobstore` for the repository
      */
     public BlobStore blobStore(boolean serverSideEncryptionEnabled) {
-        BlobStoreProviderFactory providerFactory = this.blobStoreProvideFactory.get();
-        logger.info("providerFactory = " + providerFactory);
-        if (providerFactory == null) {
-            synchronized (lock) {
-                providerFactory = new BlobStoreProviderFactory(this, metadata, lifecycle, lock);
-                blobStoreProvideFactory.set(providerFactory);
-            }
-        }
-        logger.info("2.providerFactory = " + providerFactory);
-
         BlobStoreProvider provider = this.blobStoreProvider.get();
-        logger.info("1.provider = " + provider);
+        logger.info("1. provider = " + provider);
         if (provider == null) {
             synchronized (lock) {
-                provider = providerFactory.getBlobStoreProvider();
+                provider = new BlobStoreProvider(this, metadata, lifecycle, lock);
                 this.blobStoreProvider.set(provider);
             }
         }
-        logger.info("2.provider = " + provider);
+        logger.info("provider = " + provider);
         return provider.blobStore(serverSideEncryptionEnabled);
     }
 
@@ -1090,14 +1079,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Creates new BlobStore to read and write data.
      */
     protected abstract BlobStore createBlobStore() throws Exception;
-
-    protected BlobStore createServerSideEncryptedBlobStore() {
-        throw new UnsupportedOperationException();
-    }
-
-    protected BlobStore createClientSideEncryptedBlobStore() {
-        throw new UnsupportedOperationException();
-    }
 
     /**
      * Returns base path of the repository

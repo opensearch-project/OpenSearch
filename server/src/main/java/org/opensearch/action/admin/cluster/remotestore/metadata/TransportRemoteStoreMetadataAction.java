@@ -200,7 +200,7 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
             shardId,
             indexSettings.getRemoteStorePathStrategy(),
             null,
-            indexSettings.isServerSideEncryptionEnabled()
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
         );
 
         Map<String, RemoteSegmentMetadata> segmentMetadataMapWithFilenames = remoteDirectory.readLatestNMetadataFiles(5);
@@ -260,7 +260,7 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
             indexSettings.getRemoteStorePathStrategy(),
             new RemoteStoreSettings(clusterService.getSettings(), clusterService.getClusterSettings()),
             RemoteStoreUtils.determineTranslogMetadataEnabled(indexMetadata),
-            indexSettings.isServerSideEncryptionEnabled()
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
         );
 
         Map<String, TranslogTransferMetadata> metadataMap = manager.readLatestNMetadataFiles(5);
