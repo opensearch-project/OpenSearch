@@ -11,6 +11,7 @@ package org.opensearch.javaagent;
 import org.junit.Assume;
 import org.junit.Test;
 
+import java.lang.invoke.MethodType;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -315,8 +317,8 @@ public class StackCallerProtectionDomainExtractorTests {
         }
 
         @Override
-        public java.lang.invoke.MethodType getMethodType() {
-            return java.lang.invoke.MethodType.methodType(void.class);
+        public MethodType getMethodType() {
+            return MethodType.methodType(void.class);
         }
     }
 
@@ -335,14 +337,14 @@ public class StackCallerProtectionDomainExtractorTests {
         StackWalker.StackFrame fileFrame = new FakeFrame(StackCallerProtectionDomainExtractorTests.class, "helper");
 
         Set<ProtectionDomain> pds = (Set<ProtectionDomain>) StackCallerProtectionDomainChainExtractor.INSTANCE.apply(
-            java.util.stream.Stream.of(jrtFrame, fileFrame)
+            Stream.of(jrtFrame, fileFrame)
         );
 
         // Only the file: PD should remain
-        org.junit.Assert.assertEquals(1, pds.size());
-        org.hamcrest.MatcherAssert.assertThat(
-            pds.stream().map(x -> x.getCodeSource().getLocation().getProtocol()).collect(java.util.stream.Collectors.toSet()),
-            org.hamcrest.Matchers.containsInAnyOrder("file")
+        assertEquals(1, pds.size());
+        assertThat(
+            pds.stream().map(x -> x.getCodeSource().getLocation().getProtocol()).collect(Collectors.toSet()),
+            containsInAnyOrder("file")
         );
     }
 
