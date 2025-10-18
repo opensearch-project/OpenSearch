@@ -77,9 +77,10 @@ public class SubdirectoryStorePlugin extends Plugin implements IndexStorePlugin 
             Directory directory,
             ShardLock shardLock,
             Store.OnClose onClose,
-            ShardPath shardPath
+            ShardPath shardPath,
+            DirectoryFactory directoryFactory
         ) {
-            return new SubdirectoryAwareStore(shardId, indexSettings, directory, shardLock, onClose, shardPath);
+            return new SubdirectoryAwareStore(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory);
         }
     }
 }

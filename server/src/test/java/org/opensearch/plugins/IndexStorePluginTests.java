@@ -136,9 +136,10 @@ public class IndexStorePluginTests extends OpenSearchTestCase {
             org.apache.lucene.store.Directory directory,
             ShardLock shardLock,
             Store.OnClose onClose,
-            ShardPath shardPath
+            ShardPath shardPath,
+            IndexStorePlugin.DirectoryFactory directoryFactory
         ) throws IOException {
-            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath);
+            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory);
         }
     }
 
