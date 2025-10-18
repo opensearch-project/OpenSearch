@@ -8,6 +8,7 @@
 
 package org.opensearch.javaagent;
 
+import org.junit.Assume;
 import org.junit.Test;
 
 import java.net.URI;
@@ -257,4 +258,92 @@ public class StackCallerProtectionDomainExtractorTests {
             org.opensearch.secure_sm.AccessController.doPrivilegedChecked(() -> { throw new IllegalArgumentException("Test exception"); });
         });
     }
+
+    private static final class FakeFrame implements StackWalker.StackFrame {
+        private final Class<?> clazz;
+        private final String method;
+
+        FakeFrame(Class<?> clazz, String method) {
+            this.clazz = clazz;
+            this.method = method;
+        }
+
+        @Override
+        public Class<?> getDeclaringClass() {
+            return clazz;
+        }
+
+        @Override
+        public String getClassName() {
+            return clazz.getName();
+        }
+
+        @Override
+        public String getMethodName() {
+            return method;
+        }
+
+        @Override
+        public String getFileName() {
+            return null;
+        }
+
+        @Override
+        public int getLineNumber() {
+            return -1;
+        }
+
+        @Override
+        public boolean isNativeMethod() {
+            return false;
+        }
+
+        @Override
+        public StackTraceElement toStackTraceElement() {
+            return new StackTraceElement(getClassName(), getMethodName(), null, -1);
+        }
+
+        // JDK 21 methods; stub minimally
+        @Override
+        public String getDescriptor() {
+            return "()V";
+        }
+
+        @Override
+        public int getByteCodeIndex() {
+            return -1;
+        }
+
+        @Override
+        public java.lang.invoke.MethodType getMethodType() {
+            return java.lang.invoke.MethodType.methodType(void.class);
+        }
+    }
+
+    @Test
+    public void testFiltersJrtProtocol() {
+        // Guard: ensure HttpClient is truly from jrt:
+        ProtectionDomain pd = java.net.http.HttpClient.class.getProtectionDomain();
+        Assume.assumeTrue(
+            pd != null
+                && pd.getCodeSource() != null
+                && pd.getCodeSource().getLocation() != null
+                && "jrt".equals(pd.getCodeSource().getLocation().getProtocol())
+        );
+
+        StackWalker.StackFrame jrtFrame = new FakeFrame(java.net.http.HttpClient.class, "send");
+        StackWalker.StackFrame fileFrame = new FakeFrame(StackCallerProtectionDomainExtractorTests.class, "helper");
+
+        Set<ProtectionDomain> pds = (Set<ProtectionDomain>) StackCallerProtectionDomainChainExtractor.INSTANCE.apply(
+            java.util.stream.Stream.of(jrtFrame, fileFrame)
+        );
+
+        // Only the file: PD should remain
+        org.junit.Assert.assertEquals(1, pds.size());
+        org.hamcrest.MatcherAssert.assertThat(
+            pds.stream().map(x -> x.getCodeSource().getLocation().getProtocol()).collect(java.util.stream.Collectors.toSet()),
+            org.hamcrest.Matchers.containsInAnyOrder("file")
+        );
+    }
+
 }
