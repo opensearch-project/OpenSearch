@@ -33,7 +33,6 @@
 package org.opensearch.repositories.s3;
 
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.blobstore.BlobStoreException;
@@ -173,39 +172,6 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
         try (S3Repository s3Repo = createS3Repo(metadata)) {
             // Don't expect any Exception
             assertThrows(BlobStoreException.class, () -> s3Repo.validateHttpClientType(randomAlphaOfLength(4)));
-        }
-    }
-
-    public void testCreateClientSideEncryptedBlobStore() {
-        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
-        try (S3Repository s3Repo = createS3Repo(metadata)) {
-            // Don't expect any Exception
-            S3BlobStore blobStore = s3Repo.createClientSideEncryptedBlobStore();
-            assertNotNull(blobStore);
-            assertNull(blobStore.serverSideEncryptionKmsKey());
-            assertEquals(blobStore.serverSideEncryptionType(), ServerSideEncryption.AES256.toString());
-            assertNull(blobStore.expectedBucketOwner());
-            assertFalse(blobStore.serverSideEncryptionBucketKey());
-        }
-    }
-
-    public void testCreateServerSideEncryptedBlobStore() {
-        Settings settings = Settings.builder()
-            .put("server_side_encryption_type", ServerSideEncryption.AWS_KMS.toString())
-            .put("server_side_encryption_kms_key_id", "kms-key-id")
-            .put("server_side_encryption_bucket_key_enabled", true)
-            .put("server_side_encryption_encryption_context", "enc-ctx")
-            .put("expected_bucket_owner", "123456789012")
-            .build();
-
-        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", settings);
-        try (S3Repository s3Repo = createS3Repo(metadata)) {
-            // Don't expect any Exception
-            S3BlobStore blobStore = s3Repo.createServerSideEncryptedBlobStore();
-            assertNotNull(blobStore);
-            assertEquals("kms-key-id", blobStore.serverSideEncryptionKmsKey());
-            assertEquals("123456789012", blobStore.expectedBucketOwner());
-            assertTrue(blobStore.serverSideEncryptionBucketKey());
         }
     }
 

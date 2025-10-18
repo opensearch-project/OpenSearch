@@ -44,7 +44,6 @@ public class RemoteStoreNodeAttribute {
     public static final String REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.segment.repository";
     public static final String REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.translog.repository";
     public static final String REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.routing_table.repository";
-    public static final String REPOSITORY_METADATA_SERVER_SIDE_ENCRYPTION_ENABLED_KEY = "server_side_encryption_enabled";
 
     public static final List<String> REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.stream()
         .map(prefix -> prefix + ".state.repository")
@@ -69,8 +68,9 @@ public class RemoteStoreNodeAttribute {
     public static final String REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX = "remote_store.repository.%s.settings.";
 
     public static final String REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT = "%s.repository.%s.type";
+
     public static final String REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT =
-        REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX + ".server_side_encryption_enabled";
+        REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX + "server_side_encryption_kms_key_id";
 
     public static final String REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT = "%s.repository.%s." + CryptoMetadata.CRYPTO_METADATA_KEY;
     public static final String REPOSITORY_CRYPTO_SETTINGS_PREFIX = REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT
@@ -253,14 +253,14 @@ public class RemoteStoreNodeAttribute {
         return false;
     }
 
-    public static boolean isServerSideEncryptionEnabled(Settings settings) {
-        for (String metadataKey : settings.keySet()) {
-            if (metadataKey.equals(REPOSITORY_METADATA_SERVER_SIDE_ENCRYPTION_ENABLED_KEY) && settings.getAsBoolean(metadataKey, false)) {
-                return true;
-            }
-        }
-        return false;
-    }
+    // public static boolean isServerSideEncryptionEnabled(Settings settings) {
+    // for (String metadataKey : settings.keySet()) {
+    // if (metadataKey.equals(REPOSITORY_METADATA_SERVER_SIDE_ENCRYPTION_ENABLED_KEY) && settings.getAsBoolean(metadataKey, false)) {
+    // return true;
+    // }
+    // }
+    // return false;
+    // }
 
     public static boolean isRemoteDataAttributePresent(Settings settings) {
         return isSegmentRepoConfigured(settings) || isTranslogRepoConfigured(settings);
@@ -360,13 +360,6 @@ public class RemoteStoreNodeAttribute {
         return true;
     }
 
-    public static boolean isRemoteStoreServerSideEncryptionEnabled(Map<String, String> nodeAttributes, String repoName) {
-
-        String attributeKey = String.format(Locale.getDefault(), REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT, repoName);
-        String attributeValue = nodeAttributes.get(attributeKey);
-        return "true".equalsIgnoreCase(attributeValue);
-    }
-
     public static String getClusterStateRepoName(Map<String, String> repos) {
         return getValueFromAnyKey(repos, REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS);
     }
@@ -381,6 +374,14 @@ public class RemoteStoreNodeAttribute {
 
     public static String getTranslogRepoName(Map<String, String> repos) {
         return getValueFromAnyKey(repos, REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS);
+    }
+
+    public static boolean isRemoteStoreServerSideEncryptionEnabled(Map<String, String> repos) {
+        String segmentRepoName = getSegmentRepoName(repos);
+        return getValueFromAnyKey(
+            repos,
+            List.of(String.format(Locale.getDefault(), REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT, segmentRepoName))
+        ) != null;
     }
 
     private static String getValueFromAnyKey(Map<String, String> repos, List<String> keys) {

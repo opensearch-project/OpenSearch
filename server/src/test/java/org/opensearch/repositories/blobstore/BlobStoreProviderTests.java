@@ -39,7 +39,7 @@ public class BlobStoreProviderTests extends OpenSearchTestCase {
     private BlobStore mockBlobStore;
 
     @Mock
-    private BlobStore mockRegularBlobStore;
+    private BlobStore mockServerSideEncryptionBlobStore;
 
     private Object lock;
     private BlobStoreProvider provider;
@@ -53,13 +53,7 @@ public class BlobStoreProviderTests extends OpenSearchTestCase {
         provider = new BlobStoreProvider(mockRepository, mockMetadata, mockLifecycle, lock);
     }
 
-    public void testConstructor() {
-        assertNotNull(provider);
-        // Verify that the provider extends BlobStoreProvider
-        assertTrue(provider instanceof BlobStoreProvider);
-    }
-
-    public void testGetBlobStoreWithClientSideEncryption() throws Exception {
+    public void testGetBlobStore() throws Exception {
         // Setup: Mock the serverSideEncryptedBlobStore to return a value
         // Note: Since SetOnce is used internally, we need to first call blobStore() to initialize it
         when(mockLifecycle.started()).thenReturn(true);
@@ -79,11 +73,12 @@ public class BlobStoreProviderTests extends OpenSearchTestCase {
         // Setup: Mock the serverSideEncryptedBlobStore to return a value
         // Note: Since SetOnce is used internally, we need to first call blobStore() to initialize it
         when(mockLifecycle.started()).thenReturn(true);
-        when(mockRepository.createBlobStore()).thenReturn(mockBlobStore);
+        when(mockRepository.createBlobStore()).thenReturn(mockServerSideEncryptionBlobStore);
 
-        // Test
-        expectThrows(IllegalArgumentException.class, () -> provider.getBlobStore(true));
+        BlobStore result = provider.getBlobStore(true);
 
+        // Verify
+        assertEquals(mockServerSideEncryptionBlobStore, result);
     }
 
     public void testBlobStoreWithClientSideEncryptionFirstTime() throws Exception {
@@ -124,6 +119,6 @@ public class BlobStoreProviderTests extends OpenSearchTestCase {
         when(mockLifecycle.state()).thenReturn(Lifecycle.State.STOPPED);
 
         // Test - should throw RepositoryException
-        expectThrows(RepositoryException.class, () -> provider.initBlobStore(false));
+        expectThrows(RepositoryException.class, () -> provider.initBlobStore());
     }
 }

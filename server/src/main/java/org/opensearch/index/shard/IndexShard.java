@@ -163,6 +163,7 @@ import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -5298,7 +5299,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.getRemoteStorePathStrategy(),
             remoteStoreSettings,
             indexSettings().isTranslogMetadataEnabled(),
-            indexSettings.isServerSideEncryptionEnabled()
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
         );
     }
 
@@ -5322,7 +5323,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.getRemoteStorePathStrategy(),
             indexSettings().isTranslogMetadataEnabled(),
             0,
-            indexSettings.isServerSideEncryptionEnabled()
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
         );
     }
 

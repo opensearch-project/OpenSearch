@@ -373,7 +373,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
-    public static final String SETTING_REMOTE_STORE_SSE_ENABLED = "index.remote_store.sse.enabled";
+    // public static final String SETTING_REMOTE_STORE_SSE_ENABLED = "index.remote_store.sse.enabled";
     public static final String SETTING_INDEX_APPEND_ONLY_ENABLED = "index.append_only.enabled";
 
     public static final String SETTING_REMOTE_SEGMENT_STORE_REPOSITORY = "index.remote_store.segment.repository";
@@ -409,38 +409,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             @Override
             public Iterator<Setting<?>> settings() {
                 final List<Setting<?>> settings = List.of(INDEX_REPLICATION_TYPE_SETTING);
-                return settings.iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.PrivateIndex,
-        Property.Dynamic
-    );
-
-    /**
-     * Used to specify if the index data should be persisted in the remote store.
-     */
-    public static final Setting<Boolean> INDEX_REMOTE_STORE_SSE_ENABLED_SETTING = Setting.boolSetting(
-        SETTING_REMOTE_STORE_SSE_ENABLED,
-        false,
-        new Setting.Validator<>() {
-
-            @Override
-            public void validate(final Boolean value) {}
-
-            @Override
-            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
-                final Boolean isRemoteStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
-                if (!isRemoteStoreEnabled && value) {
-                    throw new IllegalArgumentException(
-                        "Server Side Encryption can be enabled when " + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey() + " is enabled. "
-                    );
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = List.of(INDEX_REMOTE_STORE_ENABLED_SETTING);
                 return settings.iterator();
             }
         },
@@ -1041,7 +1009,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
     public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
     public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
-    public static final String SERVER_SIDE_ENCRYPTION_ENABLED = "server_side_encryption_enabled";
+    public static final String REMOTE_STORE_SSE_ENABLED_INDEX_KEY = "sse_enabled_index";
     public static final String CONTEXT_KEY = "context";
     public static final String INGESTION_SOURCE_KEY = "ingestion_source";
     public static final String INGESTION_STATUS_KEY = "ingestion_status";

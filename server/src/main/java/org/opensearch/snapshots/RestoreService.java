@@ -469,7 +469,7 @@ public class RestoreService implements ClusterStateApplier {
                                             .put(snapshotIndexMetadata.getSettings())
                                             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                                     );
-                                    createIndexService.addRemoteStoreCustomMetadata(indexMdBuilder, false);
+                                    createIndexService.addRemoteStoreCustomMetadata(indexMdBuilder, false, currentState);
                                     shardLimitValidator.validateShardLimit(
                                         renamedIndexName,
                                         snapshotIndexMetadata.getSettings(),
@@ -722,8 +722,7 @@ public class RestoreService implements ClusterStateApplier {
                             clusterService.state(),
                             clusterSettings,
                             clusterService.getSettings(),
-                            String.join(",", request.indices()),
-                            true
+                            String.join(",", request.indices())
                         );
                         return settingsBuilder.build();
                     }

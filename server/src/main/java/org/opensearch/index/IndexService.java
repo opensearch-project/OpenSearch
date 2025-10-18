@@ -84,6 +84,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.SearchIndexNameMatcher;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
@@ -706,12 +707,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     }
 
                     remoteDirectory = ((RemoteSegmentStoreDirectoryFactory) remoteDirectoryFactory).newDirectory(
-                        RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getSettings()),
+                        RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getNodeSettings()),
                         this.indexSettings.getUUID(),
                         shardId,
                         this.indexSettings.getRemoteStorePathStrategy(),
                         this.indexSettings.getRemoteStoreSegmentPathPrefix(),
-                        this.indexSettings.isServerSideEncryptionEnabled()
+                        RemoteStoreUtils.isServerSideEncryptionEnabledIndex(this.indexSettings.getIndexMetadata())
                     );
                 }
                 // When an instance of Store is created, a shardlock is created which is released on closing the instance of store.

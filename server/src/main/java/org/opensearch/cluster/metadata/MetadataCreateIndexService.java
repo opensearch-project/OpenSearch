@@ -633,7 +633,8 @@ public class MetadataCreateIndexService {
     IndexMetadata buildAndValidateTemporaryIndexMetadata(
         final Settings aggregatedIndexSettings,
         final CreateIndexClusterStateUpdateRequest request,
-        final int routingNumShards
+        final int routingNumShards,
+        final ClusterState clusterState
     ) {
 
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
@@ -643,7 +644,7 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(aggregatedIndexSettings);
         tmpImdBuilder.system(isSystem);
-        addRemoteStoreCustomMetadata(tmpImdBuilder, true);
+        addRemoteStoreCustomMetadata(tmpImdBuilder, true, clusterState);
 
         if (request.context() != null) {
             tmpImdBuilder.context(request.context());
@@ -662,7 +663,9 @@ public class MetadataCreateIndexService {
      * @param tmpImdBuilder     index metadata builder.
      * @param assertNullOldType flag to verify that the old remote store path type is null
      */
-    public void addRemoteStoreCustomMetadata(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
+    public void addRemoteStoreCustomMetadata(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType, ClusterState clusterState) {
+
+        boolean isRestoreFromSnapshot = !assertNullOldType;
         if (remoteStoreCustomMetadataResolver == null) {
             return;
         }
@@ -676,6 +679,27 @@ public class MetadataCreateIndexService {
         // Determine if the ckp would be stored as translog metadata
         boolean isTranslogMetadataEnabled = remoteStoreCustomMetadataResolver.isTranslogMetadataEnabled();
         remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(isTranslogMetadataEnabled));
+
+        Optional<DiscoveryNode> remoteNode = clusterState.nodes()
+            .getNodes()
+            .values()
+            .stream()
+            .filter(DiscoveryNode::isRemoteStoreNode)
+            .findFirst();
+
+        String sseEnabledIndex = existingCustomData == null
+            ? null
+            : existingCustomData.get(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY);
+        if (isRestoreFromSnapshot && sseEnabledIndex != null) {
+            remoteCustomData.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, sseEnabledIndex);
+        }
+
+        if (remoteNode.isPresent()
+            && !isRestoreFromSnapshot
+            && RemoteStoreSettings.isServerSideEncryptionRepoEnabled(clusterState.nodes().getMinNodeVersion())
+            && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled(remoteNode.get().getAttributes())) {
+            remoteCustomData.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, Boolean.toString(true));
+        }
 
         // Determine the path type for use using the remoteStorePathResolver.
         RemoteStorePathStrategy newPathStrategy = remoteStoreCustomMetadataResolver.getPathStrategy();
@@ -731,7 +755,9 @@ public class MetadataCreateIndexService {
             clusterService.getClusterSettings()
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards, currentState);
+
+        // buildServerSideEncryptionSetting(tmpImd, clusterService.getClusterSettings(), false);
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -755,6 +781,23 @@ public class MetadataCreateIndexService {
             metadataTransformer
         );
     }
+
+    // private void buildServerSideEncryptionSetting(IndexMetadata tmpImd, ClusterSettings clusterSettings, boolean isRestore) {
+    //
+    // if (isRestore)
+    // if (remoteStoreCustomMetadataResolver == null) {
+    // return;
+    // }
+    //
+    // Map<String, String> remoteCustomMetadata = tmpImd.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+    //
+    // String sseEnabledIndex = existingCustomData == null ? null : existingCustomData.get(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED);
+    // if (assertNullOldType || sseEnabledIndex != null) {
+    //
+    // }
+    // remoteCustomData.put(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, Boolean.toString(true));
+    //
+    // }
 
     private ClusterState applyCreateIndexRequestWithV2Template(
         final ClusterState currentState,
@@ -796,7 +839,7 @@ public class MetadataCreateIndexService {
             clusterService.getClusterSettings()
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards, currentState);
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -880,7 +923,7 @@ public class MetadataCreateIndexService {
             clusterService.getClusterSettings()
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards, currentState);
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -1057,7 +1100,7 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
-        updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index(), false);
+        updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -1163,8 +1206,7 @@ public class MetadataCreateIndexService {
         ClusterState clusterState,
         ClusterSettings clusterSettings,
         Settings nodeSettings,
-        String indexName,
-        boolean isRestoreFromSnapshot
+        String indexName
     ) {
         if ((isRemoteDataAttributePresent(nodeSettings)
             && clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(RemoteStoreNodeService.CompatibilityMode.STRICT))
@@ -1180,12 +1222,6 @@ public class MetadataCreateIndexService {
 
             if (remoteNode.isPresent()) {
                 segmentRepo = RemoteStoreNodeAttribute.getSegmentRepoName(remoteNode.get().getAttributes());
-                if (!isRestoreFromSnapshot
-                    && RemoteStoreSettings.isServerSideEncryptionRepoEnabled(clusterState.nodes().getMinNodeVersion())
-                    && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled(remoteNode.get().getAttributes(), segmentRepo)) {
-                    settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, true);
-                }
-
                 translogRepo = RemoteStoreNodeAttribute.getTranslogRepoName(remoteNode.get().getAttributes());
                 if (segmentRepo != null) {
                     settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true).put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo);
