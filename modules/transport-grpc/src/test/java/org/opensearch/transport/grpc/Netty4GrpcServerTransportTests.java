@@ -16,7 +16,7 @@ import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ExecutorBuilder;
-import org.opensearch.threadpool.FixedExecutorBuilder;
+import org.opensearch.threadpool.ForkJoinPoolExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.grpc.ssl.NettyGrpcClient;
 import org.hamcrest.MatcherAssert;
@@ -45,10 +45,10 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
 
         // Create a ThreadPool with the gRPC executor
         Settings settings = Settings.builder()
-            .put("node.name", "test-node")
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT.getKey(), 4)
-            .build();
-        ExecutorBuilder<?> grpcExecutorBuilder = new FixedExecutorBuilder(settings, "grpc", 4, 1000, "thread_pool.grpc");
+                .put("node.name", "test-node")
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT.getKey(), 4)
+                .build();
+        ExecutorBuilder<?> grpcExecutorBuilder = new ForkJoinPoolExecutorBuilder("grpc", 4, "thread_pool.grpc");
         threadPool = new ThreadPool(settings, grpcExecutorBuilder);
 
         services = List.of();
@@ -62,7 +62,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testBasicStartAndStop() {
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services,
+                networkService, threadPool)) {
             transport.start();
 
             MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
@@ -73,7 +74,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testGrpcTransportHealthcheck() {
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services,
+                networkService, threadPool)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.getBoundAddress().boundAddresses());
             try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(remoteAddress).build()) {
@@ -86,7 +88,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testGrpcTransportListServices() {
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services,
+                networkService, threadPool)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.getBoundAddress().boundAddresses());
             try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(remoteAddress).build()) {
@@ -100,15 +103,18 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
 
     public void testWithCustomPort() {
         // Create settings with a specific port
-        Settings settings = Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), "9000-9010").build();
+        Settings settings = Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), "9000-9010")
+                .build();
 
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool)) {
             transport.start();
 
             MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
             TransportAddress publishAddress = transport.getBoundAddress().publishAddress();
             assertNotNull(publishAddress.address());
-            assertTrue("Port should be in the specified range", publishAddress.getPort() >= 9000 && publishAddress.getPort() <= 9010);
+            assertTrue("Port should be in the specified range",
+                    publishAddress.getPort() >= 9000 && publishAddress.getPort() <= 9010);
 
             transport.stop();
         }
@@ -117,11 +123,12 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testWithCustomPublishPort() {
         // Create settings with a specific publish port
         Settings settings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT.getKey(), 9000)
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT.getKey(), 9000)
+                .build();
 
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool)) {
             transport.start();
 
             MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
@@ -136,21 +143,21 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testWithCustomHost() {
         // Create settings with a specific host
         Settings settings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_HOST.getKey(), "127.0.0.1")
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_HOST.getKey(), "127.0.0.1")
+                .build();
 
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool)) {
             transport.start();
 
             MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
             TransportAddress publishAddress = transport.getBoundAddress().publishAddress();
             assertNotNull(publishAddress.address());
             assertEquals(
-                "Host should match the specified value",
-                "127.0.0.1",
-                InetAddresses.toAddrString(publishAddress.address().getAddress())
-            );
+                    "Host should match the specified value",
+                    "127.0.0.1",
+                    InetAddresses.toAddrString(publishAddress.address().getAddress()));
 
             transport.stop();
         }
@@ -159,21 +166,21 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testWithCustomBindHost() {
         // Create settings with a specific bind host
         Settings settings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST.getKey(), "127.0.0.1")
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST.getKey(), "127.0.0.1")
+                .build();
 
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool)) {
             transport.start();
 
             MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
             TransportAddress boundAddress = transport.getBoundAddress().boundAddresses()[0];
             assertNotNull(boundAddress.address());
             assertEquals(
-                "Bind host should match the specified value",
-                "127.0.0.1",
-                InetAddresses.toAddrString(boundAddress.address().getAddress())
-            );
+                    "Bind host should match the specified value",
+                    "127.0.0.1",
+                    InetAddresses.toAddrString(boundAddress.address().getAddress()));
 
             transport.stop();
         }
@@ -182,21 +189,21 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testWithCustomPublishHost() {
         // Create settings with a specific publish host
         Settings settings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_HOST.getKey(), "127.0.0.1")
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_HOST.getKey(), "127.0.0.1")
+                .build();
 
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool)) {
             transport.start();
 
             MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
             TransportAddress publishAddress = transport.getBoundAddress().publishAddress();
             assertNotNull(publishAddress.address());
             assertEquals(
-                "Publish host should match the specified value",
-                "127.0.0.1",
-                InetAddresses.toAddrString(publishAddress.address().getAddress())
-            );
+                    "Publish host should match the specified value",
+                    "127.0.0.1",
+                    InetAddresses.toAddrString(publishAddress.address().getAddress()));
 
             transport.stop();
         }
@@ -205,11 +212,12 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testWithCustomWorkerCount() {
         // Create settings with a specific worker count
         Settings settings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT.getKey(), 4)
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT.getKey(), 4)
+                .build();
 
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool)) {
             transport.start();
 
             MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
@@ -222,11 +230,12 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testWithCustomExecutorCount() {
         // Create settings with a specific executor count
         Settings settings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT.getKey(), 8)
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT.getKey(), 8)
+                .build();
 
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool)) {
             transport.start();
 
             MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
@@ -236,7 +245,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
             ExecutorService executor = transport.getGrpcExecutorForTesting();
             assertNotNull("gRPC executor should be created", executor);
             // Note: The executor is now managed by OpenSearch's ThreadPool system
-            // We can't easily verify the thread count as it's encapsulated within OpenSearch's executor implementation
+            // We can't easily verify the thread count as it's encapsulated within
+            // OpenSearch's executor implementation
 
             transport.stop();
         }
@@ -247,13 +257,15 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         Settings settings = createSettings();
         int expectedExecutorCount = OpenSearchExecutors.allocatedProcessors(settings) * 2;
 
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool)) {
             transport.start();
 
             ExecutorService executor = transport.getGrpcExecutorForTesting();
             assertNotNull("gRPC executor should be created", executor);
             // Note: The executor is now managed by OpenSearch's ThreadPool system
-            // The actual thread count is configured via the FixedExecutorBuilder in the test setup
+            // The actual parallelism is configured via the ForkJoinPoolExecutorBuilder in
+            // the test setup
 
             transport.stop();
         }
@@ -262,11 +274,12 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testSeparateEventLoopGroups() {
         // Test that boss and worker event loop groups are separate
         Settings settings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT.getKey(), 4)
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT.getKey(), 4)
+                .build();
 
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool)) {
             transport.start();
 
             EventLoopGroup bossGroup = transport.getBossEventLoopGroupForTesting();
@@ -284,7 +297,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         // Test that executor is properly shutdown when transport stops
         Settings settings = createSettings();
 
-        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool);
+        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool);
         transport.start();
 
         ExecutorService executor = transport.getGrpcExecutorForTesting();
@@ -292,7 +306,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         assertFalse("Executor should not be shutdown initially", executor.isShutdown());
 
         transport.stop();
-        // Note: The executor is managed by OpenSearch's ThreadPool and is not shutdown when transport stops
+        // Note: The executor is managed by OpenSearch's ThreadPool and is not shutdown
+        // when transport stops
         assertNotNull("Executor should still exist after transport stop", executor);
 
         transport.close();
@@ -302,7 +317,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         // Test that event loop groups are properly shutdown when transport stops
         Settings settings = createSettings();
 
-        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool);
+        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool);
         transport.start();
 
         EventLoopGroup bossGroup = transport.getBossEventLoopGroupForTesting();
@@ -325,41 +341,45 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testSettingsValidation() {
         // Test that invalid settings are handled properly
         Settings invalidSettings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT.getKey(), 0) // Invalid: should be >= 1
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT.getKey(), 0) // Invalid: should be >= 1
+                .build();
 
         expectThrows(
-            IllegalArgumentException.class,
-            () -> { new Netty4GrpcServerTransport(invalidSettings, services, networkService, threadPool); }
-        );
+                IllegalArgumentException.class,
+                () -> {
+                    new Netty4GrpcServerTransport(invalidSettings, services, networkService, threadPool);
+                });
     }
 
     public void testExecutorCountSettingsValidation() {
         // Test that invalid executor count settings are handled properly
         Settings invalidSettings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT.getKey(), 0) // Invalid: should be >= 1
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT.getKey(), 0) // Invalid: should be >= 1
+                .build();
 
         expectThrows(
-            IllegalArgumentException.class,
-            () -> { new Netty4GrpcServerTransport(invalidSettings, services, networkService, threadPool); }
-        );
+                IllegalArgumentException.class,
+                () -> {
+                    new Netty4GrpcServerTransport(invalidSettings, services, networkService, threadPool);
+                });
     }
 
     public void testStartFailureTriggersCleanup() {
         // Create a transport that will fail to start
         Settings settingsWithInvalidPort = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), "999999") // Invalid port
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), "999999") // Invalid port
+                .build();
 
-        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settingsWithInvalidPort, services, networkService, threadPool);
+        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settingsWithInvalidPort, services,
+                networkService, threadPool);
 
         // Start should fail
         expectThrows(Exception.class, transport::start);
 
-        // Resources should be cleaned up after failure - the implementation calls doStop() in the finally block
+        // Resources should be cleaned up after failure - the implementation calls
+        // doStop() in the finally block
         ExecutorService executor = transport.getGrpcExecutorForTesting();
         EventLoopGroup bossGroup = transport.getBossEventLoopGroupForTesting();
         EventLoopGroup workerGroup = transport.getWorkerEventLoopGroupForTesting();
@@ -381,7 +401,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
 
     public void testInterruptedShutdownHandling() throws InterruptedException {
         Settings settings = createSettings();
-        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool);
+        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool);
 
         transport.start();
 
@@ -400,11 +421,12 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testInvalidHostBinding() {
         // Test with invalid bind host to trigger host resolution error
         Settings settings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST.getKey(), "invalid.host.that.does.not.exist")
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST.getKey(), "invalid.host.that.does.not.exist")
+                .build();
 
-        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool);
+        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool);
 
         // Start should fail due to host resolution failure
         expectThrows(Exception.class, transport::start);
@@ -415,11 +437,12 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testPublishPortResolutionFailure() {
         // Create settings that will cause publish port resolution to fail
         Settings settings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), "0") // Dynamic port
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT.getKey(), "65536") // Invalid publish port
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), "0") // Dynamic port
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT.getKey(), "65536") // Invalid publish port
+                .build();
 
-        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool);
+        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool);
 
         // Start should fail due to publish port resolution
         expectThrows(Exception.class, transport::start);
@@ -430,11 +453,12 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testMultipleBindAddresses() {
         // Test binding to multiple localhost addresses
         Settings settings = Settings.builder()
-            .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
-            .putList(Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST.getKey(), "127.0.0.1", "localhost")
-            .build();
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange())
+                .putList(Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST.getKey(), "127.0.0.1", "localhost")
+                .build();
 
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool)) {
             transport.start();
 
             BoundTransportAddress boundAddress = transport.getBoundAddress();
@@ -447,7 +471,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
 
     public void testShutdownTimeoutHandling() throws InterruptedException {
         Settings settings = createSettings();
-        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool);
+        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool);
 
         transport.start();
 
@@ -463,7 +488,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         // Normal shutdown should work
         transport.stop();
 
-        // Verify everything is shutdown (except executor which is managed by OpenSearch's ThreadPool)
+        // Verify everything is shutdown (except executor which is managed by
+        // OpenSearch's ThreadPool)
         assertNotNull("Executor should still exist", executor);
         assertTrue("Boss group should be shutdown", bossGroup.isShutdown());
         assertTrue("Worker group should be shutdown", workerGroup.isShutdown());
@@ -473,12 +499,14 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
 
     public void testResourceCleanupOnClose() {
         Settings settings = createSettings();
-        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool);
+        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool);
 
         transport.start();
         transport.stop();
 
-        // doClose should handle cleanup gracefully even if resources are already shutdown
+        // doClose should handle cleanup gracefully even if resources are already
+        // shutdown
         transport.close();
 
         // Multiple closes should be safe
@@ -487,9 +515,11 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
 
     public void testPortRangeHandling() {
         // Test with a port range
-        Settings settings = Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), "9300-9400").build();
+        Settings settings = Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), "9300-9400")
+                .build();
 
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool)) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool)) {
             transport.start();
 
             BoundTransportAddress boundAddress = transport.getBoundAddress();
@@ -505,7 +535,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testGracefulShutdownWithException() {
         // Test that exceptions during shutdown don't prevent cleanup
         Settings settings = createSettings();
-        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool);
+        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool);
 
         transport.start();
 
@@ -536,7 +567,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testCloseWithNullResources() {
         // Test that close() handles null resources gracefully
         Settings settings = createSettings();
-        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService, threadPool);
+        Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService,
+                threadPool);
 
         // Don't start the transport, so resources should be null
         assertNull("Boss group should be null before start", transport.getBossEventLoopGroupForTesting());
@@ -552,6 +584,7 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     private static Settings createSettings() {
-        return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange()).build();
+        return Settings.builder()
+                .put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange()).build();
     }
 }
