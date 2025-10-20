@@ -37,6 +37,9 @@ import picocli.CommandLine.Command;
 @Command(name = "passwd", description = "Changes the password of a keystore", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 public class ChangeKeyStorePasswordCommand extends BaseKeyStoreCommand {
 
+    /**
+     * Constructs the change password command.
+     */
     public ChangeKeyStorePasswordCommand() {
         super("Changes the password of a keystore", true);
     }
@@ -44,6 +47,10 @@ public class ChangeKeyStorePasswordCommand extends BaseKeyStoreCommand {
     /**
      * Executes the password change command by prompting for a new password
      * and saving the keystore with the updated password.
+     *
+     * @param terminal The terminal to use for user interaction
+     * @param env      The environment configuration
+     * @throws Exception
      */
     @Override
     protected void executeCommand(Terminal terminal, Environment env) throws Exception {
