@@ -49,13 +49,14 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     public static final int MAX_PASSPHRASE_LENGTH = 128;
 
-    /** Mirrors old `-E key=value` behavior (repeatable). */
     @Option(names = "-E", paramLabel = "key=value", arity = "1..*", description = "Configure a setting (may be specified multiple times)")
     private List<String> settingPairs = new ArrayList<>();
 
     /**
      * Construct the command with the specified command description.
      * Logging will be configured without reading OpenSearch config.
+     *
+     * @param description the command description
      */
     public EnvironmentAwareCommand(final String description) {
         this(description, CommandLoggingConfigurator::configureLoggingWithoutConfig);
@@ -64,6 +65,9 @@ public abstract class EnvironmentAwareCommand extends Command {
     /**
      * Construct the command with the specified command description and before-main runnable.
      * Commands constructed with this constructor must take ownership of configuring logging.
+     *
+     * @param description the command description
+     * @param beforeMain the before-main runnable
      */
     public EnvironmentAwareCommand(final String description, final Runnable beforeMain) {
         super(description, beforeMain);
@@ -98,7 +102,7 @@ public abstract class EnvironmentAwareCommand extends Command {
             baseSettings,
             settings,
             getConfigPath(esPathConf),
-            // HOSTNAME is set by opensearch-env/opensearch-env.bat so it is always available
+            // HOSTNAME is set by opensearch-env and opensearch-env.bat so it is always available
             () -> System.getenv("HOSTNAME")
         );
     }

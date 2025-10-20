@@ -184,10 +184,10 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
             final String indexUUIDFolderName = shardParent.getFileName().toString();
 
             if (Files.isDirectory(path)
-                && shardIdFileName.chars().allMatch(Character::isDigit) // SHARD-ID segment
-                && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // “…/indices/…”
-                && nodeIdFileName.chars().allMatch(Character::isDigit) // NODE-ID segment
-                && NodeEnvironment.NODES_FOLDER.equals(shardParentParent.getParent().getParent().getFileName().toString()) // “…/nodes/…”
+                && shardIdFileName.chars().allMatch(Character::isDigit) // SHARD-ID path element check
+                && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // `indices` check
+                && nodeIdFileName.chars().allMatch(Character::isDigit) // NODE-ID check
+                && NodeEnvironment.NODES_FOLDER.equals(shardParentParent.getParent().getParent().getFileName().toString()) // `nodes` check
             ) {
                 resolvedShardId = Integer.parseInt(shardIdFileName);
                 indexMetadata = stream(clusterState.metadata().indices().values().spliterator(), false).filter(
@@ -449,20 +449,30 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         final String historyUUID = UUIDs.randomBase64UUID();
 
         terminal.println("Marking index with the new history uuid : " + historyUUID);
-        final IndexWriterConfig iwc = new IndexWriterConfig(null).setCommitOnClose(false)
+        // commit the new history id
+        final IndexWriterConfig iwc = new IndexWriterConfig(null)
+            // we don't want merges to happen here - we call maybe merge on the engine
+            // later once we stared it up otherwise we would need to wait for it here
+            // we also don't specify a codec here and merges should use the engines for this index
+            .setCommitOnClose(false)
             .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setMergePolicy(NoMergePolicy.INSTANCE)
             .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        // IndexWriter acquires directory lock by its own
 
         try (IndexWriter indexWriter = new IndexWriter(indexDirectory, iwc)) {
             final Map<String, String> userData = new HashMap<>();
             indexWriter.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
 
             if (updateLocalCheckpoint) {
+                // In order to have a safe commit invariant, we have to assign the global checkpoint to the max_seqno of the last commit.
+                // We can only safely do it because we will generate a new history uuid this shard.
                 final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
+                // Also advances the local checkpoint of the last commit to its max_seqno.
                 userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(commitInfo.maxSeqNo));
             }
 
+            // commit the new history id
             userData.put(Engine.HISTORY_UUID_KEY, historyUUID);
 
             indexWriter.setLiveCommitData(userData.entrySet());
