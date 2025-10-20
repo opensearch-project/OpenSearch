@@ -28,7 +28,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ExecutorBuilder;
-import org.opensearch.threadpool.FixedExecutorBuilder;
+import org.opensearch.threadpool.ForkJoinPoolExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
@@ -303,16 +303,16 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
      * Returns the executor builders for this plugin's custom thread pools.
      * Creates a dedicated thread pool for gRPC request processing that integrates
      * with OpenSearch's thread pool monitoring and management system.
+     * Uses ForkJoinPool for improved performance through work-stealing and better
+     * load balancing.
      *
      * @param settings the current settings
      * @return executor builders for this plugin's custom thread pools
      */
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        final int executorCount = SETTING_GRPC_EXECUTOR_COUNT.get(settings);
-        return List.of(
-            new FixedExecutorBuilder(settings, GRPC_THREAD_POOL_NAME, executorCount, 1000, "thread_pool." + GRPC_THREAD_POOL_NAME)
-        );
+        final int parallelism = SETTING_GRPC_EXECUTOR_COUNT.get(settings);
+        return List.of(new ForkJoinPoolExecutorBuilder(GRPC_THREAD_POOL_NAME, parallelism, "thread_pool." + GRPC_THREAD_POOL_NAME));
     }
 
     /**

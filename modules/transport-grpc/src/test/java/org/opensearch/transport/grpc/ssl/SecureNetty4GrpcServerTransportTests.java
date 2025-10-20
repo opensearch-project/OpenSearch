@@ -13,7 +13,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ExecutorBuilder;
-import org.opensearch.threadpool.FixedExecutorBuilder;
+import org.opensearch.threadpool.ForkJoinPoolExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.grpc.interceptor.GrpcInterceptorChain;
 import org.junit.After;
@@ -50,7 +50,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
 
         // Create a ThreadPool with the gRPC executor
         Settings settings = Settings.builder().put("node.name", "test-node").put("grpc.netty.executor_count", 4).build();
-        ExecutorBuilder<?> grpcExecutorBuilder = new FixedExecutorBuilder(settings, "grpc", 4, 1000, "thread_pool.grpc");
+        ExecutorBuilder<?> grpcExecutorBuilder = new ForkJoinPoolExecutorBuilder("grpc", 4, "thread_pool.grpc");
         threadPool = new ThreadPool(settings, grpcExecutorBuilder);
         serverInterceptor = new GrpcInterceptorChain(Collections.emptyList());
     }
