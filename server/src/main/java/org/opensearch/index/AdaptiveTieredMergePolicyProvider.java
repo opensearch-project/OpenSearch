@@ -22,6 +22,11 @@ import org.opensearch.index.store.Store;
  * This addresses the issue described in https://github.com/opensearch-project/OpenSearch/issues/11163
  * by providing more intelligent default merge settings that adapt to the actual shard size.
  *
+ * Implementation notes:
+ * - Uses smooth interpolation (log/linear across size decades) instead of hard categories
+ *   to avoid abrupt parameter jumps as shards grow.
+ * - Caps the max merged segment size at 5GB to align with Lucene defaults.
+ *
  * @opensearch.api
  */
 @PublicApi(since = "3.3.0")
@@ -41,6 +46,7 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
     private static final ByteSizeValue SMALL_SHARD_MAX_SEGMENT = new ByteSizeValue(50, ByteSizeUnit.MB);
     private static final ByteSizeValue MEDIUM_SHARD_MAX_SEGMENT = new ByteSizeValue(200, ByteSizeUnit.MB);
     private static final ByteSizeValue LARGE_SHARD_MAX_SEGMENT = new ByteSizeValue(1, ByteSizeUnit.GB);
+    // Cap aligned with Lucene default (5GB)
     private static final ByteSizeValue VERY_LARGE_SHARD_MAX_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
 
     // Adaptive floor segment sizes
@@ -115,7 +121,7 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
         }
         try {
             // Try to get a rough estimate of shard size from the store
-            // This is a best-effort estimation - using directory size as proxy
+            // Best-effort approximation using directory listing as proxy (not exact)
             return store.directory().listAll().length * 1024 * 1024; // Rough estimate
         } catch (Exception e) {
             // Fallback to a reasonable default
@@ -136,7 +142,8 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
     }
 
     private void applyAdaptiveSettings(ShardSizeCategory category) {
-        // Use smooth interpolation instead of discrete categories to avoid dramatic parameter jumps
+        // Use smooth interpolation instead of discrete categories to avoid dramatic parameter jumps.
+        // The category is retained for logging/backward-compatibility but does not gate the settings below.
         long shardSizeBytes = estimateShardSize();
 
         ByteSizeValue maxSegmentSize = calculateSmoothMaxSegmentSize(shardSizeBytes);
@@ -164,7 +171,7 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
 
     /**
      * Calculate smooth max segment size using logarithmic interpolation
-     * to avoid dramatic jumps at category boundaries
+     * to avoid dramatic jumps at category boundaries. Values are capped at 5GB.
      */
     private ByteSizeValue calculateSmoothMaxSegmentSize(long shardSizeBytes) {
         // Use logarithmic interpolation between reference points

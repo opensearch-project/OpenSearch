@@ -27,6 +27,11 @@ import java.util.List;
  * This addresses the problem described in:
  * https://github.com/opensearch-project/OpenSearch/issues/11163
  *
+ * Implementation notes:
+ * - Recommendations use smooth interpolation across shard-size decades to avoid
+ *   stepwise jumps at category thresholds.
+ * - Max segment size recommendations are capped at 5GB to align with Lucene.
+ *
  * @opensearch.api
  */
 @PublicApi(since = "3.3.0")
@@ -174,7 +179,7 @@ public class SegmentTopologyAnalyzer implements Writeable {
 
     /**
      * Calculate smooth max segment size using logarithmic interpolation
-     * to avoid dramatic jumps at category boundaries
+     * to avoid dramatic jumps at category boundaries. Values are capped at 5GB.
      */
     private long calculateSmoothMaxSegmentSize(long shardSizeBytes) {
         // Reference points: 50MB@100MB, 200MB@1GB, 1GB@10GB, 5GB@100GB
