@@ -16,13 +16,6 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
  */
 
 /*
@@ -32,7 +25,6 @@
 
 package org.opensearch.tools.cli.keystore;
 
-import joptsimple.OptionSet;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.settings.KeyStoreWrapper;
@@ -40,46 +32,31 @@ import org.opensearch.env.Environment;
 
 import java.nio.file.Path;
 
+import picocli.CommandLine.Command;
+
 /**
  * KeyStore command that checks if the keystore exists and is password-protected.
  * Exits with a non-zero status code if the keystore is missing or not password-protected.
  *
  * @opensearch.internal
  */
+@Command(name = "has-password", description = "Succeeds if the keystore exists and is password-protected, fails otherwise.", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
 
     static final int NO_PASSWORD_EXIT_CODE = 1;
 
-    /**
-     * Creates a new HasPasswordKeyStoreCommand.
-     * This command checks for the existence of a password-protected keystore
-     * and exits with {@link #NO_PASSWORD_EXIT_CODE} if the keystore is missing
-     * or not password-protected.
-     */
     HasPasswordKeyStoreCommand() {
         super(
             "Succeeds if the keystore exists and is password-protected, " + "fails with exit code " + NO_PASSWORD_EXIT_CODE + " otherwise."
         );
     }
 
-    /**
-     * Executes the password check command by verifying if the keystore exists
-     * and is password-protected.
-     *
-     * @param terminal The terminal for user interaction and output
-     * @param options The command-line options provided
-     * @param env The environment settings containing configuration directory
-     * @throws UserException with {@link #NO_PASSWORD_EXIT_CODE} if the keystore
-     *         is missing or not password-protected
-     * @throws Exception if there are other errors during execution
-     */
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected void execute(Terminal terminal, Environment env) throws Exception {
         final Path configFile = env.configDir();
         final KeyStoreWrapper keyStore = KeyStoreWrapper.load(configFile);
 
-        // We handle error printing here so we can respect the "--silent" flag
-        // We have to throw an exception to get a nonzero exit code
+        // Respect verbosity and exit codes
         if (keyStore == null) {
             terminal.errorPrintln(Terminal.Verbosity.NORMAL, "ERROR: OpenSearch keystore not found");
             throw new UserException(NO_PASSWORD_EXIT_CODE, null);

@@ -16,23 +16,10 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
  */
 
 package org.opensearch.tools.cli.keystore;
 
-import joptsimple.OptionSet;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
@@ -46,8 +33,8 @@ import java.security.GeneralSecurityException;
 import java.util.Arrays;
 
 /**
- * An {@link EnvironmentAwareCommand} that needs to access the opensearch keystore, possibly
- * decrypting it if it is password protected.
+ * An {@link EnvironmentAwareCommand} that needs to access the OpenSearch keystore,
+ * possibly decrypting it if it is password protected.
  *
  * @opensearch.internal
  */
@@ -80,6 +67,7 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
             );
             char[] passwordVerification = terminal.readSecret("Enter same password again: ", EnvironmentAwareCommand.MAX_PASSPHRASE_LENGTH);
             if (Arrays.equals(passwordArray, passwordVerification) == false) {
+                Arrays.fill(passwordVerification, '\u0000');
                 throw new UserException(ExitCodes.DATA_ERROR, "Passwords are not equal, exiting.");
             }
             Arrays.fill(passwordVerification, '\u0000');
@@ -113,9 +101,8 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
      * Executes the keystore command with the given parameters.
      *
      * @param terminal The terminal to use for user interaction
-     * @param options The command-line options provided
-     * @param env The environment settings
+     * @param env      The environment settings
      * @throws Exception if there are any errors during execution
      */
-    protected abstract void execute(Terminal terminal, OptionSet options, Environment env) throws Exception;
+    protected abstract void execute(Terminal terminal, Environment env) throws Exception;
 }

@@ -8,7 +8,6 @@
 
 package org.opensearch.index.mapper;
 
-import joptsimple.internal.Strings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.plugins.MapperPlugin;
@@ -56,7 +55,7 @@ public class MappingTransformerRegistryTests extends OpenSearchTestCase {
     }
 
     public void testApplyTransformers_whenNoTransformers_returnMappingDirectly() {
-        final String mapping = Strings.EMPTY;
+        final String mapping = "";
         final MappingTransformerRegistry mappingTransformerRegistry = new MappingTransformerRegistry(
             Collections.emptyList(),
             xContentRegistry
