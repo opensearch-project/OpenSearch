@@ -155,6 +155,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findContextTemplateName;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_INDEX;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
@@ -1867,9 +1868,10 @@ public class MetadataCreateIndexService {
     public static void validateIndexTotalPrimaryShardsPerNodeSetting(Settings indexSettings) {
         // Get the setting value
         int indexPrimaryShardsPerNode = INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings);
+        int indexRemoteCapablePrimaryShardsPerNode = INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings);
 
         // If default value (-1), no validation needed
-        if (indexPrimaryShardsPerNode == -1) {
+        if (indexPrimaryShardsPerNode == -1 && indexRemoteCapablePrimaryShardsPerNode == -1) {
             return;
         }
 
@@ -1877,7 +1879,11 @@ public class MetadataCreateIndexService {
         boolean isRemoteStoreEnabled = IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings);
         if (!isRemoteStoreEnabled) {
             throw new IllegalArgumentException(
-                "Setting [" + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() + "] can only be used with remote store enabled clusters"
+                "Setting ["
+                    + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
+                    + "] or ["
+                    + INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
+                    + "] can only be used with remote store enabled clusters"
             );
         }
     }

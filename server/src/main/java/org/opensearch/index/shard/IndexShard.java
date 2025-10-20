@@ -157,6 +157,7 @@ import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
@@ -389,6 +390,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MergedSegmentPublisher mergedSegmentPublisher;
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
+    private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
     @InternalApi
     public IndexShard(
@@ -452,6 +454,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.isAssignedOnRemoteNode(),
             () -> getRemoteTranslogUploadBufferInterval(remoteStoreSettings::getClusterRemoteTranslogBufferInterval)
         );
+        this.mergedSegmentTransferTracker = new MergedSegmentTransferTracker();
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats(threadPool);
@@ -2275,6 +2278,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
+    }
+
+    public MergedSegmentTransferTracker mergedSegmentTransferTracker() {
+        return mergedSegmentTransferTracker;
     }
 
     /**
@@ -4322,7 +4329,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // timeseries
             () -> docMapper(),
             mergedSegmentWarmerFactory.get(this),
-            clusterApplierService
+            clusterApplierService,
+            mergedSegmentTransferTracker
         );
     }
 
