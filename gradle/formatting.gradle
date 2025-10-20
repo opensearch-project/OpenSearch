@@ -75,7 +75,7 @@ allprojects {
               'com.maxmind|com.github|com.networknt|groovy|nebula',
               'org.antlr',
               'software.amazon',
-              'com.azure|com.microsoft|com.ibm|com.google|joptsimple|org.apache|org.bouncycastle|org.codehaus|org.opensearch|org.objectweb|org.joda|org.hamcrest|org.openjdk|org.gradle|org.junit',
+              'com.azure|com.microsoft|com.ibm|com.google|org.apache|org.bouncycastle|org.codehaus|org.opensearch|org.objectweb|org.joda|org.hamcrest|org.openjdk|org.gradle|org.junit',
               'javax',
               'java',
               '',

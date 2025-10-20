@@ -16,25 +16,13 @@
  * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
  */
 
 package org.opensearch.cli;
 
-import joptsimple.OptionException;
-import joptsimple.OptionSet;
 import org.opensearch.test.OpenSearchTestCase;
+
+import picocli.CommandLine.ParameterException;
 
 public class CommandTests extends OpenSearchTestCase {
 
@@ -45,7 +33,7 @@ public class CommandTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal) throws Exception {
             throw new UserException(ExitCodes.DATA_ERROR, "Bad input");
         }
 
@@ -53,7 +41,6 @@ public class CommandTests extends OpenSearchTestCase {
         protected boolean addShutdownHook() {
             return false;
         }
-
     }
 
     static class UsageErrorCommand extends Command {
@@ -63,7 +50,7 @@ public class CommandTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal) throws Exception {
             throw new UserException(ExitCodes.USAGE, "something was no good");
         }
 
@@ -71,7 +58,6 @@ public class CommandTests extends OpenSearchTestCase {
         protected boolean addShutdownHook() {
             return false;
         }
-
     }
 
     static class NoopCommand extends Command {
@@ -83,7 +69,7 @@ public class CommandTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal) throws Exception {
             terminal.println("Normal output");
             terminal.println(Terminal.Verbosity.SILENT, "Silent output");
             terminal.println(Terminal.Verbosity.VERBOSE, "Verbose output");
@@ -99,7 +85,6 @@ public class CommandTests extends OpenSearchTestCase {
         protected boolean addShutdownHook() {
             return false;
         }
-
     }
 
     public void testHelp() throws Exception {
@@ -133,7 +118,7 @@ public class CommandTests extends OpenSearchTestCase {
         assertEquals(output, ExitCodes.USAGE, status);
         assertTrue(error, error.contains("Does nothing"));
         assertFalse(output, output.contains("Some extra help")); // extra help not printed for usage errors
-        assertTrue(error, error.contains("ERROR: Z is not a recognized option"));
+        assertTrue(error, error.contains("Unknown option: '-Z'"));
         assertFalse(command.executed);
 
         command = new NoopCommand();
@@ -144,7 +129,7 @@ public class CommandTests extends OpenSearchTestCase {
         assertEquals(output, ExitCodes.USAGE, status);
         assertTrue(error, error.contains("Does nothing"));
         assertFalse(output, output.contains("Some extra help")); // extra help not printed for usage errors
-        assertTrue(error, error.contains("ERROR: Z is not a recognized option"));
+        assertTrue(error, error.contains("Unknown option: '--foobar'"));
         assertFalse(command.executed);
     }
 
@@ -152,11 +137,8 @@ public class CommandTests extends OpenSearchTestCase {
         MockTerminal terminal = new MockTerminal();
         NoopCommand command = new NoopCommand();
         String[] args = { "-v", "-s" };
-        OptionException e = expectThrows(OptionException.class, () -> { command.mainWithoutErrorHandling(args, terminal); });
-        assertTrue(
-            e.getMessage(),
-            e.getMessage().contains("Option(s) [v/verbose] are unavailable given other options on the command line")
-        );
+        ParameterException e = expectThrows(ParameterException.class, () -> { command.mainWithoutErrorHandling(args, terminal); });
+        assertTrue(e.getMessage(), e.getMessage().contains("mutually exclusive") || e.getMessage().contains("exclusive"));
     }
 
     public void testSilentVerbosity() throws Exception {
@@ -209,5 +191,4 @@ public class CommandTests extends OpenSearchTestCase {
         assertTrue(error, error.contains("Throws a usage error"));
         assertTrue(error, error.contains("ERROR: something was no good"));
     }
-
 }

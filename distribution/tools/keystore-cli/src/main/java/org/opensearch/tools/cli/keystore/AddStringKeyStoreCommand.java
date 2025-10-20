@@ -15,25 +15,11 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 
 package org.opensearch.tools.cli.keystore;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
@@ -48,25 +34,28 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
 /**
- * A subcommand for the keystore cli which adds a string setting.
+ * A subcommand for the keystore CLI which adds a string setting.
  */
+@Command(name = "add", description = "Add one or more string settings to the keystore", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
-    private final OptionSpec<Void> stdinOption;
-    private final OptionSpec<String> arguments;
+    @Option(names = { "-x", "--stdin" }, description = "Read setting values from stdin")
+    boolean readFromStdin;
+
+    @Parameters(arity = "0..*", paramLabel = "setting", description = "Setting names to add")
+    List<String> settings = new ArrayList<>();
 
     AddStringKeyStoreCommand() {
         super("Add a string settings to the keystore", false);
-        this.stdinOption = parser.acceptsAll(Arrays.asList("x", "stdin"), "Read setting values from stdin");
-        this.forceOption = parser.acceptsAll(
-            Arrays.asList("f", "force"),
-            "Overwrite existing setting without prompting, creating keystore if necessary"
-        );
-        this.arguments = parser.nonOptions("setting names");
+        // --force/-f option is inherited from BaseKeyStoreCommand
     }
 
     // pkg private so tests can manipulate
@@ -75,8 +64,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
     }
 
     @Override
-    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        final List<String> settings = arguments.values(options);
+    protected void executeCommand(Terminal terminal, Environment env) throws Exception {
         if (settings.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "the setting names can not be empty");
         }
@@ -85,7 +73,8 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
         final Closeable closeable;
         final CheckedFunction<String, char[], IOException> valueSupplier;
-        if (options.has(stdinOption)) {
+
+        if (readFromStdin) {
             final BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
             valueSupplier = s -> {
                 try (CharArrayWriter writer = new CharArrayWriter()) {
@@ -107,7 +96,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
         try (Closeable ignored = closeable) {
             for (final String setting : settings) {
-                if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
+                if (keyStore.getSettingNames().contains(setting) && !force) {
                     if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
                         terminal.println("Exiting without modifying keystore.");
                         return;
@@ -124,5 +113,4 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
         keyStore.save(env.configDir(), getKeyStorePassword().getChars());
     }
-
 }

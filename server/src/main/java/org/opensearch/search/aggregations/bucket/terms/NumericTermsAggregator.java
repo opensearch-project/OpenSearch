@@ -31,7 +31,6 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import joptsimple.internal.Strings;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -119,7 +118,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         this.fieldName = (this.valuesSource instanceof ValuesSource.Numeric.FieldData)
             ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
             : null;
-        this.resultSelectionStrategy = Strings.EMPTY;
+        this.resultSelectionStrategy = "";
     }
 
     @Override

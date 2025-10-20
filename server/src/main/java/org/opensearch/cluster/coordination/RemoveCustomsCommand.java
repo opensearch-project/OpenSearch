@@ -11,8 +11,8 @@
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
  * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
+ * the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -24,6 +24,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
@@ -31,8 +32,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
@@ -45,7 +44,10 @@ import org.opensearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+
+import picocli.CommandLine.Parameters;
 
 /**
  * Removes custom metadata
@@ -55,26 +57,29 @@ import java.util.List;
 public class RemoveCustomsCommand extends OpenSearchNodeCommand {
 
     static final String CUSTOMS_REMOVED_MSG = "Customs were successfully removed from the cluster state";
-    static final String CONFIRMATION_MSG = DELIMITER
-        + "\n"
-        + "You should only run this tool if you have broken custom metadata in the\n"
-        + "cluster state that prevents the cluster state from being loaded.\n"
-        + "This tool can cause data loss and its use should be your last resort.\n"
-        + "\n"
-        + "Do you want to proceed?\n";
 
-    private final OptionSpec<String> arguments;
+    static final String CONFIRMATION_MSG = DELIMITER + """
+
+        You should only run this tool if you have broken custom metadata in the
+        cluster state that prevents the cluster state from being loaded.
+        This tool can cause data loss and its use should be your last resort.
+
+        Do you want to proceed?
+        """;
+
+    /** Positional arguments: one or more custom metadata names (supports simple globs) */
+    @Parameters(arity = "1..", paramLabel = "CUSTOM", description = "Custom metadata names to remove (supports simple globbing).")
+    private List<String> customsToRemove = new ArrayList<>();
 
     public RemoveCustomsCommand() {
         super("Removes custom metadata from the cluster state");
-        arguments = parser.nonOptions("custom metadata names");
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
+    protected void processNodePaths(final Terminal terminal, final Path[] dataPaths, final int nodeLockId, final Environment env)
         throws IOException, UserException {
-        final List<String> customsToRemove = arguments.values(options);
-        if (customsToRemove.isEmpty()) {
+
+        if (customsToRemove == null || customsToRemove.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Must supply at least one custom metadata name to remove");
         }
 
@@ -83,9 +88,12 @@ public class RemoveCustomsCommand extends OpenSearchNodeCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         final Tuple<Long, ClusterState> termAndClusterState = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = termAndClusterState.v2();
+
         terminal.println(Terminal.Verbosity.VERBOSE, "custom metadata names: " + oldClusterState.metadata().customs().keySet());
+
         final Metadata.Builder metadataBuilder = Metadata.builder(oldClusterState.metadata());
-        for (String customToRemove : customsToRemove) {
+
+        for (final String customToRemove : customsToRemove) {
             boolean matched = false;
             for (final String customKey : oldClusterState.metadata().customs().keySet()) {
                 if (Regex.simpleMatch(customToRemove, customKey)) {
@@ -101,7 +109,9 @@ public class RemoveCustomsCommand extends OpenSearchNodeCommand {
                 throw new UserException(ExitCodes.USAGE, "No custom metadata matching [" + customToRemove + "] were found on this node");
             }
         }
+
         final ClusterState newClusterState = ClusterState.builder(oldClusterState).metadata(metadataBuilder.build()).build();
+
         terminal.println(
             Terminal.Verbosity.VERBOSE,
             "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"

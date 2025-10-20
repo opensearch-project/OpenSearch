@@ -16,24 +16,10 @@
  * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
  */
 
 package org.opensearch.tools.cli.plugin;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
@@ -47,36 +33,39 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin CLI to remove a plugin from OpenSearch.
  */
+@Command(name = "remove", description = "Removes a plugin from OpenSearch", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 class RemovePluginCommand extends EnvironmentAwareCommand {
 
     // exit codes for remove
     /** A plugin cannot be removed because it is extended by another plugin. */
     static final int PLUGIN_STILL_USED = 11;
 
-    private final OptionSpec<Void> purgeOption;
-    private final OptionSpec<String> arguments;
+    @Option(names = { "-p", "--purge" }, description = "Purge plugin configuration files")
+    private boolean purge;
+
+    @Parameters(index = "0", arity = "0..1", paramLabel = "plugin", description = "Plugin name")
+    private String pluginName;
 
     RemovePluginCommand() {
         super("removes a plugin from OpenSearch");
-        this.purgeOption = parser.acceptsAll(Arrays.asList("p", "purge"), "Purge plugin configuration files");
-        this.arguments = parser.nonOptions("plugin name");
     }
 
     @Override
-    protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
-        final String pluginName = arguments.value(options);
-        final boolean purge = options.has(purgeOption);
+    protected void execute(final Terminal terminal, final Environment env) throws Exception {
         execute(terminal, env, pluginName, purge);
     }
 
@@ -102,7 +91,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         if (usedBy.isEmpty() == false) {
             throw new UserException(
                 PLUGIN_STILL_USED,
-                "plugin [" + pluginName + "] cannot be removed" + " because it is extended by other plugins: " + usedBy
+                "plugin [" + pluginName + "] cannot be removed because it is extended by other plugins: " + usedBy
             );
         }
 
@@ -194,10 +183,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         try {
             Files.createFile(removing);
         } catch (final FileAlreadyExistsException e) {
-            /*
-             * We need to suppress the marker file already existing as we could be in this state if a previous removal attempt failed and
-             * the user is attempting to remove the plugin again.
-             */
+            // Previous removal attempt may have failed; keep going and clean it up now.
             terminal.println(VERBOSE, "marker file [" + removing + "] already exists");
         }
 
@@ -209,5 +195,4 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
         IOUtils.rm(pluginPaths.toArray(new Path[0]));
     }
-
 }

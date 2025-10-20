@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import joptsimple.internal.Strings;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -152,7 +151,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.fieldName = (valuesSource instanceof ValuesSource.Bytes.WithOrdinals.FieldData)
             ? ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName()
             : null;
-        this.resultSelectionStrategy = Strings.EMPTY;
+        this.resultSelectionStrategy = "";
     }
 
     String descriptCollectionStrategy() {

@@ -6,32 +6,8 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.cluster.coordination;
 
-import joptsimple.OptionSet;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cli.MockTerminal;
 import org.opensearch.cli.UserException;
@@ -39,6 +15,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchIntegTestCase;
+
+import picocli.CommandLine;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -101,28 +79,28 @@ public class RemoveCustomsCommandIT extends OpenSearchIntegTestCase {
             UserException.class,
             () -> removeCustoms(environment, false, new String[] { "index-greveyard-with-typos" })
         );
-        assertThat(
-            ex.getMessage(),
-            containsString("No custom metadata matching [index-greveyard-with-typos] were " + "found on this node")
-        );
+        assertThat(ex.getMessage(), containsString("No custom metadata matching [index-greveyard-with-typos] were found on this node"));
     }
 
     private MockTerminal executeCommand(OpenSearchNodeCommand command, Environment environment, boolean abort, String... args)
         throws Exception {
         final MockTerminal terminal = new MockTerminal();
-        final OptionSet options = command.getParser().parse(args);
-        final String input;
 
+        // Parse args into the command using picocli
+        new CommandLine(command).parseArgs(args);
+
+        // Prepare simulated user input for the confirmation prompt
+        final String input;
         if (abort) {
             input = randomValueOtherThanMany(c -> c.equalsIgnoreCase("y"), () -> randomAlphaOfLength(1));
         } else {
             input = randomBoolean() ? "y" : "Y";
         }
-
         terminal.addTextInput(input);
 
         try {
-            command.execute(terminal, options, environment);
+            // Execute with injected Environment (no OptionSet in picocli version)
+            command.execute(terminal, environment);
         } finally {
             assertThat(terminal.getOutput(), containsString(OpenSearchNodeCommand.STOP_WARNING_MSG));
         }
