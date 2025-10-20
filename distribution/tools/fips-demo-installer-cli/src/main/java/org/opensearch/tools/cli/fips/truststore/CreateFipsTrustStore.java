@@ -9,6 +9,7 @@
 package org.opensearch.tools.cli.fips.truststore;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
@@ -87,7 +88,7 @@ public class CreateFipsTrustStore {
      * @param password password for the trust store
      * @return configuration properties for the BCFKS trust store
      */
-    public static ConfigurationProperties configureBCFKSTrustStore(Path bcfksPath, String password) {
+    static ConfigurationProperties configureBCFKSTrustStore(Path bcfksPath, String password) {
         return new ConfigurationProperties(bcfksPath.toAbsolutePath().toString(), BCFKS, password, BCFIPS);
     }
 
@@ -116,7 +117,7 @@ public class CreateFipsTrustStore {
                 try {
                     Files.delete(trustStorePath);
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new UncheckedIOException(e);
                 }
             } else {
                 throw new RuntimeException("Operation cancelled. Trust store file already exists.");

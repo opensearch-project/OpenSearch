@@ -8,6 +8,8 @@
 
 package org.opensearch.tools.cli.fips.truststore;
 
+import org.opensearch.common.Randomness;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Scanner;
@@ -155,7 +157,7 @@ public abstract class UserInteractionService {
         var password = new StringBuilder();
 
         for (int i = 0; i < 24; i++) { // 24 characters for a strong password
-            password.append(ALPHA_NUMERIC.charAt(SecureRandomHolder.RANDOM.nextInt(ALPHA_NUMERIC.length())));
+            password.append(ALPHA_NUMERIC.charAt(Randomness.createSecure().nextInt(ALPHA_NUMERIC.length())));
         }
 
         return password.toString();
