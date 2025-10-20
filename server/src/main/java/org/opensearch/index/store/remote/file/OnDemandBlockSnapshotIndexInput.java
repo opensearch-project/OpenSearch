@@ -21,13 +21,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * This is an implementation of {@link OnDemandBlockIndexInput} where this class provides the main IndexInput using shard snapshot files.
+ * This is an implementation of {@link AbstractBlockIndexInput} where this class provides the main IndexInput using shard snapshot files.
  * <br>
  * This class rely on {@link TransferManager} to really fetch the snapshot files from the remote blob store and maybe cache them
  *
  * @opensearch.internal
  */
-public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
+public class OnDemandBlockSnapshotIndexInput extends AbstractBlockIndexInput {
     private static final Logger logger = LogManager.getLogger(OnDemandBlockSnapshotIndexInput.class);
     /**
      * Where this class fetches IndexInput parts from
@@ -89,7 +89,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         TransferManager transferManager
     ) {
         this(
-            OnDemandBlockIndexInput.builder().resourceDescription(resourceDescription).isClone(isClone).offset(offset).length(length),
+            AbstractBlockIndexInput.builder().resourceDescription(resourceDescription).isClone(isClone).offset(offset).length(length),
             fileInfo,
             directory,
             transferManager
@@ -97,7 +97,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
     }
 
     protected OnDemandBlockSnapshotIndexInput(
-        OnDemandBlockIndexInput.Builder builder,
+        AbstractBlockIndexInput.Builder builder,
         FileInfo fileInfo,
         FSDirectory directory,
         TransferManager transferManager
@@ -122,7 +122,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
     @Override
     protected OnDemandBlockSnapshotIndexInput buildSlice(String sliceDescription, long offset, long length) {
         return new OnDemandBlockSnapshotIndexInput(
-            OnDemandBlockIndexInput.builder()
+            AbstractBlockIndexInput.builder()
                 .blockSizeShift(blockSizeShift)
                 .isClone(true)
                 .offset(this.offset + offset)
@@ -137,10 +137,10 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
     @Override
     protected IndexInput fetchBlock(int blockId) throws IOException {
         logger.trace("fetchBlock called with blockId -> {}", blockId);
-        final String blockFileName = fileName + "_block_" + blockId;
+        final String blockFileName = getBlockFileName(fileName, blockId);
 
         final long blockStart = getBlockStart(blockId);
-        final long blockEnd = blockStart + getActualBlockSize(blockId);
+        final long blockEnd = blockStart + getActualBlockSize(blockId, blockSizeShift, originalFileSize);
         logger.trace(
             "File: {} , Block File: {} , BlockStart: {} , BlockEnd: {} , OriginalFileSize: {}",
             fileName,
@@ -195,9 +195,5 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         // ensures that clones may be positioned at the same point as the blocked file they were cloned from
         clone.cloneBlock(this);
         return clone;
-    }
-
-    protected long getActualBlockSize(int blockId) {
-        return (blockId != getBlock(originalFileSize - 1)) ? blockSize : getBlockOffset(originalFileSize - 1) + 1;
     }
 }
