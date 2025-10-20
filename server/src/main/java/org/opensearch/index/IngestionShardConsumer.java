@@ -109,4 +109,11 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      * @return the shard id
      */
     int getShardId();
+
+    /**
+     * Returns the pointer based lag for the current shard consumer.
+     * @param expectedStartPointer the ingestion start point on first time shard initialization.
+     * @return pointer based lag if available, else 0.
+     */
+    long getPointerBasedLag(IngestionShardPointer expectedStartPointer);
 }

@@ -67,7 +67,7 @@ testClusters {
           project.repositories {
             maven {
               name = 'OpenSearch Snapshots'
-              url = 'https://central.sonatype.com/repository/maven-snapshots/'
+              url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
             }
           }
           if (p.contains(':')) {
