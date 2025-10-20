@@ -41,7 +41,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.Option;
 
 /**
- * Picocli-backed base class for CLI commands.
+ * An action to execute within a cli.
  *
  * Subclasses should annotate themselves with {@code @CommandLine.Command}
  * and declare their own {@code @Option}/{@code @Parameters} fields.

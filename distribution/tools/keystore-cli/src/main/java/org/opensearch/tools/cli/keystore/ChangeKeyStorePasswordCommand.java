@@ -60,9 +60,16 @@ public class ChangeKeyStorePasswordCommand extends BaseKeyStoreCommand {
      * Executes the password change command by prompting for a new password
      * and saving the keystore with the updated password.
      *
+     * <p>
+     * This implementation will:
+     * 1. Prompt for a new password with verification
+     * 2. Save the keystore with the new password
+     * 3. Display a success message upon completion
+     *
      * @param terminal The terminal to use for user interaction
-     * @param env      The environment configuration
-     * @throws Exception
+     * @param env The environment settings containing configuration directory
+     * @throws Exception if there are errors during password change
+     * @throws UserException if there are security-related errors
      */
     @Override
     protected void executeCommand(Terminal terminal, Environment env) throws Exception {

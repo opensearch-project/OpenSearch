@@ -49,7 +49,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
 /**
- * A subcommand for the keystore CLI which adds one or more file settings.
+ * A subcommand for the keystore CLI which adds a file setting.
  */
 @Command(name = "add-file", description = "Add a file setting to the keystore (provide pairs: <setting> <path> ...)", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
