@@ -171,6 +171,15 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
+     * Returns the underlying Aggregator responsible for creating the bucket collector.
+     * For most aggregators, this is the aggregator itself.
+     * For wrappers like ProfilingAggregator, it's the delegate.
+     */
+    public Aggregator unwrapAggregator() {
+        return this;
+    }
+
+    /**
      * Compare two buckets by their ordinal.
      *
      * @opensearch.api

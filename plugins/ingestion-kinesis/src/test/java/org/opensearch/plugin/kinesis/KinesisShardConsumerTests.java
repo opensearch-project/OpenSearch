@@ -111,6 +111,8 @@ public class KinesisShardConsumerTests extends OpenSearchTestCase {
 
         Assert.assertEquals(1, results.size());
         Assert.assertEquals("12345", results.get(0).getPointer().getSequenceNumber());
+        // pointer based lag is not supported, expect default 0 lag
+        Assert.assertEquals(0, consumer.getPointerBasedLag(new SequenceNumber("0")));
     }
 
     public void testEarliestPointer() {
