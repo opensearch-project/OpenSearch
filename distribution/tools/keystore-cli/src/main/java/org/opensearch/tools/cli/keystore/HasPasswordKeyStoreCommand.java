@@ -16,6 +16,13 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 /*
@@ -45,12 +52,28 @@ public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
 
     static final int NO_PASSWORD_EXIT_CODE = 1;
 
+    /**
+     * Creates a new HasPasswordKeyStoreCommand.
+     * This command checks for the existence of a password-protected keystore
+     * and exits with {@link #NO_PASSWORD_EXIT_CODE} if the keystore is missing
+     * or not password-protected.
+     */
     HasPasswordKeyStoreCommand() {
         super(
             "Succeeds if the keystore exists and is password-protected, " + "fails with exit code " + NO_PASSWORD_EXIT_CODE + " otherwise."
         );
     }
 
+    /**
+     * Executes the password check command by verifying if the keystore exists
+     * and is password-protected.
+     *
+     * @param terminal The terminal for user interaction and output
+     * @param env The environment settings containing configuration directory
+     * @throws UserException with {@link #NO_PASSWORD_EXIT_CODE} if the keystore
+     *         is missing or not password-protected
+     * @throws Exception if there are other errors during execution
+     */
     @Override
     protected void execute(Terminal terminal, Environment env) throws Exception {
         final Path configFile = env.configDir();
