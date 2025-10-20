@@ -79,7 +79,6 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
             );
             char[] passwordVerification = terminal.readSecret("Enter same password again: ", EnvironmentAwareCommand.MAX_PASSPHRASE_LENGTH);
             if (Arrays.equals(passwordArray, passwordVerification) == false) {
-                Arrays.fill(passwordVerification, '\u0000');
                 throw new UserException(ExitCodes.DATA_ERROR, "Passwords are not equal, exiting.");
             }
             Arrays.fill(passwordVerification, '\u0000');

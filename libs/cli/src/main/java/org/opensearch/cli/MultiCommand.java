@@ -44,9 +44,9 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 /**
- * A CLI tool made up of multiple subcommands (now using picocli).
+ * A CLI tool made up of multiple subcommands.
  *
- * Behavior parity with the former JOpt-based version:
+ * Behavior:
  *  - leading positional selects the subcommand
  *  - remaining positionals are forwarded to that subcommand
  *  - -E key=value pairs are forwarded to the subcommand as "-Ekey=value"
