@@ -89,6 +89,8 @@ public abstract class Command implements Closeable {
                         e.printStackTrace(pw);
                         terminal.errorPrintln(sw.toString());
                     } catch (final IOException impossible) {
+                        // StringWriter#close declares a checked IOException from the Closeable interface but the Javadocs for StringWriter
+                        // say that an exception here is impossible
                         throw new AssertionError(impossible);
                     }
                 }
@@ -119,7 +121,7 @@ public abstract class Command implements Closeable {
     }
 
     /**
-     * Executes the command, but lets all errors bubble up (like the previous JOpt version).
+     * Executes the command, but lets all errors bubble up.
      */
     protected void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
         CommandLine cmd = new CommandLine(this);
