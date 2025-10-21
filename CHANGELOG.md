@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `peter-evans/create-issue-from-file` from 5 to 6 ([#19616](https://github.com/opensearch-project/OpenSearch/pull/19616))
 - Bump `com.squareup.okhttp3:okhttp` from 5.1.0 to 5.2.1 ([#19614](https://github.com/opensearch-project/OpenSearch/pull/19614))
 - Bump `com.microsoft.azure:msal4j` from 1.21.0 to 1.23.1 ([#19688](https://github.com/opensearch-project/OpenSearch/pull/19688))
+- Bump `stefanzweifel/git-auto-commit-action` from 6 to 7 ([#19689](https://github.com/opensearch-project/OpenSearch/pull/19689))
 
 ### Deprecated
 
