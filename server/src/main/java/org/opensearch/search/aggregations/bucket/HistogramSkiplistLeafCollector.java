@@ -150,7 +150,7 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
                     int count = 0;
                     int[] docBuffer = new int[64];
                     int cnt = Integer.MAX_VALUE;
-                    while(cnt != 0) {
+                    while (cnt != 0) {
                         cnt = stream.intoArray(upToExclusive, docBuffer);
                         sub.collect(docBuffer, upToBucketIndex);
                         count += cnt;
