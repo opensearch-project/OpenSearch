@@ -35,7 +35,7 @@ else
         "notifications" # "opensearch-notifications". Requires "opensearch-notifications-core"
         "opensearch-observability"
         "opensearch-security"
-        # "opensearch-security-analytics" # Flagged as Trojan by some antivirus software
+        "opensearch-security-analytics" # Flagged as Trojan by some antivirus software
         "opensearch-sql-plugin" # "opensearch-sql"
     )
     wazuh_plugins=(
