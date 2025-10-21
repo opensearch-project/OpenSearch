@@ -272,9 +272,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void search(Query query, Collector collector) throws IOException {
-        // Delegate to the standard Lucene search flow which will call our overridden slices() method
-        // This ensures proper partition creation and slice distribution
-        super.search(query, collector);
+        // TODO : Remove when switching to use the @org.apache.lucene.search.IndexSearcher#search(Query, CollectorManager) variant from
+        // @org.opensearch.search.query.QueryPhase#searchWithCollector which then calls the overridden
+        // search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector)
+        query = collector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
+        Weight weight = createWeight(query, collector.scoreMode(), 1);
+        LeafReaderContextPartition[] partitions = (getLeafContexts() == null)
+            ? new LeafReaderContextPartition[0]
+            : getLeafContexts().stream().map(LeafReaderContextPartition::createForEntireSegment).toArray(LeafReaderContextPartition[]::new);
+        search(partitions, weight, collector);
     }
 
     public void search(
@@ -298,6 +304,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector) throws IOException {
+        // logger.info("ContextIndexSearcher.search(LeafReaderContextPartition[]) called with {} partitions", partitions.length);
         searchContext.indexShard().getSearchOperationListener().onPreSliceExecution(searchContext);
         try {
             // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
@@ -589,7 +596,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int partitionsPerSegment = getIntraSegmentPartitionsPerSegment(); // default value 2
         int minSegmentSize = getIntraSegmentMinSegmentSize(); // default value 10000
 
-        /*logger.info("Creating intra-segment partitions: partitionsPerSegment={}, minSegmentSize={}",
+        /* logger.info("Creating intra-segment partitions: partitionsPerSegment={}, minSegmentSize={}",
                     partitionsPerSegment, minSegmentSize);*/
 
         for (LeafReaderContext leaf : leaves) {
@@ -670,11 +677,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
         // logger.info("ContextIndexSearcher.slices() called with {} leaves", leaves.size());
-
         // Create partitions first (handles both whole segments and intra-segment partitions)
         LeafReaderContextPartition[] partitions = createPartitions(leaves);
         // logger.info("Created {} partitions from {} leaves", partitions.length, leaves.size());
-
         // Convert partitions to slices using our partition-aware logic
         LeafSlice[] slices = createSlicesFromPartitions(partitions, searchContext.getTargetMaxSliceCount()); // Gets the value from DefaultSearchContext
         // logger.info("ContextIndexSearcher.slices() returning {} slices", slices.length);
@@ -693,30 +698,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // logger.info("No partitions to create slices from");
             return new LeafSlice[0];
         }
-
         if (targetMaxSlice <= 0) {
             // Fall back to default Lucene behavior - single slice with all partitions
             // logger.info("Creating single slice with {} partitions (targetMaxSlice={})", partitions.length, targetMaxSlice);
             return new LeafSlice[] { new LeafSlice(Arrays.asList(partitions)) };
         }
-
         // Calculate effective slice count - ensure we have enough slices for intra-segment partitioning
         int effectiveSliceCount = Math.min(targetMaxSlice, partitions.length);
-
         // Group partitions by their source segment ordinal to identify which partitions
         // come from the same segment
         Map<Integer, List<LeafReaderContextPartition>> partitionsBySegment = new HashMap<>();
         for (LeafReaderContextPartition partition : partitions) {
             partitionsBySegment.computeIfAbsent(partition.ctx.ord, k -> new ArrayList<>()).add(partition);
         }
-
         // Check if we need special handling for intra-segment partitions
         boolean hasIntraSegmentPartitions = partitionsBySegment.values().stream()
             .anyMatch(segmentPartitions -> segmentPartitions.size() > 1);
-
-        /*logger.info("Creating slices from {} partitions across {} segments, hasIntraSegmentPartitions={}, targetMaxSlice={}, effectiveSliceCount={}",
+        /* logger.info("Creating slices from {} partitions across {} segments, hasIntraSegmentPartitions={}, targetMaxSlice={}, effectiveSliceCount={}",
                    partitions.length, partitionsBySegment.size(), hasIntraSegmentPartitions, targetMaxSlice, effectiveSliceCount);*/
-
         if (!hasIntraSegmentPartitions) {
             // No intra-segment partitions, use existing MaxTargetSliceSupplier logic
             // Convert partitions back to LeafReaderContext for compatibility
@@ -727,7 +726,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // logger.info("Using MaxTargetSliceSupplier, created {} slices for whole segments", slices.length);
             return slices;
         }
-
         // Handle intra-segment partitions: distribute partitions ensuring same-segment
         // partitions go to different slices
         LeafSlice[] slices = distributePartitionsAcrossSlices(partitions, partitionsBySegment, effectiveSliceCount);
@@ -743,20 +741,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         LeafReaderContextPartition[] partitions,
         Map<Integer, List<LeafReaderContextPartition>> partitionsBySegment,
         int sliceCount) {
-
         /*logger.info("Distributing {} partitions across {} slices for {} segments",
                    partitions.length, sliceCount, partitionsBySegment.size());*/
-
         // Check if we have enough slices for intra-segment partitions
         int maxPartitionsPerSegment = partitionsBySegment.values().stream()
             .mapToInt(List::size)
             .max()
             .orElse(1);
-
         if (sliceCount < maxPartitionsPerSegment) {
             /*logger.info("Insufficient slices ({}) for intra-segment partitions (max {} per segment). " +
                        "Falling back to MaxTargetSliceSupplier to avoid constraint violation.", sliceCount, maxPartitionsPerSegment);*/
-
             // When we don't have enough slices, fall back to whole segment approach
             // Convert partitions back to whole segments for MaxTargetSliceSupplier
             Set<LeafReaderContext> uniqueSegments = new HashSet<>();
@@ -773,13 +767,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         for (int i = 0; i < sliceCount; i++) {
             sliceGroups.add(new ArrayList<>());
         }
-
         // Distribute partitions ensuring same-segment partitions go to different slices
         for (Map.Entry<Integer, List<LeafReaderContextPartition>> entry : partitionsBySegment.entrySet()) {
             int segmentOrd = entry.getKey();
             List<LeafReaderContextPartition> segmentPartitions = entry.getValue();
-
-            /* logger.info("Segment {} has {} partitions, distributing across {} slices",
+            /*logger.info("Segment {} has {} partitions, distributing across {} slices",
                        segmentOrd, segmentPartitions.size(), Math.min(sliceCount, segmentPartitions.size()));*/
 
             // Each partition from this segment goes to a different slice
@@ -790,16 +782,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 // logger.info("Added segment {} partition {} to slice {}", segmentOrd, i, targetSlice);
             }
         }
-
-        // Convert to LeafSlice array and log final distribution
+        // Convert to LeafSlice array and remove empty slices
         LeafSlice[] finalSlices = sliceGroups.stream()
-            .filter(group -> !group.isEmpty()) // Remove empty slices
+            .filter(group -> !group.isEmpty())
             .map(LeafSlice::new)
             .toArray(LeafSlice[]::new);
 
-        for (int i = 0; i < finalSlices.length; i++) {
-            // logger.info("Slice {} contains {} partitions", i, finalSlices[i].partitions.length);
-        }
+        /*for (int i = 0; i < finalSlices.length; i++) {
+            logger.info("Slice {} contains {} partitions", i, finalSlices[i].partitions.length);
+        }*/
 
         return finalSlices;
     }
@@ -871,16 +862,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     // package-private for testing
+    // Disable the usage of slicesInternal for now (temp).
     LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, int targetMaxSlice) {
         LeafSlice[] leafSlices;
         if (targetMaxSlice == 0) {
             // use the default lucene slice calculation
             leafSlices = super.slices(leaves);
-            // logger.debug("Slice count using lucene default [{}]", leafSlices.length);
+            logger.debug("Slice count using lucene default [{}]", leafSlices.length);
         } else {
             // use the custom slice calculation based on targetMaxSlice
             leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
-            // logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
+            logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
         }
         return leafSlices;
     }

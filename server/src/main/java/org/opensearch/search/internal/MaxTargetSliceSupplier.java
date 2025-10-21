@@ -51,6 +51,7 @@ final class MaxTargetSliceSupplier {
             groupQueue.offer(new Group(i));
         }
         Group minGroup;
+        // For understanding the priority queue FFD
         for (int i = 0; i < sortedLeaves.size(); ++i) {
             // Step 1: Get the least loaded slice
             minGroup = groupQueue.poll(); // This triggers compareTo internally

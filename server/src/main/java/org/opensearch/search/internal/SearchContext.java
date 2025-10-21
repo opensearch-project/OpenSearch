@@ -604,17 +604,18 @@ public abstract class SearchContext implements Releasable {
 
     /**
      * Returns the number of partitions to create per segment when intra-segment search is enabled.
+     * Default value is 2
      */
     public int getIntraSegmentPartitionsPerSegment() {
-        return 2; // Default value
+        return 2;
     }
 
     /**
      * Returns the minimum segment size required to enable intra-segment partitioning.
-     * Segments smaller than this threshold will not be partitioned.
+     * Segments smaller than this threshold will not be partitioned. Default value is 10000
      */
     public int getIntraSegmentMinSegmentSize() {
-        return 10000; // Default value
+        return 10000;
     }
 
 }
