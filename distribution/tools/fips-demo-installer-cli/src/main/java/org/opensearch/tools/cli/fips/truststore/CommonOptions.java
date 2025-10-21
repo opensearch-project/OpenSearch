@@ -20,4 +20,8 @@ public class CommonOptions {
 
     @Option(names = { "-f", "--force" }, description = "Force installation even if FIPS demo configuration already exists")
     boolean force;
+
+    @Option(names = { "-p", "--password" }, description = "Password for the BCFKS trust store. "
+        + "In non-interactive mode, this overrides auto-generated password.", arity = "1")
+    String password;
 }

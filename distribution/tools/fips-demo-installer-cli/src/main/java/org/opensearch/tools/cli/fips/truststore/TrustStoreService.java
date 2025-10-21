@@ -9,6 +9,7 @@
 package org.opensearch.tools.cli.fips.truststore;
 
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.function.Function;
 
 import picocli.CommandLine.Model.CommandSpec;
@@ -39,7 +40,19 @@ public class TrustStoreService {
             return 0;
         }
 
-        var password = userInteraction.promptForPasswordWithConfirmation(spec, options, "Enter trust store password");
+        var password = Optional.ofNullable(options.password).orElseGet(() -> {
+            if (options.nonInteractive) {
+                spec.commandLine().getOut().println("Generated secure password for trust store (non-interactive mode)");
+                return userInteraction.generateSecurePassword();
+            }
+            return userInteraction.promptForPasswordWithConfirmation(spec, options, "Enter trust store password");
+        });
+        if (password.isBlank()) {
+            spec.commandLine()
+                .getOut()
+                .println(spec.commandLine().getColorScheme().ansi().string("@|yellow WARNING: Using empty password|@"));
+        }
+
         spec.commandLine().getOut().println("Generating BCFKS trust store...");
         var properties = Function.<Path>identity()
             .andThen(path -> CreateFipsTrustStore.loadJvmDefaultTrustStore(spec, path))

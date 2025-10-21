@@ -77,12 +77,6 @@ public abstract class UserInteractionService {
      * @throws RuntimeException if passwords don't match or input is canceled
      */
     public String promptForPasswordWithConfirmation(CommandLine.Model.CommandSpec spec, CommonOptions options, String message) {
-        if (options.nonInteractive) {
-            var password = generateSecurePassword();
-            spec.commandLine().getOut().println("Generated secure password for trust store (non-interactive mode)");
-            return password;
-        }
-
         var password = promptForPassword(spec, message);
         var confirmPassword = promptForPassword(spec, "Confirm " + message.toLowerCase(java.util.Locale.ROOT));
 
@@ -153,7 +147,7 @@ public abstract class UserInteractionService {
         }
     }
 
-    protected String generateSecurePassword() {
+    public String generateSecurePassword() {
         var password = new StringBuilder();
 
         for (int i = 0; i < 24; i++) { // 24 characters for a strong password

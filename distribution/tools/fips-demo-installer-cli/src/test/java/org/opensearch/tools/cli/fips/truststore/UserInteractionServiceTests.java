@@ -109,19 +109,6 @@ public class UserInteractionServiceTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("Passwords do not match"));
     }
 
-    public void testPromptForPasswordWithConfirmationNonInteractive() {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-        var options = new CommonOptions();
-        options.nonInteractive = true;
-        var service = createService("");
-
-        var password = service.promptForPasswordWithConfirmation(spec, options, "Password:");
-
-        assertNotNull(password);
-        assertEquals(24, password.length()); // default password length
-        assertTrue(outputCapture.toString().contains("Generated secure password"));
-    }
-
     public void testGenerateSecurePassword() {
         assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
 
