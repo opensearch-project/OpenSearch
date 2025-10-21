@@ -79,6 +79,9 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.exec.bridge.SearcherOperations;
+import org.opensearch.index.engine.exec.read.EngineSearcher;
+import org.opensearch.index.engine.exec.read.EngineSearcherSupplier;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Mapping;
@@ -134,7 +137,11 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public abstract class Engine implements LifecycleAware, Closeable {
+public abstract class Engine
+    implements
+        LifecycleAware,
+        Closeable,
+        SearcherOperations<Engine.Searcher, ReferenceManager<OpenSearchDirectoryReader>> {
 
     public static final String SYNC_COMMIT_ID = "sync_id";  // TODO: remove sync_id in 3.0
     public static final String HISTORY_UUID_KEY = "history_uuid";
@@ -836,9 +843,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
     }
 
-    protected abstract ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope);
+    public abstract ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope);
 
-    boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
+    public boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
         return true;
     }
 
@@ -1412,7 +1419,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public abstract static class SearcherSupplier implements Releasable {
+    public abstract static class SearcherSupplier extends EngineSearcherSupplier<Searcher> {
         private final Function<Searcher, Searcher> wrapper;
         private final AtomicBoolean released = new AtomicBoolean(false);
 
@@ -1448,7 +1455,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public static final class Searcher extends IndexSearcher implements Releasable {
+    public static final class Searcher extends IndexSearcher implements Releasable, EngineSearcher {
         private final String source;
         private final Closeable onClose;
 
