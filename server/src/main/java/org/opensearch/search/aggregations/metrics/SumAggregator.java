@@ -120,27 +120,12 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
+            int[] docBuffer = new int[1];
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                sums = bigArrays.grow(sums, bucket + 1);
-                compensations = bigArrays.grow(compensations, bucket + 1);
-
-                if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
-                    // Compute the sum of double values with Kahan summation algorithm which is more
-                    // accurate than naive summation.
-                    double sum = sums.get(bucket);
-                    double compensation = compensations.get(bucket);
-                    kahanSummation.reset(sum, compensation);
-
-                    for (int i = 0; i < valuesCount; i++) {
-                        double value = values.nextValue();
-                        kahanSummation.add(value);
-                    }
-
-                    compensations.set(bucket, kahanSummation.delta());
-                    sums.set(bucket, kahanSummation.value());
-                }
+                docBuffer[0] = doc;
+                collect(docBuffer, bucket);
             }
 
             @Override
@@ -148,24 +133,21 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
                 sums = bigArrays.grow(sums, bucket + 1);
                 compensations = bigArrays.grow(compensations, bucket + 1);
 
+                // Compute the sum of double values with Kahan summation algorithm which is more
+                // accurate than naive summation.
+                double sum = sums.get(bucket);
+                double compensation = compensations.get(bucket);
+                kahanSummation.reset(sum, compensation);
                 for (int doc : docBuffer) {
                     if (values.advanceExact(doc)) {
-                        final int valuesCount = values.docValueCount();
-                        // Compute the sum of double values with Kahan summation algorithm which is more
-                        // accurate than naive summation.
-                        double sum = sums.get(bucket);
-                        double compensation = compensations.get(bucket);
-                        kahanSummation.reset(sum, compensation);
-
-                        for (int i = 0; i < valuesCount; i++) {
+                        for (int i = 0; i < values.docValueCount(); i++) {
                             double value = values.nextValue();
                             kahanSummation.add(value);
                         }
-
                     }
-                    compensations.set(bucket, kahanSummation.delta());
-                    sums.set(bucket, kahanSummation.value());
                 }
+                compensations.set(bucket, kahanSummation.delta());
+                sums.set(bucket, kahanSummation.value());
             }
         };
     }
