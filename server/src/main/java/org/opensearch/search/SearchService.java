@@ -364,7 +364,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "search.intra_segment_search.partitions_per_segment",
         2,      // Default 2 partitions per segment
         1,
-        8,      // Max 8 partitions per segment
         Property.Dynamic,
         Property.NodeScope
     );

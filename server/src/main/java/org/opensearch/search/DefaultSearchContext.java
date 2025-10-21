@@ -1321,10 +1321,7 @@ final class DefaultSearchContext extends SearchContext {
      */
     @Override
     public boolean getIntraSegmentSearchEnabled() {
-        if (clusterService != null) {
-            return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_ENABLED);
-        }
-        return false;
+        return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_ENABLED);
     }
 
     /**
@@ -1333,10 +1330,7 @@ final class DefaultSearchContext extends SearchContext {
      */
     @Override
     public int getIntraSegmentPartitionsPerSegment() {
-        if (clusterService != null) {
-            return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_PARTITIONS_PER_SEGMENT);
-        }
-        return 2; // Default fallback value
+        return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_PARTITIONS_PER_SEGMENT);
     }
 
     /**
@@ -1346,9 +1340,6 @@ final class DefaultSearchContext extends SearchContext {
      */
     @Override
     public int getIntraSegmentMinSegmentSize() {
-        if (clusterService != null) {
-            return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE);
-        }
-        return 10000; // Default fallback value
+        return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE);
     }
 }
