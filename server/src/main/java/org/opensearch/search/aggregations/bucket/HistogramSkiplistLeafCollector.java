@@ -147,12 +147,15 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
                     long count = stream.count(upToExclusive);
                     aggregator.incrementBucketDocCount(upToBucketIndex, count);
                 } else {
-                    final int[] count = { 0 };
-                    stream.forEach(upToExclusive, doc -> {
-                        sub.collect(doc, upToBucketIndex);
-                        count[0]++;
-                    });
-                    aggregator.incrementBucketDocCount(upToBucketIndex, count[0]);
+                    int count = 0;
+                    int[] docBuffer = new int[64];
+                    int cnt = Integer.MAX_VALUE;
+                    while(cnt != 0) {
+                        cnt = stream.intoArray(upToExclusive, docBuffer);
+                        sub.collect(docBuffer, upToBucketIndex);
+                        count += cnt;
+                    }
+                    aggregator.incrementBucketDocCount(upToBucketIndex, count);
                 }
             } else {
                 stream.forEach(upToExclusive, doc -> collect(doc, owningBucketOrd));

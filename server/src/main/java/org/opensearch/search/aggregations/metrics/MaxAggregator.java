@@ -172,6 +172,22 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 }
             }
 
+            @Override
+            public void collect(int[] docBuffer, long bucket) throws IOException {
+                if (bucket >= maxes.size()) {
+                    long from = maxes.size();
+                    maxes = bigArrays.grow(maxes, bucket + 1);
+                    maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+                }
+
+                double max = maxes.get(bucket);
+                for (int doc : docBuffer) {
+                    if (values.advanceExact(doc)) {
+                        max = Math.max(max, values.doubleValue());
+                    }
+                }
+                maxes.set(bucket, max);
+            }
         };
     }
 

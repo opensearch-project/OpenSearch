@@ -171,6 +171,23 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
                     mins.set(bucket, min);
                 }
             }
+
+            @Override
+            public void collect(int[] docBuffer, long bucket) throws IOException {
+                if (bucket >= mins.size()) {
+                    long from = mins.size();
+                    mins = bigArrays.grow(mins, bucket + 1);
+                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+                }
+
+                double min = mins.get(bucket);
+                for (int doc : docBuffer) {
+                    if (values.advanceExact(doc)) {
+                        min = Math.min(min, values.doubleValue());
+                    }
+                }
+                mins.set(bucket, min);
+            }
         };
     }
 

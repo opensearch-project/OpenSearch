@@ -147,6 +147,12 @@ public abstract class LeafBucketCollector implements LeafCollector {
         stream.forEach(doc -> collect(doc, owningBucketOrd));
     }
 
+    public void collect(int[] docIds, long owningBucketOrd) throws IOException {
+        for (int doc : docIds) {
+            collect(doc, owningBucketOrd);
+        }
+    }
+
     @Override
     public void setScorer(Scorable scorer) throws IOException {
         // no-op by default
