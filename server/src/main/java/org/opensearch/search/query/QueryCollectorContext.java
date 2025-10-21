@@ -226,9 +226,9 @@ public abstract class QueryCollectorContext {
 
                 for (CollectorManager<? extends Collector, ReduceableSearchResult> manager : subs) {
                     final Collector collector = manager.newCollector();
-                    if (collector instanceof BucketCollector) {
+                    if (collector instanceof BucketCollector bucketCollector) {
                         subCollectors.add(
-                            new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION, Collections.emptyList())
+                            new InternalProfileCollector(bucketCollector, CollectorResult.REASON_AGGREGATION, Collections.emptyList())
                         );
                     } else {
                         subCollectors.add(
@@ -249,10 +249,10 @@ public abstract class QueryCollectorContext {
                 children.add(in);
                 for (CollectorManager<? extends Collector, ReduceableSearchResult> manager : subs) {
                     final InternalProfileCollectorManager subCollectorManager;
-                    if (manager instanceof AggregationCollectorManager) {
+                    if (manager instanceof AggregationCollectorManager aggregationCollectorManager) {
                         subCollectorManager = new InternalProfileCollectorManager(
-                            manager,
-                            ((AggregationCollectorManager) manager).getCollectorReason(),
+                            aggregationCollectorManager,
+                            aggregationCollectorManager.getCollectorReason(),
                             Collections.emptyList()
                         );
                     } else {

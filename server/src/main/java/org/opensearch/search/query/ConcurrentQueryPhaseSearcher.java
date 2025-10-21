@@ -102,8 +102,8 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
             queryResult.terminatedEarly(false);
         }
 
-        if (queryCollectorContext instanceof RescoringQueryCollectorContext) {
-            return ((RescoringQueryCollectorContext) queryCollectorContext).shouldRescore();
+        if (queryCollectorContext instanceof RescoringQueryCollectorContext rescoringContext) {
+            return rescoringContext.shouldRescore();
         }
         return false;
     }
@@ -115,12 +115,13 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
 
     private static <T extends Exception> void rethrowCauseIfPossible(RuntimeException re, SearchContext searchContext) throws T {
         // Rethrow exception if cause is null or if it's an instance of OpenSearchException
-        if (re.getCause() == null || re instanceof OpenSearchException) {
+        if (re.getCause() == null || re instanceof OpenSearchException openSearchException) {
             throw re;
         }
 
         // Unwrap the RuntimeException and ExecutionException from Lucene concurrent search method and rethrow
-        if (re.getCause() instanceof ExecutionException || re.getCause() instanceof InterruptedException) {
+        if (re.getCause() instanceof ExecutionException executionException
+            || re.getCause() instanceof InterruptedException interruptedException) {
             Throwable t = re.getCause();
             if (t.getCause() != null) {
                 throw (T) t.getCause();
