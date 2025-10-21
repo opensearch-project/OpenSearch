@@ -1,10 +1,10 @@
 # Wazuh Docker Copyright (C) 2017, Wazuh Inc. (License GPLv2)
-FROM amazonlinux:2023.6.20241212.0 AS builder
+FROM amazonlinux:2023 AS builder
 
 ARG VERSION
 ARG INDEXER_TAR_NAME
 
-RUN yum install openssl tar findutils shadow-utils jq -y
+RUN yum update -y && yum install openssl tar findutils shadow-utils jq -y
 
 COPY ${INDEXER_TAR_NAME} /
 
@@ -23,14 +23,14 @@ RUN bash config.sh
 # Add entrypoint
 
 ################################################################################
-FROM amazonlinux:2023.6.20241212.0
+FROM amazonlinux:2023
 
 ENV USER="wazuh-indexer" \
     GROUP="wazuh-indexer" \
     NAME="wazuh-indexer" \
     INSTALL_DIR="/usr/share/wazuh-indexer"
 
-RUN yum install curl-minimal shadow-utils findutils hostname jq -y
+RUN yum update -y && yum install curl-minimal shadow-utils findutils hostname jq -y
 
 RUN getent group $GROUP || groupadd -r -g 1000 $GROUP
 

@@ -95,4 +95,4 @@ Arguments:
 
 The script will stop if the credentials are not set, or if any of the required parameters are not provided.
 
-This script is used in the `build-push-docker-image.yml` **GitHub Workflow**, which is used to automate the process even more. When possible, **prefer this method**.
+This script is used in the `5_builderpackage_docker.yml` **GitHub Workflow**, which is used to automate the process even more. When possible, **prefer this method**.
