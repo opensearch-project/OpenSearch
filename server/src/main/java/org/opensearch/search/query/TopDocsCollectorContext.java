@@ -85,6 +85,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -322,15 +323,15 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                         maxScoreCollector = new MaxScoreCollector();
                     }
 
-                    return MultiCollectorWrapper.wrap(collapseContext.createTopDocs(sort, numHits, searchAfter), maxScoreCollector);
+                    return MultiCollector.wrap(collapseContext.createTopDocs(sort, numHits, searchAfter), maxScoreCollector);
                 }
 
                 @Override
                 public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
                     final Collection<Collector> subs = new ArrayList<>();
                     for (final Collector collector : collectors) {
-                        if (collector instanceof MultiCollectorWrapper) {
-                            subs.addAll(((MultiCollectorWrapper) collector).getCollectors());
+                        if (collector instanceof MultiCollector m) {
+                            subs.addAll(List.of(m.getCollectors()));
                         } else {
                             subs.add(collector);
                         }
@@ -340,10 +341,10 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                     float maxScore = Float.NaN;
 
                     for (final Collector collector : subs) {
-                        if (collector instanceof CollapsingTopDocsCollector<?>) {
-                            topFieldDocs.add(((CollapsingTopDocsCollector<?>) collector).getTopDocs());
-                        } else if (collector instanceof MaxScoreCollector) {
-                            float score = ((MaxScoreCollector) collector).getMaxScore();
+                        if (collector instanceof CollapsingTopDocsCollector<?> c) {
+                            topFieldDocs.add(c.getTopDocs());
+                        } else if (collector instanceof MaxScoreCollector msc) {
+                            float score = msc.getMaxScore();
                             if (Float.isNaN(maxScore)) {
                                 maxScore = score;
                             } else {
@@ -420,6 +421,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         private final boolean trackMaxScore;
         private final boolean hasInfMaxScore;
         private final int hitCount;
+        private final boolean sortByScore;
 
         /**
          * Ctr
@@ -448,10 +450,11 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             this.trackTotalHitsUpTo = trackTotalHitsUpTo;
             this.trackMaxScore = trackMaxScore;
             this.hasInfMaxScore = hasInfMaxScore(query);
+            this.sortByScore = sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0]);
 
             final TopDocsCollector<?> topDocsCollector;
 
-            if ((sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0])) && hasInfMaxScore) {
+            if (sortByScore && hasInfMaxScore) {
                 // disable max score optimization since we have a mandatory clause
                 // that doesn't track the maximum score
                 topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, Integer.MAX_VALUE);
@@ -516,7 +519,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             private final CollectorManager<? extends TopDocsCollector<?>, ? extends TopDocs> manager;
 
             private SimpleTopDocsCollectorManager() {
-                if ((sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0])) && hasInfMaxScore) {
+                if (sortByScore && hasInfMaxScore) {
                     // disable max score optimization since we have a mandatory clause
                     // that doesn't track the maximum score
                     manager = createCollectorManager(sortAndFormats, numHits, searchAfter, Integer.MAX_VALUE);
@@ -543,11 +546,11 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             public Collector newCollector() throws IOException {
                 MaxScoreCollector maxScoreCollector = null;
 
-                if (sortAndFormats != null && trackMaxScore) {
+                if (!sortByScore && trackMaxScore) {
                     maxScoreCollector = new MaxScoreCollector();
                 }
 
-                return MultiCollectorWrapper.wrap(manager.newCollector(), maxScoreCollector);
+                return MultiCollector.wrap(manager.newCollector(), maxScoreCollector);
             }
 
             @SuppressWarnings("unchecked")
@@ -557,18 +560,18 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 final Collection<MaxScoreCollector> maxScoreCollectors = new ArrayList<>();
 
                 for (final Collector collector : collectors) {
-                    if (collector instanceof MultiCollectorWrapper) {
-                        for (final Collector sub : (((MultiCollectorWrapper) collector).getCollectors())) {
-                            if (sub instanceof TopDocsCollector<?>) {
-                                topDocsCollectors.add((TopDocsCollector<?>) sub);
-                            } else if (sub instanceof MaxScoreCollector) {
-                                maxScoreCollectors.add((MaxScoreCollector) sub);
+                    if (collector instanceof MultiCollector m) {
+                        for (final Collector sub : m.getCollectors()) {
+                            if (sub instanceof TopDocsCollector<?> tdc) {
+                                topDocsCollectors.add(tdc);
+                            } else if (sub instanceof MaxScoreCollector msc) {
+                                maxScoreCollectors.add(msc);
                             }
                         }
-                    } else if (collector instanceof TopDocsCollector<?>) {
-                        topDocsCollectors.add((TopDocsCollector<?>) collector);
-                    } else if (collector instanceof MaxScoreCollector) {
-                        maxScoreCollectors.add((MaxScoreCollector) collector);
+                    } else if (collector instanceof TopDocsCollector<?> c) {
+                        topDocsCollectors.add(c);
+                    } else if (collector instanceof MaxScoreCollector msc) {
+                        maxScoreCollectors.add(msc);
                     }
                 }
 
@@ -609,7 +612,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         TopDocsAndMaxScore newTopDocs(final TopDocs topDocs, final float maxScore, final Integer terminatedAfter) {
             TotalHits totalHits = null;
 
-            if ((sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0])) && hasInfMaxScore) {
+            if (sortByScore && hasInfMaxScore) {
                 totalHits = topDocs.totalHits;
             } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 // don't compute hit counts via the collector

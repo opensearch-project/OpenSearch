@@ -34,6 +34,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Rishabh Maurya    | [rishabhmaurya](https://github.com/rishabhmaurya)       | Amazon      |
 | Rishikesh Pasham  | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
 | Sachin Kale       | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |
+| Sandesh Kumar     | [sandeshkr419](https://github.com/sandeshkr419)         | Amazon      |
 | Sarat Vemulapalli | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |
 | Shweta Thareja    | [shwetathareja](https://github.com/shwetathareja)       | Amazon      |
 | Sorabh Hamirwasia | [sohami](https://github.com/sohami)                     | Amazon      |

@@ -337,7 +337,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             @Override
             public void setSubCollectors() throws IOException {
                 for (Aggregator aggregator : subAggregators) {
-                    this.subCollectors.add(((StarTreePreComputeCollector) aggregator).getStarTreeBucketCollector(ctx, starTree, this));
+                    this.subCollectors.add(
+                        ((StarTreePreComputeCollector) aggregator.unwrapAggregator()).getStarTreeBucketCollector(ctx, starTree, this)
+                    );
                 }
             }
 

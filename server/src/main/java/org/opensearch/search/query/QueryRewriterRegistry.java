@@ -67,7 +67,7 @@ public final class QueryRewriterRegistry {
     public void registerRewriter(QueryRewriter rewriter) {
         if (rewriter != null) {
             rewriters.add(rewriter);
-            logger.info("Registered query rewriter: {}", rewriter.name());
+            logger.debug("Registered query rewriter: {}", rewriter.name());
         }
     }
 
