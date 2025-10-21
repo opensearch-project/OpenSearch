@@ -62,7 +62,9 @@ public class DefaultStatsCounter<K, V> implements StatsCounter<K, V> {
     public void recordRemoval(V value, boolean pinned, long weight) {
         removeCount++;
         removeWeight += weight;
-        usage -= weight;
+        if(usage>0){
+            usage -= weight;
+        }
     }
 
     @Override
@@ -85,17 +87,23 @@ public class DefaultStatsCounter<K, V> implements StatsCounter<K, V> {
     public void recordEviction(V value, long weight) {
         evictionCount++;
         evictionWeight += weight;
-        usage -= weight;
+        if(usage>0) {
+            usage -= weight;
+        }
     }
 
     @Override
     public void recordUsage(V value, long weight, boolean pinned, boolean shouldDecrease) {
+        if(shouldDecrease && usage==0)
+            return;
         weight = shouldDecrease ? -1 * weight : weight;
         usage += weight;
     }
 
     @Override
     public void recordActiveUsage(V value, long weight, boolean pinned, boolean shouldDecrease) {
+        if(shouldDecrease && activeUsage==0)
+            return;
         weight = shouldDecrease ? -1 * weight : weight;
         activeUsage += weight;
     }
@@ -109,6 +117,8 @@ public class DefaultStatsCounter<K, V> implements StatsCounter<K, V> {
      */
     @Override
     public void recordPinnedUsage(V value, long weight, boolean shouldDecrease) {
+        if(shouldDecrease && pinnedUsage==0)
+            return;
         weight = shouldDecrease ? -1 * weight : weight;
         pinnedUsage += weight;
     }
