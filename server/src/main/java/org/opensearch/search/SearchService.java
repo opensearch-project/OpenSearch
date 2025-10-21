@@ -341,6 +341,34 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
+
+    // Intra-segment search settings
+    public static final Setting<Boolean> INTRA_SEGMENT_SEARCH_ENABLED = Setting.boolSetting(
+        "search.intra_segment_search.enabled",
+        false,  // Default disabled for safety
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    // Setting to control minimum segment size for intra-segment partitioning
+    public static final Setting<Integer> INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE = Setting.intSetting(
+        "search.intra_segment_search.min_segment_size",
+        10000,  // Only partition segments with 10k+ docs
+        1000,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    // Setting to control number of partitions per segment
+    public static final Setting<Integer> INTRA_SEGMENT_SEARCH_PARTITIONS_PER_SEGMENT = Setting.intSetting(
+        "search.intra_segment_search.partitions_per_segment",
+        2,      // Default 2 partitions per segment
+        1,
+        8,      // Max 8 partitions per segment
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // value 0 means rewrite filters optimization in aggregations will be disabled
     @ExperimentalApi
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
@@ -2049,7 +2077,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @return the computed default slice count
      */
     private static int computeDefaultSliceCount() {
-        return Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
+        int sliceCount = Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
+        logger.info("The computeDefaultSliceCount is {}", sliceCount);
+        return sliceCount;
     }
 
     /**

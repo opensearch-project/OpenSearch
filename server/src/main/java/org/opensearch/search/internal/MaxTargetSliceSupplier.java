@@ -52,10 +52,16 @@ final class MaxTargetSliceSupplier {
         }
         Group minGroup;
         for (int i = 0; i < sortedLeaves.size(); ++i) {
-            minGroup = groupQueue.poll();
+            // Step 1: Get the least loaded slice
+            minGroup = groupQueue.poll(); // This triggers compareTo internally
+            // Step 2: Add segment to the slice ← THIS IS WHERE SEGMENT IS ADDED
             groupedLeaves.get(minGroup.index).add(IndexSearcher.LeafReaderContextPartition.createForEntireSegment(sortedLeaves.get(i)));
+            // Step 3: Update the slice's load/size
+            // This is the key line! It adds the segment's document count to the slice's running total.
             minGroup.sum += sortedLeaves.get(i).reader().maxDoc();
-            groupQueue.offer(minGroup);
+            // Step 4: Put the updated slice back in the priority queue
+            groupQueue.offer(minGroup); // This triggers compareTo internally
+
         }
 
         return groupedLeaves.stream().map(IndexSearcher.LeafSlice::new).toArray(IndexSearcher.LeafSlice[]::new);

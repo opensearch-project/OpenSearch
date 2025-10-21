@@ -129,6 +129,9 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+import static org.opensearch.search.SearchService.INTRA_SEGMENT_SEARCH_ENABLED;
+import static org.opensearch.search.SearchService.INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE;
+import static org.opensearch.search.SearchService.INTRA_SEGMENT_SEARCH_PARTITIONS_PER_SEGMENT;
 import static org.opensearch.search.SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED;
 import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
 import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT;
@@ -1310,5 +1313,42 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public long getStreamingMinEstimatedBucketCount() {
         return clusterService.getClusterSettings().get(STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
+    }
+
+    /**
+     * Returns whether intra-segment search is enabled for this search context.
+     * This checks cluster-level settings to determine if segments should be partitioned for concurrent search.
+     */
+    @Override
+    public boolean getIntraSegmentSearchEnabled() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_ENABLED);
+        }
+        return false;
+    }
+
+    /**
+     * Returns the number of partitions to create per segment when intra-segment search is enabled.
+     * This value is retrieved from cluster-level settings.
+     */
+    @Override
+    public int getIntraSegmentPartitionsPerSegment() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_PARTITIONS_PER_SEGMENT);
+        }
+        return 2; // Default fallback value
+    }
+
+    /**
+     * Returns the minimum segment size required to enable intra-segment partitioning.
+     * Segments smaller than this threshold will not be partitioned.
+     * This value is retrieved from cluster-level settings.
+     */
+    @Override
+    public int getIntraSegmentMinSegmentSize() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE);
+        }
+        return 10000; // Default fallback value
     }
 }

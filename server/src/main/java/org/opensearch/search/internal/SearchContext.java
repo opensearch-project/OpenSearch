@@ -594,4 +594,27 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
+    /**
+     * Returns whether intra-segment search is enabled for this search context.
+     * Intra-segment search allows partitioning large segments for concurrent search within a segment.
+     */
+    public boolean getIntraSegmentSearchEnabled() {
+        return false;
+    }
+
+    /**
+     * Returns the number of partitions to create per segment when intra-segment search is enabled.
+     */
+    public int getIntraSegmentPartitionsPerSegment() {
+        return 2; // Default value
+    }
+
+    /**
+     * Returns the minimum segment size required to enable intra-segment partitioning.
+     * Segments smaller than this threshold will not be partitioned.
+     */
+    public int getIntraSegmentMinSegmentSize() {
+        return 10000; // Default value
+    }
+
 }
