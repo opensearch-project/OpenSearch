@@ -11,7 +11,7 @@ package org.opensearch.search.aggregations.startree;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -85,7 +85,7 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new Composite103Codec(Lucene103Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        return new Composite103Codec(Lucene104Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
     public void testStarTreeFilterWithNoDocsInSVDField() throws IOException {
