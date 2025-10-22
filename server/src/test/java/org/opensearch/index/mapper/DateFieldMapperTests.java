@@ -869,16 +869,25 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testIsSkiplistDefaultEnabled() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date")));
+        testIsSkiplistEnabled(mapper, true);
+
+    }
+
+    public void testIsSkiplistDefaultDisabledInOlderVersions() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(Version.V_3_2_0, fieldMapping(b -> b.field("type", "date")));
+        testIsSkiplistEnabled(mapper, false);
+    }
+
+    private void testIsSkiplistEnabled(DocumentMapper mapper, boolean expectedValue) throws IOException {
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
 
         // Test with no index sort and non-timestamp field
         IndexMetadata noSortindexMetadata = new IndexMetadata.Builder("index").settings(getIndexSettings()).build();
-        IndexSettings noSolrIndexSettings = new IndexSettings(noSortindexMetadata, getIndexSettings());
         IndexSortConfig noSortConfig = new IndexSortConfig(new IndexSettings(noSortindexMetadata, getIndexSettings()));
         assertFalse(dateFieldMapper.isSkiplistDefaultEnabled(noSortConfig, "field"));
 
         // timestamp field
-        assertTrue(dateFieldMapper.isSkiplistDefaultEnabled(noSortConfig, "@timestamp"));
+        assertEquals(expectedValue, dateFieldMapper.isSkiplistDefaultEnabled(noSortConfig, "@timestamp"));
 
         // Create index settings with an index sort.
         Settings settings = Settings.builder()
@@ -892,8 +901,8 @@ public class DateFieldMapperTests extends MapperTestCase {
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         IndexSortConfig sortConfig = new IndexSortConfig(indexSettings);
-        assertTrue(dateFieldMapper.isSkiplistDefaultEnabled(sortConfig, "field"));
-        assertTrue(dateFieldMapper.isSkiplistDefaultEnabled(sortConfig, "@timestamp"));
+        assertEquals(expectedValue, dateFieldMapper.isSkiplistDefaultEnabled(sortConfig, "field"));
+        assertEquals(expectedValue, dateFieldMapper.isSkiplistDefaultEnabled(sortConfig, "@timestamp"));
     }
 
     public void testSkipListIntegrationFieldBehaviorConsistency() throws IOException {

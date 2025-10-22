@@ -145,6 +145,7 @@ public class IngestionEngine extends InternalEngine {
             .pollTimeout(ingestionSource.getPollTimeout())
             .numProcessorThreads(ingestionSource.getNumProcessorThreads())
             .blockingQueueSize(ingestionSource.getBlockingQueueSize())
+            .pointerBasedLagUpdateInterval(ingestionSource.getPointerBasedLagUpdateInterval().millis())
             .build();
         registerStreamPollerListener();
 
