@@ -53,7 +53,7 @@ public interface ActionFilter {
      * Enables filtering the execution of an action on the request side, either by sending a response through the
      * {@link ActionListener} or by continuing the execution through the given {@link ActionFilterChain chain}
      *
-     * @apiNote This has only for a transitional period a default implementation. After the deprecated apply()
+     * Note: This has only for a transitional period a default implementation. After the deprecated apply()
      * method has been removed, the default implementation will be removed.
      */
     default <Request extends ActionRequest, Response extends ActionResponse> void apply(
