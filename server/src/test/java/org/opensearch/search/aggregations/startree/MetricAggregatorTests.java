@@ -43,7 +43,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.codec.composite.composite103.Composite103Codec;
+import org.opensearch.index.codec.composite.composite104.Composite104Codec;
 import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -124,7 +124,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new Composite103Codec(Lucene104Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        return new Composite104Codec(Lucene104Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
     public void testStarTreeDocValues() throws IOException {
