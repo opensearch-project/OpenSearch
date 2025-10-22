@@ -390,18 +390,21 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        context.compositeDocumentInput().addField(fieldType(), value);
-//        if (indexed) {
-//            context.doc().add(new Field(fieldType().name(), value ? "T" : "F", Defaults.FIELD_TYPE));
-//        }
-//        if (stored) {
-//            context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
-//        }
-//        if (hasDocValues) {
-//            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
-//        } else {
-//            createFieldNamesField(context);
-//        }
+        if (isPluggableDataFormatFeatureEnabled()) {
+            context.compositeDocumentInput().addField(fieldType(), value);
+        } else {
+            if (indexed) {
+                context.doc().add(new Field(fieldType().name(), value ? "T" : "F", Defaults.FIELD_TYPE));
+            }
+            if (stored) {
+                context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
+            }
+            if (hasDocValues) {
+                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
+            } else {
+                createFieldNamesField(context);
+            }
+        }
     }
 
     @Override

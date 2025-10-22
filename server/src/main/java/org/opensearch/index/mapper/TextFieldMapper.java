@@ -1046,17 +1046,21 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(fieldType().name(), value, fieldType);
-            context.doc().add(field);
-            if (fieldType.omitNorms()) {
-                createFieldNamesField(context);
-            }
-            if (prefixFieldMapper != null) {
-                prefixFieldMapper.addField(context, value);
-            }
-            if (phraseFieldMapper != null) {
-                context.doc().add(new Field(phraseFieldMapper.fieldType().name(), value, phraseFieldMapper.fieldType));
+        if (isPluggableDataFormatFeatureEnabled()) {
+            context.compositeDocumentInput().addField(fieldType(), value);
+        } else {
+            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+                Field field = new Field(fieldType().name(), value, fieldType);
+                context.doc().add(field);
+                if (fieldType.omitNorms()) {
+                    createFieldNamesField(context);
+                }
+                if (prefixFieldMapper != null) {
+                    prefixFieldMapper.addField(context, value);
+                }
+                if (phraseFieldMapper != null) {
+                    context.doc().add(new Field(phraseFieldMapper.fieldType().name(), value, phraseFieldMapper.fieldType));
+                }
             }
         }
     }

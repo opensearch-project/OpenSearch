@@ -58,6 +58,7 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -2171,12 +2172,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             numericValue = fieldType().type.parse(value, coerce.value());
         }
 
-        context.compositeDocumentInput().addField(fieldType(), numericValue);
+        if (isPluggableDataFormatFeatureEnabled()) {
+            context.compositeDocumentInput().addField(fieldType(), numericValue);
+        } else {
+            context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, skiplist, stored));
 
-//        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, skiplist, stored));
-
-        if (hasDocValues == false && (stored || indexed)) {
-            createFieldNamesField(context);
+            if (hasDocValues == false && (stored || indexed)) {
+                createFieldNamesField(context);
+            }
         }
     }
 
