@@ -42,4 +42,33 @@ public interface DocRequest {
     default String type() {
         return "indices";
     }
+
+    /**
+     * ParentReferencing interface.
+     *
+     * @opensearch.experimental
+     */
+    @PublicApi(since = "3.4.0")
+    interface ParentReferencing extends DocRequest {
+
+        /**
+         * Get the id of the document corresponding to the parent for this request
+         * @return the parent id
+         */
+        String parentId();
+
+        /**
+         * Get the type of the parent. This should match the action name prefix: i.e. indices:data/read/get
+         *
+         * Used in the context of resource sharing to specify the type of sharable resource.
+         *
+         * i.e. A report instance is related to a report definition (its parent). DocRequests pertaining to a
+         * report instance would override this to specify "report_definition" as the parent type.
+         *
+         * @return the parent type
+         */
+        default String parentType() {
+            return "indices";
+        }
+    }
 }
