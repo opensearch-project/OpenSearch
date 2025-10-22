@@ -191,7 +191,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         Map<String, Processor.Factory<T>> factories = collectProcessorFactories(searchPipelinePlugins, processorLoader, "Search processor");
         // Sanity check: none of them should be system-generated
         for (Map.Entry<String, Processor.Factory<T>> entry : factories.entrySet()) {
-            if (entry.getValue() instanceof SystemGeneratedProcessor.SystemGeneratedFactory systemGeneratedFactory) {
+            if (entry.getValue() instanceof SystemGeneratedProcessor.SystemGeneratedFactory) {
                 throw new IllegalArgumentException(
                     String.format(Locale.ROOT, "System generated factory [%s] should not be exposed to users.", entry.getKey())
                 );

@@ -69,7 +69,7 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
         }
 
         void setConfig(BytesReference config, MediaType mediaType) {
-            if (!(mediaType instanceof XContentType xContentType)) {
+            if (mediaType instanceof XContentType == false) {
                 throw new IllegalArgumentException("PipelineConfiguration does not support media type [" + mediaType.getClass() + "]");
             }
             this.config = config;

@@ -73,14 +73,14 @@ public class MustNotToShouldRewriter implements QueryRewriter {
 
                 // Find complement-aware queries that can be rewritten
                 for (QueryBuilder clause : boolQuery.mustNot()) {
-                    if (clause instanceof ComplementAwareQueryBuilder complementAwareQueryBuilder && clause instanceof WithFieldName wfn) {
+                    if (clause instanceof ComplementAwareQueryBuilder && clause instanceof WithFieldName wfn) {
                         fieldCounts.merge(wfn.fieldName(), 1, Integer::sum);
                     }
                 }
 
                 // For now, only handle the case where there's exactly 1 complement-aware query per field
                 for (QueryBuilder clause : boolQuery.mustNot()) {
-                    if (clause instanceof ComplementAwareQueryBuilder complementAwareQueryBuilder && clause instanceof WithFieldName wfn) {
+                    if (clause instanceof ComplementAwareQueryBuilder && clause instanceof WithFieldName wfn) {
                         String fieldName = wfn.fieldName();
 
                         if (fieldCounts.getOrDefault(fieldName, 0) == 1) {
@@ -158,14 +158,14 @@ public class MustNotToShouldRewriter implements QueryRewriter {
         // Check if any nested queries were rewritten
         boolean nestedQueriesChanged = false;
         for (QueryBuilder mustClause : boolQuery.must()) {
-            if (mustClause instanceof BoolQueryBuilder boolQueryBuilder && rewritten.must().contains(mustClause) == false) {
+            if (mustClause instanceof BoolQueryBuilder && rewritten.must().contains(mustClause) == false) {
                 nestedQueriesChanged = true;
                 break;
             }
         }
         if (!nestedQueriesChanged) {
             for (QueryBuilder filterClause : boolQuery.filter()) {
-                if (filterClause instanceof BoolQueryBuilder boolQueryBuilder && rewritten.filter().contains(filterClause) == false) {
+                if (filterClause instanceof BoolQueryBuilder && rewritten.filter().contains(filterClause) == false) {
                     nestedQueriesChanged = true;
                     break;
                 }
@@ -173,7 +173,7 @@ public class MustNotToShouldRewriter implements QueryRewriter {
         }
         if (!nestedQueriesChanged) {
             for (QueryBuilder shouldClause : boolQuery.should()) {
-                if (shouldClause instanceof BoolQueryBuilder boolQueryBuilder && rewritten.should().contains(shouldClause) == false) {
+                if (shouldClause instanceof BoolQueryBuilder && rewritten.should().contains(shouldClause) == false) {
                     nestedQueriesChanged = true;
                     break;
                 }
@@ -181,7 +181,7 @@ public class MustNotToShouldRewriter implements QueryRewriter {
         }
         if (!nestedQueriesChanged) {
             for (QueryBuilder mustNotClause : boolQuery.mustNot()) {
-                if (mustNotClause instanceof BoolQueryBuilder boolQueryBuilder && rewritten.mustNot().contains(mustNotClause) == false) {
+                if (mustNotClause instanceof BoolQueryBuilder && rewritten.mustNot().contains(mustNotClause) == false) {
                     nestedQueriesChanged = true;
                     break;
                 }

@@ -115,13 +115,12 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
 
     private static <T extends Exception> void rethrowCauseIfPossible(RuntimeException re, SearchContext searchContext) throws T {
         // Rethrow exception if cause is null or if it's an instance of OpenSearchException
-        if (re.getCause() == null || re instanceof OpenSearchException openSearchException) {
+        if (re.getCause() == null || re instanceof OpenSearchException) {
             throw re;
         }
 
         // Unwrap the RuntimeException and ExecutionException from Lucene concurrent search method and rethrow
-        if (re.getCause() instanceof ExecutionException executionException
-            || re.getCause() instanceof InterruptedException interruptedException) {
+        if (re.getCause() instanceof ExecutionException || re.getCause() instanceof InterruptedException) {
             Throwable t = re.getCause();
             if (t.getCause() != null) {
                 throw (T) t.getCause();
