@@ -74,7 +74,7 @@ public interface ActionFilter {
      * @deprecated please do not override this method any more. Instead, override the method with the additional
      * ActionRequestMetadata parameter. This method will be removed soon.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     default <Request extends ActionRequest, Response extends ActionResponse> void apply(
         Task task,
         String action,
@@ -82,7 +82,7 @@ public interface ActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
-        assert false : "Incomplete implementation of ActionFilter interface in " + this;
+        throw new UnsupportedOperationException("Incomplete implementation of ActionFilter interface in " + this);
     }
 
     /**
