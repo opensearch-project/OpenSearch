@@ -28,7 +28,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MapperTestUtils;
-import org.opensearch.index.codec.composite.composite103.Composite103Codec;
+import org.opensearch.index.codec.composite.composite104.Composite104Codec;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.MapperService;
@@ -75,7 +75,7 @@ public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatT
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        Codec codec = new Composite103Codec(Lucene104Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        Codec codec = new Composite104Codec(Lucene104Codec.Mode.BEST_SPEED, mapperService, testLogger);
         return codec;
     }
 
