@@ -55,7 +55,6 @@ public class MergedSegmentWarmerFactoryTests extends OpenSearchTestCase {
     }
 
     public void testGetWithSegmentReplicationAndExperimentalFeatureFlagEnabled() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
         IndexSettings indexSettings = createIndexSettings(
             false,
             Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build()
@@ -79,7 +78,6 @@ public class MergedSegmentWarmerFactoryTests extends OpenSearchTestCase {
     }
 
     public void testGetWithRemoteStoreEnabledAndExperimentalFeatureFlagEnabled() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
         IndexSettings indexSettings = createIndexSettings(
             true,
             Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build()
@@ -105,7 +103,6 @@ public class MergedSegmentWarmerFactoryTests extends OpenSearchTestCase {
     }
 
     public void testGetWithDocumentReplicationAndExperimentalFeatureFlagEnabled() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
         IndexSettings indexSettings = createIndexSettings(
             false,
             Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build()

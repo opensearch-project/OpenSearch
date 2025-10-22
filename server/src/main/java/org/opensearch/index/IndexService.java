@@ -343,9 +343,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
         this.asyncReplicationTask = new AsyncReplicationTask(this);
-        if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING)) {
-            this.asyncPublishReferencedSegmentsTask = new AsyncPublishReferencedSegmentsTask(this);
-        }
+        this.asyncPublishReferencedSegmentsTask = new AsyncPublishReferencedSegmentsTask(this);
+
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
@@ -1210,9 +1209,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             onRefreshIntervalChange();
             updateFsyncTaskIfNecessary();
             updateReplicationTask();
-            if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING)) {
-                updatePublishReferencedSegmentsTask();
-            }
+            updatePublishReferencedSegmentsTask();
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
