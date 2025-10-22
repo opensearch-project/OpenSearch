@@ -40,10 +40,12 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
     }
 
     @After
+    @Override
     public void tearDown() throws Exception {
         if (!inFipsJvm()) {
             addSunJceProvider();
         }
+        super.tearDown();
     }
 
     @AfterClass
