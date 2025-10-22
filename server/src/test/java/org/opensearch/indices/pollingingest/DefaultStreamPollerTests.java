@@ -90,6 +90,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.State.NONE,
             1000,
             1000,
+            10000,
             indexSettings
         );
         partitionedBlockingQueueContainer.startProcessorThreads();
@@ -162,6 +163,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.State.NONE,
             1000,
             1000,
+            10000,
             indexSettings
         );
         CountDownLatch latch = new CountDownLatch(2);
@@ -190,6 +192,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.State.NONE,
             1000,
             1000,
+            10000,
             indexSettings
         );
 
@@ -214,6 +217,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.State.NONE,
             1000,
             1000,
+            10000,
             indexSettings
         );
         CountDownLatch latch = new CountDownLatch(1);
@@ -298,6 +302,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.State.NONE,
             1000,
             1000,
+            10000,
             indexSettings
         );
         poller.start();
@@ -359,6 +364,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.State.NONE,
             1000,
             1000,
+            10000,
             indexSettings
         );
         poller.start();
@@ -394,6 +400,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.State.NONE,
             1000,
             1000,
+            10000,
             indexSettings
         );
         poller.start();
@@ -465,6 +472,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.State.NONE,
             1000,
             1000,
+            10000,
             indexSettings
         );
         poller.start();
@@ -533,6 +541,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.State.NONE,
             1000,
             1000,
+            10000,
             indexSettings
         );
 
