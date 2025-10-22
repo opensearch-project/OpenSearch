@@ -129,7 +129,10 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
 
     @Override
     public Settings indexSettings() {
-        Settings.Builder s = Settings.builder().put(super.indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+        Settings.Builder s = Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2);
         return s.build();
     }
 
@@ -161,7 +164,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         String clusterManagerName = internalCluster().getClusterManagerName();
         List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
         String indexName = "log-myindex-1";
-        createIndex(indexName);
+        createIndex(indexName, indexSettings());
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
         GetIndexResponse getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
@@ -181,7 +184,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
             .get();
 
         indexName = "log-myindex-2";
-        createIndex(indexName);
+        createIndex(indexName, indexSettings());
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
         getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
@@ -201,6 +204,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         createIndex(
             indexName,
             Settings.builder()
+                .put(indexSettings())
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 150)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas)
                 .build()
@@ -300,7 +304,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
 
         String indexName = "log-myindex-1";
-        createIndex(indexName);
+        createIndex(indexName, indexSettings());
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
         GetIndexResponse getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
@@ -410,7 +414,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
 
         String indexName = "test-absolute-defaults";
-        createIndex(indexName);
+        createIndex(indexName, indexSettings());
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
 
@@ -452,7 +456,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
             .get();
 
         String indexName = "test-cluster-defaults";
-        createIndex(indexName);
+        createIndex(indexName, indexSettings());
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
 
@@ -486,7 +490,10 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
 
         String indexName = "test-thread-count-only";
-        createIndex(indexName, Settings.builder().put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), 6).build());
+        createIndex(
+            indexName,
+            Settings.builder().put(indexSettings()).put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), 6).build()
+        );
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
 
@@ -526,7 +533,10 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
             .get();
 
         String indexName = "test-merge-count-only";
-        createIndex(indexName, Settings.builder().put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 15).build());
+        createIndex(
+            indexName,
+            Settings.builder().put(indexSettings()).put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 15).build()
+        );
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
 
@@ -556,6 +566,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         createIndex(
             indexName,
             Settings.builder()
+                .put(indexSettings())
                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), 8)
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 20)
                 .build()
@@ -603,6 +614,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         createIndex(
             indexName,
             Settings.builder()
+                .put(indexSettings())
                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), 6)
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 15)
                 .build()
@@ -642,6 +654,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         createIndex(
             indexName,
             Settings.builder()
+                .put(indexSettings())
                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), 6)
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 15)
                 .build()
@@ -703,6 +716,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         createIndex(
             indexName,
             Settings.builder()
+                .put(indexSettings())
                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), 6)
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 15)
                 .build()
@@ -757,7 +771,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
 
         String indexName = "test-remove-only-explicit";
-        createIndex(indexName);
+        createIndex(indexName, indexSettings());
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
 
@@ -833,6 +847,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
             () -> createIndex(
                 indexName,
                 Settings.builder()
+                    .put(indexSettings())
                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), 10)
                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 5)
                     .build()
@@ -857,7 +872,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
 
         String indexName = "test-existing-index";
-        createIndex(indexName);
+        createIndex(indexName, indexSettings());
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
 
@@ -915,7 +930,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
 
         // Create index without explicit settings
         String indexWithoutSettings = "test-without-settings";
-        createIndex(indexWithoutSettings);
+        createIndex(indexWithoutSettings, indexSettings());
         ensureYellowAndNoInitializingShards(indexWithoutSettings);
         ensureGreen(indexWithoutSettings);
 
@@ -924,6 +939,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         createIndex(
             indexWithSettings,
             Settings.builder()
+                .put(indexSettings())
                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), 5)
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 12)
                 .build()
@@ -973,7 +989,7 @@ public class ClusterMergeSchedulerConfigsIT extends OpenSearchIntegTestCase {
         List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
 
         String indexName = "log-myindex-5";
-        createIndex(indexName);
+        createIndex(indexName, indexSettings());
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
         GetIndexResponse getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
