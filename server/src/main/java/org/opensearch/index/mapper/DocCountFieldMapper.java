@@ -149,8 +149,9 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         if (value <= 0) {
             throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer.");
         }
-        final Field docCount = new NumericDocValuesField(NAME, value);
-        context.doc().add(docCount);
+        context.compositeDocumentInput().addField(fieldType(), value);
+//        final Field docCount = new NumericDocValuesField(NAME, value);
+//        context.doc().add(docCount);
     }
 
     @Override
