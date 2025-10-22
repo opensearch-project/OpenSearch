@@ -83,6 +83,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -668,7 +669,8 @@ public final class IndexModule {
         Supplier<Boolean> shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
     ) throws IOException {
         return newIndexService(
             indexCreationContext,
@@ -696,7 +698,8 @@ public final class IndexModule {
             remoteStoreSettings,
             (s) -> {},
             shardId -> ReplicationStats.empty(),
-            clusterDefaultMaxMergeAtOnceSupplier
+            clusterDefaultMaxMergeAtOnceSupplier,
+            clusterMergeSchedulerConfig
         );
     }
 
@@ -726,7 +729,8 @@ public final class IndexModule {
         RemoteStoreSettings remoteStoreSettings,
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -798,7 +802,8 @@ public final class IndexModule {
                 compositeIndexSettings,
                 replicator,
                 segmentReplicationStatsProvider,
-                clusterDefaultMaxMergeAtOnceSupplier
+                clusterDefaultMaxMergeAtOnceSupplier,
+                clusterMergeSchedulerConfig
             );
             success = true;
             return indexService;

@@ -124,6 +124,7 @@ import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -307,6 +308,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesQueryCache.INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR,
                 IndicesQueryCache.INDICES_QUERY_CACHE_MIN_FREQUENCY,
                 IndicesQueryCache.INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY,
+                ClusterMergeSchedulerConfig.CLUSTER_MAX_THREAD_COUNT_SETTING,
+                ClusterMergeSchedulerConfig.CLUSTER_MAX_MERGE_COUNT_SETTING,
+                ClusterMergeSchedulerConfig.CLUSTER_AUTO_THROTTLE_SETTING,
                 IndicesService.CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING,
                 IndicesService.CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING,
                 IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING,
@@ -326,9 +330,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES,
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
-                RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING,
-                RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
-                RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING,
+                RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING,
+                RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING,
+                RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MAX_BYTES_PER_SEC_SETTING,
+                RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
                 RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,

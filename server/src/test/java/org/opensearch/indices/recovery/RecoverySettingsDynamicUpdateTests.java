@@ -62,7 +62,7 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         );
         assertNull(recoverySettings.replicationRateLimiter());
         clusterSettings.applySettings(
-            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
+            Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
         );
         assertNull(recoverySettings.mergedSegmentReplicationRateLimiter());
     }
@@ -88,7 +88,7 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         clusterSettings.applySettings(
             Settings.builder()
                 .put(
-                    RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(),
+                    RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MAX_BYTES_PER_SEC_SETTING.getKey(),
                     new ByteSizeValue(60, ByteSizeUnit.MB)
                 )
                 .build()
@@ -97,7 +97,7 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         clusterSettings.applySettings(
             Settings.builder()
                 .put(
-                    RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(),
+                    RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MAX_BYTES_PER_SEC_SETTING.getKey(),
                     new ByteSizeValue(80, ByteSizeUnit.MB)
                 )
                 .build()
@@ -109,13 +109,13 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         assertEquals(15, (int) recoverySettings.getMergedSegmentReplicationTimeout().minutes());
         clusterSettings.applySettings(
             Settings.builder()
-                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5))
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5))
                 .build()
         );
         assertEquals(5, (int) recoverySettings.getMergedSegmentReplicationTimeout().minutes());
         clusterSettings.applySettings(
             Settings.builder()
-                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(25))
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(25))
                 .build()
         );
         assertEquals(25, (int) recoverySettings.getMergedSegmentReplicationTimeout().minutes());
@@ -191,12 +191,12 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
 
         clusterSettings.applySettings(
-            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build()
+            Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey(), true).build()
         );
         assertTrue(recoverySettings.isMergedSegmentReplicationWarmerEnabled());
 
         clusterSettings.applySettings(
-            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), false).build()
+            Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey(), false).build()
         );
         assertFalse(recoverySettings.isMergedSegmentReplicationWarmerEnabled());
     }
@@ -205,11 +205,13 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         Exception e = assertThrows(
             IllegalArgumentException.class,
             () -> clusterSettings.applySettings(
-                Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build()
+                Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey(), true).build()
             )
         );
         assertEquals(
-            "illegal value can't update [indices.replication.merged_segment_warmer_enabled] from [false] to [true]",
+            "illegal value can't update ["
+                + RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey()
+                + "] from [false] to [true]",
             e.getMessage()
         );
         assertEquals(IllegalArgumentException.class, e.getCause().getClass());
@@ -217,5 +219,32 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
             "FeatureFlag opensearch.experimental.feature.merged_segment_warmer.enabled must be enabled to set this property to true.",
             e.getCause().getMessage()
         );
+    }
+
+    public void testMergedSegmentWarmerSegmentSizeThresholdSetting() {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
+
+        assertEquals(500L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getMb());
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "100gb")
+                .build()
+        );
+        assertEquals(100L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getGb());
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "4KB")
+                .build()
+        );
+        assertEquals(4L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getKb());
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .putNull(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey())
+                .build()
+        );
+        assertEquals(500L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getMb());
     }
 }

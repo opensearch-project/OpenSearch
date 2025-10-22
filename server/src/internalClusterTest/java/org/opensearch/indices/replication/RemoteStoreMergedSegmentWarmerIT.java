@@ -43,7 +43,8 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(remoteStoreClusterSettings("test-remote-store-repo", absolutePath))
-            .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey(), true)
+            .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "1b")
             .build();
     }
 
@@ -187,7 +188,7 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
             .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(
-                Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), false).build()
+                Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey(), false).build()
             )
             .get();
 
