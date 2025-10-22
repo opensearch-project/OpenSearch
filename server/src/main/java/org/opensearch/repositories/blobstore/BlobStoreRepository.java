@@ -1076,6 +1076,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
+     * Specific repositories should have specific implementation.
+     * @return true/false based on repository type
+     */
+    public boolean isSeverSideEncryptionEnabled() {
+        return false;
+    }
+
+    /**
      * Creates new BlobStore to read and write data.
      */
     protected abstract BlobStore createBlobStore() throws Exception;

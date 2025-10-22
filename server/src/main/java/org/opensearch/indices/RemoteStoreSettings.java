@@ -8,7 +8,6 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.Version;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
@@ -358,9 +357,5 @@ public class RemoteStoreSettings {
 
     public String getSegmentsPathFixedPrefix() {
         return segmentsPathFixedPrefix;
-    }
-
-    public static boolean isServerSideEncryptionRepoEnabled(Version minNodeVersion) {
-        return Version.V_3_1_0.compareTo(minNodeVersion) <= 0 && isClusterServerSideEncryptionRepoEnabled();
     }
 }

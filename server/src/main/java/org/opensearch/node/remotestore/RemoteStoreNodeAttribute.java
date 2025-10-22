@@ -376,14 +376,6 @@ public class RemoteStoreNodeAttribute {
         return getValueFromAnyKey(repos, REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS);
     }
 
-    public static boolean isRemoteStoreServerSideEncryptionEnabled(Map<String, String> repos) {
-        String segmentRepoName = getSegmentRepoName(repos);
-        return getValueFromAnyKey(
-            repos,
-            List.of(String.format(Locale.getDefault(), REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT, segmentRepoName))
-        ) != null;
-    }
-
     private static String getValueFromAnyKey(Map<String, String> repos, List<String> keys) {
         for (String key : keys) {
             if (repos.get(key) != null) {

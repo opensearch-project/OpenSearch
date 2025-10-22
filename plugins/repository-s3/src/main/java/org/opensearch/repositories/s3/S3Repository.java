@@ -683,4 +683,10 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
         super.doClose();
     }
+
+    @Override
+    public boolean isSeverSideEncryptionEnabled() {
+        return ServerSideEncryption.AWS_KMS.toString().equalsIgnoreCase(this.serverSideEncryptionType)
+            || ServerSideEncryption.AES256.toString().equalsIgnoreCase(this.serverSideEncryptionType);
+    }
 }

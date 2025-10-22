@@ -696,8 +696,8 @@ public class MetadataCreateIndexService {
 
         if (remoteNode.isPresent()
             && !isRestoreFromSnapshot
-            && RemoteStoreSettings.isServerSideEncryptionRepoEnabled(clusterState.nodes().getMinNodeVersion())
-            && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled(remoteNode.get().getAttributes())) {
+            && RemoteStoreSettings.isClusterServerSideEncryptionRepoEnabled()
+            && remoteStoreCustomMetadataResolver.isRemoteStoreRepoServerSideEncryptionEnabled()) {
             remoteCustomData.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, Boolean.toString(true));
         }
 

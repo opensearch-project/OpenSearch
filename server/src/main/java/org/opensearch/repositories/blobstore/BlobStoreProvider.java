@@ -47,11 +47,6 @@ public class BlobStoreProvider {
         return createBlobStore(blobStore, false);
     }
 
-    public BlobStore blobStore() {
-        // Assertion not true as Kraken threads use blobStore
-        return blobStore(false);
-    }
-
     protected BlobStore createBlobStore(SetOnce<BlobStore> blobStore, boolean serverSideEncryption) {
         // assertSnapshotOrGenericThread();
         BlobStore store = blobStore.get();
