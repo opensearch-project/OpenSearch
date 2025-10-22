@@ -28,7 +28,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ExecutorBuilder;
-import org.opensearch.threadpool.FixedExecutorBuilder;
+import org.opensearch.threadpool.ForkJoinPoolExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
@@ -93,7 +93,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
 
     /**
      * Loads extensions from other plugins.
-     * This method is called by the OpenSearch plugin system to load extensions from other plugins.
+     * This method is called by the OpenSearch plugin system to load extensions from
+     * other plugins.
      *
      * @param loader The extension loader to use for loading extensions
      */
@@ -140,7 +141,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                 }
             }
 
-            // Sort by order and create a chain - similar to OpenSearch's ActionFilter pattern
+            // Sort by order and create a chain - similar to OpenSearch's ActionFilter
+            // pattern
             orderedList.sort(Comparator.comparingInt(OrderedGrpcInterceptor::order));
 
             if (!orderedList.isEmpty()) {
@@ -179,12 +181,12 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
      * Provides auxiliary transports for the plugin.
      * Creates and returns a map of transport names to transport suppliers.
      *
-     * @param settings The node settings
-     * @param threadPool The thread pool
+     * @param settings              The node settings
+     * @param threadPool            The thread pool
      * @param circuitBreakerService The circuit breaker service
-     * @param networkService The network service
-     * @param clusterSettings The cluster settings
-     * @param tracer The tracer
+     * @param networkService        The network service
+     * @param clusterSettings       The cluster settings
+     * @param tracer                The tracer
      * @return A map of transport names to transport suppliers
      * @throws IllegalStateException if queryRegistry is not initialized
      */
@@ -218,14 +220,15 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
     /**
      * Provides secure auxiliary transports for the plugin.
      * Registered under a distinct key from gRPC transport.
-     * Consumes pluggable security settings as provided by a SecureAuxTransportSettingsProvider.
+     * Consumes pluggable security settings as provided by a
+     * SecureAuxTransportSettingsProvider.
      *
-     * @param settings The node settings
-     * @param threadPool The thread pool
-     * @param circuitBreakerService The circuit breaker service
-     * @param networkService The network service
-     * @param clusterSettings The cluster settings
-     * @param tracer The tracer
+     * @param settings                           The node settings
+     * @param threadPool                         The thread pool
+     * @param circuitBreakerService              The circuit breaker service
+     * @param networkService                     The network service
+     * @param clusterSettings                    The cluster settings
+     * @param tracer                             The tracer
      * @param secureAuxTransportSettingsProvider provides ssl context params
      * @return A map of transport names to transport suppliers
      * @throws IllegalStateException if queryRegistry is not initialized
@@ -303,31 +306,32 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
      * Returns the executor builders for this plugin's custom thread pools.
      * Creates a dedicated thread pool for gRPC request processing that integrates
      * with OpenSearch's thread pool monitoring and management system.
+     * Uses ForkJoinPool for improved performance through work-stealing and better
+     * load balancing.
      *
      * @param settings the current settings
      * @return executor builders for this plugin's custom thread pools
      */
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        final int executorCount = SETTING_GRPC_EXECUTOR_COUNT.get(settings);
-        return List.of(
-            new FixedExecutorBuilder(settings, GRPC_THREAD_POOL_NAME, executorCount, 1000, "thread_pool." + GRPC_THREAD_POOL_NAME)
-        );
+        final int parallelism = SETTING_GRPC_EXECUTOR_COUNT.get(settings);
+        return List.of(new ForkJoinPoolExecutorBuilder(GRPC_THREAD_POOL_NAME, parallelism, "thread_pool." + GRPC_THREAD_POOL_NAME));
     }
 
     /**
      * Creates components used by the plugin.
-     * Stores the client for later use in creating gRPC services, and the query registry which registers the types of supported GRPC Search queries.
+     * Stores the client for later use in creating gRPC services, and the query
+     * registry which registers the types of supported GRPC Search queries.
      *
-     * @param client The client
-     * @param clusterService The cluster service
-     * @param threadPool The thread pool
-     * @param resourceWatcherService The resource watcher service
-     * @param scriptService The script service
-     * @param xContentRegistry The named content registry
-     * @param environment The environment
-     * @param nodeEnvironment The node environment
-     * @param namedWriteableRegistry The named writeable registry
+     * @param client                      The client
+     * @param clusterService              The cluster service
+     * @param threadPool                  The thread pool
+     * @param resourceWatcherService      The resource watcher service
+     * @param scriptService               The script service
+     * @param xContentRegistry            The named content registry
+     * @param environment                 The environment
+     * @param nodeEnvironment             The node environment
+     * @param namedWriteableRegistry      The named writeable registry
      * @param indexNameExpressionResolver The index name expression resolver
      * @param repositoriesServiceSupplier The repositories service supplier
      * @return A collection of components
@@ -373,7 +377,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             }
             logger.info("Successfully injected registry and registered all {} external converters", queryConverters.size());
 
-            // Update the registry on all converters (including built-in ones) so they can access external converters
+            // Update the registry on all converters (including built-in ones) so they can
+            // access external converters
             queryRegistry.updateRegistryOnAllConverters();
             logger.info("Updated registry on all converters to include external converters");
         } else {
