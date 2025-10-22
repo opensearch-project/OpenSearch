@@ -39,6 +39,7 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
         FeatureFlags.TERM_VERSION_PRECOMMIT_ENABLE_SETTING,
         FeatureFlags.ARROW_STREAMS_SETTING,
         FeatureFlags.STREAM_TRANSPORT_SETTING,
-        FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING
+        FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING,
+        FeatureFlags.QUERY_PLANNER_SETTING
     );
 }
