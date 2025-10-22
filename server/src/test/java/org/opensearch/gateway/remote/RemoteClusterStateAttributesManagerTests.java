@@ -97,7 +97,8 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
             blobStoreRepository,
             blobStoreTransferService,
             writableRegistry(),
-            threadPool
+            threadPool,
+            clusterSettings
         );
     }
 
@@ -149,7 +150,7 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
         );
         RemoteDiscoveryNodes remoteObjForDownload = new RemoteDiscoveryNodes(fileName, "cluster-uuid", compressor);
         CountDownLatch latch = new CountDownLatch(1);
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
         remoteClusterStateAttributesManager.readAsync(DISCOVERY_NODES, remoteObjForDownload, new LatchedActionListener<>(listener, latch));
         latch.await();
         assertNull(listener.getFailure());
@@ -199,7 +200,7 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
         );
         RemoteClusterBlocks remoteClusterBlocks = new RemoteClusterBlocks(fileName, "cluster-uuid", compressor);
         CountDownLatch latch = new CountDownLatch(1);
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
 
         remoteClusterStateAttributesManager.readAsync(CLUSTER_BLOCKS, remoteClusterBlocks, new LatchedActionListener<>(listener, latch));
         latch.await();
@@ -268,7 +269,7 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             remoteClusterStateCustoms.clusterStateCustomsFormat.serialize(custom, fileName, compressor).streamInput()
         );
-        TestCapturingListener<RemoteReadResult> capturingListener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> capturingListener = new TestCapturingListener<>();
         final CountDownLatch latch = new CountDownLatch(1);
         remoteClusterStateAttributesManager.readAsync(
             CLUSTER_STATE_CUSTOM,
@@ -313,7 +314,7 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
         Exception ioException = new IOException("mock test exception");
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenThrow(ioException);
         CountDownLatch latch = new CountDownLatch(1);
-        TestCapturingListener<RemoteReadResult> capturingListener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> capturingListener = new TestCapturingListener<>();
         remoteClusterStateAttributesManager.readAsync(
             DISCOVERY_NODES,
             remoteDiscoveryNodes,

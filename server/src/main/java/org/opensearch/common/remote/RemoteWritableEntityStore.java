@@ -10,6 +10,7 @@ package org.opensearch.common.remote;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.gateway.remote.model.RemoteReadResult;
 
 import java.io.IOException;
 
@@ -26,5 +27,7 @@ public interface RemoteWritableEntityStore<T, U extends RemoteWriteableEntity<T>
 
     public T read(U entity) throws IOException;
 
-    public void readAsync(U entity, ActionListener<T> listener);
+    public RemoteReadResult<T> readWithMetrics(U entity, final String component, final String componentName) throws IOException;
+
+    public void readAsync(U entity, ActionListener<RemoteReadResult<T>> listener, final String component, final String componentName);
 }
