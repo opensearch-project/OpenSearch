@@ -9,6 +9,7 @@
 package org.opensearch.bootstrap;
 
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -38,13 +39,18 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
         addSunJceProvider();
     }
 
+    @After
+    public void tearDown() throws Exception {
+        if (!inFipsJvm()) {
+            addSunJceProvider();
+        }
+    }
+
     @AfterClass
     // restore the same state as before running the tests.
     public static void afterClass() throws Exception {
         if (inFipsJvm()) {
             SecurityProviderManager.removeNonCompliantFipsProviders();
-        } else {
-            addSunJceProvider();
         }
     }
 

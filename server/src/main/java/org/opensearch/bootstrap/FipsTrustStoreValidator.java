@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
@@ -126,7 +127,7 @@ public class FipsTrustStoreValidator {
         } catch (CertificateException e) {
             throw new IllegalStateException("Trust store contains invalid certificates: " + e.getMessage(), e);
         } catch (IOException e) {
-            throw new IllegalStateException("Cannot read trust store file (possibly wrong password): " + e.getMessage(), e);
+            throw new UncheckedIOException("Cannot read trust store file (possibly wrong password): " + e.getMessage(), e);
         } catch (Exception e) {
             throw new IllegalStateException("Trust store validation failed: " + e.getMessage(), e);
         }
@@ -147,7 +148,7 @@ public class FipsTrustStoreValidator {
                 throw new IllegalStateException("Trust store file is empty: " + trustStorePath);
             }
         } catch (IOException e) {
-            throw new IllegalStateException("Cannot access trust store file: " + e.getMessage(), e);
+            throw new UncheckedIOException("Cannot access trust store file: " + e.getMessage(), e);
         }
     }
 
