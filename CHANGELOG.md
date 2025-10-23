@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.1 to 3.4.2 ([#19605](https://github.com/opensearch-project/OpenSearch/pull/19605))
 - Bump `io.grpc` deps from 1.68.2 to 1.75.0 ([#19495](https://github.com/opensearch-project/OpenSearch/pull/19495))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.0.2 to 10.3 ([#19604](https://github.com/opensearch-project/OpenSearch/pull/19604))
+- Exclude commons-lang and org.jsonschema2pojo from hadoop-miniclusters  ([#19538](https://github.com/opensearch-project/OpenSearch/pull/19538))
 
 ### Deprecated
 
