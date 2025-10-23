@@ -42,7 +42,7 @@ import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toMap;
 
-public class MapsTests extends OpenSearchTestCase {
+public class LiveIndexWriterDeletesMapTests extends OpenSearchTestCase {
 
     public void testDeepEquals() {
         final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);

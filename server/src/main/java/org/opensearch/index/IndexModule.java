@@ -38,6 +38,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.util.Constants;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -76,6 +78,7 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
 import org.opensearch.index.store.FsDirectoryFactory;
@@ -97,6 +100,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -837,7 +841,18 @@ public final class IndexModule {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
             }
         }
-        return factory;
+
+        return new IndexStorePlugin.DirectoryFactory() {
+            @Override
+            public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+                return new BucketedCompositeDirectory(factory.newDirectory(indexSettings, shardPath));
+            }
+
+            @Override
+            public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+                return factory.newFSDirectory(location, lockFactory, indexSettings);
+            }
+        };
     }
 
     private static IndexStorePlugin.CompositeDirectoryFactory getCompositeDirectoryFactory(

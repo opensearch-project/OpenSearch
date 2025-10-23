@@ -9,6 +9,7 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.index.shard.ShardId;
@@ -25,6 +26,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -54,6 +56,11 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         this.repositoriesService = repositoriesService;
         this.segmentsPathFixedPrefix = segmentsPathFixedPrefix;
         this.threadPool = threadPool;
+    }
+
+    @Override
+    public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+        return null;
     }
 
     @Override

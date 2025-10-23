@@ -175,6 +175,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING,
                 IndexSettings.INDEX_GC_DELETES_SETTING,
                 IndexSettings.INDEX_SOFT_DELETES_SETTING,
+                IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING,
+                IndexSettings.INDEX_MAX_RETRY_ON_LOOKUP_MAP_LOCK_ACQUISITION_EXCEPTION,
                 IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING,
                 IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING,
                 IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,

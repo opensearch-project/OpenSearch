@@ -43,6 +43,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -125,6 +126,7 @@ import org.opensearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -314,7 +316,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
         );
 
         final IndexService indexService = newIndexService(module);
-        assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
+        assertThat(indexService.getDirectoryFactory(), instanceOf(IndexStorePlugin.DirectoryFactory.class));
 
         indexService.close("simon says", false);
     }
@@ -821,6 +823,11 @@ public class IndexModuleTests extends OpenSearchTestCase {
         public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
             return new FsDirectoryFactory().newDirectory(indexSettings, shardPath);
         }
+
+        @Override
+        public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+            return null;
+        }
     }
 
     public static final class Wrapper implements CheckedFunction<DirectoryReader, DirectoryReader, IOException> {
@@ -838,9 +845,10 @@ public class IndexModuleTests extends OpenSearchTestCase {
             Directory directory,
             ShardLock shardLock,
             Store.OnClose onClose,
-            ShardPath shardPath
+            ShardPath shardPath,
+            IndexStorePlugin.DirectoryFactory directoryFactory
         ) throws IOException {
-            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath);
+            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory);
         }
     }
 }

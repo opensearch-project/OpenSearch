@@ -26,6 +26,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -67,6 +68,7 @@ public class SubdirectoryAwareStore extends Store {
      * @param shardLock the shard lock
      * @param onClose the on close callback
      * @param shardPath the shard path
+     * @param directoryFactory the directory factory
      */
     public SubdirectoryAwareStore(
         ShardId shardId,
@@ -74,9 +76,18 @@ public class SubdirectoryAwareStore extends Store {
         Directory directory,
         ShardLock shardLock,
         OnClose onClose,
-        ShardPath shardPath
+        ShardPath shardPath,
+        IndexStorePlugin.DirectoryFactory directoryFactory
     ) {
-        super(shardId, indexSettings, new SubdirectoryAwareDirectory(directory, shardPath), shardLock, onClose, shardPath);
+        super(
+            shardId,
+            indexSettings,
+            new SubdirectoryAwareDirectory(directory, shardPath),
+            shardLock,
+            onClose,
+            shardPath,
+            directoryFactory
+        );
     }
 
     @Override

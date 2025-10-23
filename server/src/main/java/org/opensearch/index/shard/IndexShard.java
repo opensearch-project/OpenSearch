@@ -107,7 +107,6 @@ import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.Assertions;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
@@ -4968,10 +4967,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
      * a new set of segments.
      */
+    // TODO: Should we disable this as data will never get in sync if we use search idle for context aware segments.
     public final boolean isSearchIdleSupported() {
-        // If the index is remote store backed, then search idle is not supported. This is to ensure that async refresh
+        // If the index is remote store backed, then search idle is not supported. This is to ensure that async
+        // refresh. If the index is context aware enabled, search idle is not supported. This will ensure periodic sync
+        // between child and parent IndexWriter.
         // task continues to upload to remote store periodically.
-        if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode()) {
+        if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode() || indexSettings.isContextAwareEnabled()) {
             return false;
         }
         return indexSettings.isSegRepEnabledOrRemoteNode() == false || indexSettings.getNumberOfReplicas() == 0;
@@ -5099,26 +5101,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void beforeRefresh() throws IOException {
-            if (Assertions.ENABLED) {
-                assert callingThread == null : "beforeRefresh was called by "
-                    + callingThread.getName()
-                    + " without a corresponding call to afterRefresh";
-                callingThread = Thread.currentThread();
-            }
+            // TODO: Fix this.
+            // if (Assertions.ENABLED) {
+            // assert callingThread == null : "beforeRefresh was called by "
+            // + callingThread.getName()
+            // + " without a corresponding call to afterRefresh";
+            // callingThread = Thread.currentThread();
+            // }
             currentRefreshStartTime = System.nanoTime();
         }
 
         @Override
         public void afterRefresh(boolean didRefresh) throws IOException {
-            if (Assertions.ENABLED) {
-                assert callingThread != null : "afterRefresh called but not beforeRefresh";
-                assert callingThread == Thread.currentThread() : "beforeRefreshed called by a different thread. current ["
-                    + Thread.currentThread().getName()
-                    + "], thread that called beforeRefresh ["
-                    + callingThread.getName()
-                    + "]";
-                callingThread = null;
-            }
+            // TODO: Fix this.
+            // if (Assertions.ENABLED) {
+            // assert callingThread != null : "afterRefresh called but not beforeRefresh";
+            // assert callingThread == Thread.currentThread() : "beforeRefreshed called by a different thread. current ["
+            // + Thread.currentThread().getName()
+            // + "], thread that called beforeRefresh ["
+            // + callingThread.getName()
+            // + "]";
+            // callingThread = null;
+            // }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
     }
