@@ -444,6 +444,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
         this.store = store;
+
+        // Set the store on the adaptive merge policy provider if it exists
+        if (indexSettings.getAdaptiveTieredMergePolicyProvider() != null) {
+            indexSettings.getAdaptiveTieredMergePolicyProvider().setStore(store);
+        }
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
         this.threadPool = threadPool;
