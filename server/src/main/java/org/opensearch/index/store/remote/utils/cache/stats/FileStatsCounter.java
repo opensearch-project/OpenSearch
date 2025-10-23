@@ -125,6 +125,10 @@ public class FileStatsCounter<K, V> implements StatsCounter<K, V> {
         if (isFullFile(value)) fullFileStatsCounter.recordPinnedUsage(value, weight, shouldDecrease);
         else blockFileStatsCounter.recordPinnedUsage(value, weight, shouldDecrease);
         pinnedFileStatsCounter.recordPinnedUsage(value, weight, shouldDecrease);
+        if (shouldDecrease == false) {
+            pinnedFileStatsCounter.recordActiveUsage(value, weight, true, shouldDecrease);
+            pinnedFileStatsCounter.recordUsage(value, weight, true, shouldDecrease);
+        }
     }
 
     @Override
