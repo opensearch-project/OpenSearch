@@ -72,6 +72,7 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.ShardResultConvertor;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.filterrewrite.CompositeAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
@@ -100,7 +101,7 @@ import static org.opensearch.search.aggregations.bucket.filterrewrite.Aggregator
  *
  * @opensearch.internal
  */
-public final class CompositeAggregator extends BucketsAggregator {
+public final class CompositeAggregator extends BucketsAggregator implements ShardResultConvertor {
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
@@ -725,6 +726,61 @@ public final class CompositeAggregator extends BucketsAggregator {
                 }
             }
         };
+    }
+
+    @Override
+    public List<InternalAggregation> convert(Map<String, Object[]> shardResult) {
+        // Generate the composite keys
+        List<Comparable> currentCompositeKey = new ArrayList<>(sourceConfigs.length);
+        List<CompositeKey> compositeKeys = new ArrayList<>(shardResult.size());
+        for (int i = 0; i < shardResult.get(shardResult.keySet().stream().findFirst().get()).length; i++) {
+            for (CompositeValuesSourceConfig sourceConfig : sourceConfigs) {
+                if (sourceConfig.fieldType() == null) {
+                    throw new UnsupportedOperationException("Composite aggregation does not support script field types");
+                }
+                Object[] values = shardResult.get(sourceConfig.fieldType().name());
+                // TODO : Would require conversion for certain types,
+                currentCompositeKey.add((Comparable) values[i]);
+            }
+            compositeKeys.add(new CompositeKey(currentCompositeKey.toArray(new Comparable[0])));
+            currentCompositeKey.clear();
+        }
+        List<InternalComposite.InternalBucket> buckets = new ArrayList<>();
+        int row = 0;
+        for (CompositeKey compositeKey : compositeKeys) {
+            List<InternalAggregation> subAggs = new ArrayList<>();
+            for (Aggregator subAgg : subAggregators) {
+                if (subAgg instanceof ShardResultConvertor == false) {
+                    throw new UnsupportedOperationException(String.format("Aggregation [%s] doesn't support shard result conversion Impl [%s]", subAgg.name(), subAgg.getClass().getName()));
+                }
+                ShardResultConvertor convertor = (ShardResultConvertor) subAgg;
+                subAggs.add(convertor.convertRow(shardResult, row));
+            }
+            buckets.add(new InternalComposite.InternalBucket(
+                sourceNames,
+                formats,
+                compositeKey,
+                reverseMuls,
+                missingOrders,
+                1,
+                InternalAggregations.from(subAggs)
+            ));
+            row++;
+        }
+        CompositeKey lastBucket = buckets.isEmpty() ? null : buckets.getLast().getRawKey();
+        return List.of(
+            new InternalComposite(
+                name,
+                size,
+                sourceNames,
+                formats,
+                buckets,
+                lastBucket,
+                reverseMuls,
+                missingOrders,
+                earlyTerminated,
+                metadata()
+            ));
     }
 
     /**

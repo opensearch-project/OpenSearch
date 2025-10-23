@@ -324,6 +324,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
         }
         executeRequest(task, searchRequest, this::searchAsyncAction, listener);
+        logger.info("Search request received is {}", searchRequest.source());
     }
 
     /**
