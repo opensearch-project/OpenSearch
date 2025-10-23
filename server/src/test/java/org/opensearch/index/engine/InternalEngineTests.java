@@ -552,13 +552,13 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testSegmentsStatsIncludingFileSizes() throws Exception {
         try (Store store = createStore(); Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
-            assertThat(engine.segmentsStats(true, false).getFileSizes().size(), equalTo(0));
+            assertThat(engine.segmentsStats(true, false, false).getFileSizes().size(), equalTo(0));
 
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
             engine.index(indexForDoc(doc));
             engine.refresh("test");
 
-            SegmentsStats stats = engine.segmentsStats(true, false);
+            SegmentsStats stats = engine.segmentsStats(true, false, false);
             assertThat(stats.getFileSizes().size(), greaterThan(0));
             assertThat(() -> stats.getFileSizes().values().iterator(), everyItem(greaterThan(0L)));
 
@@ -568,7 +568,10 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(indexForDoc(doc2));
             engine.refresh("test");
 
-            assertThat(engine.segmentsStats(true, false).getFileSizes().get(firstEntry.getKey()), greaterThan(firstEntry.getValue()));
+            assertThat(
+                engine.segmentsStats(true, false, false).getFileSizes().get(firstEntry.getKey()),
+                greaterThan(firstEntry.getValue())
+            );
         }
     }
 
@@ -5091,7 +5094,10 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint::get
         );
         try (Store store = createStore(newFSDirectory(storeDir)); Engine engine = createEngine(configSupplier.apply(store))) {
-            assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
+            assertEquals(
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                engine.segmentsStats(false, false, false).getMaxUnsafeAutoIdTimestamp()
+            );
             final ParsedDocument doc = testParsedDocument(
                 "1",
                 null,
@@ -5100,13 +5106,16 @@ public class InternalEngineTests extends EngineTestCase {
                 null
             );
             engine.index(appendOnlyPrimary(doc, true, timestamp1));
-            assertEquals(timestamp1, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
+            assertEquals(timestamp1, engine.segmentsStats(false, false, false).getMaxUnsafeAutoIdTimestamp());
         }
         try (Store store = createStore(newFSDirectory(storeDir)); InternalEngine engine = new InternalEngine(configSupplier.apply(store))) {
-            assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
+            assertEquals(
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                engine.segmentsStats(false, false, false).getMaxUnsafeAutoIdTimestamp()
+            );
             TranslogHandler translogHandler = createTranslogHandler(configSupplier.apply(store).getIndexSettings(), engine);
             engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
-            assertEquals(timestamp1, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
+            assertEquals(timestamp1, engine.segmentsStats(false, false, false).getMaxUnsafeAutoIdTimestamp());
             final ParsedDocument doc = testParsedDocument(
                 "1",
                 null,
@@ -5115,7 +5124,7 @@ public class InternalEngineTests extends EngineTestCase {
                 null
             );
             engine.index(appendOnlyPrimary(doc, true, timestamp2, false));
-            assertEquals(maxTimestamp12, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
+            assertEquals(maxTimestamp12, engine.segmentsStats(false, false, false).getMaxUnsafeAutoIdTimestamp());
             globalCheckpoint.set(1); // make sure flush cleans up commits for later.
             engine.flush();
         }
@@ -5130,7 +5139,7 @@ public class InternalEngineTests extends EngineTestCase {
                 store.associateIndexWithNewTranslog(translogUUID);
             }
             try (Engine engine = new InternalEngine(configSupplier.apply(store))) {
-                assertEquals(maxTimestamp12, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
+                assertEquals(maxTimestamp12, engine.segmentsStats(false, false, false).getMaxUnsafeAutoIdTimestamp());
             }
         }
     }

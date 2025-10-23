@@ -1579,8 +1579,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mergeStats;
     }
 
-    public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
-        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
+    public SegmentsStats segmentStats(
+        boolean includeSegmentFileSizes,
+        boolean includeUnloadedSegments,
+        boolean includeFieldLevelSegmentFileSizes
+    ) {
+        SegmentsStats segmentsStats = getEngine().segmentsStats(
+            includeSegmentFileSizes,
+            includeUnloadedSegments,
+            includeFieldLevelSegmentFileSizes
+        );
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         // Populate remote_store stats only if the index is remote store backed
         if (indexSettings().isAssignedOnRemoteNode()) {
