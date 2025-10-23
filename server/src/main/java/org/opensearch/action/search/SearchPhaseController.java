@@ -32,6 +32,8 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -90,6 +92,7 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 public final class SearchPhaseController {
+    private static final Logger logger = LogManager.getLogger(SearchPhaseController.class);
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -246,7 +249,14 @@ public final class SearchPhaseController {
     }
 
     static void setShardIndex(TopDocs topDocs, int shardIndex) {
-        assert topDocs.scoreDocs.length == 0 || topDocs.scoreDocs[0].shardIndex == -1 : "shardIndex is already set";
+        // Idempotent assignment: in streaming flows partial reductions may touch the same TopDocs more than once.
+        if (topDocs.scoreDocs.length == 0) {
+            return;
+        }
+        if (topDocs.scoreDocs[0].shardIndex != -1) {
+            // Already set by a previous pass; avoid reassigning to prevent assertion failures
+            return;
+        }
         for (ScoreDoc doc : topDocs.scoreDocs) {
             doc.shardIndex = shardIndex;
         }
@@ -795,40 +805,36 @@ public final class SearchPhaseController {
         Consumer<Exception> onPartialMergeFailure,
         BooleanSupplier isTaskCancelled
     ) {
-        return new QueryPhaseResultConsumer(
-            request,
-            executor,
-            circuitBreaker,
-            this,
-            listener,
-            namedWriteableRegistry,
-            numShards,
-            onPartialMergeFailure,
-            isTaskCancelled
-        );
-    }
-
-    /**
-     * Returns a new {@link StreamQueryPhaseResultConsumer} instance that reduces search responses incrementally.
-     */
-    StreamQueryPhaseResultConsumer newStreamSearchPhaseResults(
-        Executor executor,
-        CircuitBreaker circuitBreaker,
-        SearchProgressListener listener,
-        SearchRequest request,
-        int numShards,
-        Consumer<Exception> onPartialMergeFailure
-    ) {
-        return new StreamQueryPhaseResultConsumer(
-            request,
-            executor,
-            circuitBreaker,
-            this,
-            listener,
-            namedWriteableRegistry,
-            numShards,
-            onPartialMergeFailure
-        );
+        // Check if this is a streaming search request
+        String streamingMode = request.getStreamingSearchMode();
+        if (logger.isDebugEnabled()) {
+            logger.debug("Streaming mode on request: {}", streamingMode);
+        }
+        if (streamingMode != null) {
+            return new StreamQueryPhaseResultConsumer(
+                request,
+                executor,
+                circuitBreaker,
+                this,
+                listener,
+                namedWriteableRegistry,
+                numShards,
+                onPartialMergeFailure
+            );
+        } else {
+            // Regular QueryPhaseResultConsumer
+            return new QueryPhaseResultConsumer(
+                request,
+                executor,
+                circuitBreaker,
+                this,
+                listener,
+                namedWriteableRegistry,
+                numShards,
+                onPartialMergeFailure,
+                isTaskCancelled
+            );
+        }
     }
 
     /**

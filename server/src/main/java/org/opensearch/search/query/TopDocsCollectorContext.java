@@ -32,6 +32,8 @@
 
 package org.opensearch.search.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
@@ -72,6 +74,7 @@ import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
 import org.opensearch.common.util.CachedSupplier;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
@@ -99,6 +102,7 @@ import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_
  * @opensearch.internal
  */
 public abstract class TopDocsCollectorContext extends QueryCollectorContext implements RescoringQueryCollectorContext {
+    private static final Logger logger = LogManager.getLogger(TopDocsCollectorContext.class);
     protected final int numHits;
 
     TopDocsCollectorContext(String profilerName, int numHits) {
@@ -762,6 +766,58 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
     }
 
     /**
+     * Creates a streaming {@link TopDocsCollectorContext} for streaming search with scoring.
+     * This method routes to the appropriate streaming collector based on the search mode.
+     */
+    public static TopDocsCollectorContext createStreamingTopDocsCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
+        throws IOException {
+
+        // Get circuit breaker from search context
+        CircuitBreaker circuitBreaker = null;
+        try {
+            // Try to get REQUEST circuit breaker
+            if (searchContext.bigArrays() != null && searchContext.bigArrays().breakerService() != null) {
+                circuitBreaker = searchContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to get circuit breaker for streaming search", e);
+        }
+
+        if (circuitBreaker == null) {
+            logger.warn("No circuit breaker available for streaming search - memory protection disabled");
+        }
+
+        StreamingSearchMode mode = searchContext.getStreamingMode();
+        if (mode == null) {
+            throw new IllegalArgumentException("Streaming mode must be set for streaming collectors");
+        }
+
+        switch (mode) {
+            case NO_SCORING:
+                return new StreamingUnsortedCollectorContext("streaming_no_scoring", searchContext.size(), searchContext, circuitBreaker);
+            case SCORED_UNSORTED:
+                return new StreamingScoredUnsortedCollectorContext(
+                    "streaming_scored_unsorted",
+                    searchContext.size(),
+                    searchContext,
+                    circuitBreaker
+                );
+            case SCORED_SORTED:
+                SortAndFormats sortAndFormats = searchContext.sort();
+                Sort sort = (sortAndFormats != null) ? sortAndFormats.sort : Sort.RELEVANCE;
+                return new StreamingSortedCollectorContext(
+                    "streaming_scored_sorted",
+                    searchContext.size(),
+                    searchContext,
+                    sort,
+                    circuitBreaker
+                );
+            default:
+                throw new IllegalArgumentException("Unknown streaming mode: " + mode);
+        }
+    }
+
+    /**
      * Returns query total hit count if the <code>query</code> is a {@link MatchAllDocsQuery}
      * or a {@link TermQuery} and the <code>reader</code> has no deletions,
      * -1 otherwise.
@@ -825,6 +881,12 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
      */
     public static TopDocsCollectorContext createTopDocsCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
         throws IOException {
+
+        // Check for streaming search first
+        if (searchContext.isStreamingSearch() && searchContext.getStreamingMode() != null) {
+            return createStreamingTopDocsCollectorContext(searchContext, hasFilterCollector);
+        }
+
         final IndexReader reader = searchContext.searcher().getIndexReader();
         final Query query = searchContext.query();
         // top collectors don't like a size of 0

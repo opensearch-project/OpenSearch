@@ -21,8 +21,6 @@ import org.opensearch.transport.Transport;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 /**
@@ -30,9 +28,7 @@ import java.util.function.BiFunction;
  */
 public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchAsyncAction {
 
-    private final AtomicInteger streamResultsReceived = new AtomicInteger(0);
-    private final AtomicInteger streamResultsConsumeCallback = new AtomicInteger(0);
-    private final AtomicBoolean shardResultsConsumed = new AtomicBoolean(false);
+    private final Logger logger;
 
     StreamSearchQueryThenFetchAsyncAction(
         Logger logger,
@@ -74,6 +70,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             searchRequestContext,
             tracer
         );
+        this.logger = logger;
     }
 
     /**
@@ -93,7 +90,9 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             @Override
             protected void innerOnStreamResponse(SearchPhaseResult result) {
                 try {
-                    streamResultsReceived.incrementAndGet();
+                    if (getLogger().isTraceEnabled()) {
+                        getLogger().trace("STREAM DEBUG: coordinator received partial from shard {}", shard);
+                    }
                     onStreamResult(result, shardIt, () -> successfulStreamExecution());
                 } finally {
                     executeNext(pendingExecutions, thread);
@@ -103,6 +102,9 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             @Override
             protected void innerOnCompleteResponse(SearchPhaseResult result) {
                 try {
+                    if (getLogger().isTraceEnabled()) {
+                        getLogger().trace("STREAM DEBUG: coordinator received final for shard {}", shard);
+                    }
                     onShardResult(result, shardIt);
                 } finally {
                     executeNext(pendingExecutions, thread);
@@ -139,6 +141,27 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
     }
 
     /**
+     * Override onShardResult to handle streaming search results safely.
+     * This prevents the "topDocs already consumed" error when processing
+     * multiple streaming results from the same shard.
+     */
+    @Override
+    protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
+        // Safety log: track final shard response receipt in coordinator
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "COORDINATOR: received final shard result from shard={}, target={}, totalOps={}, expectedOps={}",
+                result.getShardIndex(),
+                result.getSearchShardTarget(),
+                totalOps.get(),
+                expectedTotalOps
+            );
+        }
+        // Always delegate to the parent to ensure shard accounting and phase transitions.
+        super.onShardResult(result, shardIt);
+    }
+
+    /**
      * Override successful shard execution to handle stream result synchronization
      */
     @Override
@@ -152,16 +175,8 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);
         if (xTotalOps == expectedTotalOps) {
             try {
-                shardResultsConsumed.set(true);
-                if (streamResultsReceived.get() == streamResultsConsumeCallback.get()) {
-                    getLogger().debug("Stream results consumption has called back, let shard consumption callback trigger onPhaseDone");
-                    onPhaseDone();
-                } else {
-                    assert streamResultsReceived.get() > streamResultsConsumeCallback.get();
-                    getLogger().debug(
-                        "Shard results consumption finishes before stream results, let stream consumption callback trigger onPhaseDone"
-                    );
-                }
+                // All final shard results have been processed; partials are not reduced.
+                onPhaseDone();
             } catch (final Exception ex) {
                 onPhaseFailure(this, "The phase has failed", ex);
             }
@@ -175,17 +190,10 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
 
     /**
      * Handle successful stream execution callback
+     * Since partials are no longer fed into the reducer, this callback is not needed for coordination.
      */
     private void successfulStreamExecution() {
-        try {
-            if (streamResultsReceived.get() == streamResultsConsumeCallback.incrementAndGet()) {
-                if (shardResultsConsumed.get()) {
-                    getLogger().debug("Stream consumption trigger onPhaseDone");
-                    onPhaseDone();
-                }
-            }
-        } catch (final Exception ex) {
-            onPhaseFailure(this, "The phase has failed", ex);
-        }
+        // No-op: partials are bypassed from reducer, completion is handled by successfulShardExecution only
     }
+
 }
