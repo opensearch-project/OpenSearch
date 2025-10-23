@@ -925,11 +925,7 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
             7,
             false,
             false,
-<<<<<<< HEAD
             new Lucene104Codec(),
-=======
-            new Lucene103Codec(),
->>>>>>> feature/3.x-lucene
             new HashMap<>(),
             UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
             new HashMap<>(),

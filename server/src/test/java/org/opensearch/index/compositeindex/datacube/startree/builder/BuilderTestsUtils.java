@@ -580,11 +580,7 @@ public class BuilderTestsUtils {
             numDocs,
             false,
             false,
-<<<<<<< HEAD
             new Lucene104Codec(),
-=======
-            new Lucene103Codec(),
->>>>>>> feature/3.x-lucene
             new HashMap<>(),
             id,
             new HashMap<>(),
