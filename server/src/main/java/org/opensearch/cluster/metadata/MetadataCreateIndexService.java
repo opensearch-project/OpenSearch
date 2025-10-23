@@ -757,8 +757,6 @@ public class MetadataCreateIndexService {
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards, currentState);
 
-        // buildServerSideEncryptionSetting(tmpImd, clusterService.getClusterSettings(), false);
-
         return applyCreateIndexWithTemporaryService(
             currentState,
             request,
@@ -781,23 +779,6 @@ public class MetadataCreateIndexService {
             metadataTransformer
         );
     }
-
-    // private void buildServerSideEncryptionSetting(IndexMetadata tmpImd, ClusterSettings clusterSettings, boolean isRestore) {
-    //
-    // if (isRestore)
-    // if (remoteStoreCustomMetadataResolver == null) {
-    // return;
-    // }
-    //
-    // Map<String, String> remoteCustomMetadata = tmpImd.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-    //
-    // String sseEnabledIndex = existingCustomData == null ? null : existingCustomData.get(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED);
-    // if (assertNullOldType || sseEnabledIndex != null) {
-    //
-    // }
-    // remoteCustomData.put(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, Boolean.toString(true));
-    //
-    // }
 
     private ClusterState applyCreateIndexRequestWithV2Template(
         final ClusterState currentState,
