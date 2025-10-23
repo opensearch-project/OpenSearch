@@ -671,34 +671,8 @@ public final class IndexModule {
         RemoteStoreSettings remoteStoreSettings,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) throws IOException {
-        return newIndexService(
-            indexCreationContext,
-            environment,
-            xContentRegistry,
-            shardStoreDeleter,
-            circuitBreakerService,
-            bigArrays,
-            threadPool,
-            scriptService,
-            clusterService,
-            client,
-            indicesQueryCache,
-            mapperRegistry,
-            indicesFieldDataCache,
-            namedWriteableRegistry,
-            idFieldDataEnabled,
-            valuesSourceRegistry,
-            remoteDirectoryFactory,
-            translogFactorySupplier,
-            clusterDefaultRefreshIntervalSupplier,
-            fixedRefreshIntervalSchedulingEnabled,
-            shardLevelRefreshEnabled,
-            recoverySettings,
-            remoteStoreSettings,
-            (s) -> {},
-            shardId -> ReplicationStats.empty(),
-            clusterDefaultMaxMergeAtOnceSupplier,
-            null
+        throw new UnsupportedOperationException(
+            "This API is removed in OpenSearch version 3.4.0. " + "Use the new overloaded newIndexService() method instead."
         );
     }
 
@@ -730,34 +704,8 @@ public final class IndexModule {
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) throws IOException {
-        return newIndexService(
-            indexCreationContext,
-            environment,
-            xContentRegistry,
-            shardStoreDeleter,
-            circuitBreakerService,
-            bigArrays,
-            threadPool,
-            scriptService,
-            clusterService,
-            client,
-            indicesQueryCache,
-            mapperRegistry,
-            indicesFieldDataCache,
-            namedWriteableRegistry,
-            idFieldDataEnabled,
-            valuesSourceRegistry,
-            remoteDirectoryFactory,
-            translogFactorySupplier,
-            clusterDefaultRefreshIntervalSupplier,
-            fixedRefreshIntervalSchedulingEnabled,
-            shardLevelRefreshEnabled,
-            recoverySettings,
-            remoteStoreSettings,
-            replicator,
-            segmentReplicationStatsProvider,
-            clusterDefaultMaxMergeAtOnceSupplier,
-            null
+        throw new UnsupportedOperationException(
+            "This API is removed in OpenSearch version 3.4.0. " + "Use the new overloaded newIndexService() method instead."
         );
     }
 
