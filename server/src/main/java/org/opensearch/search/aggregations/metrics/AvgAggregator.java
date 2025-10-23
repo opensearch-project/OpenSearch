@@ -49,6 +49,7 @@ import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.ShardResultConvertor;
@@ -61,6 +62,7 @@ import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -285,8 +287,15 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
         Object[] sums = shardResult.get(name + "_sum");
         List<InternalAggregation> results = new ArrayList<>(counts.length);
         for (int i = 0; i < counts.length; i++) {
-            results.add(new InternalAvg(name, (Long) counts[i], (Long) sums[i], format, metadata()));
+            results.add(new InternalAvg(name, (Long) sums[i], (Long) counts[i], format, metadata()));
         }
         return results;
+    }
+
+    @Override
+    public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row) {
+        Object[] counts = shardResult.get(name + "_count");
+        Object[] sums = shardResult.get(name + "_sum");
+        return new InternalAvg(name, (Long) counts[row], (Long) sums[row], format, metadata());
     }
 }

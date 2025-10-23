@@ -80,6 +80,7 @@ public class DatafusionContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private final BigArrays bigArrays;
     private final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
+    private final SearchContext originalContext;
 
     /**
      * Constructor
@@ -94,7 +95,8 @@ public class DatafusionContext extends SearchContext {
         SearchShardTarget searchShardTarget,
         SearchShardTask task,
         DatafusionEngine engine,
-        BigArrays bigArrays) {
+        BigArrays bigArrays,
+        SearchContext originalContext) {
         this.readerContext = readerContext;
         this.indexShard = readerContext.indexShard();
         this.request = request;
@@ -113,6 +115,7 @@ public class DatafusionContext extends SearchContext {
             false // specific to lucene
         );
         this.bigArrays = bigArrays;
+        this.originalContext = originalContext;
     }
 
     /**
@@ -121,6 +124,11 @@ public class DatafusionContext extends SearchContext {
      */
     public DatafusionEngine readEngine() {
         return readEngine;
+    }
+
+    @Override
+    public SearchContext getOriginalContext() {
+        return originalContext;
     }
 
     /**

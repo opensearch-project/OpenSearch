@@ -151,11 +151,11 @@ public class QueryPhase {
         }
 
         // Keeping AggregationProcessor and preProcess uncommented since it builds aggregation nesting
-        final AggregationProcessor aggregationProcessor = queryPhaseSearcher.aggregationProcessor(searchContext);
+        final AggregationProcessor aggregationProcessor = queryPhaseSearcher.aggregationProcessor(searchContext.getOriginalContext());
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
-        aggregationProcessor.preProcess(searchContext);
+        aggregationProcessor.preProcess(searchContext.getOriginalContext());
 
         searchContext.queryResult()
             .topDocs(
