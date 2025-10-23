@@ -69,9 +69,6 @@ public class RemoteStoreNodeAttribute {
 
     public static final String REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT = "%s.repository.%s.type";
 
-    public static final String REPOSITORY_SERVER_SIDE_ENCRYPTION_ATTRIBUTE_KEY_FORMAT =
-        REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX + "server_side_encryption_kms_key_id";
-
     public static final String REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT = "%s.repository.%s." + CryptoMetadata.CRYPTO_METADATA_KEY;
     public static final String REPOSITORY_CRYPTO_SETTINGS_PREFIX = REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT
         + "."
@@ -252,15 +249,6 @@ public class RemoteStoreNodeAttribute {
         }
         return false;
     }
-
-    // public static boolean isServerSideEncryptionEnabled(Settings settings) {
-    // for (String metadataKey : settings.keySet()) {
-    // if (metadataKey.equals(REPOSITORY_METADATA_SERVER_SIDE_ENCRYPTION_ENABLED_KEY) && settings.getAsBoolean(metadataKey, false)) {
-    // return true;
-    // }
-    // }
-    // return false;
-    // }
 
     public static boolean isRemoteDataAttributePresent(Settings settings) {
         return isSegmentRepoConfigured(settings) || isTranslogRepoConfigured(settings);
