@@ -145,6 +145,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             int numDocs = randomIntBetween(10, 20);
             shards.indexDocs(numDocs);
             primaryShard.refresh("test");
+            primaryShard.awaitRemoteStoreSync();
             flushShard(primaryShard);
             replicateSegments(primaryShard, List.of(replicaShard));
 
@@ -394,6 +395,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             int numDocs = randomIntBetween(10, 20);
             shards.indexDocs(numDocs);
             primary.refresh("test");
+            primary.awaitRemoteStoreSync();
             replicateSegments(primary, List.of(replica));
 
             replicaTuple = replica.getLatestSegmentInfosAndCheckpoint();
@@ -494,6 +496,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.refresh("Test");
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+            primaryShard.awaitRemoteStoreSync();
             replicateSegments(primaryShard, shards.getReplicas());
 
             IndexShard spyShard = spy(replicaShard);
@@ -507,10 +510,12 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+            primaryShard.awaitRemoteStoreSync();
             replicateSegments(primaryShard, shards.getReplicas());
 
             // Step 3. Perform force merge down to 1 segment on primary
             primaryShard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
+            primaryShard.awaitRemoteStoreSync();
             logger.info("--> primary store after force merge {}", Arrays.toString(primaryShard.store().directory().listAll()));
             // Perform close on searcher before IndexShard::finalizeReplication
             doAnswer(n -> {
@@ -543,6 +548,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.refresh("Test");
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+            primaryShard.awaitRemoteStoreSync();
             replicateSegments(primaryShard, shards.getReplicas());
             shards.assertAllEqual(numDocs);
 
@@ -554,6 +560,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
             logger.info("--> primary store after final flush {}", Arrays.toString(primaryShard.store().directory().listAll()));
+            primaryShard.awaitRemoteStoreSync();
 
             // Step 3. Before replicating segments, block finalizeReplication and perform engine commit directly that
             // cleans up recently copied over files
@@ -587,6 +594,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             // invoke scheduledRefresh, returns true if refresh is immediately invoked.
             assertTrue(primary.scheduledRefresh());
+            primary.awaitRemoteStoreSync();
+
             // replica would always return false here as there is no indexed doc to refresh on.
             assertFalse(replica.scheduledRefresh());
 
@@ -631,6 +640,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final IndexShard primary = shards.getPrimary();
             shards.indexDocs(randomIntBetween(1, 10));
             validateShardIdleWithNoReplicas(primary);
+            primary.awaitRemoteStoreSync();
         }
     }
 
@@ -888,6 +898,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final IndexShard replicaSpy = spy(replica);
 
             primary.refresh("Test");
+            primary.awaitRemoteStoreSync();
 
             doThrow(AlreadyClosedException.class).when(replicaSpy).finalizeReplication(any());
 
