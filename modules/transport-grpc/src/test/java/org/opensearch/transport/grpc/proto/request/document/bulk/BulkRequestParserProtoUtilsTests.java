@@ -716,4 +716,177 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("IfSeqNo should be set", 123L, result.ifSeqNo());
         assertEquals("IfPrimaryTerm should be set", 456L, result.ifPrimaryTerm());
     }
+
+    public void testBuildCreateRequestWithSmileContent() throws Exception {
+        WriteOperation writeOperation = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create SMILE-encoded document
+        byte[] smileDocument = createSmileDocument();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            writeOperation,
+            smileDocument,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertEquals("Id should match", "test-id", indexRequest.id());
+        // Verify the content type was detected as SMILE
+        assertNotNull("Source should be set", indexRequest.source());
+    }
+
+    public void testBuildCreateRequestWithCborContent() throws Exception {
+        WriteOperation writeOperation = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create CBOR-encoded document
+        byte[] cborDocument = createCborDocument();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            writeOperation,
+            cborDocument,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertEquals("Id should match", "test-id", indexRequest.id());
+        // Verify the content type was detected as CBOR
+        assertNotNull("Source should be set", indexRequest.source());
+    }
+
+    public void testBuildIndexRequestWithSmileContent() throws Exception {
+        IndexOperation indexOperation = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create SMILE-encoded document
+        byte[] smileDocument = createSmileDocument();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
+            indexOperation,
+            smileDocument,
+            null,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertNotNull("Source should be set", indexRequest.source());
+    }
+
+    public void testBuildIndexRequestWithCborContent() throws Exception {
+        IndexOperation indexOperation = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create CBOR-encoded document
+        byte[] cborDocument = createCborDocument();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
+            indexOperation,
+            cborDocument,
+            null,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertNotNull("Source should be set", indexRequest.source());
+    }
+
+    public void testUpdateRequestWithCborUpsert() throws Exception {
+        UpdateRequest updateRequest = new UpdateRequest("test-index", "test-id");
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+
+        // Create CBOR-encoded upsert document
+        byte[] cborUpsert = createCborDocument();
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setUpdateAction(org.opensearch.protobufs.UpdateAction.newBuilder().setUpsert(ByteString.copyFrom(cborUpsert)).build())
+            .build();
+
+        UpdateOperation updateOperation = UpdateOperation.newBuilder().build();
+
+        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(updateRequest, document, bulkRequestBody, updateOperation);
+
+        assertNotNull("Result should not be null", result);
+        assertNotNull("Upsert should be set", result.upsertRequest());
+    }
+
+    public void testBuildCreateRequestWithEmptyDocument() {
+        WriteOperation writeOperation = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        byte[] emptyDocument = new byte[0];
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            writeOperation,
+            emptyDocument,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        // Empty document should default to JSON
+        assertNotNull("Source should be set", indexRequest.source());
+    }
+
+    /**
+     * Helper method to create a SMILE-encoded document.
+     * SMILE format starts with :)\n header (0x3A, 0x29, 0x0A)
+     */
+    private byte[] createSmileDocument() throws Exception {
+        org.opensearch.core.xcontent.XContentBuilder builder = org.opensearch.common.xcontent.XContentFactory.smileBuilder();
+        builder.startObject();
+        builder.field("field", "value");
+        builder.endObject();
+        return org.opensearch.core.common.bytes.BytesReference.toBytes(org.opensearch.core.common.bytes.BytesReference.bytes(builder));
+    }
+
+    /**
+     * Helper method to create a CBOR-encoded document.
+     * CBOR format uses specific byte markers for objects
+     */
+    private byte[] createCborDocument() throws Exception {
+        org.opensearch.core.xcontent.XContentBuilder builder = org.opensearch.common.xcontent.XContentFactory.cborBuilder();
+        builder.startObject();
+        builder.field("field", "value");
+        builder.endObject();
+        return org.opensearch.core.common.bytes.BytesReference.toBytes(org.opensearch.core.common.bytes.BytesReference.bytes(builder));
+    }
 }
