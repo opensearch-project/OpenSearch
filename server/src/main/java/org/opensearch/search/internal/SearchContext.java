@@ -199,6 +199,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract void highlight(SearchHighlightContext highlight);
 
+    public SearchContext getOriginalContext() {
+        return this;
+    }
+
     public InnerHitsContext innerHits() {
         if (innerHitsContext == null) {
             innerHitsContext = new InnerHitsContext();

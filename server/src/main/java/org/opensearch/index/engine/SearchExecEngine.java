@@ -45,7 +45,7 @@ public abstract class SearchExecEngine<C extends SearchContext, S extends Engine
     /**
      * Create a search context for this engine
      */
-    public abstract C createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays) throws IOException;
+    public abstract C createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext) throws IOException;
 
     /**
      * execute

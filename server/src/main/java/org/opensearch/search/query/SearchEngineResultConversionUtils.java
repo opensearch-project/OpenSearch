@@ -35,11 +35,11 @@ public class SearchEngineResultConversionUtils {
                 List<Aggregator> aggregators = new ArrayList<>();
 
                 if (searchContext.aggregations().factories().hasGlobalAggregator()) {
-                    aggregators.addAll(searchContext.aggregations().factories().createTopLevelGlobalAggregators(searchContext));
+                    aggregators.addAll(searchContext.aggregations().factories().createTopLevelGlobalAggregators(searchContext.getOriginalContext()));
                 }
 
                 if (searchContext.aggregations().factories().hasNonGlobalAggregator()) {
-                    aggregators.addAll(searchContext.aggregations().factories().createTopLevelNonGlobalAggregators(searchContext));
+                    aggregators.addAll(searchContext.aggregations().factories().createTopLevelNonGlobalAggregators(searchContext.getOriginalContext()));
                 }
 
                 List<ShardResultConvertor> shardResultConvertors = aggregators.stream().map(x -> {

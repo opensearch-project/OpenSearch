@@ -8,11 +8,23 @@
 
 package org.opensearch.search.aggregations;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public interface ShardResultConvertor {
 
-    List<InternalAggregation> convert(Map<String, Object[]> shardResult);
+    default List<InternalAggregation> convert(Map<String, Object[]> shardResult) {
+        int rows = shardResult.entrySet().stream().findFirst().get().getValue().length;
+        List<InternalAggregation> internalAggregations = new ArrayList<>();
+        for (int i = 0; i < rows; i++) {
+            internalAggregations.add(convertRow(shardResult, i));
+        }
+        return internalAggregations;
+    }
+
+    default InternalAggregation convertRow(Map<String, Object[]> shardResult, int row) {
+        throw new UnsupportedOperationException("Row conversion not supported");
+    }
 
 }
