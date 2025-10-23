@@ -98,6 +98,9 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         given:
         file('someFile.txt') << "some content"
 
+        testProjectDir.newFolder("consumer")
+        testProjectDir.newFolder("producer-tar")
+
         settingsFile << """
             include ':consumer'
             include ':producer-tar'

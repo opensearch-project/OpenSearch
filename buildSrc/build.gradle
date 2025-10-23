@@ -133,6 +133,14 @@ dependencies {
   integTestImplementation('org.spockframework:spock-core:2.4-M6-groovy-4.0') {
     exclude module: "groovy"
   }
+  // Integration with JUnit 4 features for Spock 2+ (which internally uses JUnit Platform -
+  // part of JUnit 5) - https://spockframework.org/spock/docs/2.4-M6/modules.html
+  integTestImplementation('org.spockframework:spock-junit4:2.4-M6-groovy-4.0') {
+    exclude module: "groovy"
+  }
+  integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
+  integTestRuntimeOnly("org.junit.platform:junit-platform-launcher")
+  integTestRuntimeOnly("org.junit.vintage:junit-vintage-engine")
 }
 
 configurations.all {
@@ -253,6 +261,7 @@ if (project != rootProject) {
   }
 
   tasks.register("integTest", Test) {
+    useJUnitPlatform()
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
     onlyIf { org.opensearch.gradle.info.BuildParams.inFipsJvm == false }
