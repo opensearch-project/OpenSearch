@@ -32,6 +32,7 @@
 package org.opensearch.action.admin.indices.mapping.put;
 
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -39,6 +40,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataMappingService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -55,7 +57,9 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportAutoPutMappingAction extends TransportClusterManagerNodeAction<PutMappingRequest, AcknowledgedResponse> {
+public class TransportAutoPutMappingAction extends TransportClusterManagerNodeAction<PutMappingRequest, AcknowledgedResponse>
+    implements
+        TransportIndicesResolvingAction<PutMappingRequest> {
 
     private final MetadataMappingService metadataMappingService;
 
@@ -116,4 +120,8 @@ public class TransportAutoPutMappingAction extends TransportClusterManagerNodeAc
         TransportPutMappingAction.performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
     }
 
+    @Override
+    public ResolvedIndices resolveIndices(PutMappingRequest request) {
+        return ResolvedIndices.of(request.getConcreteIndex());
+    }
 }

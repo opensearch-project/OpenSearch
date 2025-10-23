@@ -65,14 +65,18 @@ public interface PainlessScript {
     /**
      * Adds stack trace and other useful information to exceptions thrown
      * from a Painless script.
-     * @param t The throwable to build an exception around.
+     * @param originalThrowable The throwable to build an exception around.
      * @return The generated ScriptException.
      */
-    default ScriptException convertToScriptException(Throwable t, Map<String, List<String>> extraMetadata) {
+    default ScriptException convertToScriptException(Throwable originalThrowable, Map<String, List<String>> extraMetadata) {
+        final Throwable unwrapped = switch (originalThrowable) {
+            case DefBootstrap.WrappedCheckedException w -> w.getCause();
+            default -> originalThrowable;
+        };
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         ScriptException.Position pos = null;
-        for (StackTraceElement element : t.getStackTrace()) {
+        for (StackTraceElement element : unwrapped.getStackTrace()) {
             if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
                 // found the script portion
                 int originalOffset = element.getLineNumber();
@@ -106,7 +110,14 @@ public interface PainlessScript {
                 scriptStack.add(element.toString());
             }
         }
-        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, getName(), PainlessScriptEngine.NAME, pos);
+        ScriptException scriptException = new ScriptException(
+            "runtime error",
+            unwrapped,
+            scriptStack,
+            getName(),
+            PainlessScriptEngine.NAME,
+            pos
+        );
         for (Map.Entry<String, List<String>> entry : extraMetadata.entrySet()) {
             scriptException.addMetadata(entry.getKey(), entry.getValue());
         }

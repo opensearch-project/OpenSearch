@@ -54,6 +54,7 @@ public final class StackCallerProtectionDomainChainExtractor implements Function
             .map(StackFrame::getDeclaringClass)
             .map(Class::getProtectionDomain)
             .filter(pd -> pd.getCodeSource() != null) // Filter out JDK classes
+            .filter(pd -> !"jrt".equals(pd.getCodeSource().getLocation().getProtocol())) // Filter out codesources beginning with jrt:
             .collect(Collectors.toSet());
     }
 }

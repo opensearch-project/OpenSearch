@@ -37,12 +37,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
@@ -67,7 +69,9 @@ import java.util.Collections;
  *
  * @opensearch.internal
  */
-public class TransportCloseIndexAction extends TransportClusterManagerNodeAction<CloseIndexRequest, CloseIndexResponse> {
+public class TransportCloseIndexAction extends TransportClusterManagerNodeAction<CloseIndexRequest, CloseIndexResponse>
+    implements
+        TransportIndicesResolvingAction<CloseIndexRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportCloseIndexAction.class);
 
@@ -159,7 +163,7 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
         final ClusterState state,
         final ActionListener<CloseIndexResponse> listener
     ) throws Exception {
-        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        final Index[] concreteIndices = resolveIndices(state, request).concreteIndicesAsArray();
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
             return;
@@ -175,6 +179,15 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
             logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
             delegatedListener.onFailure(t);
         }));
+    }
+
+    private ResolvedIndices.Local.Concrete resolveIndices(ClusterState state, CloseIndexRequest request) {
+        return indexNameExpressionResolver.concreteResolvedIndices(state, request);
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(CloseIndexRequest request) {
+        return ResolvedIndices.of(resolveIndices(clusterService.state(), request));
     }
 
     /**
