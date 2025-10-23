@@ -421,6 +421,7 @@ public abstract class ValuesSource {
      *
      * @opensearch.internal
      */
+    @PublicApi(since = "1.0.0")
     public abstract static class Numeric extends ValuesSource {
 
         public static final Numeric EMPTY = new Numeric() {
