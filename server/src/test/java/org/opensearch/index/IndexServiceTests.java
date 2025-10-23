@@ -645,7 +645,9 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey(), true))
+            .setTransientSettings(
+                Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            )
             .get();
 
         final Index srIndex = indexService.index();
@@ -673,7 +675,9 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey()))
+            .setTransientSettings(
+                Settings.builder().putNull(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey())
+            )
             .get();
 
         // test we can update the publishReferencedSegmentsInterval

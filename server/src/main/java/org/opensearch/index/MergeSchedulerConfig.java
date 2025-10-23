@@ -356,7 +356,7 @@ public final class MergeSchedulerConfig {
         if (MAX_MERGE_COUNT_SETTING == null || MAX_MERGE_COUNT_SETTING.exists(settings) == true || clusterMaxThreadCountDefault == null) {
             return ClusterMergeSchedulerConfig.getClusterMaxThreadCountDefault(settings);
         }
-        return Integer.toString(clusterMaxThreadCountDefault); // Correct variable
+        return Integer.toString(clusterMaxThreadCountDefault);
     }
 
     private static String getDefaultMergeCount(Settings settings) {

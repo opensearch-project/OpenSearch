@@ -162,7 +162,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testMergedSegmentReplication() throws Exception {
         // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 1 replica shard.
         final RecoverySettings recoverySettings = new RecoverySettings(
-            Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         try (
@@ -208,7 +208,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             throw new RuntimeException("mock exception");
         });
         final RecoverySettings recoverySettings = new RecoverySettings(
-            Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         try (
@@ -251,7 +251,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testMergedSegmentReplicationWithZeroReplica() throws Exception {
         // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 0 replica shard.
         final RecoverySettings recoverySettings = new RecoverySettings(
-            Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         try (
@@ -286,7 +286,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     public void testCleanupRedundantPendingMergeSegment() throws Exception {
         final RecoverySettings recoverySettings = new RecoverySettings(
-            Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         try (

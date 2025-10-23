@@ -90,7 +90,7 @@ public class RecoverySettings {
     /**
      * Dynamic setting to enable the merged segment warming(pre-copy) feature, default: false
      */
-    public static final Setting<Boolean> INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING = Setting.boolSetting(
         "indices.replication.merges.warmer.enabled",
         false,
         value -> {
@@ -107,7 +107,7 @@ public class RecoverySettings {
     /**
      * Individual speed setting for merged segment replication, default -1B to reuse the setting of recovery.
      */
-    public static final Setting<ByteSizeValue> INDICES_REPLICATION_MERGES_WARMER_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+    public static final Setting<ByteSizeValue> INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
         "indices.replication.merges.warmer.max_bytes_per_sec",
         new ByteSizeValue(-1),
         Property.Dynamic,
@@ -117,7 +117,7 @@ public class RecoverySettings {
     /**
      * Control the maximum waiting time for replicate merged segment to the replica
      */
-    public static final Setting<TimeValue> INDICES_REPLICATION_MERGES_WARMER_TIMEOUT_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING = Setting.timeSetting(
         "indices.replication.merges.warmer.timeout",
         TimeValue.timeValueMinutes(15),
         TimeValue.timeValueMinutes(0),
@@ -281,9 +281,9 @@ public class RecoverySettings {
             recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
         }
         this.replicationMaxBytesPerSec = INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
-        this.mergedSegmentReplicationWarmerEnabled = INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING.get(settings);
-        this.mergedSegmentReplicationMaxBytesPerSec = INDICES_REPLICATION_MERGES_WARMER_MAX_BYTES_PER_SEC_SETTING.get(settings);
-        this.mergedSegmentReplicationTimeout = INDICES_REPLICATION_MERGES_WARMER_TIMEOUT_SETTING.get(settings);
+        this.mergedSegmentReplicationWarmerEnabled = INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.get(settings);
+        this.mergedSegmentReplicationMaxBytesPerSec = INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        this.mergedSegmentReplicationTimeout = INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.get(settings);
         this.mergedSegmentWarmerMinSegmentSizeThreshold = INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.get(
             settings
         );
@@ -297,15 +297,15 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setRecoveryMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING, this::setReplicationMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(
-            RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_ENABLED_SETTING,
+            RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING,
             this::setIndicesMergedSegmentReplicationWarmerEnabled
         );
         clusterSettings.addSettingsUpdateConsumer(
-            INDICES_REPLICATION_MERGES_WARMER_MAX_BYTES_PER_SEC_SETTING,
+            INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
             this::setMergedSegmentReplicationMaxBytesPerSec
         );
         clusterSettings.addSettingsUpdateConsumer(
-            INDICES_REPLICATION_MERGES_WARMER_TIMEOUT_SETTING,
+            INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING,
             this::setMergedSegmentReplicationTimeout
         );
         clusterSettings.addSettingsUpdateConsumer(

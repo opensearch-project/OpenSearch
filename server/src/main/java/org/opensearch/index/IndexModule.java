@@ -669,8 +669,7 @@ public final class IndexModule {
         Supplier<Boolean> shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
-        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) throws IOException {
         return newIndexService(
             indexCreationContext,
@@ -699,7 +698,66 @@ public final class IndexModule {
             (s) -> {},
             shardId -> ReplicationStats.empty(),
             clusterDefaultMaxMergeAtOnceSupplier,
-            clusterMergeSchedulerConfig
+            null
+        );
+    }
+
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+    ) throws IOException {
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            replicator,
+            segmentReplicationStatsProvider,
+            clusterDefaultMaxMergeAtOnceSupplier,
+            null
         );
     }
 
