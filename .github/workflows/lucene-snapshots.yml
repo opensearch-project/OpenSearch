@@ -11,6 +11,11 @@ on:
         type: string
         required: false
         default: 'main'
+      java_version:
+        description: 'Java version to use'
+        type: string
+        required: false
+        default: '25'
 
 jobs:
   publish-snapshots:
@@ -28,23 +33,18 @@ jobs:
           repository: 'apache/lucene'
           ref: ${{ github.event.inputs.ref }}
 
-      - name: Get Java Min Version and Lucene Revision from Lucene Repository
+      - name: Get Lucene Revision
         run: |
-          java_version=`cat build.gradle | grep minJavaVersion | head -1 | grep -Eo '_[0-9]+$' | tr -d '_'`
-          echo "JAVA_VERSION=$java_version" >> $GITHUB_ENV
           echo "REVISION=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
+      - name: Setup JDK ${{ github.event.inputs.java_version }}
         uses: actions/setup-java@v5
         with:
-          java-version: ${{ env.JAVA_VERSION }}
+          java-version: ${{ github.event.inputs.java_version }}
           distribution: 'temurin'
 
-      - name: Initialize gradle settings
-        run: ./gradlew localSettings
-
       - name: Publish Lucene to local maven repo.
-        run: ./gradlew publishJarsPublicationToMavenLocal -Pversion.suffix=snapshot-${{ env.REVISION }}
+        run: ./gradlew publishJarsPublicationToMavenLocal -Pversion.suffix=snapshot-${{ env.REVISION }} -x javadoc
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5

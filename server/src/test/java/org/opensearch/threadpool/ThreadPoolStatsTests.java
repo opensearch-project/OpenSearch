@@ -54,13 +54,20 @@ import static org.hamcrest.Matchers.equalTo;
 public class ThreadPoolStatsTests extends OpenSearchTestCase {
     public void testThreadPoolStatsSort() throws IOException {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
-        stats.add(new ThreadPoolStats.Stats("z", -1, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("m", 3, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("m", 1, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("d", -1, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("m", 2, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("t", -1, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L, 0L, -1));
+        ThreadPoolStats.Stats.Builder defaultStats = new ThreadPoolStats.Stats.Builder().queue(0)
+            .active(0)
+            .rejected(0)
+            .largest(0)
+            .completed(0L)
+            .waitTimeNanos(0L)
+            .parallelism(-1);
+        stats.add(defaultStats.name("z").threads(-1).build());
+        stats.add(defaultStats.name("m").threads(3).build());
+        stats.add(defaultStats.name("m").threads(1).build());
+        stats.add(defaultStats.name("d").threads(-1).build());
+        stats.add(defaultStats.name("m").threads(2).build());
+        stats.add(defaultStats.name("t").threads(-1).build());
+        stats.add(defaultStats.name("a").threads(-1).build());
 
         List<ThreadPoolStats.Stats> copy = new ArrayList<>(stats);
         Collections.sort(copy);
@@ -131,7 +138,16 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
     }
 
     public void testStatsGetters() {
-        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, 8);
+        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats.Builder().name("test")
+            .threads(1)
+            .queue(2)
+            .active(3)
+            .rejected(4L)
+            .largest(5)
+            .completed(6L)
+            .waitTimeNanos(7L)
+            .parallelism(8)
+            .build();
         assertEquals("test", stats.getName());
         assertEquals(1, stats.getThreads());
         assertEquals(2, stats.getQueue());
@@ -147,11 +163,18 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
 
             List<ThreadPoolStats.Stats> stats = new ArrayList<>();
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, -1, 0, 0, 0, 0, 0L, 0L, -1));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.WARMER, -1, 0, 0, 0, 0, 0L, -1L, -1));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.GENERIC, -1, 0, 0, 0, 0, 0L, -1L, -1));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, -1, 0, 0, 0, 0, 0L, -1L, -1));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SAME, -1, 0, 0, 0, 0, 0L, -1L, -1));
+            ThreadPoolStats.Stats.Builder defaultStats = new ThreadPoolStats.Stats.Builder().threads(-1)
+                .queue(0)
+                .active(0)
+                .rejected(0)
+                .largest(0)
+                .completed(0L)
+                .parallelism(-1);
+            stats.add(defaultStats.name(ThreadPool.Names.SEARCH).waitTimeNanos(0L).build());
+            stats.add(defaultStats.name(ThreadPool.Names.WARMER).waitTimeNanos(-1L).build());
+            stats.add(defaultStats.name(ThreadPool.Names.GENERIC).waitTimeNanos(-1L).build());
+            stats.add(defaultStats.name(ThreadPool.Names.FORCE_MERGE).waitTimeNanos(-1L).build());
+            stats.add(defaultStats.name(ThreadPool.Names.SAME).waitTimeNanos(-1L).build());
 
             ThreadPoolStats threadPoolStats = new ThreadPoolStats(stats);
             try (XContentBuilder builder = new XContentBuilder(MediaTypeRegistry.JSON.xContent(), os)) {

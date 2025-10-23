@@ -193,7 +193,7 @@ public class FilterAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
         Decision decision = shouldClusterFilter(node.node(), allocation);
-        return decision != null && decision == Decision.NO ? decision : Decision.ALWAYS;
+        return decision == Decision.NO ? decision : Decision.ALWAYS;
     }
 
     private Decision shouldFilter(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
@@ -258,6 +258,13 @@ public class FilterAllocationDecider extends AllocationDecider {
     }
 
     private Decision shouldClusterFilter(DiscoveryNode node, RoutingAllocation allocation) {
+        // Copy values to local variables so we're not null-checking on volatile fields.
+        // The value of a volatile field could change from non-null to null between the
+        // check and its usage.
+        DiscoveryNodeFilters clusterRequireFilters = this.clusterRequireFilters;
+        DiscoveryNodeFilters clusterIncludeFilters = this.clusterIncludeFilters;
+        DiscoveryNodeFilters clusterExcludeFilters = this.clusterExcludeFilters;
+
         if (clusterRequireFilters != null) {
             if (clusterRequireFilters.match(node) == false) {
                 return allocation.decision(

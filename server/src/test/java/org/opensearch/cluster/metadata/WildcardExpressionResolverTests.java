@@ -233,11 +233,6 @@ public class WildcardExpressionResolverTests extends OpenSearchTestCase {
         );
         // ignoreAliases option is set, WildcardExpressionResolver resolves the provided expressions only against the defined indices
         IndicesOptions errorOnAliasIndicesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
-        IndexNameExpressionResolver.Context skipAliasesStrictContext = new IndexNameExpressionResolver.Context(
-            state,
-            errorOnAliasIndicesOptions,
-            false
-        );
 
         {
             List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo_a*"));
@@ -248,11 +243,13 @@ public class WildcardExpressionResolverTests extends OpenSearchTestCase {
             assertEquals(0, indices.size());
         }
         {
-            IndexNotFoundException infe = expectThrows(
-                IndexNotFoundException.class,
-                () -> resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo_a*"))
+            IndexNameExpressionResolver.Context skipAliasesStrictContext = new IndexNameExpressionResolver.Context(
+                state,
+                errorOnAliasIndicesOptions,
+                false
             );
-            assertEquals("foo_a*", infe.getIndex().getName());
+            resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo_a*"));
+            assertEquals("foo_a*", ((IndexNotFoundException) skipAliasesStrictContext.getFirstResolutionError()).getIndex().getName());
         }
         {
             List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo*"));
@@ -263,6 +260,11 @@ public class WildcardExpressionResolverTests extends OpenSearchTestCase {
             assertThat(indices, containsInAnyOrder("foo_foo", "foo_index"));
         }
         {
+            IndexNameExpressionResolver.Context skipAliasesStrictContext = new IndexNameExpressionResolver.Context(
+                state,
+                errorOnAliasIndicesOptions,
+                false
+            );
             List<String> indices = resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo*"));
             assertThat(indices, containsInAnyOrder("foo_foo", "foo_index"));
         }
@@ -275,10 +277,13 @@ public class WildcardExpressionResolverTests extends OpenSearchTestCase {
             assertThat(indices, containsInAnyOrder("foo_alias"));
         }
         {
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
-                () -> resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo_alias"))
+            IndexNameExpressionResolver.Context skipAliasesStrictContext = new IndexNameExpressionResolver.Context(
+                state,
+                errorOnAliasIndicesOptions,
+                false
             );
+            resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo_alias"));
+            IllegalArgumentException iae = (IllegalArgumentException) skipAliasesStrictContext.getFirstResolutionError();
             assertEquals(
                 "The provided expression [foo_alias] matches an alias, " + "specify the corresponding concrete indices instead.",
                 iae.getMessage()

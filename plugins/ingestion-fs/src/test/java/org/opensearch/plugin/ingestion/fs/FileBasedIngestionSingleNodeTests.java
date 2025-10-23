@@ -71,6 +71,15 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
         try (FileChannel channel = FileChannel.open(shardFile, StandardOpenOption.READ)) {
             channel.force(true);
         }
+
+        // Wait for file to be fully visible by reading it back
+        // This prevents race conditions where tests start before file is ready
+        assertBusy(() -> {
+            java.util.List<String> lines = Files.readAllLines(shardFile, StandardCharsets.UTF_8);
+            assertEquals("File should have exactly 2 lines", 2, lines.size());
+            assertTrue("First line should contain alice", lines.get(0).contains("alice"));
+            assertTrue("Second line should contain bob", lines.get(1).contains("bob"));
+        });
     }
 
     public void testFileIngestion() throws Exception {

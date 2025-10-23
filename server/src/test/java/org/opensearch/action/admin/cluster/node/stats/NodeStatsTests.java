@@ -734,17 +734,16 @@ public class NodeStatsTests extends OpenSearchTestCase {
             List<ThreadPoolStats.Stats> threadPoolStatsList = new ArrayList<>();
             for (int i = 0; i < numThreadPoolStats; i++) {
                 threadPoolStatsList.add(
-                    new ThreadPoolStats.Stats(
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomNonNegativeLong(),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(-1, 10),
-                        -1 // Non-ForkJoinPool: use -1
-                    )
+                    new ThreadPoolStats.Stats.Builder().name(randomAlphaOfLengthBetween(3, 10))
+                        .threads(randomIntBetween(1, 1000))
+                        .queue(randomIntBetween(1, 1000))
+                        .active(randomIntBetween(1, 1000))
+                        .rejected(randomNonNegativeLong())
+                        .largest(randomIntBetween(1, 1000))
+                        .completed(randomIntBetween(1, 1000))
+                        .waitTimeNanos(randomIntBetween(-1, 10))
+                        .parallelism(-1) // Non-ForkJoinPool: use -1
+                        .build()
                 );
             }
             threadPoolStats = new ThreadPoolStats(threadPoolStatsList);
