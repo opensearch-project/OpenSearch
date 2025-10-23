@@ -119,7 +119,7 @@ class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
         Releasables.closeWhileHandlingException(httpRequest::release);
 
         final ArrayList<Releasable> toClose = new ArrayList<>(3);
-        if (HttpUtils.shouldCloseConnection(httpRequest)) {
+        if (settings.forceCloseConnection() || HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
 
@@ -149,6 +149,14 @@ class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
             opaque = request.header(X_OPAQUE_ID);
             if (opaque != null) {
                 setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
+            }
+
+            if (settings.forceCloseConnection()) {
+                // Server is in shutdown mode. Send client to close the connection.
+                // -------------
+                // Only works with http1
+                // How to check request httpversion is 2 AND send goaway signal?
+                setHeaderField(httpResponse, CONNECTION, CLOSE);
             }
 
             // Add all custom headers
