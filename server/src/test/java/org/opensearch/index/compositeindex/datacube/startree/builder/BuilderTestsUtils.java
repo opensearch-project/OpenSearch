@@ -9,7 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -526,7 +526,7 @@ public class BuilderTestsUtils {
             numDocs,
             false,
             false,
-            new Lucene103Codec(),
+            new Lucene104Codec(),
             new HashMap<>(),
             writeState.segmentInfo.getId(),
             new HashMap<>(),
@@ -580,7 +580,7 @@ public class BuilderTestsUtils {
             numDocs,
             false,
             false,
-            new Lucene103Codec(),
+            new Lucene104Codec(),
             new HashMap<>(),
             id,
             new HashMap<>(),
