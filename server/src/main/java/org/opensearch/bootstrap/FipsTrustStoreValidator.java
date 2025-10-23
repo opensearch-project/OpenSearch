@@ -66,6 +66,12 @@ public class FipsTrustStoreValidator {
      * @throws IllegalStateException if the trust store configuration is invalid
      */
     protected static void validate(String trustStorePath, String trustStoreType, String trustStoreProvider, String trustStorePassword) {
+        if (trustStoreType.isBlank()) {
+            throw new IllegalStateException(
+                "Trust store type must be specified using the '-Djavax.net.ssl.trustStoreType' JVM option. Accepted values are PKCS11 and BCFKS."
+            );
+        }
+
         var requiredProperties = switch (trustStoreType) {
             case ALLOWED_TYPE_PKCS11 -> Map.ofEntries(
                 entry(TRUST_STORE_TYPE_PROP, trustStoreType),

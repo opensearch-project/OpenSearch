@@ -27,6 +27,15 @@ public class FipsTrustStoreValidatorTests extends OpenSearchTestCase {
         tempDir = createTempDir();
     }
 
+    public void testTrustStoreWithoutConfiguration() throws Exception {
+        var exception = expectThrows(IllegalStateException.class, () -> FipsTrustStoreValidator.validate("", "", "", ""));
+
+        assertEquals(
+            "Trust store type must be specified using the '-Djavax.net.ssl.trustStoreType' JVM option. Accepted values are PKCS11 and BCFKS.",
+            exception.getMessage()
+        );
+    }
+
     public void testValidateAcceptsPKCS11() throws Exception {
         var exception = expectThrows(
             IllegalStateException.class,
