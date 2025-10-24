@@ -14,6 +14,7 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.protobufs.BulkRequest;
@@ -1016,5 +1017,25 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         builder.field("field", "value");
         builder.endObject();
         return org.opensearch.core.common.bytes.BytesReference.toBytes(org.opensearch.core.common.bytes.BytesReference.bytes(builder));
+    }
+
+    /**
+     * Test detectMediaType with null or empty document
+     */
+    public void testDetectMediaTypeNullOrEmpty() {
+        MediaType result = BulkRequestParserProtoUtils.detectMediaType(null);
+        assertEquals("application/json", result.mediaTypeWithoutParameters());
+
+        result = BulkRequestParserProtoUtils.detectMediaType(new byte[0]);
+        assertEquals("application/json", result.mediaTypeWithoutParameters());
+    }
+
+    /**
+     * Test detectMediaType with unrecognizable format
+     */
+    public void testDetectMediaTypeUnrecognizable() {
+        byte[] invalidBytes = new byte[] { (byte) 0xFF, (byte) 0xFE, (byte) 0xFD, (byte) 0xFC };
+        MediaType result = BulkRequestParserProtoUtils.detectMediaType(invalidBytes);
+        assertEquals("application/json", result.mediaTypeWithoutParameters());
     }
 }

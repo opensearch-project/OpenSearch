@@ -89,7 +89,7 @@ public class BulkRequestParserProtoUtils {
      * @param document The document content as bytes
      * @return The detected MediaType, or JSON if detection fails or document is empty
      */
-    private static MediaType detectMediaType(byte[] document) {
+    static MediaType detectMediaType(byte[] document) {
         if (document == null || document.length == 0) {
             return MediaTypeRegistry.JSON;
         }
