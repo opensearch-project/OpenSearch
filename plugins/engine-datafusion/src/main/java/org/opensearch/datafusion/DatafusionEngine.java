@@ -10,14 +10,18 @@ package org.opensearch.datafusion;
 
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.datafusion.core.DefaultRecordBatchStream;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.datafusion.search.DatafusionContext;
 import org.opensearch.datafusion.search.DatafusionQuery;
 import org.opensearch.datafusion.search.DatafusionQueryPhaseExecutor;
@@ -31,11 +35,11 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.mapper.*;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.SearchResultsCollector;
 import org.opensearch.search.internal.ReaderContext;
-import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QueryPhaseExecutor;
 import org.opensearch.vectorized.execution.search.DataFormat;
@@ -43,11 +47,7 @@ import org.opensearch.search.query.GenericQueryPhaseSearcher;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 
 public class DatafusionEngine extends SearchExecEngine<DatafusionContext, DatafusionSearcher,
@@ -160,8 +160,10 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     }
 
     @Override
-    public Map<String, Object[]> execute(DatafusionContext context) {
+    public void executeQueryPhase(DatafusionContext context) {
         Map<String, Object[]> finalRes = new HashMap<>();
+        ArrayList<Long> rowIdResult = new ArrayList<>();
+
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
             long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer());
@@ -176,13 +178,22 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 public void collect(RecordBatchStream value) {
                     VectorSchemaRoot root = value.getVectorSchemaRoot();
                     for (Field field : root.getSchema().getFields()) {
-                        String filedName = field.getName();
-                        FieldVector fieldVector = root.getVector(filedName);
+                        String fieldName = field.getName();
+                        FieldVector fieldVector = root.getVector(fieldName);
                         Object[] fieldValues = new Object[fieldVector.getValueCount()];
-                        for (int i = 0; i < fieldVector.getValueCount(); i++) {
-                            fieldValues[i] = fieldVector.getObject(i);
+                        if (fieldName.equals("___row_id")) {
+                            IntVector rowIdVector = (IntVector) root.getVector(fieldName);
+                            for(int i=0; i<fieldVector.getValueCount(); i++) {
+                                rowIdResult.add((long) rowIdVector.get(i));
+                                fieldValues[i] = fieldVector.getObject(i);
+                            }
                         }
-                        finalRes.put(filedName, fieldValues);
+                        else {
+                            for (int i = 0; i < fieldVector.getValueCount(); i++) {
+                                fieldValues[i] = fieldVector.getObject(i);
+                            }
+                        }
+                        finalRes.put(fieldName, fieldValues);
                     }
                 }
             };
@@ -191,7 +202,6 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 collector.collect(stream);
             }
 
-            logger.info("Final Results:");
             for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
                 logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
             }
@@ -199,6 +209,59 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         } catch (Exception exception) {
             logger.error("Failed to execute Substrait query plan", exception);
         }
-        return finalRes;
+        context.setDfQueryPhaseResult(rowIdResult);
+        context.setDFResults(finalRes);
+    }
+
+
+    /**
+     * Executes fetch phase, DataFusion query should contain projections for fields
+     * @param context DataFusion context
+     * @throws IOException
+     */
+    @Override
+    public void executeFetchPhase(DatafusionContext context) throws IOException {
+        List<Long> rowIds = context.getDfQueryResult();
+
+        // preprocess
+        context.getDatafusionQuery().setFetchPhaseContext(rowIds);
+        DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
+        long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer()); // update to handle fetchPhase query
+        RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getTokioRuntimePointer() , allocator);
+
+        // postprocess
+        context.setDfFetchPhaseResult(generateByteRefs(context, stream));
+    }
+
+    private List<BytesReference> generateByteRefs(DatafusionContext context, RecordBatchStream recordBatchStream) throws IOException {
+        MapperService mapperService = context.mapperService();
+        List<BytesReference> byteRefs = new ArrayList<>();
+        while(recordBatchStream.loadNextBatch().join()) {
+            VectorSchemaRoot vectorSchemaRoot = recordBatchStream.getVectorSchemaRoot();
+            List<FieldVector> fieldVectorList = vectorSchemaRoot.getFieldVectors();
+            for(int i=0; i<vectorSchemaRoot.getRowCount(); i++) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+
+                try {
+                    for (FieldVector valueVectors : fieldVectorList) {
+
+                        MappingLookup mappingLookup = mapperService.documentMapper().mappers();
+                        Mapper mapper = mappingLookup.getMapper(valueVectors.getName());
+                        DerivedFieldGenerator derivedFieldGenerator = mapper.derivedFieldGenerator();
+
+                        derivedFieldGenerator.generate(builder, List.of(valueVectors.getObject(i)));
+                    }
+                } catch (Exception e) {
+                    throw new OpenSearchException("Failed to derive source for doc id [" + i + "]", e);
+                } finally {
+                    builder.endObject();
+                }
+                System.out.println("Object: ");
+                System.out.println(builder.toString());
+                byteRefs.add(BytesReference.bytes(builder));
+            }
+        }
+        return byteRefs;
     }
 }

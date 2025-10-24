@@ -210,10 +210,21 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      *       compared to stored field(stored as float)
      */
     @Override
-    protected DerivedFieldGenerator derivedFieldGenerator() {
+    public DerivedFieldGenerator derivedFieldGenerator() {
         return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {
+                if(value instanceof Integer) {
+                    Integer val = (Integer) value;
+
+                    return switch (type) {
+                        case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(val.shortValue());
+                        case FLOAT -> NumericUtils.sortableIntToFloat(val);
+                        case DOUBLE -> NumericUtils.sortableLongToDouble(val);
+                        case BYTE, SHORT, INTEGER, LONG -> val;
+                        case UNSIGNED_LONG -> Numbers.toUnsignedBigInteger(val);
+                    };
+                }
                 Long val = (Long) value;
                 if (val == null) {
                     return null;
