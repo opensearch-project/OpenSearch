@@ -7,7 +7,7 @@
  */
 use std::ptr::addr_of_mut;
 use jni::objects::{JByteArray, JClass, JObject};
-use jni::sys::{jbyteArray, jlong, jstring};
+use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
 use jni::JNIEnv;
 use std::sync::Arc;
 use arrow_array::{Array, StructArray};
@@ -32,6 +32,7 @@ use datafusion::prelude::SessionConfig;
 use datafusion::DATAFUSION_VERSION;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion_datasource::file_format::FileFormat;
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use datafusion_substrait::substrait::proto::Plan;
 use futures::TryStreamExt;
@@ -200,17 +201,36 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
     _class: JClass,
     shard_view_ptr: jlong,
     substrait_bytes: jbyteArray,
+    session_config_ptr: jlong,
     tokio_runtime_env_ptr: jlong,
+    file_format_str: JString
     // callback: JObject,
 ) -> jlong {
     let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
     let runtime_ptr = unsafe { &*(tokio_runtime_env_ptr as *const Runtime)};
+    let config = unsafe { &*(session_config_ptr as *const SessionConfig) };
+
+    let format_type: String = env.get_string(&file_format_str).expect("Invalid format type").into();
 
     let table_path = shard_view.table_path();
     let files_meta = shard_view.files_meta();
 
-    println!("Table path: {}", table_path);
-    println!("Files: {:?}", files_meta);
+
+    let file_format: Arc<dyn FileFormat> = match format_type.as_str() {
+        "parquet" => Arc::new(ParquetFormat::new()),
+        "csv" => Arc::new(CsvFormat::default()),
+        _ => panic!("Unsupported format: {}", format_type),
+    };
+
+    let extension = match format_type.as_str() {
+        "parquet" => ".parquet",
+        "csv" => ".csv",
+        _ => panic!("Unsupported format: {}", format_type)
+    };
+
+
+    let listing_options = ListingOptions::new(file_format)
+        .with_file_extension(extension);
 
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
     list_file_cache.put(table_path.prefix(), files_meta);
@@ -220,12 +240,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
                                 .with_list_files_cache(Some(list_file_cache.clone()))
         ).build().unwrap();
 
-    // TODO: get config from CSV DataFormat
-    let mut config = SessionConfig::new();
-    // config.options_mut().execution.parquet.pushdown_filters = true;
+
 
     let state = datafusion::execution::SessionStateBuilder::new()
-        .with_config(config)
+        .with_config(config.clone())
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
         // .with_optimizer_rule(Arc::new(OptimizeRowId))
@@ -234,11 +252,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
 
     let ctx = SessionContext::new_with_state(state);
 
-    // Create default parquet options
-    let file_format = ParquetFormat::new();
-    let listing_options = ListingOptions::new(Arc::new(file_format))
-        .with_file_extension(".parquet"); // TODO: take this as parameter
-        // .with_table_partition_cols(vec![("row_base".to_string(), DataType::Int32)]); // TODO: enable only for query phase
+
 
     // Ideally the executor will give this
     runtime_ptr.block_on(async {
@@ -303,6 +317,26 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
 
     })
 }
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createSessionConfigNative(
+    mut env: JNIEnv,
+    _class: JClass,
+    collect_statistics_enabled: jboolean,
+    enable_page_index: jboolean,
+    batch_size: jint,
+) -> jlong {
+    let mut config = SessionConfig::new().with_repartition_aggregations(true);
+
+    // Apply session config parameters
+    config.options_mut().execution.batch_size = batch_size as usize;
+    config.options_mut().execution.collect_statistics = collect_statistics_enabled != 0;
+    config.options_mut().execution.parquet.enable_page_index = enable_page_index != 0;
+
+    let ctx = Box::into_raw(Box::new(config)) as jlong;
+    ctx
+}
+
 
 // If we need to create session context separately
 #[no_mangle]
@@ -432,3 +466,4 @@ pub extern "system" fn Java_org_opensearch_datafusion_RecordBatchStream_getSchem
         }
     }
 }
+

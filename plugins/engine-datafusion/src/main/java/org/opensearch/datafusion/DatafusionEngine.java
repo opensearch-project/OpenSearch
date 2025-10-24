@@ -15,9 +15,10 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.datafusion.core.DefaultRecordBatchStream;
 import org.opensearch.datafusion.search.DatafusionContext;
 import org.opensearch.datafusion.search.DatafusionQuery;
 import org.opensearch.datafusion.search.DatafusionQueryPhaseExecutor;
@@ -40,10 +41,10 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QueryPhaseExecutor;
 import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.search.query.GenericQueryPhaseSearcher;
+import org.opensearch.vectorized.execution.search.spi.SessionConfig;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -57,13 +58,43 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
     private DataFormat dataFormat;
     private DatafusionReaderManager datafusionReaderManager;
+    private final SessionConfig formatSessionConfig;
     private DataFusionService datafusionService;
 
-    public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService, ShardPath shardPath) throws IOException {
-        this.dataFormat = dataFormat;
+    public static final Setting<Boolean> CLUSTER_DATAFUSION_STATISTICS_ENABLED = Setting.boolSetting(
+        "cluster.datafusion.statistics.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
+    public static final Setting<Boolean> INDEX_DATAFUSION_STATISTICS_ENABLED = Setting.boolSetting(
+        "index.datafusion.statistics.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
+
+    public static final Setting<Integer> CLUSTER_DATAFUSION_BATCH_SIZE = Setting.intSetting(
+        "cluster.datafusion.batch_size",
+        2048,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+
+    // If
+    public DatafusionEngine(DataFormat dataFormat,
+                            SessionConfig formatSessionConfig,
+                            Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService, ShardPath shardPath) throws IOException {
+        this.dataFormat = dataFormat;
+        this.formatSessionConfig = formatSessionConfig;
         this.datafusionReaderManager = new DatafusionReaderManager(shardPath.getDataPath().toString(), formatCatalogSnapshot, dataFormat.getName());
         this.datafusionService = dataFusionService;
+    }
+
+    public SessionConfig getFormatSessionConfig() {
+        return formatSessionConfig;
     }
 
     @Override
@@ -77,10 +108,17 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     }
 
     @Override
-    public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext) throws IOException {
-        DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, searchShardTarget, task, this, bigArrays, originalContext);
+    public DatafusionContext createContext(ReaderContext readerContext, ClusterService clusterService, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext) throws IOException {
+        DatafusionContext datafusionContext = new DatafusionContext(
+            readerContext,
+            clusterService,
+            request,
+            searchShardTarget,
+            task,
+            this,
+            bigArrays, originalContext);
         // Parse source
-        datafusionContext.datafusionQuery(new DatafusionQuery(request.source().queryPlanIR(), new ArrayList<>()));
+        datafusionContext.datafusionQuery(new DatafusionQuery(dataFormat.getName(), request.source().queryPlanIR(), new ArrayList<>()));
         return datafusionContext;
     }
 
@@ -164,7 +202,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         Map<String, Object[]> finalRes = new HashMap<>();
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
-            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer());
+            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), context.readEngineConfig(), datafusionService.getTokioRuntimePointer());
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getTokioRuntimePointer() , allocator);
 

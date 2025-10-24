@@ -13,6 +13,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -41,10 +42,11 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
-import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
+import org.opensearch.vectorized.execution.search.spi.SessionConfig;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -114,7 +116,16 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
 
     @Override
     public List<DataFormat> getSupportedFormats() {
-        return List.of(DataFormat.CSV);
+        return List.of(DataFormat.PARQUET);
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(
+            DatafusionEngine.CLUSTER_DATAFUSION_BATCH_SIZE,
+            DatafusionEngine.CLUSTER_DATAFUSION_STATISTICS_ENABLED,
+            DatafusionEngine.INDEX_DATAFUSION_STATISTICS_ENABLED
+        );
     }
 
     /**
@@ -125,8 +136,11 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
     @Override
     public SearchExecEngine<DatafusionContext, DatafusionSearcher,
             DatafusionReaderManager, DatafusionQuery>
-        createEngine(DataFormat dataFormat,Collection<FileMetadata> formatCatalogSnapshot, ShardPath shardPath) throws IOException {
-        return new DatafusionEngine(dataFormat, formatCatalogSnapshot, dataFusionService, shardPath);
+        createEngine(DataFormat dataFormat,
+                     SessionConfig sessionConfig,
+                     Collection<FileMetadata> formatCatalogSnapshot, ShardPath shardPath) throws IOException {
+
+        return new DatafusionEngine(dataFormat, sessionConfig, formatCatalogSnapshot, dataFusionService, shardPath);
     }
 
     /**

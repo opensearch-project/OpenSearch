@@ -13,6 +13,7 @@ import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.vectorized.execution.search.spi.SessionConfig;
 
 import java.util.Map;
 import java.util.Optional;
@@ -25,4 +26,6 @@ public interface DataSourcePlugin {
     <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath);
 
     DataFormat getDataFormat();
+
+    SessionConfig getSessionConfig();
 }

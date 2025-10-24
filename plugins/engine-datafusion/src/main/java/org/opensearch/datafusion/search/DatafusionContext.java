@@ -14,11 +14,11 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
-import org.opensearch.index.engine.EngineSearcher;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -55,6 +55,7 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
+import org.opensearch.vectorized.execution.search.spi.ReadEngineConfig;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 
 import java.util.HashMap;
@@ -82,6 +83,8 @@ public class DatafusionContext extends SearchContext {
     private final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
     private final SearchContext originalContext;
 
+    private final ReadEngineConfig datafusionEngineConfig;
+
     /**
      * Constructor
      * @param readerContext The reader context
@@ -91,6 +94,7 @@ public class DatafusionContext extends SearchContext {
      */
     public DatafusionContext(
         ReaderContext readerContext,
+        ClusterService clusterService,
         ShardSearchRequest request,
         SearchShardTarget searchShardTarget,
         SearchShardTask task,
@@ -116,6 +120,9 @@ public class DatafusionContext extends SearchContext {
         );
         this.bigArrays = bigArrays;
         this.originalContext = originalContext;
+        this.datafusionEngineConfig = new DatafusionEngineConfig(indexService, clusterService)
+            .updateSessionConfig(engine.getFormatSessionConfig());
+
     }
 
     /**
@@ -129,6 +136,10 @@ public class DatafusionContext extends SearchContext {
     @Override
     public SearchContext getOriginalContext() {
         return originalContext;
+    }
+
+    public ReadEngineConfig readEngineConfig() {
+        return datafusionEngineConfig;
     }
 
     /**
