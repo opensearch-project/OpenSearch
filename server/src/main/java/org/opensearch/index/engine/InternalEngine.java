@@ -2397,7 +2397,7 @@ public class InternalEngine extends Engine {
         if (config().getLeafSorter() != null) {
             iwc.setLeafSorter(config().getLeafSorter()); // The default segment search order
         }
-        if (config().getIndexSettings().isSegRepEnabledOrRemoteNode()) {
+        if (config().getIndexSettings().isSegRepLocalEnabled() || config().getIndexSettings().isRemoteStoreEnabled()) {
             assert null != config().getIndexReaderWarmer();
             iwc.setMergedSegmentWarmer(config().getIndexReaderWarmer());
         }
