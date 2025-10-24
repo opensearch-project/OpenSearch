@@ -9,6 +9,7 @@
 package com.parquet.parquetdataformat.fields;
 
 import com.parquet.parquetdataformat.plugins.fields.CoreDataFieldPlugin;
+import com.parquet.parquetdataformat.plugins.fields.MetadataFieldPlugin;
 import com.parquet.parquetdataformat.plugins.fields.ParquetFieldPlugin;
 
 import java.util.Collections;
@@ -58,6 +59,9 @@ public final class ArrowFieldRegistry {
     private static void registerCorePlugins() {
         // Register core data fields
         registerPlugin(new CoreDataFieldPlugin(), "CoreDataFields");
+
+        // REgister metadata fields
+        registerPlugin(new MetadataFieldPlugin(), "MetadataFields");
     }
     /**
      * Register a single plugin's field types.

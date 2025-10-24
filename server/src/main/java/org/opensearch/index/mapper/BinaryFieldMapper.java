@@ -205,23 +205,28 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         if (value == null) {
             return;
         }
-        if (stored) {
-            context.doc().add(new StoredField(fieldType().name(), value));
-        }
 
-        if (hasDocValues) {
-            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().name());
-            if (field == null) {
-                field = new CustomBinaryDocValuesField(fieldType().name(), value);
-                context.doc().addWithKey(fieldType().name(), field);
-            } else {
-                field.add(value);
-            }
+        if (isPluggableDataFormatFeatureEnabled()) {
+            context.compositeDocumentInput().addField(fieldType(), value);
         } else {
-            // Only add an entry to the field names field if the field is stored
-            // but has no doc values so exists query will work on a field with
-            // no doc values
-            createFieldNamesField(context);
+            if (stored) {
+                context.doc().add(new StoredField(fieldType().name(), value));
+            }
+
+            if (hasDocValues) {
+                CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().name());
+                if (field == null) {
+                    field = new CustomBinaryDocValuesField(fieldType().name(), value);
+                    context.doc().addWithKey(fieldType().name(), field);
+                } else {
+                    field.add(value);
+                }
+            } else {
+                // Only add an entry to the field names field if the field is stored
+                // but has no doc values so exists query will work on a field with
+                // no doc values
+                createFieldNamesField(context);
+            }
         }
     }
 
