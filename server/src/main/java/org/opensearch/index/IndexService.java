@@ -99,6 +99,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -252,7 +253,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -352,6 +354,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
+        indexSettings.setDefaultMaxThreadAndMergeCount(
+            clusterMergeSchedulerConfig.getClusterMaxThreadCount(),
+            clusterMergeSchedulerConfig.getClusterMaxMergeCount()
+        );
+        indexSettings.setDefaultAutoThrottleEnabled(clusterMergeSchedulerConfig.getClusterMergeAutoThrottleEnabled());
         updateFsyncTaskIfNecessary();
         synchronized (refreshMutex) {
             if (shardLevelRefreshEnabled == false) {
@@ -400,7 +407,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         boolean shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnce
+        Supplier<Integer> clusterDefaultMaxMergeAtOnce,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
     ) {
         this(
             indexSettings,
@@ -445,7 +453,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             null,
             s -> {},
             (shardId) -> ReplicationStats.empty(),
-            clusterDefaultMaxMergeAtOnce
+            clusterDefaultMaxMergeAtOnce,
+            clusterMergeSchedulerConfig
         );
     }
 
@@ -1236,6 +1245,21 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     /**
+     * Called when the cluster level settings: {@code cluster.default.index.merge.scheduler.max_merge_count} OR
+     * {@code cluster.default.index.merge.scheduler.max_thread_count} change.
+     */
+    public void onDefaultMaxMergeOrThreadCountUpdate(int maxThreadCount, int maxMergeCount) {
+        indexSettings.setDefaultMaxThreadAndMergeCount(maxThreadCount, maxMergeCount);
+    }
+
+    /**
+     * Called whenever the cluster level {@code cluster.default.index.merge.scheduler.auto_throttle} changes.
+     */
+    public void onDefaultAutoThrottleEnabledUpdate(boolean enabled) {
+        indexSettings.setDefaultAutoThrottleEnabled(enabled);
+    }
+
+    /**
      * Called whenever the cluster level {@code cluster.merge.scheduler.max_force_merge_mb_per_sec} changes.
      * The change is only applied if the index doesn't have its own explicit force merge MB per sec setting.
      *
@@ -1580,7 +1604,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         protected void runInternal() {
-            indexService.maybePublishReferencedSegments();
+            if (shouldRun()) {
+                indexService.maybePublishReferencedSegments();
+            }
         }
 
         @Override
@@ -1596,6 +1622,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         protected boolean mustReschedule() {
             return indexSettings.isSegRepEnabledOrRemoteNode() && super.mustReschedule();
+        }
+
+        // visible for tests
+        protected boolean shouldRun() {
+            return (indexSettings.isSegRepLocalEnabled() || indexSettings.isRemoteStoreEnabled())
+                && recoverySettings.isMergedSegmentReplicationWarmerEnabled();
         }
     }
 

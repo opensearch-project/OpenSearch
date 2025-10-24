@@ -55,6 +55,7 @@ import org.opensearch.index.shard.IndexShard.AsyncShardRefreshTask;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -630,6 +631,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         IndexService.AsyncPublishReferencedSegmentsTask task = indexService.getPublishReferencedSegmentsTask();
         assertFalse(task.isScheduled());
         assertFalse(task.mustReschedule());
+        assertFalse(task.shouldRun());
 
         // create for segrep - task should schedule
         indexService = createIndex(
@@ -639,12 +641,22 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
                 .put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), "5s")
                 .build()
         );
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            )
+            .get();
+
         final Index srIndex = indexService.index();
         ensureGreen(srIndex.getName());
         task = indexService.getPublishReferencedSegmentsTask();
         assertTrue(task.isScheduled());
         assertTrue(task.mustReschedule());
         assertEquals(5000, task.getInterval().millis());
+        assertTrue(task.shouldRun());
 
         // test update the refresh interval, AsyncPublishReferencedSegmentsTask should not be updated
         client().admin()
@@ -658,6 +670,15 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(task.isScheduled());
         assertTrue(task.mustReschedule());
         assertEquals(5000, task.getInterval().millis());
+        assertTrue(task.shouldRun());
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().putNull(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey())
+            )
+            .get();
 
         // test we can update the publishReferencedSegmentsInterval
         client().admin()
@@ -673,6 +694,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(updatedTask.isScheduled());
         assertTrue(updatedTask.mustReschedule());
         assertEquals(1000, updatedTask.getInterval().millis());
+        assertFalse(task.shouldRun());
     }
 
     public void testBaseAsyncTaskWithFixedIntervalDisabled() throws Exception {
