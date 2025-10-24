@@ -90,6 +90,7 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
             }
 
             while (currentLineInReader < startLine && reader.readLine() != null) {
+                lastReadLine = currentLineInReader;
                 currentLineInReader++;
             }
 
