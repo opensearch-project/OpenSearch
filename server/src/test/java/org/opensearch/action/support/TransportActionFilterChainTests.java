@@ -243,6 +243,7 @@ public class TransportActionFilterChainTests extends OpenSearchTestCase {
             Task task,
             String action,
             Request request,
+            ActionRequestMetadata<Request, Response> actionRequestMetadata,
             ActionListener<Response> listener,
             ActionFilterChain<Request, Response> chain
         ) {

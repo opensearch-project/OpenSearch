@@ -34,7 +34,9 @@ package org.opensearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
 import org.opensearch.Version;
+import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -42,7 +44,10 @@ import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -51,8 +56,10 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.StoreStats;
@@ -60,6 +67,9 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -73,6 +83,8 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeService.Compatibili
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportResizeActionTests extends OpenSearchTestCase {
 
@@ -719,6 +731,29 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             assertEquals(cause, request.cause());
             assertEquals(request.waitForActiveShards(), activeShardCount);
         }
+    }
+
+    public void testResolveIndices() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        TransportResizeAction action = new TransportResizeAction(
+            mock(TransportService.class),
+            clusterService,
+            threadPool,
+            mock(MetadataCreateIndexService.class),
+            mock(ActionFilters.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            mock(Client.class)
+        );
+
+        ResolvedIndices resolvedIndices = action.resolveIndices(new ResizeRequest("target-index", "source-index"));
+        assertEquals(
+            ResolvedIndices.of("source-index").withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of("target-index")),
+            resolvedIndices
+        );
     }
 
     private DiscoveryNode newNode(String nodeId) {

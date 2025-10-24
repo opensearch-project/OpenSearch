@@ -567,7 +567,18 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
                 }
             }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed, waitTimeNanos, parallelism));
+            stats.add(
+                new ThreadPoolStats.Stats.Builder().name(name)
+                    .threads(threads)
+                    .queue(queue)
+                    .active(active)
+                    .rejected(rejected)
+                    .largest(largest)
+                    .completed(completed)
+                    .waitTimeNanos(waitTimeNanos)
+                    .parallelism(parallelism)
+                    .build()
+            );
         }
         return new ThreadPoolStats(stats);
     }
@@ -606,14 +617,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     /**
      * Schedules a one-shot command to run after a given delay. The command is run in the context of the calling thread.
      *
-     * @param command the command to run
-     * @param delay delay before the task executes
+     * @param command  the command to run
+     * @param delay    delay before the task executes
      * @param executor the name of the thread pool on which to execute this task. SAME means "execute on the scheduler thread" which changes
-     *        the meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the
-     *        command completes.
+     *                 the meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the
+     *                 command completes.
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
-     *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
-     *         the ScheduledFuture will cannot interact with it.
+     * the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
+     * the ScheduledFuture will cannot interact with it.
      * @throws OpenSearchRejectedExecutionException if the task cannot be scheduled for execution
      */
     @Override

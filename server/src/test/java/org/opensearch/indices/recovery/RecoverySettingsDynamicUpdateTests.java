@@ -209,7 +209,9 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
             )
         );
         assertEquals(
-            "illegal value can't update [indices.replication.merged_segment_warmer_enabled] from [false] to [true]",
+            "illegal value can't update ["
+                + RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey()
+                + "] from [false] to [true]",
             e.getMessage()
         );
         assertEquals(IllegalArgumentException.class, e.getCause().getClass());
@@ -217,5 +219,32 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
             "FeatureFlag opensearch.experimental.feature.merged_segment_warmer.enabled must be enabled to set this property to true.",
             e.getCause().getMessage()
         );
+    }
+
+    public void testMergedSegmentWarmerSegmentSizeThresholdSetting() {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
+
+        assertEquals(500L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getMb());
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "100gb")
+                .build()
+        );
+        assertEquals(100L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getGb());
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "4KB")
+                .build()
+        );
+        assertEquals(4L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getKb());
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .putNull(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey())
+                .build()
+        );
+        assertEquals(500L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getMb());
     }
 }
