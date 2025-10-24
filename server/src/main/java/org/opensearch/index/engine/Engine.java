@@ -35,8 +35,12 @@ package org.opensearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -59,6 +63,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.common.FieldFileStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
@@ -931,14 +936,18 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Global stats on segments.
      */
-    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+    public SegmentsStats segmentsStats(
+        boolean includeSegmentFileSizes,
+        boolean includeUnloadedSegments,
+        boolean includeFieldLevelSegmentFileSizes
+    ) {
         ensureOpen();
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
         try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.INTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
-                fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
+                fillSegmentStats(segmentReader, includeSegmentFileSizes, includeFieldLevelSegmentFileSizes, stats);
                 segmentName.add(segmentReader.getSegmentName());
             }
         }
@@ -947,7 +956,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segmentName.contains(segmentReader.getSegmentName()) == false) {
-                    fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
+                    fillSegmentStats(segmentReader, includeSegmentFileSizes, includeFieldLevelSegmentFileSizes, stats);
                 }
             }
         }
@@ -978,11 +987,22 @@ public abstract class Engine implements LifecycleAware, Closeable {
         );
     }
 
-    protected void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
+    protected void fillSegmentStats(
+        SegmentReader segmentReader,
+        boolean includeSegmentFileSizes,
+        boolean includeFieldLevelSegmentFileSizes,
+        SegmentsStats stats
+    ) {
         stats.add(1);
         if (includeSegmentFileSizes) {
             // TODO: consider moving this to StoreStats
             stats.addFileSizes(getSegmentFileSizes(segmentReader));
+        }
+        if (includeFieldLevelSegmentFileSizes) {
+            Map<String, Map<String, Long>> fieldLevelSizes = getFieldLevelFileSizes(segmentReader);
+            if (!fieldLevelSizes.isEmpty()) {
+                stats.addFieldLevelFileSizes(new FieldFileStats(fieldLevelSizes));
+            }
         }
     }
 
@@ -1072,6 +1092,152 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
 
         return Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * Computes field-level file sizes using proportional attribution.
+     * For each file extension, the size is divided equally among all fields that use that file type.
+     *
+     * @param segmentReader the segment reader
+     * @return nested map of field → {extension → size in bytes}
+     */
+    private Map<String, Map<String, Long>> getFieldLevelFileSizes(SegmentReader segmentReader) {
+        // Get directory (handles compound files)
+        Directory directory = null;
+        SegmentCommitInfo segmentCommitInfo = segmentReader.getSegmentInfo();
+        boolean useCompoundFile = segmentCommitInfo.info.getUseCompoundFile();
+
+        try {
+            if (useCompoundFile) {
+                directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info);
+            } else {
+                directory = segmentReader.directory();
+            }
+
+            // Build mapping of extension → set of fields that use it
+            Map<String, Set<String>> extensionToFields = buildExtensionToFieldsMapping(segmentReader.getFieldInfos());
+
+            // Get file sizes by extension (reuse existing logic)
+            Map<String, Long> extensionSizes = getSegmentFileSizes(segmentReader);
+
+            // Perform proportional attribution
+            return attributeFileSizesToFields(extensionSizes, extensionToFields);
+
+        } catch (IOException e) {
+            logger.warn(
+                () -> new ParameterizedMessage("Error computing field-level file sizes for segment [{}]", segmentReader.getSegmentName()),
+                e
+            );
+            return Map.of();
+        } finally {
+            if (useCompoundFile && directory != null) {
+                try {
+                    directory.close();
+                } catch (IOException e) {
+                    logger.warn(
+                        () -> new ParameterizedMessage("Error closing compound reader for segment [{}]", segmentReader.getSegmentName()),
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Builds a mapping of file extensions to the set of fields that use them.
+     *
+     * @param fieldInfos the field infos from the segment
+     * @return map of extension to set of field names
+     */
+    private Map<String, Set<String>> buildExtensionToFieldsMapping(FieldInfos fieldInfos) {
+        Map<String, Set<String>> extensionToFields = new HashMap<>();
+
+        for (FieldInfo fieldInfo : fieldInfos) {
+            String fieldName = fieldInfo.name;
+
+            // DocValues files (.dvd, .dvm)
+            if (fieldInfo.getDocValuesType() != DocValuesType.NONE) {
+                extensionToFields.computeIfAbsent("dvd", k -> new HashSet<>()).add(fieldName);
+                extensionToFields.computeIfAbsent("dvm", k -> new HashSet<>()).add(fieldName);
+            }
+
+            // Postings/Terms files (.tim, .tip, .doc, .pos, .pay)
+            if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
+                extensionToFields.computeIfAbsent("tim", k -> new HashSet<>()).add(fieldName);
+                extensionToFields.computeIfAbsent("tip", k -> new HashSet<>()).add(fieldName);
+                extensionToFields.computeIfAbsent("doc", k -> new HashSet<>()).add(fieldName);
+
+                // Positions and payloads only if indexed with positions
+                if (fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
+                    extensionToFields.computeIfAbsent("pos", k -> new HashSet<>()).add(fieldName);
+                    if (fieldInfo.hasPayloads()) {
+                        extensionToFields.computeIfAbsent("pay", k -> new HashSet<>()).add(fieldName);
+                    }
+                }
+            }
+
+            // Term vectors files (.tvx, .tvd, .tvf)
+            if (fieldInfo.hasTermVectors()) {
+                extensionToFields.computeIfAbsent("tvx", k -> new HashSet<>()).add(fieldName);
+                extensionToFields.computeIfAbsent("tvd", k -> new HashSet<>()).add(fieldName);
+                extensionToFields.computeIfAbsent("tvf", k -> new HashSet<>()).add(fieldName);
+            }
+
+            // Norms files (.nvd, .nvm)
+            if (fieldInfo.hasNorms()) {
+                extensionToFields.computeIfAbsent("nvd", k -> new HashSet<>()).add(fieldName);
+                extensionToFields.computeIfAbsent("nvm", k -> new HashSet<>()).add(fieldName);
+            }
+
+            // Points files (.kdd, .kdi, .kdm, .dim, .dii) - for numeric/geo fields
+            if (fieldInfo.getPointDimensionCount() > 0) {
+                extensionToFields.computeIfAbsent("kdd", k -> new HashSet<>()).add(fieldName);
+                extensionToFields.computeIfAbsent("kdi", k -> new HashSet<>()).add(fieldName);
+                extensionToFields.computeIfAbsent("kdm", k -> new HashSet<>()).add(fieldName);
+                extensionToFields.computeIfAbsent("dim", k -> new HashSet<>()).add(fieldName);
+                extensionToFields.computeIfAbsent("dii", k -> new HashSet<>()).add(fieldName);
+            }
+
+            // Stored fields (.fdt, .fdx) - all stored fields contribute
+            // Field names file (.fnm) - all fields contribute
+            extensionToFields.computeIfAbsent("fdt", k -> new HashSet<>()).add(fieldName);
+            extensionToFields.computeIfAbsent("fdx", k -> new HashSet<>()).add(fieldName);
+            extensionToFields.computeIfAbsent("fnm", k -> new HashSet<>()).add(fieldName);
+        }
+
+        return extensionToFields;
+    }
+
+    /**
+     * Attributes file sizes to fields using simple proportional division.
+     * Each file's size is divided equally among all fields that use that file type.
+     *
+     * @param extensionSizes map of extension to total size
+     * @param extensionToFields map of extension to set of fields
+     * @return nested map of field → {extension → attributed size}
+     */
+    private Map<String, Map<String, Long>> attributeFileSizesToFields(
+        Map<String, Long> extensionSizes,
+        Map<String, Set<String>> extensionToFields
+    ) {
+        Map<String, Map<String, Long>> result = new HashMap<>();
+
+        for (Map.Entry<String, Long> entry : extensionSizes.entrySet()) {
+            String extension = entry.getKey();
+            long totalSize = entry.getValue();
+            Set<String> fields = extensionToFields.get(extension);
+
+            if (fields != null && !fields.isEmpty()) {
+                // Simple proportional division: divide equally among fields
+                long sizePerField = totalSize / fields.size();
+
+                for (String field : fields) {
+                    result.computeIfAbsent(field, k -> new HashMap<>()).put(extension, sizePerField);
+                }
+            }
+        }
+
+        return result;
     }
 
     protected void writerSegmentStats(SegmentsStats stats) {

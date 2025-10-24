@@ -82,7 +82,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
         try (DirectoryReader reader = openDirectory(directory, config.getIndexSettings().isSoftDeleteEnabled(), config.getLeafSorter())) {
             for (LeafReaderContext ctx : reader.getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
-                fillSegmentStats(segmentReader, true, segmentsStats);
+                fillSegmentStats(segmentReader, true, false, segmentsStats);
             }
             this.docsStats = docsStats(reader);
         } catch (IOException e) {
@@ -137,7 +137,11 @@ public final class NoOpEngine extends ReadOnlyEngine {
     }
 
     @Override
-    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+    public SegmentsStats segmentsStats(
+        boolean includeSegmentFileSizes,
+        boolean includeUnloadedSegments,
+        boolean includeFieldLevelSegmentFileSizes
+    ) {
         if (includeUnloadedSegments) {
             final SegmentsStats stats = new SegmentsStats();
             stats.add(this.segmentsStats);
@@ -146,7 +150,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
             }
             return stats;
         } else {
-            return super.segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
+            return super.segmentsStats(includeSegmentFileSizes, includeUnloadedSegments, includeFieldLevelSegmentFileSizes);
         }
     }
 

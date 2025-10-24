@@ -33,6 +33,8 @@
 package org.opensearch.index.engine;
 
 import org.opensearch.Version;
+import org.opensearch.common.FieldFileStats;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -64,6 +66,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
     private long bitsetMemoryInBytes;
     private final Map<String, Long> fileSizes;
+    @Nullable
+    private FieldFileStats fieldLevelFileSizes;
     private final RemoteSegmentStats remoteSegmentStats;
     private static final ByteSizeValue ZERO_BYTE_SIZE_VALUE = new ByteSizeValue(0L);
 
@@ -136,6 +140,9 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
             remoteSegmentStats = new RemoteSegmentStats();
             replicationStats = new ReplicationStats();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            fieldLevelFileSizes = in.readOptionalWriteable(FieldFileStats::new);
+        }
     }
 
     public void add(long count) {
@@ -174,6 +181,17 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         }));
     }
 
+    public void addFieldLevelFileSizes(final FieldFileStats newFieldLevelFileSizes) {
+        if (newFieldLevelFileSizes == null) {
+            return;
+        }
+        if (this.fieldLevelFileSizes == null) {
+            this.fieldLevelFileSizes = newFieldLevelFileSizes.copy();
+        } else {
+            this.fieldLevelFileSizes.add(newFieldLevelFileSizes);
+        }
+    }
+
     public void add(SegmentsStats mergeStats) {
         if (mergeStats == null) {
             return;
@@ -184,6 +202,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         addVersionMapMemoryInBytes(mergeStats.versionMapMemoryInBytes);
         addBitsetMemoryInBytes(mergeStats.bitsetMemoryInBytes);
         addFileSizes(mergeStats.fileSizes);
+        addFieldLevelFileSizes(mergeStats.fieldLevelFileSizes);
         addRemoteSegmentStats(mergeStats.remoteSegmentStats);
         addReplicationStats(mergeStats.replicationStats);
     }
@@ -233,6 +252,12 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         return Collections.unmodifiableMap(this.fileSizes);
     }
 
+    /** Returns field-level file sizes */
+    @Nullable
+    public FieldFileStats getFieldLevelFileSizes() {
+        return fieldLevelFileSizes;
+    }
+
     /** Returns remote_store based stats **/
     public RemoteSegmentStats getRemoteSegmentStats() {
         return remoteSegmentStats;
@@ -275,6 +300,9 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
             builder.endObject();
         }
         builder.endObject();
+        if (fieldLevelFileSizes != null) {
+            fieldLevelFileSizes.toXContent(builder, Fields.FIELD_LEVEL_FILE_SIZES);
+        }
         builder.endObject();
         return builder;
     }
@@ -309,6 +337,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         static final String FIXED_BIT_SET = "fixed_bit_set";
         static final String FIXED_BIT_SET_MEMORY_IN_BYTES = "fixed_bit_set_memory_in_bytes";
         static final String FILE_SIZES = "file_sizes";
+        static final String FIELD_LEVEL_FILE_SIZES = "field_level_file_sizes";
         static final String SIZE = "size";
         static final String SIZE_IN_BYTES = "size_in_bytes";
         static final String DESCRIPTION = "description";
@@ -336,6 +365,9 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeOptionalWriteable(remoteSegmentStats);
             out.writeOptionalWriteable(replicationStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalWriteable(fieldLevelFileSizes);
         }
     }
 

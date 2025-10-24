@@ -62,6 +62,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     private String[] completionDataFields = null;
     private boolean includeSegmentFileSizes = false;
     private boolean includeUnloadedSegments = false;
+    private boolean includeFieldLevelSegmentFileSizes = false;
     private boolean includeAllShardIndexingPressureTrackers = false;
     private boolean includeOnlyTopIndexingPressureMetrics = false;
     // Used for metric CACHE_STATS, to determine which caches to report stats for
@@ -104,6 +105,9 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             includeIndicesStatsByLevel = in.readBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            includeFieldLevelSegmentFileSizes = in.readBoolean();
+        }
     }
 
     @Override
@@ -131,6 +135,9 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeBoolean(includeIndicesStatsByLevel);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeBoolean(includeFieldLevelSegmentFileSizes);
+        }
     }
 
     /**
@@ -143,6 +150,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         completionDataFields = null;
         includeSegmentFileSizes = false;
         includeUnloadedSegments = false;
+        includeFieldLevelSegmentFileSizes = false;
         includeAllShardIndexingPressureTrackers = false;
         includeOnlyTopIndexingPressureMetrics = false;
         includeCaches = EnumSet.allOf(CacheType.class);
@@ -160,6 +168,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         completionDataFields = null;
         includeSegmentFileSizes = false;
         includeUnloadedSegments = false;
+        includeFieldLevelSegmentFileSizes = false;
         includeAllShardIndexingPressureTrackers = false;
         includeOnlyTopIndexingPressureMetrics = false;
         includeCaches = EnumSet.noneOf(CacheType.class);
@@ -223,6 +232,11 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         return this;
     }
 
+    public CommonStatsFlags includeFieldLevelSegmentFileSizes(boolean includeFieldLevelSegmentFileSizes) {
+        this.includeFieldLevelSegmentFileSizes = includeFieldLevelSegmentFileSizes;
+        return this;
+    }
+
     public CommonStatsFlags includeUnloadedSegments(boolean includeUnloadedSegments) {
         this.includeUnloadedSegments = includeUnloadedSegments;
         return this;
@@ -267,6 +281,10 @@ public class CommonStatsFlags implements Writeable, Cloneable {
 
     public boolean includeSegmentFileSizes() {
         return this.includeSegmentFileSizes;
+    }
+
+    public boolean includeFieldLevelSegmentFileSizes() {
+        return this.includeFieldLevelSegmentFileSizes;
     }
 
     public void setIncludeIndicesStatsByLevel(boolean includeIndicesStatsByLevel) {

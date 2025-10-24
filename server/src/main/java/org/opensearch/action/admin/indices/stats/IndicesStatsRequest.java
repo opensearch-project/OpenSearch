@@ -292,6 +292,11 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return this;
     }
 
+    public IndicesStatsRequest includeFieldLevelSegmentFileSizes(boolean includeFieldLevelSegmentFileSizes) {
+        flags.includeFieldLevelSegmentFileSizes(includeFieldLevelSegmentFileSizes);
+        return this;
+    }
+
     public IndicesStatsRequest includeUnloadedSegments(boolean includeUnloadedSegments) {
         flags.includeUnloadedSegments(includeUnloadedSegments);
         return this;
