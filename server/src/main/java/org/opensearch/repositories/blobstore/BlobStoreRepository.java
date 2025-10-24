@@ -1064,14 +1064,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public BlobStore blobStore(boolean serverSideEncryptionEnabled) {
         BlobStoreProvider provider = this.blobStoreProvider.get();
-        logger.info("1. provider = " + provider);
         if (provider == null) {
             synchronized (lock) {
                 provider = new BlobStoreProvider(this, metadata, lifecycle, lock);
                 this.blobStoreProvider.set(provider);
             }
         }
-        logger.info("provider = " + provider);
         return provider.blobStore(serverSideEncryptionEnabled);
     }
 

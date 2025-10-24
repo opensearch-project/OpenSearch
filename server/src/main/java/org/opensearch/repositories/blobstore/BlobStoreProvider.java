@@ -40,10 +40,8 @@ public class BlobStoreProvider {
 
     protected BlobStore blobStore(boolean serverSideEncryptionEnabled) {
         if (serverSideEncryptionEnabled) {
-            logger.info("[BlobStoreProvider]: Using serverSideEncryptedBlobStore");
             return createBlobStore(serverSideEncryptedBlobStore, true);
         }
-        logger.info("[BlobStoreProvider]: Using blobStore");
         return createBlobStore(blobStore, false);
     }
 
