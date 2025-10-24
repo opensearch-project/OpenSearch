@@ -498,18 +498,22 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
         long scaledValue = Math.round(doubleValue * scalingFactor);
 
-        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(
-            fieldType().name(),
-            scaledValue,
-            indexed,
-            hasDocValues,
-            skiplist,
-            stored
-        );
-        context.doc().addAll(fields);
+        if (isPluggableDataFormatFeatureEnabled()) {
+            context.compositeDocumentInput().addField(fieldType(), scaledValue);
+        } else {
+            List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(
+                fieldType().name(),
+                scaledValue,
+                indexed,
+                hasDocValues,
+                skiplist,
+                stored
+            );
+            context.doc().addAll(fields);
 
-        if (hasDocValues == false && (indexed || stored)) {
-            createFieldNamesField(context);
+            if (hasDocValues == false && (indexed || stored)) {
+                createFieldNamesField(context);
+            }
         }
     }
 

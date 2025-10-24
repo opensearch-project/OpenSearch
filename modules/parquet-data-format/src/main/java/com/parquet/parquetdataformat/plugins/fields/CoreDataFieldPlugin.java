@@ -9,9 +9,11 @@
 package com.parquet.parquetdataformat.plugins.fields;
 
 import com.parquet.parquetdataformat.fields.ParquetField;
+import com.parquet.parquetdataformat.fields.core.data.BinaryParquetField;
+import com.parquet.parquetdataformat.fields.core.data.date.DateNanosParquetField;
 import com.parquet.parquetdataformat.fields.core.data.TokenCountParquetField;
 import com.parquet.parquetdataformat.fields.core.data.BooleanParquetField;
-import com.parquet.parquetdataformat.fields.core.data.DateParquetField;
+import com.parquet.parquetdataformat.fields.core.data.date.DateParquetField;
 import com.parquet.parquetdataformat.fields.core.data.IpParquetField;
 import com.parquet.parquetdataformat.fields.core.data.KeywordParquetField;
 import com.parquet.parquetdataformat.fields.core.data.TextParquetField;
@@ -23,6 +25,7 @@ import com.parquet.parquetdataformat.fields.core.data.number.IntegerParquetField
 import com.parquet.parquetdataformat.fields.core.data.number.LongParquetField;
 import com.parquet.parquetdataformat.fields.core.data.number.ShortParquetField;
 import com.parquet.parquetdataformat.fields.core.data.number.UnsignedLongParquetField;
+import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
@@ -55,6 +58,9 @@ public class CoreDataFieldPlugin implements ParquetFieldPlugin {
         // Register text-based field types
         registerTextFields(fieldMap);
 
+        // Register binary field types
+        registerBinaryFields(fieldMap);
+
         return fieldMap;
     }
 
@@ -76,6 +82,7 @@ public class CoreDataFieldPlugin implements ParquetFieldPlugin {
         fieldMap.put(NumberFieldMapper.NumberType.LONG.typeName(), new LongParquetField());
         fieldMap.put(NumberFieldMapper.NumberType.UNSIGNED_LONG.typeName(), new UnsignedLongParquetField());
         fieldMap.put("token_count", new TokenCountParquetField());
+        fieldMap.put("scaled_float", new LongParquetField());
     }
 
     /**
@@ -85,6 +92,7 @@ public class CoreDataFieldPlugin implements ParquetFieldPlugin {
      */
     private static void registerTemporalFields(final Map<String, ParquetField> fieldMap) {
         fieldMap.put(DateFieldMapper.CONTENT_TYPE, new DateParquetField());
+        fieldMap.put(DateFieldMapper.DATE_NANOS_CONTENT_TYPE, new DateNanosParquetField());
     }
 
     /**
@@ -94,6 +102,15 @@ public class CoreDataFieldPlugin implements ParquetFieldPlugin {
      */
     private static void registerBooleanFields(final Map<String, ParquetField> fieldMap) {
         fieldMap.put(BooleanFieldMapper.CONTENT_TYPE, new BooleanParquetField());
+    }
+
+    /**
+     * Registers all binary field type mappings.
+     *
+     * @param fieldMap the map to populate with binary field mappings
+     */
+    private static void registerBinaryFields(final Map<String, ParquetField> fieldMap) {
+        fieldMap.put(BinaryFieldMapper.CONTENT_TYPE, new BinaryParquetField());
     }
 
     /**
