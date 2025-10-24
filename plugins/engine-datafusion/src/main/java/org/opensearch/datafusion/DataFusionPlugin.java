@@ -8,11 +8,17 @@
 
 package org.opensearch.datafusion;
 
+import java.util.Arrays;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -24,6 +30,7 @@ import org.opensearch.datafusion.search.DatafusionContext;
 import org.opensearch.datafusion.search.DatafusionQuery;
 import org.opensearch.datafusion.search.DatafusionReaderManager;
 import org.opensearch.datafusion.search.DatafusionSearcher;
+import org.opensearch.datafusion.search.cache.CacheSettings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.shard.ShardPath;
@@ -51,6 +58,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_ENABLED;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_SIZE_LIMIT;
+
 /**
  * Main plugin class for OpenSearch DataFusion integration.
  *
@@ -59,6 +70,8 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
 
     private DataFusionService dataFusionService;
     private final boolean isDataFusionEnabled;
+
+    private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
     /**
      * Constructor for DataFusionPlugin.
@@ -103,7 +116,7 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         if (!isDataFusionEnabled) {
             return Collections.emptyList();
         }
-        dataFusionService = new DataFusionService(dataSourceCodecs);
+        dataFusionService = new DataFusionService(dataSourceCodecs, clusterService.getClusterSettings());
 
         for(DataFormat format : this.getSupportedFormats()) {
             dataSourceCodecs.get(format);
@@ -166,5 +179,15 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
             return Collections.emptyList();
         }
         return List.of(new ActionHandler<>(NodesDataFusionInfoAction.INSTANCE, TransportNodesDataFusionInfoAction.class));
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Stream.of(
+                CacheSettings.CACHE_SETTINGS,
+                CacheSettings.CACHE_ENABLED)
+            .flatMap(x -> x.stream())
+            .collect(Collectors.toList());
+
     }
 }

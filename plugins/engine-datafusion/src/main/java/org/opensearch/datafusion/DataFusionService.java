@@ -11,9 +11,11 @@ package org.opensearch.datafusion;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.datafusion.core.GlobalRuntimeEnv;
+import org.opensearch.datafusion.search.cache.CacheManager;
 import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
@@ -31,17 +33,26 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final ConcurrentMapLong<DataSourceCodec> sessionEngines = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
     private final DataSourceRegistry dataSourceRegistry;
+    private final Long tokioRuntimePtr;
     private final GlobalRuntimeEnv globalRuntimeEnv;
+    private CacheManager cacheManager;
 
     /**
      * Creates a new DataFusion service instance.
      */
-    public DataFusionService(Map<DataFormat, DataSourceCodec> dataSourceCodecs) {
+
+    public DataFusionService(Map<DataFormat, DataSourceCodec> dataSourceCodecs, ClusterSettings clusterSettings) {
         this.dataSourceRegistry = new DataSourceRegistry(dataSourceCodecs);
 
         // to verify jni
         String version = DataFusionQueryJNI.getVersionInfo();
-        this.globalRuntimeEnv = new GlobalRuntimeEnv();
+        this.tokioRuntimePtr = DataFusionQueryJNI.createTokioRuntime();
+        this.globalRuntimeEnv = new GlobalRuntimeEnv(clusterSettings);
+        this.cacheManager = globalRuntimeEnv.getCacheManager();
+    }
+
+    public Long getTokioRuntimePointer() {
+        return tokioRuntimePtr;
     }
 
     @Override
@@ -165,9 +176,9 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return globalRuntimeEnv.getPointer();
     }
 
-    public long getTokioRuntimePointer() {
-        return globalRuntimeEnv.getTokioRuntimePtr();
-    }
+    //public long getTokioRuntimePointer() {
+   //     return globalRuntimeEnv.getTokioRuntimePtr();
+   // }
 
     /**
      * Close the session context and clean up resources
@@ -206,5 +217,9 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
         version.append("]}");
         return version.toString();
+    }
+
+    public CacheManager getCacheManager() {
+        return cacheManager;
     }
 }
