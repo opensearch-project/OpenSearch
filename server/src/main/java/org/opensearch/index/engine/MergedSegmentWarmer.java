@@ -10,7 +10,7 @@ package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
@@ -24,12 +24,12 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 
 /**
- * Implementation of a {@link IndexWriter.IndexReaderWarmer} for merged segment replication in
+ * Implementation of a {@link IndexReaderWarmer} for merged segment replication in
  * local on-disk and remote store enabled domains.
  *
  * @opensearch.internal
  */
-public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
+public class MergedSegmentWarmer implements IndexReaderWarmer {
     private final TransportService transportService;
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;
@@ -53,19 +53,20 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
 
     @Override
     public void warm(LeafReader leafReader) throws IOException {
-        if (shouldWarm() == false) {
-            return;
-        }
 
-        mergedSegmentTransferTracker.incrementTotalWarmInvocationsCount();
-        mergedSegmentTransferTracker.incrementOngoingWarms();
-        // IndexWriter.IndexReaderWarmer#warm is called by IndexWriter#mergeMiddle. The type of leafReader should be SegmentReader.
-        assert leafReader instanceof SegmentReader;
-        assert indexShard.indexSettings().isSegRepLocalEnabled() || indexShard.indexSettings().isRemoteStoreEnabled();
         long startTime = System.currentTimeMillis();
-        long elapsedTime = 0;
+        long elapsedTime = -1;
+        boolean shouldWarm = false;
         try {
-            SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
+            SegmentCommitInfo segmentCommitInfo = segmentCommitInfo(leafReader);
+            // If shouldWarm fails, we increment the warmFailureCount
+            // However, the time taken by shouldWarm is not accounted for in the totalWarmTime
+            shouldWarm = shouldWarm(segmentCommitInfo);
+            if (shouldWarm == false) {
+                return;
+            }
+            mergedSegmentTransferTracker.incrementTotalWarmInvocationsCount();
+            mergedSegmentTransferTracker.incrementOngoingWarms();
             logger.trace(() -> new ParameterizedMessage("Warming segment: {}", segmentCommitInfo));
             indexShard.publishMergedSegment(segmentCommitInfo);
             elapsedTime = System.currentTimeMillis() - startTime;
@@ -83,16 +84,59 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
                 );
             });
         } catch (Throwable t) {
-            logger.warn(() -> new ParameterizedMessage("Failed to warm segment. Continuing. {}", leafReader), t);
+            logger.warn(() -> new ParameterizedMessage("Failed to warm segment. Continuing. {}", segmentCommitInfo(leafReader)), t);
             mergedSegmentTransferTracker.incrementTotalWarmFailureCount();
         } finally {
-            mergedSegmentTransferTracker.addTotalWarmTimeMillis(elapsedTime);
-            mergedSegmentTransferTracker.decrementOngoingWarms();
+            if (shouldWarm == true) {
+                if (elapsedTime == -1) {
+                    elapsedTime = System.currentTimeMillis() - startTime;
+                }
+                mergedSegmentTransferTracker.addTotalWarmTimeMillis(elapsedTime);
+                mergedSegmentTransferTracker.decrementOngoingWarms();
+            }
         }
     }
 
     // package-private for tests
-    boolean shouldWarm() {
-        return indexShard.getRecoverySettings().isMergedSegmentReplicationWarmerEnabled() == true;
+    SegmentCommitInfo segmentCommitInfo(LeafReader leafReader) {
+
+        // IndexWriter.IndexReaderWarmer#warm is called by IndexWriter#mergeMiddle. The type of leafReader should be SegmentReader.
+        assert leafReader instanceof SegmentReader;
+        assert indexShard.indexSettings().isSegRepLocalEnabled() || indexShard.indexSettings().isRemoteStoreEnabled();
+        try {
+            return ((SegmentReader) leafReader).getSegmentInfo();
+        } catch (Throwable e) {
+            logger.warn("Unable to get segment info from leafReader. Continuing.", e);
+        }
+        return null;
+    }
+
+    // package-private for tests
+    boolean shouldWarm(SegmentCommitInfo segmentCommitInfo) throws IOException {
+        if (indexShard.getRecoverySettings().isMergedSegmentReplicationWarmerEnabled() == false) {
+            return false;
+        }
+
+        // in case we are unable to gauge the size of the merged segment segmentCommitInfo.sizeInBytes throws IOException
+        // we would not warm the segment
+        if (segmentCommitInfo.info == null || segmentCommitInfo.info.dir == null) {
+            return false;
+        }
+
+        long segmentSize = segmentCommitInfo.sizeInBytes();
+        double threshold = indexShard.getRecoverySettings().getMergedSegmentWarmerMinSegmentSizeThreshold().getBytes();
+        if (segmentSize < threshold) {
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Skipping warm for segment {}. SegmentSize {}B is less than the configured threshold {}B.",
+                    segmentCommitInfo.info.name,
+                    segmentSize,
+                    threshold
+                )
+            );
+            return false;
+        }
+
+        return true;
     }
 }

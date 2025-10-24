@@ -40,7 +40,6 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.settings.Setting.Validator;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
@@ -78,21 +77,27 @@ public class RecoverySettings {
     );
 
     /**
+     * Dynamic setting to set a threshold for minimum size of a merged segment to be warmed.
+     */
+    public static final Setting<ByteSizeValue> INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING = Setting
+        .byteSizeSetting(
+            "indices.replication.merges.warmer.min_segment_size_threshold",
+            new ByteSizeValue(500, ByteSizeUnit.MB),
+            Property.Dynamic,
+            Property.NodeScope
+        );
+
+    /**
      * Dynamic setting to enable the merged segment warming(pre-copy) feature, default: false
      */
     public static final Setting<Boolean> INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING = Setting.boolSetting(
-        "indices.replication.merged_segment_warmer_enabled",
+        "indices.replication.merges.warmer.enabled",
         false,
-        new Validator<Boolean>() {
-            @Override
-            public void validate(Boolean value) {
-                if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG) == false && value == true) {
-                    throw new IllegalArgumentException(
-                        "FeatureFlag "
-                            + FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG
-                            + " must be enabled to set this property to true."
-                    );
-                }
+        value -> {
+            if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG) == false && value == true) {
+                throw new IllegalArgumentException(
+                    "FeatureFlag " + FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG + " must be enabled to set this property to true."
+                );
             }
         },
         Property.Dynamic,
@@ -103,7 +108,7 @@ public class RecoverySettings {
      * Individual speed setting for merged segment replication, default -1B to reuse the setting of recovery.
      */
     public static final Setting<ByteSizeValue> INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
-        "indices.merged_segment_replication.max_bytes_per_sec",
+        "indices.replication.merges.warmer.max_bytes_per_sec",
         new ByteSizeValue(-1),
         Property.Dynamic,
         Property.NodeScope
@@ -113,7 +118,7 @@ public class RecoverySettings {
      * Control the maximum waiting time for replicate merged segment to the replica
      */
     public static final Setting<TimeValue> INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING = Setting.timeSetting(
-        "indices.merged_segment_replication_timeout",
+        "indices.replication.merges.warmer.timeout",
         TimeValue.timeValueMinutes(15),
         TimeValue.timeValueMinutes(0),
         Property.Dynamic,
@@ -233,6 +238,7 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
+    private volatile ByteSizeValue mergedSegmentWarmerMinSegmentSizeThreshold;
     private volatile ByteSizeValue recoveryMaxBytesPerSec;
     private volatile ByteSizeValue replicationMaxBytesPerSec;
     private volatile boolean mergedSegmentReplicationWarmerEnabled;
@@ -278,6 +284,9 @@ public class RecoverySettings {
         this.mergedSegmentReplicationWarmerEnabled = INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.get(settings);
         this.mergedSegmentReplicationMaxBytesPerSec = INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
         this.mergedSegmentReplicationTimeout = INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.get(settings);
+        this.mergedSegmentWarmerMinSegmentSizeThreshold = INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.get(
+            settings
+        );
         replicationRateLimiter = getReplicationRateLimiter(replicationMaxBytesPerSec);
         mergedSegmentReplicationRateLimiter = getReplicationRateLimiter(mergedSegmentReplicationMaxBytesPerSec);
 
@@ -288,7 +297,7 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setRecoveryMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING, this::setReplicationMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(
-            INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING,
+            RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING,
             this::setIndicesMergedSegmentReplicationWarmerEnabled
         );
         clusterSettings.addSettingsUpdateConsumer(
@@ -298,6 +307,10 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING,
             this::setMergedSegmentReplicationTimeout
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING,
+            this::setMergedSegmentWarmerMinSegmentSizeThreshold
         );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING, this::setMaxConcurrentOperations);
@@ -319,6 +332,14 @@ public class RecoverySettings {
             INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING,
             this::setInternalActionRetryTimeout
         );
+    }
+
+    private void setMergedSegmentWarmerMinSegmentSizeThreshold(ByteSizeValue value) {
+        this.mergedSegmentWarmerMinSegmentSizeThreshold = value;
+    }
+
+    public ByteSizeValue getMergedSegmentWarmerMinSegmentSizeThreshold() {
+        return this.mergedSegmentWarmerMinSegmentSizeThreshold;
     }
 
     public RateLimiter recoveryRateLimiter() {
