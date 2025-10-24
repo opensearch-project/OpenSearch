@@ -185,10 +185,14 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
             tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }
 
-        context.doc()
-            .addAll(
-                NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, skiplist, store)
-            );
+        if (isPluggableDataFormatFeatureEnabled()) {
+            context.compositeDocumentInput().addField(fieldType(), tokenCount);
+        } else {
+            context.doc()
+                .addAll(
+                    NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, skiplist, store)
+                );
+        }
     }
 
     /**
