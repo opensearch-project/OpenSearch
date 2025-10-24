@@ -102,8 +102,12 @@ import org.junit.Assert;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -334,18 +338,36 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
 
         logger.info("--> copying data on disk from [{}] to [{}]", indexDataPath, newIndexDataPath);
         assert Files.exists(newIndexDataPath) == false : "new index data path directory should not exist!";
-        try (Stream<Path> stream = Files.walk(indexDataPath)) {
-            stream.forEach(path -> {
-                try {
-                    if (path.endsWith(".lock") == false) {
-                        Files.copy(path, newIndexDataPath.resolve(indexDataPath.relativize(path)));
+        Files.walkFileTree(indexDataPath, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Path targetDir = newIndexDataPath.resolve(indexDataPath.relativize(dir));
+                Files.createDirectories(targetDir);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                if (file.getFileName().toString().endsWith(".lock") == false) {
+                    Path target = newIndexDataPath.resolve(indexDataPath.relativize(file));
+                    try {
+                        Files.copy(file, target);
+                    } catch (NoSuchFileException e) {
+                        logger.error("Failed to copy data path directory", e);
+                        fail();
                     }
-                } catch (final Exception e) {
-                    logger.error("Failed to copy data path directory", e);
-                    fail();
                 }
-            });
-        }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                if (exc instanceof NoSuchFileException) {
+                    return FileVisitResult.CONTINUE;
+                }
+                return FileVisitResult.TERMINATE;
+            }
+        });
 
         logger.info("--> updating data_path to [{}] for index [{}]", newIndexDataPath, index);
         // update data path and re-enable refresh
