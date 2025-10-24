@@ -98,6 +98,16 @@ public class FeatureFlags {
     );
 
     /**
+     * Gates the functionality of pluggable dataformat feature
+     */
+    public static final String PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG = FEATURE_FLAG_PREFIX + "pluggable.dataformat.enabled";
+    public static final Setting<Boolean> PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTINGS = Setting.boolSetting(
+        PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG,
+        false,
+        Property.NodeScope
+    );
+
+    /**
      * Gates the functionality of application based configuration templates.
      */
     public static final String APPLICATION_BASED_CONFIGURATION_TEMPLATES = FEATURE_FLAG_PREFIX + "application_templates.enabled";
@@ -146,6 +156,7 @@ public class FeatureFlags {
                 put(ARROW_STREAMS_SETTING, ARROW_STREAMS_SETTING.getDefault(Settings.EMPTY));
                 put(STREAM_TRANSPORT_SETTING, STREAM_TRANSPORT_SETTING.getDefault(Settings.EMPTY));
                 put(MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING, MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
+                put(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTINGS, PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTINGS.get(Settings.EMPTY));
             }
         };
 
