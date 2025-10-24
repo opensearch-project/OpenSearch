@@ -73,13 +73,17 @@ public class RemoteStoreCustomMetadataResolver {
     }
 
     public boolean isRemoteStoreRepoServerSideEncryptionEnabled() {
-        Repository repository;
+        BlobStoreRepository segmentRepository, translogRepository;
         try {
-            repository = repositoriesServiceSupplier.get().repository(RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings));
+            segmentRepository = (BlobStoreRepository) repositoriesServiceSupplier.get()
+                .repository(RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings));
+            translogRepository = (BlobStoreRepository) repositoriesServiceSupplier.get()
+                .repository(RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings));
         } catch (RepositoryMissingException ex) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", ex);
         }
-        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        return Version.V_3_4_0.compareTo(minNodeVersionSupplier.get()) <= 0 && blobStoreRepository.isSeverSideEncryptionEnabled();
+        return Version.V_3_4_0.compareTo(minNodeVersionSupplier.get()) <= 0
+            && segmentRepository.isSeverSideEncryptionEnabled()
+            && translogRepository.isSeverSideEncryptionEnabled();
     }
 }
