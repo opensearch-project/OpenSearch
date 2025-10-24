@@ -37,6 +37,7 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
@@ -46,6 +47,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
@@ -137,7 +139,9 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
      *
      * @opensearch.internal
      */
-    public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse> {
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse>
+        implements
+            TransportIndicesResolvingAction<Request> {
 
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
 
@@ -178,6 +182,11 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        }
+
+        @Override
+        public ResolvedIndices resolveIndices(Request request) {
+            return ResolvedIndices.of(request.name);
         }
     }
 
