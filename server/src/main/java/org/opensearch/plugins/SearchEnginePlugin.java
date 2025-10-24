@@ -23,6 +23,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.vectorized.execution.search.spi.SessionConfig;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
@@ -56,5 +57,9 @@ public interface SearchEnginePlugin extends SearchPlugin{
 
     List<DataFormat> getSupportedFormats();
 
-    SearchExecEngine<?,?,?,?> createEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, ShardPath shardPath) throws IOException;
+    SearchExecEngine<?,?,?,?> createEngine(DataFormat dataFormat,
+                                           SessionConfig sessionConfig,
+                                           Collection<FileMetadata> formatCatalogSnapshot,
+                                           ShardPath shardPath
+    ) throws IOException;
 }

@@ -16,8 +16,10 @@ public class DatafusionQuery {
 
     // List of Search executors which returns a result iterator which contains row id which can be joined in datafusion
     private final List<SearchExecutor> searchExecutors;
+    private final String dataformat;
 
-    public DatafusionQuery(byte[] substraitBytes, List<SearchExecutor> searchExecutors) {
+    public DatafusionQuery(String dataformat, byte[] substraitBytes, List<SearchExecutor> searchExecutors) {
+        this.dataformat = dataformat;
         this.substraitBytes = substraitBytes;
         this.searchExecutors = searchExecutors;
     }
@@ -28,5 +30,9 @@ public class DatafusionQuery {
 
     public List<SearchExecutor> getSearchExecutors() {
         return searchExecutors;
+    }
+
+    public String getDataformat() {
+        return dataformat;
     }
 }
