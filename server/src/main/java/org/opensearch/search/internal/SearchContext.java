@@ -555,6 +555,14 @@ public abstract class SearchContext implements Releasable {
         return 0;
     }
 
+    public boolean cardinalityAggregationHybridCollectorEnabled() {
+        return false;
+    }
+
+    public long cardinalityAggregationHybridCollectorMemoryThreshold() {
+        return Runtime.getRuntime().maxMemory() / 100; // 1% of available memory default
+    }
+
     public int bucketSelectionStrategyFactor() {
         return SearchService.DEFAULT_BUCKET_SELECTION_STRATEGY_FACTOR;
     }
