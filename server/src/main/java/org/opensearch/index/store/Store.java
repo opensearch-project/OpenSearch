@@ -1042,6 +1042,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
 
+        /**
+         * Maximum file size in bytes for computing hash values
+         */
+        private static final long MAX_FILE_SIZE_FOR_HASH_COMPUTATION_IN_BYTES = 10L * 1024L * 1024L;
+
         private final Map<String, String> commitUserData;
 
         private final long numDocs;
@@ -1238,7 +1243,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                             in
                         );
                     }
-                    if (readFileAsHash) {
+                    if (readFileAsHash && length < MAX_FILE_SIZE_FOR_HASH_COMPUTATION_IN_BYTES) {
                         // additional safety we checksum the entire file we read the hash for...
                         final VerifyingIndexInput verifyingIndexInput = new VerifyingIndexInput(in);
                         hashFile(fileHash, new InputStreamIndexInput(verifyingIndexInput, length), length);
@@ -1256,10 +1261,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         /**
-         * Computes a strong hash value for small files. Note that this method should only be used for files &lt; 1MB
+         * Computes a strong hash value for small files. Note that this method should only be used for files &lt; 10MB
          */
         public static void hashFile(BytesRefBuilder fileHash, InputStream in, long size) throws IOException {
-            final int len = (int) Math.min(1024 * 1024, size); // for safety we limit this to 1MB
+            final int len = (int) Math.min(MAX_FILE_SIZE_FOR_HASH_COMPUTATION_IN_BYTES, size);
             fileHash.grow(len);
             fileHash.setLength(len);
             final int readBytes = in.readNBytes(fileHash.bytes(), 0, len);
