@@ -17,6 +17,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.StringHelper;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
@@ -50,15 +53,25 @@ public class MergedSegmentWarmerTests extends OpenSearchTestCase {
     SegmentCommitInfo segmentCommitInfo;
     @Mock
     MergedSegmentTransferTracker mergedSegmentTransferTracker;
+    @Mock
+    DiscoveryNodes mockDiscoveryNodes;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         mockIndexShard = mock(IndexShard.class);
         mergedSegmentTransferTracker = mock(MergedSegmentTransferTracker.class);
+
+        ClusterState mockClusterState = mock(ClusterState.class);
+        mockDiscoveryNodes = mock(DiscoveryNodes.class);
+        ClusterService mockClusterService = mock(ClusterService.class);
+        when(mockClusterService.state()).thenReturn(mockClusterState);
+        when(mockClusterState.nodes()).thenReturn(mockDiscoveryNodes);
+        when(mockDiscoveryNodes.getMinNodeVersion()).thenReturn(Version.V_3_4_0);
+
         when(mockIndexShard.mergedSegmentTransferTracker()).thenReturn(mergedSegmentTransferTracker);
         when(mockIndexShard.shardId()).thenReturn(new ShardId(new Index("test-index", "_na_"), 0));
-        mergedSegmentWarmer = new MergedSegmentWarmer(null, null, null, mockIndexShard);
+        mergedSegmentWarmer = new MergedSegmentWarmer(null, null, mockClusterService, mockIndexShard);
         segmentCommitInfo = new SegmentCommitInfo(segmentInfo(), 0, 0, 0, 0, 0, null);
     }
 
@@ -106,10 +119,24 @@ public class MergedSegmentWarmerTests extends OpenSearchTestCase {
         when(mockRecoverySettings.isMergedSegmentReplicationWarmerEnabled()).thenReturn(true);
         when(mockRecoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold()).thenReturn(new ByteSizeValue(500, ByteSizeUnit.MB));
         when(mockIndexShard.getRecoverySettings()).thenReturn(mockRecoverySettings);
-        when(segmentCommitInfo.info.dir.fileLength(any())).thenReturn(600 * 1_000_000L);
+        when(segmentCommitInfo.info.dir.fileLength(any())).thenReturn(150 * 1_000_000L);
 
-        assertTrue(
-            "MergedSegmentWarmer#shouldWarm is expected to return false when merged segment warmer is disabled",
+        assertFalse(
+            "MergedSegmentWarmer#shouldWarm is expected to return true when merged segment warmer is enabled",
+            mergedSegmentWarmer.shouldWarm(segmentCommitInfo)
+        );
+    }
+
+    public void testShouldWarm_minNodeVersionNotSatisfied() throws IOException {
+        RecoverySettings mockRecoverySettings = mock(RecoverySettings.class);
+        when(mockRecoverySettings.isMergedSegmentReplicationWarmerEnabled()).thenReturn(true);
+        when(mockRecoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold()).thenReturn(new ByteSizeValue(500, ByteSizeUnit.MB));
+        when(mockIndexShard.getRecoverySettings()).thenReturn(mockRecoverySettings);
+        when(segmentCommitInfo.info.dir.fileLength(any())).thenReturn(600 * 1_000_000L);
+        when(mockDiscoveryNodes.getMinNodeVersion()).thenReturn(Version.V_3_3_0);
+
+        assertFalse(
+            "MergedSegmentWarmer#shouldWarm is expected to return false when min node version requirements are not satisfied",
             mergedSegmentWarmer.shouldWarm(segmentCommitInfo)
         );
     }
