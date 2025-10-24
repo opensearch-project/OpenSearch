@@ -12,8 +12,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -31,9 +29,6 @@ public class CreateFipsTrustStoreTests extends OpenSearchTestCase {
 
     private static final Path JAVA_HOME = Path.of(System.getProperty("java.home"));
     private static Path sharedTempDir;
-
-    @Rule
-    public TemporaryFolder tempFolder = new TemporaryFolder();
 
     private CommandLine.Model.CommandSpec spec;
 

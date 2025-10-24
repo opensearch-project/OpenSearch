@@ -8,8 +8,6 @@
 
 package org.opensearch.tools.cli.fips.truststore;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.security.Security;
 import java.util.Arrays;
 import java.util.Locale;
@@ -29,14 +27,13 @@ public class SecurityProviderService {
      * @param spec the command specification for output
      */
     public static void printCurrentConfiguration(CommandLine.Model.CommandSpec spec) {
-        var detailLog = new StringWriter();
-        var writer = new PrintWriter(detailLog);
+        var out = spec.commandLine().getOut();
         var counter = new AtomicInteger();
+        out.println("Available Security Providers:");
 
-        writer.println("Available Security Providers:");
         Arrays.stream(Security.getProviders())
             .peek(
-                provider -> writer.printf(
+                provider -> out.printf(
                     Locale.ROOT,
                     "  %d. %s (version %s)\n",
                     counter.incrementAndGet(),
@@ -45,10 +42,7 @@ public class SecurityProviderService {
                 )
             )
             .flatMap(provider -> provider.getServices().stream().filter(service -> "KeyStore".equals(service.getType())))
-            .forEach(service -> writer.printf(Locale.ROOT, "     └─ KeyStore.%s\n", service.getAlgorithm()));
-
-        writer.flush();
-        spec.commandLine().getOut().println(detailLog);
+            .forEach(service -> out.printf(Locale.ROOT, "     └─ KeyStore.%s\n", service.getAlgorithm()));
     }
 
 }

@@ -23,7 +23,7 @@ import picocli.CommandLine;
 public abstract class UserInteractionService {
 
     /** Shared scanner for reading console input. */
-    public static final Scanner CONSOLE_SCANNER = new Scanner(System.in, StandardCharsets.UTF_8);
+    private static final Scanner CONSOLE_SCANNER = new Scanner(System.in, StandardCharsets.UTF_8);
     private static final String ALPHA_NUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
 
     static {

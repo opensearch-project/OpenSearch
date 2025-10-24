@@ -8,10 +8,12 @@
 
 package org.opensearch.tools.cli.fips.truststore;
 
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -32,24 +34,13 @@ public class ConfigurationServiceTests extends OpenSearchTestCase {
     private CommandLine.Model.CommandSpec spec;
     private StringWriter outputCapture;
 
-    @BeforeClass
-    public static void setUpClass() throws Exception {
-        sharedTempDir = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")), "config-test-");
-    }
+    @ClassRule
+    public static TemporaryFolder tempFolder = new TemporaryFolder();
 
-    @AfterClass
-    public static void tearDownClass() throws Exception {
-        if (sharedTempDir != null && Files.exists(sharedTempDir)) {
-            try (var walk = Files.walk(sharedTempDir)) {
-                walk.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                });
-            }
-        }
+    @BeforeClass
+    @SuppressForbidden(reason = "TemporaryFolder does not support Path-based APIs")
+    public static void setUpClass() throws Exception {
+        sharedTempDir = tempFolder.newFolder("config-test").toPath();
     }
 
     @Override
