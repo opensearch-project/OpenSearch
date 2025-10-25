@@ -692,14 +692,11 @@ public class MetadataCreateIndexService {
             : existingCustomData.get(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY);
         if (isRestoreFromSnapshot && sseEnabledIndex != null) {
             remoteCustomData.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, sseEnabledIndex);
-        }
-
-        if (remoteNode.isPresent()
+        } else if (remoteNode.isPresent()
             && !isRestoreFromSnapshot
-            && RemoteStoreSettings.isClusterServerSideEncryptionRepoEnabled()
             && remoteStoreCustomMetadataResolver.isRemoteStoreRepoServerSideEncryptionEnabled()) {
-            remoteCustomData.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, Boolean.toString(true));
-        }
+                remoteCustomData.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, Boolean.toString(true));
+            }
 
         // Determine the path type for use using the remoteStorePathResolver.
         RemoteStorePathStrategy newPathStrategy = remoteStoreCustomMetadataResolver.getPathStrategy();

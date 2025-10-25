@@ -25,7 +25,7 @@ import org.mockito.Mockito;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA;
-import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -276,7 +276,7 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
     }
 
     public void testIsRemoteStoreRepoServerSideEncryptionEnabled() {
-        Settings settings = Settings.builder().put(CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder().put(CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.getKey(), true).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
 
@@ -294,7 +294,7 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
     }
 
     public void testIsRemoteStoreRepoServerSideEncryptionDisabled() {
-        Settings settings = Settings.builder().put(CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder().put(CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.getKey(), true).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
 
@@ -312,7 +312,7 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
     }
 
     public void testIsRemoteStoreRepoServerSideEncryptionWithOldVersion() {
-        Settings settings = Settings.builder().put(CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder().put(CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.getKey(), true).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
         when(repositoriesService.repository(Mockito.any())).thenThrow(new RepositoryMissingException("Repository missing"));

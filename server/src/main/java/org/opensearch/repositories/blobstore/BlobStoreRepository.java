@@ -686,7 +686,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // to close blobStore if blobStore initialization is started during close
         synchronized (lock) {
             provider = blobStoreProvider.get();
-            // Moving this inside synchronized block
             if (provider != null) {
                 try {
                     provider.close();
@@ -1066,8 +1065,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         BlobStoreProvider provider = this.blobStoreProvider.get();
         if (provider == null) {
             synchronized (lock) {
-                provider = new BlobStoreProvider(this, metadata, lifecycle, lock);
-                this.blobStoreProvider.set(provider);
+                provider = this.blobStoreProvider.get();
+                if (provider == null) {
+                    provider = new BlobStoreProvider(this, metadata, lifecycle, lock);
+                    this.blobStoreProvider.set(provider);
+                }
             }
         }
         return provider.blobStore(serverSideEncryptionEnabled);

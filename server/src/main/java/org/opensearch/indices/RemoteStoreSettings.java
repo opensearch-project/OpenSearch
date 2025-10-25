@@ -187,8 +187,8 @@ public class RemoteStoreSettings {
     /**
      * Controls the ServerSideEncryption Settings.
      */
-    public static final Setting<Boolean> CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED = Setting.boolSetting(
-        "cluster.server_side_encryption.repo.enabled",
+    public static final Setting<Boolean> CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED = Setting.boolSetting(
+        "cluster.remote_store.server_side_encryption",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -201,7 +201,7 @@ public class RemoteStoreSettings {
     private volatile RemoteStoreEnums.PathType pathType;
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
-    private static volatile boolean isClusterServerSideEncryptionRepoEnabled;
+    private volatile boolean isClusterServerSideEncryptionRepoEnabled;
     private volatile boolean isTranslogMetadataEnabled;
     private static volatile boolean isPinnedTimestampsEnabled;
     private static volatile TimeValue pinnedTimestampsSchedulerInterval;
@@ -246,11 +246,8 @@ public class RemoteStoreSettings {
             this::setClusterRemoteSegmentTransferTimeout
         );
 
-        isClusterServerSideEncryptionRepoEnabled = CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(
-            CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED,
-            RemoteStoreSettings::setClusterServerSideEncryptionRepoEnabled
-        );
+        isClusterServerSideEncryptionRepoEnabled = CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED, this::setClusterServerSideEncryptionEnabled);
 
         pinnedTimestampsSchedulerInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL.get(settings);
         pinnedTimestampsLookbackInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL.get(settings);
@@ -326,12 +323,12 @@ public class RemoteStoreSettings {
         this.maxRemoteTranslogReaders = maxRemoteTranslogReaders;
     }
 
-    public static boolean isClusterServerSideEncryptionRepoEnabled() {
+    public boolean isClusterServerSideEncryptionEnabled() {
         return isClusterServerSideEncryptionRepoEnabled;
     }
 
-    private static void setClusterServerSideEncryptionRepoEnabled(boolean clusterServerSideEncryptionRepoEnabled) {
-        isClusterServerSideEncryptionRepoEnabled = clusterServerSideEncryptionRepoEnabled;
+    private void setClusterServerSideEncryptionEnabled(boolean clusterServerSideEncryptionEnabled) {
+        isClusterServerSideEncryptionRepoEnabled = clusterServerSideEncryptionEnabled;
     }
 
     public static TimeValue getPinnedTimestampsSchedulerInterval() {

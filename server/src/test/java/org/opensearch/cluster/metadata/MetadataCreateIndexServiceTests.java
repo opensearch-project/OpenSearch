@@ -2626,7 +2626,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testAddRemoteStoreCustomMetadata() {
         Settings clusterSettingsSetting = Settings.builder()
-            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true)
+            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.getKey(), true)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
             .build();
         clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -2699,7 +2699,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testAddRemoteStoreCustomMetadata_WhenSSEDisabled() {
         Settings clusterSettingsSetting = Settings.builder()
-            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true)
+            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.getKey(), true)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
             .build();
         clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -2772,7 +2772,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testAddRemoteStoreCustomMetadata_ForSnapshotRestore() {
         Settings clusterSettingsSetting = Settings.builder()
-            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true)
+            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.getKey(), true)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
             .build();
         clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -2845,7 +2845,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testAddRemoteStoreCustomMetadata_ForSnapshotRestore_WhenSSE_False() {
         Settings clusterSettingsSetting = Settings.builder()
-            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_REPO_ENABLED.getKey(), true)
+            .put(RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.getKey(), true)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
             .build();
         clusterSettings = new ClusterSettings(clusterSettingsSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
