@@ -187,9 +187,11 @@ public class ClusterInfoTests extends OpenSearchTestCase {
                     randomLong(),
                     randomLong(),
                     randomLong(),
+                    randomLong(),
                     FileCacheStatsType.OVER_ALL_STATS
                 ),
                 new FileCacheStats(
+                    randomLong(),
                     randomLong(),
                     randomLong(),
                     randomLong(),
@@ -207,9 +209,11 @@ public class ClusterInfoTests extends OpenSearchTestCase {
                     randomLong(),
                     randomLong(),
                     randomLong(),
+                    randomLong(),
                     FileCacheStatsType.BLOCK_FILE_STATS
                 ),
                 new FileCacheStats(
+                    randomLong(),
                     randomLong(),
                     randomLong(),
                     randomLong(),
