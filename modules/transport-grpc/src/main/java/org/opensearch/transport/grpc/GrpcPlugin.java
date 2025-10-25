@@ -212,7 +212,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         boolean detailedErrorsEnabled = SETTING_GRPC_DETAILED_ERRORS_ENABLED.get(settings);
         return Collections.singletonMap(GRPC_TRANSPORT_SETTING_KEY, () -> {
             List<BindableService> grpcServices = new ArrayList<>(
-                List.of(new DocumentServiceImpl(client, detailedErrorsEnabled), new SearchServiceImpl(client, queryUtils, detailedErrorsEnabled))
+                List.of(
+                    new DocumentServiceImpl(client, detailedErrorsEnabled),
+                    new SearchServiceImpl(client, queryUtils, detailedErrorsEnabled)
+                )
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
                 List<BindableService> pluginServices = serviceFac.initClient(client)
@@ -264,8 +267,11 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
 
         return Collections.singletonMap(GRPC_SECURE_TRANSPORT_SETTING_KEY, () -> {
             boolean detailedErrorsEnabled = SETTING_GRPC_DETAILED_ERRORS_ENABLED.get(settings);
-        List<BindableService> grpcServices = new ArrayList<>(
-                List.of(new DocumentServiceImpl(client, detailedErrorsEnabled), new SearchServiceImpl(client, queryUtils, detailedErrorsEnabled))
+            List<BindableService> grpcServices = new ArrayList<>(
+                List.of(
+                    new DocumentServiceImpl(client, detailedErrorsEnabled),
+                    new SearchServiceImpl(client, queryUtils, detailedErrorsEnabled)
+                )
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
                 List<BindableService> pluginServices = serviceFac.initClient(client)
