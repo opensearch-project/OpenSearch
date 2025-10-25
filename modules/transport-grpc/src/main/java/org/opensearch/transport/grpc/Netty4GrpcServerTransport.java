@@ -187,11 +187,10 @@ public class Netty4GrpcServerTransport extends AuxTransport {
     );
 
     /**
-     * Requests that require detailed error tracing via {@code error_trace} will
-     * include relevant error details for better debugging in case this setting is enabled.
-     * Otherwise,when this setting is disabled, only an error summary is included
-     * when {@code error_trace} is omitted or disabled and an error response is generated in case
-     * it is enabled.
+     * Enables detailed error message for gRPC requests. If enabled, returns detailed
+     * error information when requested via {@code error_trace} parameter in the request scope.
+     * Otherwise, only a summary is generated. The case when the detailed error trace is requested
+     * but server explicitly turned it off, the error response is generated.
      */
     public static final Setting<Boolean> SETTING_GRPC_DETAILED_ERRORS_ENABLED = Setting.boolSetting(
         "grpc.detailed_errors.enabled",
