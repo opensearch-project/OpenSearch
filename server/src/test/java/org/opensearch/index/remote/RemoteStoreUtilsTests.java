@@ -51,6 +51,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.mockito.Mockito;
+
 import static org.opensearch.cluster.metadata.IndexMetadata.REMOTE_STORE_CUSTOM_KEY;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithDocrepSettings;
 import static org.opensearch.index.remote.RemoteStoreUtils.URL_BASE64_CHARSET;
@@ -1210,5 +1212,34 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         implicitLockedFiles = metadataAndLocks.v2();
         assertEquals(0, implicitLockedFiles.size());
         assertEquals(0, metadataFilePinnedTimestampCache.size());
+    }
+
+    public void testIsServerSideEncryptionEnabledIndex_when_enabled() {
+        IndexMetadata indexMetadata = Mockito.mock(IndexMetadata.class);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, "true");
+        Mockito.when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(metadata);
+        assertTrue(RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexMetadata));
+    }
+
+    public void testIsServerSideEncryptionEnabledIndex_when_disabled() {
+        IndexMetadata indexMetadata = Mockito.mock(IndexMetadata.class);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, "false");
+        Mockito.when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(metadata);
+        assertFalse(RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexMetadata));
+    }
+
+    public void testIsServerSideEncryptionEnabledIndex_when_No_Custom_key() {
+        IndexMetadata indexMetadata = Mockito.mock(IndexMetadata.class);
+        Map<String, String> metadata = new HashMap<>();
+        Mockito.when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(metadata);
+        assertFalse(RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexMetadata));
+    }
+
+    public void testIsServerSideEncryptionEnabledIndex_when_Custom_key_is_null() {
+        IndexMetadata indexMetadata = Mockito.mock(IndexMetadata.class);
+        Mockito.when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(null);
+        assertFalse(RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexMetadata));
     }
 }
