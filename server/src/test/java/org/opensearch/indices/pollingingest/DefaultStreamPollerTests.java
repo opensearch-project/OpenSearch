@@ -21,6 +21,7 @@ import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.IngestionEngine;
+import org.opensearch.indices.pollingingest.mappers.DefaultIngestionMessageMapper;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -91,7 +92,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         partitionedBlockingQueueContainer.startProcessorThreads();
     }
@@ -164,7 +166,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         CountDownLatch latch = new CountDownLatch(2);
         doAnswer(invocation -> {
@@ -193,7 +196,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
 
         poller.start();
@@ -218,7 +222,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         CountDownLatch latch = new CountDownLatch(1);
         doAnswer(invocation -> {
@@ -303,7 +308,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -365,7 +371,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -401,7 +408,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -473,7 +481,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -542,7 +551,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
 
         poller.start();
