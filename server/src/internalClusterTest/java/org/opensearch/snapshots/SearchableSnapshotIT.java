@@ -1054,4 +1054,61 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertTrue("index cache path should " + (exists ? "exist" : "not exist"), Files.exists(indexPath) == exists);
         }, 30, TimeUnit.SECONDS);
     }
+
+    public void testRestoreRemoteSnapshotWithNullShardSizes() throws Exception {
+        final String snapshotName1 = "test-snap-1";
+        final String snapshotName2 = "test-snap-2";
+        final String repoName = "test-repo";
+        final String indexName1 = "test-idx-1";
+        final String indexName2 = "test-idx-2";
+        final Client client = client();
+
+        // Setup cluster with delayed ClusterInfo updates to simulate null shard sizes
+        client.admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("cluster.info.update.interval", "60m"))
+            .get();
+
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        createIndexWithDocsAndEnsureGreen(0, 50, indexName1);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName1, repoName, indexName1);
+        deleteIndicesAndEnsureGreen(client, indexName1);
+
+        createIndexWithDocsAndEnsureGreen(0, 50, indexName2);
+        takeSnapshot(client, snapshotName2, repoName, indexName2);
+        deleteIndicesAndEnsureGreen(client, indexName2);
+
+        internalCluster().ensureAtLeastNumWarmNodes(2);
+
+        RestoreSnapshotRequest firstRestore = new RestoreSnapshotRequest(repoName, snapshotName1).indices(indexName1)
+            .storageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+            .renamePattern("(.+)")
+            .renameReplacement("remote-$1")
+            .waitForCompletion(true);
+
+        client.admin().cluster().restoreSnapshot(firstRestore).get();
+        ensureGreen("remote-" + indexName1);
+
+        // Second restore immediately after - ClusterInfo won't have size data for first restore shards
+        RestoreSnapshotRequest secondRestore = new RestoreSnapshotRequest(repoName, snapshotName2).indices(indexName2)
+            .storageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+            .renamePattern("(.+)")
+            .renameReplacement("remote-$1")
+            .waitForCompletion(true);
+
+        client.admin().cluster().restoreSnapshot(secondRestore).get();
+        ensureGreen("remote-" + indexName2);
+
+        assertDocCount("remote-" + indexName1, 50L);
+        assertDocCount("remote-" + indexName2, 50L);
+
+        client.admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("cluster.info.update.interval"))
+            .get();
+    }
 }
