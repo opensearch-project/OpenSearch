@@ -33,7 +33,7 @@ dependencies {
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
   testImplementation project(path: ':client:rest-high-level')
-  testImplementation 'junit:junit:4.13.2'
+  testImplementation "junit:junit:${versions.junit}"
 }
 
 /*
