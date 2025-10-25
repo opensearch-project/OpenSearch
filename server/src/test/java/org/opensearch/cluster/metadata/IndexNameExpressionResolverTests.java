@@ -2112,6 +2112,22 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertEquals("Invalid index name [_foo], must not start with '_'.", iine.getMessage());
     }
 
+    public void testInvalidEmptyIndex() {
+        Metadata.Builder mdBuilder = Metadata.builder().put(indexBuilder("test"));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.lenientExpandOpen(),
+            false
+        );
+
+        IndexNotFoundException indexNotFoundException = expectThrows(
+            IndexNotFoundException.class,
+            () -> indexNameExpressionResolver.concreteIndexNames(context, "")
+        );
+        assertEquals("no such index []", indexNotFoundException.getMessage());
+    }
+
     public void testIgnoreThrottled() {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(
