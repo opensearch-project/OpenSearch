@@ -141,6 +141,7 @@ import org.opensearch.discovery.LocalDiscovery;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
+import org.opensearch.execution.search.spi.DataFormatCodec;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.NoopExtensionsManager;
 import org.opensearch.gateway.GatewayAllocator;
@@ -165,6 +166,7 @@ import org.opensearch.index.autoforcemerge.AutoForceMergeMetrics;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.exec.format.DataFormat;
 import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
@@ -218,6 +220,7 @@ import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.CryptoKeyProviderPlugin;
 import org.opensearch.plugins.CryptoPlugin;
+import org.opensearch.plugins.DataFormatPlugin;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.ExtensionAwarePlugin;
@@ -235,6 +238,7 @@ import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
+import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SecureSettingsFactory;
@@ -1114,6 +1118,36 @@ public class Node implements Closeable {
 
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
+
+            Map<DataFormat, DataFormatCodec> dataFormatCodecMap = new HashMap<>();
+            for (DataFormatPlugin dataSourcePlugin : pluginsService.filterPlugins(DataFormatPlugin.class)) {
+                if (dataSourcePlugin.getDataFormatCodecs().isPresent()) {
+                    dataFormatCodecMap.putAll(dataSourcePlugin.getDataFormatCodecs().get());
+                }
+            }
+
+            Collection<Object> dataFormatAwareComponents = pluginsService.filterPlugins(SearchEnginePlugin.class)
+                .stream()
+                .flatMap(
+                    p -> p.createComponents(
+                        client,
+                        clusterService,
+                        threadPool,
+                        resourceWatcherService,
+                        scriptService,
+                        xContentRegistry,
+                        environment,
+                        nodeEnvironment,
+                        namedWriteableRegistry,
+                        clusterModule.getIndexNameExpressionResolver(),
+                        repositoriesServiceReference::get,
+                        dataFormatCodecMap
+                    ).stream()
+                )
+                .toList();
+
+            // Add all dataFormat components to the existing pluginComponents
+            pluginComponents.addAll(dataFormatAwareComponents);
 
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
