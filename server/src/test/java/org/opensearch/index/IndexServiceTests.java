@@ -73,7 +73,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.util.FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG;
 import static org.opensearch.index.shard.IndexShardTestCase.getEngine;
 import static org.opensearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -619,7 +618,6 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1000, updatedTask.getInterval().millis());
     }
 
-    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     public void testPublishReferencedSegmentsTask() throws Exception {
         // create with docrep - task should not schedule
         IndexService indexService = createIndex(
