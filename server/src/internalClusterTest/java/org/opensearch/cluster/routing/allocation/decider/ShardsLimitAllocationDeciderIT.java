@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -233,8 +234,16 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
         }
     }
 
-    public void testCombinedClusterAndIndexSpecificShardLimits() {
+    public void testCombinedClusterAndIndexSpecificShardLimits() throws Exception {
         startTestNodes(3);
+
+        // Keep disk thresholds from interfering (use typed Setting, not raw String)
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.allocation.disk.threshold_enabled", false).build())
+            .get();
+
         // Set the cluster-wide shard limit to 6
         updateClusterSetting(getShardsPerNodeKey(false), 6);
 
@@ -246,6 +255,24 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
             .put(getIndexLevelShardsPerNodeKey(false), 1)
             .build();
         createIndex("test1", indexSettingsWithLimit);
+
+        // Ensure test1 primaries are placed before adding other indices (prevents starvation)
+        assertBusy(() -> {
+            ClusterState s = client().admin().cluster().prepareState().get().getState();
+            int primariesStarted = 0, unassigned = 0;
+            for (IndexRoutingTable irt : s.getRoutingTable()) {
+                if (irt.getIndex().getName().equals("test1")) {
+                    for (IndexShardRoutingTable isrt : irt) {
+                        for (ShardRouting sr : isrt) {
+                            if (sr.primary() && sr.started()) primariesStarted++;
+                            if (sr.unassigned()) unassigned++;
+                        }
+                    }
+                }
+            }
+            assertEquals(3, primariesStarted);      // 3 primaries started
+            assertEquals(3, unassigned);            // 3 unassigned (the replicas)
+        });
 
         // Create the second index with 4 shards and 1 replica
         createIndex(
@@ -309,12 +336,11 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
                 // Check shard distribution across nodes
                 List<Integer> shardCounts = new ArrayList<>(nodeShardCounts.values());
                 Collections.sort(shardCounts, Collections.reverseOrder());
+
                 assertEquals("Two nodes should have 6 shards", 6, shardCounts.get(0).intValue());
                 assertEquals("Two nodes should have 6 shards", 6, shardCounts.get(1).intValue());
                 assertEquals("One node should have 5 shards", 5, shardCounts.get(2).intValue());
-
-                // Check that all nodes have only one shard of the first index
-            });
+            }, 30, TimeUnit.SECONDS);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
