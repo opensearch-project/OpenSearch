@@ -298,21 +298,18 @@ public abstract class SslConfigurationLoader {
     private char[] resolvePasswordSetting(String secureSettingKey, String legacySettingKey) {
         final char[] securePassword = resolveSecureSetting(secureSettingKey, null);
         final String legacyPassword = resolveSetting(legacySettingKey, Function.identity(), null);
-        if (securePassword == null) {
-            if (legacyPassword == null) {
-                return EMPTY_PASSWORD;
-            } else {
-                return legacyPassword.toCharArray();
-            }
-        } else {
-            if (legacyPassword != null) {
-                throw new SslConfigException(
-                    "cannot specify both [" + settingPrefix + secureSettingKey + "] and [" + settingPrefix + legacySettingKey + "]"
-                );
-            } else {
-                return securePassword;
-            }
+
+        if (securePassword == null && legacyPassword == null) {
+            return EMPTY_PASSWORD;
         }
+
+        if (securePassword != null && legacyPassword != null) {
+            throw new SslConfigException(
+                "cannot specify both [" + settingPrefix + secureSettingKey + "] and [" + settingPrefix + legacySettingKey + "]"
+            );
+        }
+
+        return securePassword == null ? legacyPassword.toCharArray() : securePassword;
     }
 
     private <V> V resolveSetting(String key, Function<String, V> parser, V defaultValue) {
