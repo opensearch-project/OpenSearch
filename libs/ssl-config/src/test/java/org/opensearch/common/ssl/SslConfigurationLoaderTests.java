@@ -240,78 +240,177 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
         assertThat(trustConfig.createTrustManager(), notNullValue());
     }
 
-    public void testLoadKeysFromPemFiles() {
-        final boolean usePassword = randomBoolean();
-        final boolean useLegacyPassword = usePassword && randomBoolean();
-        final String certName = usePassword ? "cert2" : "cert1";
-        final Settings.Builder builder = Settings.builder()
-            .put("test.ssl.certificate", certName + "/" + certName + ".crt")
-            .put("test.ssl.key", certName + "/" + certName + ".key");
-        if (usePassword) {
-            if (useLegacyPassword) {
-                builder.put("test.ssl.key_passphrase", STRONG_PRIVATE_SECRET);
-            } else {
-                secureSettings.setString("test.ssl.secure_key_passphrase", STRONG_PRIVATE_SECRET);
-            }
-        }
-        settings = builder.build();
+    public void testLoadKeysFromPemFilesWithoutPassword() {
+        settings = Settings.builder()
+            .put("test.ssl.certificate", "cert1/cert1.crt")
+            .put("test.ssl.key", "cert1/cert1.key")
+            .build();
+
         final SslConfiguration configuration = loader.load(certRoot);
+
         final SslKeyConfig keyConfig = configuration.getKeyConfig();
         assertThat(keyConfig, instanceOf(PemKeyConfig.class));
         assertThat(
             keyConfig.getDependentFiles(),
-            containsInAnyOrder(
-                getDataPath("/certs/" + certName + "/" + certName + ".crt"),
-                getDataPath("/certs/" + certName + "/" + certName + ".key")
-            )
+            containsInAnyOrder(getDataPath("/certs/cert1/cert1.crt"), getDataPath("/certs/cert1/cert1.key"))
         );
         assertThat(keyConfig.createKeyManager(), notNullValue());
     }
 
-    public void testLoadKeysFromPKCS12() {
-        final Settings.Builder builder = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.p12");
-        if (randomBoolean()) {
-            builder.put("test.ssl.keystore.password", "p12-pass");
-        } else {
-            secureSettings.setString("test.ssl.keystore.secure_password", "p12-pass");
-        }
-        if (randomBoolean()) {
-            // If this is not set, the loader will guess from the extension
-            builder.put("test.ssl.keystore.type", "PKCS12");
-        }
-        if (randomBoolean()) {
-            builder.put("test.ssl.keystore.algorithm", KeyManagerFactory.getDefaultAlgorithm());
-        }
-        settings = builder.build();
+    public void testLoadKeysFromPemFilesWithLegacyKeyPassPhrase() {
+        settings = Settings.builder()
+            .put("test.ssl.certificate", "cert2/cert2.crt")
+            .put("test.ssl.key", "cert2/cert2.key")
+            .put("test.ssl.key_passphrase", STRONG_PRIVATE_SECRET)
+            .build();
+
         final SslConfiguration configuration = loader.load(certRoot);
+
+        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        assertThat(keyConfig, instanceOf(PemKeyConfig.class));
+        assertThat(
+            keyConfig.getDependentFiles(),
+            containsInAnyOrder(getDataPath("/certs/cert2/cert2.crt"), getDataPath("/certs/cert2/cert2.key"))
+        );
+        assertThat(keyConfig.createKeyManager(), notNullValue());
+    }
+
+    public void testLoadKeysFromPemFilesWithSecurePassPhrase() {
+        secureSettings.setString("test.ssl.secure_key_passphrase", STRONG_PRIVATE_SECRET);
+        settings = Settings.builder()
+            .put("test.ssl.certificate", "cert2/cert2.crt")
+            .put("test.ssl.key", "cert2/cert2.key")
+            .build();
+
+        final SslConfiguration configuration = loader.load(certRoot);
+
+        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        assertThat(keyConfig, instanceOf(PemKeyConfig.class));
+        assertThat(
+            keyConfig.getDependentFiles(),
+            containsInAnyOrder(getDataPath("/certs/cert2/cert2.crt"), getDataPath("/certs/cert2/cert2.key"))
+        );
+        assertThat(keyConfig.createKeyManager(), notNullValue());
+    }
+
+    public void testLoadKeysFromPKCS12WithLegacyKeystorePasswordAndDefaultOptions() {
+        settings = Settings.builder()
+            .put("test.ssl.keystore.path", "cert-all/certs.p12")
+            .put("test.ssl.keystore.password", "p12-pass")
+            .build();
+
+        final SslConfiguration configuration = loader.load(certRoot);
+
         final SslKeyConfig keyConfig = configuration.getKeyConfig();
         assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
         assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.p12")));
         assertThat(keyConfig.createKeyManager(), notNullValue());
     }
 
-    public void testLoadKeysFromJKS() {
-        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
-        final Settings.Builder builder = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.jks");
-        if (randomBoolean()) {
-            builder.put("test.ssl.keystore.password", "jks-pass");
-        } else {
-            secureSettings.setString("test.ssl.keystore.secure_password", "jks-pass");
-        }
-        if (randomBoolean()) {
-            builder.put("test.ssl.keystore.key_password", "key-pass");
-        } else {
-            secureSettings.setString("test.ssl.keystore.secure_key_password", "key-pass");
-        }
-        if (randomBoolean()) {
-            // If this is not set, the loader will guess from the extension
-            builder.put("test.ssl.keystore.type", "jks");
-        }
-        if (randomBoolean()) {
-            builder.put("test.ssl.keystore.algorithm", KeyManagerFactory.getDefaultAlgorithm());
-        }
-        settings = builder.build();
+    public void testLoadKeysFromPKCS12WithLegacyKeystorePasswordAndExplicitOptions() {
+        settings = Settings.builder()
+            .put("test.ssl.keystore.path", "cert-all/certs.p12")
+            .put("test.ssl.keystore.password", "p12-pass")
+            .put("test.ssl.keystore.type", "PKCS12")
+            .put("test.ssl.keystore.algorithm", KeyManagerFactory.getDefaultAlgorithm())
+            .build();
+
         final SslConfiguration configuration = loader.load(certRoot);
+
+        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
+        assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.p12")));
+        assertThat(keyConfig.createKeyManager(), notNullValue());
+    }
+
+    public void testLoadKeysFromPKCS12WithSecurePasswordAndDefaultOptions() {
+        secureSettings.setString("test.ssl.keystore.secure_password", "p12-pass");
+        settings = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.p12").build();
+
+        final SslConfiguration configuration = loader.load(certRoot);
+
+        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
+        assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.p12")));
+        assertThat(keyConfig.createKeyManager(), notNullValue());
+    }
+
+    public void testLoadKeysFromPKCS12WithSecurePasswordAndExplicitOptions() {
+        secureSettings.setString("test.ssl.keystore.secure_password", "p12-pass");
+        settings = Settings.builder()
+            .put("test.ssl.keystore.path", "cert-all/certs.p12")
+            .put("test.ssl.keystore.type", "PKCS12")
+            .put("test.ssl.keystore.algorithm", KeyManagerFactory.getDefaultAlgorithm())
+            .build();
+
+        final SslConfiguration configuration = loader.load(certRoot);
+
+        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
+        assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.p12")));
+        assertThat(keyConfig.createKeyManager(), notNullValue());
+    }
+
+    public void testLoadKeysFromJKSWithLegacyKeystorePasswordsAndDefaultOptions() {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        settings = Settings.builder()
+            .put("test.ssl.keystore.path", "cert-all/certs.jks")
+            .put("test.ssl.keystore.password", "jks-pass")
+            .put("test.ssl.keystore.key_password", "key-pass")
+            .build();
+
+        final SslConfiguration configuration = loader.load(certRoot);
+
+        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
+        assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.jks")));
+        assertThat(keyConfig.createKeyManager(), notNullValue());
+    }
+
+    public void testLoadKeysFromJKSWithLegacyKeystorePasswordsAndExplicitOptions() {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        settings = Settings.builder()
+            .put("test.ssl.keystore.path", "cert-all/certs.jks")
+            .put("test.ssl.keystore.password", "jks-pass")
+            .put("test.ssl.keystore.key_password", "key-pass")
+            .put("test.ssl.keystore.type", "jks")
+            .put("test.ssl.keystore.algorithm", KeyManagerFactory.getDefaultAlgorithm())
+            .build();
+
+        final SslConfiguration configuration = loader.load(certRoot);
+
+        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
+        assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.jks")));
+        assertThat(keyConfig.createKeyManager(), notNullValue());
+    }
+
+    public void testLoadKeysFromJKSWithSecurePasswordsAndDefaultOptions() {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        secureSettings.setString("test.ssl.keystore.secure_password", "jks-pass");
+        secureSettings.setString("test.ssl.keystore.secure_key_password", "key-pass");
+        settings = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.jks").build();
+
+        final SslConfiguration configuration = loader.load(certRoot);
+
+        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
+        assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.jks")));
+        assertThat(keyConfig.createKeyManager(), notNullValue());
+    }
+
+    public void testLoadKeysFromJKSWithSecurePasswordsAndExplicitOptions() {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        secureSettings.setString("test.ssl.keystore.secure_password", "jks-pass");
+        secureSettings.setString("test.ssl.keystore.secure_key_password", "key-pass");
+        settings = Settings.builder()
+            .put("test.ssl.keystore.path", "cert-all/certs.jks")
+            .put("test.ssl.keystore.type", "jks")
+            .put("test.ssl.keystore.algorithm", KeyManagerFactory.getDefaultAlgorithm())
+            .build();
+
+        final SslConfiguration configuration = loader.load(certRoot);
+
         final SslKeyConfig keyConfig = configuration.getKeyConfig();
         assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
         assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.jks")));
