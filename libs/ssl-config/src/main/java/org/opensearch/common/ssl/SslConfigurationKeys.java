@@ -81,11 +81,6 @@ public class SslConfigurationKeys {
      */
     public static final String TRUSTSTORE_SECURE_PASSWORD = "truststore.secure_password";
     /**
-     * The password for the file configured in {@link #TRUSTSTORE_PATH}, as a non-secure setting.
-     * The use of this setting {@link #isDeprecated(String) is deprecated}.
-     */
-    public static final String TRUSTSTORE_LEGACY_PASSWORD = "truststore.password";
-    /**
      * The {@link KeyStore#getType() keystore type} for the file configured in {@link #TRUSTSTORE_PATH}.
      */
     public static final String TRUSTSTORE_TYPE = "truststore.type";
@@ -106,21 +101,10 @@ public class SslConfigurationKeys {
      */
     public static final String KEYSTORE_SECURE_PASSWORD = "keystore.secure_password";
     /**
-     * The password for the file configured in {@link #KEYSTORE_PATH}, as a non-secure setting.
-     * The use of this setting {@link #isDeprecated(String) is deprecated}.
-     */
-    public static final String KEYSTORE_LEGACY_PASSWORD = "keystore.password";
-    /**
      * The password for the key within the {@link #KEYSTORE_PATH configured keystore}, as a secure setting.
      * If no key password is specified, it will default to the keystore password.
      */
     public static final String KEYSTORE_SECURE_KEY_PASSWORD = "keystore.secure_key_password";
-    /**
-     * The password for the key within the {@link #KEYSTORE_PATH configured keystore}, as a non-secure setting.
-     * The use of this setting {@link #isDeprecated(String) is deprecated}.
-     * If no key password is specified, it will default to the keystore password.
-     */
-    public static final String KEYSTORE_LEGACY_KEY_PASSWORD = "keystore.key_password";
     /**
      * The {@link KeyStore#getType() keystore type} for the file configured in {@link #KEYSTORE_PATH}.
      */
@@ -141,18 +125,9 @@ public class SslConfigurationKeys {
     public static final String KEY = "key";
     /**
      * The password to read the configured {@link #KEY}, as a secure setting.
-     * This (or the {@link #KEY_LEGACY_PASSPHRASE legacy fallback}) is required if the key file is encrypted.
+     * This is required if the key file is encrypted.
      */
     public static final String KEY_SECURE_PASSPHRASE = "secure_key_passphrase";
-    /**
-     * The password to read the configured {@link #KEY}, as a non-secure setting.
-     * The use of this setting {@link #isDeprecated(String) is deprecated}.
-     */
-    public static final String KEY_LEGACY_PASSPHRASE = "key_passphrase";
-
-    private static final Set<String> DEPRECATED_KEYS = new HashSet<>(
-        Arrays.asList(TRUSTSTORE_LEGACY_PASSWORD, KEYSTORE_LEGACY_PASSWORD, KEYSTORE_LEGACY_KEY_PASSWORD, KEY_LEGACY_PASSPHRASE)
-    );
 
     private SslConfigurationKeys() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -166,17 +141,13 @@ public class SslConfigurationKeys {
             VERIFICATION_MODE,
             CLIENT_AUTH,
             TRUSTSTORE_PATH,
-            TRUSTSTORE_LEGACY_PASSWORD,
             TRUSTSTORE_TYPE,
             TRUSTSTORE_TYPE,
             KEYSTORE_PATH,
-            KEYSTORE_LEGACY_PASSWORD,
-            KEYSTORE_LEGACY_KEY_PASSWORD,
             KEYSTORE_TYPE,
             KEYSTORE_ALGORITHM,
             CERTIFICATE,
-            KEY,
-            KEY_LEGACY_PASSPHRASE
+            KEY
         );
     }
 
@@ -199,7 +170,6 @@ public class SslConfigurationKeys {
      * @return {@code true} if the provided key is a deprecated setting
      */
     public static boolean isDeprecated(String key) {
-        return DEPRECATED_KEYS.contains(key);
+        return false;
     }
-
 }

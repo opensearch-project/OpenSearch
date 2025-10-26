@@ -54,17 +54,13 @@ import static org.opensearch.common.ssl.SslConfigurationKeys.CIPHERS;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CLIENT_AUTH;
 import static org.opensearch.common.ssl.SslConfigurationKeys.KEY;
 import static org.opensearch.common.ssl.SslConfigurationKeys.KEYSTORE_ALGORITHM;
-import static org.opensearch.common.ssl.SslConfigurationKeys.KEYSTORE_LEGACY_KEY_PASSWORD;
-import static org.opensearch.common.ssl.SslConfigurationKeys.KEYSTORE_LEGACY_PASSWORD;
 import static org.opensearch.common.ssl.SslConfigurationKeys.KEYSTORE_PATH;
 import static org.opensearch.common.ssl.SslConfigurationKeys.KEYSTORE_SECURE_KEY_PASSWORD;
 import static org.opensearch.common.ssl.SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD;
 import static org.opensearch.common.ssl.SslConfigurationKeys.KEYSTORE_TYPE;
-import static org.opensearch.common.ssl.SslConfigurationKeys.KEY_LEGACY_PASSPHRASE;
 import static org.opensearch.common.ssl.SslConfigurationKeys.KEY_SECURE_PASSPHRASE;
 import static org.opensearch.common.ssl.SslConfigurationKeys.PROTOCOLS;
 import static org.opensearch.common.ssl.SslConfigurationKeys.TRUSTSTORE_ALGORITHM;
-import static org.opensearch.common.ssl.SslConfigurationKeys.TRUSTSTORE_LEGACY_PASSWORD;
 import static org.opensearch.common.ssl.SslConfigurationKeys.TRUSTSTORE_PATH;
 import static org.opensearch.common.ssl.SslConfigurationKeys.TRUSTSTORE_SECURE_PASSWORD;
 import static org.opensearch.common.ssl.SslConfigurationKeys.TRUSTSTORE_TYPE;
@@ -247,7 +243,7 @@ public abstract class SslConfigurationLoader {
             return new PemTrustConfig(certificateAuthorities);
         }
         if (trustStorePath != null) {
-            final char[] password = resolvePasswordSetting(TRUSTSTORE_SECURE_PASSWORD, TRUSTSTORE_LEGACY_PASSWORD);
+            final char[] password = resolvePasswordSetting(TRUSTSTORE_SECURE_PASSWORD);
             final String storeType = resolveSetting(TRUSTSTORE_TYPE, Function.identity(), inferKeyStoreType(trustStorePath));
             final String algorithm = resolveSetting(TRUSTSTORE_ALGORITHM, Function.identity(), TrustManagerFactory.getDefaultAlgorithm());
             return new StoreTrustConfig(trustStorePath, password, storeType, algorithm);
@@ -277,13 +273,13 @@ public abstract class SslConfigurationLoader {
                     "cannot specify [" + settingPrefix + KEYSTORE_PATH + "] without also setting [" + settingPrefix + CERTIFICATE + "]"
                 );
             }
-            final char[] password = resolvePasswordSetting(KEY_SECURE_PASSPHRASE, KEY_LEGACY_PASSPHRASE);
+            final char[] password = resolvePasswordSetting(KEY_SECURE_PASSPHRASE);
             return new PemKeyConfig(certificatePath, keyPath, password);
         }
 
         if (keyStorePath != null) {
-            final char[] storePassword = resolvePasswordSetting(KEYSTORE_SECURE_PASSWORD, KEYSTORE_LEGACY_PASSWORD);
-            char[] keyPassword = resolvePasswordSetting(KEYSTORE_SECURE_KEY_PASSWORD, KEYSTORE_LEGACY_KEY_PASSWORD);
+            final char[] storePassword = resolvePasswordSetting(KEYSTORE_SECURE_PASSWORD);
+            char[] keyPassword = resolvePasswordSetting(KEYSTORE_SECURE_KEY_PASSWORD);
             if (keyPassword.length == 0) {
                 keyPassword = storePassword;
             }
@@ -295,21 +291,10 @@ public abstract class SslConfigurationLoader {
         return defaultKeyConfig;
     }
 
-    private char[] resolvePasswordSetting(String secureSettingKey, String legacySettingKey) {
+    private char[] resolvePasswordSetting(String secureSettingKey) {
         final char[] securePassword = resolveSecureSetting(secureSettingKey, null);
-        final String legacyPassword = resolveSetting(legacySettingKey, Function.identity(), null);
 
-        if (securePassword == null && legacyPassword == null) {
-            return EMPTY_PASSWORD;
-        }
-
-        if (securePassword != null && legacyPassword != null) {
-            throw new SslConfigException(
-                "cannot specify both [" + settingPrefix + secureSettingKey + "] and [" + settingPrefix + legacySettingKey + "]"
-            );
-        }
-
-        return securePassword == null ? legacyPassword.toCharArray() : securePassword;
+        return securePassword == null ? EMPTY_PASSWORD : securePassword;
     }
 
     private <V> V resolveSetting(String key, Function<String, V> parser, V defaultValue) {
