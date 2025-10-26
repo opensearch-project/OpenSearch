@@ -1111,6 +1111,7 @@ public class IndexNameExpressionResolver {
                 String expression = expressions.get(i);
                 if (Strings.isEmpty(expression)) {
                     context.addResolutionError(indexNotFoundException(expression));
+                    continue;
                 }
                 validateAliasOrIndex(context, expression);
                 if (aliasOrIndexExists(context, options, metadata, expression)) {

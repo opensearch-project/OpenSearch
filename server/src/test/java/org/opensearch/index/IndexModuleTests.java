@@ -100,6 +100,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesQueryCache;
@@ -142,6 +143,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexModuleTests extends OpenSearchTestCase {
     private Index index;
@@ -169,10 +171,14 @@ public class IndexModuleTests extends OpenSearchTestCase {
     private ScriptService scriptService;
     private ClusterService clusterService;
     private RepositoriesService repositoriesService;
+    private ClusterMergeSchedulerConfig mockClusterMergeSchedulerConfig;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        mockClusterMergeSchedulerConfig = mock(ClusterMergeSchedulerConfig.class);
+        when(mockClusterMergeSchedulerConfig.getClusterMaxMergeCount()).thenReturn(9);
+        when(mockClusterMergeSchedulerConfig.getClusterMaxThreadCount()).thenReturn(4);
         settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -270,7 +276,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             DefaultRemoteStoreSettings.INSTANCE,
             s -> {},
             null,
-            () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE
+            () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE,
+            mockClusterMergeSchedulerConfig
         );
     }
 
