@@ -194,7 +194,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         }
 
         then:
-        result.output.count("Unpacking {$platform}-12.0.2-x64.tar.gz using ${transformType}.") == 0
+        result.output.count("Unpacking ${platform}-12.0.2-x64.tar.gz using ${transformType}.") == 0
 
         where:
         platform  | transformType
