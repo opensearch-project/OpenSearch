@@ -11,5 +11,6 @@
 *.crt binary
 *.p12 binary
 *.ttf binary
+*.parquet binary
 *.txt text=auto
 CHANGELOG.md merge=union

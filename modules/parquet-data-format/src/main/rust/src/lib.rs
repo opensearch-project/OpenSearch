@@ -11,6 +11,9 @@ use arrow::ffi::{FFI_ArrowSchema, FFI_ArrowArray};
 use std::fs::OpenOptions;
 use std::io::Write;
 use chrono::Utc;
+use parquet::basic::{Compression, ZstdLevel};
+use parquet::file::properties::WriterProperties;
+
 pub mod parquet_merge;
 pub use parquet_merge::*;
 
@@ -44,7 +47,10 @@ impl NativeParquetWriter {
         let file = File::create(&filename)?;
         let file_clone = file.try_clone()?;
         FILE_MANAGER.insert(filename.clone(), file_clone);
-        let writer = ArrowWriter::try_new(file, schema, None)?;
+        let props = WriterProperties::builder()
+            .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
+            .build();
+        let writer = ArrowWriter::try_new(file, schema, Some(props))?;
         WRITER_MANAGER.insert(filename, Arc::new(Mutex::new(writer)));
         Ok(())
     }

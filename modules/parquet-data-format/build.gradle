@@ -107,6 +107,9 @@ dependencies {
 
   // SLF4J logging implementation (required by Apache Arrow)
   implementation 'org.slf4j:slf4j-api:2.0.17'
+
+  // Bridge for slf4j<-->log4j compatibility
+  implementation "org.apache.logging.log4j:log4j-slf4j2-impl:2.23.1"
 }
 
 test {

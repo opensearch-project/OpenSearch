@@ -86,7 +86,9 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
 
     @Override
     public void close() {
-
+        for (ImmutablePair<DataFormat, Writer<? extends DocumentInput<?>>> writerPair : writers) {
+            writerPair.getRight().close();
+        }
     }
 
     @Override
