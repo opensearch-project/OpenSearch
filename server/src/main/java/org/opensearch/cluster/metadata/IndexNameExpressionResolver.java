@@ -349,7 +349,7 @@ public class IndexNameExpressionResolver {
                     .withResolutionErrors(context.getResolutionErrors())
                     .withResolutionErrors(infe);
             } else {
-                return ResolvedIndices.Local.Concrete.empty();
+                return ResolvedIndices.Local.Concrete.empty().withResolutionErrors(context.getResolutionErrors());
             }
         }
 
