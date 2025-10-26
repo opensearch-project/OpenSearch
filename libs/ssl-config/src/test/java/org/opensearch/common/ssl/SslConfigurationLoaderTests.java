@@ -117,23 +117,62 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
         );
         assertThat(trustConfig.createTrustManager(), notNullValue());
     }
+    
+    public void testLoadTrustFromPkcs12WithLegacyPasswordAndDefaultOptions() {
+        settings =
+            Settings.builder()
+                .put("test.ssl.truststore.path", "ca-all/ca.p12")
+                .put("test.ssl.truststore.password", "p12-pass")
+                .build();
 
-    public void testLoadTrustFromPkcs12() {
-        final Settings.Builder builder = Settings.builder().put("test.ssl.truststore.path", "ca-all/ca.p12");
-        if (randomBoolean()) {
-            builder.put("test.ssl.truststore.password", "p12-pass");
-        } else {
-            secureSettings.setString("test.ssl.truststore.secure_password", "p12-pass");
-        }
-        if (randomBoolean()) {
-            // If this is not set, the loader will guess from the extension
-            builder.put("test.ssl.truststore.type", "PKCS12");
-        }
-        if (randomBoolean()) {
-            builder.put("test.ssl.truststore.algorithm", TrustManagerFactory.getDefaultAlgorithm());
-        }
-        settings = builder.build();
         final SslConfiguration configuration = loader.load(certRoot);
+
+        final SslTrustConfig trustConfig = configuration.getTrustConfig();
+        assertThat(trustConfig, instanceOf(StoreTrustConfig.class));
+        assertThat(trustConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/ca-all/ca.p12")));
+        assertThat(trustConfig.createTrustManager(), notNullValue());
+    }
+
+    public void testLoadTrustFromPkcs12WithLegacyPasswordAndExplicitOptions() {
+        settings =
+            Settings.builder()
+                .put("test.ssl.truststore.path", "ca-all/ca.p12")
+                .put("test.ssl.truststore.password", "p12-pass")
+                .put("test.ssl.truststore.type", "PKCS12")
+                .put("test.ssl.truststore.algorithm", TrustManagerFactory.getDefaultAlgorithm())
+                .build();
+
+        final SslConfiguration configuration = loader.load(certRoot);
+
+        final SslTrustConfig trustConfig = configuration.getTrustConfig();
+        assertThat(trustConfig, instanceOf(StoreTrustConfig.class));
+        assertThat(trustConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/ca-all/ca.p12")));
+        assertThat(trustConfig.createTrustManager(), notNullValue());
+    }
+
+    public void testLoadTrustFromPkcs12WithSecurePasswordAndDefaultOptions() {
+        secureSettings.setString("test.ssl.truststore.secure_password", "p12-pass");
+        settings = Settings.builder().put("test.ssl.truststore.path", "ca-all/ca.p12").build();
+
+        final SslConfiguration configuration = loader.load(certRoot);
+
+        final SslTrustConfig trustConfig = configuration.getTrustConfig();
+        assertThat(trustConfig, instanceOf(StoreTrustConfig.class));
+        assertThat(trustConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/ca-all/ca.p12")));
+        assertThat(trustConfig.createTrustManager(), notNullValue());
+    }
+
+    public void testLoadTrustFromPkcs12WithSecurePasswordAndExplicitOptions() {
+        secureSettings.setString("test.ssl.truststore.secure_password", "p12-pass");
+        settings =
+            Settings.builder()
+                .put("test.ssl.truststore.path", "ca-all/ca.p12")
+                .put("test.ssl.truststore.type", "PKCS12")
+                .put("test.ssl.truststore.algorithm", TrustManagerFactory.getDefaultAlgorithm())
+                .build();
+
+        final SslConfiguration configuration = loader.load(certRoot);
+
         final SslTrustConfig trustConfig = configuration.getTrustConfig();
         assertThat(trustConfig, instanceOf(StoreTrustConfig.class));
         assertThat(trustConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/ca-all/ca.p12")));
