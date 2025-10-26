@@ -2128,6 +2128,26 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertEquals("no such index []", indexNotFoundException.getMessage());
     }
 
+    public void testIgnoreAliasesOnNonWildcardValue() {
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(indexBuilder("my_index").state(State.OPEN).putAlias(AliasMetadata.builder("my_alias")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        // when ignoreAliases is set, and an alias is specified in the index expression without using a wildcard,
+        // an exception is expected.
+        IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, true, true, false, true, false, true, false);
+
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "my_alias*", "-my_alias")
+        );
+
+        assertEquals(
+            "The provided expression [my_alias] matches an alias, specify the corresponding concrete indices instead.",
+            illegalArgumentException.getMessage()
+        );
+    }
+
     public void testIgnoreThrottled() {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(
