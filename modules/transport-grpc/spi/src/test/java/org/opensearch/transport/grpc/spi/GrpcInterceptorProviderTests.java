@@ -49,7 +49,7 @@ public class GrpcInterceptorProviderTests extends OpenSearchTestCase {
     public void testProviderReceivesThreadContext() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putHeader("X-Test-Header", "test-value");
-        
+
         GrpcInterceptorProvider provider = new GrpcInterceptorProvider() {
             @Override
             public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors(ThreadContext ctx) {
