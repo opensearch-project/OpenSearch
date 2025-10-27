@@ -722,7 +722,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // Check if we need special handling for intra-segment partitions
         boolean hasIntraSegmentPartitions = partitionsBySegment.values().stream()
             .anyMatch(segmentPartitions -> segmentPartitions.size() > 1);
-        /* logger.info("Creating slices from {} partitions across {} segments, hasIntraSegmentPartitions={}, targetMaxSlice={}, effectiveSliceCount={}",
+        /*logger.info("Creating slices from {} partitions across {} segments, hasIntraSegmentPartitions={}, targetMaxSlice={}, effectiveSliceCount={}",
                    partitions.length, partitionsBySegment.size(), hasIntraSegmentPartitions, targetMaxSlice, effectiveSliceCount);*/
         if (!hasIntraSegmentPartitions) {
             // No intra-segment partitions, use existing MaxTargetSliceSupplier logic
@@ -750,7 +750,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         Map<Integer, List<LeafReaderContextPartition>> partitionsBySegment,
         int sliceCount) {
         /*logger.info("Distributing {} partitions across {} slices for {} segments",
-                   partitions.length, sliceCount, partitionsBySegment.size());
+                   partitions.length, sliceCount, partitionsBySegment.size());*/
         // Check if we have enough slices for intra-segment partitions*/
         int maxPartitionsPerSegment = partitionsBySegment.values().stream()
             .mapToInt(List::size)
