@@ -31,8 +31,8 @@ public class MatchAllRemovalRewriter implements QueryRewriter {
 
     @Override
     public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
-        if (query instanceof BoolQueryBuilder) {
-            return rewriteBoolQuery((BoolQueryBuilder) query);
+        if (query instanceof BoolQueryBuilder boolQueryBuilder) {
+            return rewriteBoolQuery(boolQueryBuilder);
         }
         return query;
     }
@@ -126,22 +126,22 @@ public class MatchAllRemovalRewriter implements QueryRewriter {
 
     private boolean hasNestedBoolThatNeedsRewrite(BoolQueryBuilder bool) {
         for (QueryBuilder q : bool.must()) {
-            if (q instanceof BoolQueryBuilder && shouldRewrite((BoolQueryBuilder) q)) {
+            if (q instanceof BoolQueryBuilder boolQueryBuilder && shouldRewrite(boolQueryBuilder)) {
                 return true;
             }
         }
         for (QueryBuilder q : bool.filter()) {
-            if (q instanceof BoolQueryBuilder && shouldRewrite((BoolQueryBuilder) q)) {
+            if (q instanceof BoolQueryBuilder boolQueryBuilder && shouldRewrite(boolQueryBuilder)) {
                 return true;
             }
         }
         for (QueryBuilder q : bool.should()) {
-            if (q instanceof BoolQueryBuilder && shouldRewrite((BoolQueryBuilder) q)) {
+            if (q instanceof BoolQueryBuilder boolQueryBuilder && shouldRewrite(boolQueryBuilder)) {
                 return true;
             }
         }
         for (QueryBuilder q : bool.mustNot()) {
-            if (q instanceof BoolQueryBuilder && shouldRewrite((BoolQueryBuilder) q)) {
+            if (q instanceof BoolQueryBuilder boolQueryBuilder && shouldRewrite(boolQueryBuilder)) {
                 return true;
             }
         }
@@ -182,8 +182,8 @@ public class MatchAllRemovalRewriter implements QueryRewriter {
         if (!removeMatchAll) {
             // For should/mustNot, don't remove match_all
             for (QueryBuilder clause : clauses) {
-                if (clause instanceof BoolQueryBuilder) {
-                    adder.addClause(rewriteBoolQuery((BoolQueryBuilder) clause));
+                if (clause instanceof BoolQueryBuilder boolQueryBuilder) {
+                    adder.addClause(rewriteBoolQuery(boolQueryBuilder));
                 } else {
                     adder.addClause(clause);
                 }
@@ -197,8 +197,8 @@ public class MatchAllRemovalRewriter implements QueryRewriter {
         boolean hasOtherClauses = hasNonMatchAllInSameList(clauses) || hasClausesInOtherLists(original);
 
         for (QueryBuilder clause : clauses) {
-            if (clause instanceof BoolQueryBuilder) {
-                adder.addClause(rewriteBoolQuery((BoolQueryBuilder) clause));
+            if (clause instanceof BoolQueryBuilder boolQueryBuilder) {
+                adder.addClause(rewriteBoolQuery(boolQueryBuilder));
             } else if (clause instanceof MatchAllQueryBuilder && hasOtherClauses) {
                 // Skip match_all
                 continue;
