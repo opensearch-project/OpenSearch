@@ -1,5 +1,6 @@
 package com.parquet.parquetdataformat.engine;
 
+import com.parquet.parquetdataformat.merge.ParquetMerger;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -9,6 +10,7 @@ import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
@@ -54,6 +56,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     private final Supplier<Schema> schema;
     private final List<WriterFileSet> filesWrittenAlready = new ArrayList<>();
     private final ShardPath shardPath;
+    private final ParquetMerger parquetMerger = new ParquetMerger();
 
     public ParquetExecutionEngine(Supplier<Schema> schema, ShardPath shardPath) {
         this.schema = schema;
@@ -69,6 +72,11 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) throws IOException {
         String fileName = Path.of(shardPath.getDataPath().toString(), FILE_NAME_PREFIX + "_" + writerGeneration + ".parquet").toString();
         return new ParquetWriter(fileName, schema.get(), writerGeneration);
+    }
+
+    @Override
+    public Merger getMerger() {
+        return parquetMerger;
     }
 
     @Override

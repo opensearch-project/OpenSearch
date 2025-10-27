@@ -22,6 +22,8 @@ public interface IndexingExecutionEngine<T extends DataFormat> {
     Writer<? extends DocumentInput<?>> createWriter(long writerGeneration)
         throws IOException; // A writer responsible for data format vended by this engine.
 
+    Merger getMerger(); // Merger responsible for merging for specific data format
+
     RefreshResult refresh(RefreshInput refreshInput) throws IOException;
 
     DataFormat getDataFormat();

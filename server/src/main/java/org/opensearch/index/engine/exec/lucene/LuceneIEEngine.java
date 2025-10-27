@@ -20,6 +20,7 @@ import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.Writer;
+import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.ParseContext;
@@ -44,6 +45,11 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
     @Override
     public Writer<? extends DocumentInput<?>> createWriter(long writerGeneration) throws IOException {
         return new LuceneWriter(internalEngine.indexWriter, writerGeneration);
+    }
+
+    @Override
+    public Merger getMerger() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
