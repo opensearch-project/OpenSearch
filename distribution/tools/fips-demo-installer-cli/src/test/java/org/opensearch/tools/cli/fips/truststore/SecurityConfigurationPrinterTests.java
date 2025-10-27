@@ -17,7 +17,7 @@ import java.util.Arrays;
 
 import picocli.CommandLine;
 
-public class SecurityProviderServiceTests extends OpenSearchTestCase {
+public class SecurityConfigurationPrinterTests extends OpenSearchTestCase {
 
     private CommandLine.Model.CommandSpec spec;
     private StringWriter outputCapture;
@@ -40,7 +40,7 @@ public class SecurityProviderServiceTests extends OpenSearchTestCase {
         var providers = Security.getProviders();
 
         // when
-        SecurityProviderService.printCurrentConfiguration(spec);
+        SecurityConfigurationPrinter.printCurrentConfiguration(spec);
 
         // then
         String output = outputCapture.toString();
@@ -68,7 +68,7 @@ public class SecurityProviderServiceTests extends OpenSearchTestCase {
             .toList();
 
         // when
-        SecurityProviderService.printCurrentConfiguration(spec);
+        SecurityConfigurationPrinter.printCurrentConfiguration(spec);
 
         // then
         String output = outputCapture.toString();

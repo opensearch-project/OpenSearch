@@ -19,7 +19,7 @@ import picocli.CommandLine;
  * Service for displaying information about available security providers.
  * Provides utilities to inspect and report on the security environment.
  */
-public class SecurityProviderService {
+public class SecurityConfigurationPrinter {
 
     /**
      * Prints current security provider configuration to the console.

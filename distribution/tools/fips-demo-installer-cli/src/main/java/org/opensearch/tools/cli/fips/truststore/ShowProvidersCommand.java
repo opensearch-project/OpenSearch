@@ -25,7 +25,7 @@ public class ShowProvidersCommand implements Callable<Integer> {
 
     @Override
     public final Integer call() {
-        SecurityProviderService.printCurrentConfiguration(spec);
+        SecurityConfigurationPrinter.printCurrentConfiguration(spec);
         return 0;
     }
 }
