@@ -10,12 +10,14 @@ package org.opensearch.transport.grpc.interceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInterceptor;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
@@ -24,7 +26,9 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 /**
- * Simple gRPC interceptor chain that executes OrderedGrpcInterceptors in order and handles exceptions
+ * gRPC interceptor chain that executes OrderedGrpcInterceptors in order and handles exceptions.
+ * Captures OpenSearch ThreadContext after interceptors run and restores it during callback execution
+ * to survive thread switches between gRPC threads and OpenSearch executor threads.
  */
 public class GrpcInterceptorChain implements ServerInterceptor {
 
@@ -34,22 +38,31 @@ public class GrpcInterceptorChain implements ServerInterceptor {
     };
 
     private final List<OrderedGrpcInterceptor> interceptors = new ArrayList<>();
+    private final ThreadContext threadContext;
 
     /**
      * Constructs an empty GrpcInterceptorChain.
+     *
+     * @param threadContext The ThreadContext to capture and propagate
      */
-    public GrpcInterceptorChain() {}
+    public GrpcInterceptorChain(ThreadContext threadContext) {
+        this.threadContext = Objects.requireNonNull(threadContext, "ThreadContext cannot be null");
+    }
 
     /**
      * Constructs a GrpcInterceptorChain with the provided list of ordered interceptors.
-     * @param interceptors List of OrderedGrpcInterceptor instances to be applied in order
+     *
+     * @param threadContext The ThreadContext to capture and propagate
+     * @param interceptors  List of OrderedGrpcInterceptor instances to be applied in order
      */
-    public GrpcInterceptorChain(List<OrderedGrpcInterceptor> interceptors) {
+    public GrpcInterceptorChain(ThreadContext threadContext, List<OrderedGrpcInterceptor> interceptors) {
+        this.threadContext = Objects.requireNonNull(threadContext, "ThreadContext cannot be null");
         this.interceptors.addAll(Objects.requireNonNull(interceptors));
     }
 
     /**
      * Adds interceptors to the chain.
+     *
      * @param interceptors List of OrderedGrpcInterceptor instances to be added
      */
     public void addInterceptors(List<OrderedGrpcInterceptor> interceptors) {
@@ -58,9 +71,11 @@ public class GrpcInterceptorChain implements ServerInterceptor {
 
     /**
      * Intercepts a gRPC call, executing the chain of interceptors in order.
-     * @param call object to receive response messages
+     * Captures ThreadContext after interceptors execute and restores it in all listener callbacks.
+     *
+     * @param call    object to receive response messages
      * @param headers which can contain extra call metadata
-     * @param next next processor in the interceptor chain
+     * @param next    next processor in the interceptor chain
      * @return a listener for processing incoming request messages
      */
     @Override
@@ -69,6 +84,9 @@ public class GrpcInterceptorChain implements ServerInterceptor {
         Metadata headers,
         ServerCallHandler<ReqT, RespT> next
     ) {
+        logger.debug("GrpcInterceptorChain.interceptCall() executing on thread: {}", Thread.currentThread().getName());
+
+        // Build the interceptor chain in reverse order
         ServerCallHandler<ReqT, RespT> currentHandler = next;
 
         for (int i = interceptors.size() - 1; i >= 0; i--) {
@@ -99,7 +117,49 @@ public class GrpcInterceptorChain implements ServerInterceptor {
                 }
             };
         }
-        return currentHandler.startCall(call, headers);
+
+        ServerCall.Listener<ReqT> delegate = currentHandler.startCall(call, headers);
+
+        // Capture ThreadContext state AFTER interceptors have executed
+        // Interceptors may have added transients/headers that need to propagate across thread switches
+        final ThreadContext.StoredContext capturedContext = threadContext.newStoredContext(false);
+        logger.debug("Captured ThreadContext after interceptors on thread: {}", Thread.currentThread().getName());
+
+        // Wrap the listener to restore ThreadContext in all callbacks
+        return new ForwardingServerCallListener.SimpleForwardingServerCallListener<>(delegate) {
+            private void runWithThreadContext(Runnable r) {
+                logger.debug("Restoring ThreadContext on thread: {}", Thread.currentThread().getName());
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    capturedContext.restore();
+                    r.run();
+                }
+            }
+
+            @Override
+            public void onMessage(ReqT message) {
+                runWithThreadContext(() -> super.onMessage(message));
+            }
+
+            @Override
+            public void onHalfClose() {
+                runWithThreadContext(super::onHalfClose);
+            }
+
+            @Override
+            public void onReady() {
+                runWithThreadContext(super::onReady);
+            }
+
+            @Override
+            public void onCancel() {
+                runWithThreadContext(super::onCancel);
+            }
+
+            @Override
+            public void onComplete() {
+                runWithThreadContext(super::onComplete);
+            }
+        };
     }
 
     /**
