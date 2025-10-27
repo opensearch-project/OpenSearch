@@ -986,7 +986,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return getBlobStore(false);
     }
 
-    // For Test purpose
     BlobStore getBlobStore(boolean isServerSideEncryptionEnabled) {
         BlobStoreProvider provider = blobStoreProvider.get();
         if (provider != null) {
@@ -1137,12 +1136,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public RepositoryStats stats() {
-        BlobStoreProvider provider = blobStoreProvider.get();
-        if (provider == null) {
-            return RepositoryStats.EMPTY_STATS;
-        }
-        BlobStore store = provider.getBlobStore(false);
-        BlobStore serverSideEncryptedStore = provider.getBlobStore(true);
+        BlobStore store = getBlobStore(false);
+        BlobStore serverSideEncryptedStore = getBlobStore(true);
 
         if (store == null && serverSideEncryptedStore == null) {
             return RepositoryStats.EMPTY_STATS;
