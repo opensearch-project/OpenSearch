@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations;
 
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.shard.ShardId;
@@ -62,6 +63,8 @@ public class AggregationSetupTests extends OpenSearchSingleNodeTestCase {
             )
         );
         ((TestSearchContext) context).setConcurrentSegmentSearchEnabled(true);
+        SearchShardTask task = new SearchShardTask(0, "n/a", "n/a", "test-kind", null, null);
+        context.setTask(task);
     }
 
     protected AggregatorFactories getAggregationFactories(String agg) throws IOException {

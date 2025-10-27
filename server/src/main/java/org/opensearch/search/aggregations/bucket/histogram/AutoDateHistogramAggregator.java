@@ -279,6 +279,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 subAggregationResults
             ),
             (owningBucketOrd, buckets) -> {
+                checkCancelled();
                 // the contract of the histogram aggregation is that shards must return
                 // buckets ordered by key in ascending order
                 CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
@@ -727,6 +728,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         private void rebucket() {
             rebucketCount++;
             try (LongKeyedBucketOrds oldOrds = bucketOrds) {
+                checkCancelled();
                 long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
                 bucketOrds = new LongKeyedBucketOrds.FromMany(context.bigArrays());
                 for (long owningBucketOrd = 0; owningBucketOrd <= oldOrds.maxOwningBucketOrd(); owningBucketOrd++) {
