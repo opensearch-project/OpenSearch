@@ -1,0 +1,17 @@
+name: Trigger manifest generation workflow
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - buildSrc/version.properties
+
+jobs:
+  trigger-manifest-workflow:
+    if: github.repository == 'opensearch-project/OpenSearch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger manifest-update workflow
+        run: |
+            echo "Triggering manifest-update workflow at https://build.ci.opensearch.org/job/manifest-update/"
+            curl -f -X POST https://build.ci.opensearch.org/job/manifest-update/build --user ${{ secrets.JENKINS_GITHUB_USER}}:${{ secrets.JENKINS_GITHUB_USER_TOKEN}}

@@ -125,10 +125,11 @@ subprojects {
         }
         maven {
           name = 'Snapshots'
-          url = 'https://aws.oss.sonatype.org/content/repositories/snapshots'
-          credentials {
-            username = "$System.env.SONATYPE_USERNAME"
-            password = "$System.env.SONATYPE_PASSWORD"
+          url = System.getenv("MAVEN_SNAPSHOTS_S3_REPO")
+          credentials(AwsCredentials) {
+            accessKey = System.getenv("AWS_ACCESS_KEY_ID")
+            secretKey = System.getenv("AWS_SECRET_ACCESS_KEY")
+            sessionToken = System.getenv("AWS_SESSION_TOKEN")
           }
         }
       }
@@ -425,6 +426,10 @@ gradle.projectsEvaluated {
 
     project.tasks.withType(Test) { task ->
       if (task != null) {
+        // BouncyCastle introduced cleanup daemon with 5-second delay giving thread leak failures
+        // See https://github.com/opensearch-project/OpenSearch/issues/19238
+        task.systemProperty('org.bouncycastle.native.cleanup_delay', '0')
+
         if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
           task.jvmArgs += ["-Djava.security.manager=allow"]
         }

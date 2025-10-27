@@ -45,6 +45,24 @@ setup:
         size: 10010
 
 ---
+"Request with size exceeding max integer value":
+  - skip:
+      version: "- 3.0.99"
+      reason: "returns 500 before 3.1.0"
+  - do:
+      catch:      /Numeric value \(2147483648\) out of range of int/
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          query:
+            match_all: {}
+          size: 2147483648
+
+  - match: { status: 400 }
+  - match: { error.type: input_coercion_exception }
+
+---
 "Rescore window limits":
   - do:
       catch:      /Rescore window \[10001\] is too large\. It must be less than \[10000\]\./

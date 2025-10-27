@@ -122,6 +122,8 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         internalBuild()
         bwcMinorProjectSetup()
         buildFile << """
+            import org.opensearch.gradle.JavaPackageType
+
             apply plugin: 'opensearch.internal-distribution-download'
 
             opensearch_distributions {
@@ -130,7 +132,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                   type = "archive"
                   platform = "linux"
                   architecture = Architecture.current();
-                  bundledJdk = false
+                  bundledJdk = JavaPackageType.NONE
               }
             }
             tasks.register("createExtractedTestDistro") {

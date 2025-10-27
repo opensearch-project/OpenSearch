@@ -112,7 +112,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+        return new GoogleErroneousHttpHandler(delegate, randomDoubleBetween(0, 0.25, false));
     }
 
     @Override
@@ -305,8 +305,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
     private static class GoogleErroneousHttpHandler extends ErroneousHttpHandler {
 
-        GoogleErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
-            super(delegate, maxErrorsPerRequest);
+        GoogleErroneousHttpHandler(final HttpHandler delegate, final double maxErrorsPercentage) {
+            super(delegate, maxErrorsPercentage);
         }
 
         @Override

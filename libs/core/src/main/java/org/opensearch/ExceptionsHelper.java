@@ -33,6 +33,7 @@
 package org.opensearch;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.exc.InputCoercionException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -97,6 +98,8 @@ public final class ExceptionsHelper {
                 return ((OpenSearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
                 return RestStatus.BAD_REQUEST;
+            } else if (t instanceof InputCoercionException) {
+                return RestStatus.BAD_REQUEST;
             } else if (t instanceof JsonParseException) {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof OpenSearchRejectedExecutionException) {
@@ -112,6 +115,8 @@ public final class ExceptionsHelper {
                 return getExceptionSimpleClassName(t) + "[" + t.getMessage() + "]";
             } else if (t instanceof IllegalArgumentException) {
                 return "Invalid argument";
+            } else if (t instanceof InputCoercionException) {
+                return "Incompatible JSON value";
             } else if (t instanceof JsonParseException) {
                 return "Failed to parse JSON";
             } else if (t instanceof OpenSearchRejectedExecutionException) {

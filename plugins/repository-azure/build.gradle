@@ -63,13 +63,13 @@ dependencies {
   api "net.java.dev.jna:jna-platform:${versions.jna}"
   api 'com.microsoft.azure:msal4j:1.18.0'
   api 'com.nimbusds:oauth2-oidc-sdk:11.21'
-  api 'com.nimbusds:nimbus-jose-jwt:9.41.1'
+  api 'com.nimbusds:nimbus-jose-jwt:10.3'
   api 'com.nimbusds:content-type:2.3'
   api 'com.nimbusds:lang-tag:1.7'
   // Both msal4j:1.14.3 and oauth2-oidc-sdk:11.9.1 has compile dependency on different versions of json-smart,
-  // selected the higher version which is 2.5.0
-  api 'net.minidev:json-smart:2.5.1'
-  api 'net.minidev:accessors-smart:2.5.1'
+  // selected the higher version
+  api "net.minidev:json-smart:${versions.json_smart}"
+  api "net.minidev:accessors-smart:${versions.json_smart}"
   api "org.ow2.asm:asm:${versions.asm}"
   // End of transitive dependencies for azure-identity
   api "io.projectreactor.netty:reactor-netty-core:${versions.reactor_netty}"
@@ -140,6 +140,21 @@ thirdPartyAudit {
     'io.netty.incubator.channel.uring.IOUringDatagramChannel',
     'io.netty.incubator.channel.uring.IOUringServerSocketChannel',
     'io.netty.incubator.channel.uring.IOUringSocketChannel',
+    'io.netty.incubator.codec.http3.Http3',
+    'io.netty.incubator.codec.http3.Http3ClientConnectionHandler',
+    'io.netty.incubator.codec.http3.Http3DataFrame',
+    'io.netty.incubator.codec.http3.Http3Headers',
+    'io.netty.incubator.codec.http3.Http3HeadersFrame',
+    'io.netty.incubator.codec.quic.QuicChannel',
+    'io.netty.incubator.codec.quic.QuicChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicClientCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicServerCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicSslContext',
+    'io.netty.incubator.codec.quic.QuicSslContextBuilder',
+    'io.netty.incubator.codec.quic.QuicSslEngine',
+    'io.netty.incubator.codec.quic.QuicStreamChannel',
+    'io.netty.incubator.codec.quic.QuicStreamChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicTokenHandler',
     'javax.activation.DataHandler',
     'javax.activation.DataSource',
     'javax.xml.bind.JAXBElement',

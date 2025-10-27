@@ -121,7 +121,7 @@ dependencies {
   api 'org.jruby.jcodings:jcodings:1.0.58'
   api 'org.jruby.joni:joni:2.2.1'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
-  api "org.ajoberstar.grgit:grgit-core:5.2.1"
+  api "org.ajoberstar.grgit:grgit-core:5.3.2"
 
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
@@ -132,6 +132,14 @@ dependencies {
   integTestImplementation('org.spockframework:spock-core:2.3-groovy-3.0') {
     exclude module: "groovy"
   }
+  // Integration with JUnit 4 features for Spock 2+ (which internally uses JUnit Platform -
+  // part of JUnit 5) - https://spockframework.org/spock/docs/2.3/modules.html
+  integTestImplementation('org.spockframework:spock-junit4:2.3-groovy-3.0') {
+    exclude module: "groovy"
+  }
+  integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
+  integTestRuntimeOnly("org.junit.platform:junit-platform-launcher")
+  integTestRuntimeOnly("org.junit.vintage:junit-vintage-engine")
 }
 
 configurations.all {
@@ -254,6 +262,7 @@ if (project != rootProject) {
   }
 
   tasks.register("integTest", Test) {
+    useJUnitPlatform()
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
     onlyIf { org.opensearch.gradle.info.BuildParams.inFipsJvm == false }

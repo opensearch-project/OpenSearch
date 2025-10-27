@@ -37,6 +37,7 @@ import org.opensearch.common.annotation.PublicApi;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Base class for all individual search phases like collecting distributed frequencies, fetching documents, querying shards.
@@ -69,11 +70,26 @@ public abstract class SearchPhase implements CheckedRunnable<IOException> {
     }
 
     /**
-     * Returns the SearchPhase name as {@link SearchPhaseName}. Exception will come if SearchPhase name is not defined
+     * Returns the SearchPhase name as {@link SearchPhaseName}. Exception will come if SearchPhase name is not defined.
+     * @deprecated Use getSearchPhaseNameOptional() to avoid possible exceptions.
      * in {@link SearchPhaseName}
      * @return {@link SearchPhaseName}
      */
+    @Deprecated
     public SearchPhaseName getSearchPhaseName() {
         return SearchPhaseName.valueOf(name.toUpperCase(Locale.ROOT));
+    }
+
+    /**
+     * Returns an Optional of the SearchPhase name as {@link SearchPhaseName}. If there's not a matching SearchPhaseName,
+     * returns an empty Optional.
+     * @return {@link Optional<SearchPhaseName>}
+     */
+    public Optional<SearchPhaseName> getSearchPhaseNameOptional() {
+        try {
+            return Optional.of(SearchPhaseName.valueOf(name.toUpperCase(Locale.ROOT)));
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
     }
 }
