@@ -345,7 +345,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     // Intra-segment search settings
     public static final Setting<Boolean> INTRA_SEGMENT_SEARCH_ENABLED = Setting.boolSetting(
         "search.intra_segment_search.enabled",
-        false,  // Default disabled for safety
+        false,  // Default disabled
         Property.Dynamic,
         Property.NodeScope
     );
@@ -2076,9 +2076,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @return the computed default slice count
      */
     private static int computeDefaultSliceCount() {
-        int sliceCount = Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
-        logger.info("The computeDefaultSliceCount is {}", sliceCount);
-        return sliceCount;
+        //int sliceCount = Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
+        //logger.info("The computeDefaultSliceCount is {}", sliceCount);
+        //return sliceCount;
+        return Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
     }
 
     /**
