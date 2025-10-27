@@ -74,6 +74,7 @@ public class BlobStoreProviderTests extends OpenSearchTestCase {
         // Note: Since SetOnce is used internally, we need to first call blobStore() to initialize it
         when(mockLifecycle.started()).thenReturn(true);
         when(mockRepository.createBlobStore()).thenReturn(mockServerSideEncryptionBlobStore);
+        provider.blobStore(true);
 
         BlobStore result = provider.getBlobStore(true);
 
