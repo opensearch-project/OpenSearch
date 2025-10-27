@@ -65,7 +65,10 @@ public class BlobStoreProvider {
     }
 
     public BlobStore getBlobStore(boolean serverSideEncryptionEnabled) {
-        return blobStore(serverSideEncryptionEnabled);
+        if (serverSideEncryptionEnabled) {
+            return serverSideEncryptedBlobStore.get();
+        }
+        return blobStore.get();
     }
 
     protected BlobStore initBlobStore() {

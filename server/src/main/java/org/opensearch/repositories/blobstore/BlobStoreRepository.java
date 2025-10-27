@@ -983,7 +983,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // for test purposes only
     protected BlobStore getBlobStore() {
-        return blobStoreProvider.get() != null ? blobStoreProvider.get().getBlobStore(false) : null;
+        return getBlobStore(false);
+    }
+
+    // For Test purpose
+    BlobStore getBlobStore(boolean isServerSideEncryptionEnabled) {
+        BlobStoreProvider provider = blobStoreProvider.get();
+        if (provider != null) {
+            return provider.getBlobStore(isServerSideEncryptionEnabled);
+        }
+        return null;
     }
 
     boolean getPrefixModeVerification() {
@@ -1129,17 +1138,43 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public RepositoryStats stats() {
         BlobStoreProvider provider = blobStoreProvider.get();
-        BlobStore store = null;
         if (provider == null) {
             return RepositoryStats.EMPTY_STATS;
         }
-        store = provider.getBlobStore(false);
-        if (store == null) {
+        BlobStore store = provider.getBlobStore(false);
+        BlobStore serverSideEncryptedStore = provider.getBlobStore(true);
+
+        if (store == null && serverSideEncryptedStore == null) {
             return RepositoryStats.EMPTY_STATS;
-        } else if (store.extendedStats() != null && store.extendedStats().isEmpty() == false) {
+        }
+
+        RepositoryStats extendedStoreStats = getExtendedStats(store);
+        RepositoryStats extendedSseStoreStats = getExtendedStats(serverSideEncryptedStore);
+
+        if (extendedStoreStats != null && extendedSseStoreStats != null) {
+            return extendedStoreStats.merge(extendedSseStoreStats);
+        } else if (extendedStoreStats != null) {
+            return extendedStoreStats;
+        } else if (extendedSseStoreStats != null) {
+            return extendedSseStoreStats;
+        }
+
+        RepositoryStats storeStats = store != null ? new RepositoryStats(store.stats()) : null;
+        RepositoryStats sseStoreStats = serverSideEncryptedStore != null ? new RepositoryStats(serverSideEncryptedStore.stats()) : null;
+
+        if (storeStats != null && sseStoreStats != null) {
+            return storeStats.merge(sseStoreStats);
+        } else if (storeStats == null) {
+            return sseStoreStats;
+        }
+        return storeStats;
+    }
+
+    private RepositoryStats getExtendedStats(BlobStore store) {
+        if (store != null && store.extendedStats() != null && store.extendedStats().isEmpty() == false) {
             return new RepositoryStats(store.extendedStats(), true);
         }
-        return new RepositoryStats(store.stats());
+        return null;
     }
 
     public void deleteSnapshotsInternal(
