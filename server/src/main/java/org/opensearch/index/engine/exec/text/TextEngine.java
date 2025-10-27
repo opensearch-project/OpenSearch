@@ -19,6 +19,10 @@ import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.Writer;
+import org.opensearch.index.engine.exec.Merger;
+import org.opensearch.index.engine.exec.merge.MergeResult;
+import org.opensearch.index.engine.exec.merge.RowIdMapping;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.File;
@@ -28,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -45,6 +50,11 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
     @Override
     public Writer<? extends DocumentInput<?>> createWriter(long writerGeneration) throws IOException {
         return new TextWriter("text_file" + counter.getAndIncrement(), this, writerGeneration);
+    }
+
+    @Override
+    public Merger getMerger() {
+        return new TextMerger();
     }
 
     @Override
@@ -87,6 +97,27 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
         @Override
         public void close() throws Exception {
             //no op
+        }
+    }
+
+    public static class TextMerger implements Merger {
+
+        @Override
+        public MergeResult merge(Collection<FileMetadata> fileMetadataList) {
+            // Here we will implementation of logic for merging files and reassign the row-ids
+            // and creating the mapping of the old segment+id to new row id.
+            //
+            // Needed when this data format is configured as primary data format.
+            throw new UnsupportedOperationException("merge not supported");
+        }
+
+        @Override
+        public MergeResult merge(Collection<FileMetadata> fileMetadataList, RowIdMapping rowIdMapping) {
+            // Here we will have implementation of the merge logic where we will have the mapping of the old row id to new id
+            // and merging the files.
+            //
+            // Needed when data format is not configured as primary data format.
+            throw new UnsupportedOperationException("merge not supported");
         }
     }
 
