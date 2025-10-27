@@ -54,6 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.avro:avro` from 1.12.0 to 1.12.1 ([#19692](https://github.com/opensearch-project/OpenSearch/pull/19692))
 - Bump `com.github.spotbugs:spotbugs-annotations` from 4.9.6 to 4.9.8 ([#19691](https://github.com/opensearch-project/OpenSearch/pull/19691))
 - Bump `stefanzweifel/git-auto-commit-action` from 6 to 7 ([#19689](https://github.com/opensearch-project/OpenSearch/pull/19689))
+- Bump `ch.qos.logback:logback-core` from 1.5.18 to 1.5.20 ([#19782](https://github.com/opensearch-project/OpenSearch/pull/19782))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
