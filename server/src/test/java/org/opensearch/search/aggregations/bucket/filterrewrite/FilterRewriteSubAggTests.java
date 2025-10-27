@@ -527,7 +527,6 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
             for (Field fld : fieldList)
                 doc.add(fld);
             doc.add(new LongField(dateFieldName, dateFieldType.parse(timestamp.toString()), Field.Store.NO));
-            doc.add(SortedNumericDocValuesField.indexedField(dateFieldName, dateFieldType.parse(timestamp.toString())));
 
             return doc;
         }
