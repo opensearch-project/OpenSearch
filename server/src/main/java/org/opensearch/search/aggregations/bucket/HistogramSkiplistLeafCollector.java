@@ -49,12 +49,13 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
     private long upToBucketIndex;
 
     public HistogramSkiplistLeafCollector(
-            NumericDocValues values,
-            DocValuesSkipper skipper,
-            Rounding.Prepared preparedRounding,
-            LongKeyedBucketOrds bucketOrds,
-            LeafBucketCollector sub,
-            BucketsAggregator aggregator) {
+        NumericDocValues values,
+        DocValuesSkipper skipper,
+        Rounding.Prepared preparedRounding,
+        LongKeyedBucketOrds bucketOrds,
+        LeafBucketCollector sub,
+        BucketsAggregator aggregator
+    ) {
         this.values = values;
         this.skipper = skipper;
         this.preparedRounding = preparedRounding;

@@ -28,14 +28,14 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.fielddata.IndexNumericFieldData;
-import org.opensearch.search.MultiValueMode;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator;
@@ -161,7 +161,9 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
                     .addRange(1, 2)
                     .addRange(2, 4)
                     .addRange(4, 6)
-                    .subAggregation(new DateHistogramAggregationBuilder(dateAggName).field(dateFieldName).calendarInterval(DateHistogramInterval.YEAR));
+                    .subAggregation(
+                        new DateHistogramAggregationBuilder(dateAggName).field(dateFieldName).calendarInterval(DateHistogramInterval.YEAR)
+                    );
 
                 // Execute aggregation on reader with IndexSettings (enables skiplist)
                 InternalRange result = executeAggregationOnReader(indexReader, rangeAggregationBuilder, indexSettings);
