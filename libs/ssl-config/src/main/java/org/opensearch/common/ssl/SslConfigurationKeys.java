@@ -36,9 +36,7 @@ import javax.net.ssl.TrustManagerFactory;
 
 import java.security.KeyStore;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Utility class for handling the standard setting keys for use in SSL configuration.
@@ -164,12 +162,5 @@ public class SslConfigurationKeys {
      */
     public static List<String> getSecureStringKeys() {
         return Arrays.asList(TRUSTSTORE_SECURE_PASSWORD, KEYSTORE_SECURE_PASSWORD, KEYSTORE_SECURE_KEY_PASSWORD, KEY_SECURE_PASSPHRASE);
-    }
-
-    /**
-     * @return {@code true} if the provided key is a deprecated setting
-     */
-    public static boolean isDeprecated(String key) {
-        return false;
     }
 }
