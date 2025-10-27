@@ -365,10 +365,10 @@ public final class AnalysisRegistry implements Closeable {
         final Map<String, Settings> analyzersSettings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
 
         // Some analyzers depend on others that need to be built first
-        // Sort by 'order', default to 1000
+        // Sort by 'order', default to Integer.MAX_VALUE
         List<Map.Entry<String, Settings>> sortedEntries = analyzersSettings.entrySet().stream().sorted((a, b) -> {
-            int orderA = a.getValue().getAsInt("order", 100);
-            int orderB = b.getValue().getAsInt("order", 100);
+            int orderA = a.getValue().getAsInt("order", Integer.MAX_VALUE);
+            int orderB = b.getValue().getAsInt("order", Integer.MAX_VALUE);
             if (orderA != orderB) {
                 return Integer.compare(orderA, orderB);
             }
