@@ -836,14 +836,12 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         // Should not throw exception and should load providers
         assertDoesNotThrow(() -> plugin.loadExtensions(mockLoader));
-        
+
         // Need to call createComponents to actually initialize the chain
         ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
         when(mockThreadPool.getThreadContext()).thenReturn(new org.opensearch.common.util.concurrent.ThreadContext(Settings.EMPTY));
-        
-        assertDoesNotThrow(() -> plugin.createComponents(
-            client, null, mockThreadPool, null, null, null, null, null, null, null, null
-        ));
+
+        assertDoesNotThrow(() -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null));
     }
 
     public void testGrpcInterceptorChainWithDuplicateOrders() {
@@ -863,15 +861,16 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         // Load extensions first
         plugin.loadExtensions(mockLoader);
-        
+
         // Mock ThreadPool for createComponents
         ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
         when(mockThreadPool.getThreadContext()).thenReturn(new org.opensearch.common.util.concurrent.ThreadContext(Settings.EMPTY));
 
         // Should throw exception due to duplicate orders during createComponents
-        expectThrows(IllegalArgumentException.class, () -> plugin.createComponents(
-            client, null, mockThreadPool, null, null, null, null, null, null, null, null
-        ));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null)
+        );
     }
 
     /**
