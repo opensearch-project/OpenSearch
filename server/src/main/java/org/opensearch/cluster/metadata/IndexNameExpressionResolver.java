@@ -349,7 +349,7 @@ public class IndexNameExpressionResolver {
                     .withResolutionErrors(context.getResolutionErrors())
                     .withResolutionErrors(infe);
             } else {
-                return ResolvedIndices.Local.Concrete.empty();
+                return ResolvedIndices.Local.Concrete.empty().withResolutionErrors(context.getResolutionErrors());
             }
         }
 
@@ -1111,6 +1111,7 @@ public class IndexNameExpressionResolver {
                 String expression = expressions.get(i);
                 if (Strings.isEmpty(expression)) {
                     context.addResolutionError(indexNotFoundException(expression));
+                    continue;
                 }
                 validateAliasOrIndex(context, expression);
                 if (aliasOrIndexExists(context, options, metadata, expression)) {

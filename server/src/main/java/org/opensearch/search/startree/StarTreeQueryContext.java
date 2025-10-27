@@ -200,8 +200,8 @@ public class StarTreeQueryContext {
         // Find the DateDimension in the dimensions list
         DateDimension starTreeDateDimension = null;
         for (Dimension dimension : compositeIndexFieldInfo.getDimensions()) {
-            if (dimension instanceof DateDimension) {
-                starTreeDateDimension = (DateDimension) dimension;
+            if (dimension instanceof DateDimension dateDimension) {
+                starTreeDateDimension = dateDimension;
                 break;
             }
         }
