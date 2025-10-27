@@ -33,7 +33,8 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
     private final BucketsAggregator aggregator;
 
     /**
-     * Max doc ID (inclusive) up to which all docs values may map to the same bucket.
+     * Max doc ID (inclusive) up to which all docs values may map to the same
+     * bucket.
      */
     private int upToInclusive = -1;
 
@@ -48,13 +49,12 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
     private long upToBucketIndex;
 
     public HistogramSkiplistLeafCollector(
-        NumericDocValues values,
-        DocValuesSkipper skipper,
-        Rounding.Prepared preparedRounding,
-        LongKeyedBucketOrds bucketOrds,
-        LeafBucketCollector sub,
-        BucketsAggregator aggregator
-    ) {
+            NumericDocValues values,
+            DocValuesSkipper skipper,
+            Rounding.Prepared preparedRounding,
+            LongKeyedBucketOrds bucketOrds,
+            LeafBucketCollector sub,
+            BucketsAggregator aggregator) {
         this.values = values;
         this.skipper = skipper;
         this.preparedRounding = preparedRounding;
@@ -77,7 +77,8 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
         upToSameBucket = false;
 
         if (skipper.minDocID(0) > doc) {
-            // Corner case which happens if `doc` doesn't have a value and is between two intervals of
+            // Corner case which happens if `doc` doesn't have a value and is between two
+            // intervals of
             // the doc-value skip index.
             upToInclusive = skipper.minDocID(0) - 1;
             return;

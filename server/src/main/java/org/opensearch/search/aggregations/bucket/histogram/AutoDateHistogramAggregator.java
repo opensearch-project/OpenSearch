@@ -276,13 +276,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
 
-        if (skipper != null && singleton != null) {
-            // TODO: add hard bounds support
-            // TODO: SkipListLeafCollector should be used if the getLeafCollector invocation is from
-            // filterRewriteOptimizationContext when parent != null. Removing the check to collect
-            // performance numbers for now
-            return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, getBucketOrds(), sub, this);
-        }
+        // TODO: add HistogramSkiplistLeafCollector logic
 
         final LeafBucketCollector iteratingCollector = getLeafCollector(values, sub);
         return new LeafBucketCollectorBase(sub, values) {
