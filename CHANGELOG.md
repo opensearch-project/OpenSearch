@@ -64,8 +64,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `github/codeql-action` from 3 to 4 ([#19785](https://github.com/opensearch-project/OpenSearch/pull/19785))
 - Bump `gradle/actions` from 4 to 5 ([#19781](https://github.com/opensearch-project/OpenSearch/pull/19781))
 
-### Dependencies
-
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
 - Deprecated existing constructors in IndexingStats.Stats in favor of the new Builder ([#19306](https://github.com/opensearch-project/OpenSearch/pull/19306))
