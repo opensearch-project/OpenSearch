@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
+import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.Writer;
@@ -115,6 +116,11 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    @Override
+    public Merger getMerger() {
+        throw new UnsupportedOperationException("Merger for Composite Engine is not used");
     }
 
     public List<IndexingExecutionEngine<?>> getDelegates() {
