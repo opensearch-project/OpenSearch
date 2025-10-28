@@ -170,6 +170,7 @@ import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
@@ -5601,7 +5602,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getThreadPool(),
             indexSettings.getRemoteStorePathStrategy(),
             remoteStoreSettings,
-            indexSettings().isTranslogMetadataEnabled()
+            indexSettings().isTranslogMetadataEnabled(),
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
         );
     }
 
@@ -5624,7 +5626,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             shardId,
             indexSettings.getRemoteStorePathStrategy(),
             indexSettings().isTranslogMetadataEnabled(),
-            0
+            0,
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
         );
     }
 
@@ -5634,6 +5637,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteStorePathStrategy remoteStorePathStrategy,
         boolean isTranslogMetadataEnabled,
         long timestamp
+    ) throws IOException {
+        this.syncTranslogFilesFromGivenRemoteTranslog(
+            repository,
+            shardId,
+            remoteStorePathStrategy,
+            isTranslogMetadataEnabled,
+            timestamp,
+            false
+        );
+    }
+
+    public void syncTranslogFilesFromGivenRemoteTranslog(
+        Repository repository,
+        ShardId shardId,
+        RemoteStorePathStrategy remoteStorePathStrategy,
+        boolean isTranslogMetadataEnabled,
+        long timestamp,
+        boolean isServerSideEncryptionEnabled
     ) throws IOException {
         RemoteFsTranslog.download(
             repository,
@@ -5645,7 +5666,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger,
             shouldSeedRemoteStore(),
             isTranslogMetadataEnabled,
-            timestamp
+            timestamp,
+            isServerSideEncryptionEnabled
         );
     }
 
