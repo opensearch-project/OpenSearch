@@ -13,28 +13,17 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.Copy;
 import org.gradle.testfixtures.ProjectBuilder;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
-import java.io.IOException;
 
 public class JavaAgentTests extends GradleUnitTestCase {
-    private TemporaryFolder projectDir;
     private final String PREPARE_JAVA_AGENT_TASK = "prepareJavaAgent";
 
-    @Before
-    public void setUp() throws IOException {
-        projectDir = new TemporaryFolder();
-        projectDir.create();
-    }
-
-    @After
-    public void tearDown() {
-        projectDir.delete();
-    }
+    @Rule
+    public TemporaryFolder projectDir = new TemporaryFolder();
 
     /**
      * This test is used to verify that adding the 'opensearch.java-agent' to the project

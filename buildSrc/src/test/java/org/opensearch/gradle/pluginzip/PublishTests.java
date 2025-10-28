@@ -17,8 +17,7 @@ import org.gradle.testfixtures.ProjectBuilder;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.UnexpectedBuildFailure;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
@@ -38,21 +37,12 @@ import java.util.List;
 import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
 
 public class PublishTests extends GradleUnitTestCase {
-    private TemporaryFolder projectDir;
     private static final String TEMPLATE_RESOURCE_FOLDER = "pluginzip";
     private final String PROJECT_NAME = "sample-plugin";
     private final String ZIP_PUBLISH_TASK = "publishPluginZipPublicationToZipStagingRepository";
 
-    @Before
-    public void setUp() throws IOException {
-        projectDir = new TemporaryFolder();
-        projectDir.create();
-    }
-
-    @After
-    public void tearDown() {
-        projectDir.delete();
-    }
+    @Rule
+    public TemporaryFolder projectDir = new TemporaryFolder();
 
     /**
      * This test is used to verify that adding the 'opensearch.pluginzip' to the project

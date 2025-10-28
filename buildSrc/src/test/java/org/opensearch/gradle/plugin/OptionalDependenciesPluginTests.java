@@ -15,8 +15,7 @@ import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
@@ -32,18 +31,9 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
 
 public class OptionalDependenciesPluginTests extends GradleUnitTestCase {
-    private TemporaryFolder projectDir;
 
-    @Before
-    public void setUp() throws Exception {
-        projectDir = new TemporaryFolder();
-        projectDir.create();
-    }
-
-    @After
-    public void tearDown() {
-        projectDir.delete();
-    }
+    @Rule
+    public TemporaryFolder projectDir = new TemporaryFolder();
 
     public void testApply() throws FileNotFoundException, IOException, XmlPullParserException {
         final File mavenRepoDir = new File(projectDir.getRoot(), "mavenrepo");
