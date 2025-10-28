@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 public class MockTracingContextPropagator implements TracingContextPropagator {
 
     private static final String TRACE_PARENT = "traceparent";
-    private static final String SEPARATOR = "~";
+    private static final String SEPARATOR = "-";
     private final SpanProcessor spanProcessor;
 
     /**
@@ -45,6 +45,10 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
             String[] values = value.split(SEPARATOR);
             String traceId = values[0];
             String spanId = values[1];
+            if (values.length == 4) {
+                traceId = values[1];
+                spanId = values[2];
+            }
             return Optional.of(new MockSpan(null, null, traceId, spanId, spanProcessor, Attributes.EMPTY, SpanKind.INTERNAL));
         } else {
             return Optional.empty();
@@ -61,7 +65,6 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
         } else {
             return Optional.empty();
         }
-
     }
 
     @Override
@@ -69,8 +72,11 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
         if (currentSpan instanceof MockSpan) {
             String traceId = currentSpan.getTraceId();
             String spanId = currentSpan.getSpanId();
-            String traceParent = String.format(Locale.ROOT, "%s%s%s", traceId, SEPARATOR, spanId);
+            String s1 = "00-";
+            String s3 = "-01";
+            String traceParent = String.format(Locale.ROOT, "%s%s%s%s%s", s1, traceId, SEPARATOR, spanId, s3);
             setter.accept(TRACE_PARENT, traceParent);
+            setter.accept("trace-id", traceId);
         }
     }
 }

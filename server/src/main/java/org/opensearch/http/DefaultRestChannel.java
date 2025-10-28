@@ -54,6 +54,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.tasks.Task.TRACE_PARENT;
 import static org.opensearch.tasks.Task.X_OPAQUE_ID;
 
 /**
@@ -149,6 +150,9 @@ class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
             opaque = request.header(X_OPAQUE_ID);
             if (opaque != null) {
                 setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
+            }
+            if (request.header(TRACE_PARENT) != null) {
+                setHeaderField(httpResponse, TRACE_PARENT, request.header(TRACE_PARENT));
             }
 
             // Add all custom headers

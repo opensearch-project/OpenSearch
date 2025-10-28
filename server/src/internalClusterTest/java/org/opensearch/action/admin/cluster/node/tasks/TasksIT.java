@@ -125,6 +125,9 @@ import static org.mockito.Mockito.spy;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class TasksIT extends AbstractTasksIT {
 
+    private static final String SAMPLE_TRACE_PARENT_HEADER = "00-19d538d7c42d09240be001d1e4ff6203-0651eba1347dceea-01";
+    private static final String SAMPLE_TRACE_ID_HEADER = "19d538d7c42d09240be001d1e4ff6203";
+
     protected final TaskInfo taskInfo = new TaskInfo(
         new TaskId("fake", 1),
         "test_type",
@@ -379,6 +382,11 @@ public class TasksIT extends AbstractTasksIT {
 
         Map<String, String> headers = new HashMap<>();
         headers.put(Task.X_OPAQUE_ID, "my_id");
+        // Add trace parent request header
+        headers.put(Task.TRACE_PARENT, SAMPLE_TRACE_PARENT_HEADER);
+        // Add traceId. This is explictly not allowed to be passed from outside, but for this test we add this to verify its correct
+        // propagation.
+        headers.put(Task.TRACE_ID, SAMPLE_TRACE_ID_HEADER);
         headers.put("Foo-Header", "bar");
         headers.put("Custom-Task-Header", "my_value");
         assertSearchResponse(client().filterWithHeader(headers).prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).get());
@@ -427,6 +435,7 @@ public class TasksIT extends AbstractTasksIT {
 
         Map<String, String> headers = new HashMap<>();
         headers.put(Task.X_OPAQUE_ID, "my_id");
+        headers.put(Task.TRACE_PARENT, SAMPLE_TRACE_PARENT_HEADER);
         headers.put("Custom-Task-Header", randomAlphaOfLengthBetween(maxSize, maxSize + 100));
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -436,9 +445,15 @@ public class TasksIT extends AbstractTasksIT {
     }
 
     private void assertTaskHeaders(TaskInfo taskInfo) {
-        assertThat(taskInfo.getHeaders().keySet(), hasSize(2));
+        assertThat(taskInfo.getHeaders().keySet(), hasSize(4));
         assertEquals("my_id", taskInfo.getHeaders().get(Task.X_OPAQUE_ID));
+        assertEquals(SAMPLE_TRACE_ID_HEADER, taskInfo.getHeaders().get(Task.TRACE_ID));
         assertEquals("my_value", taskInfo.getHeaders().get("Custom-Task-Header"));
+        if (taskInfo.getParentTaskId() != null) {
+            assertTrue(taskInfo.getHeaders().get(Task.TRACE_PARENT).contains(SAMPLE_TRACE_ID_HEADER));
+        } else {
+            assertEquals(SAMPLE_TRACE_PARENT_HEADER, taskInfo.getHeaders().get(Task.TRACE_PARENT));
+        }
     }
 
     /**
