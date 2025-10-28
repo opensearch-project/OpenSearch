@@ -100,7 +100,7 @@ public class SemverRangeTests extends OpenSearchTestCase {
         ex = expectThrows(IllegalArgumentException.class, () -> SemverRange.fromString("$1.2"));
         assertTrue(ex.getMessage().contains("the version needs to contain major, minor, and revision, and optionally the build"));
 
-        expectThrows(NumberFormatException.class, () -> SemverRange.fromString("$1.2.3"));
+        expectThrows(IllegalArgumentException.class, () -> SemverRange.fromString("$1.2.3"));
 
         assertThrows(IllegalArgumentException.class, () -> SemverRange.fromString("[2.3.0]"));
         assertThrows(IllegalArgumentException.class, () -> SemverRange.fromString("[2.3.0,]"));
