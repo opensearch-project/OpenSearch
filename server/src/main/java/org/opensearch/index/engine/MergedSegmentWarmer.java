@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
+import org.opensearch.Version;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.index.merge.MergedSegmentTransferTracker;
@@ -113,6 +114,12 @@ public class MergedSegmentWarmer implements IndexReaderWarmer {
 
     // package-private for tests
     boolean shouldWarm(SegmentCommitInfo segmentCommitInfo) throws IOException {
+        // Min node version check ensures that we only warm, when all nodes expect it
+        Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+        if (Version.V_3_4_0.compareTo(minNodeVersion) > 0) {
+            return false;
+        }
+
         if (indexShard.getRecoverySettings().isMergedSegmentReplicationWarmerEnabled() == false) {
             return false;
         }

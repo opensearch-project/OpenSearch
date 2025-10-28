@@ -83,6 +83,21 @@ public class BulkRequestParserProtoUtils {
     }
 
     /**
+     * Detects the media type from the byte content, with fallback to JSON if detection fails.
+     * This enables support for JSON, SMILE, and CBOR formats in gRPC bulk requests.
+     *
+     * @param document The document content as bytes
+     * @return The detected MediaType, or JSON if detection fails or document is empty
+     */
+    static MediaType detectMediaType(byte[] document) {
+        if (document == null || document.length == 0) {
+            return MediaTypeRegistry.JSON;
+        }
+        MediaType detectedType = MediaTypeRegistry.mediaTypeFromBytes(document, 0, document.length);
+        return detectedType != null ? detectedType : MediaTypeRegistry.JSON;
+    }
+
+    /**
      * Similar to {@link BulkRequestParser#parse(BytesReference, String, String, FetchSourceContext, String, Boolean, boolean, MediaType, Consumer, Consumer, Consumer)}, except that it takes into account global values.
      *
      * @param request
@@ -231,6 +246,7 @@ public class BulkRequestParserProtoUtils {
         pipeline = createOperation.hasPipeline() ? createOperation.getPipeline() : pipeline;
         requireAlias = createOperation.hasRequireAlias() ? createOperation.getRequireAlias() : requireAlias;
 
+        MediaType mediaType = detectMediaType(document);
         IndexRequest indexRequest = new IndexRequest(index).id(id)
             .routing(routing)
             .version(version)
@@ -239,7 +255,7 @@ public class BulkRequestParserProtoUtils {
             .setPipeline(pipeline)
             .setIfSeqNo(ifSeqNo)
             .setIfPrimaryTerm(ifPrimaryTerm)
-            .source(document, MediaTypeRegistry.JSON)
+            .source(document, mediaType)
             .setRequireAlias(requireAlias);
         return indexRequest;
     }
@@ -288,6 +304,7 @@ public class BulkRequestParserProtoUtils {
         ifPrimaryTerm = indexOperation.hasIfPrimaryTerm() ? indexOperation.getIfPrimaryTerm() : ifPrimaryTerm;
         requireAlias = indexOperation.hasRequireAlias() ? indexOperation.getRequireAlias() : requireAlias;
 
+        MediaType mediaType = detectMediaType(document);
         IndexRequest indexRequest;
         if (opType == null) {
             indexRequest = new IndexRequest(index).id(id)
@@ -297,7 +314,7 @@ public class BulkRequestParserProtoUtils {
                 .setPipeline(pipeline)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm)
-                .source(document, MediaTypeRegistry.JSON)
+                .source(document, mediaType)
                 .setRequireAlias(requireAlias);
         } else {
             indexRequest = new IndexRequest(index).id(id)
@@ -308,7 +325,7 @@ public class BulkRequestParserProtoUtils {
                 .setPipeline(pipeline)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm)
-                .source(document, MediaTypeRegistry.JSON)
+                .source(document, mediaType)
                 .setRequireAlias(requireAlias);
         }
         return indexRequest;
@@ -408,7 +425,9 @@ public class BulkRequestParserProtoUtils {
             }
 
             if (updateAction.hasUpsert()) {
-                updateRequest.upsert(updateAction.getUpsert(), MediaTypeRegistry.JSON);
+                byte[] upsertBytes = updateAction.getUpsert().toByteArray();
+                MediaType upsertMediaType = detectMediaType(upsertBytes);
+                updateRequest.upsert(upsertBytes, upsertMediaType);
             }
 
             if (updateAction.hasDocAsUpsert()) {
@@ -424,7 +443,8 @@ public class BulkRequestParserProtoUtils {
             }
         }
 
-        updateRequest.doc(document, MediaTypeRegistry.JSON);
+        MediaType mediaType = detectMediaType(document);
+        updateRequest.doc(document, mediaType);
 
         if (updateOperation.hasIfSeqNo()) {
             updateRequest.setIfSeqNo(updateOperation.getIfSeqNo());
