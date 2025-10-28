@@ -35,6 +35,7 @@ package org.opensearch.index.analysis;
 import org.apache.lucene.analysis.CharFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.io.Reader;
@@ -46,6 +47,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<CharFilterFactory> {
     /**
      * Create a pre-configured char filter that may not vary at all.
