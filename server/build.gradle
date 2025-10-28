@@ -123,6 +123,7 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
   }
+  internalClusterTestImplementation project(':libs:opensearch-secure-sm')
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
   }

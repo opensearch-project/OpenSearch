@@ -42,6 +42,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.s3.utils.HttpRangeUtils;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -117,7 +118,7 @@ class S3RetryingInputStream extends InputStream {
                     + end;
                 getObjectRequest.range(HttpRangeUtils.toHttpRangeHeader(Math.addExact(start, currentOffset), end));
             }
-            final ResponseInputStream<GetObjectResponse> getObjectResponseInputStream = SocketAccess.doPrivileged(
+            final ResponseInputStream<GetObjectResponse> getObjectResponseInputStream = AccessController.doPrivileged(
                 () -> clientReference.get().getObject(getObjectRequest.build())
             );
             this.currentStreamLastOffset = Math.addExact(

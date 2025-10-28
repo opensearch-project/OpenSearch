@@ -62,14 +62,14 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     @Before
     @SuppressForbidden(reason = "Need to set system property here for AWS SDK v2")
     public void setUp() throws Exception {
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
+        AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
         super.setUp();
     }
 
     @Override
     @SuppressForbidden(reason = "Need to reset system property here for AWS SDK v2")
     public void tearDown() throws Exception {
-        SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+        AccessController.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
         super.tearDown();
     }
 

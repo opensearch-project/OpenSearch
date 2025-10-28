@@ -54,14 +54,13 @@ import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
@@ -80,10 +79,9 @@ import static org.hamcrest.Matchers.notNullValue;
 public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase implements ConfigPathSupport {
 
     static {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+        AccessController.doPrivileged(() -> {
             // required for client settings overwriting when running in IDE
             System.setProperty("opensearch.allow_insecure_settings", "true");
-            return null;
         });
     }
 
@@ -109,7 +107,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
     }
 
     public void testRepositoryCredentialsOverrideSecureCredentials() {
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+        AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         final String repositoryName = "repo-creds-override";
         final Settings.Builder repositorySettings = Settings.builder()
             // repository settings for credentials override node secure settings
@@ -147,7 +145,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
     }
 
     public void testReinitSecureCredentials() {
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+        AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         final String clientName = randomFrom("default", "other");
 
         final Settings.Builder repositorySettings = Settings.builder();
@@ -235,7 +233,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
     }
 
     public void testInsecureRepositoryCredentials() throws Exception {
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+        AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         final String repositoryName = "repo-insecure-creds";
         createRepository(
             repositoryName,
@@ -339,7 +337,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
 
             @Override
             AmazonS3WithCredentials buildClient(final S3ClientSettings clientSettings) {
-                final AmazonS3WithCredentials client = SocketAccess.doPrivileged(() -> super.buildClient(clientSettings));
+                final AmazonS3WithCredentials client = AccessController.doPrivileged(() -> super.buildClient(clientSettings));
                 final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
                 return AmazonS3WithCredentials.create(new ClientAndCredentials(client.client(), credentials), credentials);
             }
