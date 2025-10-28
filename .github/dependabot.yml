@@ -1,3 +1,4 @@
+version: 2
 registries:
   gradle-maven:
     type: maven-repository
@@ -1069,4 +1070,9 @@ updates:
     schedule:
       interval: weekly
       day: "friday"
-version: 2
+  - directory: /
+    package-ecosystem: github-actions
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "dependabot:"
