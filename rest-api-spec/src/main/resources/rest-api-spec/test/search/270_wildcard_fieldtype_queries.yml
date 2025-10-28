@@ -90,6 +90,10 @@ setup:
 ---
 # Verify that mappings doc_values is stored.
 "Mappings":
+  - skip:
+      version: "- 3.99.99"
+      reason: "the default value of doc_values is false before 3.4.0"
+
   - do:
       indices.get_mapping:
         index: test1
