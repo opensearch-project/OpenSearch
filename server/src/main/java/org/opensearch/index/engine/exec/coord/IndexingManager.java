@@ -34,8 +34,8 @@ public class IndexingManager {
 
     public IndexingManager(Path indexPath, MapperService mapperService/*, EngineConfig engineConfig*/)
         throws IOException {
-        this.engine = new CompositeIndexingExecutionEngine(mapperService, null, new Any(List.of(DataFormat.TEXT)), null,
-            0);
+        this.engine = new CompositeIndexingExecutionEngine(mapperService, null,
+            new Any(List.of(DataFormat.TEXT), DataFormat.TEXT), null, 0);
         this.committer = new LuceneCommitEngine(indexPath);
     }
 
