@@ -35,12 +35,12 @@ else
         "notifications" # "opensearch-notifications". Requires "opensearch-notifications-core"
         "opensearch-observability"
         "opensearch-security"
-        "opensearch-security-analytics" # Flagged as Trojan by some antivirus software
         "opensearch-sql-plugin" # "opensearch-sql"
     )
     wazuh_plugins=(
         "wazuh-indexer-setup"
         "wazuh-indexer-reports-scheduler"
+        "wazuh-indexer-security-analytics" # Flagged as Trojan by some antivirus software
     )
 fi
 
@@ -57,6 +57,7 @@ function usage() {
     echo -e "-r REVISION\t[Optional] Package revision, default is '0'."
     echo -e "-l PLUGINS_HASH\t[Optional] wazuh-indexer-plugins commit hash, default is '0'."
     echo -e "-e REPORTING_HASH\t[Optional] wazuh-indexer-reporting commit hash, default is '0'."
+    echo -e "-s SECURITY_HASH\t[Optional] wazuh-indexer-security-analytics commit hash, default is '0'."
     echo -e "-o OUTPUT\t[Optional] Output path, default is 'artifacts'."
     echo -e "-h help"
 }
@@ -66,7 +67,7 @@ function usage() {
 # ====
 function parse_args() {
 
-    while getopts ":ho:p:a:d:r:l:e:" arg; do
+    while getopts ":ho:p:a:d:r:l:e:s:" arg; do
         case $arg in
         h)
             usage
@@ -91,9 +92,10 @@ function parse_args() {
             PLUGINS_HASH=$OPTARG
             ;;
         e)
-
             REPORTING_HASH=$OPTARG
-
+            ;;
+        s)
+            SECURITY_HASH=$OPTARG
             ;;
         :)
             echo "Error: -${OPTARG} requires an argument"
@@ -118,6 +120,7 @@ function parse_args() {
     [ -z "$REVISION" ] && REVISION="0"
     [ -z "$PLUGINS_HASH" ] && PLUGINS_HASH="0"
     [ -z "$REPORTING_HASH" ] && REPORTING_HASH="0"
+    [ -z "$SECURITY_HASH" ] && SECURITY_HASH="0"
 
     case $PLATFORM-$DISTRIBUTION-$ARCHITECTURE in
     linux-tar-x64 | darwin-tar-x64)
@@ -259,7 +262,7 @@ function generate_installer_version_file() {
     local dir
     dir="${1}"
     jq \
-      --arg commit "${INDEXER_HASH}-${PLUGINS_HASH}-${REPORTING_HASH}" \
+      --arg commit "${INDEXER_HASH}-${PLUGINS_HASH}-${REPORTING_HASH}-${SECURITY_HASH}" \
       '. + {"commit": $commit}' \
       "${REPO_PATH}"/VERSION.json > "${dir}"/VERSION.json
 }

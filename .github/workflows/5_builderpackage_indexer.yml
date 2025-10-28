@@ -116,6 +116,7 @@ jobs:
     outputs:
       wazuh_plugins_ref: ${{ steps.branches.outputs.wazuh_indexer_plugins_branch }}
       reporting_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_reporting_branch }}
+      security_analytics_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_security_analytics_branch }}
     steps:
       - uses: actions/checkout@v5
       - name: Resolve branches
@@ -183,18 +184,39 @@ jobs:
             # Extracts the Opensearch version
             opensearch_version=$(bash tools/opensearch_version.sh)
             echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
+  
+  get-versions-wazuh-indexer-security-analytics:
+    needs: [branches]
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.security_analytics_version.outputs.version }}
+      opensearch_version: ${{ steps.security_analytics_version.outputs.opensearch_version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: wazuh/wazuh-indexer-security-analytics
+          ref: ${{ needs.branches.outputs.security_analytics_plugin_ref }}
+
+      - name: Read versions from wazuh-indexer-security-analytics
+        id: security_analytics_version
+        run: |
+           echo "version=$(bash ./tools/product_version.sh)" >> "$GITHUB_OUTPUT"
+
+            # Extracts the Opensearch version
+            opensearch_version=$(bash tools/opensearch_version.sh)
+            echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
 
   compatibility-check:
     runs-on: ubuntu-24.04
-    needs: [get-versions-wazuh-indexer, get-versions-wazuh-indexer-plugins,  get-versions-wazuh-indexer-reporting]
+    needs: [get-versions-wazuh-indexer, get-versions-wazuh-indexer-plugins,  get-versions-wazuh-indexer-reporting, get-versions-wazuh-indexer-security-analytics]
     steps:
       - name: Check version compatibility
         run: |
-          if [[ ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.version }}") ]]; then
-            echo "The Wazuh Indexer version is not compatible with the plugins or reporting version."
+          if [[ ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.version }}") ]]; then
+            echo "The Wazuh Indexer version is not compatible with the plugins, reporting, or security analytics version."
             exit 1
-          elif [[ ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.opensearch_version }}") && ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.opensearch_version }}") ]]; then
-            echo "The Wazuh Indexer Opensearch version is not compatible with the plugins or reporting Opensearch version."
+          elif [[ ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.opensearch_version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.opensearch_version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.opensearch_version }}") ]]; then
+            echo "The Wazuh Indexer Opensearch version is not compatible with the plugins, reporting, or security analytics Opensearch version."
             exit 1
           else
             echo "The Wazuh Indexer version and the plugins version are compatible."
@@ -317,9 +339,51 @@ jobs:
           name: ${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
           path: build/distributions/${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
           if-no-files-found: error
+
+  build-security-analytics-plugin:
+    needs: [compatibility-check, branches]
+    if: ${{ needs.branches.outputs.security_analytics_plugin_ref != '' }}
+    runs-on: ubuntu-24.04
+    outputs:
+      hash: ${{ steps.save-hash.outputs.hash }}
+    env:
+      plugin_name: wazuh-indexer-security-analytics
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: wazuh/wazuh-indexer-security-analytics
+          ref: ${{ needs.branches.outputs.security_analytics_plugin_ref }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle # Used for caching
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Get version
+        id: version
+        run: echo "version=$(jq .version -r VERSION.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Build with Gradle
+        run: ./gradlew build -x integTest -Dversion=${{ steps.version.outputs.version }} -Drevision=${{ inputs.revision }}
+
+      - run: ls -lR build/distributions
+
+      - name: Save commit hash
+        id: save-hash
+        run: echo "hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
+          path: build/distributions/${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
+          if-no-files-found: error
   
   build:
-    needs: [setup, build-wazuh-plugins, build-reporting-plugin, branches]
+    needs: [setup, build-wazuh-plugins, build-reporting-plugin, build-security-analytics-plugin, branches]
     runs-on: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'ubuntu-24.04' }}
     strategy:
       fail-fast: false
@@ -332,13 +396,13 @@ jobs:
       # Download plugins
       - name: Download plugins
         uses: actions/download-artifact@v5
-        if: ${{ needs.branches.outputs.wazuh_plugins_ref != '' || needs.branches.outputs.reporting_plugin_ref != '' }}
+        if: ${{ needs.branches.outputs.wazuh_plugins_ref != '' || needs.branches.outputs.reporting_plugin_ref != '' || needs.branches.outputs.security_analytics_plugin_ref != '' }}
         with:
           path: ./artifacts/plugins
           merge-multiple: true
 
       - name: Display structure of downloaded files
-        if: ${{ needs.branches.outputs.wazuh_plugins_ref != '' || needs.branches.outputs.reporting_plugin_ref != '' }}
+        if: ${{ needs.branches.outputs.wazuh_plugins_ref != '' || needs.branches.outputs.reporting_plugin_ref != '' || needs.branches.outputs.security_analytics_plugin_ref != '' }}
         run: ls -lR ./artifacts/plugins
 
       - uses: actions/setup-java@v5
@@ -362,6 +426,7 @@ jobs:
             -r ${{ inputs.revision }} \
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
             -e ${{ needs.build-reporting-plugin.outputs.hash }} \
+            -s ${{ needs.build-security-analytics-plugin.outputs.hash }} \
             ${{ inputs.is_stage && '-x' || '' }} \
           )
           echo "name=$name" >> $GITHUB_OUTPUT
@@ -375,6 +440,7 @@ jobs:
             -r ${{ inputs.revision }} \
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
             -e ${{ needs.build-reporting-plugin.outputs.hash }} \
+            -s ${{ needs.build-security-analytics-plugin.outputs.hash }} \
             ${{ inputs.is_stage && '-x' || '' }} \
           )
           echo "name=$name" >> $GITHUB_OUTPUT
@@ -394,7 +460,8 @@ jobs:
             -d ${{ matrix.distribution }} \
             -r ${{ inputs.revision }} \
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
-            -e ${{ needs.build-reporting-plugin.outputs.hash }}
+            -e ${{ needs.build-reporting-plugin.outputs.hash }} \
+            -s ${{ needs.build-security-analytics-plugin.outputs.hash }}
 
       - name: Test RPM package installation
         if: ${{ matrix.distribution == 'rpm' }}

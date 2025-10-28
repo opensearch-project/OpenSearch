@@ -11,6 +11,9 @@ outputs:
   wazuh_indexer_reporting_branch:
     description: "Branch to use in wazuh-indexer-reporting repository."
     value: ${{ steps.resolve.outputs.wazuh_indexer_reporting_branch }}
+  wazuh_indexer_security_analytics_branch:
+    description: "Branch to use in wazuh-indexer-security-analytics repository."
+    value: ${{ steps.resolve.outputs.wazuh_indexer_security_analytics_branch }}
 runs:
   using: "composite"
   steps:
@@ -19,4 +22,5 @@ runs:
         eval $(${{ github.action_path }}/resolve_branches.sh "${{ inputs.branch }}" | awk -F= '{gsub("-", "_", $1); print toupper($1)"_BRANCH="$2}')
         echo "wazuh_indexer_plugins_branch=$WAZUH_INDEXER_PLUGINS_BRANCH" >> $GITHUB_OUTPUT
         echo "wazuh_indexer_reporting_branch=$WAZUH_INDEXER_REPORTING_BRANCH" >> $GITHUB_OUTPUT
+        echo "wazuh_indexer_security_analytics_branch=$WAZUH_INDEXER_SECURITY_ANALYTICS_BRANCH" >> $GITHUB_OUTPUT
       shell: bash

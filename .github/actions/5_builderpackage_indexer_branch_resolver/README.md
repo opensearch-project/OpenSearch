@@ -41,10 +41,11 @@ All dependencies are available in standard GitHub Actions runners.
 
 ### Outputs
 
-| Output                           | Description                                                 |
-| -------------------------------- | ----------------------------------------------------------- |
-| `wazuh_indexer_plugins_branch`   | Resolved branch name for wazuh-indexer-plugins repository   |
-| `wazuh_indexer_reporting_branch` | Resolved branch name for wazuh-indexer-reporting repository |
+| Output                                    | Description                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| `wazuh_indexer_plugins_branch`            | Resolved branch name for wazuh-indexer-plugins repository            |
+| `wazuh_indexer_reporting_branch`          | Resolved branch name for wazuh-indexer-reporting repository          |
+| `wazuh_indexer_security_analytics_branch` | Resolved branch name for wazuh-indexer-security-analytics repository |
 
 The script outputs branch assignments in `key=value` format:
 
@@ -84,6 +85,7 @@ jobs:
         run: |
           echo "Plugins branch: ${{ steps.resolve.outputs.wazuh_indexer_plugins_branch }}"
           echo "Reporting branch: ${{ steps.resolve.outputs.wazuh_indexer_reporting_branch }}"
+          echo "Security Analytics branch: ${{ steps.resolve.outputs.wazuh_indexer_security_analytics_branch }}"
 
   build-plugins:
     needs: [branches]
@@ -109,22 +111,24 @@ bash .github/actions/5_builderpackage_indexer_branch_resolver/resolve_branches.s
 ## Examples
 
 **Branch exists in every repository**
-  - Scenario: input branch exists in both repositories.
+  - Scenario: input branch exists in all the repositories.
   - Input: *feature-xyz*
   - Output:
     ```
     wazuh-indexer-plugins=feature-xyz
     wazuh-indexer-reporting=feature-xyz
+    wazuh-indexer-security-analytics=feature-xyz
     ```
 
 **Branch exists in one of the repositories**
 
-- Scenario: input branch exists in **wazuh-indexer-plugins** but not in **wazuh-indexer-reporting**. Input branch is based on version *4.12.1*.
+- Scenario: input branch exists in **wazuh-indexer-plugins** but not in **wazuh-indexer-reporting** and **wazuh-indexer-security-analytics**. Input branch is based on version *4.12.1*.
 - Input: *feature-xyz*
 - Output:
     ```
     wazuh-indexer-plugins=feature-xyz
     wazuh-indexer-reporting=4.12.1
+    wazuh-indexer-security-analytics=4.12.1
     ```
 
 **Branch doesn't exist in any repository**
@@ -135,6 +139,7 @@ bash .github/actions/5_builderpackage_indexer_branch_resolver/resolve_branches.s
     ```
     wazuh-indexer-plugins=4.13.1
     wazuh-indexer-reporting=4.13.1
+    wazuh-indexer-security-analytics=4.13.1
     ```
 
 ## Adding new repositories
@@ -145,11 +150,13 @@ To add more dependent repositories, edit `resolve_branches.sh`:
 REPOS=(
     "wazuh-indexer-plugins"
     "wazuh-indexer-reporting"
+    "wazuh-indexer-security-analytics"
     "your-new-repo"  # Add here
 )
 REPO_URLS=(
     "https://github.com/wazuh/wazuh-indexer-plugins.git"
     "https://github.com/wazuh/wazuh-indexer-reporting.git"
+    "https://github.com/wazuh/wazuh-indexer-security-analytics.git"
     "https://github.com/wazuh/your-new-repo.git"  # Add here
 )
 ```
