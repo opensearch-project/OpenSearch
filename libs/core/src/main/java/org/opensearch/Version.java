@@ -201,6 +201,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public static Version fromId(int id) {
+        if (id != 0 && (id & MASK) == 0) {
+            throw new IllegalArgumentException("Version id must contain OpenSearch mask");
+        }
         final Version known = idToVersion.get(id);
         if (known != null) {
             return known;
@@ -234,12 +237,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return new Version(id ^ MASK, luceneVersion);
     }
 
-    private static int computeLegacyID(int major, int minor, int revision, int build) {
-        return major * 1000000 + minor * 10000 + revision * 100 + build;
-    }
-
     public static int computeID(int major, int minor, int revision, int build) {
-        return computeLegacyID(major, minor, revision, build) ^ MASK;
+        return (major * 1000000 + minor * 10000 + revision * 100 + build) ^ MASK;
     }
 
     /**
@@ -289,6 +288,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
+            if (major > 99000000 || minor > 990000 || revision > 9900) {
+                throw new IllegalArgumentException("Version parts must be <= 99");
+            }
             int build = 99;
             if (parts.length == 4) {
                 String buildStr = parts[3];
