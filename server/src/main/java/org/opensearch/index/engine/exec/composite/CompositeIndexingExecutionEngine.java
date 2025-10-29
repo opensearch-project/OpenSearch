@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine<Any> {
 
     private final CompositeDataFormatWriterPool dataFormatWriterPool;
-    private DataFormat dataFormat;
+    private Any dataFormat;
     private final AtomicLong writerGeneration;
     private final List<IndexingExecutionEngine<?>> delegates = new ArrayList<>();
 
@@ -57,17 +57,20 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
     public CompositeIndexingExecutionEngine(MapperService mapperService, PluginsService pluginsService, ShardPath shardPath, long initialWriterGeneration) {
         this.writerGeneration = new AtomicLong(initialWriterGeneration);
+        List<DataFormat> dataFormats = new ArrayList<>();
         try {
             DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class).stream().findAny().orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
+            dataFormats.add(plugin.getDataFormat());
             delegates.add(plugin.indexingEngine(mapperService, shardPath));
         } catch (NullPointerException e) {
             delegates.add(new TextEngine());
         }
+        this.dataFormat = new Any(dataFormats, dataFormats.get(0));
         this.dataFormatWriterPool = new CompositeDataFormatWriterPool(() -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()), ConcurrentLinkedQueue::new, Runtime.getRuntime().availableProcessors());
     }
 
     @Override
-    public DataFormat getDataFormat() {
+    public Any getDataFormat() {
         return dataFormat;
     }
 

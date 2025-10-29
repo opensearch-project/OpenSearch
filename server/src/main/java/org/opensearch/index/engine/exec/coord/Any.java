@@ -18,8 +18,15 @@ public class Any implements DataFormat {
 
     private List<DataFormat> dataFormats;
 
-    public Any(List<DataFormat> dataFormats) {
+    private DataFormat primaryDataFormat;
+
+    public Any(List<DataFormat> dataFormats, DataFormat primaryDataFormat) {
         this.dataFormats = dataFormats;
+        this.primaryDataFormat = primaryDataFormat;
+    }
+
+    public DataFormat getPrimaryDataFormat() {
+        return primaryDataFormat;
     }
 
     @Override

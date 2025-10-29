@@ -10,13 +10,16 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @ExperimentalApi
@@ -77,6 +80,15 @@ public class CatalogSnapshot extends AbstractRefCounted {
 
         public void addSearchableFiles(String dataFormat, WriterFileSet writerFileSetGroup) {
             dfGroupedSearchableFiles.put(dataFormat, writerFileSetGroup);
+        }
+
+        public Collection<FileMetadata> getSearchableFiles(String df) {
+            List<FileMetadata> searchableFiles = new ArrayList<>();
+            String directory = dfGroupedSearchableFiles.get(df).getDirectory();
+            for(String file : dfGroupedSearchableFiles.get(df).getFiles()) {
+                searchableFiles.add(new FileMetadata(directory, file));
+            }
+            return searchableFiles;
         }
 
         public long getGeneration() {
