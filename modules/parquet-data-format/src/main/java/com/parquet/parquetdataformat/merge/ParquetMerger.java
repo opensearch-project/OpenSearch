@@ -15,14 +15,7 @@ import org.opensearch.index.engine.exec.merge.RowIdMapping;
 
 import java.util.Collection;
 
-public class ParquetMerger implements Merger {
-    @Override
-    public MergeResult merge(Collection<FileMetadata> fileMetadataList) {
-        // TODO
-        // Add implementation for merging parquet file and returning MergeResult.
-        throw new UnsupportedOperationException("Not supported parquet as secondary data format yet.");
-    }
-
+public abstract class ParquetMerger implements Merger {
     @Override
     public MergeResult merge(Collection<FileMetadata> fileMetadataList, RowIdMapping rowIdMapping) {
         throw new UnsupportedOperationException("Not supported parquet as secondary data format yet.");
