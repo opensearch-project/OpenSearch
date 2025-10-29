@@ -41,12 +41,13 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.opensearch.Version.MASK;
 
 public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
 
     private IndexSettings newTestIndexSettings(int maxTermsCount, int maxResultWindow) {
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, 2000099)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, 2000099 ^ MASK)
             .put("index.max_terms_count", maxTermsCount)
             .put("index.max_result_window", maxResultWindow)
             .build();

@@ -250,7 +250,7 @@ public class VersionTests extends OpenSearchTestCase {
 
     public void testToString() {
         assertEquals("2.0.0-beta1", Version.fromString("2.0.0-beta1").toString());
-        assertEquals("5.0.0-alpha1", Version.fromId(5000001).toString());
+        assertEquals("5.0.0-alpha1", Version.fromId(5000001 ^ MASK).toString());
         assertEquals("2.3.0", Version.fromString("2.3.0").toString());
         assertEquals("1.0.0-beta1", Version.fromString("1.0.0-beta1").toString());
         assertEquals("2.0.0-beta1", Version.fromString("2.0.0-beta1").toString());
@@ -433,8 +433,8 @@ public class VersionTests extends OpenSearchTestCase {
         );
         assertThat(message, isCompatible(VersionUtils.getPreviousMinorVersion(), currentOrNextMajorVersion), equalTo(isCompatible));
 
-        assertFalse(isCompatible(Version.fromId(5000099), Version.fromString("6.0.0")));
-        assertFalse(isCompatible(Version.fromId(5000099), Version.fromString("7.0.0")));
+        assertFalse(isCompatible(Version.fromId(5000099 ^ MASK), Version.fromString("6.0.0")));
+        assertFalse(isCompatible(Version.fromId(5000099 ^ MASK), Version.fromString("7.0.0")));
 
         Version a = randomVersion(random());
         Version b = randomVersion(random());

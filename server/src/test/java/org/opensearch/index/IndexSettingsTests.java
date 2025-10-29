@@ -181,15 +181,15 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         }
 
         // use version number that is unknown
-        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(999999)).build());
+        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromString("99.99.99")).build());
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(Version.fromId(999999), settings.getIndexVersionCreated());
+        assertEquals(Version.fromString("99.99.99"), settings.getIndexVersionCreated());
         assertEquals("_na_", settings.getUUID());
         settings.updateIndexMetadata(
             newIndexMeta(
                 "index",
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(999999))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromString("99.99.99"))
                     .put("index.test.setting.int", 42)
                     .build()
             )

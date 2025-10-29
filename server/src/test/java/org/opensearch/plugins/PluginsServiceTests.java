@@ -729,7 +729,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "my_plugin",
             "desc",
             "1.0",
-            Version.fromId(1000099),
+            Version.fromString("1.0.0"),
             "1.8",
             "FakePlugin",
             Collections.emptyList(),
