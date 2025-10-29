@@ -9,4 +9,8 @@
 package org.opensearch.index.engine.exec;
 
 public record FileMetadata(String directory, String file) {
+
+    public String toString() {
+        return "FileMetadata {" + "directory='" + directory + '\'' + ", file='" + file + '\'' + '}';
+    }
 }

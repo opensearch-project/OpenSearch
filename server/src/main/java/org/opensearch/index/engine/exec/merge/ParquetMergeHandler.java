@@ -15,6 +15,7 @@ import org.opensearch.index.engine.exec.coord.Any;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -66,7 +67,8 @@ public class ParquetMergeHandler extends MergeHandler {
 
                 Set<FileMetadata> files = new HashSet<>();
                 for (ParquetTieredMergePolicy.ParquetFileInfo file : mergeGroup) {
-                    files.add(new FileMetadata(file.getSegmentName(), file.getSegmentName()));
+                    Path path = Path.of(file.getSegmentName());
+                    files.add(new FileMetadata(path.getParent().toString(), path.getFileName().toString()));
                 }
                 oneMerges.add(new OneMerge(compositeIndexingExecutionEngine.getDataFormat().getDataFormats().get(0), files));
             }
