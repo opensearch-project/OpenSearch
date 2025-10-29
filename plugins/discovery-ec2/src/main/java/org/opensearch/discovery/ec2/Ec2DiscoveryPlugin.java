@@ -177,6 +177,9 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
                 attrs.put(Node.NODE_ATTRIBUTES.getKey() + "aws_availability_zone", metadataResult);
             }
         } catch (final Exception e) {
+            if (e instanceof IllegalStateException) {
+                throw (IllegalStateException) e;
+            }
             // this is lenient so the plugin does not fail when installed outside of ec2
             logger.error("failed to get metadata for [placement/availability-zone]", e);
         }
