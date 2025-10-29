@@ -7,7 +7,9 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Collection;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * JNI bridge to the native Rust Parquet writer implementation.
@@ -116,4 +118,6 @@ public class RustBridge {
     public static native long nativeExecuteSubstraitQuery(long sessionContextPtr, byte[] substraitPlan);
 
     public static native void nativeCloseSessionContext(long sessionContextPtr);
+
+    public static native void mergeParquetFilesInRust(Set<Path> inputFiles, String outputFile);
 }
