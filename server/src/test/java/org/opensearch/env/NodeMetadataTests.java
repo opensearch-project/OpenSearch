@@ -39,11 +39,11 @@ import org.opensearch.test.VersionUtils;
 
 import java.nio.file.Path;
 
+import static org.opensearch.Version.MASK;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.opensearch.Version.MASK;
 
 public class NodeMetadataTests extends OpenSearchTestCase {
     private Version randomVersion() {
