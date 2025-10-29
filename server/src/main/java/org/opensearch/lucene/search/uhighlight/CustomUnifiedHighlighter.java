@@ -229,8 +229,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * Translate custom queries in queries that are supported by the unified highlighter.
      */
     private Collection<Query> rewriteCustomQuery(Query query) {
-        if (query instanceof MultiPhrasePrefixQuery) {
-            MultiPhrasePrefixQuery mpq = (MultiPhrasePrefixQuery) query;
+        if (query instanceof MultiPhrasePrefixQuery mpq) {
             Term[][] terms = mpq.getTerms();
             int[] positions = mpq.getPositions();
             SpanQuery[] positionSpanQueries = new SpanQuery[positions.length];
@@ -263,8 +262,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             // if original slop is 0 then require inOrder
             boolean inorder = (mpq.getSlop() == 0);
             return Collections.singletonList(new SpanNearQuery(positionSpanQueries, mpq.getSlop() + positionGaps, inorder));
-        } else if (query instanceof OpenSearchToParentBlockJoinQuery) {
-            return Collections.singletonList(((OpenSearchToParentBlockJoinQuery) query).getChildQuery());
+        } else if (query instanceof OpenSearchToParentBlockJoinQuery parentQuery) {
+            return Collections.singletonList(parentQuery.getChildQuery());
         } else {
             return null;
         }
