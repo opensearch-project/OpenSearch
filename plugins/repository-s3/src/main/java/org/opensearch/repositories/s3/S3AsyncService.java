@@ -49,6 +49,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -285,7 +286,7 @@ class S3AsyncService implements Closeable {
                 )
                 .build()
         );
-        final S3AsyncClient urgentClient = SocketAccess.doPrivileged(builder::build);
+        final S3AsyncClient urgentClient = AccessController.doPrivileged(builder::build);
 
         builder.httpClient(buildHttpClient(clientSettings, priorityExecutorBuilder.getAsyncTransferEventLoopGroup(), asyncHttpClientType));
         builder.asyncConfiguration(
@@ -296,7 +297,7 @@ class S3AsyncService implements Closeable {
                 )
                 .build()
         );
-        final S3AsyncClient priorityClient = SocketAccess.doPrivileged(builder::build);
+        final S3AsyncClient priorityClient = AccessController.doPrivileged(builder::build);
 
         builder.httpClient(buildHttpClient(clientSettings, normalExecutorBuilder.getAsyncTransferEventLoopGroup(), asyncHttpClientType));
         builder.asyncConfiguration(
@@ -312,7 +313,7 @@ class S3AsyncService implements Closeable {
         if (clientSettings.legacyMd5ChecksumCalculation) {
             builder.addPlugin(LegacyMd5Plugin.create());
         }
-        final S3AsyncClient client = SocketAccess.doPrivileged(builder::build);
+        final S3AsyncClient client = AccessController.doPrivileged(builder::build);
         return AmazonAsyncS3WithCredentials.create(client, priorityClient, urgentClient, credentials);
     }
 
@@ -382,7 +383,7 @@ class S3AsyncService implements Closeable {
         final S3ClientSettings clientSettings,
         ScheduledExecutorService clientExecutorService
     ) {
-        RetryPolicy retryPolicy = SocketAccess.doPrivileged(
+        RetryPolicy retryPolicy = AccessController.doPrivileged(
             () -> RetryPolicy.builder()
                 .numRetries(clientSettings.maxRetries)
                 .throttlingBackoffStrategy(
@@ -408,7 +409,7 @@ class S3AsyncService implements Closeable {
             logger.debug("Using IRSA credentials");
 
             final Region region = Region.of(clientSettings.region);
-            StsClient stsClient = SocketAccess.doPrivileged(() -> {
+            StsClient stsClient = AccessController.doPrivileged(() -> {
                 StsClientBuilder builder = StsClient.builder().region(region);
 
                 final String stsEndpoint = System.getProperty(STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY);
@@ -435,7 +436,7 @@ class S3AsyncService implements Closeable {
                             .build()
                     );
 
-                final StsAssumeRoleCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                final StsAssumeRoleCredentialsProvider stsCredentialsProvider = AccessController.doPrivileged(
                     stsCredentialsProviderBuilder::build
                 );
 
@@ -448,7 +449,7 @@ class S3AsyncService implements Closeable {
                         .roleSessionName(irsaCredentials.getRoleSessionName())
                         .webIdentityTokenFile(Path.of(irsaCredentials.getIdentityTokenFile()));
 
-                final StsWebIdentityTokenFileCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                final StsWebIdentityTokenFileCredentialsProvider stsCredentialsProvider = AccessController.doPrivileged(
                     stsCredentialsProviderBuilder::build
                 );
 
@@ -526,7 +527,7 @@ class S3AsyncService implements Closeable {
 
         @Override
         public AwsCredentials resolveCredentials() {
-            return SocketAccess.doPrivileged(credentials::resolveCredentials);
+            return AccessController.doPrivileged(credentials::resolveCredentials);
         }
     }
 
@@ -544,18 +545,21 @@ class S3AsyncService implements Closeable {
 
         @Override
         public void close() throws IOException {
-            SocketAccess.doPrivilegedIOException(() -> {
-                credentials.close();
-                if (stsClient != null) {
-                    stsClient.close();
-                }
-                return null;
-            });
+            try {
+                AccessController.doPrivilegedChecked(() -> {
+                    credentials.close();
+                    if (stsClient != null) {
+                        stsClient.close();
+                    }
+                });
+            } catch (Exception e) {
+                throw (IOException) e;
+            }
         }
 
         @Override
         public AwsCredentials resolveCredentials() {
-            return SocketAccess.doPrivileged(credentials::resolveCredentials);
+            return AccessController.doPrivileged(credentials::resolveCredentials);
         }
     }
 
