@@ -11,7 +11,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 
 ### Dependencies
-- Bump org.bouncycastle:bc-fips from 2.1.1 to 2.1.2 ([#19817](https://github.com/opensearch-project/OpenSearch/pull/19817))
 
 ### Deprecated
 

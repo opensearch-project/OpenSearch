@@ -12,3 +12,4 @@ Compatible with OpenSearch 3.3.2 and OpenSearch Dashboards 3.3.0
 
 ### Dependencies
 * Bump ch.qos.logback modules from 1.5.18 to 1.5.20 in HDFS test fixture ([#19764](https://github.com/opensearch-project/OpenSearch/pull/19764))
+* Bump org.bouncycastle:bc-fips from 2.1.1 to 2.1.2 ([#19817](https://github.com/opensearch-project/OpenSearch/pull/19817))
