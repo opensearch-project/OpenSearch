@@ -1,5 +1,7 @@
 package com.parquet.parquetdataformat.engine;
 
+import com.parquet.parquetdataformat.merge.CompactionStrategy;
+import com.parquet.parquetdataformat.merge.ParquetMergeExecutor;
 import com.parquet.parquetdataformat.merge.ParquetMerger;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
@@ -56,7 +58,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     private final Supplier<Schema> schema;
     private final List<WriterFileSet> filesWrittenAlready = new ArrayList<>();
     private final ShardPath shardPath;
-    private final ParquetMerger parquetMerger = new ParquetMerger();
+    private final ParquetMerger parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH);
 
     public ParquetExecutionEngine(Supplier<Schema> schema, ShardPath shardPath) {
         this.schema = schema;
