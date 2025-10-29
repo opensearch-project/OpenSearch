@@ -230,7 +230,7 @@ public class S3BlobStore implements BlobStore {
      * null as the S3 client ignores null header values
      */
     public String serverSideEncryptionEncryptionContext() {
-        return serverSideEncryptionEncryptionContext.isEmpty()
+        return serverSideEncryptionEncryptionContext == null || serverSideEncryptionEncryptionContext.isEmpty()
             ? null
             : Base64.getEncoder().encodeToString(serverSideEncryptionEncryptionContext.getBytes(StandardCharsets.UTF_8));
     }
@@ -239,7 +239,7 @@ public class S3BlobStore implements BlobStore {
      * Returns the expected bucket owner if set, else null as the S3 client ignores null header values
      */
     public String expectedBucketOwner() {
-        return expectedBucketOwner.isEmpty() ? null : expectedBucketOwner;
+        return expectedBucketOwner == null || expectedBucketOwner.isEmpty() ? null : expectedBucketOwner;
     }
 
     public long bufferSizeInBytes() {

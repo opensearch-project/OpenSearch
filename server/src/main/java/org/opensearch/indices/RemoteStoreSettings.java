@@ -184,6 +184,16 @@ public class RemoteStoreSettings {
         Property.Final
     );
 
+    /**
+     * Controls the ServerSideEncryption Settings.
+     */
+    public static final Setting<Boolean> CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED = Setting.boolSetting(
+        "cluster.remote_store.server_side_encryption",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
     private volatile TimeValue clusterRemoteTranslogTransferTimeout;
@@ -191,6 +201,7 @@ public class RemoteStoreSettings {
     private volatile RemoteStoreEnums.PathType pathType;
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
+    private volatile boolean isClusterServerSideEncryptionRepoEnabled;
     private volatile boolean isTranslogMetadataEnabled;
     private static volatile boolean isPinnedTimestampsEnabled;
     private static volatile TimeValue pinnedTimestampsSchedulerInterval;
@@ -234,6 +245,9 @@ public class RemoteStoreSettings {
             CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING,
             this::setClusterRemoteSegmentTransferTimeout
         );
+
+        isClusterServerSideEncryptionRepoEnabled = CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED, this::setClusterServerSideEncryptionEnabled);
 
         pinnedTimestampsSchedulerInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL.get(settings);
         pinnedTimestampsLookbackInterval = CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL.get(settings);
@@ -307,6 +321,14 @@ public class RemoteStoreSettings {
 
     private void setMaxRemoteTranslogReaders(int maxRemoteTranslogReaders) {
         this.maxRemoteTranslogReaders = maxRemoteTranslogReaders;
+    }
+
+    public boolean isClusterServerSideEncryptionEnabled() {
+        return isClusterServerSideEncryptionRepoEnabled;
+    }
+
+    private void setClusterServerSideEncryptionEnabled(boolean clusterServerSideEncryptionEnabled) {
+        isClusterServerSideEncryptionRepoEnabled = clusterServerSideEncryptionEnabled;
     }
 
     public static TimeValue getPinnedTimestampsSchedulerInterval() {
