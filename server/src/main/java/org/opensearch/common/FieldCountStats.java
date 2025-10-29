@@ -22,7 +22,7 @@ import java.util.Objects;
  * Identical to FieldMemoryStats except for toXContent logic
  */
 @PublicApi(since = "3.4.0")
-public class FieldCountStats extends FieldMemoryStats {
+public class FieldCountStats extends FieldStats {
 
     public FieldCountStats(Map<String, Long> stats) {
         super(stats);
@@ -39,16 +39,7 @@ public class FieldCountStats extends FieldMemoryStats {
 
     @Override
     public void toXContent(XContentBuilder builder, String key, String rawKey, String readableKey) throws IOException {
-        throw new UnsupportedOperationException("Use toXContent without readableKey argument for FieldCountStats");
-    }
-
-    /**
-     * Generates x-content into the given builder for each of the fields in this stats instance
-     * @param builder the builder to generated on
-     * @param key the top level key for this stats object
-     * @param rawKey the key for each of the fields' counts
-     */
-    public void toXContent(XContentBuilder builder, String key, String rawKey) throws IOException {
+        // Note the readableKey is not used here, as there is no such concept for non-memory stats.
         builder.startObject(key);
         for (final var entry : stats.entrySet()) {
             builder.startObject(entry.getKey());

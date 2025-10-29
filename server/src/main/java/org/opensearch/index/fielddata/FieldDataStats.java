@@ -35,6 +35,7 @@ package org.opensearch.index.fielddata;
 import org.opensearch.Version;
 import org.opensearch.common.FieldCountStats;
 import org.opensearch.common.FieldMemoryStats;
+import org.opensearch.common.FieldStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -166,7 +167,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
     }
 
     @Nullable
-    public FieldMemoryStats getFieldItemCounts() {
+    public FieldCountStats getFieldItemCounts() {
         return fieldItemCounts;
     }
 
@@ -195,7 +196,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             fields = fieldItemCounts.getStats().keySet();
         }
         if (fields != null) {
-            FieldMemoryStats.toXContent(
+            FieldStats.toXContent(
                 builder,
                 fields,
                 FIELDS,
