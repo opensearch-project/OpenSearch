@@ -111,7 +111,7 @@ securityadmin() {
     if [ -f "${WAZUH_INDEXER_ADMIN_PATH}/admin.pem" ] && [ -f "${WAZUH_INDEXER_ADMIN_PATH}/admin-key.pem" ] && [ -f "${WAZUH_INDEXER_ROOT_CA}" ]; then
         OPENSEARCH_CONF_DIR="${CONFIG_PATH}" JAVA_HOME="${INSTALL_PATH}/jdk" runuser wazuh-indexer --shell="/bin/bash" --command="${SECURITY_PATH}/tools/securityadmin.sh -cd ${SECURITY_CONFIG_PATH} -cacert ${WAZUH_INDEXER_ROOT_CA} -cert ${WAZUH_INDEXER_ADMIN_PATH}/admin.pem -key ${WAZUH_INDEXER_ADMIN_PATH}/admin-key.pem -h ${HOST} -p ${PORT} ${OPTIONS}"
     else
-        echo "ERROR: this tool try to find admin.pem and admin-key.pem in ${WAZUH_INDEXER_ADMIN_PATH} but it couldn't. In this case, you must run manually the Indexer security initializer by running the command: JAVA_HOME="/usr/share/wazuh-indexer/jdk" runuser wazuh-indexer --shell="/bin/bash" --command="/usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh -cd /etc/wazuh-indexer/opensearch-security -cacert /path/to/root-ca.pem -cert /path/to/admin.pem -key /path/to/admin-key.pem -h ${HOST} -p ${PORT} ${OPTIONS}" replacing /path/to/ by your certificates path."
+        echo "ERROR: this tool try to find admin.pem and admin-key.pem in ${WAZUH_INDEXER_ADMIN_PATH} but it couldn't. In this case, you must run manually the Indexer security initializer by running the command: JAVA_HOME=\"/usr/share/wazuh-indexer/jdk\" runuser wazuh-indexer --shell=\"/bin/bash\" --command=\"/usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh -cd /etc/wazuh-indexer/opensearch-security -cacert /path/to/root-ca.pem -cert /path/to/admin.pem -key /path/to/admin-key.pem -h ${HOST} -p ${PORT} ${OPTIONS}\" replacing /path/to/ by your certificates path."
         exit 1
     fi
 
