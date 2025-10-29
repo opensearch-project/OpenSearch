@@ -44,6 +44,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
