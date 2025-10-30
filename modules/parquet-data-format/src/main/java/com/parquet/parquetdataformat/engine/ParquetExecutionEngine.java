@@ -85,6 +85,9 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
         RefreshResult refreshResult = new RefreshResult();
         filesWrittenAlready.addAll(refreshInput.getWriterFiles());
+        if(!refreshInput.getFilesToRemove().isEmpty()) {
+            filesWrittenAlready.removeAll(refreshInput.getFilesToRemove());
+        }
         refreshResult.add(PARQUET_DATA_FORMAT, filesWrittenAlready);
         return refreshResult;
     }
