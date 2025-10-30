@@ -34,6 +34,11 @@ package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.profile.AbstractInternalProfileTree;
+import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.aggregation.startree.StarTreeProfileBreakdown;
+
+import java.util.Collections;
+import java.util.List;
 
 /**
  * The profiling tree for different levels of agg profiling
@@ -69,6 +74,38 @@ public class InternalAggregationProfileTree extends AbstractInternalProfileTree<
     @Override
     protected String getDescriptionFromElement(Aggregator element) {
         return element.name();
+    }
+
+    protected ProfileResult createProfileResult(
+        String type,
+        String description,
+        AggregationProfileBreakdown breakdown,
+        List<ProfileResult> childrenProfileResults
+    ) {
+        if (breakdown.starTreePrecomputed()) {
+            // Cannot be null if star tree precomputed is true
+            StarTreeProfileBreakdown starTreeProfileBreakdown = breakdown.starTreeProfileBreakdown();
+
+            childrenProfileResults.add(
+                new ProfileResult(
+                    starTreeProfileBreakdown.defaultType(),
+                    starTreeProfileBreakdown.defaultDescription(),
+                    starTreeProfileBreakdown.toBreakdownMap(),
+                    Collections.emptyMap(),
+                    starTreeProfileBreakdown.toNodeTime(),
+                    List.of()
+                )
+            );
+        }
+
+        return new ProfileResult(
+            type,
+            description,
+            breakdown.toBreakdownMap(),
+            breakdown.toDebugMap(),
+            breakdown.toNodeTime(),
+            childrenProfileResults
+        );
     }
 
 }

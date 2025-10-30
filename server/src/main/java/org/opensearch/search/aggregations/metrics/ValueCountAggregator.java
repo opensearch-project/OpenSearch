@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
@@ -50,10 +51,13 @@ import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.AggregationProfileBreakdown;
+import org.opensearch.search.profile.aggregation.startree.StarTreeProfileBreakdown;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
@@ -88,7 +92,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (valuesSource instanceof ValuesSource.Numeric) {
             CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
             if (supportedStarTree != null) {
@@ -152,14 +156,67 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
     }
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        StarTreeQueryHelper.precomputeLeafUsingStarTree(
+        String metric = MetricStat.VALUE_COUNT.getTypeName();
+
+        Consumer<Long> valueConsumer = value -> counts.increment(0, value);
+        Runnable finalConsumer = () -> {};
+
+        if (context.getProfilers() != null) {
+            StarTreeProfileBreakdown breakdown = context.getProfilers().getAggregationProfiler().getStarTreeProfileBreakdown(this);
+            FixedBitSet filteredValues = scanStarTreeProfiling(context, valuesSource, ctx, starTree, metric, breakdown);
+            buildBucketsFromStarTreeProfiling(
+                context,
+                valuesSource,
+                ctx,
+                starTree,
+                metric,
+                valueConsumer,
+                finalConsumer,
+                filteredValues,
+                breakdown
+            );
+            AggregationProfileBreakdown aggregationProfileBreakdown = context.getProfilers()
+                .getAggregationProfiler()
+                .getQueryBreakdown(this);
+            aggregationProfileBreakdown.setStarTreeProfileBreakdown(breakdown);
+            aggregationProfileBreakdown.setStarTreePrecomputed();
+        } else {
+            FixedBitSet filteredValues = scanStarTree(context, valuesSource, ctx, starTree, metric);
+            buildBucketsFromStarTree(context, valuesSource, ctx, starTree, metric, valueConsumer, finalConsumer, filteredValues);
+        }
+    }
+
+    @Override
+    public FixedBitSet scanStarTree(
+        SearchContext context,
+        ValuesSource valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric
+    ) throws IOException {
+        return StarTreeQueryHelper.scanStarTree(context, valuesSource, ctx, starTree, metric);
+    }
+
+    @Override
+    public void buildBucketsFromStarTree(
+        SearchContext context,
+        ValuesSource valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric,
+        Consumer<Long> valueConsumer,
+        Runnable finalConsumer,
+        FixedBitSet filteredValues
+    ) throws IOException {
+        StarTreeQueryHelper.buildBucketsFromStarTree(
             context,
-            (ValuesSource.Numeric) valuesSource,
+            valuesSource,
             ctx,
             starTree,
-            MetricStat.VALUE_COUNT.getTypeName(),
-            value -> counts.increment(0, value),
-            () -> {}
+            metric,
+            valueConsumer,
+            finalConsumer,
+            filteredValues
         );
     }
 
