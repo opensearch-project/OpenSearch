@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.lucene;
 
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.engine.InternalEngine;
@@ -72,6 +73,11 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
         public LuceneDocumentInput(ParseContext.Document doc, IndexWriter w) {
             this.doc = doc;
             this.writer = w;
+        }
+
+        @Override
+        public void addRowIdField(String fieldName, long rowId) {
+            doc.add(new NumericDocValuesField(fieldName, rowId));
         }
 
         @Override

@@ -8,8 +8,10 @@
 
 package com.parquet.parquetdataformat.fields;
 
+import com.parquet.parquetdataformat.fields.core.data.number.LongParquetField;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MetadataFieldMapper;
@@ -68,6 +70,8 @@ public final class ArrowSchemaBuilder {
             final Field arrowField = createArrowField(mapper);
             fields.add(arrowField);
         }
+
+        fields.add(new Field(CompositeDataFormatWriter.ROW_ID, new LongParquetField().getFieldType(), null));
 
         return fields;
     }

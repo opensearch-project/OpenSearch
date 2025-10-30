@@ -15,6 +15,8 @@ import java.io.IOException;
 @ExperimentalApi
 public interface DocumentInput<T> extends AutoCloseable {
 
+    void addRowIdField(String fieldName, long rowId);
+
     void addField(MappedFieldType fieldType, Object value);
 
     T getFinalInput();
