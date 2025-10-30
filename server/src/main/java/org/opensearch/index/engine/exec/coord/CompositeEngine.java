@@ -30,6 +30,7 @@ import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngi
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.MergeScheduler;
 import org.opensearch.index.engine.exec.merge.MergeHandler;
+import org.opensearch.index.engine.exec.merge.OneMerge;
 import org.opensearch.index.engine.exec.merge.ParquetMergeHandler;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
@@ -184,7 +185,7 @@ public class CompositeEngine implements Indexer {
 //        triggerPossibleMerges();
     }
 
-    public void applyMergeChanges(MergeResult mergeResult) {
+    public void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
         Map<DataFormat, RefreshInput> refreshInputs = new HashMap<>();
 
         Map<DataFormat, Collection<FileMetadata>> mergedFileMetadata = mergeResult.getMergedFileMetadata();
@@ -194,8 +195,14 @@ public class CompositeEngine implements Indexer {
 
             mergedFiles.forEach(mergedFile -> {
                 WriterFileSet writerFileSet = new WriterFileSet(Path.of(mergedFile.directory()), 0);
-                writerFileSet.add(mergedFile.directory()+mergedFile.file());
+                writerFileSet.add(mergedFile.directory()+"/"+mergedFile.file());
                 refreshInput.add(writerFileSet);
+            });
+
+            oneMerge.getFilesToMerge().forEach(fileToMerge -> {
+                WriterFileSet writerFileSet = new WriterFileSet(Path.of(fileToMerge.directory()), 0);
+                writerFileSet.add(fileToMerge.directory()+"/"+fileToMerge.file());
+                refreshInput.addFilesToRemove(writerFileSet);
             });
 
             refreshInputs.put(dataFormat, refreshInput);

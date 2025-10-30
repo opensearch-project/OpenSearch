@@ -31,7 +31,7 @@ public class MergeScheduler {
 
         for(OneMerge oneMerge : oneMerges) {
             MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
-            this.compositeEngine.applyMergeChanges(mergeResult);
+            this.compositeEngine.applyMergeChanges(mergeResult, oneMerge);
         }
     }
 }

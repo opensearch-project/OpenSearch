@@ -49,4 +49,25 @@ public class WriterFileSet implements Serializable {
             ", files=" + files +
             '}';
     }
+
+    /**
+     * TODO:
+     *
+     *
+     * equals method was introduced as part of merge.
+     * From merge we dont have generation information hence for equals ignoring check for generation for now.
+     * We can revisit this later, as today ParquetExecutionEngine stores the WriterFileSet itself, it should hold the
+     * FileMetadata as merge might be acting at fileMetadata no writerSet.
+     */
+    @Override
+    public boolean equals(Object o) {
+        WriterFileSet other = (WriterFileSet) o;
+        return this.directory.equals(other.directory) && this.files.equals(other.files);
+    }
+
+    @Override
+    public int hashCode() {
+        return this.directory.hashCode() + this.files.hashCode();
+
+    }
 }
