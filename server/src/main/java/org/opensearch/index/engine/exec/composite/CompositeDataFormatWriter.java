@@ -13,7 +13,7 @@ import org.apache.lucene.util.SetOnce;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.DocumentInput;
 import org.opensearch.index.engine.exec.FileInfos;
-import org.opensearch.index.engine.exec.RowIdGenerator;
+//import org.opensearch.index.engine.exec.RowIdGenerator;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
@@ -39,7 +39,7 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     private final SetOnce<Boolean> hasFlushed = new SetOnce<>();
     private final long writerGeneration;
     private boolean aborted;
-    private final RowIdGenerator rowIdGenerator;
+    //private final RowIdGenerator rowIdGenerator;
     public static final String ROW_ID = "_row_id";
 
     public CompositeDataFormatWriter(CompositeIndexingExecutionEngine engine,
@@ -58,7 +58,7 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
         this.postWrite = () -> {
             engine.getDataFormatWriterPool().releaseAndUnlock(this);
         };
-        this.rowIdGenerator = new RowIdGenerator(CompositeDataFormatWriter.class.getName());
+        //this.rowIdGenerator = new RowIdGenerator(CompositeDataFormatWriter.class.getName());
     }
 
     @Override
@@ -96,7 +96,7 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
             writers.stream().map(ImmutablePair::getRight).map(Writer::newDocumentInput).collect(Collectors.toList()),
             this, postWrite);
 
-        compositeDocumentInput.addRowIdField(ROW_ID, rowIdGenerator.getAndIncrementRowId());
+        //compositeDocumentInput.addRowIdField(ROW_ID, rowIdGenerator.getAndIncrementRowId());
 
         return compositeDocumentInput;
     }
