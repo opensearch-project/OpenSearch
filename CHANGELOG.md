@@ -32,7 +32,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactor the ThreadPoolStats.Stats class to use the Builder pattern instead of constructors ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
 - Refactor the IndexingStats.Stats class to use the Builder pattern instead of constructors ([#19306](https://github.com/opensearch-project/OpenSearch/pull/19306))
 - Remove FeatureFlag.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG. ([#19715](https://github.com/opensearch-project/OpenSearch/pull/19715))
--
 - Make Engine#loadHistoryUUID() protected and Origin#isFromTranslog() public ([#19753](https://github.com/opensearch-project/OpenSearch/pull/19752))
 
 ### Fixed
@@ -65,6 +64,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump ch.qos.logback modules from 1.5.18 to 1.5.20 in HDFS test fixture ([#19763](https://github.com/opensearch-project/OpenSearch/pull/19763))
 - Bump `github/codeql-action` from 3 to 4 ([#19785](https://github.com/opensearch-project/OpenSearch/pull/19785))
 - Bump `gradle/actions` from 4 to 5 ([#19781](https://github.com/opensearch-project/OpenSearch/pull/19781))
+- Bump org.bouncycastle:bc-fips from 2.1.1 to 2.1.2 ([#19818](https://github.com/opensearch-project/OpenSearch/pull/19818))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
