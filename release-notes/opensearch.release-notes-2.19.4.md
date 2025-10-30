@@ -1,6 +1,8 @@
 ## Version 2.19.4 Release Notes
 
 Compatible with OpenSearch and OpenSearch Dashboards version 2.19.4
+
+### Added
 * New cluster setting search.query.max_query_string_length ([#19491](https://github.com/opensearch-project/OpenSearch/pull/19491))
 
 ### Dependencies
@@ -14,6 +16,7 @@ Compatible with OpenSearch and OpenSearch Dashboards version 2.19.4
 * Bump `org.apache.commons:commons-compress` from 1.26.1 to 1.28.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19242))
 * Bump `org.apache.commons:commonscodec` from 1.16.1 to 1.18.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19242))
 * Replace commons-lang:commons-lang with org.apache.commons:commons-lang3 ([#19229](https://github.com/opensearch-project/OpenSearch/pull/19229))
+* Bump netty from 4.1.121.Final to 4.1.125.Final ([#19270](https://github.com/opensearch-project/OpenSearch/pull/19270))
 * Bump bouncycastle from 1.79 to 1.82 ([#19552](https://github.com/opensearch-project/OpenSearch/pull/19552))
 * Bump `org.ajoberstar.grgit:grgit-core` from 5.2.1 to 5.3.2 ([#19606](https://github.com/opensearch-project/OpenSearch/pull/19606))
 * Bump `reactor-netty` from 1.1.23 to 1.2.9 ([#19603](https://github.com/opensearch-project/OpenSearch/pull/19603))
