@@ -56,6 +56,6 @@ public class SizeParquetField extends ParquetField {
 
     @Override
     public FieldType getFieldType() {
-        return FieldType.notNullable(getArrowType());
+        return FieldType.nullable(getArrowType());
     }
 }

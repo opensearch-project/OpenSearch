@@ -53,6 +53,6 @@ public class IntegerParquetField extends ParquetField {
 
     @Override
     public FieldType getFieldType() {
-        return FieldType.notNullable(getArrowType());
+        return FieldType.nullable(getArrowType());
     }
 }
