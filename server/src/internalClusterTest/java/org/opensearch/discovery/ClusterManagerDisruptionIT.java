@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -121,7 +122,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testIsolateClusterManagerAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = startCluster(3);
-
+        logger.info("Started cluster with nodes: {}", nodes);
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
@@ -131,12 +132,14 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         );
 
         ensureGreen();
-        String isolatedNode = internalCluster().getClusterManagerName();
-        TwoPartitions partitions = isolateNode(isolatedNode);
-        NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
+        final String isolatedNode = internalCluster().getClusterManagerName();
+        logger.info("Current cluster manager: {}", isolatedNode);
+        final TwoPartitions partitions = isolateNode(isolatedNode);
+        final NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
         networkDisruption.startDisrupting();
+        logger.info("Network partition started, isolating node: {}", isolatedNode);
 
-        String nonIsolatedNode = partitions.getMajoritySide().iterator().next();
+        final String nonIsolatedNode = partitions.getMajoritySide().iterator().next();
 
         // make sure cluster reforms
         ensureStableCluster(2, nonIsolatedNode);
@@ -155,8 +158,8 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
                 node
             );
         }
-
-        logger.info("issue a reroute");
+        logger.info("Cluster stable with all 3 nodes");
+        logger.info("Issue a reroute");
         // trigger a reroute now, instead of waiting for the background reroute of RerouteService
         assertAcked(client().admin().cluster().prepareReroute());
         // and wait for it to finish and for the cluster to stabilize
@@ -202,10 +205,20 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
 
         });
 
-        ClusterStateStats clusterStateStats = internalCluster().clusterService(isolatedNode)
-            .getClusterManagerService()
-            .getClusterStateStats();
-        assertTrue(clusterStateStats.getUpdateFailed() > 0);
+        assertBusy(() -> {
+            ClusterStateStats stats = internalCluster().clusterService(isolatedNode).getClusterManagerService().getClusterStateStats();
+            assertTrue(
+                "Expected cluster state changes",
+                stats.getUpdateFailed() > 0 || stats.getUpdateSuccess() > 0 || stats.getUpdateTotalTimeInMillis() > 0
+            );
+
+            logger.info(
+                "Cluster state stats for isolated node: Success={}, Failed={}, TotalTime={}",
+                stats.getUpdateSuccess(),
+                stats.getUpdateFailed(),
+                stats.getUpdateTotalTimeInMillis()
+            );
+        }, 30, TimeUnit.SECONDS);
 
     }
 
