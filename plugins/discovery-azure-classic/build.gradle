@@ -291,9 +291,7 @@ if (BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
             'javax.activation.DataHandler',
             'javax.activation.DataSource',
             'javax.activation.FileDataSource',
-            'javax.activation.FileTypeMap',
-            'javax.activation.MimeType',
-            'javax.activation.MimeTypeParseException',
+            'javax.activation.FileTypeMap'
     )
   }
 }
