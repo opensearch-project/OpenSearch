@@ -80,6 +80,11 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
         }
 
         @Override
+        public void addRowIdField(String fieldName, long rowId) {
+            sb.append(fieldName).append("=").append(rowId).append(";");
+        }
+
+        @Override
         public void addField(MappedFieldType fieldType, Object value) {
             sb.append(fieldType.name()).append("=").append(value).append(";");
         }
