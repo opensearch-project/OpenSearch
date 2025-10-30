@@ -151,8 +151,8 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
             // For now doc count we are deriving from size of file.
             // Once we have that info as part of Refresh Result, we can change this.
             this.docCount = Files.size(this.path)/1000;
-            // SegmentName = FileName
-            this.segmentName = path.split("/")[path.split("/").length - 1];
+            // SegmentName is same as fileName
+            this.segmentName = path;
         }
 
         public Path getPath() { return path; }

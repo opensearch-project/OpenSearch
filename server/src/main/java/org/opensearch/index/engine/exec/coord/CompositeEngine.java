@@ -16,14 +16,21 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.bridge.Indexer;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.LuceneCommitEngine;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
+import org.opensearch.index.engine.exec.merge.MergeResult;
+import org.opensearch.index.engine.exec.merge.MergeScheduler;
+import org.opensearch.index.engine.exec.merge.MergeHandler;
+import org.opensearch.index.engine.exec.merge.ParquetMergeHandler;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
@@ -37,6 +44,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -52,12 +60,17 @@ public class CompositeEngine implements Indexer {
     private final List<CatalogSnapshotAwareRefreshListener> catalogSnapshotAwareRefreshListeners = new ArrayList<>();
     private final Map<org.opensearch.vectorized.execution.search.DataFormat, List<SearchExecEngine<?, ?, ?, ?>>> readEngines = new HashMap<>();
 
+    private MergeScheduler mergeScheduler;
+    private MergeHandler mergeHandler;
     public CompositeEngine(MapperService mapperService, PluginsService pluginsService, ShardPath shardPath) throws IOException {
         List<SearchEnginePlugin> searchEnginePlugins = pluginsService.filterPlugins(SearchEnginePlugin.class);
         // How to bring the Dataformat here? Currently this means only Text and LuceneFormat can be used
         this.engine = new CompositeIndexingExecutionEngine(mapperService, pluginsService, shardPath, 0);
         Path committerPath = Files.createTempDirectory("lucene-committer-index");
         this.compositeEngineCommitter = new LuceneCommitEngine(committerPath);
+
+        this.mergeHandler = new ParquetMergeHandler(this, this.engine, this.engine.getDataFormat());
+        mergeScheduler = new MergeScheduler(this.mergeHandler, this);
 
         // Refresh here so that catalog snapshot gets initialized
         // TODO : any better way to do this ?
@@ -111,6 +124,10 @@ public class CompositeEngine implements Indexer {
     }
 
     public synchronized void refresh(String source) throws EngineException {
+        refresh(source, Collections.EMPTY_MAP);
+    }
+
+    public synchronized void refresh(String source, Map<DataFormat, RefreshInput> refreshInputs) throws EngineException {
         refreshListeners.forEach(ref -> {
             try {
                 ref.beforeRefresh();
@@ -125,9 +142,14 @@ public class CompositeEngine implements Indexer {
         }
         CatalogSnapshot newCatSnap;
         try {
-            RefreshResult refreshResult = engine.refresh(new RefreshInput());
-            if (refreshResult == null) {
-                return;
+            RefreshResult refreshResult;
+            if(source.equals("merge")) {
+                refreshResult = engine.refresh(refreshInputs);
+            } else {
+                refreshResult = engine.refresh(new RefreshInput());
+                if (refreshResult == null) {
+                    return;
+                }
             }
             newCatSnap = new CatalogSnapshot(refreshResult, id + 1L);
             System.out.println("CATALOG SNAPSHOT: " + newCatSnap);
@@ -156,6 +178,38 @@ public class CompositeEngine implements Indexer {
                 throw new RuntimeException(e);
             }
         });
+
+//        TODO: Enable merge
+//        // trigger merges
+//        triggerPossibleMerges();
+    }
+
+    public void applyMergeChanges(MergeResult mergeResult) {
+        Map<DataFormat, RefreshInput> refreshInputs = new HashMap<>();
+
+        Map<DataFormat, Collection<FileMetadata>> mergedFileMetadata = mergeResult.getMergedFileMetadata();
+        for(DataFormat dataFormat : mergedFileMetadata.keySet()) {
+            Collection<FileMetadata> mergedFiles = mergedFileMetadata.get(dataFormat);
+            RefreshInput refreshInput = new RefreshInput();
+
+            mergedFiles.forEach(mergedFile -> {
+                WriterFileSet writerFileSet = new WriterFileSet(Path.of(mergedFile.directory()), 0);
+                writerFileSet.add(mergedFile.directory()+mergedFile.file());
+                refreshInput.add(writerFileSet);
+            });
+
+            refreshInputs.put(dataFormat, refreshInput);
+        }
+        refresh("merge", refreshInputs);
+    }
+
+    public void triggerPossibleMerges() {
+        try {
+            mergeScheduler.triggerMerges();
+        } catch (IOException e) {
+            System.out.println("ERROR in MERGE : " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     public CatalogSnapshot catalogSnapshot() {

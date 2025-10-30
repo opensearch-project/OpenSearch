@@ -106,13 +106,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             }
 
             // make indexing engines aware of everything
-            for (IndexingExecutionEngine<?> delegate : delegates) {
-                RefreshInput refreshInput = refreshInputs.get(delegate.getDataFormat());
-                if (refreshInput != null) {
-                    RefreshResult result = delegate.refresh(refreshInput);
-                    finalResult.add(delegate.getDataFormat(), result.getRefreshedFiles(delegate.getDataFormat()));
-                }
-            }
+            finalResult = refresh(refreshInputs);
 
             // provide a view to the upper layer
             return finalResult;
@@ -124,6 +118,20 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     @Override
     public Merger getMerger() {
         throw new UnsupportedOperationException("Merger for Composite Engine is not used");
+    }
+
+    public RefreshResult refresh(Map<DataFormat, RefreshInput> refreshInputs) throws IOException {
+        RefreshResult finalResult = new RefreshResult();
+
+        // make indexing engines aware of everything
+        for (IndexingExecutionEngine<?> delegate : delegates) {
+            RefreshInput refreshInput = refreshInputs.get(delegate.getDataFormat());
+            if (refreshInput != null) {
+                RefreshResult result = delegate.refresh(refreshInput);
+                finalResult.add(delegate.getDataFormat(), result.getRefreshedFiles(delegate.getDataFormat()));
+            }
+        }
+        return finalResult;
     }
 
     public List<IndexingExecutionEngine<?>> getDelegates() {

@@ -31,8 +31,7 @@ public class MergeScheduler {
 
         for(OneMerge oneMerge : oneMerges) {
             MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
-            // TODO: Apply merge changes in engine to reflect in catalog snapshot by triggering refresh
-//            this.compositeEngine.applyMergeChanges(mergeResult);
+            this.compositeEngine.applyMergeChanges(mergeResult);
         }
     }
 }
