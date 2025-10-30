@@ -31,8 +31,8 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.backward_codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -70,7 +70,7 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         final PostingsFormat postingsFormat = new Completion101PostingsFormat();
-        indexWriterConfig.setCodec(new Lucene101Codec() {
+        indexWriterConfig.setCodec(new Lucene103Codec() {
             @Override
             public PostingsFormat getPostingsFormatForField(String field) {
                 return postingsFormat; // all fields are suggest fields

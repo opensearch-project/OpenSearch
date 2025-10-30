@@ -281,7 +281,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<Boolean> QUERY_REWRITING_ENABLED_SETTING = Setting.boolSetting(
         "search.query_rewriting.enabled",
-        true,
+        false,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -1213,8 +1213,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public PitReaderContext getPitReaderContext(ShardSearchContextId id) {
         ReaderContext context = activeReaders.get(id.getId());
-        if (context instanceof PitReaderContext) {
-            return (PitReaderContext) context;
+        if (context instanceof PitReaderContext pitReaderContext) {
+            return pitReaderContext;
         }
         return null;
     }
@@ -1225,8 +1225,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public List<ListPitInfo> getAllPITReaderContexts() {
         final List<ListPitInfo> pitContextsInfo = new ArrayList<>();
         for (ReaderContext ctx : activeReaders.values()) {
-            if (ctx instanceof PitReaderContext) {
-                final PitReaderContext context = (PitReaderContext) ctx;
+            if (ctx instanceof PitReaderContext context) {
                 ListPitInfo pitInfo = new ListPitInfo(context.getPitId(), context.getCreationTime(), context.getKeepAlive());
                 pitContextsInfo.add(pitInfo);
             }

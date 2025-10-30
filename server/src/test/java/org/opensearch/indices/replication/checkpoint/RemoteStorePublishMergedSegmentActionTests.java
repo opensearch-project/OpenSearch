@@ -29,6 +29,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
@@ -115,6 +116,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
 
         final int id = randomIntBetween(0, 4);
         final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.mergedSegmentTransferTracker()).thenReturn(new MergedSegmentTransferTracker());
         when(indexService.getShard(id)).thenReturn(indexShard);
 
         final ShardId shardId = new ShardId(index, id);
@@ -177,6 +179,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
 
         final int id = randomIntBetween(0, 4);
         final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.mergedSegmentTransferTracker()).thenReturn(new MergedSegmentTransferTracker());
         when(indexService.getShard(id)).thenReturn(indexShard);
 
         final ShardId shardId = new ShardId(index, id);
@@ -238,6 +241,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
 
         final int id = randomIntBetween(0, 4);
         final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.mergedSegmentTransferTracker()).thenReturn(new MergedSegmentTransferTracker());
         when(indexService.getShard(id)).thenReturn(indexShard);
 
         final ShardId shardId = new ShardId(index, id);
@@ -279,6 +283,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         when(indicesService.indexServiceSafe(index)).thenReturn(indexService);
         final int id = randomIntBetween(0, 4);
         final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.mergedSegmentTransferTracker()).thenReturn(new MergedSegmentTransferTracker());
         when(indexService.getShard(id)).thenReturn(indexShard);
         final ShardId shardId = new ShardId(index, id);
         final RemoteSegmentStoreDirectory remoteDirectory = new RemoteSegmentStoreDirectory(
@@ -346,6 +351,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         when(indicesService.indexServiceSafe(index)).thenReturn(indexService);
         final int id = randomIntBetween(0, 4);
         final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.mergedSegmentTransferTracker()).thenReturn(new MergedSegmentTransferTracker());
         when(indexService.getShard(id)).thenReturn(indexShard);
         final ShardId shardId = new ShardId(index, id);
         final RemoteSegmentStoreDirectory remoteDirectory = new RemoteSegmentStoreDirectory(
@@ -425,6 +431,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         when(indicesService.indexServiceSafe(index)).thenReturn(indexService);
         final int id = randomIntBetween(0, 4);
         final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.mergedSegmentTransferTracker()).thenReturn(new MergedSegmentTransferTracker());
         when(indexService.getShard(id)).thenReturn(indexShard);
 
         final ShardId shardId = new ShardId(index, id);
@@ -461,6 +468,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
     public void testGetReplicationModeWithRemoteTranslog() {
         final RemoteStorePublishMergedSegmentAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.mergedSegmentTransferTracker()).thenReturn(new MergedSegmentTransferTracker());
         when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }

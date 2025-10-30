@@ -85,7 +85,6 @@ import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.common.util.concurrent.ReleasableLock;
@@ -104,6 +103,7 @@ import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.merge.OnGoingMerge;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -258,7 +258,11 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
+            mergeScheduler = scheduler = new EngineMergeScheduler(
+                engineConfig.getShardId(),
+                engineConfig.getIndexSettings(),
+                getMergedSegmentTransferTracker()
+            );
             throttle = new IndexThrottle();
             try {
                 store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
@@ -2393,8 +2397,9 @@ public class InternalEngine extends Engine {
         if (config().getLeafSorter() != null) {
             iwc.setLeafSorter(config().getLeafSorter()); // The default segment search order
         }
-        if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING)
-            && config().getIndexSettings().isSegRepEnabledOrRemoteNode()) {
+        IndexSettings indexSettings = config().getIndexSettings();
+        if (indexSettings.isDocumentReplication() == false
+            && (indexSettings.isSegRepLocalEnabled() || indexSettings.isRemoteStoreEnabled())) {
             assert null != config().getIndexReaderWarmer();
             iwc.setMergedSegmentWarmer(config().getIndexReaderWarmer());
         }
@@ -2475,8 +2480,8 @@ public class InternalEngine extends Engine {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
 
-        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
-            super(shardId, indexSettings);
+        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings, MergedSegmentTransferTracker mergedSegmentTransferTracker) {
+            super(shardId, indexSettings, mergedSegmentTransferTracker);
         }
 
         @Override

@@ -88,6 +88,7 @@ import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
@@ -216,13 +217,17 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return new MergeStats();
     }
 
+    public MergedSegmentTransferTracker getMergedSegmentTransferTracker() {
+        return engineConfig.getMergedSegmentTransferTracker();
+    }
+
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
 
     /**
      * Reads the current stored history ID from commit data.
      */
-    String loadHistoryUUID(Map<String, String> commitData) {
+    protected String loadHistoryUUID(Map<String, String> commitData) {
         final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
@@ -1554,7 +1559,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
             }
 
-            boolean isFromTranslog() {
+            public boolean isFromTranslog() {
                 return this == LOCAL_TRANSLOG_RECOVERY || this == LOCAL_RESET;
             }
         }

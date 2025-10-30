@@ -71,6 +71,11 @@ apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
 
+// Apply FIPS configuration to all projects
+allprojects {
+  apply from: "$rootDir/gradle/fips.gradle"
+}
+
 // common maven publishing configuration
 allprojects {
   group = 'org.opensearch'
@@ -119,10 +124,11 @@ subprojects {
         }
         maven {
           name = 'Snapshots'
-          url = 'https://central.sonatype.com/repository/maven-snapshots/'
-          credentials {
-            username = System.getenv("SONATYPE_USERNAME")
-            password = System.getenv("SONATYPE_PASSWORD")
+          url = System.getenv("MAVEN_SNAPSHOTS_S3_REPO")
+          credentials(AwsCredentials) {
+            accessKey = System.getenv("AWS_ACCESS_KEY_ID")
+            secretKey = System.getenv("AWS_SECRET_ACCESS_KEY")
+            sessionToken = System.getenv("AWS_SESSION_TOKEN")
           }
         }
       }
@@ -420,8 +426,12 @@ gradle.projectsEvaluated {
           dependsOn(project(':libs:agent-sm:agent').prepareAgent)
           jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
         }
-        if (BuildParams.inFipsJvm) {
-          task.jvmArgs += ["-Dorg.bouncycastle.fips.approved_only=true"]
+        if (BuildParams.isInFipsJvm()) {
+          def fipsSecurityFile = project.rootProject.file('distribution/src/config/fips_java.security')
+          task.jvmArgs += [
+              "-Dorg.bouncycastle.fips.approved_only=true",
+              "-Djava.security.properties=${fipsSecurityFile}"
+          ]
         }
       }
     }
@@ -691,14 +701,6 @@ allprojects {
   def checkPart2 = tasks.register('checkPart2')
   plugins.withId('lifecycle-base') {
     checkPart1.configure { dependsOn 'check' }
-  }
-
-  plugins.withId('opensearch.testclusters') {
-    testClusters.configureEach {
-      if (BuildParams.inFipsJvm) {
-        keystorePassword 'notarealpasswordphrase'
-      }
-    }
   }
 }
 

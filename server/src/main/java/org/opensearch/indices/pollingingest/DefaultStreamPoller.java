@@ -26,7 +26,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -50,6 +49,8 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile boolean isWriteBlockEnabled;
 
     private volatile long lastPolledMessageTimestamp = 0;
+    private volatile long cachedPointerBasedLag = 0;
+    private volatile long lastPointerBasedLagUpdateTime = 0;
 
     @Nullable
     private IngestionShardConsumer consumer;
@@ -68,8 +69,8 @@ public class DefaultStreamPoller implements StreamPoller {
 
     private long maxPollSize;
     private int pollTimeout;
+    private long pointerBasedLagUpdateIntervalMs;
 
-    private Set<IngestionShardPointer> persistedPointers;
     private final String indexName;
 
     private final CounterMetric totalPolledCount = new CounterMetric();
@@ -77,18 +78,11 @@ public class DefaultStreamPoller implements StreamPoller {
     private final CounterMetric totalPollerMessageFailureCount = new CounterMetric();
     // indicates number of messages dropped due to error
     private final CounterMetric totalPollerMessageDroppedCount = new CounterMetric();
-    // indicates number of duplicate messages that are already processed, and hence skipped
-    private final CounterMetric totalDuplicateMessageSkippedCount = new CounterMetric();
-
-    // A pointer to the max persisted pointer for optimizing the check
-    @Nullable
-    private IngestionShardPointer maxPersistedPointer;
 
     private PartitionedBlockingQueueContainer blockingQueueContainer;
 
     private DefaultStreamPoller(
         IngestionShardPointer startPointer,
-        Set<IngestionShardPointer> persistedPointers,
         IngestionConsumerFactory consumerFactory,
         String consumerClientId,
         int shardId,
@@ -100,11 +94,11 @@ public class DefaultStreamPoller implements StreamPoller {
         long maxPollSize,
         int pollTimeout,
         int numProcessorThreads,
-        int blockingQueueSize
+        int blockingQueueSize,
+        long pointerBasedLagUpdateIntervalMs
     ) {
         this(
             startPointer,
-            persistedPointers,
             consumerFactory,
             consumerClientId,
             shardId,
@@ -115,6 +109,7 @@ public class DefaultStreamPoller implements StreamPoller {
             initialState,
             maxPollSize,
             pollTimeout,
+            pointerBasedLagUpdateIntervalMs,
             ingestionEngine.config().getIndexSettings()
         );
     }
@@ -124,7 +119,6 @@ public class DefaultStreamPoller implements StreamPoller {
      */
     DefaultStreamPoller(
         IngestionShardPointer startPointer,
-        Set<IngestionShardPointer> persistedPointers,
         IngestionConsumerFactory consumerFactory,
         String consumerClientId,
         int shardId,
@@ -135,6 +129,7 @@ public class DefaultStreamPoller implements StreamPoller {
         State initialState,
         long maxPollSize,
         int pollTimeout,
+        long pointerBasedLagUpdateIntervalMs,
         IndexSettings indexSettings
     ) {
         this.consumerFactory = Objects.requireNonNull(consumerFactory);
@@ -144,12 +139,9 @@ public class DefaultStreamPoller implements StreamPoller {
         this.resetValue = resetValue;
         this.initialBatchStartPointer = startPointer;
         this.state = initialState;
-        this.persistedPointers = persistedPointers;
         this.maxPollSize = maxPollSize;
         this.pollTimeout = pollTimeout;
-        if (!this.persistedPointers.isEmpty()) {
-            maxPersistedPointer = this.persistedPointers.stream().max(IngestionShardPointer::compareTo).get();
-        }
+        this.pointerBasedLagUpdateIntervalMs = pointerBasedLagUpdateIntervalMs;
         this.blockingQueueContainer = blockingQueueContainer;
         this.consumerThread = Executors.newSingleThreadExecutor(
             r -> new Thread(r, String.format(Locale.ROOT, "stream-poller-consumer-%d-%d", shardId, System.currentTimeMillis()))
@@ -207,6 +199,9 @@ public class DefaultStreamPoller implements StreamPoller {
                 // reset the consumer offset
                 handleResetState();
 
+                // Update lag periodically
+                updatePointerBasedLagIfNeeded();
+
                 if (paused || isWriteBlockEnabled) {
                     state = State.PAUSED;
                     try {
@@ -261,12 +256,6 @@ public class DefaultStreamPoller implements StreamPoller {
 
         for (IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> result : results) {
             try {
-                // check if the message is already processed
-                if (isProcessed(result.getPointer())) {
-                    logger.debug("Skipping message with pointer {} as it is already processed", result.getPointer().asString());
-                    totalDuplicateMessageSkippedCount.inc();
-                    continue;
-                }
                 totalPolledCount.inc();
                 blockingQueueContainer.add(result);
                 setLastPolledMessageTimestamp(result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp());
@@ -298,24 +287,6 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         return failedShardPointer;
-    }
-
-    private boolean isProcessed(IngestionShardPointer pointer) {
-        if (maxPersistedPointer == null) {
-            return false;
-        }
-        if (pointer.compareTo(maxPersistedPointer) > 0) {
-            return false;
-        }
-        return persistedPointers.contains(pointer);
-    }
-
-    /**
-     * Visible for testing. Get the max persisted pointer
-     * @return the max persisted pointer
-     */
-    protected IngestionShardPointer getMaxPersistedPointer() {
-        return maxPersistedPointer;
     }
 
     @Override
@@ -402,15 +373,15 @@ public class DefaultStreamPoller implements StreamPoller {
         builder.setTotalConsumerErrorCount(totalConsumerErrorCount.count());
         builder.setTotalPollerMessageFailureCount(totalPollerMessageFailureCount.count());
         builder.setTotalPollerMessageDroppedCount(totalPollerMessageDroppedCount.count());
-        builder.setTotalDuplicateMessageSkippedCount(totalDuplicateMessageSkippedCount.count());
-        builder.setLagInMillis(computeLag());
+        builder.setLagInMillis(computeTimeBasedLag());
+        builder.setPointerBasedLag(cachedPointerBasedLag);
         return builder.build();
     }
 
     /**
      * Returns the lag in milliseconds since the last polled message
      */
-    private long computeLag() {
+    private long computeTimeBasedLag() {
         if (lastPolledMessageTimestamp == 0 || paused) {
             return 0;
         }
@@ -421,6 +392,29 @@ public class DefaultStreamPoller implements StreamPoller {
     private void setLastPolledMessageTimestamp(long timestamp) {
         if (lastPolledMessageTimestamp != timestamp) {
             lastPolledMessageTimestamp = timestamp;
+        }
+    }
+
+    /**
+     * Update the cached pointer-based lag if enough time has elapsed since the last update.
+     * {@code consumer.getPointerBasedLag()} is called from the poller thread, so it's safe to access the consumer.
+     * If pointerBasedLagUpdateIntervalMs is 0, pointer-based lag calculation is disabled.
+     */
+    private void updatePointerBasedLagIfNeeded() {
+        // If interval is 0, pointer-based lag is disabled
+        if (pointerBasedLagUpdateIntervalMs == 0) {
+            return;
+        }
+
+        long currentTime = System.currentTimeMillis();
+        if (consumer != null && (currentTime - lastPointerBasedLagUpdateTime >= pointerBasedLagUpdateIntervalMs)) {
+            try {
+                // update the lastPointerBasedLagUpdateTime first, to avoid load on streaming source in case of errors
+                lastPointerBasedLagUpdateTime = currentTime;
+                cachedPointerBasedLag = consumer.getPointerBasedLag(initialBatchStartPointer);
+            } catch (Exception e) {
+                logger.warn("Failed to update lag for index {} shard {}: {}", indexName, shardId, e.getMessage());
+            }
         }
     }
 
@@ -526,7 +520,6 @@ public class DefaultStreamPoller implements StreamPoller {
      */
     public static class Builder {
         private IngestionShardPointer startPointer;
-        private Set<IngestionShardPointer> persistedPointers;
         private IngestionConsumerFactory consumerFactory;
         private String consumerClientId;
         private int shardId;
@@ -539,20 +532,19 @@ public class DefaultStreamPoller implements StreamPoller {
         private int pollTimeout = 1000;
         private int numProcessorThreads = 1;
         private int blockingQueueSize = 100;
+        private long pointerBasedLagUpdateIntervalMs = 10000;
 
         /**
          * Initialize the builder with mandatory parameters
          */
         public Builder(
             IngestionShardPointer startPointer,
-            Set<IngestionShardPointer> persistedPointers,
             IngestionConsumerFactory consumerFactory,
             String consumerClientId,
             int shardId,
             IngestionEngine ingestionEngine
         ) {
             this.startPointer = startPointer;
-            this.persistedPointers = Objects.requireNonNull(persistedPointers);
             this.consumerFactory = Objects.requireNonNull(consumerFactory);
             this.consumerClientId = Objects.requireNonNull(consumerClientId);
             this.shardId = shardId;
@@ -625,12 +617,19 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
+         * Set pointer-based lag update interval in milliseconds
+         */
+        public Builder pointerBasedLagUpdateInterval(long pointerBasedLagUpdateInterval) {
+            this.pointerBasedLagUpdateIntervalMs = pointerBasedLagUpdateInterval;
+            return this;
+        }
+
+        /**
          * Build the DefaultStreamPoller instance
          */
         public DefaultStreamPoller build() {
             return new DefaultStreamPoller(
                 startPointer,
-                persistedPointers,
                 consumerFactory,
                 consumerClientId,
                 shardId,
@@ -642,7 +641,8 @@ public class DefaultStreamPoller implements StreamPoller {
                 maxPollSize,
                 pollTimeout,
                 numProcessorThreads,
-                blockingQueueSize
+                blockingQueueSize,
+                pointerBasedLagUpdateIntervalMs
             );
         }
     }

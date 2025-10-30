@@ -8,6 +8,8 @@ The `transport-grpc-spi` module enables plugin developers to:
 - Implement custom query converters for gRPC transport
 - Extend gRPC protocol buffer handling
 - Register custom query types that can be processed via gRPC
+- Register gRPC interceptors with explicit ordering
+- Register `BindableService` implementation to the gRPC transport
 
 ## Key Components
 
@@ -26,6 +28,30 @@ public interface QueryBuilderProtoConverter {
 
 Interface for accessing the query converter registry. This provides a clean abstraction for plugins that need to convert nested queries without exposing internal implementation details.
 
+### GrpcInterceptorProvider
+
+Interface for providing gRPC interceptors that can intercept and process all incoming gRPC requests. This enables plugins to implement cross-cutting concerns like authentication, authorization, logging, and metrics collection.
+
+```java
+public interface GrpcInterceptorProvider {
+    List<OrderedGrpcInterceptor> getOrderedGrpcInterceptors();
+
+    /**
+     * Nested interface for ordered gRPC interceptors.
+     * Interceptors are executed in order based on their order() value,
+     * with lower values executing first (e.g., 10 before 20).
+     */
+    interface OrderedGrpcInterceptor {
+        int order();  // Lower values execute first
+        ServerInterceptor getInterceptor();
+    }
+}
+```
+
+### GrpcServiceFactory
+
+Interface for providing a `BindableService` factory to be registered on the grpc transport.
+
 ## Usage for Plugin Developers
 
 ### 1. Add Dependency
@@ -36,10 +62,53 @@ Add the SPI dependency to your plugin's `build.gradle`:
 dependencies {
     compileOnly 'org.opensearch.plugin:transport-grpc-spi:${opensearch.version}'
     compileOnly 'org.opensearch:protobufs:${protobufs.version}'
+    compileOnly 'io.grpc:grpc-api:${versions.grpc}'
 }
 ```
 
-### 2. Implement Custom Query Converter
+### 2. Declare Extension in build.gradle
+
+In your `build.gradle`, declare that your plugin extends `transport-grpc`. This automatically adds the `extended.plugins=transport-grpc` entry to the auto-generated `plugin-descriptor.properties` file:
+
+```groovy
+opensearchplugin {
+    name 'your-plugin-name'
+    description 'Your plugin description'
+    classname 'org.opensearch.yourplugin.YourPlugin'
+    extendedPlugins = ['transport-grpc']  // Declare extension here
+}
+```
+**Real-world examples:**
+- [OpenSearch Reporting Plugin](https://github.com/opensearch-project/reporting/blob/main/build.gradle#L92)
+- [OpenSearch k-NN Plugin](https://github.com/opensearch-project/k-NN/blob/main/build.gradle#L319)
+
+### 3. Create SPI Registration File(s)
+
+Create a service file denoting your plugin's implementation of a service interface.
+
+For `QueryBuilderProtoConverter` implementations:
+`src/main/resources/META-INF/services/org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter`:
+
+```
+org.opensearch.mypackage.MyCustomQueryConverter
+```
+
+For `GrpcInterceptorProvider` implementations:
+`src/main/resources/META-INF/services/org.opensearch.transport.grpc.spi.GrpcInterceptorProvider`:
+
+```
+org.opensearch.mypackage.SampleInterceptorProvider
+```
+
+For `GrpcServiceFactory` implementations:
+`src/main/resources/META-INF/services/org.opensearch.transport.grpc.spi.GrpcServiceFactory`:
+
+```
+org.opensearch.mypackage.MyCustomGrpcServiceFactory
+```
+
+## QueryBuilderProtoConverter
+### 1. Implement Custom Query Converter
 
 ```java
 public class MyCustomQueryConverter implements QueryBuilderProtoConverter {
@@ -58,7 +127,7 @@ public class MyCustomQueryConverter implements QueryBuilderProtoConverter {
 }
 ```
 
-### 3. Register Your Converter
+### 2. Register Your Converter
 
 In your plugin's main class, return the converter from createComponents:
 
@@ -80,23 +149,7 @@ public class MyPlugin extends Plugin {
 }
 ```
 
-**Step 3b: Create SPI Registration File**
-
-Create a file at `src/main/resources/META-INF/services/org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter`:
-
-```
-org.opensearch.mypackage.MyCustomQueryConverter
-```
-
-**Step 3c: Declare Extension in Plugin Descriptor**
-
-In your `plugin-descriptor.properties`, declare that your plugin extends transport-grpc:
-
-```properties
-extended.plugins=transport-grpc
-```
-
-### 4. Accessing the Registry (For Complex Queries)
+### 3. Accessing the Registry (For Complex Queries)
 
 If your converter needs to handle nested queries (like k-NN's filter clause), you'll need access to the registry to convert other query types. The transport-grpc plugin will inject the registry into your converter.
 
@@ -188,7 +241,7 @@ public class KNNQueryBuilderProtoConverter implements QueryBuilderProtoConverter
 ./gradlew :modules:transport-grpc:spi:test
 ```
 
-### Testing Your Custom Converter
+### 4. Testing Your Custom Converter
 
 ```java
 @Test
@@ -275,3 +328,91 @@ org.opensearch.knn.grpc.proto.request.search.query.KNNQueryBuilderProtoConverter
 
 **Why k-NN needs the registry:**
 The k-NN query's `filter` field is a `QueryContainer` protobuf type that can contain any query type (MatchAll, Term, Terms, etc.). The k-NN converter needs access to the registry to convert these nested queries to their corresponding QueryBuilder objects.
+
+
+## gRPC Interceptors
+
+### Overview
+
+Intercept incoming gRPC requests for authentication, authorization, logging, metrics, rate limiting,etc
+
+### Basic Usage
+
+**1. Implement Provider:**
+```java
+public class SampleInterceptorProvider implements GrpcInterceptorProvider {
+    @Override
+    public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
+        return Arrays.asList(
+            // First interceptor (order = 5, runs first)
+            new GrpcInterceptorProvider.OrderedGrpcInterceptor() {
+                @Override
+                public int order() { return 5; } // Lower = higher priority
+
+                @Override
+                public ServerInterceptor getInterceptor() {
+                    return (call, headers, next) -> {
+                        String methodName = call.getMethodDescriptor().getFullMethodName();
+                        System.out.println("First interceptor - Method: " + methodName);
+                        return next.startCall(call, headers);
+                    };
+                }
+            },
+
+            // Second interceptor (order = 10, runs after first)
+            new GrpcInterceptorProvider.OrderedGrpcInterceptor() {
+                @Override
+                public int order() { return 10; }
+
+                @Override
+                public ServerInterceptor getInterceptor() {
+                    return (call, headers, next) -> {
+                        System.out.println("Second interceptor - Processing request");
+                        return next.startCall(call, headers);
+                    };
+                }
+            }
+        );
+    }
+}
+```
+
+### Understanding Interceptor Ordering
+
+#### How Order Values Work
+
+Interceptors are executed based on their `order()` value. Lower order values execute first. The interceptor chain processes requests from lowest to highest order value.
+
+```
+Request → [order=5] → [order=10] → [order=100] → Service Handler
+```
+
+#### Duplicate Order Values
+
+Each interceptor must have a unique order value. If duplicate order values are detected, OpenSearch will fail to start with an `IllegalArgumentException`.
+```
+IllegalArgumentException: Multiple gRPC interceptors have the same order value: 10.
+Each interceptor must have a unique order value.
+```
+
+## GrpcServiceFactory
+
+### 1. Implement Custom Query Converter
+
+Several node resources are exposed to a `GrpcServiceFactory` for use within services such as client, settings, and thread pools.
+A plugin's `GrpcServiceFactory` implementation will be discovered through the SPI registration file and registered on the gRPC transport.
+
+```java
+public static class MockServiceProvider implements GrpcServiceFactory {
+
+    @Override
+    public String plugin() {
+        return "MockExtendingPlugin";
+    }
+
+    @Override
+    public List<BindableService> build() {
+        return List.of(new MockChannelzService());
+    }
+}
+```
