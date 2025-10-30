@@ -111,6 +111,68 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         }
     }
 
+    public void testDecisionTakenForNewIndexShards() {
+
+        // Simulating for unassigned info = EMPTY_STORE (In the case of new index creations)
+        final ShardId shard1 = new ShardId("test", "_na_", 0);
+        final ShardId shard2 = new ShardId("test", "_na_", 1);
+
+        // Creating metadata for such a scenario.
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(shard1.getIndexName())
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(2)
+                    .numberOfReplicas(1)
+                    .putInSyncAllocationIds(shard1.id(), Sets.newHashSet())
+                    .putInSyncAllocationIds(shard2.id(), Sets.newHashSet())
+            )
+            .build();
+
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        routingTableBuilder.addAsNew(metadata.index(shard1.getIndex()));
+
+        ClusterState state = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTableBuilder.build())
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .build();
+        RoutingAllocation newIndexRoutingAllocation = new RoutingAllocation(
+            noAllocationDeciders(),
+            new RoutingNodes(state, false),
+            state,
+            null,
+            null,
+            System.nanoTime()
+        );
+
+        ShardRouting primaryShard1 = newIndexRoutingAllocation.routingTable()
+            .getIndicesRouting()
+            .get("test")
+            .shard(shard1.id())
+            .primaryShard();
+        ShardRouting primaryShard2 = newIndexRoutingAllocation.routingTable()
+            .getIndicesRouting()
+            .get("test")
+            .shard(shard2.id())
+            .primaryShard();
+
+        List<ShardRouting> shards = new ArrayList<>();
+        shards.add(primaryShard1);
+        shards.add(primaryShard2);
+
+        HashMap<ShardRouting, AllocateUnassignedDecision> allDecisions = batchAllocator.makeAllocationDecision(
+            shards,
+            newIndexRoutingAllocation,
+            logger
+        );
+        // verify we get decisions for all the shards
+        assertEquals(shards.size(), allDecisions.size());
+        assertEquals(shards, new ArrayList<>(allDecisions.keySet()));
+        assertFalse(allDecisions.get(shards.get(0)).isDecisionTaken());
+        assertFalse(allDecisions.get(shards.get(1)).isDecisionTaken());
+    }
+
     public void testMakeAllocationDecisionDataFetched() {
         final RoutingAllocation allocation = routingAllocationWithOnePrimary(noAllocationDeciders(), CLUSTER_RECOVERED, "allocId1");
 
