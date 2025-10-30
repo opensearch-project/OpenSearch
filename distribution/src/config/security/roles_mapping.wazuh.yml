@@ -101,3 +101,22 @@ ml_config_write:
   users:
   - "admin"
   and_backend_roles: []
+
+# Allow the dashboard to pre-configure integrations.
+alerting_full_access:
+  reserved: true
+  hidden: false
+  backend_roles: []
+  hosts: []
+  users:
+  - "kibanaserver"
+  and_backend_roles: []
+
+notifications_full_access:
+  reserved: true
+  hidden: false
+  backend_roles: []
+  hosts: []
+  users:
+  - "kibanaserver"
+  and_backend_roles: []

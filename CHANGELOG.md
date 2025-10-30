@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Make Wazuh Indexer roles reserved [(#1012)](https://github.com/wazuh/wazuh-indexer/pull/1012)
 - Add Cross-Cluster Search environment [(#1034)](https://github.com/wazuh/wazuh-indexer/pull/1034)
 - Add Security Analytics fork to Wazuh Indexer packages [(#1188)](https://github.com/wazuh/wazuh-indexer/pull/1188)
+- Map `alerting_full_access` and `notifications_full_access` roles to the `kibanaserver` user [(#1201)](https://github.com/wazuh/wazuh-indexer/pull/1201)
 
 ### Fixed
 - Fix Snapshot rename replacement unbounded length rename ([#20464](https://github.com/opensearch-project/OpenSearch/issues/20464))
@@ -55,7 +56,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update GitHub Actions versions in main branch [(#1131)](https://github.com/wazuh/wazuh-indexer/pull/1131)
 - Refactor GH workflow to build packages to use a single branch input [(#1145)](https://github.com/wazuh/wazuh-indexer/pull/1145) [(#1169)](https://github.com/wazuh/wazuh-indexer/pull/1169)
 - Enhance maintenance workflows [(#1192)](https://github.com/wazuh/wazuh-indexer/pull/1192)
-
 
 ### Deprecated
 -
