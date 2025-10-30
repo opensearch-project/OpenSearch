@@ -33,6 +33,7 @@ package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -207,6 +208,7 @@ import static org.hamcrest.Matchers.hasItem;
 @Listeners({ ReproduceInfoPrinter.class, LoggingListener.class })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting

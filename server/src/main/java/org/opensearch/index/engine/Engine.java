@@ -227,7 +227,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Reads the current stored history ID from commit data.
      */
-    String loadHistoryUUID(Map<String, String> commitData) {
+    protected String loadHistoryUUID(Map<String, String> commitData) {
         final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
@@ -1559,7 +1559,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
             }
 
-            boolean isFromTranslog() {
+            public boolean isFromTranslog() {
                 return this == LOCAL_TRANSLOG_RECOVERY || this == LOCAL_RESET;
             }
         }

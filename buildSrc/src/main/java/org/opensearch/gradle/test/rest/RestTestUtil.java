@@ -102,6 +102,18 @@ public class RestTestUtil {
                 );
         }
 
+        if (BuildParams.isInFipsJvm()) {
+            project.getDependencies()
+                .add(
+                    sourceSet.getImplementationConfigurationName(),
+                    "org.bouncycastle:bc-fips:" + VersionProperties.getVersions().get("bouncycastle_jce")
+                );
+            project.getDependencies()
+                .add(
+                    sourceSet.getImplementationConfigurationName(),
+                    "org.bouncycastle:bctls-fips:" + VersionProperties.getVersions().get("bouncycastle_tls")
+                );
+        }
     }
 
 }

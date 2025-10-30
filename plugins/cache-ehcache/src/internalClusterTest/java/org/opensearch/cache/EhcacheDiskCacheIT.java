@@ -17,6 +17,7 @@ import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cache.store.disk.EhcacheDiskCache;
@@ -126,7 +127,7 @@ public class EhcacheDiskCacheIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testSanityChecksWithIndicesRequestCache() throws InterruptedException {
+    public void testSanityChecksWithIndicesRequestCache() throws Exception {
         internalCluster().startNode(Settings.builder().put(defaultSettings(DEFAULT_CACHE_SIZE_IN_BYTES, null)).build());
         Client client = client();
         assertAcked(
@@ -150,26 +151,34 @@ public class EhcacheDiskCacheIT extends OpenSearchIntegTestCase {
         );
         ensureSearchable("index");
 
-        // This is not a random example: serialization with time zones writes shared strings
-        // which used to not work well with the query cache because of the handles stream output
-        // see #9500
-        final SearchResponse r1 = client.prepareSearch("index")
+        // build a cacheable search (size=0) and force request-level caching
+        final SearchRequestBuilder srb = client.prepareSearch("index")
             .setSize(0)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setRequestCache(true) // ensure it goes through the indices request cache
             .addAggregation(
                 dateHistogram("histo").field("f")
                     .timeZone(ZoneId.of("+01:00"))
                     .minDocCount(0)
                     .dateHistogramInterval(DateHistogramInterval.MONTH)
-            )
-            .get();
-        assertSearchResponse(r1);
+            );
 
-        // The cached is actually used
-        assertThat(
-            client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(),
-            greaterThan(0L)
-        );
+        // warm cache (run the exact same request twice)
+        assertSearchResponse(srb.get());
+        assertSearchResponse(srb.get());
+
+        // stats may lag slightly; wait until cache shows non-zero memory usage
+        assertBusy(() -> {
+            long bytes = client.admin()
+                .indices()
+                .prepareStats("index")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getMemorySizeInBytes();
+            assertThat(bytes, greaterThan(0L));
+        });
     }
 
     public void testInvalidationWithIndicesRequestCache() throws Exception {
