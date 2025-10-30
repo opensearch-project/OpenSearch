@@ -296,6 +296,6 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
     public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row) {
         Object[] counts = shardResult.get(name + "_count");
         Object[] sums = shardResult.get(name + "_sum");
-        return new InternalAvg(name, (Long) counts[row], (Long) sums[row], format, metadata());
+        return new InternalAvg(name, (Long) sums[row], (Long) counts[row], format, metadata());
     }
 }
