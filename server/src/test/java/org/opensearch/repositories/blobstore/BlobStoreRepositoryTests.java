@@ -75,6 +75,7 @@ import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -826,5 +827,118 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
         // then
         assertEquals(maxSafeArraySize, expectedThreshold);
+    }
+
+    public void testRepositoryVersionOperations() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+
+        BlobContainer container = repository.blobContainer();
+
+        assertNotNull("Repository should provide blob container", container);
+
+        try {
+            Map<String, BlobMetadata> versions = container.listBlobVersions("test-metadata", 1);
+            assertNotNull("Version listing should not return null", versions);
+
+            List<BlobMetadata> sortedVersions = container.listBlobVersionsSorted("test-metadata", 1);
+            assertNotNull("Sorted version listing should not return null", sortedVersions);
+
+            if (sortedVersions.size() > 1) {
+                for (int i = 0; i < sortedVersions.size() - 1; i++) {
+                    assertTrue(
+                        "Versions should be sorted newest first",
+                        sortedVersions.get(i).lastModified() >= sortedVersions.get(i + 1).lastModified()
+                    );
+                }
+            }
+        } catch (UnsupportedOperationException e) {
+            assertTrue(
+                "Unsupported operation should have clear message",
+                e.getMessage().contains("version") || e.getMessage().contains("not supported") || e.getMessage().contains("not implemented")
+            );
+        }
+    }
+
+    public void testVersionParameterValidation() {
+        final BlobStoreRepository repository = setupRepo();
+        BlobContainer container = repository.blobContainer();
+
+        // Test if this repository implementation supports parameter validation before feature check
+        boolean supportsParameterValidation = false;
+        try {
+            try {
+                container.readBlobVersion("test", "valid-version-id");
+                // If we reach here, versioning is implemented - we should be able to test parameter validation
+                supportsParameterValidation = true;
+            } catch (IllegalArgumentException e) {
+                // Parameter validation happens before feature check
+                supportsParameterValidation = true;
+            } catch (UnsupportedOperationException e) {
+                // Feature isn't supported, but check if it validates parameters first
+                if (!e.getMessage().contains("not implemented")) {
+                    // Some other unsupported operation message - might still validate parameters
+                    supportsParameterValidation = true;
+                }
+            } catch (IOException e) {
+                // Some other IO exception - might still validate parameters
+                supportsParameterValidation = true;
+            }
+        } catch (Exception e) {
+            // Unknown exception - continue with test and let it fail normally if needed
+            supportsParameterValidation = true;
+        }
+
+        // Skip test if parameter validation isn't supported before feature check
+        assumeTrue("Repository doesn't validate parameters before checking if feature is implemented", supportsParameterValidation);
+
+        // Now run the actual parameter validation tests
+
+        // Test 1: Null version ID validation
+        Exception exception1 = assertThrows(
+            Exception.class,  // Accept either IllegalArgumentException or UnsupportedOperationException
+            () -> container.readBlobVersion("test", null)
+        );
+        if (exception1 instanceof IllegalArgumentException) {
+            // S3 implementation path - parameter validation happens
+            assertTrue(
+                "Exception should mention null version ID",
+                exception1.getMessage().contains("versionId") && exception1.getMessage().contains("null")
+            );
+        } else if (exception1 instanceof UnsupportedOperationException) {
+            // Base implementation path - feature not supported
+            // This branch shouldn't be reached due to assumeTrue above, but adding as safety
+            assumeTrue("Skipping remaining tests: repository doesn't validate parameters first", false);
+            return;
+        }
+
+        // Test 2: Null version ID validation for head operation
+        Exception exception2 = assertThrows(
+            Exception.class,  // Accept either IllegalArgumentException or UnsupportedOperationException
+            () -> container.headBlobVersion("test", null)
+        );
+        if (exception2 instanceof IllegalArgumentException) {
+            assertTrue(
+                "Exception should mention null version ID",
+                exception2.getMessage().contains("versionId") && exception2.getMessage().contains("null")
+            );
+        }
+
+        // Test 3: Negative position validation
+        Exception exception3 = assertThrows(Exception.class, () -> container.readBlobVersion("test", "v1", -1, 100));
+        if (exception3 instanceof IllegalArgumentException) {
+            assertTrue(
+                "Exception should mention negative position",
+                exception3.getMessage().contains("position") && exception3.getMessage().contains("negative")
+            );
+        }
+
+        // Test 4: Negative length validation
+        Exception exception4 = assertThrows(Exception.class, () -> container.readBlobVersion("test", "v1", 0, -1));
+        if (exception4 instanceof IllegalArgumentException) {
+            assertTrue(
+                "Exception should mention negative length",
+                exception4.getMessage().contains("length") && exception4.getMessage().contains("negative")
+            );
+        }
     }
 }
