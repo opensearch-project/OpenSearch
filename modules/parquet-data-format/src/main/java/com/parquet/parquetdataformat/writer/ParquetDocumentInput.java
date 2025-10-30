@@ -2,8 +2,10 @@ package com.parquet.parquetdataformat.writer;
 
 import com.parquet.parquetdataformat.fields.ArrowFieldRegistry;
 import com.parquet.parquetdataformat.fields.ParquetField;
+import org.apache.arrow.vector.BigIntVector;
 import org.opensearch.index.engine.exec.DocumentInput;
 import org.opensearch.index.engine.exec.WriteResult;
+import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.mapper.MappedFieldType;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 
@@ -34,6 +36,13 @@ public class ParquetDocumentInput implements DocumentInput<ManagedVSR> {
 
     public ParquetDocumentInput(ManagedVSR managedVSR) {
         this.managedVSR = managedVSR;
+    }
+
+    @Override
+    public void addRowIdField(String fieldName, long rowId) {
+        BigIntVector bigIntVector = (BigIntVector) managedVSR.getVector(CompositeDataFormatWriter.ROW_ID);
+        int rowCount = managedVSR.getRowCount();
+        bigIntVector.setSafe(rowCount, rowId);
     }
 
     @Override
