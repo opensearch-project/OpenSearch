@@ -66,6 +66,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `github/codeql-action` from 3 to 4 ([#19785](https://github.com/opensearch-project/OpenSearch/pull/19785))
 - Bump `gradle/actions` from 4 to 5 ([#19781](https://github.com/opensearch-project/OpenSearch/pull/19781))
 - Bump org.bouncycastle:bc-fips from 2.1.1 to 2.1.2 ([#19818](https://github.com/opensearch-project/OpenSearch/pull/19818))
+- Bump `com.google.http-client:google-http-client-gson` from 1.47.1 to 2.0.0 ([#19253](https://github.com/opensearch-project/OpenSearch/pull/19253))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
