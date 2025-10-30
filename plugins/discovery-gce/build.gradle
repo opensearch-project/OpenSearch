@@ -88,6 +88,8 @@ thirdPartyAudit {
     'javax.servlet.ServletContextListener',
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
-    'org.apache.log.Logger'
+    'org.apache.log.Logger',
+    'com.google.auth.Credentials',
+    'com.google.auth.http.HttpCredentialsAdapter'
   )
 }
