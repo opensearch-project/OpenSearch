@@ -243,8 +243,8 @@ pub fn update_row_ids(
 }
 
 // JNI helper functions
-fn convert_java_list_to_vec(env: &mut JNIEnv, set: JObject) -> Result<Vec<String>, Box<dyn Error>> {
-    let iterator = env.call_method(&set, "iterator", "()Ljava/util/Iterator;", &[])?
+fn convert_java_list_to_vec(env: &mut JNIEnv, list: JObject) -> Result<Vec<String>, Box<dyn Error>> {
+    let iterator = env.call_method(&list, "iterator", "()Ljava/util/Iterator;", &[])?
         .l()?;
 
     let mut result = Vec::new();

@@ -13,8 +13,6 @@ import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 
 import java.util.Collection;
-import java.util.List;
-
 /**
  * Interface defining a Parquet merge strategy.
  */
