@@ -187,6 +187,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         } else {
             refresh(INDEX_NAME);
         }
+        Thread.sleep(1000);
         Long initialSize = internalCluster().getInstance(Node.class, primary).fileCache().size();
         internalCluster().restartNode(primary);
         ensureYellow(INDEX_NAME);

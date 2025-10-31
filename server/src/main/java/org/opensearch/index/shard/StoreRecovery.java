@@ -707,7 +707,13 @@ final class StoreRecovery {
             try {
                 store.failIfCorrupted();
                 try {
-                    si = store.readLastCommittedSegmentsInfo();
+                    // As a part of refresh segment upload decoupling now segmentN file is not uploaded to remote so we are now creating it
+                    // using remote segment metadata.
+                    if (indexShard.isRefreshSegmentUploadDecouplingEnabled() && indexShard.indexSettings.isWarmIndex() == true) {
+                        si = readSegmentInfosFromRemoteStore(store, indexShard);
+                    } else {
+                        si = store.readLastCommittedSegmentsInfo();
+                    }
                 } catch (Exception e) {
                     String files = "_unknown_";
                     try {
@@ -832,6 +838,42 @@ final class StoreRecovery {
             throw new IndexShardRecoveryException(shardId, "failed to fetch index version", e);
         }
         return segmentInfos;
+    }
+
+    /**
+     * Attempts to read SegmentInfos from remote store metadata when local segmentN files are missing.
+     * This provides a fallback mechanism for recovery when segmentN files are excluded from remote store uploads.
+     *
+     * @param store the local store
+     * @param indexShard the index shard (can be null, in which case fallback is skipped)
+     * @return SegmentInfos from remote store metadata, or null if not available
+     */
+    private SegmentInfos readSegmentInfosFromRemoteStore(Store store, IndexShard indexShard) {
+        if (indexShard == null || !indexShard.indexSettings().isAssignedOnRemoteNode()) {
+            logger.debug("Remote store not available for segment info fallback");
+            return null;
+        }
+
+        try {
+            RemoteSegmentStoreDirectory remoteDirectory = indexShard.getRemoteDirectory();
+            RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.readLatestMetadataFile();
+
+            if (remoteSegmentMetadata != null) {
+                logger.debug("Found remote segment metadata, attempting to build SegmentInfos from remote store");
+                final SegmentInfos infosSnapshot = store.buildSegmentInfos(
+                    remoteSegmentMetadata.getSegmentInfosBytes(),
+                    remoteSegmentMetadata.getGeneration()
+                );
+                logger.info("Successfully reconstructed SegmentInfos from remote store metadata for recovery");
+                return infosSnapshot;
+            } else {
+                logger.debug("No remote segment metadata found");
+            }
+        } catch (Exception e) {
+            logger.debug("Failed to read SegmentInfos from remote store metadata", e);
+        }
+
+        return null;
     }
 
     private void completeRecovery(IndexShard indexShard, Store store) throws IOException {
