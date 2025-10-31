@@ -29,6 +29,7 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.gateway.remote.RemoteStateTransferException;
+import org.opensearch.gateway.remote.model.RemoteReadResult;
 import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
 import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
 import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
@@ -48,6 +49,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableConfigured;
 
 /**
@@ -182,32 +185,32 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     public void getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<IndexRoutingTable> latchedActionListener
+        LatchedActionListener<RemoteReadResult<IndexRoutingTable>> latchedActionListener
     ) {
 
-        ActionListener<IndexRoutingTable> actionListener = ActionListener.wrap(
+        ActionListener<RemoteReadResult<IndexRoutingTable>> actionListener = ActionListener.wrap(
             latchedActionListener::onResponse,
             latchedActionListener::onFailure
         );
 
         RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(uploadedFilename, clusterUUID, compressor);
 
-        remoteIndexRoutingTableStore.readAsync(remoteIndexRoutingTable, actionListener);
+        remoteIndexRoutingTableStore.readAsync(remoteIndexRoutingTable, actionListener, INDEX_ROUTING_TABLE, uploadedFilename);
     }
 
     @Override
     public void getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<Diff<RoutingTable>> latchedActionListener
+        LatchedActionListener<RemoteReadResult<Diff<RoutingTable>>> latchedActionListener
     ) {
-        ActionListener<Diff<RoutingTable>> actionListener = ActionListener.wrap(
+        ActionListener<RemoteReadResult<Diff<RoutingTable>>> actionListener = ActionListener.wrap(
             latchedActionListener::onResponse,
             latchedActionListener::onFailure
         );
 
         RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(uploadedFilename, clusterUUID, compressor);
-        remoteRoutingTableDiffStore.readAsync(remoteRoutingTableDiff, actionListener);
+        remoteRoutingTableDiffStore.readAsync(remoteRoutingTableDiff, actionListener, ROUTING_TABLE_DIFF, uploadedFilename);
     }
 
     @Override
@@ -256,7 +259,8 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             clusterName,
             threadPool,
             ThreadPool.Names.REMOTE_STATE_READ,
-            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+            clusterSettings
         );
     }
 

@@ -62,10 +62,10 @@ public abstract class AbstractRemoteWritableEntityManager implements RemoteWrita
      * @param listener the listener to be notified when the read operation completes
      * @return an ActionListener for handling the read operation
      */
-    protected abstract ActionListener<Object> getWrappedReadListener(
+    protected abstract ActionListener<RemoteReadResult<Object>> getWrappedReadListener(
         String component,
         AbstractClusterMetadataWriteableBlobEntity remoteEntity,
-        ActionListener<RemoteReadResult> listener
+        ActionListener<RemoteReadResult<Object>> listener
     );
 
     @Override
@@ -78,7 +78,11 @@ public abstract class AbstractRemoteWritableEntityManager implements RemoteWrita
     }
 
     @Override
-    public void readAsync(String component, AbstractClusterMetadataWriteableBlobEntity entity, ActionListener<RemoteReadResult> listener) {
-        getStore(entity).readAsync(entity, getWrappedReadListener(component, entity, listener));
+    public void readAsync(
+        String component,
+        AbstractClusterMetadataWriteableBlobEntity entity,
+        ActionListener<RemoteReadResult<Object>> listener
+    ) {
+        getStore(entity).readAsync(entity, getWrappedReadListener(component, entity, listener), entity.getType(), component);
     }
 }

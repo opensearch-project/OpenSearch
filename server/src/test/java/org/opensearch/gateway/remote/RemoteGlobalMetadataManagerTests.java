@@ -171,7 +171,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             COORDINATION_METADATA_FORMAT.serialize(coordinationMetadata, fileName, compressor, FORMAT_PARAMS).streamInput()
         );
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         remoteGlobalMetadataManager.readAsync(
@@ -241,7 +241,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             RemotePersistentSettingsMetadata.SETTINGS_METADATA_FORMAT.serialize(settingsMetadata, fileName, compressor, FORMAT_PARAMS)
                 .streamInput()
         );
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         remoteGlobalMetadataManager.readAsync(SETTING_METADATA, persistentSettings, new LatchedActionListener<>(listener, latch));
@@ -303,7 +303,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             RemoteTransientSettingsMetadata.SETTINGS_METADATA_FORMAT.serialize(settingsMetadata, fileName, compressor, FORMAT_PARAMS)
                 .streamInput()
         );
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         remoteGlobalMetadataManager.readAsync(TRANSIENT_SETTING_METADATA, transientSettings, new LatchedActionListener<>(listener, latch));
@@ -362,7 +362,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(hashesOfConsistentSettings, fileName, compressor).streamInput()
         );
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         remoteGlobalMetadataManager.readAsync(
@@ -429,7 +429,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             TEMPLATES_METADATA_FORMAT.serialize(templatesMetadata, fileName, compressor, FORMAT_PARAMS).streamInput()
         );
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
         remoteGlobalMetadataManager.readAsync(
             TEMPLATES_METADATA,
@@ -500,7 +500,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             customMetadataForDownload.customBlobStoreFormat.serialize(customMetadata, fileName, compressor).streamInput()
         );
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
         remoteGlobalMetadataManager.readAsync(IndexGraveyard.TYPE, customMetadataForDownload, new LatchedActionListener<>(listener, latch));
         latch.await();
@@ -559,7 +559,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             GLOBAL_METADATA_FORMAT.serialize(metadata, fileName, compressor, FORMAT_PARAMS).streamInput()
         );
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
         remoteGlobalMetadataManager.readAsync(GLOBAL_METADATA, globalMetadataForDownload, new LatchedActionListener<>(listener, latch));
         latch.await();
@@ -580,7 +580,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         );
         IOException ioException = new IOException("mock test exception");
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenThrow(ioException);
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
         remoteGlobalMetadataManager.readAsync(
             COORDINATION_METADATA,
