@@ -20,7 +20,7 @@ import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
  * This class provides methods to transform Protocol Buffer representations of fuzzy queries
  * into their corresponding OpenSearch FuzzyQueryBuilder implementations for search operations.
  */
-public class FuzzyQueryBuilderProtoUtils {
+class FuzzyQueryBuilderProtoUtils {
 
     private FuzzyQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -37,7 +37,7 @@ public class FuzzyQueryBuilderProtoUtils {
      * @return A configured FuzzyQueryBuilder instance
      * @throws IllegalArgumentException if the field name or value is null or empty
      */
-    public static FuzzyQueryBuilder fromProto(FuzzyQuery fuzzyQueryProto) {
+    static FuzzyQueryBuilder fromProto(FuzzyQuery fuzzyQueryProto) {
         String fieldName = fuzzyQueryProto.getField();
         Object value = FieldValueProtoUtils.fromProto(fuzzyQueryProto.getValue(), false);
         Fuzziness fuzziness = FuzzyQueryBuilder.DEFAULT_FUZZINESS;

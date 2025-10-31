@@ -22,7 +22,7 @@ import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
  * This class provides methods to transform Protocol Buffer representations of match_bool_prefix queries
  * into their corresponding OpenSearch MatchBoolPrefixQueryBuilder implementations for search operations.
  */
-public class MatchBoolPrefixQueryBuilderProtoUtils {
+class MatchBoolPrefixQueryBuilderProtoUtils {
 
     private MatchBoolPrefixQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -39,7 +39,7 @@ public class MatchBoolPrefixQueryBuilderProtoUtils {
      * @return A configured MatchBoolPrefixQueryBuilder instance
      * @throws IllegalArgumentException if the field name or value is null or empty
      */
-    protected static MatchBoolPrefixQueryBuilder fromProto(MatchBoolPrefixQuery matchBoolPrefixQueryProto) {
+    static MatchBoolPrefixQueryBuilder fromProto(MatchBoolPrefixQuery matchBoolPrefixQueryProto) {
         String fieldName = matchBoolPrefixQueryProto.getField();
         Object value = matchBoolPrefixQueryProto.getQuery();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

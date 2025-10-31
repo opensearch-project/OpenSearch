@@ -18,7 +18,7 @@ import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
  * This class provides methods to transform Protocol Buffer representations of prefix queries
  * into their corresponding OpenSearch PrefixQueryBuilder implementations for search operations.
  */
-public class PrefixQueryBuilderProtoUtils {
+class PrefixQueryBuilderProtoUtils {
 
     private PrefixQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -35,11 +35,9 @@ public class PrefixQueryBuilderProtoUtils {
      * @return A configured PrefixQueryBuilder instance
      * @throws IllegalArgumentException if the field name or value is null or empty
      */
-    public static PrefixQueryBuilder fromProto(PrefixQuery prefixQueryProto) {
+    static PrefixQueryBuilder fromProto(PrefixQuery prefixQueryProto) {
         String fieldName = prefixQueryProto.getField();
-        ;
         String value = prefixQueryProto.getValue();
-        ;
         String rewrite = null;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

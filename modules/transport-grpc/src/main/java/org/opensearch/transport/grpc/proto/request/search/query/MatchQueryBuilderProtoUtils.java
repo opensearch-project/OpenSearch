@@ -24,7 +24,7 @@ import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
  * This class provides methods to transform Protocol Buffer representations of match queries
  * into their corresponding OpenSearch MatchQueryBuilder implementations for search operations.
  */
-public class MatchQueryBuilderProtoUtils {
+class MatchQueryBuilderProtoUtils {
 
     private MatchQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -42,7 +42,7 @@ public class MatchQueryBuilderProtoUtils {
      * @return A configured MatchQueryBuilder instance
      * @throws IllegalArgumentException if the field name or value is null or empty
      */
-    public static MatchQueryBuilder fromProto(org.opensearch.protobufs.MatchQuery matchQueryProto) {
+    static MatchQueryBuilder fromProto(org.opensearch.protobufs.MatchQuery matchQueryProto) {
         if (matchQueryProto == null) {
             throw new IllegalArgumentException("MatchQuery cannot be null");
         }

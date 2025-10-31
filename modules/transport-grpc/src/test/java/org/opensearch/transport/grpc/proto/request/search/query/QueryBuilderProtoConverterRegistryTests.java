@@ -571,4 +571,182 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         assertNotNull("QueryBuilder should not be null after register and update operations", queryBuilder);
         assertEquals("Should be an ExistsQueryBuilder", "org.opensearch.index.query.ExistsQueryBuilder", queryBuilder.getClass().getName());
     }
+
+    public void testMatchNoneQueryConversion() {
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setMatchNone(org.opensearch.protobufs.MatchNoneQuery.newBuilder().build())
+            .build();
+
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a MatchNoneQueryBuilder",
+            "org.opensearch.index.query.MatchNoneQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testTermsQueryConversion() {
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setTerms(
+                org.opensearch.protobufs.TermsQuery.newBuilder()
+                    .setField("category")
+                    .addValues(FieldValue.newBuilder().setString("electronics").build())
+                    .addValues(FieldValue.newBuilder().setString("books").build())
+                    .setBoost(1.5f)
+                    .build()
+            )
+            .build();
+
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a TermsQueryBuilder", "org.opensearch.index.query.TermsQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testConstantScoreQueryConversion() {
+        // Create a ConstantScore query container with a term query inside
+        TermQuery termQuery = TermQuery.newBuilder()
+            .setField("status")
+            .setValue(FieldValue.newBuilder().setString("active").build())
+            .build();
+
+        QueryContainer innerQueryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setConstantScore(
+                org.opensearch.protobufs.ConstantScoreQuery.newBuilder()
+                    .setFilter(innerQueryContainer)
+                    .setBoost(2.0f)
+                    .build()
+            )
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a ConstantScoreQueryBuilder",
+            "org.opensearch.index.query.ConstantScoreQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testFuzzyQueryConversion() {
+        // Create a Fuzzy query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setFuzzy(
+                org.opensearch.protobufs.FuzzyQuery.newBuilder()
+                    .setField("title")
+                    .setValue("opensearch")
+                    .setFuzziness("AUTO")
+                    .setBoost(1.2f)
+                    .build()
+            )
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a FuzzyQueryBuilder", "org.opensearch.index.query.FuzzyQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testPrefixQueryConversion() {
+        // Create a Prefix query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setPrefix(
+                org.opensearch.protobufs.PrefixQuery.newBuilder()
+                    .setField("name")
+                    .setValue("john")
+                    .setBoost(1.1f)
+                    .build()
+            )
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a PrefixQueryBuilder", "org.opensearch.index.query.PrefixQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testMatchQueryConversion() {
+        // Create a Match query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setMatch(
+                org.opensearch.protobufs.MatchQuery.newBuilder()
+                    .setField("message")
+                    .setQuery("hello world")
+                    .setOperator(org.opensearch.protobufs.Operator.OPERATOR_AND)
+                    .setFuzziness("AUTO")
+                    .setBoost(1.5f)
+                    .build()
+            )
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a MatchQueryBuilder", "org.opensearch.index.query.MatchQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testMatchBoolPrefixQueryConversion() {
+        // Create a MatchBoolPrefix query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setMatchBoolPrefix(
+                org.opensearch.protobufs.MatchBoolPrefixQuery.newBuilder()
+                    .setField("title")
+                    .setQuery("opensearch tutorial")
+                    .setOperator(org.opensearch.protobufs.Operator.OPERATOR_OR)
+                    .setFuzziness("1")
+                    .setBoost(1.3f)
+                    .build()
+            )
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a MatchBoolPrefixQueryBuilder",
+            "org.opensearch.index.query.MatchBoolPrefixQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testMatchPhrasePrefixQueryConversion() {
+        // Create a MatchPhrasePrefix query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setMatchPhrasePrefix(
+                org.opensearch.protobufs.MatchPhrasePrefixQuery.newBuilder()
+                    .setField("title")
+                    .setQuery("opensearch tuto")
+                    .setAnalyzer("standard")
+                    .setSlop(2)
+                    .setBoost(1.4f)
+                    .build()
+            )
+            .build();
+
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a MatchPhrasePrefixQueryBuilder",
+            "org.opensearch.index.query.MatchPhrasePrefixQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
 }
