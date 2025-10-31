@@ -8,18 +8,22 @@
 
 package org.opensearch.index.engine.exec.merge;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public class RowIdMapping {
 
-    Map<RowId, RowId> mapping = new HashMap<>();
+    Map<RowId, Long> mapping;
+    private final String fileId;
 
-    public RowIdMapping(Map<RowId, RowId> mapping) {
+    public RowIdMapping(Map<RowId, Long> mapping, String fileId) {
         this.mapping = mapping;
+        this.fileId = fileId;
     }
 
-    public RowId getNewRowId(RowId oldRowId) {
+    public long getNewRowId(RowId oldRowId) {
         return mapping.get(oldRowId);
+    }
+    public String getFileId() {
+        return fileId;
     }
 }

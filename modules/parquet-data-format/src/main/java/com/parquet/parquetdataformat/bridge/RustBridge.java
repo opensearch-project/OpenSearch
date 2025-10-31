@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -119,5 +120,5 @@ public class RustBridge {
 
     public static native void nativeCloseSessionContext(long sessionContextPtr);
 
-    public static native void mergeParquetFilesInRust(Set<Path> inputFiles, String outputFile);
+    public static native void mergeParquetFilesInRust(List<Path> inputFiles, String outputFile);
 }

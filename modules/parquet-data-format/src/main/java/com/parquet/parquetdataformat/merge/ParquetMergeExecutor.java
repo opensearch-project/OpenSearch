@@ -8,14 +8,9 @@
 
 package com.parquet.parquetdataformat.merge;
 
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.merge.MergeResult;
-
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Executes Parquet merge operations using a chosen compaction strategy.
