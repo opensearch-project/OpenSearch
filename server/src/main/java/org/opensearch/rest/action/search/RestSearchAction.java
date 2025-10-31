@@ -165,7 +165,6 @@ public class RestSearchAction extends BaseRestHandler {
                 throw new IllegalArgumentException("You need to enable stream transport first to use stream search.");
             }
         }
-        logger.info("HTTP Search Request - POJO: {}", searchRequest);
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
