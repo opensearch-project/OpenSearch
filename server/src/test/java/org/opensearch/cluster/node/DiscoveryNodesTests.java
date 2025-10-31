@@ -518,8 +518,8 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         discoBuilder.localNodeId("name_1");
         discoBuilder.clusterManagerNodeId("name_2");
         DiscoveryNodes build = discoBuilder.build();
-        assertEquals(Version.fromString("1.1.0"), build.getMaxNodeVersion());
-        assertEquals(Version.fromString("5.1.0"), build.getMinNodeVersion());
+        assertEquals(Version.fromString("6.3.0"), build.getMaxNodeVersion());
+        assertEquals(Version.fromString("1.1.0"), build.getMinNodeVersion());
     }
 
     private DiscoveryNode buildDiscoveryNodeFromExisting(DiscoveryNode existing, Version newVersion) {
