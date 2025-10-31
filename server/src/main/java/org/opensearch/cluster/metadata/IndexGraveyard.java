@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.common.annotation.PublicApi;
@@ -485,6 +486,13 @@ public final class IndexGraveyard implements Metadata.Custom {
                 return new Tombstone(index, deleteDateInMillis);
             }
         }
+    }
+
+    @Override
+    @Deprecated(forRemoval = true) // Implementation is identical to NamedDiffable
+    public Version getMinimalSupportedVersion() {
+        // TODO: Only including this method to work around bug in japicmp.
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
 }
