@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -530,5 +531,12 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
         builder.endArray();
         builder.endObject();
+    }
+
+    @Override
+    @Deprecated(forRemoval = true) // Implementation is identical to NamedDiffable
+    public Version getMinimalSupportedVersion() {
+        // TODO: Only including this method to work around bug in japicmp.
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 }
