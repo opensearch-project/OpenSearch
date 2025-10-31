@@ -216,6 +216,6 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
     @Override
     public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row) {
             Object[] values = shardResult.get(name);
-            return new InternalValueCount(name, (Long) values[row], metadata());
+            return new InternalValueCount(name, ((Number) values[row]).longValue(), metadata());
     }
 }
