@@ -3,7 +3,7 @@ opensearch        = "3.4.0"
 lucene            = "10.3.1"
 
 bundled_jdk_vendor = "adoptium"
-bundled_jdk = "24.0.2+12"
+bundled_jdk = "25.0.1+8"
 
 # optional dependencies
 spatial4j         = "0.7"
@@ -77,7 +77,7 @@ randomizedrunner  = "2.7.1"
 junit             = "4.13.2"
 junit5            = "6.0.0"
 hamcrest          = "2.1"
-mockito           = "5.16.1"
+mockito           = "5.20.0"
 objenesis         = "3.3"
 bytebuddy         = "1.17.7"
 
