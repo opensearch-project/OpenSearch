@@ -80,7 +80,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext) throws IOException {
         DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, searchShardTarget, task, this, bigArrays, originalContext);
         // Parse source
-        datafusionContext.datafusionQuery(new DatafusionQuery(request.source().queryPlanIR(), new ArrayList<>()));
+        datafusionContext.datafusionQuery(new DatafusionQuery(request.shardId().getIndexName(), request.source().queryPlanIR(), new ArrayList<>()));
         return datafusionContext;
     }
 
@@ -191,10 +191,10 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 collector.collect(stream);
             }
 
-            logger.info("Final Results:");
-            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
-                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
-            }
+//            logger.info("Final Results:");
+//            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+//                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+//            }
 
         } catch (Exception exception) {
             logger.error("Failed to execute Substrait query plan", exception);

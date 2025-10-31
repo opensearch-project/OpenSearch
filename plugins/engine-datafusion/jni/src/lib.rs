@@ -5,33 +5,34 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-use std::ptr::addr_of_mut;
+use arrow_array::ffi::FFI_ArrowArray;
+use arrow_array::{Array, StructArray};
+use arrow_schema::ffi::FFI_ArrowSchema;
 use jni::objects::{JByteArray, JClass, JObject};
 use jni::sys::{jbyteArray, jlong, jstring};
 use jni::JNIEnv;
+use std::ptr::addr_of_mut;
 use std::sync::Arc;
-use arrow_array::{Array, StructArray};
-use arrow_array::ffi::FFI_ArrowArray;
-use arrow_schema::DataType;
-use arrow_schema::ffi::FFI_ArrowSchema;
 
 mod util;
 mod row_id_optimizer;
 mod listing_table;
+mod memory;
 
 use datafusion::execution::context::SessionContext;
 
+use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
 use crate::util::{create_object_meta_from_filenames, parse_string_arr, set_object_result_error, set_object_result_ok};
 use datafusion::datasource::file_format::csv::CsvFormat;
-use datafusion::datasource::listing::{ListingTableUrl};
+use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::cache::cache_unit::DefaultListFilesCache;
 use datafusion::execution::cache::CacheAccessor;
 use datafusion::execution::runtime_env::{RuntimeEnv, RuntimeEnvBuilder};
+use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::prelude::SessionConfig;
 use datafusion::DATAFUSION_VERSION;
-use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use datafusion_substrait::substrait::proto::Plan;
 use futures::TryStreamExt;
@@ -39,8 +40,12 @@ use jni::objects::{JObjectArray, JString};
 use object_store::ObjectMeta;
 use prost::Message;
 use tokio::runtime::Runtime;
-use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
-use crate::row_id_optimizer::FilterRowIdOptimizer;
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 
 /// Create a new DataFusion session context
 #[no_mangle]
@@ -199,12 +204,14 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
     mut env: JNIEnv,
     _class: JClass,
     shard_view_ptr: jlong,
+    table_name: JString,
     substrait_bytes: jbyteArray,
     tokio_runtime_env_ptr: jlong,
     // callback: JObject,
 ) -> jlong {
     let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
     let runtime_ptr = unsafe { &*(tokio_runtime_env_ptr as *const Runtime)};
+    let table_name: String = env.get_string(&table_name).expect("Couldn't get java string!").into();
 
     let table_path = shard_view.table_path();
     let files_meta = shard_view.files_meta();
@@ -254,7 +261,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
         // Create a new TableProvider
         let provider = Arc::new(ListingTable::try_new(config).unwrap());
         let shard_id = table_path.prefix().filename().expect("error in fetching Path");
-        ctx.register_table("index-7", provider)
+        ctx.register_table(table_name, provider)
             .expect("Failed to attach the Table");
 
     });
@@ -273,7 +280,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
 
     let substrait_plan = match Plan::decode(plan_bytes_vec.as_slice()) {
         Ok(plan) => {
-            println!("SUBSTRAIT rust: Decoding is successful, Plan has {} relations", plan.relations.len());
+            // println!("SUBSTRAIT rust: Decoding is successful, Plan has {} relations", plan.relations.len());
             plan
         },
         Err(e) => {
@@ -286,7 +293,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
 
         let logical_plan = match from_substrait_plan(&ctx.state(), &substrait_plan).await {
             Ok(plan) => {
-                println!("SUBSTRAIT Rust: LogicalPlan: {:?}", plan);
+                // println!("SUBSTRAIT Rust: LogicalPlan: {:?}", plan);
                 plan
             },
             Err(e) => {
@@ -298,7 +305,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
         let dataframe = ctx.execute_logical_plan(logical_plan).await.unwrap();
         let stream = dataframe.execute_stream().await.unwrap();
         let stream_ptr = Box::into_raw(Box::new(stream)) as jlong;
-
+        // println!("The memory used currently right now: {:?}", jemalloc_stats::refresh_allocated());
         stream_ptr
 
     })
