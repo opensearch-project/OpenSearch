@@ -71,6 +71,10 @@ public class CompositeEngine implements Indexer {
         this.engine = new CompositeIndexingExecutionEngine(mapperService, pluginsService, shardPath, 0);
         this.compositeEngineCommitter = new LuceneCommitEngine(shardPath.getDataPath());
         this.catalogSnapshot = ((LuceneCommitEngine)this.compositeEngineCommitter).readCatalogSnapshot();
+
+        // remap the paths
+        this.catalogSnapshot = this.catalogSnapshot.remapPaths(shardPath.getDataPath());
+
         this.mergeHandler = new ParquetMergeHandler(this, this.engine, this.engine.getDataFormat());
         mergeScheduler = new MergeScheduler(this.mergeHandler, this);
 

@@ -53,7 +53,7 @@ public class SearchEngineResultConversionUtils {
                 InternalAggregations internalAggregations = InternalAggregations.from(
                     shardResultConvertors.stream().flatMap(x -> x.convert(dfResult).stream()).collect(Collectors.toList())
                 );
-                LOGGER.info("Internal Aggregations converted {}", internalAggregations.asMap());
+//                LOGGER.info("Internal Aggregations converted {}", internalAggregations.asMap());
                 searchContext.queryResult().aggregations(internalAggregations);
             } catch (IOException e) {
                 throw new RuntimeException(e);
