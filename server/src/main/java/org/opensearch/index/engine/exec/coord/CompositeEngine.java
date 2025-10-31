@@ -180,9 +180,8 @@ public class CompositeEngine implements Indexer {
             }
         });
 
-//        TODO: Enable merge
-//        // trigger merges
-//        triggerPossibleMerges();
+        // trigger merges
+        triggerPossibleMerges();
     }
 
     public void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
@@ -208,6 +207,7 @@ public class CompositeEngine implements Indexer {
             refreshInputs.put(dataFormat, refreshInput);
         }
         refresh("merge", refreshInputs);
+        System.out.println("Merge Completed :: files: " + oneMerge.getFilesToMerge() + " Output : " + mergeResult.getMergedFileMetadata());
     }
 
     public void triggerPossibleMerges() {
