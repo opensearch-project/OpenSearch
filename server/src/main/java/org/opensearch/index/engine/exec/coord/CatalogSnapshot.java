@@ -18,6 +18,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import java.nio.file.Path;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -41,6 +42,31 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
         this.id = id;
         this.dfGroupedSearchableFiles = new HashMap<>();
         refreshResult.getRefreshedFiles().forEach((dataFormat, writerFiles) -> dfGroupedSearchableFiles.put(dataFormat.name(), writerFiles));
+    }
+
+    private CatalogSnapshot(long id, Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles) {
+        super("catalog_snapshot");
+        this.id = id;
+        this.dfGroupedSearchableFiles = dfGroupedSearchableFiles;
+    }
+
+    public CatalogSnapshot remapPaths(Path newShardDataPath) {
+        Map<String, Collection<WriterFileSet>> remappedFiles = new HashMap<>();
+
+        for (Map.Entry<String, Collection<WriterFileSet>> entry : dfGroupedSearchableFiles.entrySet()) {
+            String dataFormat = entry.getKey();
+            List<WriterFileSet> remappedFileSets = new ArrayList<>();
+
+            for (WriterFileSet fileSet : entry.getValue()) {
+                // Create new WriterFileSet with updated directory and file paths
+                WriterFileSet remappedFileSet = fileSet.withDirectory(newShardDataPath.toString());
+                remappedFileSets.add(remappedFileSet);
+            }
+
+            remappedFiles.put(dataFormat, remappedFileSets);
+        }
+
+        return new CatalogSnapshot(this.id, remappedFiles);
     }
 
     public CatalogSnapshot(StreamInput in) throws IOException {

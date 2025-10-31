@@ -41,6 +41,20 @@ public class WriterFileSet implements Serializable, Writeable {
         }
     }
 
+    public WriterFileSet withDirectory(String newDirectory) {
+        WriterFileSet newFileSet = new WriterFileSet(Path.of(newDirectory), this.writerGeneration);
+
+        // Extract just the filename and reconstruct with new directory
+        for (String oldFilePath : this.files) {
+            Path oldPath = Path.of(oldFilePath);
+            String fileName = oldPath.getFileName().toString();
+            String newFilePath = Path.of(newDirectory, fileName).toString();
+            newFileSet.files.add(newFilePath);
+        }
+
+        return newFileSet;
+    }
+
     /**
      * Serialize this WriterFileSet to StreamOutput
      */
