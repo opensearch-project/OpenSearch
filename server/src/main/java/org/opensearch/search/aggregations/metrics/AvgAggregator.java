@@ -282,20 +282,9 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     @Override
-    public List<InternalAggregation> convert(Map<String, Object[]> shardResult) {
-        Object[] counts = shardResult.get(name + "_count");
-        Object[] sums = shardResult.get(name + "_sum");
-        List<InternalAggregation> results = new ArrayList<>(counts.length);
-        for (int i = 0; i < counts.length; i++) {
-            results.add(new InternalAvg(name, (Long) sums[i], (Long) counts[i], format, metadata()));
-        }
-        return results;
-    }
-
-    @Override
     public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row) {
         Object[] counts = shardResult.get(name + "_count");
         Object[] sums = shardResult.get(name + "_sum");
-        return new InternalAvg(name, (Long) sums[row], (Long) counts[row], format, metadata());
+        return new InternalAvg(name, ((Number) sums[row]).doubleValue(), ((Number) sums[row]).longValue(), format, metadata());
     }
 }

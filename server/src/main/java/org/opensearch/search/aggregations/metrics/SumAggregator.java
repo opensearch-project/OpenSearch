@@ -222,6 +222,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     @Override
     public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row) {
         Object[] values = shardResult.get(name);
-        return new InternalSum(name, (Long) values[row], format, metadata());
+        return new InternalSum(name, ((Number) values[row]).doubleValue(), format, metadata());
     }
 }
