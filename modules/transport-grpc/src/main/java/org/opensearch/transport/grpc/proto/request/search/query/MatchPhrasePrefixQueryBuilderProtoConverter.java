@@ -17,7 +17,9 @@ import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
  * into an OpenSearch QueryBuilder object for search operations.
  */
 public class MatchPhrasePrefixQueryBuilderProtoConverter implements QueryBuilderProtoConverter {
-
+    /**
+     * Constructs a new MatchPhrasePrefixQueryBuilderProtoConverter.
+     */
     public MatchPhrasePrefixQueryBuilderProtoConverter() {
         // Default constructor
     }
