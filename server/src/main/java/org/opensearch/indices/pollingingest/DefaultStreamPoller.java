@@ -114,7 +114,7 @@ public class DefaultStreamPoller implements StreamPoller {
             pollTimeout,
             pointerBasedLagUpdateIntervalMs,
             ingestionEngine.config().getIndexSettings(),
-            IngestionMessageMapper.create(mapperType.getName())
+            IngestionMessageMapper.create(mapperType.getName(), shardId)
         );
     }
 

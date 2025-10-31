@@ -68,15 +68,16 @@ public interface IngestionMessageMapper {
      * Factory method to create a mapper instance based on type string.
      *
      * @param mapperTypeString the type of mapper to create as a string
+     * @param shardId the shard ID
      * @return the mapper instance
      */
-    static IngestionMessageMapper create(String mapperTypeString) {
+    static IngestionMessageMapper create(String mapperTypeString, int shardId) {
         MapperType mapperType = MapperType.fromString(mapperTypeString);
         switch (mapperType) {
             case DEFAULT:
                 return new DefaultIngestionMessageMapper();
             case RAW_PAYLOAD:
-                return new RawPayloadIngestionMessageMapper();
+                return new RawPayloadIngestionMessageMapper(shardId);
             default:
                 throw new IllegalArgumentException("Unknown mapper type: " + mapperType);
         }

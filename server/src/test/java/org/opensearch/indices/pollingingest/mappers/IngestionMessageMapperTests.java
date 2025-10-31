@@ -36,15 +36,15 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
     }
 
     public void testMapperCreation() {
-        IngestionMessageMapper defaultMapper = IngestionMessageMapper.create("default");
+        IngestionMessageMapper defaultMapper = IngestionMessageMapper.create("default", 0);
         assertNotNull(defaultMapper);
         assertTrue(defaultMapper instanceof DefaultIngestionMessageMapper);
 
-        IngestionMessageMapper rawPayloadMapper = IngestionMessageMapper.create("raw_payload");
+        IngestionMessageMapper rawPayloadMapper = IngestionMessageMapper.create("raw_payload", 0);
         assertNotNull(rawPayloadMapper);
         assertTrue(rawPayloadMapper instanceof RawPayloadIngestionMessageMapper);
 
-        expectThrows(IllegalArgumentException.class, () -> IngestionMessageMapper.create("unknown"));
+        expectThrows(IllegalArgumentException.class, () -> IngestionMessageMapper.create("unknown", 0));
     }
 
     public void testDefaultMapperWithIdPresent() {
@@ -113,7 +113,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
     }
 
     public void testRawPayloadMapper() {
-        RawPayloadIngestionMessageMapper mapper = new RawPayloadIngestionMessageMapper();
+        RawPayloadIngestionMessageMapper mapper = new RawPayloadIngestionMessageMapper(0);
         String payload = "{\"name\":\"alice\",\"age\":30,\"city\":\"Seattle\"}";
         byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
 
@@ -129,8 +129,8 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
 
         Map<String, Object> parsedMap = result.parsedPayloadMap();
 
-        // Verify _id is set to pointer value
-        assertEquals("100", parsedMap.get("_id"));
+        // Verify _id is set to shard ID + pointer value
+        assertEquals("0-100", parsedMap.get("_id"));
 
         // Verify _op_type is set to "index"
         assertEquals("index", parsedMap.get("_op_type"));
@@ -151,7 +151,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
     }
 
     public void testRawPayloadMapperWithComplexObject() {
-        RawPayloadIngestionMessageMapper mapper = new RawPayloadIngestionMessageMapper();
+        RawPayloadIngestionMessageMapper mapper = new RawPayloadIngestionMessageMapper(1);
         String payload = "{\"user\":{\"name\":\"bob\",\"email\":\"bob@example.com\"},\"tags\":[\"tag1\",\"tag2\"],\"count\":42}";
         byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
 
@@ -163,7 +163,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         assertNotNull(result);
         Map<String, Object> parsedMap = result.parsedPayloadMap();
 
-        assertEquals("200", parsedMap.get("_id"));
+        assertEquals("1-200", parsedMap.get("_id"));
         assertEquals("index", parsedMap.get("_op_type"));
 
         @SuppressWarnings("unchecked")
@@ -175,7 +175,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
     }
 
     public void testRawPayloadMapperWithEmptyObject() {
-        RawPayloadIngestionMessageMapper mapper = new RawPayloadIngestionMessageMapper();
+        RawPayloadIngestionMessageMapper mapper = new RawPayloadIngestionMessageMapper(2);
         String payload = "{}";
         byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
 
@@ -187,7 +187,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         assertNotNull(result);
         Map<String, Object> parsedMap = result.parsedPayloadMap();
 
-        assertEquals("300", parsedMap.get("_id"));
+        assertEquals("2-300", parsedMap.get("_id"));
         assertEquals("index", parsedMap.get("_op_type"));
 
         @SuppressWarnings("unchecked")
@@ -207,7 +207,7 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
     }
 
     public void testRawPayloadMapperWithInvalidJson() {
-        RawPayloadIngestionMessageMapper mapper = new RawPayloadIngestionMessageMapper();
+        RawPayloadIngestionMessageMapper mapper = new RawPayloadIngestionMessageMapper(3);
         String payload = "not a json";
         byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
 
