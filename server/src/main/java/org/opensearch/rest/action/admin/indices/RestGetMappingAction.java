@@ -38,6 +38,7 @@ import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
@@ -73,9 +74,11 @@ public class RestGetMappingAction extends BaseRestHandler {
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
     private final ThreadPool threadPool;
+    private final ClusterService clusterService;
 
-    public RestGetMappingAction(ThreadPool threadPool) {
+    public RestGetMappingAction(ThreadPool threadPool, ClusterService clusterService) {
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -93,6 +96,12 @@ public class RestGetMappingAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "get_mapping_action";
+    }
+
+    @Override
+    public long estimateHeapUsage(RestRequest request) {
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        return clusterService.state().metadata().estimateIndicesSize(indices);
     }
 
     @Override
