@@ -529,7 +529,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         }
 
         /**
-         * Builder for the {@link RemoteSegmentTransferTracker.Stats} class.
+         * Builder for the {@link Stats} class.
          * Provides a fluent API for constructing a Stats object.
          */
         public static class Builder {
@@ -664,7 +664,6 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
 
             /**
              * Creates a {@link Stats} object from the builder's current state.
-             *
              * @return A new Stats instance.
              */
             public Stats build() {

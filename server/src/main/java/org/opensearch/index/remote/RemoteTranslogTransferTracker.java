@@ -487,6 +487,10 @@ public class RemoteTranslogTransferTracker extends RemoteTransferTracker {
             this.downloadTimeMovingAverage = in.readDouble();
         }
 
+        /**
+         * Builder for the {@link Stats} class.
+         * Provides a fluent API for constructing a Stats object.
+         */
         public static class Builder {
             private ShardId shardId = null;
             private long lastSuccessfulUploadTimestamp = 0;
