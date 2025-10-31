@@ -11,9 +11,9 @@ package org.opensearch.index.engine;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.search.aggregations.SearchResultsCollector;
+import org.opensearch.vectorized.execution.search.spi.ReadEngineConfig;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.List;
 
 @ExperimentalApi
@@ -32,7 +32,7 @@ public interface EngineSearcher<Q,C> extends Releasable {
         throw new UnsupportedOperationException();
     }
 
-    default long search(Q query, Long runtimePtr) throws IOException {
+    default long search(Q query, ReadEngineConfig config, Long runtimePtr) throws IOException {
         throw new UnsupportedOperationException();
     }
 }

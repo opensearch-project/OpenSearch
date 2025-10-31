@@ -113,7 +113,9 @@ public class DataFusionQueryJNI {
      * @param substraitPlan the serialized Substrait query plan
      * @return stream pointer for result iteration
      */
-    public static native long executeSubstraitQuery(long cachePtr, byte[] substraitPlan, long runtimePtr);
+    public static native long executeSubstraitQuery(
+        long cachePtr, byte[] substraitPlan, long sessionConfigPtr,
+        long runtimePtr, String format_type);
 
     public static native long createDatafusionReader(String path, String[] files);
 
@@ -148,4 +150,11 @@ public class DataFusionQueryJNI {
      * @param streamPtr the stream pointer to close
      */
     public static native void closeStream(long streamPtr);
+
+    public static native long createSessionConfigNative(
+        boolean isCollectStatisticsEnabled,
+        boolean isPageIndexEnabled,
+        int batchSize
+    );
+
 }

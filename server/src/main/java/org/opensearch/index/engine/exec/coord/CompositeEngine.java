@@ -39,6 +39,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchEnginePlugin;
+import org.opensearch.plugins.DataSourcePlugin;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -50,6 +51,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @ExperimentalApi
 public class CompositeEngine implements Indexer {
@@ -80,10 +82,25 @@ public class CompositeEngine implements Indexer {
         // Create read specific engines for each format which is associated with shard
         for (SearchEnginePlugin searchEnginePlugin : searchEnginePlugins) {
             for (org.opensearch.vectorized.execution.search.DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
+                System.out.println("SupportedDataformats.name is " + dataFormat.getName());
+                DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class)
+                    .stream()
+                    .map(dataSourcePlugin -> {
+                        System.out.println("Dataformat.name is " + dataSourcePlugin.getDataFormat().name());
+                        if(dataSourcePlugin.getDataFormat().name().equals(dataFormat.getName())) {
+                            System.out.println("Dataformat has matched!!");
+                            return dataSourcePlugin;
+                        }
+                        return null;
+                    })
+                    .findAny().orElseThrow(() -> new IllegalArgumentException("dataformat [" + dataFormat.getName() + "] is not registered."));
+
                 List<SearchExecEngine<?, ?, ?, ?>> currentSearchEngines = readEngines.getOrDefault(dataFormat, new ArrayList<>());
-                SearchExecEngine<?, ?, ?, ?> newSearchEngine = searchEnginePlugin.createEngine(dataFormat,
-                        Collections.emptyList(),
-                        shardPath);
+                SearchExecEngine<?, ?, ?, ?> newSearchEngine = searchEnginePlugin.createEngine(
+                    dataFormat,
+                    plugin.getSessionConfig(),
+                    Collections.emptyList(),
+                    shardPath);
 
                 currentSearchEngines.add(newSearchEngine);
                 readEngines.put(dataFormat, currentSearchEngines);

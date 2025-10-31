@@ -11,6 +11,13 @@ import com.parquet.parquetdataformat.engine.ParquetDataFormat;
 import com.parquet.parquetdataformat.fields.ArrowSchemaBuilder;
 import com.parquet.parquetdataformat.engine.read.ParquetDataSourceCodec;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
@@ -20,12 +27,23 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.vectorized.execution.search.spi.SessionConfig;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * OpenSearch plugin that provides Parquet data format support for indexing operations.
@@ -74,6 +92,11 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     }
 
     @Override
+    public SessionConfig getSessionConfig() {
+        return ParquetSettings.state().getSessionConfig();
+    }
+
+    @Override
     public Optional<Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec>> getDataSourceCodecs() {
         Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec> codecs = new HashMap<>();
         ParquetDataSourceCodec parquetDataSourceCodec = new ParquetDataSourceCodec();
@@ -81,6 +104,34 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         codecs.put(parquetDataSourceCodec.getDataFormat(), new ParquetDataSourceCodec());
         return Optional.of(codecs);
         // return Optional.empty();
+    }
+
+    @Override
+    public Collection<Object> createComponents(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        ParquetSettings.state().initialize(clusterService);
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(
+            ParquetSessionConfig.CLUSTER_PARQUET_BATCH_SIZE,
+            ParquetSessionConfig.INDEX_PARQUET_BATCH_SIZE,
+            ParquetSessionConfig.CLUSTER_PARQUET_PAGE_INDEX_ENABLED,
+            ParquetSessionConfig.INDEX_PARQUET_PAGE_INDEX_ENABLED
+        );
     }
 
     // for testing locally only
