@@ -113,7 +113,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
                 throw new RuntimeException(e);
             }
 
-            long streamPointer = datafusionSearcher.search(new DatafusionQuery(protoContent, new ArrayList<>()), service.getTokioRuntimePointer());
+            long streamPointer = datafusionSearcher.search(new DatafusionQuery("test-index",protoContent, new ArrayList<>()), service.getTokioRuntimePointer());
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getTokioRuntimePointer() , allocator);
 
