@@ -202,7 +202,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     public static Version fromId(int id) {
         if (id != 0 && (id & MASK) == 0) {
-            throw new IllegalArgumentException("Version id must contain OpenSearch mask");
+            throw new IllegalArgumentException("Version id " + id + " must contain OpenSearch mask");
         }
         final Version known = idToVersion.get(id);
         if (known != null) {

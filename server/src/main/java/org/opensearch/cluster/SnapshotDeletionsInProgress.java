@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.unit.TimeValue;
@@ -174,11 +173,6 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(Custom.class, TYPE, in);
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

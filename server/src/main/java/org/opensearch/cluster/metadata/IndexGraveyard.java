@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.common.annotation.PublicApi;
@@ -109,11 +108,6 @@ public final class IndexGraveyard implements Metadata.Custom {
     @Override
     public String getWriteableName() {
         return TYPE;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

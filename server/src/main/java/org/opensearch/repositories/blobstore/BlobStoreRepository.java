@@ -166,7 +166,10 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.SoftReference;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -4924,5 +4927,40 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         public String toString() {
             return name;
         }
+    }
+
+    public static void main(String[] args) throws IOException {
+        byte[] bytes = Files.readAllBytes(
+            Path.of("/Users/msfroh/tmp/readonly_repository/readonly-repository/snap-g0P3LankRZmjU3Kx5PU_9A.dat")
+        );
+
+        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        BytesReference bytesReference = BytesReference.fromByteBuffer(buffer);
+        SnapshotInfo snapshotInfo = SNAPSHOT_FORMAT.deserialize("SnapshotInfo", NamedXContentRegistry.EMPTY, bytesReference);
+
+        SnapshotInfo newSnapshotInfo = new SnapshotInfo(
+            snapshotInfo.snapshotId(),
+            snapshotInfo.indices(),
+            snapshotInfo.dataStreams(),
+            snapshotInfo.startTime(),
+            snapshotInfo.reason(),
+            snapshotInfo.endTime(),
+            snapshotInfo.totalShards(),
+            snapshotInfo.shardFailures(),
+            snapshotInfo.includeGlobalState(),
+            snapshotInfo.userMetadata(),
+            snapshotInfo.isRemoteStoreIndexShallowCopyEnabled(),
+            snapshotInfo.getPinnedTimestamp()
+        );
+        BytesReference newBytes = SNAPSHOT_FORMAT.serialize(
+            newSnapshotInfo,
+            "SnapshotInfo",
+            CompressorRegistry.none(),
+            SNAPSHOT_ONLY_FORMAT_PARAMS
+        );
+        Files.write(
+            Path.of("/Users/msfroh/tmp/readonly_repository/readonly-repository/snap-g0P3LankRZmjU3Kx5PU_9A_new.dat"),
+            BytesReference.toBytes(newBytes)
+        );
     }
 }

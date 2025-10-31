@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -445,11 +444,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public String getWriteableName() {
         return TYPE;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {

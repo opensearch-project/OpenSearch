@@ -43,6 +43,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import java.io.IOException;
 import java.util.function.Consumer;
 
+import static org.opensearch.Version.MASK;
+
 /**
  * Decodes inbound data off the wire
  *
@@ -167,7 +169,13 @@ public class InboundDecoder implements Releasable {
             return 0;
         }
 
-        Version remoteVersion = Version.fromId(reference.getInt(TcpHeader.VERSION_POSITION));
+        int versionId = reference.getInt(TcpHeader.VERSION_POSITION);
+        if (versionId == 7099999) {
+            // Convert from ES7.9 to OpenSearch 1.0
+            // TODO: Remove this block in 4.0.
+            versionId = 1000099 ^ MASK;
+        }
+        Version remoteVersion = Version.fromId(versionId);
         int fixedHeaderSize = TcpHeader.headerSize(remoteVersion);
         if (fixedHeaderSize > reference.length()) {
             return 0;
@@ -189,7 +197,13 @@ public class InboundDecoder implements Releasable {
             streamInput.skip(TcpHeader.MESSAGE_LENGTH_SIZE);
             long requestId = streamInput.readLong();
             byte status = streamInput.readByte();
-            Version remoteVersion = Version.fromId(streamInput.readInt());
+            int versionId = streamInput.readInt();
+            if (versionId == 7099999) {
+                // Convert from ES7.9 to OpenSearch 1.0
+                // TODO: Remove this block in 4.0.
+                versionId = 1000099 ^ MASK;
+            }
+            Version remoteVersion = Version.fromId(versionId);
             Header header = new Header(protocol, networkMessageSize, requestId, status, remoteVersion);
             final IllegalStateException invalidVersion = ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
             if (invalidVersion != null) {
