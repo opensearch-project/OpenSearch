@@ -1271,7 +1271,7 @@ public class Node implements Closeable {
 
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
-                Stream.of(Task.X_OPAQUE_ID)
+                Task.REQUEST_HEADERS.stream()
             ).collect(Collectors.toSet());
 
             final TransportService transportService = newTransportService(

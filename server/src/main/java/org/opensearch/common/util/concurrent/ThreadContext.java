@@ -154,13 +154,13 @@ public final class ThreadContext implements Writeable {
 
         ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putPersistent(context.persistentHeaders);
 
-        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-            threadContextStruct = threadContextStruct.putHeaders(
-                MapBuilder.<String, String>newMapBuilder()
-                    .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
-                    .immutableMap()
-            );
+        MapBuilder<String, String> builder = MapBuilder.newMapBuilder();
+        for (String requestHeader : Task.REQUEST_HEADERS) {
+            if (context.requestHeaders.containsKey(requestHeader)) {
+                builder.put(requestHeader, context.requestHeaders.get(requestHeader));
+            }
         }
+        threadContextStruct = threadContextStruct.putHeaders(builder.immutableMap());
 
         final Map<String, Object> transientHeaders = propagateTransients(context.transientHeaders, context.isSystemContext);
         if (!transientHeaders.isEmpty()) {
@@ -697,6 +697,7 @@ public final class ThreadContext implements Writeable {
             this.persistentHeaders = persistentHeaders;
             this.isSystemContext = isSystemContext;
             this.warningHeadersSize = warningHeadersSize;
+
         }
 
         /**
