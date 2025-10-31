@@ -190,7 +190,10 @@ function update_rpm_changelog() {
         log "Updated existing changelog entry for version=$version with date=$date"
     else
         log "Inserting changelog entry for version=$version"
-        awk -v line1="$changelog_entry" -v line2="- More info: https://documentation.wazuh.com/current/release-notes/release-$version.html" '
+        # Transform semver version to hyphen separated string
+        local version_hyphenated
+        version_hyphenated=$(echo "$version" | tr '.' '-')
+        awk -v line1="$changelog_entry" -v line2="- More info: https://documentation.wazuh.com/current/release-notes/release-$version_hyphenated.html" '
         BEGIN { inserted=0 }
         {
             print
