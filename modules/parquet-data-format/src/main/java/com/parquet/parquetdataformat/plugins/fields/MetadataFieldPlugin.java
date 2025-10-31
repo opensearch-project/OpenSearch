@@ -10,8 +10,14 @@ package com.parquet.parquetdataformat.plugins.fields;
 
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.fields.core.metadata.DocCountParquetField;
+import com.parquet.parquetdataformat.fields.core.metadata.IdParquetField;
+import com.parquet.parquetdataformat.fields.core.metadata.IgnoredParquetField;
+import com.parquet.parquetdataformat.fields.core.metadata.RoutingParquetField;
 import com.parquet.parquetdataformat.fields.core.metadata.SizeParquetField;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.IgnoredFieldMapper;
+import org.opensearch.index.mapper.RoutingFieldMapper;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,5 +42,8 @@ public class MetadataFieldPlugin implements ParquetFieldPlugin {
     private static void registerMetadataFields(final Map<String, ParquetField> fieldMap) {
         fieldMap.put(DocCountFieldMapper.CONTENT_TYPE, new DocCountParquetField());
         fieldMap.put("_size", new SizeParquetField());
+        fieldMap.put(RoutingFieldMapper.CONTENT_TYPE, new RoutingParquetField());
+        fieldMap.put(IgnoredFieldMapper.CONTENT_TYPE, new IgnoredParquetField());
+        fieldMap.put(IdFieldMapper.CONTENT_TYPE, new IdParquetField());
     }
 }
