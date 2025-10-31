@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.apache.commons.lang3.SerializationUtils;
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
@@ -48,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -67,17 +69,18 @@ public class CompositeEngine implements Indexer {
         List<SearchEnginePlugin> searchEnginePlugins = pluginsService.filterPlugins(SearchEnginePlugin.class);
         // How to bring the Dataformat here? Currently this means only Text and LuceneFormat can be used
         this.engine = new CompositeIndexingExecutionEngine(mapperService, pluginsService, shardPath, 0);
-        Path committerPath = Files.createTempDirectory("lucene-committer-index");
-        this.compositeEngineCommitter = new LuceneCommitEngine(committerPath);
-
+        this.compositeEngineCommitter = new LuceneCommitEngine(shardPath.getDataPath());
+        this.catalogSnapshot = ((LuceneCommitEngine)this.compositeEngineCommitter).readCatalogSnapshot();
         this.mergeHandler = new ParquetMergeHandler(this, this.engine, this.engine.getDataFormat());
         mergeScheduler = new MergeScheduler(this.mergeHandler, this);
 
         // Refresh here so that catalog snapshot gets initialized
         // TODO : any better way to do this ?
         refresh("start");
+
         // TODO : how to extend this for Lucene ? where engine is a r/w engine
         // Create read specific engines for each format which is associated with shard
+
         for (SearchEnginePlugin searchEnginePlugin : searchEnginePlugins) {
             for (org.opensearch.vectorized.execution.search.DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
                 List<SearchExecEngine<?, ?, ?, ?>> currentSearchEngines = readEngines.getOrDefault(dataFormat, new ArrayList<>());
@@ -99,6 +102,13 @@ public class CompositeEngine implements Indexer {
                 }
             }
         }
+        catalogSnapshotAwareRefreshListeners.forEach(ref -> {
+            try {
+                ref.afterRefresh(true, catalogSnapshot);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     public SearchExecEngine<?, ?, ?, ?> getReadEngine(org.opensearch.vectorized.execution.search.DataFormat dataFormat) {

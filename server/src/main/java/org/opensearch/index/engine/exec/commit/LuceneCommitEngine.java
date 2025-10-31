@@ -47,10 +47,25 @@ public class LuceneCommitEngine implements Committer {
                 throw new RuntimeException(e);
             }
         });
-        Map<String, String> userData = new HashMap<>();
-        catalogSnapshot.getSegments().forEach(segment -> userData.put(String.valueOf(segment.getGeneration()),
-            new String(SerializationUtils.serialize(segment))));
+
+        Map<String, String> userData = null;
+        try {
+            userData = catalogSnapshot.toCommitUserData();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         indexWriter.setLiveCommitData(userData.entrySet());
+    }
+
+    public CatalogSnapshot readCatalogSnapshot() throws IOException {
+        if(indexWriter.getLiveCommitData().iterator().hasNext()) {
+            Map.Entry<String, String> entry = indexWriter.getLiveCommitData().iterator().next();
+            return CatalogSnapshot.fromCommitUserData(entry.getValue());
+        }
+        return null;
+    }
+    public IndexWriter getIndexWriter() {
+        return indexWriter;
     }
 
     @Override
