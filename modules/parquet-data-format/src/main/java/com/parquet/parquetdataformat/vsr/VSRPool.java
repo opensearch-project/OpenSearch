@@ -227,6 +227,9 @@ public class VSRPool {
             frozen.close();
         }
 
+        bufferPool.close();
+        memoryMonitor.close();
+
         // Close any remaining VSRs
         allVSRs.values().forEach(ManagedVSR::close);
         allVSRs.clear();

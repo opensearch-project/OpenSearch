@@ -127,6 +127,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                 FileInfos fileInfos = dataFormatWriter.flush(null);
                 fileInfos.getWriterFilesMap()
                     .forEach((key, value) -> refreshInputs.computeIfAbsent(key, dataFormat -> new RefreshInput()).add(value));
+                dataFormatWriter.close();
             }
 
             if (refreshInputs.isEmpty()) {

@@ -148,8 +148,8 @@ public class VSRManager {
                 System.err.println("Warning: Failed to close/flush writer: " + e.getMessage());
             }
 
-            // Complete VSR processing and cleanup
-            vsrPool.completeVSR(managedVSR);
+            // Close VSR Pool
+            vsrPool.close();
             managedVSR = null;
 
         } catch (Exception e) {

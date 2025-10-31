@@ -87,6 +87,19 @@ ${error.file}
 21-:-javaagent:agent/opensearch-agent.jar
 21-:--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED
 
+# Heap size settings
+# -Xms32g
+# -Xmx32g
+
+# Enable native memory tracking
+-XX:NativeMemoryTracking=summary
+
+# Allow jcmd to attach to the process (required for 'jcmd VM.native_memory' commands)
+-XX:+UnlockDiagnosticVMOptions
+
+# Enabling debug logs for Allocators in Arrow
+-Darrow.memory.debug.allocator=true
+
 # For cases with high memory-mapped file counts, a lower value can improve stability and
 # prevent issues like "leaked" maps or performance degradation. A value of 1 effectively
 # disables the shared Arena pooling and uses a confined Arena for each MMapDirectory
