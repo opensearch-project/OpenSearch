@@ -17,7 +17,6 @@ use std::sync::Arc;
 mod util;
 mod row_id_optimizer;
 mod listing_table;
-mod memory;
 
 use datafusion::execution::context::SessionContext;
 
