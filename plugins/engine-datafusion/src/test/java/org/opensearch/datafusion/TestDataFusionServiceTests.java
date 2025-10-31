@@ -8,10 +8,21 @@
 
 package org.opensearch.datafusion;
 
+import java.util.HashSet;
+import java.util.Set;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.List;
+
+import static org.mockito.Mockito.when;
+import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_ENABLED;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_SIZE_LIMIT;
 
 /**
  * Unit tests for DataFusionService
@@ -27,7 +38,14 @@ public class TestDataFusionServiceTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        service = new DataFusionService(Collections.emptyMap());
+        Set<Setting<?>> clusterSettingsToAdd = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettingsToAdd.add(METADATA_CACHE_ENABLED);
+        clusterSettingsToAdd.add(METADATA_CACHE_SIZE_LIMIT);
+        clusterSettingsToAdd.add(METADATA_CACHE_EVICTION_TYPE);
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);
+
+        service = new DataFusionService(Collections.emptyMap(),clusterSettings);
         service.doStart();
     }
 

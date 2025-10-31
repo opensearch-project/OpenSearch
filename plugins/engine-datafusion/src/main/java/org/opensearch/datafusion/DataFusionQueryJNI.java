@@ -79,6 +79,8 @@ public class DataFusionQueryJNI {
      */
     public static native long createGlobalRuntime();
 
+    public static native long createGlobalRuntimev1(long cacheManagerPtr);
+
     public static native long createTokioRuntime();
 
     /**
@@ -113,7 +115,9 @@ public class DataFusionQueryJNI {
      * @param substraitPlan the serialized Substrait query plan
      * @return stream pointer for result iteration
      */
-    public static native long executeSubstraitQuery(long cachePtr, byte[] substraitPlan, long runtimePtr);
+  //  public static native long executeSubstraitQuery(long cachePtr, byte[] substraitPlan, long runtimePtr);
+
+    public static native long executeSubstraitQuery(long cachePtr, byte[] substraitPlan, long tokioRuntimePtr, long runtimePtr);
 
     public static native long createDatafusionReader(String path, String[] files);
 
@@ -148,4 +152,78 @@ public class DataFusionQueryJNI {
      * @param streamPtr the stream pointer to close
      */
     public static native void closeStream(long streamPtr);
+
+    public static native long initCacheManagerConfig();
+
+    // METADATA cache specific methods
+
+    /**
+     * Create metadata cache
+     * @param cacheConfigPtr cache configuration pointer
+     * @param sizeLimit sizeLimit for cache
+     * @return cache pointer
+     */
+    public static native long createMetadataCache(long cacheConfigPtr, long sizeLimit);
+
+    /**
+     * Put metadata entry into cache
+     * @param cachePtr the cache pointer
+     * @param filePath the file path
+     * @return status code
+     */
+    public static native boolean metadataCachePut(long cachePtr, String filePath);
+
+    /**
+     * Get metadata from cache
+     * @param cachePtr the cache pointer
+     * @param filePath the file path
+     * @return cached metadata or null if not found
+     */
+    // return type boolean to be changed
+    public static native boolean metadataCacheGet(long cachePtr, String filePath);
+
+    /**
+     * Remove metadata from cache
+     * @param cachePtr the cache pointer
+     * @param filePath the file path
+     * @return status code
+     */
+    public static native boolean metadataCacheRemove(long cachePtr, String filePath);
+
+    /**
+     * Memory consumed by metadataCache
+     * @param cachePtr the cache pointer
+     * @return memory used
+     */
+    public static native long metadataCacheGetSize(long cachePtr);
+
+        /**
+     * Memory consumed by metadataCache
+     * @param cachePtr the cache pointer
+    *  @param newSizeLimit new size limit
+     * @return boolean
+     */
+    public static native boolean metadataCacheUpdateSizeLimit(long cachePtr, long newSizeLimit);
+
+    /**
+     * Check if a file exists in metadataCache
+     * @param cachePtr the cache pointer
+     * @param filePath the file path
+     * @return boolean
+     */
+    public static native boolean metadataCacheContainsFile(long cachePtr, String filePath);
+
+    /**
+     * Get all entries from the metadata cache
+     * @param cachePtr the cache pointer
+     * @return String array containing cache entries in triplets: [path1, size1, hitCount1, path2, size2, hitCount2, ...]
+     *         Each entry consists of 3 consecutive elements: file path, size in bytes, and hit count
+     */
+    public static native String[] metadataCacheGetEntries(long cachePtr);
+
+        /**
+     * Clears all entries from the metadata cache
+     * @param cachePtr the cache pointer
+     */
+    public static native void metadataCacheClear(long cachePtr);
 }
