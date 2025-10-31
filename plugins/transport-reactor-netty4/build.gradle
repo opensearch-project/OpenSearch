@@ -38,9 +38,7 @@ dependencies {
   testImplementation libs.log4jslf4jimpl
   javaRestTestImplementation libs.reactor.test
   testImplementation project(":modules:transport-netty4")
-  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
-  testFipsRuntimeOnly "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
-  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+  testFipsRuntimeOnly libs.bundles.bouncycastle
 }
 
 restResources {

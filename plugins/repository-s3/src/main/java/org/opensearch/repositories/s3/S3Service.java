@@ -367,6 +367,7 @@ class S3Service implements Closeable {
         try {
             final SSLContext sslCtx = SSLContext.getInstance("TLS");
             sslCtx.init(SystemPropertyTlsKeyManagersProvider.create().keyManagers(), null, new SecureRandom());
+
             return new SdkTlsSocketFactory(sslCtx, new DefaultHostnameVerifier()) {
                 @Override
                 public Socket createSocket(final HttpContext ctx) throws IOException {

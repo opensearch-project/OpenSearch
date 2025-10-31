@@ -23,6 +23,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.fips.KeyManagerFipsAwareTestCase;
 import org.opensearch.http.BindHttpException;
 import org.opensearch.http.CorsHandler;
 import org.opensearch.http.HttpServerTransport;
@@ -52,10 +53,6 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -97,13 +94,37 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests for the {@link SecureNetty4HttpServerTransport} class.
  */
-public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
+public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase implements KeyManagerFipsAwareTestCase {
+
+    private static final char[] PASSWORD = "password".toCharArray();
+
+    private final KeyManagerFactory keyManagerFactory = createKeyManagerFactory();
 
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
     private ClusterSettings clusterSettings;
     private SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
+
+    public KeyManagerFactory createKeyManagerFactory(String keyStoreType, String fileExtension, String jcaProvider, String jsseProvider) {
+        try {
+            final KeyStore keyStore = KeyStore.getInstance(keyStoreType, jcaProvider);
+
+            keyStore.load(
+                SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-server-keystore" + fileExtension),
+                PASSWORD
+            );
+
+            final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(
+                KeyManagerFactory.getDefaultAlgorithm(),
+                jsseProvider
+            );
+            keyManagerFactory.init(keyStore, PASSWORD);
+            return keyManagerFactory;
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 
     @Before
     public void setup() throws Exception {
@@ -120,25 +141,12 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
 
             @Override
             public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
-                try {
-                    final KeyStore keyStore = KeyStore.getInstance("PKCS12");
-                    keyStore.load(
-                        SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure.jks"),
-                        "password".toCharArray()
-                    );
-
-                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-                    keyManagerFactory.init(keyStore, "password".toCharArray());
-
-                    SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
+                return Optional.of(
+                    SslContextBuilder.forServer(keyManagerFactory)
                         .trustManager(InsecureTrustManagerFactory.INSTANCE)
                         .build()
-                        .newEngine(NettyAllocator.getAllocator());
-                    return Optional.of(engine);
-                } catch (final IOException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException
-                    | CertificateException ex) {
-                    throw new SSLException(ex);
-                }
+                        .newEngine(NettyAllocator.getAllocator())
+                );
             }
         };
     }
