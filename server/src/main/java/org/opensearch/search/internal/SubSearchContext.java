@@ -377,4 +377,5 @@ public class SubSearchContext extends FilteredSearchContext {
     public long getRelativeTimeInMillis() {
         throw new UnsupportedOperationException("Not supported");
     }
+
 }
