@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.exec.composite;
 
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.opensearch.index.engine.exec.DataFormat;
@@ -40,33 +41,59 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private final AtomicLong writerGeneration;
     private final List<IndexingExecutionEngine<?>> delegates = new ArrayList<>();
 
-    public CompositeIndexingExecutionEngine(MapperService mapperService, PluginsService pluginsService, Any dataformat, ShardPath shardPath, long initialWriterGeneration) {
+    public CompositeIndexingExecutionEngine(
+        MapperService mapperService,
+        PluginsService pluginsService,
+        Any dataformat,
+        ShardPath shardPath,
+        long initialWriterGeneration
+    ) {
         this.dataFormat = dataformat;
         this.writerGeneration = new AtomicLong(initialWriterGeneration);
         try {
             for (DataFormat dataFormat : dataformat.getDataFormats()) {
-                DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class).stream().filter(curr -> curr.getDataFormat().equals(dataFormat)).findFirst().orElseThrow(() -> new IllegalArgumentException("dataformat [" + dataFormat + "] is not registered."));
+                DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class)
+                    .stream()
+                    .filter(curr -> curr.getDataFormat().equals(dataFormat))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("dataformat [" + dataFormat + "] is not registered."));
                 delegates.add(plugin.indexingEngine(mapperService, shardPath));
             }
         } catch (NullPointerException e) {
             // my own testing
             delegates.add(new TextEngine());
         }
-        this.dataFormatWriterPool = new CompositeDataFormatWriterPool(() -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()), ConcurrentLinkedQueue::new, Runtime.getRuntime().availableProcessors());
+        this.dataFormatWriterPool = new CompositeDataFormatWriterPool(
+            () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
+            LinkedList::new,
+            Runtime.getRuntime().availableProcessors()
+        );
     }
 
-    public CompositeIndexingExecutionEngine(MapperService mapperService, PluginsService pluginsService, ShardPath shardPath, long initialWriterGeneration) {
+    public CompositeIndexingExecutionEngine(
+        MapperService mapperService,
+        PluginsService pluginsService,
+        ShardPath shardPath,
+        long initialWriterGeneration
+    ) {
         this.writerGeneration = new AtomicLong(initialWriterGeneration);
         List<DataFormat> dataFormats = new ArrayList<>();
         try {
-            DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class).stream().findAny().orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
+            DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class)
+                .stream()
+                .findAny()
+                .orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
             dataFormats.add(plugin.getDataFormat());
             delegates.add(plugin.indexingEngine(mapperService, shardPath));
         } catch (NullPointerException e) {
             delegates.add(new TextEngine());
         }
         this.dataFormat = new Any(dataFormats, dataFormats.get(0));
-        this.dataFormatWriterPool = new CompositeDataFormatWriterPool(() -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()), ConcurrentLinkedQueue::new, Runtime.getRuntime().availableProcessors());
+        this.dataFormatWriterPool = new CompositeDataFormatWriterPool(
+            () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
+            LinkedList::new,
+            Runtime.getRuntime().availableProcessors()
+        );
     }
 
     @Override
@@ -98,7 +125,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             // flush to disk
             for (CompositeDataFormatWriter dataFormatWriter : dataFormatWriters) {
                 FileInfos fileInfos = dataFormatWriter.flush(null);
-                fileInfos.getWriterFilesMap().forEach((key, value) -> refreshInputs.computeIfAbsent(key, dataFormat -> new RefreshInput()).add(value));
+                fileInfos.getWriterFilesMap()
+                    .forEach((key, value) -> refreshInputs.computeIfAbsent(key, dataFormat -> new RefreshInput()).add(value));
             }
 
             if (refreshInputs.isEmpty()) {
