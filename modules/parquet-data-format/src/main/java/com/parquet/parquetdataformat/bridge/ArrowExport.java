@@ -28,9 +28,11 @@ public record ArrowExport(ArrowArray arrowArray, ArrowSchema arrowSchema) implem
     @Override
     public void close() {
         if (arrowArray != null) {
+            arrowArray.release();
             arrowArray.close();
         }
         if (arrowSchema != null) {
+            arrowSchema.release();
             arrowSchema.close();
         }
     }
