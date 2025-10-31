@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.queue;
 
+import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -32,7 +33,7 @@ public final class ConcurrentQueue<T> {
         this.concurrency = concurrency;
         this.queueSupplier = queueSupplier;
         locks = new Lock[concurrency];
-        @SuppressWarnings({"rawtypes", "unchecked"}) Queue<T>[] queues = new Queue[concurrency];
+        @SuppressWarnings({ "rawtypes", "unchecked" }) Queue<T>[] queues = new Queue[concurrency];
         this.queues = queues;
         for (int i = 0; i < concurrency; ++i) {
             locks[i] = new ReentrantLock();
@@ -77,8 +78,11 @@ public final class ConcurrentQueue<T> {
             final Queue<T> queue = queues[index];
             if (lock.tryLock()) {
                 try {
-                    for (T entry : queue) {
+                    Iterator<T> it = queue.iterator();
+                    while (it.hasNext()) {
+                        T entry = it.next();
                         if (predicate.test(entry)) {
+                            it.remove();
                             return entry;
                         }
                     }
@@ -93,8 +97,11 @@ public final class ConcurrentQueue<T> {
             final Queue<T> queue = queues[index];
             lock.lock();
             try {
-                for (T entry : queue) {
+                Iterator<T> it = queue.iterator();
+                while (it.hasNext()) {
+                    T entry = it.next();
                     if (predicate.test(entry)) {
+                        it.remove();
                         return entry;
                     }
                 }
