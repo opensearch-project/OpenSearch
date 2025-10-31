@@ -40,7 +40,7 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     private final long writerGeneration;
     private boolean aborted;
     private final RowIdGenerator rowIdGenerator;
-    public static final String ROW_ID = "_row_id";
+    public static final String ROW_ID = "___row_id";
 
     public CompositeDataFormatWriter(CompositeIndexingExecutionEngine engine,
         long writerGeneration) {
