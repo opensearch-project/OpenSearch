@@ -338,16 +338,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         RestChannel responseChannel = channel;
         try {
+            final long estimatedBytes = contentLength + handler.estimateHeapUsage(request);
+
             if (handler.canTripCircuitBreaker()) {
-                inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
+                inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(estimatedBytes, "<http_request>");
             } else {
-                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(estimatedBytes);
             }
 
             if (handler.supportsStreaming()) {
                 // The handler may support streaming but not the engine, in this case we fail with the bad request
                 if (channel instanceof StreamingRestChannel) {
-                    responseChannel = new StreamHandlingHttpChannel((StreamingRestChannel) channel, circuitBreakerService, contentLength);
+                    responseChannel = new StreamHandlingHttpChannel((StreamingRestChannel) channel, circuitBreakerService, estimatedBytes);
                 } else {
                     throw new IllegalStateException(
                         "The engine does not support HTTP streaming, unable to serve uri ["
@@ -364,7 +366,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 }
             } else {
                 // if we could reserve bytes for the request we need to send the response also over this channel
-                responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+                responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, estimatedBytes);
             }
 
             // TODO: Count requests double in the circuit breaker if they need copying?
@@ -592,13 +594,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final class ResourceHandlingHttpChannel implements RestChannel {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
-        private final int contentLength;
+        private final long estimatedBytes;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, long estimatedBytes) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
-            this.contentLength = contentLength;
+            this.estimatedBytes = estimatedBytes;
         }
 
         @Override
@@ -647,21 +649,21 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (closed.compareAndSet(false, true) == false) {
                 throw new IllegalStateException("Channel is already closed");
             }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-estimatedBytes);
         }
     }
 
     private static final class StreamHandlingHttpChannel implements StreamingRestChannel {
         private final StreamingRestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
-        private final int contentLength;
+        private final long estimatedBytes;
         private final AtomicBoolean closed = new AtomicBoolean();
         private final AtomicBoolean subscribed = new AtomicBoolean();
 
-        StreamHandlingHttpChannel(StreamingRestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        StreamHandlingHttpChannel(StreamingRestChannel delegate, CircuitBreakerService circuitBreakerService, long estimatedBytes) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
-            this.contentLength = contentLength;
+            this.estimatedBytes = estimatedBytes;
         }
 
         @Override
@@ -733,7 +735,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (closed.compareAndSet(false, true) == false) {
                 throw new IllegalStateException("Channel is already closed");
             }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-estimatedBytes);
         }
 
         @Override
