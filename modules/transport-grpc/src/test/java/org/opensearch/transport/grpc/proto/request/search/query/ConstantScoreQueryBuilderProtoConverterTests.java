@@ -26,7 +26,7 @@ public class ConstantScoreQueryBuilderProtoConverterTests extends OpenSearchTest
     public void setUp() throws Exception {
         super.setUp();
         converter = new ConstantScoreQueryBuilderProtoConverter();
-        QueryBuilderProtoConverterRegistryImpl registry = new QueryBuilderProtoConverterRegistryImpl();
+        registry = QueryBuilderProtoTestUtils.createQueryUtils().getRegistry();
         converter.setRegistry(registry);
     }
 
