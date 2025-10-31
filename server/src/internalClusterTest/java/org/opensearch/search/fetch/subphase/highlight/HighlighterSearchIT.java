@@ -99,6 +99,7 @@ import static org.opensearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.opensearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.existsQuery;
 import static org.opensearch.index.query.QueryBuilders.fuzzyQuery;
+import static org.opensearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
 import static org.opensearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.index.query.QueryBuilders.multiMatchQuery;
@@ -3518,7 +3519,7 @@ public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIn
                 jsonBuilder().startObject()
                     .startArray("foo")
                     .startObject()
-                    .field("text", "brown")
+                    .field("text", "brown cat")
                     .endObject()
                     .startObject()
                     .field("text", "cow")
@@ -3539,7 +3540,7 @@ public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIn
             assertHitCount(searchResponse, 1);
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
             assertThat(field.getFragments().length, equalTo(2));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> cat"));
             assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
 
             searchResponse = client().prepareSearch()
@@ -3549,16 +3550,25 @@ public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIn
             assertHitCount(searchResponse, 1);
             field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
             assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> cat"));
 
             searchResponse = client().prepareSearch()
-                .setQuery(nestedQuery("foo", prefixQuery("foo.text", "bro"), ScoreMode.None))
-                .highlighter(new HighlightBuilder().field(new Field("foo.text").highlighterType("plain")))
+                .setQuery(nestedQuery("foo", matchPhraseQuery("foo.text", "brown cat"), ScoreMode.None))
+                .highlighter(new HighlightBuilder().field(new Field("foo.text").highlighterType(type)))
                 .get();
             assertHitCount(searchResponse, 1);
             field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
             assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> <em>cat</em>"));
+
+            searchResponse = client().prepareSearch()
+                .setQuery(nestedQuery("foo", matchPhrasePrefixQuery("foo.text", "bro"), ScoreMode.None))
+                .highlighter(new HighlightBuilder().field(new Field("foo.text").highlighterType(type)))
+                .get();
+            assertHitCount(searchResponse, 1);
+            field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
+            assertThat(field.getFragments().length, equalTo(1));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> cat"));
         }
 
         // For unified and fvh highlighters we just check that the nested query is correctly extracted
