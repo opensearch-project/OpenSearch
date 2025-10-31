@@ -115,11 +115,49 @@ public class RemoteStoreStatsTestHelper {
     }
 
     static RemoteTranslogTransferTracker.Stats createTranslogStats(ShardId shardId) {
-        return new RemoteTranslogTransferTracker.Stats(shardId, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9D, 10D, 11D, 1L, 2L, 3L, 4L, 9D, 10D, 11D);
+        return new RemoteTranslogTransferTracker.Stats.Builder().shardId(shardId)
+            .lastSuccessfulUploadTimestamp(1L)
+            .totalUploadsStarted(2L)
+            .totalUploadsSucceeded(3L)
+            .totalUploadsFailed(4L)
+            .uploadBytesStarted(5L)
+            .uploadBytesSucceeded(6L)
+            .uploadBytesFailed(7L)
+            .totalUploadTimeInMillis(8L)
+            .uploadBytesMovingAverage(9D)
+            .uploadBytesPerSecMovingAverage(10D)
+            .uploadTimeMovingAverage(11D)
+            .lastSuccessfulDownloadTimestamp(1L)
+            .totalDownloadsSucceeded(2L)
+            .downloadBytesSucceeded(3L)
+            .totalDownloadTimeInMillis(4L)
+            .downloadBytesMovingAverage(9D)
+            .downloadBytesPerSecMovingAverage(10D)
+            .downloadTimeMovingAverage(11D)
+            .build();
     }
 
     static RemoteTranslogTransferTracker.Stats createEmptyTranslogStats(ShardId shardId) {
-        return new RemoteTranslogTransferTracker.Stats(shardId, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0D, 0D, 0D, 0L, 0L, 0L, 0L, 0D, 0D, 0D);
+        return new RemoteTranslogTransferTracker.Stats.Builder().shardId(shardId)
+            .lastSuccessfulUploadTimestamp(0L)
+            .totalUploadsStarted(0L)
+            .totalUploadsSucceeded(0L)
+            .totalUploadsFailed(0L)
+            .uploadBytesStarted(0L)
+            .uploadBytesSucceeded(0L)
+            .uploadBytesFailed(0L)
+            .totalUploadTimeInMillis(0L)
+            .uploadBytesMovingAverage(0D)
+            .uploadBytesPerSecMovingAverage(0D)
+            .uploadTimeMovingAverage(0D)
+            .lastSuccessfulDownloadTimestamp(0L)
+            .totalDownloadsSucceeded(0L)
+            .downloadBytesSucceeded(0L)
+            .totalDownloadTimeInMillis(0L)
+            .downloadBytesMovingAverage(0D)
+            .downloadBytesPerSecMovingAverage(0D)
+            .downloadTimeMovingAverage(0D)
+            .build();
     }
 
     static void compareStatsResponse(
