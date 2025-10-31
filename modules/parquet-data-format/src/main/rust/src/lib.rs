@@ -11,6 +11,8 @@ use arrow::ffi::{FFI_ArrowSchema, FFI_ArrowArray};
 use std::fs::OpenOptions;
 use std::io::Write;
 use chrono::Utc;
+pub mod parquet_merge;
+pub use parquet_merge::*;
 
 lazy_static! {
     static ref WRITER_MANAGER: DashMap<String, Arc<Mutex<ArrowWriter<File>>>> = DashMap::new();
@@ -25,20 +27,20 @@ impl NativeParquetWriter {
         let log_msg = format!("[RUST] create_writer called for file: {}, schema_address: {}\n", filename, schema_address);
         println!("{}", log_msg.trim());
         Self::log_to_file(&log_msg);
-        
+
         let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };
         let schema = Arc::new(arrow::datatypes::Schema::try_from(&arrow_schema)?);
-        
+
         let schema_msg = format!("[RUST] Schema created with {} fields\n", schema.fields().len());
         println!("{}", schema_msg.trim());
         Self::log_to_file(&schema_msg);
-        
+
         for (i, field) in schema.fields().iter().enumerate() {
             let field_msg = format!("[RUST] Field {}: {} ({})\n", i, field.name(), field.data_type());
             println!("{}", field_msg.trim());
             Self::log_to_file(&field_msg);
         }
-        
+
         let file = File::create(&filename)?;
         let file_clone = file.try_clone()?;
         FILE_MANAGER.insert(filename.clone(), file_clone);
@@ -51,40 +53,40 @@ impl NativeParquetWriter {
         let log_msg = format!("[RUST] write_data called for file: {}, array_address: {}, schema_address: {}\n", filename, array_address, schema_address);
         println!("{}", log_msg.trim());
         Self::log_to_file(&log_msg);
-        
+
         unsafe {
             let arrow_schema = FFI_ArrowSchema::from_raw(schema_address as *mut _);
             let arrow_array = FFI_ArrowArray::from_raw(array_address as *mut _);
-            
+
             match arrow::ffi::from_ffi(arrow_array, &arrow_schema) {
                 Ok(array_data) => {
                     let data_msg = format!("[RUST] Successfully imported array_data, length: {}\n", array_data.len());
                     println!("{}", data_msg.trim());
                     Self::log_to_file(&data_msg);
-                    
+
                     let array: Arc<dyn arrow::array::Array> = arrow::array::make_array(array_data);
                     let array_msg = format!("[RUST] Array type: {:?}, length: {}\n", array.data_type(), array.len());
                     println!("{}", array_msg.trim());
                     Self::log_to_file(&array_msg);
-                    
+
                     if let Some(struct_array) = array.as_any().downcast_ref::<arrow::array::StructArray>() {
                         let struct_msg = format!("[RUST] Successfully cast to StructArray with {} columns\n", struct_array.num_columns());
                         println!("{}", struct_msg.trim());
                         Self::log_to_file(&struct_msg);
-                        
+
                         let schema = Arc::new(arrow::datatypes::Schema::new(
                             struct_array.fields().clone()
                         ));
-                        
+
                         let record_batch = RecordBatch::try_new(
                             schema.clone(),
                             struct_array.columns().to_vec(),
                         )?;
-                        
+
                         let batch_msg = format!("[RUST] Created RecordBatch with {} rows and {} columns\n", record_batch.num_rows(), record_batch.num_columns());
                         println!("{}", batch_msg.trim());
                         Self::log_to_file(&batch_msg);
-                        
+
                         if let Some(writer_arc) = WRITER_MANAGER.get(&filename) {
                             let write_msg = "[RUST] Writing RecordBatch to file\n";
                             println!("{}", write_msg.trim());
@@ -121,7 +123,7 @@ impl NativeParquetWriter {
         let log_msg = format!("[RUST] close_writer called for file: {}\n", filename);
         println!("{}", log_msg.trim());
         Self::log_to_file(&log_msg);
-        
+
         if let Some((_, writer_arc)) = WRITER_MANAGER.remove(&filename) {
             match Arc::try_unwrap(writer_arc) {
                 Ok(mutex) => {
@@ -152,12 +154,12 @@ impl NativeParquetWriter {
             Ok(())
         }
     }
-    
+
     fn flush_to_disk(filename: String) -> Result<(), Box<dyn std::error::Error>> {
         let log_msg = format!("[RUST] fsync_file called for file: {}\n", filename);
         println!("{}", log_msg.trim());
         Self::log_to_file(&log_msg);
-        
+
         if let Some(mut file) = FILE_MANAGER.get_mut(&filename) {
             match file.sync_all() {
                 Ok(_) => {
@@ -180,7 +182,7 @@ impl NativeParquetWriter {
             Err("File not found".into())
         }
     }
-    
+
     fn log_to_file(message: &str) {
         if let Ok(mut file) = OpenOptions::new()
             .create(true)
