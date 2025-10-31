@@ -294,6 +294,6 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
     @Override
     public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row) {
         Object[] values = shardResult.get(name);
-        return new InternalMax(name, (Long) values[row], formatter, metadata());
+        return new InternalMax(name, ((Number) values[row]).doubleValue(), formatter, metadata());
     }
 }
