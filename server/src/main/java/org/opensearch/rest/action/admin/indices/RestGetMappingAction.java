@@ -101,7 +101,7 @@ public class RestGetMappingAction extends BaseRestHandler {
     @Override
     public long estimateHeapUsage(RestRequest request) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        return clusterService.state().metadata().estimateIndicesSize(indices);
+        return clusterService.state().metadata().estimateIndicesMappingsSize(indices);
     }
 
     @Override
