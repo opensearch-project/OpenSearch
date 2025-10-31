@@ -28,81 +28,78 @@ import static org.junit.Assert.assertTrue;
  */
 public class RemoteStoreStatsTestHelper {
     static RemoteSegmentTransferTracker.Stats createStatsForNewPrimary(ShardId shardId) {
-        return new RemoteSegmentTransferTracker.Stats(
-            shardId,
-            101,
-            102,
-            100,
-            0,
-            10,
-            2,
-            10,
-            5,
-            5,
-            0,
-            0,
-            0,
-            5,
-            5,
-            5,
-            0,
-            0,
-            0,
-            10,
-            createZeroDirectoryFileTransferStats()
-        );
+        return new RemoteSegmentTransferTracker.Stats.Builder().shardId(shardId)
+            .localRefreshClockTimeMs(101)
+            .remoteRefreshClockTimeMs(102)
+            .refreshTimeLagMs(100)
+            .localRefreshNumber(0)
+            .remoteRefreshNumber(10)
+            .uploadBytesStarted(2)
+            .uploadBytesSucceeded(10)
+            .uploadBytesFailed(5)
+            .totalUploadsStarted(5)
+            .totalUploadsSucceeded(0)
+            .totalUploadsFailed(0)
+            .rejectionCount(0)
+            .consecutiveFailuresCount(5)
+            .lastSuccessfulRemoteRefreshBytes(5)
+            .uploadBytesMovingAverage(5)
+            .uploadBytesPerSecMovingAverage(0)
+            .uploadTimeMovingAverage(0)
+            .bytesLag(0)
+            .totalUploadTimeInMs(10)
+            .directoryFileTransferTrackerStats(createZeroDirectoryFileTransferStats())
+            .build();
     }
 
     static RemoteSegmentTransferTracker.Stats createStatsForNewReplica(ShardId shardId) {
-        return new RemoteSegmentTransferTracker.Stats(
-            shardId,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            createSampleDirectoryFileTransferStats()
-        );
+        return new RemoteSegmentTransferTracker.Stats.Builder().shardId(shardId)
+            .localRefreshClockTimeMs(0)
+            .remoteRefreshClockTimeMs(0)
+            .refreshTimeLagMs(0)
+            .localRefreshNumber(0)
+            .remoteRefreshNumber(0)
+            .uploadBytesStarted(0)
+            .uploadBytesSucceeded(0)
+            .uploadBytesFailed(0)
+            .totalUploadsStarted(0)
+            .totalUploadsSucceeded(0)
+            .totalUploadsFailed(0)
+            .rejectionCount(0)
+            .consecutiveFailuresCount(0)
+            .lastSuccessfulRemoteRefreshBytes(0)
+            .uploadBytesMovingAverage(0)
+            .uploadBytesPerSecMovingAverage(0)
+            .uploadTimeMovingAverage(0)
+            .bytesLag(0)
+            .totalUploadTimeInMs(0)
+            .directoryFileTransferTrackerStats(createZeroDirectoryFileTransferStats())
+            .build();
     }
 
     static RemoteSegmentTransferTracker.Stats createStatsForRemoteStoreRestoredPrimary(ShardId shardId) {
-        return new RemoteSegmentTransferTracker.Stats(
-            shardId,
-            50,
-            50,
-            0,
-            50,
-            11,
-            11,
-            10,
-            10,
-            0,
-            10,
-            10,
-            0,
-            10,
-            10,
-            0,
-            0,
-            0,
-            100,
-            10,
-            createSampleDirectoryFileTransferStats()
-        );
+        return new RemoteSegmentTransferTracker.Stats.Builder().shardId(shardId)
+            .localRefreshClockTimeMs(50)
+            .remoteRefreshClockTimeMs(50)
+            .refreshTimeLagMs(0)
+            .localRefreshNumber(50)
+            .remoteRefreshNumber(11)
+            .uploadBytesStarted(11)
+            .uploadBytesSucceeded(10)
+            .uploadBytesFailed(10)
+            .totalUploadsStarted(0)
+            .totalUploadsSucceeded(10)
+            .totalUploadsFailed(10)
+            .rejectionCount(0)
+            .consecutiveFailuresCount(10)
+            .lastSuccessfulRemoteRefreshBytes(10)
+            .uploadBytesMovingAverage(0)
+            .uploadBytesPerSecMovingAverage(0)
+            .uploadTimeMovingAverage(0)
+            .bytesLag(100)
+            .totalUploadTimeInMs(10)
+            .directoryFileTransferTrackerStats(createZeroDirectoryFileTransferStats())
+            .build();
     }
 
     static DirectoryFileTransferTracker.Stats createSampleDirectoryFileTransferStats() {
