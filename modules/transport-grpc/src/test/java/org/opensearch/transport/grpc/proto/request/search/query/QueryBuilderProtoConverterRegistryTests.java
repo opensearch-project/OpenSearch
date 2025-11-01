@@ -10,10 +10,14 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.BoolQuery;
 import org.opensearch.protobufs.ChildScoreMode;
+import org.opensearch.protobufs.ConstantScoreQuery;
 import org.opensearch.protobufs.CoordsGeoBounds;
 import org.opensearch.protobufs.DoubleArray;
 import org.opensearch.protobufs.ExistsQuery;
 import org.opensearch.protobufs.FieldValue;
+import org.opensearch.protobufs.FieldValueArray;
+import org.opensearch.protobufs.Fuzziness;
+import org.opensearch.protobufs.FuzzyQuery;
 import org.opensearch.protobufs.GeoBoundingBoxQuery;
 import org.opensearch.protobufs.GeoBounds;
 import org.opensearch.protobufs.GeoDistanceQuery;
@@ -22,19 +26,25 @@ import org.opensearch.protobufs.IdsQuery;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.LatLonGeoLocation;
 import org.opensearch.protobufs.MatchAllQuery;
+import org.opensearch.protobufs.MatchBoolPrefixQuery;
+import org.opensearch.protobufs.MatchPhrasePrefixQuery;
 import org.opensearch.protobufs.MatchPhraseQuery;
+import org.opensearch.protobufs.MatchQuery;
 import org.opensearch.protobufs.MinimumShouldMatch;
 import org.opensearch.protobufs.MultiMatchQuery;
 import org.opensearch.protobufs.NestedQuery;
 import org.opensearch.protobufs.NumberRangeQuery;
 import org.opensearch.protobufs.NumberRangeQueryAllOfFrom;
 import org.opensearch.protobufs.NumberRangeQueryAllOfTo;
+import org.opensearch.protobufs.Operator;
+import org.opensearch.protobufs.PrefixQuery;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.RangeQuery;
 import org.opensearch.protobufs.RegexpQuery;
 import org.opensearch.protobufs.Script;
 import org.opensearch.protobufs.ScriptQuery;
 import org.opensearch.protobufs.TermQuery;
+import org.opensearch.protobufs.TermsQueryField;
 import org.opensearch.protobufs.TermsSetQuery;
 import org.opensearch.protobufs.TextQueryType;
 import org.opensearch.protobufs.WildcardQuery;
@@ -589,17 +599,17 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
     }
 
     public void testTermsQueryConversion() {
+        // Create a Terms query container
+        FieldValue fv1 = FieldValue.newBuilder().setString("electronics").build();
+        FieldValue fv2 = FieldValue.newBuilder().setString("books").build();
+        FieldValueArray fva = FieldValueArray.newBuilder().addFieldValueArray(fv1).addFieldValueArray(fv2).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+
         QueryContainer queryContainer = QueryContainer.newBuilder()
-            .setTerms(
-                org.opensearch.protobufs.TermsQuery.newBuilder()
-                    .setField("category")
-                    .addValues(FieldValue.newBuilder().setString("electronics").build())
-                    .addValues(FieldValue.newBuilder().setString("books").build())
-                    .setBoost(1.5f)
-                    .build()
-            )
+            .setTerms(org.opensearch.protobufs.TermsQuery.newBuilder().putTerms("category", termsQueryField).setBoost(1.5f).build())
             .build();
 
+        // Convert using the registry
         QueryBuilder queryBuilder = registry.fromProto(queryContainer);
 
         // Verify the result
@@ -617,12 +627,7 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         QueryContainer innerQueryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
 
         QueryContainer queryContainer = QueryContainer.newBuilder()
-            .setConstantScore(
-                org.opensearch.protobufs.ConstantScoreQuery.newBuilder()
-                    .setFilter(innerQueryContainer)
-                    .setBoost(2.0f)
-                    .build()
-            )
+            .setConstantScore(ConstantScoreQuery.newBuilder().setFilter(innerQueryContainer).setBoost(2.0f).build())
             .build();
 
         // Convert using the registry
@@ -641,10 +646,10 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Create a Fuzzy query container
         QueryContainer queryContainer = QueryContainer.newBuilder()
             .setFuzzy(
-                org.opensearch.protobufs.FuzzyQuery.newBuilder()
+                FuzzyQuery.newBuilder()
                     .setField("title")
-                    .setValue("opensearch")
-                    .setFuzziness("AUTO")
+                    .setValue(FieldValue.newBuilder().setString("opensearch").build())
+                    .setFuzziness(Fuzziness.newBuilder().setString("AUTO").build())
                     .setBoost(1.2f)
                     .build()
             )
@@ -661,13 +666,7 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
     public void testPrefixQueryConversion() {
         // Create a Prefix query container
         QueryContainer queryContainer = QueryContainer.newBuilder()
-            .setPrefix(
-                org.opensearch.protobufs.PrefixQuery.newBuilder()
-                    .setField("name")
-                    .setValue("john")
-                    .setBoost(1.1f)
-                    .build()
-            )
+            .setPrefix(PrefixQuery.newBuilder().setField("name").setValue("john").setBoost(1.1f).build())
             .build();
 
         // Convert using the registry
@@ -682,11 +681,10 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Create a Match query container
         QueryContainer queryContainer = QueryContainer.newBuilder()
             .setMatch(
-                org.opensearch.protobufs.MatchQuery.newBuilder()
+                MatchQuery.newBuilder()
                     .setField("message")
-                    .setQuery("hello world")
-                    .setOperator(org.opensearch.protobufs.Operator.OPERATOR_AND)
-                    .setFuzziness("AUTO")
+                    .setQuery(FieldValue.newBuilder().setString("hello world").build())
+                    .setOperator(Operator.OPERATOR_AND)
                     .setBoost(1.5f)
                     .build()
             )
@@ -704,11 +702,10 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Create a MatchBoolPrefix query container
         QueryContainer queryContainer = QueryContainer.newBuilder()
             .setMatchBoolPrefix(
-                org.opensearch.protobufs.MatchBoolPrefixQuery.newBuilder()
+                MatchBoolPrefixQuery.newBuilder()
                     .setField("title")
                     .setQuery("opensearch tutorial")
-                    .setOperator(org.opensearch.protobufs.Operator.OPERATOR_OR)
-                    .setFuzziness("1")
+                    .setOperator(Operator.OPERATOR_OR)
                     .setBoost(1.3f)
                     .build()
             )
@@ -730,18 +727,14 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Create a MatchPhrasePrefix query container
         QueryContainer queryContainer = QueryContainer.newBuilder()
             .setMatchPhrasePrefix(
-                org.opensearch.protobufs.MatchPhrasePrefixQuery.newBuilder()
-                    .setField("title")
-                    .setQuery("opensearch tuto")
-                    .setAnalyzer("standard")
-                    .setSlop(2)
-                    .setBoost(1.4f)
-                    .build()
+                MatchPhrasePrefixQuery.newBuilder().setField("title").setQuery("opensearch tuto").setSlop(2).setBoost(1.4f).build()
             )
             .build();
 
+        // Convert using the registry
         QueryBuilder queryBuilder = registry.fromProto(queryContainer);
 
+        // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
         assertEquals(
             "Should be a MatchPhrasePrefixQueryBuilder",

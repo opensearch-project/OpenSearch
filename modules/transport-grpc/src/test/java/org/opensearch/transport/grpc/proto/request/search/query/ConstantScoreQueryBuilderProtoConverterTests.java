@@ -15,18 +15,16 @@ import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.TermQuery;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 public class ConstantScoreQueryBuilderProtoConverterTests extends OpenSearchTestCase {
 
     private ConstantScoreQueryBuilderProtoConverter converter;
-    private QueryBuilderProtoConverterRegistry registry;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         converter = new ConstantScoreQueryBuilderProtoConverter();
-        registry = QueryBuilderProtoTestUtils.createQueryUtils().getRegistry();
+        QueryBuilderProtoConverterRegistryImpl registry = new QueryBuilderProtoConverterRegistryImpl();
         converter.setRegistry(registry);
     }
 
