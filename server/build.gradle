@@ -28,7 +28,6 @@
  * under the License.
  */
 
-import org.opensearch.gradle.info.BuildParams
 import groovy.xml.XmlParser
 
 plugins {
@@ -234,7 +233,6 @@ tasks.named("processResources").configure {
 
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
-        *[
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -327,8 +325,7 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2Projections',
             'com.google.common.geometry.S2Point',
             'com.google.common.geometry.S2$Metric',
-            'com.google.common.geometry.S2LatLng'
-        ] + (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_20) ? [] : [
+            'com.google.common.geometry.S2LatLng',
             'jdk.incubator.vector.ByteVector',
             'jdk.incubator.vector.FloatVector',
             'jdk.incubator.vector.IntVector',
@@ -336,7 +333,7 @@ tasks.named("thirdPartyAudit").configure {
             'jdk.incubator.vector.Vector',
             'jdk.incubator.vector.VectorOperators',
             'jdk.incubator.vector.VectorSpecies'
-        ]
+
     )
     ignoreViolations(
             'com.google.protobuf.MessageSchema',
