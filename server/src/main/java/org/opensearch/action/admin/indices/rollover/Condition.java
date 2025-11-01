@@ -128,6 +128,10 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
             this.indexSize = indexSize;
         }
 
+        /**
+         * Builder for the {@link Stats} class.
+         * Provides a fluent API for constructing a Stats object.
+         */
         public static class Builder {
             private long numDocs = 0;
             private long indexCreated = 0;

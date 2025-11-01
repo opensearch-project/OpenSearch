@@ -106,8 +106,7 @@ public class RemoteStoreStatsTestHelper {
     }
 
     static DirectoryFileTransferTracker.Stats createSampleDirectoryFileTransferStats() {
-        return new DirectoryFileTransferTracker.Stats.Builder()
-            .transferredBytesStarted(10)
+        return new DirectoryFileTransferTracker.Stats.Builder().transferredBytesStarted(10)
             .transferredBytesFailed(0)
             .transferredBytesSucceeded(10)
             .lastTransferTimestampMs(12345)
@@ -119,8 +118,7 @@ public class RemoteStoreStatsTestHelper {
     }
 
     static DirectoryFileTransferTracker.Stats createZeroDirectoryFileTransferStats() {
-        return new DirectoryFileTransferTracker.Stats.Builder()
-            .transferredBytesStarted(0)
+        return new DirectoryFileTransferTracker.Stats.Builder().transferredBytesStarted(0)
             .transferredBytesFailed(0)
             .transferredBytesSucceeded(0)
             .lastTransferTimestampMs(0)
