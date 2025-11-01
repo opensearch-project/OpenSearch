@@ -153,8 +153,7 @@ public class DirectoryFileTransferTracker {
     }
 
     public DirectoryFileTransferTracker.Stats stats() {
-        return new Stats.Builder()
-            .transferredBytesStarted(transferredBytesStarted.get())
+        return new Stats.Builder().transferredBytesStarted(transferredBytesStarted.get())
             .transferredBytesFailed(transferredBytesFailed.get())
             .transferredBytesSucceeded(transferredBytesSucceeded.get())
             .lastTransferTimestampMs(lastTransferTimestampMs.get())
@@ -248,6 +247,7 @@ public class DirectoryFileTransferTracker {
             private double transferredBytesPerSecMovingAverage = 0;
 
             public Builder() {}
+
             public Builder transferredBytesStarted(long started) {
                 this.transferredBytesStarted = started;
                 return this;
