@@ -469,7 +469,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public StoreStats stats(long reservedBytes) throws IOException {
         ensureOpen();
-        return new StoreStats(directory.estimateSize(), reservedBytes);
+        return new StoreStats.Builder().sizeInBytes(directory.estimateSize()).reservedSize(reservedBytes).build();
     }
 
     /**

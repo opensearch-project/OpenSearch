@@ -275,7 +275,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
             }
         }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+        return new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(sizeInBytes).build();
     }
 
     /**

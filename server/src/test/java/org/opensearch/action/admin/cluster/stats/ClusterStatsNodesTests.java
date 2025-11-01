@@ -362,8 +362,13 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
 
     private CommonStats createRandomCommonStats() {
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
-        commonStats.docs = new DocsStats(randomLongBetween(0, 10000), randomLongBetween(0, 100), randomLongBetween(0, 1000));
-        commonStats.store = new StoreStats(randomLongBetween(0, 100), randomLongBetween(0, 1000));
+        commonStats.docs = new DocsStats.Builder().count(randomLongBetween(0, 10000))
+            .deleted(randomLongBetween(0, 100))
+            .totalSizeInBytes(randomLongBetween(0, 1000))
+            .build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(randomLongBetween(0, 100))
+            .reservedSize(randomLongBetween(0, 1000))
+            .build();
         commonStats.indexing = new IndexingStats();
         commonStats.completion = new CompletionStats();
         commonStats.flush = new FlushStats(randomLongBetween(0, 100), randomLongBetween(0, 100), randomLongBetween(0, 100));
