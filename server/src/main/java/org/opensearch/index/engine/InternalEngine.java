@@ -2145,8 +2145,8 @@ public class InternalEngine extends Engine {
         // but we are double-checking it's failed and closed
         if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
             final Exception tragicException;
-            if (indexWriter.getTragicException() instanceof Exception) {
-                tragicException = (Exception) indexWriter.getTragicException();
+            if (indexWriter.getTragicException() instanceof Exception exception) {
+                tragicException = exception;
             } else {
                 tragicException = new RuntimeException(indexWriter.getTragicException());
             }

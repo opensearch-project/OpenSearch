@@ -724,8 +724,8 @@ public final class AnalysisRegistry implements Closeable {
          * doesn't match here.
          */
         int overridePositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
-        if (analyzerFactory instanceof CustomAnalyzerProvider) {
-            ((CustomAnalyzerProvider) analyzerFactory).build(tokenizers, charFilters, tokenFilters);
+        if (analyzerFactory instanceof CustomAnalyzerProvider customAnalyzerProvider) {
+            customAnalyzerProvider.build(tokenizers, charFilters, tokenFilters);
             /*
              * Custom analyzers already default to the correct, version
              * dependent positionIncrementGap and the user is be able to
@@ -740,9 +740,9 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
         }
         NamedAnalyzer analyzer;
-        if (analyzerF instanceof NamedAnalyzer) {
+        if (analyzerF instanceof NamedAnalyzer namedAnalyzer) {
             // if we got a named analyzer back, use it...
-            analyzer = (NamedAnalyzer) analyzerF;
+            analyzer = namedAnalyzer;
             if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
                 // unless the positionIncrementGap needs to be overridden
                 analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
@@ -766,8 +766,8 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalStateException("keyword tokenizer factory is null, normalizers require analysis-common module");
         }
 
-        if (normalizerFactory instanceof CustomNormalizerProvider) {
-            ((CustomNormalizerProvider) normalizerFactory).build(tokenizerFactory, charFilters, tokenFilters);
+        if (normalizerFactory instanceof CustomNormalizerProvider customNormalizerProvider) {
+            customNormalizerProvider.build(tokenizerFactory, charFilters, tokenFilters);
         }
         if (normalizers.containsKey(name)) {
             throw new IllegalStateException("already registered analyzer with name: " + name);

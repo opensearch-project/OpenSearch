@@ -617,8 +617,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public static void verify(IndexOutput output) throws IOException {
-        if (output instanceof VerifyingIndexOutput) {
-            ((VerifyingIndexOutput) output).verify();
+        if (output instanceof VerifyingIndexOutput verifyingOutput) {
+            verifyingOutput.verify();
         }
     }
 
@@ -628,8 +628,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public static void verify(IndexInput input) throws IOException {
-        if (input instanceof VerifyingIndexInput) {
-            ((VerifyingIndexInput) input).verify();
+        if (input instanceof VerifyingIndexInput verifyingInput) {
+            verifyingInput.verify();
         }
     }
 
@@ -723,8 +723,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     input.readBytes(buffer, 0, buffer.length);
                     StreamInput in = StreamInput.wrap(buffer);
                     Exception t = in.readException();
-                    if (t instanceof CorruptIndexException) {
-                        ex.add((CorruptIndexException) t);
+                    if (t instanceof CorruptIndexException corruptException) {
+                        ex.add(corruptException);
                     } else {
                         ex.add(new CorruptIndexException(t.getMessage(), "preexisting_corruption", t));
                     }

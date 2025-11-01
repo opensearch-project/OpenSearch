@@ -70,8 +70,8 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
                 statsListener.onSuccess(localSegment);
                 batchUploadListener.onResponse(resp);
                 // Once uploaded to Remote, local files become eligible for eviction from FileCache
-                if (directory instanceof CompositeDirectory) {
-                    ((CompositeDirectory) directory).afterSyncToRemote(localSegment);
+                if (directory instanceof CompositeDirectory compositeDirectory) {
+                    compositeDirectory.afterSyncToRemote(localSegment);
                 }
             }, ex -> {
                 logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);

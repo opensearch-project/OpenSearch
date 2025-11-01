@@ -456,8 +456,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder queryBuilder = this.query.rewrite(queryRewriteContext);
-        if (queryBuilder instanceof MatchNoneQueryBuilder) {
-            return queryBuilder;
+        if (queryBuilder instanceof MatchNoneQueryBuilder matchNoneQueryBuilder) {
+            return matchNoneQueryBuilder;
         }
 
         FilterFunctionBuilder[] rewrittenBuilders = new FilterFunctionBuilder[this.filterFunctionBuilders.length];

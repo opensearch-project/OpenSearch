@@ -1476,8 +1476,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
 
         public DirectoryReader getDirectoryReader() {
-            if (getIndexReader() instanceof DirectoryReader) {
-                return (DirectoryReader) getIndexReader();
+            if (getIndexReader() instanceof DirectoryReader directoryReader) {
+                return directoryReader;
             }
             throw new IllegalStateException("Can't use " + getIndexReader().getClass() + " as a directory reader");
         }

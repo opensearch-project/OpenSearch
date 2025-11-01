@@ -100,16 +100,16 @@ public final class DerivedFieldQuery extends Query {
             return false;
         }
 
-        if (query instanceof ApproximateScoreQuery) {
-            Query originalQuery = ((ApproximateScoreQuery) query).getOriginalQuery();
-            if (originalQuery instanceof IndexOrDocValuesQuery) {
-                Query indexQuery = ((IndexOrDocValuesQuery) originalQuery).getIndexQuery();
+        if (query instanceof ApproximateScoreQuery approximateQuery) {
+            Query originalQuery = approximateQuery.getOriginalQuery();
+            if (originalQuery instanceof IndexOrDocValuesQuery indexOrDocValuesQuery) {
+                Query indexQuery = indexOrDocValuesQuery.getIndexQuery();
                 return !(indexQuery instanceof PointRangeQuery);
             }
         }
 
-        if (query instanceof IndexOrDocValuesQuery) {
-            Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
+        if (query instanceof IndexOrDocValuesQuery indexOrDocValuesQuery) {
+            Query indexQuery = indexOrDocValuesQuery.getIndexQuery();
             return !(indexQuery instanceof PointRangeQuery);
         }
 
