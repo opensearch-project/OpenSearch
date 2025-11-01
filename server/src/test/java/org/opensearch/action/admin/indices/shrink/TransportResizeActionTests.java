@@ -141,7 +141,10 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                 () -> TransportResizeAction.prepareCreateIndexRequest(
                     new ResizeRequest("target", "source"),
                     state,
-                    (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100)),
+                    (i) -> new DocsStats.Builder().count(Integer.MAX_VALUE)
+                        .deleted(between(1, 1000))
+                        .totalSizeInBytes(between(1, 100))
+                        .build(),
                     new StoreStats(between(1, 10000), between(1, 10000)),
                     clusterSettings,
                     "source",
@@ -157,7 +160,12 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             TransportResizeAction.prepareCreateIndexRequest(
                 req,
                 clusterState,
-                (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null,
+                (i) -> i == 2 || i == 3
+                    ? new DocsStats.Builder().count(Integer.MAX_VALUE / 2)
+                        .deleted(between(1, 1000))
+                        .totalSizeInBytes(between(1, 10000))
+                        .build()
+                    : null,
                 new StoreStats(between(1, 10000), between(1, 10000)),
                 clusterSettings,
                 "source",
@@ -177,7 +185,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             TransportResizeAction.prepareCreateIndexRequest(
                 req,
                 clusterState,
-                (i) -> new DocsStats(between(10, 1000), between(1, 10), between(1, 10000)),
+                (i) -> new DocsStats.Builder().count(between(10, 1000)).deleted(between(1, 10)).totalSizeInBytes(between(1, 10000)).build(),
                 new StoreStats(between(1, 10000), between(1, 10000)),
                 clusterSettings,
                 "source",
@@ -207,7 +215,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         TransportResizeAction.prepareCreateIndexRequest(
             new ResizeRequest("target", "source"),
             clusterState,
-            (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000)),
+            (i) -> new DocsStats.Builder().count(between(1, 1000)).deleted(between(1, 1000)).totalSizeInBytes(between(0, 10000)).build(),
             new StoreStats(between(1, 10000), between(1, 10000)),
             clusterSettings,
             "source",
@@ -335,7 +343,10 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         routingTable = OpenSearchAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, indexName).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int numSourceShards = clusterState.metadata().index(indexName).getNumberOfShards();
-        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
+        DocsStats stats = new DocsStats.Builder().count(between(0, (IndexWriter.MAX_DOCS) / numSourceShards))
+            .deleted(between(1, 1000))
+            .totalSizeInBytes(between(1, 10000))
+            .build();
         ResizeRequest target = new ResizeRequest("target", indexName);
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
         target.setWaitForActiveShards(activeShardCount);
@@ -377,7 +388,10 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         routingTable = OpenSearchAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, indexName).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int numSourceShards = clusterState.metadata().index(indexName).getNumberOfShards();
-        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
+        DocsStats stats = new DocsStats.Builder().count(between(0, (IndexWriter.MAX_DOCS) / numSourceShards))
+            .deleted(between(1, 1000))
+            .totalSizeInBytes(between(1, 10000))
+            .build();
 
         // target index's shards number must be the lowest factor of the source index's shards number
         int expectedShardsNum = 5;
@@ -576,7 +590,10 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         routingTable = OpenSearchAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, indexName).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int numSourceShards = clusterState.metadata().index(indexName).getNumberOfShards();
-        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
+        DocsStats stats = new DocsStats.Builder().count(between(0, (IndexWriter.MAX_DOCS) / numSourceShards))
+            .deleted(between(1, 1000))
+            .totalSizeInBytes(between(1, 10000))
+            .build();
 
         int expectedShardsNum;
         String cause;
@@ -648,7 +665,10 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         // now we start the shard
         routingTable = OpenSearchAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / 10), between(1, 1000), between(1, 10000));
+        DocsStats stats = new DocsStats.Builder().count(between(0, (IndexWriter.MAX_DOCS) / 10))
+            .deleted(between(1, 1000))
+            .totalSizeInBytes(between(1, 10000))
+            .build();
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         ResizeType resizeType;
         int expectedShardsNum;
