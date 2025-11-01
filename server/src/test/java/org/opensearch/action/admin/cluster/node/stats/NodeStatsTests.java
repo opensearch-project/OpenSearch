@@ -1148,7 +1148,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
         commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
-        commonStats.store = new StoreStats(100, 0L);
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
         commonStats.indexing = new IndexingStats();
         DocsStats hostDocStats = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
 
@@ -1194,7 +1194,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
         commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
-        commonStats.store = new StoreStats(100, 0L);
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
         commonStats.indexing = new IndexingStats();
 
         CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
@@ -1245,7 +1245,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
         commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
-        commonStats.store = new StoreStats(100, 0L);
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
         commonStats.indexing = new IndexingStats();
 
         CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
@@ -1368,7 +1368,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
             .deleted(randomLongBetween(0, 100))
             .totalSizeInBytes(randomLongBetween(0, 1000))
             .build();
-        commonStats.store = new StoreStats(randomLongBetween(0, 100), randomLongBetween(0, 1000));
+        commonStats.store = new StoreStats.Builder().sizeInBytes(randomLongBetween(0, 100))
+            .reservedSize(randomLongBetween(0, 1000))
+            .build();
         commonStats.indexing = new IndexingStats();
         commonStats.completion = new CompletionStats();
         commonStats.flush = new FlushStats(randomLongBetween(0, 100), randomLongBetween(0, 100), randomLongBetween(0, 100));

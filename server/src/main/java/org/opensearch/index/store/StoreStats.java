@@ -62,15 +62,26 @@ public class StoreStats implements Writeable, ToXContentFragment {
 
     }
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new StoreStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private StoreStats(Builder builder) {
+        this.sizeInBytes = builder.sizeInBytes;
+        this.reservedSize = builder.reservedSize;
+    }
+
     public StoreStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
         reservedSize = in.readZLong();
     }
 
     /**
-     * @param sizeInBytes the size of the store in bytes
-     * @param reservedSize a prediction of how much larger the store is expected to grow, or {@link StoreStats#UNKNOWN_RESERVED_BYTES}.
-     */
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+      */
+    @Deprecated
     public StoreStats(long sizeInBytes, long reservedSize) {
         assert reservedSize == UNKNOWN_RESERVED_BYTES || reservedSize >= 0 : reservedSize;
         this.sizeInBytes = sizeInBytes;
@@ -112,6 +123,42 @@ public class StoreStats implements Writeable, ToXContentFragment {
      */
     public ByteSizeValue getReservedSize() {
         return new ByteSizeValue(reservedSize);
+    }
+
+    /**
+     * Builder for the {@link StoreStats} class.
+     * Provides a fluent API for constructing a StoreStats object.
+     */
+    public static class Builder {
+        private long sizeInBytes = 0;
+        private long reservedSize = 0;
+
+        public Builder() {}
+
+        /**
+         * @param bytes the size of the store in bytes
+         */
+        public Builder sizeInBytes(long bytes) {
+            this.sizeInBytes = bytes;
+            return this;
+        }
+
+        /**
+         * @param size a prediction of how much larger the store is expected to grow, or {@link StoreStats#UNKNOWN_RESERVED_BYTES}.
+         */
+        public Builder reservedSize(long size) {
+            assert size == UNKNOWN_RESERVED_BYTES || size >= 0 : size;
+            this.reservedSize = size;
+            return this;
+        }
+
+        /**
+         * Creates a {@link StoreStats} object from the builder's current state.
+         * @return A new StoreStats instance.
+         */
+        public StoreStats build() {
+            return new StoreStats(this);
+        }
     }
 
     @Override
