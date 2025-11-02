@@ -11,7 +11,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
-import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
+import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
 
 /**
  * Utility class for converting Protocol Buffer query representations to OpenSearch QueryBuilder objects.
@@ -20,7 +20,7 @@ import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
  */
 public class AbstractQueryBuilderProtoUtils {
 
-    private final QueryBuilderProtoConverterRegistry registry;
+    private final QueryBuilderProtoConverterRegistryImpl registry;
 
     /**
      * Creates a new instance with the specified registry.
@@ -28,7 +28,7 @@ public class AbstractQueryBuilderProtoUtils {
      * @param registry The registry to use for query conversion
      * @throws IllegalArgumentException if registry is null
      */
-    public AbstractQueryBuilderProtoUtils(QueryBuilderProtoConverterRegistry registry) {
+    public AbstractQueryBuilderProtoUtils(QueryBuilderProtoConverterRegistryImpl registry) {
         if (registry == null) {
             throw new IllegalArgumentException("Registry cannot be null");
         }
@@ -40,7 +40,7 @@ public class AbstractQueryBuilderProtoUtils {
      *
      * @return The query builder proto converter registry
      */
-    public QueryBuilderProtoConverterRegistry getRegistry() {
+    public QueryBuilderProtoConverterRegistryImpl getRegistry() {
         return registry;
     }
 
