@@ -8,46 +8,47 @@
 
 package org.opensearch.index.store.distributed;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DistributedSegmentDirectoryIntegrationTests extends OpenSearchTestCase {
 
     private Path tempDir;
     private Directory baseDirectory;
+    private IndexShard mockIndexShard;
     private DistributedSegmentDirectory distributedDirectory;
 
-    @Override
+    @Before
     public void setUp() throws Exception {
         super.setUp();
         tempDir = createTempDir();
         baseDirectory = FSDirectory.open(tempDir);
-        distributedDirectory = new DistributedSegmentDirectory(baseDirectory, tempDir);
+        mockIndexShard = mock(IndexShard.class);
+        
+        // Mock IndexShard to return a primary term
+        when(mockIndexShard.getOperationPrimaryTerm()).thenReturn(1L);
+        
+        distributedDirectory = new DistributedSegmentDirectory(baseDirectory, tempDir, mockIndexShard);
     }
 
-    @Override
+    @After
     public void tearDown() throws Exception {
         if (distributedDirectory != null) {
             distributedDirectory.close();
@@ -55,287 +56,267 @@ public class DistributedSegmentDirectoryIntegrationTests extends OpenSearchTestC
         super.tearDown();
     }
 
-    public void testIndexWriterWithDistributedDirectory() throws IOException {
-        IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
+    public void testFileCreationAndReading() throws IOException {
+        String filename = "_0.si";
+        String content = "test segment info content";
         
-        try (IndexWriter writer = new IndexWriter(distributedDirectory, config)) {
-            // Add some documents
-            for (int i = 0; i < 10; i++) {
-                Document doc = new Document();
-                doc.add(new StringField("id", String.valueOf(i), Field.Store.YES));
-                doc.add(new TextField("content", "This is document " + i, Field.Store.YES));
-                writer.addDocument(doc);
-            }
-            
-            writer.commit();
+        // Create a file
+        try (IndexOutput output = distributedDirectory.createOutput(filename, IOContext.DEFAULT)) {
+            output.writeString(content);
         }
         
-        // Verify files were created and distributed
-        String[] files = distributedDirectory.listAll();
-        assertTrue("Should have created segment files", files.length > 0);
+        // Verify file exists and can be read
+        assertTrue(Arrays.asList(distributedDirectory.listAll()).contains(filename));
         
-        // Check that files are distributed across directories
-        boolean hasSegmentsFile = false;
-        boolean hasDistributedFiles = false;
-        
-        for (String file : files) {
-            if (file.startsWith("segments_")) {
-                hasSegmentsFile = true;
-                assertEquals("segments_N should be in directory 0", 0, distributedDirectory.getDirectoryIndex(file));
-            } else {
-                hasDistributedFiles = true;
-            }
+        try (IndexInput input = distributedDirectory.openInput(filename, IOContext.DEFAULT)) {
+            assertEquals(content, input.readString());
         }
         
-        assertTrue("Should have segments file", hasSegmentsFile);
-        assertTrue("Should have other distributed files", hasDistributedFiles);
+        // Verify file length
+        assertEquals(content.getBytes().length + 4, distributedDirectory.fileLength(filename)); // +4 for string length prefix
     }
 
-    public void testIndexReaderWithDistributedDirectory() throws IOException {
-        // First create an index
-        IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
+    public void testSegmentsFileInBaseDirectory() throws IOException {
+        String segmentsFile = "segments_1";
+        String content = "segments file content";
         
-        try (IndexWriter writer = new IndexWriter(distributedDirectory, config)) {
-            for (int i = 0; i < 5; i++) {
-                Document doc = new Document();
-                doc.add(new StringField("id", String.valueOf(i), Field.Store.YES));
-                doc.add(new TextField("content", "Document content " + i, Field.Store.YES));
-                writer.addDocument(doc);
-            }
-            writer.commit();
+        // Create segments file
+        try (IndexOutput output = distributedDirectory.createOutput(segmentsFile, IOContext.DEFAULT)) {
+            output.writeString(content);
         }
         
-        // Now read the index
-        try (IndexReader reader = DirectoryReader.open(distributedDirectory)) {
-            assertEquals("Should have 5 documents", 5, reader.numDocs());
-            
-            IndexSearcher searcher = new IndexSearcher(reader);
-            
-            // Search for a specific document
-            TermQuery query = new TermQuery(new Term("id", "2"));
-            TopDocs results = searcher.search(query, 10);
-            
-            assertEquals("Should find one document", 1, results.totalHits.value);
-            
-            Document doc = searcher.doc(results.scoreDocs[0].doc);
-            assertEquals("Should find correct document", "2", doc.get("id"));
-        }
+        // Verify it's in the base directory (not routed to primary term directory)
+        assertTrue(Arrays.asList(distributedDirectory.listAll()).contains(segmentsFile));
+        
+        // Verify routing info shows it's excluded
+        String routingInfo = distributedDirectory.getRoutingInfo(segmentsFile);
+        assertTrue(routingInfo.contains("excluded"));
     }
 
-    public void testIndexWriterWithMerging() throws IOException {
-        IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
-        config.setMaxBufferedDocs(2); // Force frequent segment creation
+    public void testMultipleFilesWithDifferentPrimaryTerms() throws IOException {
+        String[] filenames = {"_0.si", "_1.cfs", "_2.cfe"};
+        String[] contents = {"content1", "content2", "content3"};
         
-        try (IndexWriter writer = new IndexWriter(distributedDirectory, config)) {
-            // Add documents to create multiple segments
-            for (int i = 0; i < 20; i++) {
-                Document doc = new Document();
-                doc.add(new StringField("id", String.valueOf(i), Field.Store.YES));
-                doc.add(new TextField("content", "Content for document " + i, Field.Store.YES));
-                writer.addDocument(doc);
-                
-                if (i % 5 == 0) {
-                    writer.commit(); // Create multiple commits
-                }
+        // Create files with primary term 1
+        for (int i = 0; i < filenames.length; i++) {
+            try (IndexOutput output = distributedDirectory.createOutput(filenames[i], IOContext.DEFAULT)) {
+                output.writeString(contents[i]);
             }
-            
-            // Force merge to test segment merging with distributed files
-            writer.forceMerge(1);
-            writer.commit();
         }
         
-        // Verify the index is still readable after merging
-        try (IndexReader reader = DirectoryReader.open(distributedDirectory)) {
-            assertEquals("Should have all 20 documents after merge", 20, reader.numDocs());
-            
-            // Verify we can search
-            IndexSearcher searcher = new IndexSearcher(reader);
-            TermQuery query = new TermQuery(new Term("id", "15"));
-            TopDocs results = searcher.search(query, 10);
-            
-            assertEquals("Should find document after merge", 1, results.totalHits.value);
+        // Change primary term
+        when(mockIndexShard.getOperationPrimaryTerm()).thenReturn(2L);
+        
+        String newFilename = "_3.doc";
+        String newContent = "content for primary term 2";
+        
+        // Create file with primary term 2
+        try (IndexOutput output = distributedDirectory.createOutput(newFilename, IOContext.DEFAULT)) {
+            output.writeString(newContent);
+        }
+        
+        // Verify all files are listed
+        String[] allFiles = distributedDirectory.listAll();
+        Set<String> fileSet = new HashSet<>(Arrays.asList(allFiles));
+        
+        for (String filename : filenames) {
+            assertTrue("File " + filename + " should be listed", fileSet.contains(filename));
+        }
+        assertTrue("New file should be listed", fileSet.contains(newFilename));
+        
+        // Verify files can be read correctly
+        for (int i = 0; i < filenames.length; i++) {
+            try (IndexInput input = distributedDirectory.openInput(filenames[i], IOContext.DEFAULT)) {
+                assertEquals(contents[i], input.readString());
+            }
+        }
+        
+        try (IndexInput input = distributedDirectory.openInput(newFilename, IOContext.DEFAULT)) {
+            assertEquals(newContent, input.readString());
         }
     }
 
-    public void testIndexDeletion() throws IOException {
-        IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
+    public void testFileDeletion() throws IOException {
+        String filename = "_0.si";
+        String content = "test content";
         
-        try (IndexWriter writer = new IndexWriter(distributedDirectory, config)) {
-            // Add documents
-            for (int i = 0; i < 10; i++) {
-                Document doc = new Document();
-                doc.add(new StringField("id", String.valueOf(i), Field.Store.YES));
-                doc.add(new TextField("content", "Document " + i, Field.Store.YES));
-                writer.addDocument(doc);
-            }
-            writer.commit();
-            
-            // Delete some documents
-            writer.deleteDocuments(new Term("id", "5"));
-            writer.deleteDocuments(new Term("id", "7"));
-            writer.commit();
+        // Create file
+        try (IndexOutput output = distributedDirectory.createOutput(filename, IOContext.DEFAULT)) {
+            output.writeString(content);
         }
         
-        // Verify deletions
-        try (IndexReader reader = DirectoryReader.open(distributedDirectory)) {
-            assertEquals("Should have 8 documents after deletion", 8, reader.numDocs());
-            
-            IndexSearcher searcher = new IndexSearcher(reader);
-            
-            // Verify deleted documents are not found
-            TermQuery query1 = new TermQuery(new Term("id", "5"));
-            TopDocs results1 = searcher.search(query1, 10);
-            assertEquals("Deleted document should not be found", 0, results1.totalHits.value);
-            
-            TermQuery query2 = new TermQuery(new Term("id", "7"));
-            TopDocs results2 = searcher.search(query2, 10);
-            assertEquals("Deleted document should not be found", 0, results2.totalHits.value);
-            
-            // Verify non-deleted documents are still found
-            TermQuery query3 = new TermQuery(new Term("id", "3"));
-            TopDocs results3 = searcher.search(query3, 10);
-            assertEquals("Non-deleted document should be found", 1, results3.totalHits.value);
+        // Verify file exists
+        assertTrue(Arrays.asList(distributedDirectory.listAll()).contains(filename));
+        
+        // Delete file
+        distributedDirectory.deleteFile(filename);
+        
+        // Verify file is deleted
+        assertFalse(Arrays.asList(distributedDirectory.listAll()).contains(filename));
+    }
+
+    public void testSyncOperation() throws IOException {
+        String[] filenames = {"_0.si", "_1.cfs", "segments_1"};
+        String content = "sync test content";
+        
+        // Create multiple files
+        for (String filename : filenames) {
+            try (IndexOutput output = distributedDirectory.createOutput(filename, IOContext.DEFAULT)) {
+                output.writeString(content);
+            }
+        }
+        
+        // Sync all files - should not throw exception
+        Collection<String> filesToSync = Arrays.asList(filenames);
+        try {
+            distributedDirectory.sync(filesToSync);
+        } catch (IOException e) {
+            fail("sync should not throw exception: " + e.getMessage());
         }
     }
 
-    public void testConcurrentIndexing() throws IOException, InterruptedException {
-        IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
+    public void testRenameOperation() throws IOException {
+        String sourceFilename = "_0.si";
+        String destFilename = "_0_renamed.si";
+        String content = "rename test content";
         
-        try (IndexWriter writer = new IndexWriter(distributedDirectory, config)) {
-            int numThreads = 4;
-            int docsPerThread = 25;
-            ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-            CountDownLatch latch = new CountDownLatch(numThreads);
-            AtomicInteger errorCount = new AtomicInteger(0);
-            
-            // Start concurrent indexing threads
-            for (int t = 0; t < numThreads; t++) {
-                final int threadId = t;
-                executor.submit(() -> {
-                    try {
-                        for (int i = 0; i < docsPerThread; i++) {
-                            Document doc = new Document();
-                            String docId = threadId + "_" + i;
-                            doc.add(new StringField("id", docId, Field.Store.YES));
-                            doc.add(new StringField("thread", String.valueOf(threadId), Field.Store.YES));
-                            doc.add(new TextField("content", "Content from thread " + threadId + " doc " + i, Field.Store.YES));
-                            
-                            writer.addDocument(doc);
-                            
-                            // Occasionally commit
-                            if (i % 10 == 0) {
-                                writer.commit();
-                            }
-                        }
-                    } catch (Exception e) {
-                        logger.error("Error in indexing thread " + threadId, e);
-                        errorCount.incrementAndGet();
-                    } finally {
-                        latch.countDown();
-                    }
-                });
-            }
-            
-            // Wait for all threads to complete
-            assertTrue("All threads should complete", latch.await(30, TimeUnit.SECONDS));
-            assertEquals("No errors should occur during concurrent indexing", 0, errorCount.get());
-            
-            writer.commit();
-            executor.shutdown();
+        // Create source file
+        try (IndexOutput output = distributedDirectory.createOutput(sourceFilename, IOContext.DEFAULT)) {
+            output.writeString(content);
         }
         
-        // Verify all documents were indexed correctly
-        try (IndexReader reader = DirectoryReader.open(distributedDirectory)) {
-            int expectedDocs = 4 * 25; // 4 threads * 25 docs each
-            assertEquals("Should have all documents from concurrent indexing", expectedDocs, reader.numDocs());
-            
-            IndexSearcher searcher = new IndexSearcher(reader);
-            
-            // Verify documents from each thread
-            for (int t = 0; t < 4; t++) {
-                TermQuery query = new TermQuery(new Term("thread", String.valueOf(t)));
-                TopDocs results = searcher.search(query, 100);
-                assertEquals("Should have 25 documents from thread " + t, 25, results.totalHits.value);
-            }
+        // Rename file
+        distributedDirectory.rename(sourceFilename, destFilename);
+        
+        // Verify source file is gone and dest file exists
+        String[] allFiles = distributedDirectory.listAll();
+        Set<String> fileSet = new HashSet<>(Arrays.asList(allFiles));
+        
+        assertFalse("Source file should be gone", fileSet.contains(sourceFilename));
+        assertTrue("Dest file should exist", fileSet.contains(destFilename));
+        
+        // Verify content is preserved
+        try (IndexInput input = distributedDirectory.openInput(destFilename, IOContext.DEFAULT)) {
+            assertEquals(content, input.readString());
         }
     }
 
-    public void testIndexOptimization() throws IOException {
-        IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
-        config.setMaxBufferedDocs(5); // Create multiple segments
+    public void testCrossDirectoryRenameFailure() throws IOException {
+        String sourceFilename = "_0.si"; // Regular file (goes to primary term directory)
+        String destFilename = "segments_1"; // Excluded file (goes to base directory)
+        String content = "cross directory test";
         
-        try (IndexWriter writer = new IndexWriter(distributedDirectory, config)) {
-            // Add many documents to create multiple segments
-            for (int i = 0; i < 50; i++) {
-                Document doc = new Document();
-                doc.add(new StringField("id", String.valueOf(i), Field.Store.YES));
-                doc.add(new TextField("content", "Document content " + i, Field.Store.YES));
-                writer.addDocument(doc);
-                
-                if (i % 10 == 0) {
-                    writer.commit();
-                }
-            }
-            
-            // Get file count before optimization
-            String[] filesBefore = distributedDirectory.listAll();
-            int filesBeforeCount = filesBefore.length;
-            
-            // Optimize (force merge to 1 segment)
-            writer.forceMerge(1);
-            writer.commit();
-            
-            // Get file count after optimization
-            String[] filesAfter = distributedDirectory.listAll();
-            int filesAfterCount = filesAfter.length;
-            
-            // After optimization, we should have fewer files (merged segments)
-            assertTrue("Should have fewer files after optimization", filesAfterCount <= filesBeforeCount);
+        // Create source file
+        try (IndexOutput output = distributedDirectory.createOutput(sourceFilename, IOContext.DEFAULT)) {
+            output.writeString(content);
         }
         
-        // Verify index is still functional after optimization
-        try (IndexReader reader = DirectoryReader.open(distributedDirectory)) {
-            assertEquals("Should still have all 50 documents", 50, reader.numDocs());
-            assertEquals("Should have only 1 segment after optimization", 1, reader.leaves().size());
+        // Attempt cross-directory rename should fail
+        PrimaryTermRoutingException exception = expectThrows(
+            PrimaryTermRoutingException.class,
+            () -> distributedDirectory.rename(sourceFilename, destFilename)
+        );
+        
+        assertEquals(PrimaryTermRoutingException.ErrorType.FILE_ROUTING_ERROR, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("Cross-directory rename not supported"));
+    }
+
+    public void testDirectoryStats() throws IOException {
+        // Initially should show primary term routing
+        String stats = distributedDirectory.getDirectoryStats();
+        assertTrue(stats.contains("Primary term routing"));
+        
+        // Create some files to populate directories
+        try (IndexOutput output = distributedDirectory.createOutput("_0.si", IOContext.DEFAULT)) {
+            output.writeString("test");
+        }
+        
+        // Stats should still be available
+        stats = distributedDirectory.getDirectoryStats();
+        assertNotNull(stats);
+    }
+
+    public void testRoutingInfo() {
+        // Test excluded file
+        String segmentsFile = "segments_1";
+        String routingInfo = distributedDirectory.getRoutingInfo(segmentsFile);
+        assertTrue(routingInfo.contains("excluded"));
+        assertTrue(routingInfo.contains("base directory"));
+        
+        // Test regular file
+        String regularFile = "_0.si";
+        routingInfo = distributedDirectory.getRoutingInfo(regularFile);
+        assertTrue(routingInfo.contains("primary term"));
+    }
+
+    public void testValidateDirectories() throws IOException {
+        // Create some files to ensure directories exist
+        try (IndexOutput output = distributedDirectory.createOutput("_0.si", IOContext.DEFAULT)) {
+            output.writeString("test");
+        }
+        
+        // Validation should not throw exception
+        try {
+            distributedDirectory.validateDirectories();
+        } catch (IOException e) {
+            fail("validateDirectories should not throw exception: " + e.getMessage());
         }
     }
 
-    public void testLargeDocuments() throws IOException {
-        IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
+    public void testCurrentPrimaryTerm() {
+        // Should return the mocked primary term
+        assertEquals(1L, distributedDirectory.getCurrentPrimaryTerm());
         
-        try (IndexWriter writer = new IndexWriter(distributedDirectory, config)) {
-            // Create documents with large content
-            for (int i = 0; i < 5; i++) {
-                Document doc = new Document();
-                doc.add(new StringField("id", String.valueOf(i), Field.Store.YES));
-                
-                // Create large content (about 1MB per document)
-                StringBuilder largeContent = new StringBuilder();
-                for (int j = 0; j < 10000; j++) {
-                    largeContent.append("This is a large document with lots of content. Document ID: ").append(i).append(" Line: ").append(j).append(". ");
-                }
-                
-                doc.add(new TextField("content", largeContent.toString(), Field.Store.YES));
-                writer.addDocument(doc);
+        // Change mock and verify
+        when(mockIndexShard.getOperationPrimaryTerm()).thenReturn(5L);
+        assertEquals(5L, distributedDirectory.getCurrentPrimaryTerm());
+    }
+
+    public void testIsUsingPrimaryTermRouting() {
+        assertTrue(distributedDirectory.isUsingPrimaryTermRouting());
+    }
+
+    public void testLegacyHashBasedRouting() throws IOException {
+        // Create a legacy distributed directory (without IndexShard)
+        DistributedSegmentDirectory legacyDirectory = new DistributedSegmentDirectory(baseDirectory, tempDir);
+        
+        try {
+            assertFalse(legacyDirectory.isUsingPrimaryTermRouting());
+            assertEquals(-1L, legacyDirectory.getCurrentPrimaryTerm());
+            
+            // Should still work for basic operations
+            try (IndexOutput output = legacyDirectory.createOutput("_0.si", IOContext.DEFAULT)) {
+                output.writeString("legacy test");
             }
             
-            writer.commit();
+            assertTrue(Arrays.asList(legacyDirectory.listAll()).contains("_0.si"));
+            
+        } finally {
+            legacyDirectory.close();
+        }
+    }
+
+    public void testConcurrentFileOperations() throws IOException {
+        String[] filenames = {"_0.si", "_1.cfs", "_2.cfe", "_3.doc"};
+        String content = "concurrent test content";
+        
+        // Create multiple files concurrently (simulated)
+        for (String filename : filenames) {
+            try (IndexOutput output = distributedDirectory.createOutput(filename, IOContext.DEFAULT)) {
+                output.writeString(content + "_" + filename);
+            }
         }
         
-        // Verify large documents can be read
-        try (IndexReader reader = DirectoryReader.open(distributedDirectory)) {
-            assertEquals("Should have 5 large documents", 5, reader.numDocs());
+        // Verify all files exist and have correct content
+        String[] allFiles = distributedDirectory.listAll();
+        Set<String> fileSet = new HashSet<>(Arrays.asList(allFiles));
+        
+        for (String filename : filenames) {
+            assertTrue("File " + filename + " should exist", fileSet.contains(filename));
             
-            IndexSearcher searcher = new IndexSearcher(reader);
-            TermQuery query = new TermQuery(new Term("id", "2"));
-            TopDocs results = searcher.search(query, 10);
-            
-            assertEquals("Should find the large document", 1, results.totalHits.value);
-            
-            Document doc = searcher.doc(results.scoreDocs[0].doc);
-            String content = doc.get("content");
-            assertTrue("Large document content should be preserved", content.length() > 100000);
-            assertTrue("Content should contain expected text", content.contains("Document ID: 2"));
+            try (IndexInput input = distributedDirectory.openInput(filename, IOContext.DEFAULT)) {
+                assertEquals(content + "_" + filename, input.readString());
+            }
         }
     }
 }

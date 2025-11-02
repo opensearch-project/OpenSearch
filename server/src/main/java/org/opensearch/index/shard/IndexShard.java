@@ -184,6 +184,7 @@ import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.Translog.Durability;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogRecoveryRunner;
@@ -567,6 +568,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         return UNASSIGNED_SEQ_NO;
+    }
+
+    /**
+     * Initializes primary term routing for the store directory if supported.
+     * This method should be called after the IndexShard is fully constructed
+     * to enable primary term-based segment file routing.
+     */
+    private void initializePrimaryTermRouting() {
+        logger.info("intializing primary term based routing");
+        try {
+            Directory storeDirectory = store.directory();
+            logger.info("intializing primary term based routing {}", storeDirectory);
+            // if (storeDirectory instanceof org.opensearch.index.store.distributed.PrimaryTermAwareDirectoryWrapper) {
+                org.opensearch.index.store.distributed.PrimaryTermAwareDirectoryWrapper wrapper = 
+                    (org.opensearch.index.store.distributed.PrimaryTermAwareDirectoryWrapper) ((FilterDirectory) ((FilterDirectory)storeDirectory).getDelegate()).getDelegate();
+                logger.info("intializing primary term based routing");
+                
+                if (!wrapper.isPrimaryTermRoutingEnabled()) {
+                    wrapper.enablePrimaryTermRouting(this);
+                    logger.info("Enabled primary term routing for shard {}", shardId);
+                }
+            // }
+        } catch (Exception e) {
+            logger.warn("Failed to initialize primary term routing for shard {}", shardId, e);
+            // Don't fail shard creation if primary term routing setup fails
+        }
     }
 
     public ThreadPool getThreadPool() {
@@ -2444,6 +2471,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
                 recoveryState.setStage(RecoveryState.Stage.DONE);
                 changeState(IndexShardState.POST_RECOVERY, reason);
+                
+                // Initialize primary term routing after recovery is complete
+                initializePrimaryTermRouting();
             }
         }
     }

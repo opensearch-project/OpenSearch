@@ -50,6 +50,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.distributed.DistributedSegmentDirectory;
+import org.opensearch.index.store.distributed.PrimaryTermAwareDirectoryWrapper;
 import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
@@ -97,10 +98,21 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         Set<String> preLoadExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
         switch (type) {
             case HYBRIDFS:
-                // return new DistributedSegmentDirectory(null, location)
-                // Use Lucene defaults
+                // Create primary directory
                 final FSDirectory primaryDirectory = new NIOFSDirectory(location, lockFactory);
-                return new DistributedSegmentDirectory(primaryDirectory, location);
+                
+                return new PrimaryTermAwareDirectoryWrapper(primaryDirectory, location);
+                // // Check if primary term routing should be enabled
+                // boolean enablePrimaryTermRouting = indexSettings.getSettings()
+                //     .getAsBoolean("index.store.distributed_segment.enable_primary_term_routing", true);
+                
+                // if (enablePrimaryTermRouting) {
+                //     // Use wrapper that can be configured for primary term routing later
+                //     return new PrimaryTermAwareDirectoryWrapper(primaryDirectory, location);
+                // } else {
+                //     // Use legacy hash-based routing
+                //     return new DistributedSegmentDirectory(primaryDirectory, location);
+                // }
 
                 // final Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
                 // if (primaryDirectory instanceof MMapDirectory) {
