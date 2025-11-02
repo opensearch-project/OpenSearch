@@ -11,7 +11,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
-import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
 
 /**
  * Utility class for converting Protocol Buffer query representations to OpenSearch QueryBuilder objects.
