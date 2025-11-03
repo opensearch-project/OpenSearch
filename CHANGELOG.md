@@ -34,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Change the default value of doc_values in WildcardFieldMapper to true. ([#19796](https://github.com/opensearch-project/OpenSearch/pull/19796))
 - Make Engine#loadHistoryUUID() protected and Origin#isFromTranslog() public ([#19753](https://github.com/opensearch-project/OpenSearch/pull/19752))
 - Bump opensearch-protobufs dependency to 0.23.0 and update transport-grpc module compatibility ([#19831](https://github.com/opensearch-project/OpenSearch/pull/19831))
+- Refactor the RefreshStats class to use the Builder pattern instead of constructors ([#19835](https://github.com/opensearch-project/OpenSearch/pull/19835))
 - Refactor the DocStats and StoreStats class to use the Builder pattern instead of constructors ([#19863](https://github.com/opensearch-project/OpenSearch/pull/19863))
 - Pass registry of headers from ActionPlugin.getRestHeaders to ActionPlugin.getRestHandlerWrapper ([#19875](https://github.com/opensearch-project/OpenSearch/pull/19875))
 
@@ -79,6 +80,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
 - Deprecated existing constructors in IndexingStats.Stats in favor of the new Builder ([#19306](https://github.com/opensearch-project/OpenSearch/pull/19306))
+- Deprecated existing constructors in RefreshStats in favor of the new Builder ([#19835](https://github.com/opensearch-project/OpenSearch/pull/19835))
 - Deprecated existing constructors in DocStats and StoreStats in favor of the new Builder ([#19863](https://github.com/opensearch-project/OpenSearch/pull/19863))
 
 ### Removed

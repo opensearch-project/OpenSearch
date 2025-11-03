@@ -1503,13 +1503,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public RefreshStats refreshStats() {
         int listeners = refreshListeners.pendingCount();
-        return new RefreshStats(
-            refreshMetric.count(),
-            TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()),
-            externalRefreshMetric.count(),
-            TimeUnit.NANOSECONDS.toMillis(externalRefreshMetric.sum()),
-            listeners
-        );
+        return new RefreshStats.Builder().total(refreshMetric.count())
+            .totalTimeInMillis(TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()))
+            .externalTotal(externalRefreshMetric.count())
+            .externalTotalTimeInMillis(TimeUnit.NANOSECONDS.toMillis(externalRefreshMetric.sum()))
+            .listeners(listeners)
+            .build();
     }
 
     public FlushStats flushStats() {
