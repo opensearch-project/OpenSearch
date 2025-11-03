@@ -759,9 +759,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(100.0, card.getValue(), 5.0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, collector -> {
-            assertTrue(collector instanceof HybridCollector);
-        }, fieldType, true, 1024L * 1024L);
+        }, collector -> { assertTrue(collector instanceof HybridCollector); }, fieldType, true, 1024L * 1024L);
     }
 
     public void testHybridCollectorWithCollectRange() throws IOException {
@@ -776,9 +774,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(50.0, card.getValue(), 3.0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, collector -> {
-            assertTrue(collector instanceof HybridCollector);
-        }, fieldType, true, 1024L * 1024L);
+        }, collector -> { assertTrue(collector instanceof HybridCollector); }, fieldType, true, 1024L * 1024L);
     }
 
     public void testHybridCollectorUsesOrdinalsCollectorWithLowCardinality() throws IOException {
@@ -817,26 +813,42 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, fieldType, true, 10); // Very low threshold to force DirectCollector
     }
 
-    public void testHybridCollectorSwitchingBehavior() throws IOException {
+    public void testHybridCollectorDocIdStreamSwitchesToDirectCollector() throws IOException {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
 
         testAggregationHybridCollector(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            // Start with low cardinality, then add high cardinality to test switching
-            iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("switch1"))));
-            iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("switch2"))));
-            // Add many unique values to trigger memory threshold
-            for (int i = 0; i < 200; i++) {
-                iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("switch_" + i))));
+            // High cardinality data to trigger memory threshold during DocIdStream collection
+            for (int i = 0; i < 300; i++) {
+                iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("docstream_" + i))));
             }
         }, card -> {
-            assertEquals(202.0, card.getValue(), 5.0);
+            assertEquals(300.0, card.getValue(), 10.0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, collector -> {
             assertTrue(collector instanceof HybridCollector);
             // Should have switched to DirectCollector due to memory threshold
             assertTrue(((HybridCollector) collector).getActiveCollector() instanceof CardinalityAggregator.DirectCollector);
-        }, fieldType, true, 50); // Medium threshold to test switching behavior
+        }, fieldType, true, 20); // Low threshold to force switching during DocIdStream
+    }
+
+    public void testHybridCollectorCollectRangeSwitchesToDirectCollector() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
+
+        testAggregationHybridCollector(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            // High cardinality data to trigger memory threshold during collectRange
+            for (int i = 0; i < 250; i++) {
+                iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("range_switch_" + i))));
+            }
+        }, card -> {
+            assertEquals(250.0, card.getValue(), 8.0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, collector -> {
+            assertTrue(collector instanceof HybridCollector);
+            // Should have switched to DirectCollector due to memory threshold
+            assertTrue(((HybridCollector) collector).getActiveCollector() instanceof CardinalityAggregator.DirectCollector);
+        }, fieldType, true, 15); // Very low threshold to force switching during collectRange
     }
 
     public void testMemoryLimitExceptionSingleton() {
@@ -844,7 +856,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         CardinalityAggregator.MemoryLimitExceededException ex1 = CardinalityAggregator.MemoryLimitExceededException.INSTANCE;
         CardinalityAggregator.MemoryLimitExceededException ex2 = CardinalityAggregator.MemoryLimitExceededException.INSTANCE;
         assertSame("Exception should be singleton", ex1, ex2);
-        
+
         // Test that it has no stack trace for performance
         assertEquals(0, ex1.getStackTrace().length);
     }

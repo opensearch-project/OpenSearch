@@ -78,7 +78,6 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
@@ -98,7 +97,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      */
     static class MemoryLimitExceededException extends RuntimeException {
         static final MemoryLimitExceededException INSTANCE = new MemoryLimitExceededException();
-        
+
         private MemoryLimitExceededException() {
             // Optimized constructor for control flow exceptions:
             // - null message/cause: no debugging info needed
@@ -669,7 +668,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             if (bits == null) {
                 bits = new BitArray(maxOrd, bigArrays);
                 visitedOrds.set(bucket, bits);
-                
+
                 // Check memory threshold only when monitoring is enabled (hybrid collector)
                 if (memoryMonitoringEnabled) {
                     currentMemoryUsage += memoryOverhead(maxOrd);
@@ -890,13 +889,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             this.cardinalityContext = cardinalityContext;
 
             // Start with OrdinalsCollector with memory monitoring enabled
-            this.ordinalsCollector = new OrdinalsCollector(
-                counts, 
-                ordinalValues, 
-                bigArrays, 
-                cardinalityContext.getMemoryThreshold(), 
-                true
-            );
+            this.ordinalsCollector = new OrdinalsCollector(counts, ordinalValues, bigArrays, cardinalityContext.getMemoryThreshold(), true);
             this.activeCollector = ordinalsCollector;
         }
 
