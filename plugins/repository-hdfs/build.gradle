@@ -134,7 +134,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> configurations.hdfsFixture.asPath}"
     maxWaitInSeconds = 60
-    onlyIf { BuildParams.inFipsJvm == false }
+    onlyIf { BuildParams.isInFipsJvm() == false }
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
@@ -148,9 +148,6 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("-Djava.security.krb5.conf=${project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")}");
-      if (BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
-        miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
-      }
     }
     // If it's an HA fixture, set a nameservice to use in the JVM options
     if (fixtureName.equals('haHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
@@ -202,7 +199,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
       }
     }
 
-      onlyIf { BuildParams.inFipsJvm == false }
+      onlyIf { BuildParams.isInFipsJvm() == false }
       if (integTestTaskName.contains("Ha")) {
         Path portsFile
         File portsFileDir = file("${workingDir}/hdfsFixture")
@@ -242,9 +239,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
         }
       }
 
-      if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-        jvmArgs += ["--add-opens", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"]
-      }
+      jvmArgs += ["--add-opens", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"]
   }
 
   testClusters."${integTestTaskName}" {
@@ -287,7 +282,7 @@ if (legalPath == false) {
 // Always ignore HA integration tests in the normal integration test runner, they are included below as
 // part of their own HA-specific integration test tasks.
 integTest {
-  onlyIf { BuildParams.inFipsJvm == false }
+  onlyIf { BuildParams.isInFipsJvm() == false }
   exclude('**/Ha*TestSuiteIT.class')
 }
 

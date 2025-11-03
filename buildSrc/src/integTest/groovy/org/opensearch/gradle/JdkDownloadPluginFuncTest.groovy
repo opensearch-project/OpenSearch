@@ -108,6 +108,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform)
         def mockedContent = filebytes(jdkVendor, platform)
         3.times {
+            testProjectDir.newFolder("sub-$it")
             settingsFile << """
                 include ':sub-$it'
             """
@@ -193,7 +194,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         }
 
         then:
-        assertOutputContains(result.output, "Skipping $transformType")
+        result.output.count("Unpacking ${platform}-12.0.2-x64.tar.gz using ${transformType}.") == 0
 
         where:
         platform  | transformType
@@ -246,6 +247,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 p.repositories.all { repo ->
                     if(repo.name == "jdk_repo_${jdkVendor}_${jdkVersion}") {
                       repo.setUrl('${server.baseUrl()}')
+                      repo.setAllowInsecureProtocol(true)
                     }
                 }
            }"""

@@ -211,10 +211,10 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
 
         @Override
         public final boolean equals(Object other) {
-            if ((other instanceof Origin) == false) {
+            if (!(other instanceof Origin otherOriginObj)) {
                 return false;
             }
-            Object otherOrigin = ((Origin) other).origin();
+            Object otherOrigin = otherOriginObj.origin();
             return this.origin().equals(otherOrigin);
         }
 

@@ -143,13 +143,8 @@ public class SearchSourceBuilderProtoUtils {
             }
         }
         if (protoRequest.getIndicesBoostCount() > 0) {
-            /**
-             * Similar to {@link SearchSourceBuilder.IndexBoost#IndexBoost(XContentParser)}
-             */
-            for (org.opensearch.protobufs.FloatMap floatMap : protoRequest.getIndicesBoostList()) {
-                for (Map.Entry<String, Float> entry : floatMap.getFloatMapMap().entrySet()) {
-                    searchSourceBuilder.indexBoost(entry.getKey(), entry.getValue());
-                }
+            for (Map.Entry<String, Float> entry : protoRequest.getIndicesBoostMap().entrySet()) {
+                searchSourceBuilder.indexBoost(entry.getKey(), entry.getValue());
             }
         }
 

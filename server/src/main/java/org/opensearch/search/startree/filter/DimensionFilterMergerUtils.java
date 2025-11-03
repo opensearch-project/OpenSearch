@@ -42,23 +42,23 @@ public class DimensionFilterMergerUtils {
         }
 
         // Handle Range + Range combination
-        if (filter1 instanceof RangeMatchDimFilter && filter2 instanceof RangeMatchDimFilter) {
-            return intersectRangeFilters((RangeMatchDimFilter) filter1, (RangeMatchDimFilter) filter2, mapper);
+        if (filter1 instanceof RangeMatchDimFilter rangeFilter1 && filter2 instanceof RangeMatchDimFilter rangeFilter2) {
+            return intersectRangeFilters(rangeFilter1, rangeFilter2, mapper);
         }
 
         // Handle ExactMatch + ExactMatch combination
-        if (filter1 instanceof ExactMatchDimFilter && filter2 instanceof ExactMatchDimFilter) {
-            return intersectExactMatchFilters((ExactMatchDimFilter) filter1, (ExactMatchDimFilter) filter2);
+        if (filter1 instanceof ExactMatchDimFilter exactFilter1 && filter2 instanceof ExactMatchDimFilter exactFilter2) {
+            return intersectExactMatchFilters(exactFilter1, exactFilter2);
         }
 
         // Handle Range + ExactMatch combination
-        if (filter1 instanceof RangeMatchDimFilter && filter2 instanceof ExactMatchDimFilter) {
-            return intersectRangeWithExactMatch((RangeMatchDimFilter) filter1, (ExactMatchDimFilter) filter2, mapper);
+        if (filter1 instanceof RangeMatchDimFilter rangeFilter && filter2 instanceof ExactMatchDimFilter exactFilter) {
+            return intersectRangeWithExactMatch(rangeFilter, exactFilter, mapper);
         }
 
         // Handle ExactMatch + Range combination
-        if (filter1 instanceof ExactMatchDimFilter && filter2 instanceof RangeMatchDimFilter) {
-            return intersectRangeWithExactMatch((RangeMatchDimFilter) filter2, (ExactMatchDimFilter) filter1, mapper);
+        if (filter1 instanceof ExactMatchDimFilter exactFilter && filter2 instanceof RangeMatchDimFilter rangeFilter) {
+            return intersectRangeWithExactMatch(rangeFilter, exactFilter, mapper);
         }
 
         // throw exception for unsupported exception

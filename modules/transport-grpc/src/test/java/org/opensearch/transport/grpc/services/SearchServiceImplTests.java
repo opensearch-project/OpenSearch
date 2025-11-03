@@ -92,6 +92,9 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
     }
 
     private SearchRequest createTestSearchRequest() {
-        return SearchRequest.newBuilder().addIndex("test-index").setRequestBody(SearchRequestBody.newBuilder().setSize(10).build()).build();
+        return SearchRequest.newBuilder()
+            .addIndex("test-index")
+            .setSearchRequestBody(SearchRequestBody.newBuilder().setSize(10).build())
+            .build();
     }
 }

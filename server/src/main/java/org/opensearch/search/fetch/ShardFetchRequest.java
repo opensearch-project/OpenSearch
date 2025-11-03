@@ -102,9 +102,9 @@ public class ShardFetchRequest extends TransportRequest {
         }
         if (lastEmittedDoc == null) {
             out.writeByte((byte) 0);
-        } else if (lastEmittedDoc instanceof FieldDoc) {
+        } else if (lastEmittedDoc instanceof FieldDoc fieldDoc) {
             out.writeByte((byte) 1);
-            Lucene.writeFieldDoc(out, (FieldDoc) lastEmittedDoc);
+            Lucene.writeFieldDoc(out, fieldDoc);
         } else {
             out.writeByte((byte) 2);
             Lucene.writeScoreDoc(out, lastEmittedDoc);

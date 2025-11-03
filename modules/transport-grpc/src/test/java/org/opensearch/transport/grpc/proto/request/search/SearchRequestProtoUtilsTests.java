@@ -60,7 +60,6 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
             .addRouting("routing1")
             .addRouting("routing2")
             .setPreference("_local")
-            .setSearchPipeline("pipeline1")
             .setCcsMinimizeRoundtrips(true)
             .setCancelAfterTimeInterval("30s")
             .build();
@@ -89,7 +88,6 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
             Strings.commaDelimitedListToStringArray(searchRequest.routing())
         );
         assertEquals("Preference should match", "_local", searchRequest.preference());
-        assertEquals("SearchPipeline should match", "pipeline1", searchRequest.pipeline());
         assertTrue("CcsMinimizeRoundtrips should be true", searchRequest.isCcsMinimizeRoundtrips());
         assertEquals("CancelAfterTimeInterval should match", TimeValue.timeValueSeconds(30), searchRequest.getCancelAfterTimeInterval());
     }
@@ -110,7 +108,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
 
         // Create a protobuf SearchRequest with the request body
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setRequestBody(requestBody)
+            .setSearchRequestBody(requestBody)
             .build();
 
         // Create a SearchRequest to populate
@@ -134,22 +132,28 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testParseSearchSourceWithStoredFields() throws IOException {
-        // Create a protobuf SearchRequest with stored fields
-        org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
+        // Create a protobuf SearchRequestBody with stored fields
+        SearchRequestBody requestBody = SearchRequestBody.newBuilder()
             .addStoredFields("field1")
             .addStoredFields("field2")
             .addStoredFields("field3")
             .build();
 
-        // Create a SearchSourceBuilder to populate
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        // Create a protobuf SearchRequest with the request body
+        org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
+            .setSearchRequestBody(requestBody)
+            .build();
+
+        // Create a SearchRequest to populate
+        SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchSource(searchSourceBuilder, protoRequest, size -> {});
+        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
 
         // Verify the result
-        assertNotNull("SearchSourceBuilder should not be null", searchSourceBuilder);
-        StoredFieldsContext storedFieldsContext = searchSourceBuilder.storedFields();
+        assertNotNull("SearchRequest should not be null", searchRequest);
+        assertNotNull("Source should not be null", searchRequest.source());
+        StoredFieldsContext storedFieldsContext = searchRequest.source().storedFields();
         assertNotNull("StoredFieldsContext should not be null", storedFieldsContext);
         assertEquals("Should have 3 stored fields", 3, storedFieldsContext.fieldNames().size());
         assertTrue("Should contain field1", storedFieldsContext.fieldNames().contains("field1"));
@@ -201,58 +205,73 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testParseSearchSourceWithTrackTotalHitsBoolean() throws IOException {
-        // Create a protobuf SearchRequest with track total hits boolean
-        org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
+        // Create a protobuf SearchRequestBody with track total hits boolean
+        SearchRequestBody requestBody = SearchRequestBody.newBuilder()
             .setTrackTotalHits(TrackHits.newBuilder().setEnabled(true).build())
             .build();
 
-        // Create a SearchSourceBuilder to populate
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        // Create a protobuf SearchRequest with the request body
+        org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
+            .setSearchRequestBody(requestBody)
+            .build();
+
+        // Create a SearchRequest to populate
+        SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchSource(searchSourceBuilder, protoRequest, size -> {});
+        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
 
         // Verify the result
-        assertNotNull("SearchSourceBuilder should not be null", searchSourceBuilder);
-        assertTrue("TrackTotalHits should be true", searchSourceBuilder.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        assertNotNull("SearchRequest should not be null", searchRequest);
+        assertNotNull("Source should not be null", searchRequest.source());
+        assertTrue("TrackTotalHits should be true", searchRequest.source().trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE);
     }
 
     public void testParseSearchSourceWithTrackTotalHitsInteger() throws IOException {
-        // Create a protobuf SearchRequest with track total hits integer
-        org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
+        // Create a protobuf SearchRequestBody with track total hits integer
+        SearchRequestBody requestBody = SearchRequestBody.newBuilder()
             .setTrackTotalHits(TrackHits.newBuilder().setCount(1000).build())
             .build();
 
-        // Create a SearchSourceBuilder to populate
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        // Create a protobuf SearchRequest with the request body
+        org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
+            .setSearchRequestBody(requestBody)
+            .build();
+
+        // Create a SearchRequest to populate
+        SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchSource(searchSourceBuilder, protoRequest, size -> {});
+        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
 
         // Verify the result
-        assertNotNull("SearchSourceBuilder should not be null", searchSourceBuilder);
-        assertEquals("TrackTotalHitsUpTo should match", 1000, searchSourceBuilder.trackTotalHitsUpTo().intValue());
+        assertNotNull("SearchRequest should not be null", searchRequest);
+        assertNotNull("Source should not be null", searchRequest.source());
+        assertEquals("TrackTotalHitsUpTo should match", 1000, searchRequest.source().trackTotalHitsUpTo().intValue());
     }
 
     public void testParseSearchSourceWithStats() throws IOException {
-        // Create a protobuf SearchRequest with stats
+        // Create a protobuf SearchRequestBody with stats
+        SearchRequestBody requestBody = SearchRequestBody.newBuilder().addStats("stat1").addStats("stat2").build();
+
+        // Create a protobuf SearchRequest with the request body
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .addStats("stat1")
-            .addStats("stat2")
+            .setSearchRequestBody(requestBody)
             .build();
 
-        // Create a SearchSourceBuilder to populate
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        // Create a SearchRequest to populate
+        SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchSource(searchSourceBuilder, protoRequest, size -> {});
+        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
 
         // Verify the result
-        assertNotNull("SearchSourceBuilder should not be null", searchSourceBuilder);
-        assertNotNull("Stats should not be null", searchSourceBuilder.stats());
-        assertEquals("Should have 2 stats", 2, searchSourceBuilder.stats().size());
-        assertTrue("Should contain stat1", searchSourceBuilder.stats().contains("stat1"));
-        assertTrue("Should contain stat2", searchSourceBuilder.stats().contains("stat2"));
+        assertNotNull("SearchRequest should not be null", searchRequest);
+        assertNotNull("Source should not be null", searchRequest.source());
+        assertNotNull("Stats should not be null", searchRequest.source().stats());
+        assertEquals("Should have 2 stats", 2, searchRequest.source().stats().size());
+        assertTrue("Should contain stat1", searchRequest.source().stats().contains("stat1"));
+        assertTrue("Should contain stat2", searchRequest.source().stats().contains("stat2"));
     }
 
     public void testParseSearchSourceWithSuggest() throws IOException {
@@ -286,9 +305,9 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testCheckProtoTotalHitsWithRestTotalHitsAsInt() throws IOException {
-        // Create a protobuf SearchRequest with rest_total_hits_as_int
+        // Create a protobuf SearchRequest with total_hits_as_int
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setRestTotalHitsAsInt(true)
+            .setTotalHitsAsInt(true)
             .build();
 
         // Create a SearchRequest to populate
@@ -304,9 +323,9 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testCheckProtoTotalHitsWithTrackTotalHitsUpTo() throws IOException {
-        // Create a protobuf SearchRequest with rest_total_hits_as_int and track_total_hits_up_to
+        // Create a protobuf SearchRequest with total_hits_as_int and track_total_hits_up_to
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setRestTotalHitsAsInt(true)
+            .setTotalHitsAsInt(true)
             .build();
 
         // Create a SearchRequest with track_total_hits_up_to
@@ -327,9 +346,9 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testCheckProtoTotalHitsWithInvalidTrackTotalHitsUpTo() throws IOException {
-        // Create a protobuf SearchRequest with rest_total_hits_as_int
+        // Create a protobuf SearchRequest with total_hits_as_int
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setRestTotalHitsAsInt(true)
+            .setTotalHitsAsInt(true)
             .build();
 
         // Create a SearchRequest with invalid track_total_hits_up_to
@@ -346,18 +365,21 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testParseSearchSourceWithInvalidTerminateAfter() throws IOException {
-        // Create a protobuf SearchRequest with invalid terminateAfter
+        // Create a protobuf SearchRequestBody with invalid terminateAfter
+        SearchRequestBody requestBody = SearchRequestBody.newBuilder().setTerminateAfter(-1).build();
+
+        // Create a protobuf SearchRequest with the request body
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setTerminateAfter(-1)
+            .setSearchRequestBody(requestBody)
             .build();
 
-        // Create a SearchSourceBuilder to populate
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        // Create a SearchRequest to populate
+        SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test, should throw IllegalArgumentException
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> SearchRequestProtoUtils.parseSearchSource(searchSourceBuilder, protoRequest, size -> {})
+            () -> SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils)
         );
 
         assertTrue(

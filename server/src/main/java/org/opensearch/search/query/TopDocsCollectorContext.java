@@ -639,8 +639,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             }
 
             final TopDocs newTopDocs;
-            if (topDocs instanceof TopFieldDocs) {
-                TopFieldDocs fieldDocs = (TopFieldDocs) topDocs;
+            if (topDocs instanceof TopFieldDocs fieldDocs) {
                 newTopDocs = new TopFieldDocs(totalHits, scoreDocs, fieldDocs.fields);
             } else {
                 newTopDocs = new TopDocs(totalHits, scoreDocs);
@@ -663,8 +662,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             TopDocs in = topDocsSupplier.get();
             float maxScore = maxScoreSupplier.get();
             final TopDocs newTopDocs;
-            if (in instanceof TopFieldDocs) {
-                TopFieldDocs fieldDocs = (TopFieldDocs) in;
+            if (in instanceof TopFieldDocs fieldDocs) {
                 newTopDocs = new TopFieldDocs(totalHitsSupplier.get(), fieldDocs.scoreDocs, fieldDocs.fields);
             } else {
                 newTopDocs = new TopDocs(totalHitsSupplier.get(), in.scoreDocs);
@@ -772,12 +770,12 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             // this is necessary so that we don't only optimize match_all
             // queries but also match_all queries that are nested in
             // a constant_score query
-            if (query instanceof ConstantScoreQuery) {
-                query = ((ConstantScoreQuery) query).getQuery();
-            } else if (query instanceof BoostQuery) {
-                query = ((BoostQuery) query).getQuery();
-            } else if (query instanceof ApproximateScoreQuery) {
-                query = ((ApproximateScoreQuery) query).getOriginalQuery();
+            if (query instanceof ConstantScoreQuery constantScoreQuery) {
+                query = constantScoreQuery.getQuery();
+            } else if (query instanceof BoostQuery boostQuery) {
+                query = boostQuery.getQuery();
+            } else if (query instanceof ApproximateScoreQuery approximateScoreQuery) {
+                query = approximateScoreQuery.getOriginalQuery();
             } else {
                 break;
             }
@@ -925,8 +923,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         void checkMaxScoreInfo(Query query) {
             if (query instanceof FunctionScoreQuery || query instanceof ScriptScoreQuery || query instanceof SpanQuery) {
                 hasInfMaxScore = true;
-            } else if (query instanceof OpenSearchToParentBlockJoinQuery) {
-                OpenSearchToParentBlockJoinQuery q = (OpenSearchToParentBlockJoinQuery) query;
+            } else if (query instanceof OpenSearchToParentBlockJoinQuery q) {
                 hasInfMaxScore |= (q.getScoreMode() != org.apache.lucene.search.join.ScoreMode.None);
             }
         }

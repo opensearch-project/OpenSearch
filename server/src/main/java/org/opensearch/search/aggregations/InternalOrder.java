@@ -341,8 +341,8 @@ public abstract class InternalOrder extends BucketOrder {
     @SuppressWarnings("unchecked")
     private static Comparator<Bucket> comparingKeys() {
         return (b1, b2) -> {
-            if (b1 instanceof KeyComparable) {
-                return ((KeyComparable) b1).compareKey(b2);
+            if (b1 instanceof KeyComparable keyComparable) {
+                return keyComparable.compareKey(b2);
             }
             throw new IllegalStateException("Unexpected order bucket class [" + b1.getClass() + "]");
         };
@@ -399,9 +399,9 @@ public abstract class InternalOrder extends BucketOrder {
     private static boolean isOrder(BucketOrder order, BucketOrder expected) {
         if (order == expected) {
             return true;
-        } else if (order instanceof CompoundOrder) {
+        } else if (order instanceof CompoundOrder compoundOrder) {
             // check if its a compound order with the first element that matches
-            List<BucketOrder> orders = ((CompoundOrder) order).orderElements;
+            List<BucketOrder> orders = compoundOrder.orderElements;
             if (orders.size() >= 1) {
                 return isOrder(orders.get(0), expected);
             }
@@ -472,12 +472,10 @@ public abstract class InternalOrder extends BucketOrder {
          */
         public static void writeOrder(BucketOrder order, StreamOutput out) throws IOException {
             out.writeByte(order.id());
-            if (order instanceof Aggregation) {
-                Aggregation aggregationOrder = (Aggregation) order;
+            if (order instanceof Aggregation aggregationOrder) {
                 out.writeBoolean(aggregationOrder.order == SortOrder.ASC);
                 out.writeString(aggregationOrder.path().toString());
-            } else if (order instanceof CompoundOrder) {
-                CompoundOrder compoundOrder = (CompoundOrder) order;
+            } else if (order instanceof CompoundOrder compoundOrder) {
                 out.writeVInt(compoundOrder.orderElements.size());
                 for (BucketOrder innerOrder : compoundOrder.orderElements) {
                     innerOrder.writeTo(out);

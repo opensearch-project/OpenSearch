@@ -14,6 +14,7 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.protobufs.BulkRequest;
@@ -244,10 +245,10 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         BulkRequest request = BulkRequest.newBuilder()
-            .addRequestBody(indexBody)
-            .addRequestBody(createBody)
-            .addRequestBody(updateBody)
-            .addRequestBody(deleteBody)
+            .addBulkRequestBody(indexBody)
+            .addBulkRequestBody(createBody)
+            .addBulkRequestBody(updateBody)
+            .addBulkRequestBody(deleteBody)
             .build();
 
         DocWriteRequest<?>[] requests = BulkRequestParserProtoUtils.getDocWriteRequests(
@@ -290,7 +291,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     public void testGetDocWriteRequestsWithInvalidOperation() {
         BulkRequestBody invalidBody = BulkRequestBody.newBuilder().build();
 
-        BulkRequest request = BulkRequest.newBuilder().addRequestBody(invalidBody).build();
+        BulkRequest request = BulkRequest.newBuilder().addBulkRequestBody(invalidBody).build();
 
         expectThrows(
             IllegalArgumentException.class,
@@ -629,7 +630,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         BulkRequest request = BulkRequest.newBuilder()
-            .addRequestBody(indexBody)
+            .addBulkRequestBody(indexBody)
             .setRouting("global-routing")
             .setPipeline("global-pipeline")
             .setRequireAlias(true)
@@ -715,5 +716,326 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("FetchSource should be set", result.fetchSource());
         assertEquals("IfSeqNo should be set", 123L, result.ifSeqNo());
         assertEquals("IfPrimaryTerm should be set", 456L, result.ifPrimaryTerm());
+    }
+
+    public void testBuildCreateRequestWithSmileContent() throws Exception {
+        WriteOperation writeOperation = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create SMILE-encoded document
+        byte[] smileDocument = createSmileDocument();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            writeOperation,
+            smileDocument,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertEquals("Id should match", "test-id", indexRequest.id());
+        assertNotNull("Source should be set", indexRequest.source());
+        // Verify the content type was detected as SMILE
+        assertEquals("Content type should be SMILE", "application/smile", indexRequest.getContentType().mediaType());
+    }
+
+    public void testBuildCreateRequestWithCborContent() throws Exception {
+        WriteOperation writeOperation = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create CBOR-encoded document
+        byte[] cborDocument = createCborDocument();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            writeOperation,
+            cborDocument,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertEquals("Id should match", "test-id", indexRequest.id());
+        assertNotNull("Source should be set", indexRequest.source());
+        // Verify the content type was detected as CBOR
+        assertEquals("Content type should be CBOR", "application/cbor", indexRequest.getContentType().mediaType());
+    }
+
+    public void testBuildIndexRequestWithSmileContent() throws Exception {
+        IndexOperation indexOperation = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create SMILE-encoded document
+        byte[] smileDocument = createSmileDocument();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
+            indexOperation,
+            smileDocument,
+            null,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertNotNull("Source should be set", indexRequest.source());
+        // Verify the content type was detected as SMILE
+        assertEquals("Content type should be SMILE", "application/smile", indexRequest.getContentType().mediaType());
+    }
+
+    public void testBuildIndexRequestWithCborContent() throws Exception {
+        IndexOperation indexOperation = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create CBOR-encoded document
+        byte[] cborDocument = createCborDocument();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
+            indexOperation,
+            cborDocument,
+            null,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertNotNull("Source should be set", indexRequest.source());
+        // Verify the content type was detected as CBOR
+        assertEquals("Content type should be CBOR", "application/cbor", indexRequest.getContentType().mediaType());
+    }
+
+    public void testUpdateRequestWithCborUpsert() throws Exception {
+        UpdateRequest updateRequest = new UpdateRequest("test-index", "test-id");
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+
+        // Create CBOR-encoded upsert document
+        byte[] cborUpsert = createCborDocument();
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setUpdateAction(org.opensearch.protobufs.UpdateAction.newBuilder().setUpsert(ByteString.copyFrom(cborUpsert)).build())
+            .build();
+
+        UpdateOperation updateOperation = UpdateOperation.newBuilder().build();
+
+        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(updateRequest, document, bulkRequestBody, updateOperation);
+
+        assertNotNull("Result should not be null", result);
+        assertNotNull("Upsert should be set", result.upsertRequest());
+    }
+
+    public void testBuildCreateRequestWithEmptyDocument() {
+        WriteOperation writeOperation = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        byte[] emptyDocument = new byte[0];
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            writeOperation,
+            emptyDocument,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertNotNull("Source should be set", indexRequest.source());
+        // Empty document should default to JSON
+        assertTrue("Content type should default to JSON", indexRequest.getContentType().mediaType().startsWith("application/json"));
+    }
+
+    public void testBuildCreateRequestWithJsonContent() throws Exception {
+        WriteOperation writeOperation = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create JSON document
+        byte[] jsonDocument = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            writeOperation,
+            jsonDocument,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertEquals("Id should match", "test-id", indexRequest.id());
+        assertNotNull("Source should be set", indexRequest.source());
+        // Verify the content type was detected as JSON (may include charset)
+        assertTrue("Content type should be JSON", indexRequest.getContentType().mediaType().startsWith("application/json"));
+    }
+
+    public void testBuildCreateRequestWithYamlContent() throws Exception {
+        WriteOperation writeOperation = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create YAML-encoded document
+        byte[] yamlDocument = createYamlDocument();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
+            writeOperation,
+            yamlDocument,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertEquals("Id should match", "test-id", indexRequest.id());
+        assertNotNull("Source should be set", indexRequest.source());
+        // Verify the content type was detected as YAML
+        assertEquals("Content type should be YAML", "application/yaml", indexRequest.getContentType().mediaType());
+    }
+
+    public void testBuildIndexRequestWithJsonContent() throws Exception {
+        IndexOperation indexOperation = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create JSON document
+        byte[] jsonDocument = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
+            indexOperation,
+            jsonDocument,
+            null,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertNotNull("Source should be set", indexRequest.source());
+        // Verify the content type was detected as JSON (may include charset)
+        assertTrue("Content type should be JSON", indexRequest.getContentType().mediaType().startsWith("application/json"));
+    }
+
+    public void testBuildIndexRequestWithYamlContent() throws Exception {
+        IndexOperation indexOperation = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        // Create YAML-encoded document
+        byte[] yamlDocument = createYamlDocument();
+
+        IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
+            indexOperation,
+            yamlDocument,
+            null,
+            "default-index",
+            "default-id",
+            null,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false
+        );
+
+        assertNotNull("IndexRequest should not be null", indexRequest);
+        assertEquals("Index should match", "test-index", indexRequest.index());
+        assertNotNull("Source should be set", indexRequest.source());
+        // Verify the content type was detected as YAML
+        assertEquals("Content type should be YAML", "application/yaml", indexRequest.getContentType().mediaType());
+    }
+
+    /**
+     * Helper method to create a SMILE-encoded document.
+     */
+    private byte[] createSmileDocument() throws Exception {
+        org.opensearch.core.xcontent.XContentBuilder builder = org.opensearch.common.xcontent.XContentFactory.smileBuilder();
+        builder.startObject();
+        builder.field("field", "value");
+        builder.endObject();
+        return org.opensearch.core.common.bytes.BytesReference.toBytes(org.opensearch.core.common.bytes.BytesReference.bytes(builder));
+    }
+
+    /**
+     * Helper method to create a CBOR-encoded document.
+     */
+    private byte[] createCborDocument() throws Exception {
+        org.opensearch.core.xcontent.XContentBuilder builder = org.opensearch.common.xcontent.XContentFactory.cborBuilder();
+        builder.startObject();
+        builder.field("field", "value");
+        builder.endObject();
+        return org.opensearch.core.common.bytes.BytesReference.toBytes(org.opensearch.core.common.bytes.BytesReference.bytes(builder));
+    }
+
+    /**
+     * Helper method to create a YAML-encoded document.
+     */
+    private byte[] createYamlDocument() throws Exception {
+        org.opensearch.core.xcontent.XContentBuilder builder = org.opensearch.common.xcontent.XContentFactory.yamlBuilder();
+        builder.startObject();
+        builder.field("field", "value");
+        builder.endObject();
+        return org.opensearch.core.common.bytes.BytesReference.toBytes(org.opensearch.core.common.bytes.BytesReference.bytes(builder));
+    }
+
+    /**
+     * Test detectMediaType with null or empty document
+     */
+    public void testDetectMediaTypeNullOrEmpty() {
+        MediaType result = BulkRequestParserProtoUtils.detectMediaType(null);
+        assertEquals("application/json", result.mediaTypeWithoutParameters());
+
+        result = BulkRequestParserProtoUtils.detectMediaType(new byte[0]);
+        assertEquals("application/json", result.mediaTypeWithoutParameters());
+    }
+
+    /**
+     * Test detectMediaType with unrecognizable format
+     */
+    public void testDetectMediaTypeUnrecognizable() {
+        byte[] invalidBytes = new byte[] { (byte) 0xFF, (byte) 0xFE, (byte) 0xFD, (byte) 0xFC };
+        MediaType result = BulkRequestParserProtoUtils.detectMediaType(invalidBytes);
+        assertEquals("application/json", result.mediaTypeWithoutParameters());
     }
 }

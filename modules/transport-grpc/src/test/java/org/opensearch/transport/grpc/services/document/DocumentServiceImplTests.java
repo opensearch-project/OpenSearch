@@ -76,6 +76,6 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
             .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
             .build();
 
-        return BulkRequest.newBuilder().addRequestBody(requestBody).build();
+        return BulkRequest.newBuilder().addBulkRequestBody(requestBody).build();
     }
 }

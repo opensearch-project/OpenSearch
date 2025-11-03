@@ -236,8 +236,8 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof QueryWrapperBitSetProducer)) return false;
-            return this.query.equals(((QueryWrapperBitSetProducer) o).query);
+            if (!(o instanceof QueryWrapperBitSetProducer other)) return false;
+            return this.query.equals(other.query);
         }
 
         @Override

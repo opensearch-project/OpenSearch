@@ -188,8 +188,6 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
     }
 
     public void testMergedSegmentReplicationWarmerEnabledSetting() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
-
         clusterSettings.applySettings(
             Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build()
         );
@@ -201,21 +199,29 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         assertFalse(recoverySettings.isMergedSegmentReplicationWarmerEnabled());
     }
 
-    public void testMergedSegmentReplicationWarmerEnabledSettingInvalidUpdate() {
-        Exception e = assertThrows(
-            IllegalArgumentException.class,
-            () -> clusterSettings.applySettings(
-                Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build()
-            )
+    public void testMergedSegmentWarmerSegmentSizeThresholdSetting() {
+
+        assertEquals(500L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getMb());
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "100gb")
+                .build()
         );
-        assertEquals(
-            "illegal value can't update [indices.replication.merged_segment_warmer_enabled] from [false] to [true]",
-            e.getMessage()
+        assertEquals(100L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getGb());
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "4KB")
+                .build()
         );
-        assertEquals(IllegalArgumentException.class, e.getCause().getClass());
-        assertEquals(
-            "FeatureFlag opensearch.experimental.feature.merged_segment_warmer.enabled must be enabled to set this property to true.",
-            e.getCause().getMessage()
+        assertEquals(4L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getKb());
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .putNull(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey())
+                .build()
         );
+        assertEquals(500L, recoverySettings.getMergedSegmentWarmerMinSegmentSizeThreshold().getMb());
     }
 }

@@ -161,6 +161,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public abstract class EngineTestCase extends OpenSearchTestCase {
 
@@ -1030,6 +1031,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .tombstoneDocSupplier(config.getTombstoneDocSupplier())
             .documentMapperForTypeSupplier(documentMapperForTypeSupplier)
             .clusterApplierService(clusterApplierService)
+            .indexReaderWarmer(mock(MergedSegmentWarmer.class))
             .build();
     }
 

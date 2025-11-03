@@ -238,7 +238,10 @@ public class ServerConfig {
 
         @SuppressForbidden(reason = "required for netty allocator configuration")
         public static void init(Settings settings) {
-            checkSystemProperty("io.netty.allocator.numDirectArenas", "1");
+            int numArenas = Integer.parseInt(System.getProperty("io.netty.allocator.numDirectArenas"));
+            if (numArenas <= 0) {
+                throw new IllegalStateException("io.netty.allocator.numDirectArenas must be > 0");
+            }
             checkSystemProperty("io.netty.noUnsafe", "false");
             checkSystemProperty("io.netty.tryUnsafe", "true");
             checkSystemProperty("io.netty.tryReflectionSetAccessible", "true");

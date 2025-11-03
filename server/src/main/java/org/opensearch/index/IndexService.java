@@ -84,6 +84,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.SearchIndexNameMatcher;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
@@ -99,6 +100,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -252,7 +254,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -341,9 +344,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
         this.asyncReplicationTask = new AsyncReplicationTask(this);
-        if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING)) {
-            this.asyncPublishReferencedSegmentsTask = new AsyncPublishReferencedSegmentsTask(this);
-        }
+        this.asyncPublishReferencedSegmentsTask = new AsyncPublishReferencedSegmentsTask(this);
+
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
@@ -352,6 +354,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
+        indexSettings.setDefaultMaxThreadAndMergeCount(
+            clusterMergeSchedulerConfig.getClusterMaxThreadCount(),
+            clusterMergeSchedulerConfig.getClusterMaxMergeCount()
+        );
+        indexSettings.setDefaultAutoThrottleEnabled(clusterMergeSchedulerConfig.getClusterMergeAutoThrottleEnabled());
         updateFsyncTaskIfNecessary();
         synchronized (refreshMutex) {
             if (shardLevelRefreshEnabled == false) {
@@ -400,7 +407,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         boolean shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnce
+        Supplier<Integer> clusterDefaultMaxMergeAtOnce,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
     ) {
         this(
             indexSettings,
@@ -445,7 +453,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             null,
             s -> {},
             (shardId) -> ReplicationStats.empty(),
-            clusterDefaultMaxMergeAtOnce
+            clusterDefaultMaxMergeAtOnce,
+            clusterMergeSchedulerConfig
         );
     }
 
@@ -701,7 +710,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         this.indexSettings.getUUID(),
                         shardId,
                         this.indexSettings.getRemoteStorePathStrategy(),
-                        this.indexSettings.getRemoteStoreSegmentPathPrefix()
+                        this.indexSettings.getRemoteStoreSegmentPathPrefix(),
+                        RemoteStoreUtils.isServerSideEncryptionEnabledIndex(this.indexSettings.getIndexMetadata())
                     );
                 }
                 // When an instance of Store is created, a shardlock is created which is released on closing the instance of store.
@@ -1201,9 +1211,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             onRefreshIntervalChange();
             updateFsyncTaskIfNecessary();
             updateReplicationTask();
-            if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING)) {
-                updatePublishReferencedSegmentsTask();
-            }
+            updatePublishReferencedSegmentsTask();
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
@@ -1233,6 +1241,21 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      */
     public void onDefaultMaxMergeAtOnceChanged(int newDefaultMaxMergeAtOnce) {
         indexSettings.setDefaultMaxMergesAtOnce(newDefaultMaxMergeAtOnce);
+    }
+
+    /**
+     * Called when the cluster level settings: {@code cluster.default.index.merge.scheduler.max_merge_count} OR
+     * {@code cluster.default.index.merge.scheduler.max_thread_count} change.
+     */
+    public void onDefaultMaxMergeOrThreadCountUpdate(int maxThreadCount, int maxMergeCount) {
+        indexSettings.setDefaultMaxThreadAndMergeCount(maxThreadCount, maxMergeCount);
+    }
+
+    /**
+     * Called whenever the cluster level {@code cluster.default.index.merge.scheduler.auto_throttle} changes.
+     */
+    public void onDefaultAutoThrottleEnabledUpdate(boolean enabled) {
+        indexSettings.setDefaultAutoThrottleEnabled(enabled);
     }
 
     /**
@@ -1580,7 +1603,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         protected void runInternal() {
-            indexService.maybePublishReferencedSegments();
+            if (shouldRun()) {
+                indexService.maybePublishReferencedSegments();
+            }
         }
 
         @Override
@@ -1596,6 +1621,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         protected boolean mustReschedule() {
             return indexSettings.isSegRepEnabledOrRemoteNode() && super.mustReschedule();
+        }
+
+        // visible for tests
+        protected boolean shouldRun() {
+            return (indexSettings.isSegRepLocalEnabled() || indexSettings.isRemoteStoreEnabled())
+                && recoverySettings.isMergedSegmentReplicationWarmerEnabled();
         }
     }
 

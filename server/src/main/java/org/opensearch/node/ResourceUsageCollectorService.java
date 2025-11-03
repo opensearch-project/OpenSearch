@@ -126,7 +126,7 @@ public class ResourceUsageCollectorService extends AbstractLifecycleComponent im
      * Fetch local node resource usage statistics and add it to store along with the current timestamp
      */
     private void collectLocalNodeResourceUsageStats() {
-        if (nodeResourceUsageTracker.isReady() && clusterService.state() != null) {
+        if (nodeResourceUsageTracker.isReady() && clusterService.isStateInitialised()) {
             collectNodeResourceUsageStats(
                 clusterService.state().nodes().getLocalNodeId(),
                 System.currentTimeMillis(),

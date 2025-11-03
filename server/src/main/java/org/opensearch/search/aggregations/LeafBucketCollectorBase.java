@@ -55,8 +55,8 @@ public class LeafBucketCollectorBase extends LeafBucketCollector {
      */
     public LeafBucketCollectorBase(LeafBucketCollector sub, Object values) {
         this.sub = sub;
-        if (values instanceof ScorerAware) {
-            this.values = (ScorerAware) values;
+        if (values instanceof ScorerAware scorerAware) {
+            this.values = scorerAware;
         } else {
             this.values = null;
         }

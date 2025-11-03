@@ -55,11 +55,9 @@ public class MustToFilterRewriter implements QueryRewriter {
 
     @Override
     public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
-        if (!(query instanceof BoolQueryBuilder)) {
+        if (!(query instanceof BoolQueryBuilder boolQuery)) {
             return query;
         }
-
-        BoolQueryBuilder boolQuery = (BoolQueryBuilder) query;
 
         // If there are no must clauses, nothing to rewrite
         if (boolQuery.must().isEmpty()) {
@@ -131,8 +129,8 @@ public class MustToFilterRewriter implements QueryRewriter {
 
     private QueryBuilder rewriteIfNeeded(QueryBuilder query, QueryShardContext context) {
         // Recursively rewrite nested boolean queries
-        if (query instanceof BoolQueryBuilder) {
-            return rewrite(query, context);
+        if (query instanceof BoolQueryBuilder boolQueryBuilder) {
+            return rewrite(boolQueryBuilder, context);
         }
         return query;
     }
@@ -149,9 +147,8 @@ public class MustToFilterRewriter implements QueryRewriter {
         // Skip moving these clauses if we don't have the shard context.
         if (context == null) return false;
 
-        if (!(clause instanceof WithFieldName)) return false;
+        if (!(clause instanceof WithFieldName wfn)) return false;
 
-        WithFieldName wfn = (WithFieldName) clause;
         MappedFieldType fieldType = context.fieldMapper(wfn.fieldName());
 
         if (!(fieldType instanceof NumberFieldMapper.NumberFieldType)) return false;

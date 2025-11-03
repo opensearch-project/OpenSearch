@@ -43,6 +43,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -56,13 +57,19 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.core.common.Strings;
+import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Locale;
 
@@ -333,6 +340,35 @@ public class CustomUnifiedHighlighterTests extends OpenSearchTestCase {
             .withTokenizer(EdgeNGramTokenizerFactory.class, "minGramSize", "1", "maxGramSize", "7")
             .build();
         assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
+    }
+
+    public void testOpenSearchToParentBlockJoinQuery() throws Exception {
+        final String[] inputs = { "Nested highlighting query." };
+        final String[] outputs = { "Nested <b>highlighting</b> query." };
+
+        Query childQuery = new TermQuery(new Term("text", "highlighting"));
+        BitSetProducer parentsFilter = new BitSetProducer() {
+            @Override
+            public BitSet getBitSet(LeafReaderContext context) throws IOException {
+                FixedBitSet bits = new FixedBitSet(context.reader().maxDoc());
+                for (int i = 0; i < context.reader().maxDoc(); i++) {
+                    bits.set(i);
+                }
+                return bits;
+            }
+        };
+
+        Query parentQuery = new OpenSearchToParentBlockJoinQuery(childQuery, parentsFilter, ScoreMode.None, "foo");
+        assertHighlightOneDoc(
+            "text",
+            inputs,
+            new StandardAnalyzer(),
+            parentQuery,
+            Locale.ROOT,
+            BreakIterator.getSentenceInstance(Locale.ROOT),
+            0,
+            outputs
+        );
     }
 
 }

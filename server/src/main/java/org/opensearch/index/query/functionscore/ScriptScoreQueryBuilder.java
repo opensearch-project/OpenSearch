@@ -207,8 +207,8 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder newQuery = this.query.rewrite(queryRewriteContext);
-        if (newQuery instanceof MatchNoneQueryBuilder) {
-            return newQuery;
+        if (newQuery instanceof MatchNoneQueryBuilder matchNoneQueryBuilder) {
+            return matchNoneQueryBuilder;
         }
 
         if (newQuery != query) {

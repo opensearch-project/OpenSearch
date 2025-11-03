@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -74,7 +75,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
 
     @Override
     public void tearDown() throws Exception {
-        closeShards(primaryShard, replicaShard);
+        closeShardsWithRetry(primaryShard, replicaShard);
         super.tearDown();
     }
 
@@ -229,7 +230,6 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         GetSegmentFilesResponse response = res.get();
         assertEquals(response.files.size(), filesToFetch.size());
         assertTrue(response.files.containsAll(filesToFetch));
-        closeShardWithRetry(replicaShard);
     }
 
     public void testGetMergedSegmentFilesDownloadTimeout() throws IOException, ExecutionException, InterruptedException {
@@ -293,7 +293,6 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             observedException.getMessage() != null
                 && observedException.getMessage().equals("Timed out waiting for merged segments download from remote store")
         );
-        closeShardWithRetry(replicaShard);
     }
 
     public void testGetMergedSegmentFilesFailure() throws IOException, ExecutionException, InterruptedException {
@@ -345,7 +344,6 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         Exception observedException = failureRef.get();
         assertTrue(observedException instanceof NoSuchFileException);
         assertTrue(observedException.getMessage() != null && observedException.getMessage().startsWith("invalid."));
-        closeShards(replicaShard);
     }
 
     private void buildIndexShardBehavior(IndexShard mockShard, IndexShard indexShard) {
@@ -357,17 +355,22 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
     }
 
-    private void closeShardWithRetry(IndexShard shard) {
-        try {
-            assertBusy(() -> {
-                try {
-                    closeShards(shard);
-                } catch (RuntimeException e) {
-                    throw new AssertionError("Failed to close shard", e);
-                }
-            });
-        } catch (Exception e) {
-            logger.warn("Unable to close shard " + shard.shardId() + ". Exception: " + e);
+    private void closeShardsWithRetry(IndexShard... shards) {
+        for (IndexShard shard : shards) {
+            AtomicInteger retry = new AtomicInteger(1);
+            String shardId = shard.shardId().toString() + (shard.isPrimaryMode() ? "[p]" : "[r]");
+            try {
+                assertBusy(() -> {
+                    try {
+                        logger.info("Trying to close " + shardId + " try: " + retry.getAndIncrement());
+                        closeShard(shard, true);
+                    } catch (RuntimeException e) {
+                        throw new AssertionError("Failed to close shard", e);
+                    }
+                });
+            } catch (Exception e) {
+                logger.warn("Unable to close shard " + shardId + ". Exception: " + e);
+            }
         }
     }
 }

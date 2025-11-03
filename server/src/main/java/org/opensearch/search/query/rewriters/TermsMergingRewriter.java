@@ -88,11 +88,9 @@ public class TermsMergingRewriter implements QueryRewriter {
 
     @Override
     public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
-        if (!(query instanceof BoolQueryBuilder)) {
+        if (!(query instanceof BoolQueryBuilder boolQuery)) {
             return query;
         }
-
-        BoolQueryBuilder boolQuery = (BoolQueryBuilder) query;
 
         // First check if merging is needed
         if (!needsMerging(boolQuery)) {
@@ -129,8 +127,7 @@ public class TermsMergingRewriter implements QueryRewriter {
         Map<String, List<Float>> fieldBoosts = new HashMap<>();
 
         for (QueryBuilder clause : clauses) {
-            if (clause instanceof TermQueryBuilder) {
-                TermQueryBuilder termQuery = (TermQueryBuilder) clause;
+            if (clause instanceof TermQueryBuilder termQuery) {
                 String field = termQuery.fieldName();
                 float boost = termQuery.boost();
 
@@ -145,15 +142,13 @@ public class TermsMergingRewriter implements QueryRewriter {
                         return true;
                     }
                 }
-            } else if (clause instanceof TermsQueryBuilder) {
+            } else if (clause instanceof TermsQueryBuilder termsQuery) {
                 // Check if there are enough term queries that can be merged with this terms query
-                TermsQueryBuilder termsQuery = (TermsQueryBuilder) clause;
                 String field = termsQuery.fieldName();
                 int additionalTerms = 0;
 
                 for (QueryBuilder other : clauses) {
-                    if (other != clause && other instanceof TermQueryBuilder) {
-                        TermQueryBuilder termQuery = (TermQueryBuilder) other;
+                    if (other != clause && other instanceof TermQueryBuilder termQuery) {
                         if (field.equals(termQuery.fieldName()) && termsQuery.boost() == termQuery.boost()) {
                             additionalTerms++;
                         }
@@ -172,22 +167,22 @@ public class TermsMergingRewriter implements QueryRewriter {
 
     private boolean hasNestedBoolThatNeedsMerging(BoolQueryBuilder boolQuery) {
         for (QueryBuilder clause : boolQuery.must()) {
-            if (clause instanceof BoolQueryBuilder && needsMerging((BoolQueryBuilder) clause)) {
+            if (clause instanceof BoolQueryBuilder boolQueryBuilder && needsMerging(boolQueryBuilder)) {
                 return true;
             }
         }
         for (QueryBuilder clause : boolQuery.filter()) {
-            if (clause instanceof BoolQueryBuilder && needsMerging((BoolQueryBuilder) clause)) {
+            if (clause instanceof BoolQueryBuilder boolQueryBuilder && needsMerging(boolQueryBuilder)) {
                 return true;
             }
         }
         for (QueryBuilder clause : boolQuery.should()) {
-            if (clause instanceof BoolQueryBuilder && needsMerging((BoolQueryBuilder) clause)) {
+            if (clause instanceof BoolQueryBuilder boolQueryBuilder && needsMerging(boolQueryBuilder)) {
                 return true;
             }
         }
         for (QueryBuilder clause : boolQuery.mustNot()) {
-            if (clause instanceof BoolQueryBuilder && needsMerging((BoolQueryBuilder) clause)) {
+            if (clause instanceof BoolQueryBuilder boolQueryBuilder && needsMerging(boolQueryBuilder)) {
                 return true;
             }
         }
@@ -200,8 +195,7 @@ public class TermsMergingRewriter implements QueryRewriter {
 
         // Group term queries by field
         for (QueryBuilder clause : clauses) {
-            if (clause instanceof TermQueryBuilder) {
-                TermQueryBuilder termQuery = (TermQueryBuilder) clause;
+            if (clause instanceof TermQueryBuilder termQuery) {
                 String field = termQuery.fieldName();
                 float boost = termQuery.boost();
 
@@ -212,9 +206,8 @@ public class TermsMergingRewriter implements QueryRewriter {
                 } else {
                     termsMap.computeIfAbsent(field, k -> new TermsInfo(boost)).addValue(termQuery.value());
                 }
-            } else if (clause instanceof TermsQueryBuilder) {
+            } else if (clause instanceof TermsQueryBuilder termsQuery) {
                 // Existing terms query - add to it
-                TermsQueryBuilder termsQuery = (TermsQueryBuilder) clause;
                 String field = termsQuery.fieldName();
                 float boost = termsQuery.boost();
 
@@ -228,9 +221,9 @@ public class TermsMergingRewriter implements QueryRewriter {
                         info.addValue(value);
                     }
                 }
-            } else if (clause instanceof BoolQueryBuilder) {
+            } else if (clause instanceof BoolQueryBuilder boolQueryBuilder) {
                 // Recursively rewrite nested bool queries
-                nonTermClauses.add(rewrite(clause, null));
+                nonTermClauses.add(rewrite(boolQueryBuilder, null));
             } else {
                 nonTermClauses.add(clause);
             }
@@ -275,9 +268,9 @@ public class TermsMergingRewriter implements QueryRewriter {
 
     private void rewriteClausesNoMerge(List<QueryBuilder> clauses, ClauseAdder adder) {
         for (QueryBuilder clause : clauses) {
-            if (clause instanceof BoolQueryBuilder) {
+            if (clause instanceof BoolQueryBuilder boolQueryBuilder) {
                 // Recursively rewrite nested bool queries
-                adder.addClause(rewrite(clause, null));
+                adder.addClause(rewrite(boolQueryBuilder, null));
             } else {
                 adder.addClause(clause);
             }

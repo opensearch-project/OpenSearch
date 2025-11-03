@@ -14,7 +14,6 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
 import org.opensearch.protobufs.FieldValue;
-import org.opensearch.protobufs.FloatMap;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.MatchAllQuery;
 import org.opensearch.protobufs.ObjectMap;
@@ -357,9 +356,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         boostMap.put("index1", 1.0f);
         boostMap.put("index2", 2.0f);
 
-        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .addIndicesBoost(FloatMap.newBuilder().putAllFloatMap(boostMap).build())
-            .build();
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().putAllIndicesBoost(boostMap).build();
 
         // Create a SearchSourceBuilder to populate
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();

@@ -171,23 +171,30 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     protected RemoteFsTranslog create(Path path) throws IOException {
         final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
-        return create(path, createRepository(), translogUUID, 0);
+        return create(path, createRepository(), translogUUID, 0, false);
     }
 
-    private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID, int extraGenToKeep) throws IOException {
+    private RemoteFsTranslog create(
+        Path path,
+        BlobStoreRepository repository,
+        String translogUUID,
+        int extraGenToKeep,
+        boolean isServerSideEncryptionEnabled
+    ) throws IOException {
         this.repository = repository;
         globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final TranslogConfig translogConfig = getTranslogConfig(path, extraGenToKeep);
         final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
         threadPool = new TestThreadPool(getClass().getName());
         blobStoreTransferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
-        return createTranslogInstance(translogConfig, translogUUID, deletionPolicy);
+        return createTranslogInstance(translogConfig, translogUUID, deletionPolicy, isServerSideEncryptionEnabled);
     }
 
     protected RemoteFsTranslog createTranslogInstance(
         TranslogConfig translogConfig,
         String translogUUID,
-        TranslogDeletionPolicy deletionPolicy
+        TranslogDeletionPolicy deletionPolicy,
+        boolean isServerSideEncryptionEnabled
     ) throws IOException {
         return new RemoteFsTranslog(
             translogConfig,
@@ -202,12 +209,14 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             new RemoteTranslogTransferTracker(shardId, 10),
             DefaultRemoteStoreSettings.INSTANCE,
             TranslogOperationHelper.DEFAULT,
-            null
+            null,
+            isServerSideEncryptionEnabled
         );
     }
 
-    private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID) throws IOException {
-        return create(path, repository, translogUUID, 0);
+    private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID, boolean isServerSideEncryptionEnabled)
+        throws IOException {
+        return create(path, repository, translogUUID, 0, isServerSideEncryptionEnabled);
     }
 
     private TranslogConfig getTranslogConfig(final Path path) {
@@ -477,7 +486,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
                 TranslogOperationHelper.DEFAULT,
-                null
+                null,
+                false
             )
         ) {
             addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
@@ -554,7 +564,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }
 
         // Creating RemoteFsTranslog with the same location
-        RemoteFsTranslog newTranslog = create(translogDir, repository, translogUUID);
+        RemoteFsTranslog newTranslog = create(translogDir, repository, translogUUID, false);
         i = 0;
         for (Translog.Operation op : ops) {
             assertEquals(op, newTranslog.readOperation(locs.get(i++)));
@@ -825,7 +835,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         long newPrimaryTerm = primaryTerm.incrementAndGet();
 
         // Creating RemoteFsTranslog with the same location
-        Translog newTranslog = create(translogDir, repository, translogUUID);
+        Translog newTranslog = create(translogDir, repository, translogUUID, false);
         int newPrimaryTermDocs = randomIntBetween(5, 10);
         for (int i = totalDocs + 1; i <= totalDocs + newPrimaryTermDocs; i++) {
             addToTranslogAndListAndUpload(newTranslog, ops, new Translog.Index(String.valueOf(i), i, primaryTerm.get(), new byte[] { 1 }));
@@ -1523,7 +1533,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
                 TranslogOperationHelper.DEFAULT,
-                channelFactory
+                channelFactory,
+                false
             )
         ) {
             TranslogWriter writer = translog.getCurrent();
@@ -1630,7 +1641,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
                 TranslogOperationHelper.DEFAULT,
-                channelFactory
+                channelFactory,
+                false
             )
         ) {
             TranslogWriter writer = translog.getCurrent();

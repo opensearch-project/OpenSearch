@@ -821,28 +821,28 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query applySlop(Query q, int slop) {
-        if (q instanceof PhraseQuery) {
+        if (q instanceof PhraseQuery phraseQuery) {
             // make sure that the boost hasn't been set beforehand, otherwise we'd lose it
             assert q instanceof BoostQuery == false;
-            return addSlopToPhrase((PhraseQuery) q, slop);
-        } else if (q instanceof MultiPhraseQuery) {
-            MultiPhraseQuery.Builder builder = new MultiPhraseQuery.Builder((MultiPhraseQuery) q);
+            return addSlopToPhrase(phraseQuery, slop);
+        } else if (q instanceof MultiPhraseQuery multiPhraseQuery) {
+            MultiPhraseQuery.Builder builder = new MultiPhraseQuery.Builder(multiPhraseQuery);
             builder.setSlop(slop);
             return builder.build();
-        } else if (q instanceof SpanQuery) {
-            return addSlopToSpan((SpanQuery) q, slop);
+        } else if (q instanceof SpanQuery spanQuery) {
+            return addSlopToSpan(spanQuery, slop);
         } else {
             return q;
         }
     }
 
     private Query addSlopToSpan(SpanQuery query, int slop) {
-        if (query instanceof SpanNearQuery) {
-            return new SpanNearQuery(((SpanNearQuery) query).getClauses(), slop, ((SpanNearQuery) query).isInOrder());
-        } else if (query instanceof SpanOrQuery) {
-            SpanQuery[] clauses = new SpanQuery[((SpanOrQuery) query).getClauses().length];
+        if (query instanceof SpanNearQuery spanNearQuery) {
+            return new SpanNearQuery(spanNearQuery.getClauses(), slop, spanNearQuery.isInOrder());
+        } else if (query instanceof SpanOrQuery spanOrQuery) {
+            SpanQuery[] clauses = new SpanQuery[spanOrQuery.getClauses().length];
             int pos = 0;
-            for (SpanQuery clause : ((SpanOrQuery) query).getClauses()) {
+            for (SpanQuery clause : spanOrQuery.getClauses()) {
                 clauses[pos++] = (SpanQuery) addSlopToSpan(clause, slop);
             }
             return new SpanOrQuery(clauses);

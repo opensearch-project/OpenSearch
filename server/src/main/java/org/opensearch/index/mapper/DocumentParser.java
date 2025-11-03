@@ -111,10 +111,10 @@ final class DocumentParser {
     private static boolean containsDisabledObjectMapper(ObjectMapper objectMapper, String[] subfields) {
         for (int i = 0; i < subfields.length - 1; ++i) {
             Mapper mapper = objectMapper.getMapper(subfields[i]);
-            if (mapper instanceof ObjectMapper == false) {
+            if (!(mapper instanceof ObjectMapper objMapper)) {
                 break;
             }
-            objectMapper = (ObjectMapper) mapper;
+            objectMapper = objMapper;
             if (objectMapper.isEnabled() == false) {
                 return true;
             }
@@ -194,8 +194,8 @@ final class DocumentParser {
 
     private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Exception e) {
         // if its already a mapper parsing exception, no need to wrap it...
-        if (e instanceof MapperParsingException) {
-            return (MapperParsingException) e;
+        if (e instanceof MapperParsingException mapperParsingException) {
+            return mapperParsingException;
         }
 
         // Throw a more meaningful message if the document is empty.
@@ -279,8 +279,8 @@ final class DocumentParser {
                 newMapper = createExistingMapperUpdate(parentMappers, nameParts, i, docMapper, newMapper);
             }
 
-            if (newMapper instanceof ObjectMapper) {
-                parentMappers.add((ObjectMapper) newMapper);
+            if (newMapper instanceof ObjectMapper objectMapper) {
+                parentMappers.add(objectMapper);
             } else {
                 addToLastMapper(parentMappers, newMapper, true);
             }
@@ -547,10 +547,9 @@ final class DocumentParser {
     }
 
     private static void parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
-        if (mapper instanceof ObjectMapper) {
-            parseObjectOrNested(context, (ObjectMapper) mapper);
-        } else if (mapper instanceof FieldMapper) {
-            FieldMapper fieldMapper = (FieldMapper) mapper;
+        if (mapper instanceof ObjectMapper objectMapper) {
+            parseObjectOrNested(context, objectMapper);
+        } else if (mapper instanceof FieldMapper fieldMapper) {
             fieldMapper.parse(context);
             parseCopyFields(context, fieldMapper.copyTo().copyToFields());
         } else if (mapper instanceof FieldAliasMapper) {
@@ -691,7 +690,7 @@ final class DocumentParser {
     }
 
     private static boolean parsesArrayValue(Mapper mapper) {
-        return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue();
+        return mapper instanceof FieldMapper fieldMapper && fieldMapper.parsesArrayValue();
     }
 
     private static void parseNonDynamicArray(ParseContext context, ObjectMapper mapper, final String lastFieldName, String arrayFieldName)
@@ -989,8 +988,8 @@ final class DocumentParser {
     private static void parseCopy(String field, ParseContext context) throws IOException {
         Mapper mapper = context.docMapper().mappers().getMapper(field);
         if (mapper != null) {
-            if (mapper instanceof FieldMapper) {
-                ((FieldMapper) mapper).parse(context);
+            if (mapper instanceof FieldMapper fieldMapper) {
+                fieldMapper.parse(context);
             } else if (mapper instanceof FieldAliasMapper) {
                 throw new IllegalArgumentException("Cannot copy to a field alias [" + mapper.name() + "].");
             } else {
@@ -1119,10 +1118,10 @@ final class DocumentParser {
 
         for (int i = 0; i < subfields.length - 1; ++i) {
             mapper = objectMapper.getMapper(subfields[i]);
-            if (mapper == null || (mapper instanceof ObjectMapper) == false) {
+            if (!(mapper instanceof ObjectMapper objMapper)) {
                 return null;
             }
-            objectMapper = (ObjectMapper) mapper;
+            objectMapper = objMapper;
             if (objectMapper.nested().isNested()) {
                 throw new MapperParsingException(
                     "Cannot add a value for field ["
