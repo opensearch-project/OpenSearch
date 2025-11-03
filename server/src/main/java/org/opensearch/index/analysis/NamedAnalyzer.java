@@ -70,7 +70,7 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this.scope = scope;
         this.analyzer = analyzer;
         this.positionIncrementGap = positionIncrementGap;
-        if (analyzer instanceof org.opensearch.index.analysis.AnalyzerComponentsProvider analyzerComponentsProvider) {
+        if (analyzer instanceof AnalyzerComponentsProvider analyzerComponentsProvider) {
             this.analysisMode = analyzerComponentsProvider.getComponents().analysisMode();
         } else {
             this.analysisMode = AnalysisMode.ALL;

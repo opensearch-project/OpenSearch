@@ -187,22 +187,19 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 continue;
             }
             for (MetricStat metricStat : metric.getBaseMetrics()) {
-                FieldValueConverter fieldValueConverter;
                 Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper(metric.getField());
                 if (fieldMapper instanceof FieldMapper fm && fm.fieldType() instanceof FieldValueConverter fvc) {
-                    fieldValueConverter = fvc;
+                    MetricAggregatorInfo metricAggregatorInfo = new MetricAggregatorInfo(
+                        metricStat,
+                        metric.getField(),
+                        starTreeField.getName(),
+                        fvc
+                    );
+                    metricAggregatorInfos.add(metricAggregatorInfo);
                 } else {
                     logger.error("unsupported mapper type");
                     throw new IllegalStateException("unsupported mapper type");
                 }
-
-                MetricAggregatorInfo metricAggregatorInfo = new MetricAggregatorInfo(
-                    metricStat,
-                    metric.getField(),
-                    starTreeField.getName(),
-                    fieldValueConverter
-                );
-                metricAggregatorInfos.add(metricAggregatorInfo);
             }
         }
         return metricAggregatorInfos;
