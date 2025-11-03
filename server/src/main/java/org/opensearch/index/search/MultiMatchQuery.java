@@ -309,8 +309,7 @@ public class MultiMatchQuery extends MatchQuery {
                     }
                 }
                 float boost = ft.boost;
-                while (query instanceof BoostQuery) {
-                    BoostQuery bq = (BoostQuery) query;
+                while (query instanceof BoostQuery bq) {
                     query = bq.getQuery();
                     boost *= bq.getBoost();
                 }
