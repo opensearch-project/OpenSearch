@@ -200,15 +200,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
             } else if (executionMode == null) {
                 // no hint provided, fall back to heuristics
-                // Check if hybrid collector is enabled
-                boolean hybridCollectorEnabled = context.cardinalityAggregationHybridCollectorEnabled();
+                CardinalityAggregationContext cardinalityContext = context.cardinalityAggregationContext();
 
-                if (hybridCollectorEnabled) {
+                if (cardinalityContext.isHybridCollectorEnabled()) {
                     // Use HybridCollector with configurable memory threshold
-                    long memoryThreshold = context.cardinalityAggregationHybridCollectorMemoryThreshold();
                     MurmurHash3Values hashValues = MurmurHash3Values.hash(source.bytesValues(ctx));
                     hybridCollectorsUsed++;
-                    collector = new HybridCollector(counts, ordinalValues, hashValues, context.bigArrays(), memoryThreshold);
+                    collector = new HybridCollector(counts, ordinalValues, hashValues, context.bigArrays(), cardinalityContext);
                 } else {
                     final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
                     final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
@@ -875,7 +873,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     static class HybridCollector extends Collector {
         private final HyperLogLogPlusPlus counts;
         private final MurmurHash3Values hashValues;
-        private final long memoryThreshold;
+        private final CardinalityAggregationContext cardinalityContext;
 
         private Collector activeCollector;
         private final OrdinalsCollector ordinalsCollector;
@@ -885,18 +883,18 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             SortedSetDocValues ordinalValues,
             MurmurHash3Values hashValues,
             BigArrays bigArrays,
-            long memoryThreshold
+            CardinalityAggregationContext cardinalityContext
         ) {
             this.counts = counts;
             this.hashValues = hashValues;
-            this.memoryThreshold = memoryThreshold;
+            this.cardinalityContext = cardinalityContext;
 
             // Start with OrdinalsCollector with memory monitoring enabled
             this.ordinalsCollector = new OrdinalsCollector(
                 counts, 
                 ordinalValues, 
                 bigArrays, 
-                memoryThreshold, 
+                cardinalityContext.getMemoryThreshold(), 
                 true
             );
             this.activeCollector = ordinalsCollector;

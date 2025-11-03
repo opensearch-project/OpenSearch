@@ -76,6 +76,7 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregationContext;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregator;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
@@ -222,8 +223,7 @@ final class DefaultSearchContext extends SearchContext {
     private final int maxAggRewriteFilters;
     private final int filterRewriteSegmentThreshold;
     private final int cardinalityAggregationPruningThreshold;
-    private final boolean cardinalityAggregationHybridCollectorEnabled;
-    private final long cardinalityAggregationHybridCollectorMemoryThreshold;
+    private final CardinalityAggregationContext cardinalityAggregationContext;
     private final int bucketSelectionStrategyFactor;
     private final boolean keywordIndexOrDocValuesEnabled;
 
@@ -291,8 +291,7 @@ final class DefaultSearchContext extends SearchContext {
         this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
         this.filterRewriteSegmentThreshold = evaluateAggRewriteFilterSegThreshold();
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
-        this.cardinalityAggregationHybridCollectorEnabled = evaluateCardinalityAggregationHybridCollectorEnabled();
-        this.cardinalityAggregationHybridCollectorMemoryThreshold = evaluateCardinalityAggregationHybridCollectorMemoryThreshold();
+        this.cardinalityAggregationContext = evaluateCardinalityAggregationContext();
         this.bucketSelectionStrategyFactor = evaluateBucketSelectionStrategyFactor();
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
@@ -1245,13 +1244,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean cardinalityAggregationHybridCollectorEnabled() {
-        return cardinalityAggregationHybridCollectorEnabled;
-    }
-
-    @Override
-    public long cardinalityAggregationHybridCollectorMemoryThreshold() {
-        return cardinalityAggregationHybridCollectorMemoryThreshold;
+    public CardinalityAggregationContext cardinalityAggregationContext() {
+        return cardinalityAggregationContext;
     }
 
     @Override
@@ -1271,20 +1265,15 @@ final class DefaultSearchContext extends SearchContext {
         return 0;
     }
 
-    private boolean evaluateCardinalityAggregationHybridCollectorEnabled() {
+    private CardinalityAggregationContext evaluateCardinalityAggregationContext() {
         if (clusterService != null) {
-            return clusterService.getClusterSettings().get(CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED);
-        }
-        return false;
-    }
-
-    private long evaluateCardinalityAggregationHybridCollectorMemoryThreshold() {
-        if (clusterService != null) {
-            ByteSizeValue threshold = clusterService.getClusterSettings()
+            boolean hybridCollectorEnabled = clusterService.getClusterSettings()
+                .get(CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED);
+            ByteSizeValue memoryThreshold = clusterService.getClusterSettings()
                 .get(CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD);
-            return threshold.getBytes();
+            return CardinalityAggregationContext.from(hybridCollectorEnabled, memoryThreshold);
         }
-        return Runtime.getRuntime().maxMemory() / 100; // 1% default
+        return new CardinalityAggregationContext(false, Runtime.getRuntime().maxMemory() / 100);
     }
 
     private int evaluateBucketSelectionStrategyFactor() {
