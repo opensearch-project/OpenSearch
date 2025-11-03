@@ -276,7 +276,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     @Override
-    public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row) {
+    public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
         Object[] values = shardResult.get(name);
         return new InternalMin(name, ((Number) values[row]).doubleValue(), format, metadata());
     }
