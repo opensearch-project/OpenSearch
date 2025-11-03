@@ -73,6 +73,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.sun.xml.bind:jaxb-impl` from 2.2.3-1 to 4.0.6 ([#19472](https://github.com/opensearch-project/OpenSearch/pull/19472))
 - Bump `tj-actions/changed-files` from 46.0.5 to 47.0.0 ([#19873](https://github.com/opensearch-project/OpenSearch/pull/19873))
 - Bump `com.google.api.grpc:proto-google-iam-v1` from 1.55.0 to 1.57.0 ([#19872](https://github.com/opensearch-project/OpenSearch/pull/19872))
+- Bump `org.apache.commons:commons-text` from 1.13.1 to 1.14.0 ([#19871](https://github.com/opensearch-project/OpenSearch/pull/19871))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
