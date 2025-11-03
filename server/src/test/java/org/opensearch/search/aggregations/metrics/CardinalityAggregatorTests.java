@@ -667,8 +667,11 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
                         ),
                         (searchContext) -> {
-                            when(searchContext.cardinalityAggregationHybridCollectorEnabled()).thenReturn(hybridCollectorEnabled);
-                            when(searchContext.cardinalityAggregationHybridCollectorMemoryThreshold()).thenReturn(memoryThreshold);
+                            CardinalityAggregationContext cardinalityContext = new CardinalityAggregationContext(
+                                hybridCollectorEnabled,
+                                memoryThreshold
+                            );
+                            when(searchContext.cardinalityAggregationContext()).thenReturn(cardinalityContext);
                         },
                         fieldType
                     )
