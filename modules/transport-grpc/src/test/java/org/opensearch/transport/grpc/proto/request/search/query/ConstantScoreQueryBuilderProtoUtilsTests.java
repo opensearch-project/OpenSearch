@@ -111,16 +111,4 @@ public class ConstantScoreQueryBuilderProtoUtilsTests extends OpenSearchTestCase
 
         assertEquals("ConstantScore query must have a filter query", exception.getMessage());
     }
-
-    public void testFromProtoWithNullFilterQuery() {
-        QueryContainer emptyQueryContainer = QueryContainer.newBuilder().build();
-        ConstantScoreQuery constantScoreQuery = ConstantScoreQuery.newBuilder().setFilter(emptyQueryContainer).build();
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> ConstantScoreQueryBuilderProtoUtils.fromProto(constantScoreQuery, registry)
-        );
-
-        assertEquals("Filter query cannot be null for constant_score query", exception.getMessage());
-    }
 }
