@@ -487,9 +487,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         Map<String, Integer> fieldCounts = new HashMap<>();
         Set<ComplementAwareQueryBuilder> complementAwareQueries = new HashSet<>();
         for (QueryBuilder clause : mustNotClauses) {
-            if (clause instanceof ComplementAwareQueryBuilder && clause instanceof WithFieldName wfn) {
+            if (clause instanceof ComplementAwareQueryBuilder complementAware && clause instanceof WithFieldName wfn) {
                 fieldCounts.merge(wfn.fieldName(), 1, Integer::sum);
-                complementAwareQueries.add((ComplementAwareQueryBuilder) wfn);
+                complementAwareQueries.add(complementAware);
             }
         }
 

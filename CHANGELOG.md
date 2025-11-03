@@ -35,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Make Engine#loadHistoryUUID() protected and Origin#isFromTranslog() public ([#19753](https://github.com/opensearch-project/OpenSearch/pull/19752))
 - Bump opensearch-protobufs dependency to 0.23.0 and update transport-grpc module compatibility ([#19831](https://github.com/opensearch-project/OpenSearch/pull/19831))
 - Refactor the RefreshStats class to use the Builder pattern instead of constructors ([#19835](https://github.com/opensearch-project/OpenSearch/pull/19835))
+- Refactor the DocStats and StoreStats class to use the Builder pattern instead of constructors ([#19863](https://github.com/opensearch-project/OpenSearch/pull/19863))
 
 ### Fixed
 - Fix Allocation and Rebalance Constraints of WeightFunction are incorrectly reset ([#19012](https://github.com/opensearch-project/OpenSearch/pull/19012))
@@ -71,11 +72,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump org.bouncycastle:bc-fips from 2.1.1 to 2.1.2 ([#19818](https://github.com/opensearch-project/OpenSearch/pull/19818))
 - Bump `com.google.http-client:google-http-client-gson` from 1.47.1 to 2.0.0 ([#19253](https://github.com/opensearch-project/OpenSearch/pull/19253))
 - Bump `com.sun.xml.bind:jaxb-impl` from 2.2.3-1 to 4.0.6 ([#19472](https://github.com/opensearch-project/OpenSearch/pull/19472))
+- Bump `tj-actions/changed-files` from 46.0.5 to 47.0.0 ([#19873](https://github.com/opensearch-project/OpenSearch/pull/19873))
+- Bump `com.google.api.grpc:proto-google-iam-v1` from 1.55.0 to 1.57.0 ([#19872](https://github.com/opensearch-project/OpenSearch/pull/19872))
+- Bump `org.apache.commons:commons-text` from 1.13.1 to 1.14.0 ([#19871](https://github.com/opensearch-project/OpenSearch/pull/19871))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
 - Deprecated existing constructors in IndexingStats.Stats in favor of the new Builder ([#19306](https://github.com/opensearch-project/OpenSearch/pull/19306))
 - Deprecated existing constructors in RefreshStats in favor of the new Builder ([#19835](https://github.com/opensearch-project/OpenSearch/pull/19835))
+- Deprecated existing constructors in DocStats and StoreStats in favor of the new Builder ([#19863](https://github.com/opensearch-project/OpenSearch/pull/19863))
 
 ### Removed
 

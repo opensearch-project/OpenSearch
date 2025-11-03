@@ -1004,8 +1004,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 // Ensures all in-flight remote store refreshes drain, before we perform the performSegRep.
                 for (ReferenceManager.RefreshListener refreshListener : internalRefreshListener) {
-                    if (refreshListener instanceof ReleasableRetryableRefreshListener) {
-                        releasablesOnHandoffFailures.add(((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes());
+                    if (refreshListener instanceof ReleasableRetryableRefreshListener releasableListener) {
+                        releasablesOnHandoffFailures.add(releasableListener.drainRefreshes());
                     }
                 }
 
@@ -1781,8 +1781,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Optional<NRTReplicationEngine> getReplicationEngine() {
         try {
-            if (getEngine() instanceof NRTReplicationEngine) {
-                return Optional.of((NRTReplicationEngine) getEngine());
+            if (getEngine() instanceof NRTReplicationEngine nrtEngine) {
+                return Optional.of(nrtEngine);
             } else {
                 return Optional.empty();
             }
@@ -3407,8 +3407,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void handleRefreshException(Exception e) {
         if (e instanceof AlreadyClosedException) {
             // ignore
-        } else if (e instanceof RefreshFailedEngineException) {
-            RefreshFailedEngineException rfee = (RefreshFailedEngineException) e;
+        } else if (e instanceof RefreshFailedEngineException rfee) {
             if (rfee.getCause() instanceof InterruptedException) {
                 // ignore, we are being shutdown
             } else if (rfee.getCause() instanceof ClosedByInterruptException) {
@@ -5716,11 +5715,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateShardIngestionState(IngestionSettings ingestionSettings) {
         synchronized (engineMutex) {
-            if (getEngineOrNull() instanceof IngestionEngine == false) {
+            if (!(getEngineOrNull() instanceof IngestionEngine ingestionEngine)) {
                 return;
             }
-
-            IngestionEngine ingestionEngine = (IngestionEngine) getEngineOrNull();
             ingestionEngine.updateIngestionSettings(ingestionSettings);
         }
     }
@@ -5731,11 +5728,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Override
     public ShardIngestionState getIngestionState() {
         Engine engine = getEngineOrNull();
-        if (indexSettings.getIndexMetadata().useIngestionSource() == false || engine instanceof IngestionEngine == false) {
+        if (indexSettings.getIndexMetadata().useIngestionSource() == false || !(engine instanceof IngestionEngine ingestionEngine)) {
             throw new OpenSearchException("Unable to retrieve ingestion state as the shard does not have ingestion enabled.");
         }
 
-        IngestionEngine ingestionEngine = (IngestionEngine) engine;
         return ingestionEngine.getIngestionState();
     }
 

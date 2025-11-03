@@ -106,9 +106,9 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
                     LeafReader atomicReader = atomicReaderContext.reader();
                     for (FieldInfo info : atomicReader.getFieldInfos()) {
                         Terms terms = atomicReader.terms(info.name);
-                        if (terms instanceof CompletionTerms) {
+                        if (terms instanceof CompletionTerms completionTerms) {
                             // TODO: currently we load up the suggester for reporting its size
-                            final long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
+                            final long fstSize = completionTerms.suggester().ramBytesUsed();
                             completionFields.merge(info.name, fstSize, Long::sum);
                             sizeInBytes += fstSize;
                         }
