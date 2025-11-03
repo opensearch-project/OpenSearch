@@ -56,6 +56,11 @@ import java.util.Objects;
  */
 @PublicApi(since = "1.0.0")
 public class Version implements Comparable<Version>, ToXContentFragment {
+    private static final int VERSION_SHIFT = 100; // Two digits per version part
+    private static final int REVISION_SHIFT = VERSION_SHIFT;
+    private static final int MINOR_SHIFT = VERSION_SHIFT * VERSION_SHIFT;
+    private static final int MAJOR_SHIFT = VERSION_SHIFT * VERSION_SHIFT * VERSION_SHIFT;
+
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
@@ -63,7 +68,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      *>>
      * IMPORTANT: Unreleased vs. Released Versions
      *
-     * All listed versions MUST be released versions, except the last major, the last minor and the last revison. ONLY those are required
+     * All listed versions MUST be released versions, except the last major, the last minor and the last revision. ONLY those are required
      * as unreleased versions.
      *
      * Example: assume the last release is 2.4.0
@@ -154,9 +159,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                                 + fieldName
                                 + " should not have a build qualifier";
                         } else {
-                            final int major = Integer.valueOf(fields[1]) * 1000000;
-                            final int minor = Integer.valueOf(fields[2]) * 10000;
-                            final int revision = Integer.valueOf(fields[3]) * 100;
+                            final int major = Integer.valueOf(fields[1]) * MAJOR_SHIFT;
+                            final int minor = Integer.valueOf(fields[2]) * MINOR_SHIFT;
+                            final int revision = Integer.valueOf(fields[3]) * REVISION_SHIFT;
                             final int expectedId;
                             if (major > 0 && major < 6000000) {
                                 expectedId = 0x08000000 ^ (major + minor + revision + 99);
@@ -238,7 +243,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public static int computeID(int major, int minor, int revision, int build) {
-        return (major * 1000000 + minor * 10000 + revision * 100 + build) ^ MASK;
+        return (major * MAJOR_SHIFT + minor * MINOR_SHIFT + revision * REVISION_SHIFT + build) ^ MASK;
     }
 
     /**
@@ -285,9 +290,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             final int betaOffset = 25; // 0 - 24 is taking by alpha builds
 
             // we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
-            final int major = rawMajor * 1000000;
-            final int minor = Integer.parseInt(parts[1]) * 10000;
-            final int revision = Integer.parseInt(parts[2]) * 100;
+            final int major = rawMajor * MAJOR_SHIFT;
+            final int minor = Integer.parseInt(parts[1]) * MINOR_SHIFT;
+            final int revision = Integer.parseInt(parts[2]) * REVISION_SHIFT;
             if (major > 99000000 || minor > 990000 || revision > 9900) {
                 throw new IllegalArgumentException("Version parts must be <= 99");
             }
@@ -330,10 +335,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         } else {
             this.id = id;
         }
-        this.major = (byte) ((id / 1000000) % 100);
-        this.minor = (byte) ((id / 10000) % 100);
-        this.revision = (byte) ((id / 100) % 100);
-        this.build = (byte) (id % 100);
+        this.major = (byte) ((id / MAJOR_SHIFT) % VERSION_SHIFT);
+        this.minor = (byte) ((id / MINOR_SHIFT) % VERSION_SHIFT);
+        this.revision = (byte) ((id / REVISION_SHIFT) % VERSION_SHIFT);
+        this.build = (byte) (id % VERSION_SHIFT);
         this.luceneVersion = Objects.requireNonNull(luceneVersion);
         this.minCompatVersion = null;
         this.minIndexCompatVersion = null;
@@ -454,7 +459,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     protected Version computeMinIndexCompatVersion() {
         final int bwcMajor = major - 1;
         final int bwcMinor = 0;
-        return Version.min(this, fromId((bwcMajor * 1000000 + bwcMinor * 10000 + 99) ^ MASK));
+        return Version.min(this, fromId((bwcMajor * MAJOR_SHIFT + bwcMinor * MINOR_SHIFT + 99) ^ MASK));
     }
 
     /**
