@@ -71,6 +71,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump org.bouncycastle:bc-fips from 2.1.1 to 2.1.2 ([#19818](https://github.com/opensearch-project/OpenSearch/pull/19818))
 - Bump `com.google.http-client:google-http-client-gson` from 1.47.1 to 2.0.0 ([#19253](https://github.com/opensearch-project/OpenSearch/pull/19253))
 - Bump `com.sun.xml.bind:jaxb-impl` from 2.2.3-1 to 4.0.6 ([#19472](https://github.com/opensearch-project/OpenSearch/pull/19472))
+- Bump `org.apache.commons:commons-text` from 1.13.1 to 1.14.0 ([#19871](https://github.com/opensearch-project/OpenSearch/pull/19871))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
