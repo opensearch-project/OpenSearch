@@ -84,4 +84,43 @@ public class ConstantScoreQueryBuilderProtoUtilsTests extends OpenSearchTestCase
         assertNotNull("Inner query should not be null", constantScoreQueryBuilder.innerQuery());
         assertNull("Query name should be null", constantScoreQueryBuilder.queryName());
     }
+
+    public void testFromProtoWithNullRegistry() {
+        TermQuery termQuery = TermQuery.newBuilder()
+            .setField("status")
+            .setValue(FieldValue.newBuilder().setString("active").build())
+            .build();
+        QueryContainer innerQueryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
+        ConstantScoreQuery constantScoreQuery = ConstantScoreQuery.newBuilder().setFilter(innerQueryContainer).build();
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> ConstantScoreQueryBuilderProtoUtils.fromProto(constantScoreQuery, null)
+        );
+
+        assertEquals("QueryBuilderProtoConverterRegistry cannot be null", exception.getMessage());
+    }
+
+    public void testFromProtoWithMissingFilter() {
+        ConstantScoreQuery constantScoreQuery = ConstantScoreQuery.newBuilder().build();
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> ConstantScoreQueryBuilderProtoUtils.fromProto(constantScoreQuery, registry)
+        );
+
+        assertEquals("ConstantScore query must have a filter query", exception.getMessage());
+    }
+
+    public void testFromProtoWithNullFilterQuery() {
+        QueryContainer emptyQueryContainer = QueryContainer.newBuilder().build();
+        ConstantScoreQuery constantScoreQuery = ConstantScoreQuery.newBuilder().setFilter(emptyQueryContainer).build();
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> ConstantScoreQueryBuilderProtoUtils.fromProto(constantScoreQuery, registry)
+        );
+
+        assertEquals("Filter query cannot be null for constant_score query", exception.getMessage());
+    }
 }

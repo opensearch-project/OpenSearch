@@ -13,6 +13,7 @@ import org.opensearch.index.query.MatchBoolPrefixQueryBuilder;
 import org.opensearch.index.query.Operator;
 import org.opensearch.protobufs.MatchBoolPrefixQuery;
 import org.opensearch.protobufs.MinimumShouldMatch;
+import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class MatchBoolPrefixQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
@@ -88,34 +89,74 @@ public class MatchBoolPrefixQueryBuilderProtoUtilsTests extends OpenSearchTestCa
         assertEquals("Operator should be default OR", Operator.OR, matchBoolPrefixQueryBuilder.operator());
     }
 
-    public void testFromProtoWithMinimumShouldMatchInt() {
-        MinimumShouldMatch minimumShouldMatch = MinimumShouldMatch.newBuilder().setInt32(2).build();
-
-        MatchBoolPrefixQuery matchBoolPrefixQuery = MatchBoolPrefixQuery.newBuilder()
+    public void testFromProtoWithMinimumShouldMatch() {
+        // Test 1: MinimumShouldMatch with string value
+        MinimumShouldMatch minimumShouldMatchString = MinimumShouldMatch.newBuilder().setString("75%").build();
+        MatchBoolPrefixQuery queryString = MatchBoolPrefixQuery.newBuilder()
             .setField("message")
             .setQuery("test")
-            .setMinimumShouldMatch(minimumShouldMatch)
+            .setMinimumShouldMatch(minimumShouldMatchString)
             .build();
+        MatchBoolPrefixQueryBuilder builderString = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(queryString);
+        assertNotNull("Builder should not be null (STRING)", builderString);
+        assertEquals("Minimum should match (STRING)", "75%", builderString.minimumShouldMatch());
 
-        MatchBoolPrefixQueryBuilder matchBoolPrefixQueryBuilder = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(matchBoolPrefixQuery);
+        // Test 2: MinimumShouldMatch with int32 value
+        MinimumShouldMatch minimumShouldMatchInt = MinimumShouldMatch.newBuilder().setInt32(2).build();
+        MatchBoolPrefixQuery queryInt = MatchBoolPrefixQuery.newBuilder()
+            .setField("message")
+            .setQuery("test")
+            .setMinimumShouldMatch(minimumShouldMatchInt)
+            .build();
+        MatchBoolPrefixQueryBuilder builderInt = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(queryInt);
+        assertNotNull("Builder should not be null (INT32)", builderInt);
+        assertEquals("Minimum should match (INT32)", "2", builderInt.minimumShouldMatch());
 
-        assertNotNull("MatchBoolPrefixQueryBuilder should not be null", matchBoolPrefixQueryBuilder);
-        assertEquals("Minimum should match", "2", matchBoolPrefixQueryBuilder.minimumShouldMatch());
+        // Test 3: MinimumShouldMatch with empty/neither string nor int32
+        MinimumShouldMatch minimumShouldMatchEmpty = MinimumShouldMatch.newBuilder().build();
+        MatchBoolPrefixQuery queryEmpty = MatchBoolPrefixQuery.newBuilder()
+            .setField("message")
+            .setQuery("test")
+            .setMinimumShouldMatch(minimumShouldMatchEmpty)
+            .build();
+        MatchBoolPrefixQueryBuilder builderEmpty = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(queryEmpty);
+        assertNotNull("Builder should not be null (EMPTY)", builderEmpty);
+        assertNull("Minimum should match should be null (EMPTY)", builderEmpty.minimumShouldMatch());
     }
 
-    public void testFromProtoWithFuzzinessInt() {
-        org.opensearch.protobufs.Fuzziness fuzziness = org.opensearch.protobufs.Fuzziness.newBuilder().setInt32(2).build();
-
-        MatchBoolPrefixQuery matchBoolPrefixQuery = MatchBoolPrefixQuery.newBuilder()
+    public void testFromProtoWithFuzziness() {
+        // Test 1: Fuzziness with string value
+        org.opensearch.protobufs.Fuzziness fuzzinessString = org.opensearch.protobufs.Fuzziness.newBuilder().setString("AUTO").build();
+        MatchBoolPrefixQuery queryString = MatchBoolPrefixQuery.newBuilder()
             .setField("message")
             .setQuery("test")
-            .setFuzziness(fuzziness)
+            .setFuzziness(fuzzinessString)
             .build();
+        MatchBoolPrefixQueryBuilder builderString = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(queryString);
+        assertNotNull("Builder should not be null (STRING)", builderString);
+        assertEquals("Fuzziness should match (STRING)", Fuzziness.AUTO, builderString.fuzziness());
 
-        MatchBoolPrefixQueryBuilder matchBoolPrefixQueryBuilder = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(matchBoolPrefixQuery);
+        // Test 2: Fuzziness with int32 value
+        org.opensearch.protobufs.Fuzziness fuzzinessInt = org.opensearch.protobufs.Fuzziness.newBuilder().setInt32(2).build();
+        MatchBoolPrefixQuery queryInt = MatchBoolPrefixQuery.newBuilder()
+            .setField("message")
+            .setQuery("test")
+            .setFuzziness(fuzzinessInt)
+            .build();
+        MatchBoolPrefixQueryBuilder builderInt = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(queryInt);
+        assertNotNull("Builder should not be null (INT32)", builderInt);
+        assertEquals("Fuzziness should match (INT32)", Fuzziness.fromEdits(2), builderInt.fuzziness());
 
-        assertNotNull("MatchBoolPrefixQueryBuilder should not be null", matchBoolPrefixQueryBuilder);
-        assertEquals("Fuzziness should match", Fuzziness.fromEdits(2), matchBoolPrefixQueryBuilder.fuzziness());
+        // Test 3: Fuzziness with empty/neither string nor int32
+        org.opensearch.protobufs.Fuzziness fuzzinessEmpty = org.opensearch.protobufs.Fuzziness.newBuilder().build();
+        MatchBoolPrefixQuery queryEmpty = MatchBoolPrefixQuery.newBuilder()
+            .setField("message")
+            .setQuery("test")
+            .setFuzziness(fuzzinessEmpty)
+            .build();
+        MatchBoolPrefixQueryBuilder builderEmpty = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(queryEmpty);
+        assertNotNull("Builder should not be null (EMPTY)", builderEmpty);
+        assertNull("Fuzziness should be null (EMPTY)", builderEmpty.fuzziness());
     }
 
     public void testFromProtoWithDefaults() {
@@ -132,4 +173,34 @@ public class MatchBoolPrefixQueryBuilderProtoUtilsTests extends OpenSearchTestCa
             matchBoolPrefixQueryBuilder.fuzzyTranspositions()
         );
     }
+
+    public void testFromProtoWithFuzzyRewrite() {
+        // Test 1: Fuzzy rewrite not set (null)
+        MatchBoolPrefixQuery queryNoRewrite = MatchBoolPrefixQuery.newBuilder().setField("message").setQuery("test").build();
+        MatchBoolPrefixQueryBuilder builderNoRewrite = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(queryNoRewrite);
+        assertNotNull("Builder should not be null (no fuzzyRewrite)", builderNoRewrite);
+        assertNull("Fuzzy rewrite should be null (not set)", builderNoRewrite.fuzzyRewrite());
+
+        // Test 2: Fuzzy rewrite with CONSTANT_SCORE value
+        MatchBoolPrefixQuery queryWithRewrite = MatchBoolPrefixQuery.newBuilder()
+            .setField("message")
+            .setQuery("test")
+            .setFuzzyRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .build();
+        MatchBoolPrefixQueryBuilder builderWithRewrite = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(queryWithRewrite);
+        assertNotNull("Builder should not be null (CONSTANT_SCORE)", builderWithRewrite);
+        assertNotNull("Fuzzy rewrite should not be null (CONSTANT_SCORE)", builderWithRewrite.fuzzyRewrite());
+        assertEquals("Fuzzy rewrite should match (CONSTANT_SCORE)", "constant_score", builderWithRewrite.fuzzyRewrite());
+
+        // Test 3: Fuzzy rewrite with UNSPECIFIED value
+        MatchBoolPrefixQuery queryUnspecified = MatchBoolPrefixQuery.newBuilder()
+            .setField("message")
+            .setQuery("test")
+            .setFuzzyRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED)
+            .build();
+        MatchBoolPrefixQueryBuilder builderUnspecified = MatchBoolPrefixQueryBuilderProtoUtils.fromProto(queryUnspecified);
+        assertNotNull("Builder should not be null (UNSPECIFIED)", builderUnspecified);
+        assertNull("Fuzzy rewrite should be null (UNSPECIFIED)", builderUnspecified.fuzzyRewrite());
+    }
+
 }
