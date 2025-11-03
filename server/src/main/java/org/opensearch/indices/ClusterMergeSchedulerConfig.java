@@ -8,6 +8,8 @@
 
 package org.opensearch.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
@@ -176,7 +178,11 @@ public class ClusterMergeSchedulerConfig {
      * Default value for {@code CLUSTER_DEFAULT_MAX_THREAD_COUNT_SETTING}
      */
     public static String getClusterMaxThreadCountDefault(Settings settings) {
+        Logger logger;
+        logger = LogManager.getLogger(ClusterMergeSchedulerConfig.class);
+        logger.info("getClusterMaxthreadCountDefault called." + (NODE_PROCESSORS_SETTING.exists(settings) == true) + " | " + (clusterMaxThreadCountDefault == null));
         if (NODE_PROCESSORS_SETTING.exists(settings) || clusterMaxThreadCountDefault == null) {
+            logger.info(Thread.currentThread().getName() + "  | getClusterMaxthreadCountDefault NPSETTING: " +  NODE_PROCESSORS_SETTING.get(settings));
             clusterMaxThreadCountDefault = Integer.toString(
                 Math.max(1, Math.min(4, OpenSearchExecutors.allocatedProcessors(settings) / 2))
             );
