@@ -23,8 +23,6 @@ import java.util.stream.Collectors;
 
 public class SearchEngineResultConversionUtils {
 
-    private static final Logger LOGGER = LogManager.getLogger(SearchEngineResultConversionUtils.class);
-
     public static void convertDFResultGeneric(SearchContext searchContext) {
         if (searchContext.aggregations() != null) {
             Map<String, Object[]> dfResult = searchContext.getDFResults();
@@ -51,9 +49,8 @@ public class SearchEngineResultConversionUtils {
                 }).toList();
 
                 InternalAggregations internalAggregations = InternalAggregations.from(
-                    shardResultConvertors.stream().flatMap(x -> x.convert(dfResult).stream()).collect(Collectors.toList())
+                    shardResultConvertors.stream().flatMap(x -> x.convert(dfResult, searchContext).stream()).collect(Collectors.toList())
                 );
-//                LOGGER.info("Internal Aggregations converted {}", internalAggregations.asMap());
                 searchContext.queryResult().aggregations(internalAggregations);
             } catch (IOException e) {
                 throw new RuntimeException(e);

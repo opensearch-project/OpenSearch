@@ -607,4 +607,9 @@ public abstract class SearchContext implements Releasable {
     public Map<String, Object[]> getDFResults() {
         return Collections.emptyMap();
     }
+
+    // TODO : This should be a part of mapper given by DataFormat or SearchEngine as related to Field type.
+    public Comparable convertToComparable(Object rawValue) {
+        throw new UnsupportedOperationException("Engine doesn't implement response value conversion");
+    }
 }

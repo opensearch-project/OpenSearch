@@ -8,6 +8,7 @@
 
 package org.opensearch.datafusion.search;
 
+import org.apache.arrow.vector.util.Text;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
@@ -807,4 +808,14 @@ public class DatafusionContext extends SearchContext {
         return dfResults;
     }
 
+    @Override
+    public Comparable<?> convertToComparable(Object rawValue) {
+        if (rawValue instanceof Number) {
+            return (Comparable) rawValue;
+        } else if (rawValue instanceof Text) {
+            return rawValue.toString();
+        } else {
+            throw new IllegalArgumentException("Conversion to Comparable not supported for type " + rawValue.getClass());
+        }
+    }
 }

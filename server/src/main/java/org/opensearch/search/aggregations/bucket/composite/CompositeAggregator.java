@@ -729,7 +729,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
     }
 
     @Override
-    public List<InternalAggregation> convert(Map<String, Object[]> shardResult) {
+    public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
         // Generate the composite keys
         List<Comparable> currentCompositeKey = new ArrayList<>(sourceConfigs.length);
         List<CompositeKey> compositeKeys = new ArrayList<>(shardResult.size());
@@ -740,7 +740,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
                 }
                 Object[] values = shardResult.get(sourceConfig.fieldType().name());
                 // TODO : Would require conversion for certain types,
-                currentCompositeKey.add((Comparable) values[i]);
+                currentCompositeKey.add(searchContext.convertToComparable(values[i]));
             }
             compositeKeys.add(new CompositeKey(currentCompositeKey.toArray(new Comparable[0])));
             currentCompositeKey.clear();
@@ -754,7 +754,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
                     throw new UnsupportedOperationException(String.format("Aggregation [%s] doesn't support shard result conversion Impl [%s]", subAgg.name(), subAgg.getClass().getName()));
                 }
                 ShardResultConvertor convertor = (ShardResultConvertor) subAgg;
-                subAggs.add(convertor.convertRow(shardResult, row));
+                subAggs.add(convertor.convertRow(shardResult, row, searchContext));
             }
             buckets.add(new InternalComposite.InternalBucket(
                 sourceNames,
