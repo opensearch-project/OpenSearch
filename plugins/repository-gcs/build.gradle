@@ -73,7 +73,7 @@ dependencies {
   runtimeOnly "com.google.protobuf:protobuf-java:${versions.protobuf}"
   runtimeOnly "com.google.code.gson:gson:${versions.gson}"
   runtimeOnly "com.google.api.grpc:proto-google-common-protos:2.60.0"
-  runtimeOnly "com.google.api.grpc:proto-google-iam-v1:1.55.0"
+  runtimeOnly "com.google.api.grpc:proto-google-iam-v1:1.57.0"
   implementation "com.google.auth:google-auth-library-credentials:1.38.0"
   implementation "com.google.auth:google-auth-library-oauth2-http:1.38.0"
   runtimeOnly "com.google.oauth-client:google-oauth-client:1.39.0" // 1.39.0 in bom
