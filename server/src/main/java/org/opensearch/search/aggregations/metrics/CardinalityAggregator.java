@@ -104,6 +104,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     /**
      * Setting for hybrid collector memory threshold. Supports both percentage (e.g., "1%")
      * and absolute values (e.g., "10mb", "1gb").
+     * Note: This threshold is applied at the Lucene segment level since collectors are created per segment.
      */
     public static final Setting<ByteSizeValue> CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD = Setting.memorySizeSetting(
         "search.aggregations.cardinality.hybrid_collector.memory_threshold",
