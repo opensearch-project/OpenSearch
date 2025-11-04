@@ -380,6 +380,28 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
+    /**
+     * Periodic flush interval setting. By default, periodic flush is disabled (-1).
+     * For pull-based ingestion indices, this defaults to 30 minutes to ensure offsets are regularly committed.
+     */
+    public static final TimeValue DEFAULT_PERIODIC_FLUSH_INTERVAL = TimeValue.MINUS_ONE;
+    public static final TimeValue MINIMUM_PERIODIC_FLUSH_INTERVAL = TimeValue.MINUS_ONE;
+    public static final Setting<TimeValue> INDEX_PERIODIC_FLUSH_INTERVAL_SETTING = Setting.timeSetting(
+        "index.periodic_flush_interval",
+        (settings) -> {
+            // Default to 30 minutes for pull-based ingestion indices, disabled otherwise
+            String ingestionSourceType = IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.get(settings);
+            if (ingestionSourceType != null && !IndexMetadata.NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType)) {
+                return TimeValue.timeValueMinutes(30);
+            }
+            return DEFAULT_PERIODIC_FLUSH_INTERVAL;
+        },
+        MINIMUM_PERIODIC_FLUSH_INTERVAL,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.flush_threshold_size",
         new ByteSizeValue(512, ByteSizeUnit.MB),
@@ -839,6 +861,7 @@ public final class IndexSettings {
     private volatile TimeValue syncInterval;
     private volatile TimeValue publishReferencedSegmentsInterval;
     private volatile TimeValue refreshInterval;
+    private volatile TimeValue periodicFlushInterval;
     private volatile ByteSizeValue flushThresholdSize;
     private volatile TimeValue translogRetentionAge;
     private volatile ByteSizeValue translogRetentionSize;
@@ -1057,6 +1080,7 @@ public final class IndexSettings {
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         publishReferencedSegmentsInterval = INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
+        periodicFlushInterval = scopedSettings.get(INDEX_PERIODIC_FLUSH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         flushAfterMergeThresholdSize = scopedSettings.get(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING);
@@ -1205,6 +1229,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_PERIODIC_FLUSH_INTERVAL_SETTING, this::setPeriodicFlushInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
@@ -1300,6 +1325,10 @@ public final class IndexSettings {
 
     private void setRefreshInterval(TimeValue timeValue) {
         this.refreshInterval = timeValue;
+    }
+
+    private void setPeriodicFlushInterval(TimeValue timeValue) {
+        this.periodicFlushInterval = timeValue;
     }
 
     /**
@@ -1642,6 +1671,14 @@ public final class IndexSettings {
      */
     public TimeValue getRefreshInterval() {
         return refreshInterval;
+    }
+
+    /**
+     * Returns the interval at which a periodic flush should be executed. {@code -1} means periodic flush is disabled.
+     * For pull-based ingestion indices, this defaults to 30 minutes to ensure offsets are regularly committed.
+     */
+    public TimeValue getPeriodicFlushInterval() {
+        return periodicFlushInterval;
     }
 
     /**

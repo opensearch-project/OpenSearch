@@ -1097,4 +1097,39 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         settings = new IndexSettings(metadata, Settings.EMPTY);
         assertFalse(settings.isDerivedSourceEnabledForTranslog());
     }
+
+    public void testDefaultPeriodicFlushIntervalForRegularIndex() {
+        // Test that regular indices have periodic flush disabled by default
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .build();
+
+        TimeValue defaultValue = IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.get(indexSettings);
+        assertEquals(TimeValue.MINUS_ONE, defaultValue);
+    }
+
+    public void testDefaultPeriodicFlushIntervalForPullBasedIngestionIndex() {
+        // Test that ingestion indices have periodic flush enabled (30 minutes) by default
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .build();
+
+        TimeValue defaultValue = IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.get(indexSettings);
+        assertEquals(TimeValue.timeValueMinutes(30), defaultValue);
+    }
+
+    public void testPeriodicFlushIntervalExplicitValue() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "5m")
+            .build();
+
+        TimeValue value = IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.get(indexSettings);
+        assertEquals(TimeValue.timeValueMinutes(5), value);
+    }
 }

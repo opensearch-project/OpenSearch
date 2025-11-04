@@ -61,6 +61,7 @@ public class IngestionEngine extends InternalEngine {
     private StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
     private final DocumentMapperForType documentMapperForType;
+    private volatile IngestionShardPointer lastCommittedBatchStartPointer;
 
     public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory) {
         super(engineConfig);
@@ -345,6 +346,7 @@ public class IngestionEngine extends InternalEngine {
     protected void commitIndexWriter(final IndexWriter writer, final String translogUUID) throws IOException {
         try {
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+            final IngestionShardPointer batchStartPointer = streamPoller.getBatchStartPointer();
             writer.setLiveCommitData(() -> {
                 /*
                  * The user data captured above (e.g. local checkpoint) contains data that must be evaluated *before* Lucene flushes
@@ -368,8 +370,8 @@ public class IngestionEngine extends InternalEngine {
                  * Batch start pointer can be null at index creation time, if flush is called before the stream
                  * poller has been completely initialized.
                  */
-                if (streamPoller.getBatchStartPointer() != null) {
-                    commitData.put(StreamPoller.BATCH_START, streamPoller.getBatchStartPointer().asString());
+                if (batchStartPointer != null) {
+                    commitData.put(StreamPoller.BATCH_START, batchStartPointer.asString());
                 } else {
                     logger.warn("ignore null batch start pointer");
                 }
@@ -382,6 +384,7 @@ public class IngestionEngine extends InternalEngine {
             });
             shouldPeriodicallyFlushAfterBigMerge.set(false);
             writer.commit();
+            lastCommittedBatchStartPointer = batchStartPointer;
         } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);
@@ -406,6 +409,34 @@ public class IngestionEngine extends InternalEngine {
                 throw e;
             }
         }
+    }
+
+    /**
+     * Periodic flush is required if the batchStartPointer has changed since the last commit or there is a big merge.
+     */
+    @Override
+    public boolean shouldPeriodicallyFlush() {
+        ensureOpen();
+
+        // Check if flush needed after big merge
+        if (shouldPeriodicallyFlushAfterBigMerge.get()) {
+            return true;
+        }
+
+        // Check if batchStartPointer has changed since last commit
+        IngestionShardPointer currentBatchStartPointer = streamPoller.getBatchStartPointer();
+
+        // If current pointer is null, no flush needed
+        if (currentBatchStartPointer == null) {
+            return false;
+        }
+
+        // If this is the first commit or pointer has changed, flush is needed
+        if (lastCommittedBatchStartPointer == null) {
+            return true;
+        }
+
+        return currentBatchStartPointer.equals(lastCommittedBatchStartPointer) == false;
     }
 
     @Override
