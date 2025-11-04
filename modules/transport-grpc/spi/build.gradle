@@ -18,12 +18,15 @@ dependencies {
   implementation project(":server")
   implementation "org.opensearch:protobufs:${versions.opensearchprotobufs}"
   implementation "io.grpc:grpc-api:${versions.grpc}"
-
   testImplementation project(":test:framework")
+  testImplementation "io.grpc:grpc-services:${versions.grpc}"
+  testImplementation "io.grpc:grpc-stub:${versions.grpc}"
 }
 
 thirdPartyAudit {
   ignoreMissingClasses(
+    'com.google.common.collect.Maps',
+    'com.google.common.collect.Sets',
     'com.google.common.base.Joiner',
     'com.google.common.base.MoreObjects',
     'com.google.common.base.MoreObjects$ToStringHelper',
@@ -33,8 +36,6 @@ thirdPartyAudit {
     'com.google.common.base.Throwables',
     'com.google.common.collect.ImmutableList',
     'com.google.common.collect.ImmutableMap',
-    'com.google.common.collect.Maps',
-    'com.google.common.collect.Sets',
     'com.google.common.io.BaseEncoding',
     'com.google.common.io.ByteStreams',
     'com.google.common.util.concurrent.ListenableFuture'

@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc.proto.request.search;
 
-import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.search.fetch.StoredFieldsContext;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -63,12 +62,14 @@ public class StoredFieldsContextProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoRequestWithStoredFields() {
-        // Create a SearchRequest with stored fields
+        // Create a SearchRequestBody with stored fields
         List<String> fieldNames = Arrays.asList("field1", "field2", "field3");
-        SearchRequest searchRequest = SearchRequest.newBuilder().addAllStoredFields(fieldNames).build();
+        org.opensearch.protobufs.SearchRequestBody searchRequestBody = org.opensearch.protobufs.SearchRequestBody.newBuilder()
+            .addAllStoredFields(fieldNames)
+            .build();
 
         // Call the method under test
-        StoredFieldsContext storedFieldsContext = StoredFieldsContextProtoUtils.fromProtoRequest(searchRequest);
+        StoredFieldsContext storedFieldsContext = StoredFieldsContextProtoUtils.fromProtoRequest(searchRequestBody);
 
         // Verify the result
         assertNotNull("StoredFieldsContext should not be null", storedFieldsContext);
@@ -77,22 +78,24 @@ public class StoredFieldsContextProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoRequestWithNoStoredFields() {
-        // Create a SearchRequest with no stored fields
-        SearchRequest searchRequest = SearchRequest.newBuilder().build();
+        // Create a SearchRequestBody with no stored fields
+        org.opensearch.protobufs.SearchRequestBody searchRequestBody = org.opensearch.protobufs.SearchRequestBody.newBuilder().build();
 
         // Call the method under test
-        StoredFieldsContext storedFieldsContext = StoredFieldsContextProtoUtils.fromProtoRequest(searchRequest);
+        StoredFieldsContext storedFieldsContext = StoredFieldsContextProtoUtils.fromProtoRequest(searchRequestBody);
 
         // Verify the result
         assertNull("StoredFieldsContext should be null for request with no stored fields", storedFieldsContext);
     }
 
     public void testFromProtoRequestWithEmptyStoredFields() {
-        // Create a SearchRequest with empty stored fields list
-        SearchRequest searchRequest = SearchRequest.newBuilder().addAllStoredFields(Collections.emptyList()).build();
+        // Create a SearchRequestBody with empty stored fields list
+        org.opensearch.protobufs.SearchRequestBody searchRequestBody = org.opensearch.protobufs.SearchRequestBody.newBuilder()
+            .addAllStoredFields(Collections.emptyList())
+            .build();
 
         // Call the method under test
-        StoredFieldsContext storedFieldsContext = StoredFieldsContextProtoUtils.fromProtoRequest(searchRequest);
+        StoredFieldsContext storedFieldsContext = StoredFieldsContextProtoUtils.fromProtoRequest(searchRequestBody);
 
         // Verify the result
         assertNull("StoredFieldsContext should be null for request with empty stored fields", storedFieldsContext);

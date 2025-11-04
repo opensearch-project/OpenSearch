@@ -80,6 +80,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.pointer_based_lag_update_interval", "0")
                 .build(),
             mappings
         );
@@ -125,11 +126,16 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 );
         });
 
-        // validate duplicate messages are skipped
+        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(29);
         waitForState(() -> {
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
-            return stats.getConsumerStats().totalDuplicateMessageSkippedCount() == 2;
+
+            return response.getHits().getTotalHits().value() == 2
+                && stats != null
+                && stats.getConsumerStats().totalPolledCount() == 4
+                && stats.getConsumerStats().totalPollerMessageFailureCount() == 0;
         });
     }
 

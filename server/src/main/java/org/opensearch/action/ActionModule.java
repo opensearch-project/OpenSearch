@@ -46,6 +46,8 @@ import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommi
 import org.opensearch.action.admin.cluster.decommission.awareness.get.TransportGetDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportDecommissionAction;
+import org.opensearch.action.admin.cluster.filecache.PruneFileCacheAction;
+import org.opensearch.action.admin.cluster.filecache.TransportPruneFileCacheAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -378,6 +380,7 @@ import org.opensearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
+import org.opensearch.rest.action.admin.cluster.RestPruneCacheAction;
 import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
@@ -592,7 +595,7 @@ public class ActionModule extends AbstractModule {
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         for (ActionPlugin plugin : actionPlugins) {
-            UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
+            UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext(), headers);
             if (newRestWrapper != null) {
                 logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
                 if (restWrapper != null) {
@@ -661,6 +664,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);
         actions.register(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
         actions.register(PendingClusterTasksAction.INSTANCE, TransportPendingClusterTasksAction.class);
+        actions.register(PruneFileCacheAction.INSTANCE, TransportPruneFileCacheAction.class);
         actions.register(PutRepositoryAction.INSTANCE, TransportPutRepositoryAction.class);
         actions.register(GetRepositoriesAction.INSTANCE, TransportGetRepositoriesAction.class);
         actions.register(DeleteRepositoryAction.INSTANCE, TransportDeleteRepositoryAction.class);
@@ -870,6 +874,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterRerouteAction(settingsFilter));
         registerHandler.accept(new RestClusterSearchShardsAction());
         registerHandler.accept(new RestPendingClusterTasksAction());
+        // FileCache API
+        registerHandler.accept(new RestPruneCacheAction());
         registerHandler.accept(new RestPutRepositoryAction());
         registerHandler.accept(new RestGetRepositoriesAction(settingsFilter));
         registerHandler.accept(new RestDeleteRepositoryAction());

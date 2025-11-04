@@ -521,18 +521,4 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         assertEquals(Version.fromString("1.1.0"), build.getMaxNodeVersion());
         assertEquals(Version.fromString("5.1.0"), build.getMinNodeVersion());
     }
-
-    private DiscoveryNode buildDiscoveryNodeFromExisting(DiscoveryNode existing, Version newVersion) {
-        return new DiscoveryNode(
-            existing.getName(),
-            existing.getId(),
-            existing.getEphemeralId(),
-            existing.getHostName(),
-            existing.getHostAddress(),
-            existing.getAddress(),
-            existing.getAttributes(),
-            existing.getRoles(),
-            newVersion
-        );
-    }
 }

@@ -30,6 +30,7 @@
 package org.opensearch.gradle
 
 
+import org.opensearch.gradle.Architecture
 import org.opensearch.gradle.fixtures.AbstractGradleFuncTest
 import org.opensearch.gradle.transform.SymbolicLinkPreservingUntarTransform
 import org.gradle.testkit.runner.TaskOutcome
@@ -56,8 +57,8 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         where:
         version                              | platform                                   | distType
         VersionProperties.getOpenSearch()    | OpenSearchDistribution.Platform.LINUX      | "current"
-        "8.1.0-SNAPSHOT"                     | OpenSearchDistribution.Platform.LINUX   | "bwc"
-        "7.0.0"                              | OpenSearchDistribution.Platform.WINDOWS | "released"
+        "2.19.0-SNAPSHOT"                    | OpenSearchDistribution.Platform.LINUX   | "bwc"
+        "3.3.0"                              | OpenSearchDistribution.Platform.WINDOWS | "released"
     }
 
 
@@ -65,6 +66,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         given:
         def version = VersionProperties.getOpenSearch()
         def platform = OpenSearchDistribution.Platform.LINUX
+        def arch = Architecture.current().name().toLowerCase()
 
         buildFile << applyPluginAndSetupDistro(version, platform)
         buildFile << """
@@ -72,7 +74,8 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def runner = gradleRunner('clean', 'setupDistro', '-i')
+        def customGradleUserHome = testProjectDir.newFolder().absolutePath;
+        def runner = gradleRunner('clean', 'setupDistro', '-i', '-g', customGradleUserHome)
         def result = withMockedDistributionDownload(version, platform, runner) {
             // initial run
             build()
@@ -82,15 +85,18 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        assertOutputContains(result.output, "Skipping ${SymbolicLinkPreservingUntarTransform.class.simpleName}")
+        result.output.count("Unpacking opensearch-${version}-linux-${arch}.tar.gz " +
+            "using SymbolicLinkPreservingUntarTransform.") == 0
     }
 
     def "transforms are reused across projects"() {
         given:
         def version = VersionProperties.getOpenSearch()
         def platform = OpenSearchDistribution.Platform.LINUX
+        def arch = Architecture.current().name().toLowerCase()
 
         3.times {
+            testProjectDir.newFolder("sub-$it")
             settingsFile << """
                 include ':sub-$it'
             """
@@ -119,7 +125,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.tasks.size() == 3
-        result.output.count("Unpacking opensearch-${version}-linux-x64.tar.gz " +
+        result.output.count("Unpacking opensearch-${version}-linux-${arch}.tar.gz " +
                 "using SymbolicLinkPreservingUntarTransform.") == 1
     }
 
