@@ -16,7 +16,6 @@ import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
@@ -123,7 +122,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             null,
             usageService,
             null,
-            mock(ClusterService.class),
+            new IdentityService(Settings.EMPTY, mock(ThreadPool.class), new ArrayList<>()),
             new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of()))
         );
         identityService = new IdentityService(Settings.EMPTY, mock(ThreadPool.class), new ArrayList<>());
