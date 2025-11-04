@@ -40,7 +40,41 @@ public class ParquetMergeHandler extends MergeHandler {
         this.mergePolicy.setSegmentsPerTier(10.0);
 //        this.mergePolicy.setMaxMergeAtOnce(5);
 //        this.mergePolicy.setFloorSegmentMB(1.0);
+    }
 
+    @Override
+    public Collection<OneMerge> findForceMerges(int maxSegmentCount) {
+        List<OneMerge> oneMerges = new ArrayList<>();
+        try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = compositeEngine.acquireSnapshot()) {
+            CatalogSnapshot catalogSnapshot = catalogSnapshotReleasableRef.getRef();
+            Collection<WriterFileSet> parquetWriterSet = catalogSnapshot.getSearchableFiles(PARQUET_DATAFORMAT);
+
+            List<ParquetTieredMergePolicy.ParquetFileInfo> parquetSegmentInfos = new ArrayList<>();
+
+            for(WriterFileSet writerFileSet : parquetWriterSet) {
+                for(String file: writerFileSet.getFiles()) {
+                    parquetSegmentInfos.add(new ParquetTieredMergePolicy.ParquetFileInfo(file));
+                }
+            }
+
+            List<List<ParquetTieredMergePolicy.ParquetFileInfo>> mergeCandidates =
+                mergePolicy.findForceMergeCandidates(parquetSegmentInfos, maxSegmentCount);
+
+            // Process merge candidates
+            for (int i = 0; i < mergeCandidates.size(); i++) {
+                List<ParquetTieredMergePolicy.ParquetFileInfo> mergeGroup = mergeCandidates.get(i);
+
+                Set<FileMetadata> files = new HashSet<>();
+                for (ParquetTieredMergePolicy.ParquetFileInfo file : mergeGroup) {
+                    Path path = Path.of(file.getSegmentName());
+                    files.add(new FileMetadata(path.getParent().toString(), path.getFileName().toString()));
+                }
+                oneMerges.add(new OneMerge(compositeIndexingExecutionEngine.getDataFormat().getDataFormats().get(0), files));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return oneMerges;
     }
 
     @Override
