@@ -35,7 +35,6 @@ package org.opensearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.action.AliasesRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterState.FeatureAware;
@@ -821,18 +820,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     /**
-     * Estimates the serialized size of the indices mappings in bytes.
+     * Estimates the serialized size of the indices metadata in bytes.
      * This is useful for circuit breaker calculations.
      *
      * @param indexPatterns array of index names/patterns to estimate, empty array means all indices
      * @return estimated size in bytes
      */
-    public long estimateIndicesMappingsSize(String[] indexPatterns) {
+    public long estimateIndicesSize(String[] indexPatterns) {
         long size = 0;
         if (indexPatterns.length == 0) {
             // Estimate all indices
             for (IndexMetadata indexMetadata : indices.values()) {
-                size += estimateIndexMappingsSize(indexMetadata);
+                size += estimateIndexSize(indexMetadata);
             }
         } else {
             // Estimate matching indices
@@ -842,20 +841,20 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     // _all pattern matches everything
                     for (IndexMetadata indexMetadata : indices.values()) {
                         if (matchedIndices.add(indexMetadata.getIndex().getName())) {
-                            size += estimateIndexMappingsSize(indexMetadata);
+                            size += estimateIndexSize(indexMetadata);
                         }
                     }
                 } else {
                     // Check for exact match first, then wildcard
                     IndexMetadata exactMatch = indices.get(pattern);
                     if (exactMatch != null && matchedIndices.add(pattern)) {
-                        size += estimateIndexMappingsSize(exactMatch);
+                        size += estimateIndexSize(exactMatch);
                     } else {
                         // Wildcard matching
                         for (IndexMetadata indexMetadata : indices.values()) {
                             String indexName = indexMetadata.getIndex().getName();
                             if (Regex.simpleMatch(pattern, indexName) && matchedIndices.add(indexName)) {
-                                size += estimateIndexMappingsSize(indexMetadata);
+                                size += estimateIndexSize(indexMetadata);
                             }
                         }
                     }
@@ -865,16 +864,21 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return size;
     }
 
-    private long estimateIndexMappingsSize(IndexMetadata indexMetadata) {
-        long size = 0L;
+    private long estimateIndexSize(IndexMetadata indexMetadata) {
+        long size = 2048; // ~2KB for basic index metadata
 
-        // 1) Mapping: count the actual compressed bytes (what GET _mapping typically serializes from)
+        // Mapping size estimate
         if (indexMetadata.mapping() != null) {
-            final byte[] compressed = indexMetadata.mapping().source().compressed();
-            size += RamUsageEstimator.sizeOf(compressed);
+            size += indexMetadata.mapping().source().compressed().length;
         }
 
-        return RamUsageEstimator.alignObjectSize(size);
+        // Settings size estimate
+        size += indexMetadata.getSettings().size() * 64; // ~64 bytes per setting
+
+        // Aliases size estimate
+        size += indexMetadata.getAliases().size() * 256; // ~256 bytes per alias
+
+        return size;
     }
 
     public Map<String, IndexMetadata> getIndices() {
