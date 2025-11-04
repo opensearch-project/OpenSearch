@@ -11,10 +11,8 @@ package org.opensearch.index.engine.exec.commit;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
