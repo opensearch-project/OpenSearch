@@ -1673,7 +1673,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (logger.isTraceEnabled()) {
             logger.trace("force merge with {}", forceMerge);
         }
-        Indexer engine = getIndexer();
+        Indexer engine = compositeEngine;
         engine.forceMerge(
             forceMerge.flush(),
             forceMerge.maxNumSegments(),

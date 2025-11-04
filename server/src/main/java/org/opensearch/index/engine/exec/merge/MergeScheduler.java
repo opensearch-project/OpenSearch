@@ -34,4 +34,14 @@ public class MergeScheduler {
             this.compositeEngine.applyMergeChanges(mergeResult, oneMerge);
         }
     }
+
+    public void forceMerge(int maxNumSegment) throws IOException {
+        // TODO: Add validation for background merge before executing force merge
+        Collection<OneMerge> oneMerges = mergeHandler.findForceMerges(maxNumSegment);
+
+        for(OneMerge oneMerge : oneMerges) {
+            MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
+            this.compositeEngine.applyMergeChanges(mergeResult, oneMerge);
+        }
+    }
 }
