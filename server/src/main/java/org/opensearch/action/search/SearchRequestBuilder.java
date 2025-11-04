@@ -52,6 +52,7 @@ import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.transport.client.OpenSearchClient;
+import org.opensearch.search.query.StreamingSearchMode;
 
 import java.util.Arrays;
 import java.util.List;
@@ -70,6 +71,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     public SearchRequestBuilder(OpenSearchClient client, StreamSearchAction action) {
         super(client, action, new SearchRequest());
+        // Ensure stream searches actually enable streaming on the request by default
+        // so streaming aggregations and profiling are activated in tests and users of
+        // the programmatic client. Users can still override this later if needed.
+        this.request.setStreamingSearchMode(StreamingSearchMode.NO_SCORING.toString());
     }
 
     /**
@@ -119,6 +124,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setScroll(String keepAlive) {
         request.scroll(keepAlive);
+        return this;
+    }
+
+    /**
+     * Enables streaming defaults for this search request.
+     * This sets the streaming search mode to NO_SCORING.
+     */
+    public SearchRequestBuilder enableStreamingDefaults() {
+        this.request.setStreamingSearchMode(StreamingSearchMode.NO_SCORING.toString());
         return this;
     }
 

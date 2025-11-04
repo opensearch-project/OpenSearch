@@ -148,7 +148,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             searchRequest.absoluteStartMillis,
             searchRequest.finalReduce
         );
+        // Preserve streaming fields when cloning
         this.streamingScoring = searchRequest.streamingScoring;
+        this.streamingSearchMode = searchRequest.streamingSearchMode;
     }
 
     /**
@@ -237,6 +239,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.finalReduce = finalReduce;
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
         this.phaseTook = searchRequest.phaseTook;
+        // Preserve streaming fields for forked/sub-requests
+        this.streamingScoring = searchRequest.streamingScoring;
+        this.streamingSearchMode = searchRequest.streamingSearchMode;
     }
 
     /**

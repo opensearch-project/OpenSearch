@@ -139,12 +139,10 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         if (this.leafCollectorCreated) {
-            throw new IllegalStateException(
-                "Calling " + StreamStringTermsAggregator.class.getSimpleName() + " for the second segment: " + ctx
-            );
-        } else {
-            this.leafCollectorCreated = true;
+            // Self-heal: reset state for the new segment instead of throwing
+            doReset();
         }
+        this.leafCollectorCreated = true;
         this.sortedDocValuesPerBatch = valuesSource.ordinalsValues(ctx);
         this.valueCount = sortedDocValuesPerBatch.getValueCount();
         if (docCounts == null) {

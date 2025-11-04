@@ -75,11 +75,8 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
     @Override
     public void postProcess(org.opensearch.search.query.QuerySearchResult result) throws IOException {
-        if (result.hasConsumedTopDocs()) {
-            return;
-        }
-
-        if (result.topDocs() == null) {
+        // Ensure topDocs is present to avoid serialization NPEs
+        if (!result.hasTopDocs()) {
             ScoreDoc[] scoreDocs = new ScoreDoc[0];
             TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
             TopDocs topDocs = new TopDocs(totalHits, scoreDocs);

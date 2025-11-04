@@ -165,6 +165,16 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     /**
+     * Returns true if topDocs have been set on this result.
+     * This is a safe presence check that does not conflate "not set yet" with
+     * "consumed". Prefer this in places that only need to ensure a non-null
+     * TopDocs before serialization.
+     */
+    public boolean hasTopDocs() {
+        return topDocsAndMaxScore != null;
+    }
+
+    /**
      * Returns <code>true</code> iff the top docs have already been consumed.
      */
     public boolean hasConsumedTopDocs() {

@@ -112,7 +112,9 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
+        if ((searchContext.isStreamSearch() || searchContext.getStreamingMode() != null)
+            && searchContext.getStreamChannelListener() != null
+            && (searchContext.getFlushMode() == null || searchContext.getFlushMode() == FlushMode.PER_SEGMENT)) {
             return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
         }
         return new CardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
@@ -125,18 +127,9 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        // Use HllCardinalityAggregator for HLL fields
-        if (config.fieldContext() != null) {
-            MappedFieldType fieldType = config.fieldContext().fieldType();
-            if (fieldType instanceof HllFieldMapper.HllFieldType hllFieldType) {
-                IndexFieldData<?> indexFieldData = searchContext.getQueryShardContext().getForField(fieldType);
-                if (indexFieldData instanceof HllFieldData hllFieldData) {
-                    return new HllCardinalityAggregator(name, hllFieldData, hllFieldType.precision(), searchContext, parent, metadata);
-                }
-            }
-        }
-
-        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
+        if ((searchContext.isStreamSearch() || searchContext.getStreamingMode() != null)
+            && searchContext.getStreamChannelListener() != null
+            && (searchContext.getFlushMode() == null || searchContext.getFlushMode() == FlushMode.PER_SEGMENT)) {
             return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
         }
         return queryShardContext.getValuesSourceRegistry()

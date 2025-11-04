@@ -32,8 +32,8 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -76,7 +76,8 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implements StreamingCostEstimable {
+public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
+    private static final Logger logger = LogManager.getLogger(TermsAggregatorFactory.class);
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -127,7 +128,12 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
+                    // Check if streaming is enabled and flush mode allows it. Require streaming listener to avoid classic path resets
+                    if ((context.isStreamSearch() || context.getStreamingMode() != null)
+                        && context.getStreamChannelListener() != null
+                        && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
+                        logger.debug("STREAM DEBUG: selecting StreamStringTermsAggregator name={} isStreamSearch={} flushMode={}",
+                            name, context.isStreamSearch(), context.getFlushMode());
                         return createStreamStringTermsAggregator(
                             name,
                             factories,
@@ -237,7 +243,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                     }
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
                 }
-                if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
+                if ((context.isStreamSearch() || context.getStreamingMode() != null)
+                    && context.getStreamChannelListener() != null
+                    && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
+                    logger.debug("STREAM DEBUG: selecting StreamNumericTermsAggregator name={} isStreamSearch={} flushMode={}",
+                        name, context.isStreamSearch(), context.getFlushMode());
                     return createStreamNumericTermsAggregator(
                         name,
                         factories,

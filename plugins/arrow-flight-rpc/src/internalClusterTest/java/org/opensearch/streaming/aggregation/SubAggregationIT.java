@@ -10,6 +10,8 @@ package org.opensearch.streaming.aggregation;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -45,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 import static org.opensearch.index.query.QueryBuilders.existsQuery;
@@ -53,6 +56,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 3, maxNumDataNodes = 3)
 public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(SubAggregationIT.class);
 
     public SubAggregationIT(Settings dynamicSettings) {
         super(dynamicSettings);
@@ -86,7 +90,8 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
-                    .put("search.aggregations.streaming.max_estimated_bucket_count", MAX_BUCKET_COUNT)
+                    .put("stream.search.enabled", true)
+                    .put("search.aggregations.streaming.max_estimated_bucket_count", 1000)
                     .put("search.aggregations.streaming.min_cardinality_ratio", 0.001)
                     .put("search.aggregations.streaming.min_estimated_bucket_count", 1)
                     .build()
@@ -258,6 +263,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
+                    .putNull("stream.search.enabled")
                     .putNull("search.aggregations.streaming.max_estimated_bucket_count")
                     .putNull("search.aggregations.streaming.min_cardinality_ratio")
                     .putNull("search.aggregations.streaming.min_estimated_bucket_count")
@@ -294,8 +300,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .setSize(0)
             .setRequestCache(false)
             .setProfile(true)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
         assertEquals(90, resp.getHits().getTotalHits().value());
@@ -312,8 +331,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .addAggregation(agg)
             .setSize(0)
             .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
         assertEquals(90, resp.getHits().getTotalHits().value());
@@ -353,8 +385,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .setSize(0)
             .setRequestCache(false)
             .setProfile(true)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
         assertEquals(90, resp.getHits().getTotalHits().value());
@@ -370,8 +415,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .addAggregation(agg)
             .setSize(0)
             .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
 
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
@@ -405,8 +463,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .addAggregation(agg)
             .setSize(0)
             .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute(); // No profile
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
 
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
@@ -448,8 +519,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                 .setSize(0)
                 .setRequestCache(false)
                 .setProfile(true)
+                .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
                 .execute();
-            SearchResponse resp = future.actionGet();
+            SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
 
             assertNotNull(resp);
             assertEquals(NUM_SHARDS, resp.getTotalShards());
@@ -480,6 +564,136 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingCardinalityAggregationUsed() throws Exception {
+        // This test validates cardinality streaming aggregation with profile to verify streaming is used
+        ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
+            .addAggregation(AggregationBuilders.cardinality("cardinality_agg").field("field1"))
+            .setSize(0)
+            .setRequestCache(false)
+            .setProfile(true)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
+            .execute();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
+        assertNotNull(resp);
+        assertEquals(NUM_SHARDS, resp.getTotalShards());
+        assertEquals(90, resp.getHits().getTotalHits().value());
+
+        // Validate that streaming cardinality aggregation was actually used
+        assertNotNull("Profile response should be present", resp.getProfileResults());
+        boolean foundStreamingCardinality = false;
+        for (var shardProfile : resp.getProfileResults().values()) {
+            List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
+            for (var profileResult : aggProfileResults) {
+                if (StreamCardinalityAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
+                    var debug = profileResult.getDebugInfo();
+                    if (debug != null && debug.containsKey("streaming_enabled")) {
+                        foundStreamingCardinality = true;
+                        assertTrue("streaming_enabled should be true", (Boolean) debug.get("streaming_enabled"));
+                        assertTrue("streaming_precision should be positive", ((Number) debug.get("streaming_precision")).intValue() > 0);
+                        break;
+                    }
+                }
+            }
+            if (foundStreamingCardinality) break;
+        }
+        assertTrue("Expected to find streaming cardinality in profile", foundStreamingCardinality);
+
+        // Also verify the result is correct
+        Cardinality cardinalityAgg = resp.getAggregations().get("cardinality_agg");
+        assertNotNull(cardinalityAgg);
+        // field1 has 3 unique values: value1, value2, value3
+        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() >= 2);
+        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() <= 4);
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingCardinalityAggregation() throws Exception {
+        // Test cardinality of field1 which has 3 unique values (value1, value2, value3)
+        ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
+            .addAggregation(AggregationBuilders.cardinality("cardinality_agg").field("field1").precisionThreshold(1000))
+            .setSize(0)
+            .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
+            .execute();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
+
+        assertNotNull(resp);
+        assertEquals(NUM_SHARDS, resp.getTotalShards());
+        assertEquals(90, resp.getHits().getTotalHits().value());
+
+        Cardinality cardinalityAgg = resp.getAggregations().get("cardinality_agg");
+        assertNotNull("Cardinality aggregation should not be null", cardinalityAgg);
+        // field1 has 3 unique values: value1, value2, value3
+        // HyperLogLog is approximate, so we allow some tolerance
+        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() >= 2);
+        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() <= 4);
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingCardinalityWithPrecisionThreshold() throws Exception {
+        // Test cardinality with different precision thresholds
+        ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
+            .addAggregation(AggregationBuilders.cardinality("cardinality_low").field("field1").precisionThreshold(10))
+            .addAggregation(AggregationBuilders.cardinality("cardinality_high").field("field1").precisionThreshold(1000))
+            .setSize(0)
+            .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
+            .execute();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
+
+        assertNotNull(resp);
+        assertEquals(NUM_SHARDS, resp.getTotalShards());
+        assertEquals(90, resp.getHits().getTotalHits().value());
+
+        Cardinality lowPrecision = resp.getAggregations().get("cardinality_low");
+        assertNotNull(lowPrecision);
+        assertEquals(3, lowPrecision.getValue(), 0.0);
+
+        Cardinality highPrecision = resp.getAggregations().get("cardinality_high");
+        assertNotNull(highPrecision);
+        assertEquals(3, highPrecision.getValue(), 0.0);
+
+        // Both should give the same result for small cardinality
+        assertEquals(lowPrecision.getValue(), highPrecision.getValue(), 0.0);
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
     public void testStreamingCardinalityAsSubAggregation() throws Exception {
         // Test cardinality as a sub-aggregation under terms aggregation
         // Using field3 (keyword field) for cardinality since StreamCardinalityAggregator only supports ordinal value sources
@@ -490,8 +704,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .addAggregation(agg)
             .setSize(0)
             .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
 
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
