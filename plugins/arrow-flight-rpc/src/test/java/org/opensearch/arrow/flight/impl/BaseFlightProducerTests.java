@@ -566,8 +566,9 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
     }
 
     public void testGetFlightInfo_SchemaError() {
-        when(streamManager.getStreamProducer(any(FlightStreamTicket.class)))
-            .thenReturn(Optional.of(FlightStreamManager.StreamProducerHolder.create(streamProducer, allocator)));
+        when(streamManager.getStreamProducer(any(FlightStreamTicket.class))).thenReturn(
+            Optional.of(FlightStreamManager.StreamProducerHolder.create(streamProducer, allocator))
+        );
         Location location = Location.forGrpcInsecure("localhost", 8815);
         when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(Optional.of(location));
         when(streamProducer.createRoot(allocator)).thenReturn(mock(VectorSchemaRoot.class));
