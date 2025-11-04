@@ -275,7 +275,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
             }
         }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+        return new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(sizeInBytes).build();
     }
 
     /**
@@ -1476,8 +1476,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
 
         public DirectoryReader getDirectoryReader() {
-            if (getIndexReader() instanceof DirectoryReader) {
-                return (DirectoryReader) getIndexReader();
+            if (getIndexReader() instanceof DirectoryReader directoryReader) {
+                return directoryReader;
             }
             throw new IllegalStateException("Can't use " + getIndexReader().getClass() + " as a directory reader");
         }

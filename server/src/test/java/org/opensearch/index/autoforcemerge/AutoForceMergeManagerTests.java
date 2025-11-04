@@ -815,7 +815,18 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
 
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, threadCount, 0, 0, 0, threadCount, 0, -1, -1))
+            Arrays.asList(
+                new ThreadPoolStats.Stats.Builder().name(ThreadPool.Names.FORCE_MERGE)
+                    .threads(threadCount)
+                    .queue(0)
+                    .active(0)
+                    .rejected(0)
+                    .largest(threadCount)
+                    .completed(0)
+                    .waitTimeNanos(-1)
+                    .parallelism(-1)
+                    .build()
+            )
         );
         when(threadPool.stats()).thenReturn(stats);
 
