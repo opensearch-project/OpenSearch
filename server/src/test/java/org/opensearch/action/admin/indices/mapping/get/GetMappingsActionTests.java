@@ -50,6 +50,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -128,7 +129,8 @@ public class GetMappingsActionTests extends OpenSearchTestCase {
             GetMappingsActionTests.this.threadPool,
             new ActionFilters(emptySet()),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            mock(IndicesService.class)
+            mock(IndicesService.class),
+            mock(CircuitBreakerService.class)
         );
 
     }
