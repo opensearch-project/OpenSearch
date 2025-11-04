@@ -8,7 +8,6 @@
 
 package org.opensearch.index.engine.exec.coord;
 
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
