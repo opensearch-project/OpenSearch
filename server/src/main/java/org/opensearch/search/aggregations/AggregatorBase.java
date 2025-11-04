@@ -50,6 +50,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -342,5 +343,14 @@ public abstract class AggregatorBase extends Aggregator {
         if (context.isCancelled()) {
             throw new TaskCancelledException("The query has been cancelled");
         }
+    }
+
+    protected Optional<Aggregator> subAggregatorByName(String name) {
+        for (Aggregator aggregator : subAggregators) {
+            if (aggregator.name().equals(name)) {
+                return Optional.of(aggregator);
+            }
+        }
+        return Optional.empty();
     }
 }

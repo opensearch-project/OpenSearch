@@ -78,6 +78,8 @@ import org.opensearch.search.aggregations.bucket.filterrewrite.CompositeAggregat
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.opensearch.search.aggregations.metrics.InternalValueCount;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
@@ -89,6 +91,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
@@ -747,6 +750,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
         }
         List<InternalComposite.InternalBucket> buckets = new ArrayList<>();
         int row = 0;
+        Optional<String> countColumnName = getCountColumnName(shardResult);
         for (CompositeKey compositeKey : compositeKeys) {
             List<InternalAggregation> subAggs = new ArrayList<>();
             for (Aggregator subAgg : subAggregators) {
@@ -756,13 +760,25 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
                 ShardResultConvertor convertor = (ShardResultConvertor) subAgg;
                 subAggs.add(convertor.convertRow(shardResult, row, searchContext));
             }
+            long docCount = 1;
+            if (countColumnName.isPresent()) {
+                Optional<Aggregator> countAggregator = subAggregatorByName(countColumnName.get());
+                // SQL plugin pushed down a count sub agg
+                if (countAggregator.isPresent()) {
+                    ShardResultConvertor convertor = (ShardResultConvertor) countAggregator.get();
+                    InternalValueCount valueCount = (InternalValueCount) convertor.convertRow(shardResult, row, searchContext);
+                    docCount = valueCount.getValue();
+                } else {
+                    docCount = (long) searchContext.convertToComparable(shardResult.get(countColumnName.get())[row]);
+                }
+            }
             buckets.add(new InternalComposite.InternalBucket(
                 sourceNames,
                 formats,
                 compositeKey,
                 reverseMuls,
                 missingOrders,
-                1,
+                docCount,
                 InternalAggregations.from(subAggs)
             ));
             row++;
@@ -781,6 +797,26 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
                 earlyTerminated,
                 metadata()
             ));
+    }
+
+    private Optional<String> getCountColumnName(Map<String, Object[]> datafusionResult) {
+        String countColumnName = null;
+        for (String outputColumn : datafusionResult.keySet()) {
+            // Ensure it's not a GroupBy column
+            if (sourceNames.contains(outputColumn) == false) {
+                Optional<Aggregator> aggregator = subAggregatorByName(outputColumn);
+                if (aggregator.isPresent()) {
+                    if (aggregator.get() instanceof ValueCountAggregator) {
+                        countColumnName = outputColumn;
+                        break;
+                    }
+                } else {
+                    countColumnName = outputColumn;
+                    break;
+                }
+            }
+        }
+        return countColumnName == null ? Optional.empty() : Optional.of(countColumnName);
     }
 
     /**

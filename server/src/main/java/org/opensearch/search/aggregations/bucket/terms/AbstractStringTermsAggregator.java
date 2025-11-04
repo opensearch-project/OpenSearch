@@ -33,25 +33,36 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalOrder;
+import org.opensearch.search.aggregations.ShardResultConvertor;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.opensearch.search.aggregations.metrics.InternalValueCount;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Collections.emptyList;
+import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
 /**
  * Base Aggregator to collect all docs that contain significant terms
  *
  * @opensearch.internal
  */
-abstract class AbstractStringTermsAggregator extends TermsAggregator {
+abstract class AbstractStringTermsAggregator extends TermsAggregator implements ShardResultConvertor {
 
     protected final boolean showTermDocCountError;
 
@@ -102,5 +113,79 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
             emptyList(),
             bucketCountThresholds
         );
+    }
+
+    @Override
+    public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
+        String termKey = (String) searchContext.convertToComparable(shardResult.get(name)[row]);
+
+        List<InternalAggregation> subAggs = new ArrayList<>();
+        for (Aggregator aggregator : subAggregators) {
+            if (aggregator instanceof ShardResultConvertor convertor) {
+                InternalAggregation subAgg = convertor.convertRow(shardResult, row, searchContext);
+                subAggs.add(subAgg);
+            }
+        }
+
+        Optional<String> countColumnName = getCountColumnName(shardResult);
+        long docCount = 1;
+        if (countColumnName.isPresent()) {
+            Optional<Aggregator> countAggregator = subAggregatorByName(countColumnName.get());
+            // SQL plugin pushed down a count sub agg
+            if (countAggregator.isPresent()) {
+                ShardResultConvertor convertor = (ShardResultConvertor) countAggregator.get();
+                InternalValueCount valueCount = (InternalValueCount) convertor.convertRow(shardResult, row, searchContext);
+                docCount = valueCount.getValue();
+            } else {
+                // SQL plugin didn't push down sub agg and will get count from doc_count field
+                docCount = (long) searchContext.convertToComparable(shardResult.get(countColumnName.get())[row]);
+            }
+        }
+
+        BucketOrder reduceOrder = order;
+        if (isKeyOrder(order) == false) {
+            reduceOrder = InternalOrder.key(true);
+        }
+        StringTerms.Bucket bucket = new StringTerms.Bucket(
+            new BytesRef(termKey),
+            docCount,
+            InternalAggregations.from(subAggs),
+            showTermDocCountError,
+            0,
+            format
+        );
+        return new StringTerms(
+            name,
+            reduceOrder,
+            order,
+            null,
+            format,
+            bucketCountThresholds.getShardSize(),
+            showTermDocCountError,
+            0,
+            List.of(bucket),
+            0,
+            bucketCountThresholds
+        );
+    }
+
+    private Optional<String> getCountColumnName(Map<String, Object[]> datafusionResult) {
+        String countColumnName = null;
+        for (String outputColumn : datafusionResult.keySet()) {
+            // Ensure it's not a GroupBy column
+            if (name.contains(outputColumn) == false) {
+                Optional<Aggregator> aggregator = subAggregatorByName(outputColumn);
+                if (aggregator.isPresent()) {
+                    if (aggregator.get() instanceof ValueCountAggregator) {
+                        countColumnName = outputColumn;
+                        break;
+                    }
+                } else {
+                    countColumnName = outputColumn;
+                    break;
+                }
+            }
+        }
+        return countColumnName == null ? Optional.empty() : Optional.of(countColumnName);
     }
 }
