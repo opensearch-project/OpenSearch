@@ -32,8 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
-
 import javax.crypto.Cipher;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -86,7 +84,7 @@ import static org.opensearch.common.ssl.SslConfigurationKeys.VERIFICATION_MODE;
 public abstract class SslConfigurationLoader {
 
     static final List<String> FIPS_APPROVED_PROTOCOLS = List.of("TLSv1.3", "TLSv1.2");
-    static final List<String> DEFAULT_PROTOCOLS = CryptoServicesRegistrar.isInApprovedOnlyMode()
+    static final List<String> DEFAULT_PROTOCOLS = KeyStoreUtil.inFipsMode.get()
         ? FIPS_APPROVED_PROTOCOLS
         : List.of("TLSv1.3", "TLSv1.2", "TLSv1.1");
     static final List<String> DEFAULT_CIPHERS = loadDefaultCiphers();
