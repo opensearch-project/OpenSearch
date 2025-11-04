@@ -13,6 +13,7 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortMode;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 import static org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils.SCORE_NAME;
@@ -36,16 +37,21 @@ public class FieldSortBuilderProtoUtils {
      *
      * @param fieldName The name of the field to sort by
      * @param fieldSort The Protocol Buffer FieldSort containing sorting options
+     * @param registry The registry for converting nested sort filters
      * @return A configured FieldSortBuilder
      * @throws IllegalArgumentException if fieldName is null or empty, or fieldSort is null
      */
-    public static FieldSortBuilder fromProto(String fieldName, FieldSort fieldSort) {
+    public static FieldSortBuilder fromProto(String fieldName, FieldSort fieldSort, QueryBuilderProtoConverterRegistry registry) {
         if (fieldName == null || fieldName.isEmpty() || fieldName.equals(SCORE_NAME)) {
             throw new IllegalArgumentException("Field name is required and cannot be '_score'. Use ScoreSort for score-based sorting.");
         }
 
         if (fieldSort == null) {
             throw new IllegalArgumentException("FieldSort cannot be null");
+        }
+
+        if (registry == null) {
+            throw new IllegalArgumentException("Registry cannot be null");
         }
 
         FieldSortBuilder builder = new FieldSortBuilder(fieldName);
@@ -72,7 +78,7 @@ public class FieldSortBuilderProtoUtils {
         }
 
         if (fieldSort.hasNested()) {
-            builder.setNestedSort(NestedSortProtoUtils.fromProto(fieldSort.getNested()));
+            builder.setNestedSort(NestedSortProtoUtils.fromProto(fieldSort.getNested(), registry));
         }
 
         return builder;

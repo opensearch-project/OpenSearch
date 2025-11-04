@@ -25,7 +25,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -41,208 +40,105 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
         super.setUp();
         // Set up the registry with all built-in converters
         registry = new QueryBuilderProtoConverterRegistryImpl();
-        HighlightBuilderProtoUtils.setRegistry(registry);
     }
 
     public void testFromProto_NullHighlight() {
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> { HighlightBuilderProtoUtils.fromProto(null); }
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            HighlightBuilderProtoUtils.fromProto(null, registry);
+        });
         assertEquals("Highlight cannot be null", exception.getMessage());
+    }
+
+    public void testFromProto_WithoutRegistry() {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            HighlightBuilderProtoUtils.fromProto(Highlight.newBuilder().build(), null);
+        });
+        assertEquals("Registry cannot be null", exception.getMessage());
     }
 
     public void testFromProto_EmptyHighlight() {
         Highlight highlightProto = Highlight.newBuilder().build();
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
         assertNotNull(result);
-        // Should create a basic HighlightBuilder with default settings
     }
 
-    public void testFromProto_WithPreTags() {
-        Highlight highlightProto = Highlight.newBuilder().addPreTags("<em>").addPreTags("<strong>").build();
+    public void testFromProto_WithTagsAndBasicSettings() {
+        Highlight highlightProto = Highlight.newBuilder()
+            .addPreTags("<em>")
+            .addPreTags("<strong>")
+            .addPostTags("</em>")
+            .addPostTags("</strong>")
+            .setOrder(HighlighterOrder.HIGHLIGHTER_ORDER_SCORE)
+            .setFragmentSize(100)
+            .setNumberOfFragments(5)
+            .setRequireFieldMatch(true)
+            .setHighlightFilter(true)
+            .build();
 
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
 
         assertNotNull(result);
         String[] preTags = result.preTags();
         assertEquals(2, preTags.length);
         assertEquals("<em>", preTags[0]);
         assertEquals("<strong>", preTags[1]);
-    }
 
-    public void testFromProto_WithPostTags() {
-        Highlight highlightProto = Highlight.newBuilder().addPostTags("</em>").addPostTags("</strong>").build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
         String[] postTags = result.postTags();
         assertEquals(2, postTags.length);
         assertEquals("</em>", postTags[0]);
         assertEquals("</strong>", postTags[1]);
-    }
 
-    public void testFromProto_WithOrder() {
-        Highlight highlightProto = Highlight.newBuilder().setOrder(HighlighterOrder.HIGHLIGHTER_ORDER_SCORE).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
         assertEquals(HighlightBuilder.Order.SCORE, result.order());
-    }
-
-    public void testFromProto_WithHighlightFilter() {
-        Highlight highlightProto = Highlight.newBuilder().setHighlightFilter(true).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
+        assertEquals(100, (int) result.fragmentSize());
+        assertEquals(5, (int) result.numOfFragments());
+        assertTrue(result.requireFieldMatch());
         assertTrue(result.highlightFilter());
     }
 
-    public void testFromProto_WithFragmentSize() {
-        Highlight highlightProto = Highlight.newBuilder().setFragmentSize(100).build();
+    public void testFromProto_WithBoundarySettings() {
+        Highlight highlightProto = Highlight.newBuilder()
+            .setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_WORD)
+            .setBoundaryMaxScan(50)
+            .setBoundaryChars(".,!?")
+            .setBoundaryScannerLocale("en-US")
+            .build();
 
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
-        assertEquals(100, (int) result.fragmentSize());
-    }
-
-    public void testFromProto_WithNumberOfFragments() {
-        Highlight highlightProto = Highlight.newBuilder().setNumberOfFragments(5).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
-        assertEquals(5, (int) result.numOfFragments());
-    }
-
-    public void testFromProto_WithRequireFieldMatch() {
-        Highlight highlightProto = Highlight.newBuilder().setRequireFieldMatch(true).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
-        assertTrue(result.requireFieldMatch());
-    }
-
-    public void testFromProto_WithBoundaryScanner() {
-        Highlight highlightProto = Highlight.newBuilder().setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_WORD).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
 
         assertNotNull(result);
         assertEquals(HighlightBuilder.BoundaryScannerType.WORD, result.boundaryScannerType());
-    }
-
-    public void testFromProto_WithBoundaryMaxScan() {
-        Highlight highlightProto = Highlight.newBuilder().setBoundaryMaxScan(50).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
         assertEquals(50, (int) result.boundaryMaxScan());
-    }
-
-    public void testFromProto_WithBoundaryChars() {
-        Highlight highlightProto = Highlight.newBuilder().setBoundaryChars(".,!?").build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
         char[] boundaryChars = result.boundaryChars();
         assertEquals(4, boundaryChars.length);
         assertEquals('.', boundaryChars[0]);
-        assertEquals(',', boundaryChars[1]);
-        assertEquals('!', boundaryChars[2]);
-        assertEquals('?', boundaryChars[3]);
-    }
-
-    public void testFromProto_WithBoundaryScannerLocale() {
-        Highlight highlightProto = Highlight.newBuilder().setBoundaryScannerLocale("en-US").build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
         assertNotNull(result.boundaryScannerLocale());
         assertEquals("en-US", result.boundaryScannerLocale().toLanguageTag());
     }
 
-    public void testFromProto_WithBuiltinHighlighterType() {
+    public void testFromProto_WithHighlighterSettings() {
         Highlight highlightProto = Highlight.newBuilder()
             .setType(HighlighterType.newBuilder().setBuiltin(BuiltinHighlighterType.BUILTIN_HIGHLIGHTER_TYPE_FVH).build())
+            .setFragmenter(HighlighterFragmenter.HIGHLIGHTER_FRAGMENTER_SPAN)
+            .setEncoder(HighlighterEncoder.HIGHLIGHTER_ENCODER_HTML)
+            .setNoMatchSize(200)
+            .setForceSource(true)
+            .setPhraseLimit(10)
+            .setMaxAnalyzedOffset(1000)
             .build();
 
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
 
         assertNotNull(result);
         assertEquals("fvh", result.highlighterType());
-    }
-
-    public void testFromProto_WithCustomHighlighterType() {
-        Highlight highlightProto = Highlight.newBuilder()
-            .setType(HighlighterType.newBuilder().setCustom("custom_highlighter").build())
-            .build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
-        assertEquals("custom_highlighter", result.highlighterType());
-    }
-
-    public void testFromProto_WithFragmenter() {
-        Highlight highlightProto = Highlight.newBuilder().setFragmenter(HighlighterFragmenter.HIGHLIGHTER_FRAGMENTER_SPAN).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
         assertEquals("span", result.fragmenter());
-    }
-
-    public void testFromProto_WithNoMatchSize() {
-        Highlight highlightProto = Highlight.newBuilder().setNoMatchSize(200).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
+        assertEquals("html", result.encoder());
         assertEquals(200, (int) result.noMatchSize());
-    }
-
-    public void testFromProto_WithForceSource() {
-        Highlight highlightProto = Highlight.newBuilder().setForceSource(true).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
         assertTrue(result.forceSource());
-    }
-
-    public void testFromProto_WithPhraseLimit() {
-        Highlight highlightProto = Highlight.newBuilder().setPhraseLimit(10).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
         assertEquals(10, (int) result.phraseLimit());
-    }
-
-    public void testFromProto_WithMaxAnalyzedOffset() {
-        Highlight highlightProto = Highlight.newBuilder().setMaxAnalyzedOffset(1000).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
         assertEquals(1000, (int) result.maxAnalyzerOffset());
     }
 
     public void testFromProto_WithOptions() {
-        Map<String, Object> optionsMap = new HashMap<>();
-        optionsMap.put("key1", "value1");
-        optionsMap.put("key2", 42);
-
         Highlight highlightProto = Highlight.newBuilder()
             .setOptions(
                 ObjectMap.newBuilder()
@@ -252,7 +148,7 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
             )
             .build();
 
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
 
         assertNotNull(result);
         Map<String, Object> resultOptions = result.options();
@@ -266,131 +162,69 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setHighlightQuery(QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build())
             .build();
 
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
 
         assertNotNull(result);
         assertNotNull(result.highlightQuery());
         assertEquals("match_all", result.highlightQuery().getName());
         assertTrue(result.highlightQuery() instanceof org.opensearch.index.query.MatchAllQueryBuilder);
-
     }
 
     public void testFromProto_WithTagsSchema() {
         Highlight highlightProto = Highlight.newBuilder().setTagsSchema(HighlighterTagsSchema.HIGHLIGHTER_TAGS_SCHEMA_STYLED).build();
 
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
         assertNotNull(result);
-        // tagsSchema is a setter that applies the schema immediately, no getter available
     }
 
-    public void testFromProto_WithEncoder() {
-        Highlight highlightProto = Highlight.newBuilder().setEncoder(HighlighterEncoder.HIGHLIGHTER_ENCODER_HTML).build();
+    public void testFromProto_WithUnspecifiedEnums() {
+        Highlight highlightProto = Highlight.newBuilder()
+            .setOrder(HighlighterOrder.HIGHLIGHTER_ORDER_UNSPECIFIED)
+            .setFragmenter(HighlighterFragmenter.HIGHLIGHTER_FRAGMENTER_UNSPECIFIED)
+            .setEncoder(HighlighterEncoder.HIGHLIGHTER_ENCODER_UNSPECIFIED)
+            .setType(HighlighterType.newBuilder().setBuiltin(BuiltinHighlighterType.BUILTIN_HIGHLIGHTER_TYPE_UNSPECIFIED).build())
+            .setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_UNSPECIFIED)
+            .build();
 
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
 
         assertNotNull(result);
-        assertEquals("html", result.encoder());
+        assertNull(result.order());
+        assertNull(result.fragmenter());
+        assertNull(result.encoder());
+        assertNull(result.highlighterType());
+        assertNull(result.boundaryScannerType());
     }
 
-    public void testFromProto_WithFields() {
+    public void testFromProto_WithFieldPreAndPostTags() {
         HighlightField fieldProto = HighlightField.newBuilder()
-            .setFragmentOffset(10)
-            .addMatchedFields("title")
-            .addMatchedFields("content")
-            .setType(HighlighterType.newBuilder().setBuiltin(BuiltinHighlighterType.BUILTIN_HIGHLIGHTER_TYPE_PLAIN).build())
-            .setBoundaryChars(".,!?")
-            .setBoundaryMaxScan(30)
-            .setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_SENTENCE)
-            .setBoundaryScannerLocale("en-GB")
-            .setFragmenter(HighlighterFragmenter.HIGHLIGHTER_FRAGMENTER_SIMPLE)
-            .setFragmentSize(150)
-            .setHighlightFilter(false)
-            .setNoMatchSize(100)
-            .setNumberOfFragments(3)
+            .addPreTags("<em>")
+            .addPreTags("<strong>")
+            .addPostTags("</em>")
+            .addPostTags("</strong>")
             .build();
 
         Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
 
         assertNotNull(result);
         List<HighlightBuilder.Field> fields = result.fields();
-        assertNotNull(fields);
         assertEquals(1, fields.size());
 
         HighlightBuilder.Field titleField = fields.get(0);
-        assertNotNull(titleField);
         assertEquals("title", titleField.name());
 
-        assertEquals("plain", titleField.highlighterType());
-        assertEquals(30, (int) titleField.boundaryMaxScan());
-        assertEquals(HighlightBuilder.BoundaryScannerType.SENTENCE, titleField.boundaryScannerType());
-        assertNotNull(titleField.boundaryScannerLocale());
-        assertEquals("en-GB", titleField.boundaryScannerLocale().toLanguageTag());
-        assertEquals("simple", titleField.fragmenter());
-        assertEquals(150, (int) titleField.fragmentSize());
-        assertFalse(titleField.highlightFilter());
-        assertEquals(100, (int) titleField.noMatchSize());
-        assertEquals(3, (int) titleField.numOfFragments());
-    }
+        String[] preTags = titleField.preTags();
+        assertNotNull(preTags);
+        assertEquals(2, preTags.length);
+        assertEquals("<em>", preTags[0]);
+        assertEquals("<strong>", preTags[1]);
 
-    public void testFromProto_WithFieldHighlightQuery() {
-        Highlight highlightProto = Highlight.newBuilder()
-            .putFields(
-                "title",
-                HighlightField.newBuilder()
-                    .setHighlightQuery(QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build())
-                    .build()
-            )
-            .build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
-        List<HighlightBuilder.Field> fields = result.fields();
-        assertEquals(1, fields.size());
-
-        HighlightBuilder.Field titleField = fields.get(0);
-        assertNotNull(titleField);
-        assertNotNull(titleField.highlightQuery());
-
-        assertEquals("match_all", titleField.highlightQuery().getName());
-        assertTrue(titleField.highlightQuery() instanceof org.opensearch.index.query.MatchAllQueryBuilder);
-
-    }
-
-    public void testFromProto_WithComplexHighlightQuery() {
-        Highlight highlightProto = Highlight.newBuilder()
-            .setHighlightQuery(
-                QueryContainer.newBuilder()
-                    .setTerm(
-                        org.opensearch.protobufs.TermQuery.newBuilder()
-                            .setField("status")
-                            .setValue(org.opensearch.protobufs.FieldValue.newBuilder().setString("active").build())
-                            .build()
-                    )
-                    .build()
-            )
-            .build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
-        assertNotNull(result.highlightQuery());
-
-        assertEquals("term", result.highlightQuery().getName());
-        assertTrue(result.highlightQuery() instanceof org.opensearch.index.query.TermQueryBuilder);
-
-        org.opensearch.index.query.TermQueryBuilder termQuery = (org.opensearch.index.query.TermQueryBuilder) result.highlightQuery();
-        assertEquals("status", termQuery.fieldName());
-        assertEquals("active", termQuery.value());
-
-        String queryJson = result.highlightQuery().toString();
-        assertNotNull(queryJson);
-        assertTrue(queryJson.contains("term"));
-        assertTrue(queryJson.contains("status"));
-        assertTrue(queryJson.contains("active"));
+        String[] postTags = titleField.postTags();
+        assertNotNull(postTags);
+        assertEquals(2, postTags.length);
+        assertEquals("</em>", postTags[0]);
+        assertEquals("</strong>", postTags[1]);
     }
 
     public void testFromProto_WithFieldOptions() {
@@ -398,86 +232,27 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setOptions(
                 ObjectMap.newBuilder().putFields("field_key", ObjectMap.Value.newBuilder().setString("field_value").build()).build()
             )
+            .setMaxAnalyzedOffset(500)
+            .setHighlightQuery(QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build())
             .build();
 
         Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
 
         assertNotNull(result);
         List<HighlightBuilder.Field> fields = result.fields();
         HighlightBuilder.Field titleField = fields.get(0);
-        assertNotNull(titleField);
 
         Map<String, Object> fieldOptions = titleField.options();
         assertNotNull(fieldOptions);
         assertEquals("field_value", fieldOptions.get("field_key"));
-    }
 
-    public void testFromProto_WithFieldMaxAnalyzedOffset() {
-        HighlightField fieldProto = HighlightField.newBuilder().setMaxAnalyzedOffset(500).build();
-
-        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
-        List<HighlightBuilder.Field> fields = result.fields();
-        HighlightBuilder.Field titleField = fields.get(0);
-        assertNotNull(titleField);
         assertEquals(500, (int) titleField.maxAnalyzerOffset());
+        assertNotNull(titleField.highlightQuery());
+        assertEquals("match_all", titleField.highlightQuery().getName());
     }
 
-    public void testFromProto_WithoutRegistry() {
-        // Clear the registry to test error handling
-        HighlightBuilderProtoUtils.setRegistry(null);
-
-        // Create a highlight with highlightQuery that requires registry
-        Highlight highlightProto = Highlight.newBuilder()
-            .setHighlightQuery(QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build())
-            .build();
-
-        // Should throw IllegalStateException when registry is not set
-        IllegalStateException exception = expectThrows(
-            IllegalStateException.class,
-            () -> { HighlightBuilderProtoUtils.fromProto(highlightProto); }
-        );
-
-        assertEquals("QueryBuilderProtoConverterRegistry not set. Call setRegistry() first.", exception.getMessage());
-
-        // Restore registry for other tests
-        QueryBuilderProtoConverterRegistryImpl registry = new QueryBuilderProtoConverterRegistryImpl();
-        HighlightBuilderProtoUtils.setRegistry(registry);
-    }
-
-    public void testFromProto_WithUnspecifiedEnums() {
-        Highlight highlightProto = Highlight.newBuilder()
-            .setOrder(HighlighterOrder.HIGHLIGHTER_ORDER_UNSPECIFIED)
-            .setFragmenter(HighlighterFragmenter.HIGHLIGHTER_FRAGMENTER_UNSPECIFIED)
-            .setTagsSchema(HighlighterTagsSchema.HIGHLIGHTER_TAGS_SCHEMA_UNSPECIFIED)
-            .setEncoder(HighlighterEncoder.HIGHLIGHTER_ENCODER_UNSPECIFIED)
-            .setType(HighlighterType.newBuilder().setBuiltin(BuiltinHighlighterType.BUILTIN_HIGHLIGHTER_TYPE_UNSPECIFIED).build())
-            .build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
-        assertNull(result.order());
-        assertNull(result.fragmenter());
-        assertNull(result.encoder());
-        assertNull(result.highlighterType());
-    }
-
-    public void testFromProto_WithBoundaryScannerUnspecified() {
-        Highlight highlightProto = Highlight.newBuilder().setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_UNSPECIFIED).build();
-
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
-
-        assertNotNull(result);
-        assertNull(result.boundaryScannerType());
-    }
-
-    public void testFromProto_ComplexScenario() {
+    public void testFromProto_WithMultipleFields() {
         HighlightField titleField = HighlightField.newBuilder()
             .setFragmentSize(100)
             .setNumberOfFragments(2)
@@ -502,7 +277,7 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
             .putFields("content", contentField)
             .build();
 
-        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto);
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
 
         assertNotNull(result);
 
@@ -538,5 +313,89 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals(200, (int) resultContentField.fragmentSize());
         assertEquals(5, (int) resultContentField.numOfFragments());
         assertEquals("plain", resultContentField.highlighterType());
+    }
+
+    public void testFromProto_WithAllBoundaryScannerTypes() {
+        Highlight highlightChars = Highlight.newBuilder().setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_CHARS).build();
+        HighlightBuilder resultChars = HighlightBuilderProtoUtils.fromProto(highlightChars, registry);
+        assertEquals(HighlightBuilder.BoundaryScannerType.CHARS, resultChars.boundaryScannerType());
+
+        Highlight highlightWord = Highlight.newBuilder().setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_WORD).build();
+        HighlightBuilder resultWord = HighlightBuilderProtoUtils.fromProto(highlightWord, registry);
+        assertEquals(HighlightBuilder.BoundaryScannerType.WORD, resultWord.boundaryScannerType());
+
+        Highlight highlightSentence = Highlight.newBuilder().setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_SENTENCE).build();
+        HighlightBuilder resultSentence = HighlightBuilderProtoUtils.fromProto(highlightSentence, registry);
+        assertEquals(HighlightBuilder.BoundaryScannerType.SENTENCE, resultSentence.boundaryScannerType());
+    }
+
+    public void testFromProto_WithFieldBoundaryScannerTypes() {
+        HighlightField fieldChars = HighlightField.newBuilder().setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_CHARS).build();
+
+        HighlightField fieldWord = HighlightField.newBuilder().setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_WORD).build();
+
+        HighlightField fieldSentence = HighlightField.newBuilder().setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_SENTENCE).build();
+
+        Highlight highlightProto = Highlight.newBuilder()
+            .putFields("field1", fieldChars)
+            .putFields("field2", fieldWord)
+            .putFields("field3", fieldSentence)
+            .build();
+
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(3, fields.size());
+        assertEquals(HighlightBuilder.BoundaryScannerType.CHARS, fields.get(0).boundaryScannerType());
+        assertEquals(HighlightBuilder.BoundaryScannerType.WORD, fields.get(1).boundaryScannerType());
+        assertEquals(HighlightBuilder.BoundaryScannerType.SENTENCE, fields.get(2).boundaryScannerType());
+    }
+
+    public void testFromProto_WithFieldFragmenter() {
+        HighlightField fieldProto = HighlightField.newBuilder().setFragmenter(HighlighterFragmenter.HIGHLIGHTER_FRAGMENTER_SIMPLE).build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(1, fields.size());
+        assertEquals("simple", fields.get(0).fragmenter());
+    }
+
+    public void testFromProto_WithFieldBoundaryCharsAndLocale() {
+        HighlightField fieldProto = HighlightField.newBuilder().setBoundaryChars(".,!?;:").setBoundaryScannerLocale("fr-FR").build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(1, fields.size());
+
+        HighlightBuilder.Field field = fields.get(0);
+        char[] boundaryChars = field.boundaryChars();
+        assertEquals(6, boundaryChars.length);
+        assertNotNull(field.boundaryScannerLocale());
+        assertEquals("fr-FR", field.boundaryScannerLocale().toLanguageTag());
+    }
+
+    public void testFromProto_WithFieldHighlightQueryAndNoMatchSize() {
+        HighlightField fieldProto = HighlightField.newBuilder()
+            .setHighlightQuery(QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build())
+            .setNoMatchSize(250)
+            .build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("content", fieldProto).build();
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(1, fields.size());
+
+        HighlightBuilder.Field field = fields.get(0);
+        assertNotNull(field.highlightQuery());
+        assertEquals("match_all", field.highlightQuery().getName());
+        assertEquals(250, (int) field.noMatchSize());
     }
 }

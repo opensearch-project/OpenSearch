@@ -28,30 +28,8 @@ import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
  */
 public class HighlightBuilderProtoUtils {
 
-    // Registry for query conversion - injected by the gRPC plugin
-    private static QueryBuilderProtoConverterRegistry REGISTRY;
-
     private HighlightBuilderProtoUtils() {
         // Utility class, no instances
-    }
-
-    /**
-     * Sets the registry injected by the gRPC plugin.
-     * This method is called when the Highlight converter receives the populated registry.
-     *
-     * @param registry The registry to use
-     */
-    public static void setRegistry(QueryBuilderProtoConverterRegistry registry) {
-        REGISTRY = registry;
-    }
-
-    /**
-     * Gets the current registry.
-     *
-     * @return The current registry
-     */
-    public static QueryBuilderProtoConverterRegistry getRegistry() {
-        return REGISTRY;
     }
 
     /**
@@ -61,12 +39,16 @@ public class HighlightBuilderProtoUtils {
      * HighlightBuilder with the appropriate settings.
      *
      * @param highlightProto The Protocol Buffer Highlight to convert
+     * @param registry The registry for converting highlight queries
      * @return A configured HighlightBuilder instance
-     * @throws IllegalArgumentException if highlightProto is null
+     * @throws IllegalArgumentException if highlightProto or registry is null
      */
-    public static HighlightBuilder fromProto(Highlight highlightProto) {
+    public static HighlightBuilder fromProto(Highlight highlightProto, QueryBuilderProtoConverterRegistry registry) {
         if (highlightProto == null) {
             throw new IllegalArgumentException("Highlight cannot be null");
+        }
+        if (registry == null) {
+            throw new IllegalArgumentException("Registry cannot be null");
         }
 
         HighlightBuilder highlightBuilder = new HighlightBuilder();
@@ -158,10 +140,7 @@ public class HighlightBuilderProtoUtils {
         }
 
         if (highlightProto.hasHighlightQuery()) {
-            if (REGISTRY == null) {
-                throw new IllegalStateException("QueryBuilderProtoConverterRegistry not set. Call setRegistry() first.");
-            }
-            QueryBuilder query = REGISTRY.fromProto(highlightProto.getHighlightQuery());
+            QueryBuilder query = registry.fromProto(highlightProto.getHighlightQuery());
             highlightBuilder.highlightQuery(query);
         }
 
@@ -190,6 +169,22 @@ public class HighlightBuilderProtoUtils {
                         matchedFields[j] = fieldProto.getMatchedFields(j);
                     }
                     fieldBuilder.matchedFields(matchedFields);
+                }
+
+                if (fieldProto.getPreTagsCount() > 0) {
+                    String[] preTags = new String[fieldProto.getPreTagsCount()];
+                    for (int j = 0; j < fieldProto.getPreTagsCount(); j++) {
+                        preTags[j] = fieldProto.getPreTags(j);
+                    }
+                    fieldBuilder.preTags(preTags);
+                }
+
+                if (fieldProto.getPostTagsCount() > 0) {
+                    String[] postTags = new String[fieldProto.getPostTagsCount()];
+                    for (int j = 0; j < fieldProto.getPostTagsCount(); j++) {
+                        postTags[j] = fieldProto.getPostTags(j);
+                    }
+                    fieldBuilder.postTags(postTags);
                 }
 
                 if (fieldProto.hasType()) {
@@ -231,10 +226,7 @@ public class HighlightBuilderProtoUtils {
                 }
 
                 if (fieldProto.hasHighlightQuery()) {
-                    if (REGISTRY == null) {
-                        throw new IllegalStateException("QueryBuilderProtoConverterRegistry not set. Call setRegistry() first.");
-                    }
-                    QueryBuilder query = REGISTRY.fromProto(fieldProto.getHighlightQuery());
+                    QueryBuilder query = registry.fromProto(fieldProto.getHighlightQuery());
                     fieldBuilder.highlightQuery(query);
                 }
 

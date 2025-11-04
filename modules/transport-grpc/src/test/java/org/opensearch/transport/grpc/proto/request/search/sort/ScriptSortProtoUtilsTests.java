@@ -17,11 +17,21 @@ import org.opensearch.protobufs.SortMode;
 import org.opensearch.protobufs.SortOrder;
 import org.opensearch.search.sort.ScriptSortBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 /**
  * Tests for {@link ScriptSortProtoUtils}.
  */
 public class ScriptSortProtoUtilsTests extends OpenSearchTestCase {
+
+    private QueryBuilderProtoConverterRegistry registry;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        registry = new QueryBuilderProtoConverterRegistryImpl();
+    }
 
     public void testFromProto_WithRequiredFields() {
         // Create a simple inline script
@@ -36,7 +46,7 @@ public class ScriptSortProtoUtilsTests extends OpenSearchTestCase {
 
         ScriptSort scriptSort = ScriptSort.newBuilder().setScript(script).setType(ScriptSortType.SCRIPT_SORT_TYPE_NUMBER).build();
 
-        ScriptSortBuilder result = ScriptSortProtoUtils.fromProto(scriptSort);
+        ScriptSortBuilder result = ScriptSortProtoUtils.fromProto(scriptSort, registry);
 
         assertNotNull(result);
         assertEquals(ScriptSortBuilder.ScriptSortType.NUMBER, result.type());
@@ -65,7 +75,7 @@ public class ScriptSortProtoUtilsTests extends OpenSearchTestCase {
             .setNested(nestedSort)
             .build();
 
-        ScriptSortBuilder result = ScriptSortProtoUtils.fromProto(scriptSort);
+        ScriptSortBuilder result = ScriptSortProtoUtils.fromProto(scriptSort, registry);
 
         assertNotNull(result);
         assertEquals(ScriptSortBuilder.ScriptSortType.STRING, result.type());
@@ -76,17 +86,19 @@ public class ScriptSortProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProto_NullInput() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { ScriptSortProtoUtils.fromProto(null); });
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> { ScriptSortProtoUtils.fromProto(null, registry); }
+        );
         assertEquals("ScriptSort cannot be null", exception.getMessage());
     }
 
     public void testFromProto_MissingScript() {
         ScriptSort scriptSort = ScriptSort.newBuilder().setType(ScriptSortType.SCRIPT_SORT_TYPE_NUMBER).build();
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> { ScriptSortProtoUtils.fromProto(scriptSort); }
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            ScriptSortProtoUtils.fromProto(scriptSort, registry);
+        });
         assertEquals("ScriptSort must have a script", exception.getMessage());
     }
 
@@ -102,10 +114,9 @@ public class ScriptSortProtoUtilsTests extends OpenSearchTestCase {
 
         ScriptSort scriptSort = ScriptSort.newBuilder().setScript(script).build();
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> { ScriptSortProtoUtils.fromProto(scriptSort); }
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            ScriptSortProtoUtils.fromProto(scriptSort, registry);
+        });
         assertEquals("ScriptSort must have a type", exception.getMessage());
     }
 
@@ -121,7 +132,7 @@ public class ScriptSortProtoUtilsTests extends OpenSearchTestCase {
 
         ScriptSort scriptSort = ScriptSort.newBuilder().setScript(script).setType(ScriptSortType.SCRIPT_SORT_TYPE_NUMBER).build();
 
-        ScriptSortBuilder result = ScriptSortProtoUtils.fromProto(scriptSort);
+        ScriptSortBuilder result = ScriptSortProtoUtils.fromProto(scriptSort, registry);
 
         assertNotNull(result);
         // Default order should be ASC (ScriptSortBuilder default)

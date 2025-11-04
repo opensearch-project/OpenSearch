@@ -22,16 +22,26 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
+    private QueryBuilderProtoConverterRegistry registry;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        registry = new QueryBuilderProtoConverterRegistryImpl();
+    }
+
     public void testFromProtoEmpty() {
         List<SortCombinations> sortProto = new ArrayList<>();
 
-        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto);
+        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto, registry);
 
         assertNotNull("Result should not be null", result);
         assertEquals("Result should be empty", 0, result.size());
@@ -41,7 +51,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         List<SortCombinations> sortProto = new ArrayList<>();
         sortProto.add(SortCombinations.newBuilder().build());
 
-        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto);
+        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto, registry);
 
         assertNotNull("Result should not be null", result);
         assertEquals("Result should be empty for unset combination", 0, result.size());
@@ -51,7 +61,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         List<SortCombinations> sortProto = new ArrayList<>();
         sortProto.add(SortCombinations.newBuilder().setField("username").build());
 
-        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto);
+        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto, registry);
 
         assertNotNull("Result should not be null", result);
         assertEquals("Result should have one builder", 1, result.size());
@@ -62,7 +72,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         List<SortCombinations> sortProto = new ArrayList<>();
         sortProto.add(SortCombinations.newBuilder().setField("_score").build());
 
-        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto);
+        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto, registry);
 
         assertNotNull("Result should not be null", result);
         assertEquals("Result should have one builder", 1, result.size());
@@ -76,7 +86,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         sortProto.add(SortCombinations.newBuilder().setFieldWithDirection(sortOrderMap).build());
 
-        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto);
+        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto, registry);
 
         assertNotNull("Result should not be null", result);
         assertEquals("Result should have one builder", 1, result.size());
@@ -91,7 +101,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         sortProto.add(SortCombinations.newBuilder().setFieldWithOrder(fieldSortMap).build());
 
-        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto);
+        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto, registry);
 
         assertNotNull("Result should not be null", result);
         assertEquals("Result should have one builder", 1, result.size());
@@ -106,7 +116,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         sortProto.add(SortCombinations.newBuilder().setOptions(sortOptions).build());
 
-        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto);
+        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto, registry);
 
         assertNotNull("Result should not be null", result);
         assertEquals("Result should have one builder", 1, result.size());
@@ -118,7 +128,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         sortProto.add(SortCombinations.newBuilder().setField("_score").build());
         sortProto.add(SortCombinations.newBuilder().setField("timestamp").build());
 
-        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto);
+        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto, registry);
 
         assertNotNull("Result should not be null", result);
         assertEquals("Result should have two builders", 2, result.size());
@@ -131,7 +141,10 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         SortOrderMap sortOrderMap = SortOrderMap.newBuilder().build();
         sortProto.add(SortCombinations.newBuilder().setFieldWithDirection(sortOrderMap).build());
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> SortBuilderProtoUtils.fromProto(sortProto));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> SortBuilderProtoUtils.fromProto(sortProto, registry)
+        );
         assertEquals("SortOrderMap cannot be empty or contain multiple entries", exception.getMessage());
     }
 
@@ -140,7 +153,10 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         SortOptions sortOptions = SortOptions.newBuilder().build();
         sortProto.add(SortCombinations.newBuilder().setOptions(sortOptions).build());
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> SortBuilderProtoUtils.fromProto(sortProto));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> SortBuilderProtoUtils.fromProto(sortProto, registry)
+        );
         assertEquals("Unknown sort options type", exception.getMessage());
     }
 
@@ -182,7 +198,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         sortProto.add(SortCombinations.newBuilder().setOptions(sortOptions).build());
 
-        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto);
+        List<SortBuilder<?>> result = SortBuilderProtoUtils.fromProto(sortProto, registry);
 
         assertNotNull("Result should not be null", result);
         assertEquals("Result should have one builder", 1, result.size());
@@ -199,7 +215,10 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         sortProto.add(SortCombinations.newBuilder().setFieldWithDirection(sortOrderMap).build());
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> SortBuilderProtoUtils.fromProto(sortProto));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> SortBuilderProtoUtils.fromProto(sortProto, registry)
+        );
         assertEquals("SortOrderMap cannot be empty or contain multiple entries", exception.getMessage());
     }
 
@@ -208,7 +227,10 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         FieldSortMap fieldSortMap = FieldSortMap.newBuilder().build();
         sortProto.add(SortCombinations.newBuilder().setFieldWithOrder(fieldSortMap).build());
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> SortBuilderProtoUtils.fromProto(sortProto));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> SortBuilderProtoUtils.fromProto(sortProto, registry)
+        );
         assertEquals("FieldSortMap cannot be empty or contain multiple entries", exception.getMessage());
     }
 
@@ -223,7 +245,10 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         sortProto.add(SortCombinations.newBuilder().setFieldWithOrder(fieldSortMap).build());
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> SortBuilderProtoUtils.fromProto(sortProto));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> SortBuilderProtoUtils.fromProto(sortProto, registry)
+        );
         assertEquals("FieldSortMap cannot be empty or contain multiple entries", exception.getMessage());
     }
 }

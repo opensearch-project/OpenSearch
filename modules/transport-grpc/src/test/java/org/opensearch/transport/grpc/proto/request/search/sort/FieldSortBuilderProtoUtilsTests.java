@@ -16,16 +16,26 @@ import org.opensearch.protobufs.SortMode;
 import org.opensearch.protobufs.SortOrder;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 /**
  * Tests for {@link FieldSortBuilderProtoUtils}.
  */
 public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
+    private QueryBuilderProtoConverterRegistry registry;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        registry = new QueryBuilderProtoConverterRegistryImpl();
+    }
+
     public void testFromProto_BasicFieldSort() {
         FieldSort fieldSort = FieldSort.newBuilder().setOrder(SortOrder.SORT_ORDER_DESC).build();
 
-        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("price", fieldSort);
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("price", fieldSort, registry);
 
         assertNotNull(result);
         assertEquals("price", result.getFieldName());
@@ -37,7 +47,7 @@ public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         FieldSort fieldSort = FieldSort.newBuilder().setOrder(SortOrder.SORT_ORDER_ASC).setMissing(missingValue).build();
 
-        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("timestamp", fieldSort);
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("timestamp", fieldSort, registry);
 
         assertNotNull(result);
         assertEquals("timestamp", result.getFieldName());
@@ -48,7 +58,7 @@ public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProto_WithSortMode() {
         FieldSort fieldSort = FieldSort.newBuilder().setMode(SortMode.SORT_MODE_MAX).build();
 
-        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("ratings", fieldSort);
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("ratings", fieldSort, registry);
 
         assertNotNull(result);
         assertEquals("ratings", result.getFieldName());
@@ -58,7 +68,7 @@ public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProto_WithNumericType() {
         FieldSort fieldSort = FieldSort.newBuilder().setNumericType(FieldSortNumericType.FIELD_SORT_NUMERIC_TYPE_LONG).build();
 
-        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("id", fieldSort);
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("id", fieldSort, registry);
 
         assertNotNull(result);
         assertEquals("id", result.getFieldName());
@@ -68,7 +78,7 @@ public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProto_WithUnmappedType() {
         FieldSort fieldSort = FieldSort.newBuilder().setUnmappedType(FieldType.FIELD_TYPE_KEYWORD).build();
 
-        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("category", fieldSort);
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("category", fieldSort, registry);
 
         assertNotNull(result);
         assertEquals("category", result.getFieldName());
@@ -80,7 +90,7 @@ public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         FieldSort fieldSort = FieldSort.newBuilder().setNested(nestedSort).build();
 
-        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("products.price", fieldSort);
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("products.price", fieldSort, registry);
 
         assertNotNull(result);
         assertEquals("products.price", result.getFieldName());
@@ -102,7 +112,7 @@ public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setNested(nestedSort)
             .build();
 
-        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("score", fieldSort);
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("score", fieldSort, registry);
 
         assertNotNull(result);
         assertEquals("score", result.getFieldName());
@@ -119,7 +129,7 @@ public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
         FieldSort fieldSort = FieldSort.newBuilder().build();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            FieldSortBuilderProtoUtils.fromProto(null, fieldSort);
+            FieldSortBuilderProtoUtils.fromProto(null, fieldSort, registry);
         });
         assertEquals("Field name is required and cannot be '_score'. Use ScoreSort for score-based sorting.", exception.getMessage());
     }
@@ -128,14 +138,14 @@ public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
         FieldSort fieldSort = FieldSort.newBuilder().build();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            FieldSortBuilderProtoUtils.fromProto("", fieldSort);
+            FieldSortBuilderProtoUtils.fromProto("", fieldSort, registry);
         });
         assertEquals("Field name is required and cannot be '_score'. Use ScoreSort for score-based sorting.", exception.getMessage());
     }
 
     public void testFromProto_NullFieldSort() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            FieldSortBuilderProtoUtils.fromProto("field", null);
+            FieldSortBuilderProtoUtils.fromProto("field", null, registry);
         });
         assertEquals("FieldSort cannot be null", exception.getMessage());
     }

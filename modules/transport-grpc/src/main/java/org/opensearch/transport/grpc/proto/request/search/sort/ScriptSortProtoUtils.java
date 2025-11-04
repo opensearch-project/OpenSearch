@@ -13,6 +13,7 @@ import org.opensearch.search.sort.ScriptSortBuilder;
 import org.opensearch.search.sort.SortMode;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 /**
@@ -36,12 +37,17 @@ public class ScriptSortProtoUtils {
      * with the appropriate script, type, sort order, mode, and nested sorting settings.
      *
      * @param scriptSort The Protocol Buffer ScriptSort to convert
+     * @param registry The registry for converting nested sort filters
      * @return A configured ScriptSortBuilder
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
-    public static ScriptSortBuilder fromProto(ScriptSort scriptSort) {
+    public static ScriptSortBuilder fromProto(ScriptSort scriptSort, QueryBuilderProtoConverterRegistry registry) {
         if (scriptSort == null) {
             throw new IllegalArgumentException("ScriptSort cannot be null");
+        }
+
+        if (registry == null) {
+            throw new IllegalArgumentException("Registry cannot be null");
         }
 
         if (!scriptSort.hasScript()) {
@@ -72,7 +78,7 @@ public class ScriptSortProtoUtils {
         }
 
         if (scriptSort.hasNested()) {
-            builder.setNestedSort(NestedSortProtoUtils.fromProto(scriptSort.getNested()));
+            builder.setNestedSort(NestedSortProtoUtils.fromProto(scriptSort.getNested(), registry));
         }
 
         return builder;

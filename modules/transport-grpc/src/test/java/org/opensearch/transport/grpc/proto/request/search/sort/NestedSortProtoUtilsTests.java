@@ -27,13 +27,12 @@ public class NestedSortProtoUtilsTests extends OpenSearchTestCase {
         super.setUp();
         // Set up the registry with all built-in converters
         registry = new QueryBuilderProtoConverterRegistryImpl();
-        NestedSortProtoUtils.setRegistry(registry);
     }
 
     public void testFromProto_WithPathOnly() {
         NestedSortValue.Builder nestedSortValueBuilder = NestedSortValue.newBuilder().setPath("nested.field");
 
-        NestedSortBuilder result = NestedSortProtoUtils.fromProto(nestedSortValueBuilder.build());
+        NestedSortBuilder result = NestedSortProtoUtils.fromProto(nestedSortValueBuilder.build(), registry);
 
         assertEquals("nested.field", result.getPath());
         assertNull(result.getFilter());
@@ -58,7 +57,7 @@ public class NestedSortProtoUtilsTests extends OpenSearchTestCase {
             .setNested(innerNested)
             .build();
 
-        NestedSortBuilder result = NestedSortProtoUtils.fromProto(nestedSortValue);
+        NestedSortBuilder result = NestedSortProtoUtils.fromProto(nestedSortValue, registry);
 
         assertEquals("outer.nested", result.getPath());
         assertNotNull("Filter should not be null", result.getFilter());
@@ -69,7 +68,10 @@ public class NestedSortProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProto_NullInput() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { NestedSortProtoUtils.fromProto(null); });
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> { NestedSortProtoUtils.fromProto(null, registry); }
+        );
         assertEquals("NestedSortValue cannot be null", exception.getMessage());
     }
 
@@ -77,7 +79,7 @@ public class NestedSortProtoUtilsTests extends OpenSearchTestCase {
         NestedSortValue.Builder nestedSortValueBuilder = NestedSortValue.newBuilder().setPath("");
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            NestedSortProtoUtils.fromProto(nestedSortValueBuilder.build());
+            NestedSortProtoUtils.fromProto(nestedSortValueBuilder.build(), registry);
         });
         assertEquals("Path is required for nested sort", exception.getMessage());
     }
@@ -86,19 +88,12 @@ public class NestedSortProtoUtilsTests extends OpenSearchTestCase {
         NestedSortValue.Builder nestedSortValueBuilder = NestedSortValue.newBuilder();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            NestedSortProtoUtils.fromProto(nestedSortValueBuilder.build());
+            NestedSortProtoUtils.fromProto(nestedSortValueBuilder.build(), registry);
         });
         assertEquals("Path is required for nested sort", exception.getMessage());
     }
 
-    public void testGetRegistry() {
-        QueryBuilderProtoConverterRegistry retrievedRegistry = NestedSortProtoUtils.getRegistry();
-        assertNotNull("Registry should not be null", retrievedRegistry);
-    }
-
-    public void testFromProto_WithNullRegistryAndFilter() {
-        NestedSortProtoUtils.setRegistry(null);
-
+    public void testFromProto_WithNullRegistry() {
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("status")
             .setValue(org.opensearch.protobufs.FieldValue.newBuilder().setString("active").build())
@@ -108,13 +103,10 @@ public class NestedSortProtoUtilsTests extends OpenSearchTestCase {
 
         NestedSortValue.Builder nestedSortValueBuilder = NestedSortValue.newBuilder().setPath("nested.field").setFilter(queryContainer);
 
-        IllegalStateException exception = expectThrows(
-            IllegalStateException.class,
-            () -> NestedSortProtoUtils.fromProto(nestedSortValueBuilder.build())
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> NestedSortProtoUtils.fromProto(nestedSortValueBuilder.build(), null)
         );
-        assertEquals("QueryBuilderProtoConverterRegistry not set. Call setRegistry() first.", exception.getMessage());
-
-        registry = new QueryBuilderProtoConverterRegistryImpl();
-        NestedSortProtoUtils.setRegistry(registry);
+        assertEquals("Registry cannot be null", exception.getMessage());
     }
 }

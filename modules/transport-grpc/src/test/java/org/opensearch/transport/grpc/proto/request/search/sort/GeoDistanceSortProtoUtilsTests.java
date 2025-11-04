@@ -18,14 +18,16 @@ import org.opensearch.search.sort.GeoDistanceSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
+
+    private QueryBuilderProtoConverterRegistry registry;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        QueryBuilderProtoConverterRegistryImpl registry = new QueryBuilderProtoConverterRegistryImpl();
-        NestedSortProtoUtils.setRegistry(registry);
+        registry = new QueryBuilderProtoConverterRegistryImpl();
     }
 
     public void testFromProtoWithGeoDistanceSort() {
@@ -45,7 +47,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
             .setDistanceType(GeoDistanceType.GEO_DISTANCE_TYPE_PLANE)
             .build();
 
-        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort);
+        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort, registry);
 
         assertNotNull("GeoDistanceSortBuilder should not be null", result);
         assertEquals("Field name should match", "location_field", result.fieldName());
@@ -65,7 +67,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
         GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder().putLocation("geo_field", locationArray).build();
 
-        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort);
+        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort, registry);
 
         assertNotNull("GeoDistanceSortBuilder should not be null", result);
         assertEquals("Field name should match", "geo_field", result.fieldName());
@@ -75,7 +77,10 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithNullInput() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortProtoUtils.fromProto(null));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> GeoDistanceSortProtoUtils.fromProto(null, registry)
+        );
 
         assertEquals("GeoDistanceSort cannot be null", exception.getMessage());
     }
@@ -85,7 +90,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> GeoDistanceSortProtoUtils.fromProto(geoDistanceSort)
+            () -> GeoDistanceSortProtoUtils.fromProto(geoDistanceSort, registry)
         );
 
         assertEquals("GeoDistanceSort must contain at least one geo location", exception.getMessage());
@@ -115,7 +120,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> GeoDistanceSortProtoUtils.fromProto(geoDistanceSort)
+            () -> GeoDistanceSortProtoUtils.fromProto(geoDistanceSort, registry)
         );
 
         assertEquals("GeoDistanceSort supports only one field, but found 2 fields", exception.getMessage());
@@ -137,7 +142,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
         GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder().putLocation("location_field", locationArray).build();
 
-        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort);
+        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort, registry);
 
         assertNotNull("GeoDistanceSortBuilder should not be null", result);
         assertEquals("Field name should match", "location_field", result.fieldName());
@@ -160,7 +165,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
             .setMode(SortMode.SORT_MODE_UNSPECIFIED)
             .build();
 
-        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort);
+        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort, registry);
 
         assertNotNull("GeoDistanceSortBuilder should not be null", result);
         assertEquals("Default unit should be used for UNSPECIFIED", DistanceUnit.DEFAULT, result.unit());
@@ -181,7 +186,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
             .setIgnoreUnmapped(true)
             .build();
 
-        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort);
+        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort, registry);
 
         assertNotNull("GeoDistanceSortBuilder should not be null", result);
         assertTrue("IgnoreUnmapped should be true", result.ignoreUnmapped());
@@ -201,7 +206,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
             .setMode(SortMode.SORT_MODE_AVG)
             .build();
 
-        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort);
+        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort, registry);
 
         assertNotNull("GeoDistanceSortBuilder should not be null", result);
     }
@@ -220,7 +225,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
             .setValidationMethod(org.opensearch.protobufs.GeoValidationMethod.GEO_VALIDATION_METHOD_STRICT)
             .build();
 
-        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort);
+        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort, registry);
 
         assertNotNull("GeoDistanceSortBuilder should not be null", result);
     }
@@ -243,7 +248,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
             .setNested(nestedSort)
             .build();
 
-        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort);
+        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort, registry);
 
         assertNotNull("GeoDistanceSortBuilder should not be null", result);
         assertEquals("Field name should match", "location_field", result.fieldName());
@@ -273,7 +278,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
             .setIgnoreUnmapped(true)
             .build();
 
-        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort);
+        GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort, registry);
 
         assertNotNull("GeoDistanceSortBuilder should not be null", result);
         assertEquals("Field name should match", "location_field", result.fieldName());

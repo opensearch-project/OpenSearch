@@ -7,10 +7,10 @@
  */
 package org.opensearch.transport.grpc.proto.request.search;
 
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.protobufs.FieldCollapse;
 import org.opensearch.search.collapse.CollapseBuilder;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,17 +29,23 @@ public class CollapseBuilderProtoUtils {
     }
 
     /**
-     * Converts a Protocol Buffer FieldCollapse to an OpenSearch CollapseBuilder.
-     * Similar to {@link CollapseBuilder#fromXContent(XContentParser)}, this method
-     * parses the Protocol Buffer representation and creates a properly configured
-     * CollapseBuilder with the appropriate field, max concurrent group searches,
-     * and inner hits settings.
+     * Converts a Protocol Buffer FieldCollapse to a CollapseBuilder.
      *
      * @param collapseProto The Protocol Buffer FieldCollapse to convert
-     * @return A configured CollapseBuilder instance
+     * @param registry The registry for converting inner hits
+     * @return A configured CollapseBuilder
      * @throws IOException if there's an error during parsing or conversion
      */
-    protected static CollapseBuilder fromProto(FieldCollapse collapseProto) throws IOException {
+    protected static CollapseBuilder fromProto(FieldCollapse collapseProto, QueryBuilderProtoConverterRegistry registry)
+        throws IOException {
+        if (collapseProto == null) {
+            throw new IllegalArgumentException("FieldCollapse cannot be null");
+        }
+
+        if (registry == null) {
+            throw new IllegalArgumentException("Registry cannot be null");
+        }
+
         CollapseBuilder collapseBuilder = new CollapseBuilder(collapseProto.getField());
 
         if (collapseProto.hasMaxConcurrentGroupSearches()) {
@@ -48,7 +54,7 @@ public class CollapseBuilderProtoUtils {
         if (collapseProto.getInnerHitsCount() > 0) {
             List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
             for (org.opensearch.protobufs.InnerHits innerHits : collapseProto.getInnerHitsList()) {
-                innerHitBuilders.add(InnerHitsBuilderProtoUtils.fromProto(innerHits));
+                innerHitBuilders.add(InnerHitsBuilderProtoUtils.fromProto(innerHits, registry));
             }
             collapseBuilder.setInnerHits(innerHitBuilders);
         }

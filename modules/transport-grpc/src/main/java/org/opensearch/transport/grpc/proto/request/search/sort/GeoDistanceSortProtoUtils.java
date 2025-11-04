@@ -21,6 +21,7 @@ import org.opensearch.search.sort.NestedSortBuilder;
 import org.opensearch.search.sort.SortMode;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.grpc.proto.request.common.GeoPointProtoUtils;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 import java.util.ArrayList;
@@ -47,13 +48,19 @@ public class GeoDistanceSortProtoUtils {
      * with the appropriate field name, geo points, distance type, units, validation, and nested sorting settings.
      *
      * @param geoDistanceSort The Protocol Buffer GeoDistanceSort to convert
+     * @param registry The registry for converting nested sort filters
      * @return A configured GeoDistanceSortBuilder
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
-    public static GeoDistanceSortBuilder fromProto(GeoDistanceSort geoDistanceSort) {
+    public static GeoDistanceSortBuilder fromProto(GeoDistanceSort geoDistanceSort, QueryBuilderProtoConverterRegistry registry) {
         if (geoDistanceSort == null) {
             throw new IllegalArgumentException("GeoDistanceSort cannot be null");
         }
+
+        if (registry == null) {
+            throw new IllegalArgumentException("Registry cannot be null");
+        }
+
         String fieldName = null;
         List<GeoPoint> geoPoints = null;
         DistanceUnit unit = DistanceUnit.DEFAULT;
@@ -92,7 +99,7 @@ public class GeoDistanceSortProtoUtils {
         }
 
         if (geoDistanceSort.hasNested()) {
-            nestedSort = NestedSortProtoUtils.fromProto(geoDistanceSort.getNested());
+            nestedSort = NestedSortProtoUtils.fromProto(geoDistanceSort.getNested(), registry);
         }
 
         if (geoDistanceSort.getLocationCount() == 0) {

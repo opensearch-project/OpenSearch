@@ -13,6 +13,7 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 import java.util.ArrayList;
@@ -40,10 +41,15 @@ public class SortBuilderProtoUtils {
      * by delegating to specific sort utilities based on the SortCombinations structure.
      *
      * @param sortProto The list of Protocol Buffer SortCombinations to convert
+     * @param registry The registry for converting sort filters
      * @return A list of configured SortBuilder instances
      * @throws IllegalArgumentException if invalid sort combinations are provided
      */
-    public static List<SortBuilder<?>> fromProto(List<SortCombinations> sortProto) {
+    public static List<SortBuilder<?>> fromProto(List<SortCombinations> sortProto, QueryBuilderProtoConverterRegistry registry) {
+        if (registry == null) {
+            throw new IllegalArgumentException("Registry cannot be null");
+        }
+
         List<SortBuilder<?>> sortFields = new ArrayList<>(sortProto.size());
 
         for (SortCombinations sortCombination : sortProto) {
@@ -60,11 +66,11 @@ public class SortBuilderProtoUtils {
                     break;
 
                 case FIELD_WITH_ORDER:
-                    sortBuilder = fromFieldSortMap(sortCombination.getFieldWithOrder());
+                    sortBuilder = fromFieldSortMap(sortCombination.getFieldWithOrder(), registry);
                     break;
 
                 case OPTIONS:
-                    sortBuilder = fromSortOptions(sortCombination.getOptions());
+                    sortBuilder = fromSortOptions(sortCombination.getOptions(), registry);
                     break;
 
                 case SORTCOMBINATIONS_NOT_SET:
@@ -118,7 +124,10 @@ public class SortBuilderProtoUtils {
     /**
      * Converts FieldSortMap (field with complex options) to SortBuilder.
      */
-    private static SortBuilder<?> fromFieldSortMap(org.opensearch.protobufs.FieldSortMap fieldSortMap) {
+    private static SortBuilder<?> fromFieldSortMap(
+        org.opensearch.protobufs.FieldSortMap fieldSortMap,
+        QueryBuilderProtoConverterRegistry registry
+    ) {
         if (fieldSortMap.getFieldSortMapMap().isEmpty() || fieldSortMap.getFieldSortMapMap().size() > 1) {
             throw new IllegalArgumentException("FieldSortMap cannot be empty or contain multiple entries");
         }
@@ -126,19 +135,22 @@ public class SortBuilderProtoUtils {
         String fieldName = fieldSortMap.getFieldSortMapMap().keySet().iterator().next();
         org.opensearch.protobufs.FieldSort fieldSort = fieldSortMap.getFieldSortMapMap().get(fieldName);
 
-        return FieldSortBuilderProtoUtils.fromProto(fieldName, fieldSort);
+        return FieldSortBuilderProtoUtils.fromProto(fieldName, fieldSort, registry);
     }
 
     /**
      * Converts SortOptions to SortBuilder.
      */
-    private static SortBuilder<?> fromSortOptions(org.opensearch.protobufs.SortOptions sortOptions) {
+    private static SortBuilder<?> fromSortOptions(
+        org.opensearch.protobufs.SortOptions sortOptions,
+        QueryBuilderProtoConverterRegistry registry
+    ) {
         if (sortOptions.hasXScore()) {
             return ScoreSortProtoUtils.fromProto(sortOptions.getXScore());
         } else if (sortOptions.hasXGeoDistance()) {
-            return GeoDistanceSortProtoUtils.fromProto(sortOptions.getXGeoDistance());
+            return GeoDistanceSortProtoUtils.fromProto(sortOptions.getXGeoDistance(), registry);
         } else if (sortOptions.hasXScript()) {
-            return ScriptSortProtoUtils.fromProto(sortOptions.getXScript());
+            return ScriptSortProtoUtils.fromProto(sortOptions.getXScript(), registry);
         } else {
             throw new IllegalArgumentException("Unknown sort options type");
         }

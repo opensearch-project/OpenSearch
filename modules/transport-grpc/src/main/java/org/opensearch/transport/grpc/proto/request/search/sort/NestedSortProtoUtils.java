@@ -22,30 +22,8 @@ import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
  */
 public class NestedSortProtoUtils {
 
-    // Registry for query conversion - injected by the gRPC plugin
-    private static QueryBuilderProtoConverterRegistry REGISTRY;
-
     private NestedSortProtoUtils() {
         // Utility class
-    }
-
-    /**
-     * Sets the registry injected by the gRPC plugin.
-     * This method is called when the NestedSort converter receives the populated registry.
-     *
-     * @param registry The registry to use
-     */
-    public static void setRegistry(QueryBuilderProtoConverterRegistry registry) {
-        REGISTRY = registry;
-    }
-
-    /**
-     * Gets the current registry.
-     *
-     * @return The current registry
-     */
-    public static QueryBuilderProtoConverterRegistry getRegistry() {
-        return REGISTRY;
     }
 
     /**
@@ -55,12 +33,16 @@ public class NestedSortProtoUtils {
      * with the appropriate path, filter, max_children, and recursive nested sorting settings.
      *
      * @param nestedSortValue The Protocol Buffer NestedSortValue to convert
+     * @param registry The registry for converting nested sort filters
      * @return A configured NestedSortBuilder
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
-    public static NestedSortBuilder fromProto(NestedSortValue nestedSortValue) {
+    public static NestedSortBuilder fromProto(NestedSortValue nestedSortValue, QueryBuilderProtoConverterRegistry registry) {
         if (nestedSortValue == null) {
             throw new IllegalArgumentException("NestedSortValue cannot be null");
+        }
+        if (registry == null) {
+            throw new IllegalArgumentException("Registry cannot be null");
         }
 
         String path = nestedSortValue.getPath();
@@ -73,11 +55,8 @@ public class NestedSortProtoUtils {
         NestedSortBuilder nestedSort = null;
 
         if (nestedSortValue.hasFilter()) {
-            if (REGISTRY == null) {
-                throw new IllegalStateException("QueryBuilderProtoConverterRegistry not set. Call setRegistry() first.");
-            }
             try {
-                filter = REGISTRY.fromProto(nestedSortValue.getFilter());
+                filter = registry.fromProto(nestedSortValue.getFilter());
             } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to convert nested sort filter: " + e.getMessage(), e);
             }
@@ -88,7 +67,7 @@ public class NestedSortProtoUtils {
         }
 
         if (nestedSortValue.hasNested()) {
-            nestedSort = fromProto(nestedSortValue.getNested());
+            nestedSort = fromProto(nestedSortValue.getNested(), registry);
         }
 
         return new NestedSortBuilder(path).setFilter(filter).setMaxChildren(maxChildren).setNestedSort(nestedSort);

@@ -14,6 +14,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.subphase.FieldAndFormat;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,12 +38,17 @@ public class InnerHitsBuilderProtoUtils {
      * Each InnerHits protobuf message represents ONE inner hit definition.
      *
      * @param innerHits the protobuf InnerHits to convert
+     * @param registry The registry for converting inner hit queries and sorts
      * @return the converted OpenSearch InnerHitBuilder
      * @throws IOException if there's an error during parsing
      */
-    public static InnerHitBuilder fromProto(InnerHits innerHits) throws IOException {
+    public static InnerHitBuilder fromProto(InnerHits innerHits, QueryBuilderProtoConverterRegistry registry) throws IOException {
         if (innerHits == null) {
             throw new IllegalArgumentException("InnerHits cannot be null");
+        }
+
+        if (registry == null) {
+            throw new IllegalArgumentException("Registry cannot be null");
         }
 
         InnerHitBuilder innerHitBuilder = new InnerHitBuilder();
@@ -102,16 +108,16 @@ public class InnerHitsBuilderProtoUtils {
             innerHitBuilder.setScriptFields(scriptFields);
         }
         if (innerHits.getSortCount() > 0) {
-            innerHitBuilder.setSorts(SortBuilderProtoUtils.fromProto(innerHits.getSortList()));
+            innerHitBuilder.setSorts(SortBuilderProtoUtils.fromProto(innerHits.getSortList(), registry));
         }
         if (innerHits.hasXSource()) {
             innerHitBuilder.setFetchSourceContext(FetchSourceContextProtoUtils.fromProto(innerHits.getXSource()));
         }
         if (innerHits.hasHighlight()) {
-            innerHitBuilder.setHighlightBuilder(HighlightBuilderProtoUtils.fromProto(innerHits.getHighlight()));
+            innerHitBuilder.setHighlightBuilder(HighlightBuilderProtoUtils.fromProto(innerHits.getHighlight(), registry));
         }
         if (innerHits.hasCollapse()) {
-            innerHitBuilder.setInnerCollapse(CollapseBuilderProtoUtils.fromProto(innerHits.getCollapse()));
+            innerHitBuilder.setInnerCollapse(CollapseBuilderProtoUtils.fromProto(innerHits.getCollapse(), registry));
         }
 
         return innerHitBuilder;
