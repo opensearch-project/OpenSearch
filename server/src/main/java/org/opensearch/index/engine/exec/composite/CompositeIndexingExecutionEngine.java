@@ -170,4 +170,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     public CompositeDataFormatWriterPool getDataFormatWriterPool() {
         return dataFormatWriterPool;
     }
+
+    public long getNativeBytesUsed() {
+        return dataFormatWriterPool.getNativeBytesUsed();
+    }
 }

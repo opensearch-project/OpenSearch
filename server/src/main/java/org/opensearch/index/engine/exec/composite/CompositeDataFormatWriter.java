@@ -106,6 +106,11 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
         return compositeDocumentInput;
     }
 
+    @Override
+    public long getNativeBytesUsed() {
+        return writers.stream().mapToLong(entry -> entry.getValue().getNativeBytesUsed()).sum();
+    }
+
     void abort() throws IOException {
         aborted = true;
     }

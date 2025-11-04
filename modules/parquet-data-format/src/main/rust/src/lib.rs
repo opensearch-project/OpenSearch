@@ -189,6 +189,26 @@ impl NativeParquetWriter {
         }
     }
 
+    fn get_writer_memory_usage(filename: String) -> Result<usize, Box<dyn std::error::Error>> {
+        let log_msg = format!("[RUST] get_writer_memory_usage called for file: {}\n", filename);
+        println!("{}", log_msg.trim());
+        Self::log_to_file(&log_msg);
+
+        if let Some(writer_arc) = WRITER_MANAGER.get(&filename) {
+            let writer = writer_arc.lock().unwrap();
+            let memory_usage = writer.memory_size();
+            let usage_msg = format!("[RUST] Memory usage for {}: {} bytes\n", filename, memory_usage);
+            println!("{}", usage_msg.trim());
+            Self::log_to_file(&usage_msg);
+            Ok(memory_usage)
+        } else {
+            let not_found_msg = format!("[RUST] No writer found for file: {}\n", filename);
+            println!("{}", not_found_msg.trim());
+            Self::log_to_file(&not_found_msg);
+            Ok(0)
+        }
+    }
+
     fn log_to_file(message: &str) {
         if let Ok(mut file) = OpenOptions::new()
             .create(true)
@@ -253,5 +273,18 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_flus
     match NativeParquetWriter::flush_to_disk(filename) {
         Ok(_) => 0,
         Err(_) => -1,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_getNativeBytesUsed(
+    mut env: JNIEnv,
+    _class: JClass,
+    file: JString
+) -> jlong {
+    let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
+    match NativeParquetWriter::get_writer_memory_usage(filename) {
+        Ok(memory_usage) => memory_usage as jlong,
+        Err(_) => 0,
     }
 }

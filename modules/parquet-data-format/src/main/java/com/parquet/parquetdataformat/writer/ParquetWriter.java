@@ -1,5 +1,6 @@
 package com.parquet.parquetdataformat.writer;
 
+import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.vsr.VSRManager;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.index.engine.exec.FileInfos;
@@ -74,5 +75,28 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     public ParquetDocumentInput newDocumentInput() {
         // Get a new ManagedVSR from VSRManager for this document input
         return new ParquetDocumentInput(vsrManager.getActiveManagedVSR());
+    }
+
+    /**
+     * Gets the native memory usage of the ArrowWriter associated with this ParquetWriter.
+     * 
+     * <p>This method calls into the native Rust backend to retrieve the current memory
+     * usage of the underlying ArrowWriter. The memory usage includes buffers and internal
+     * state maintained by the ArrowWriter for writing Parquet data.
+     * 
+     * <p>This method provides visibility into the memory consumption of the writer, which
+     * can be useful for:
+     * <ul>
+     *   <li>Memory pressure monitoring and management</li>
+     *   <li>Performance optimization and capacity planning</li>
+     *   <li>Debugging memory-related issues</li>
+     *   <li>Integration with OpenSearch's memory management systems</li>
+     * </ul>
+     * 
+     * @return the number of bytes currently used by the native ArrowWriter, or 0 if the
+     *         writer doesn't exist or memory usage cannot be determined
+     */
+    public long getNativeBytesUsed() {
+        return RustBridge.getNativeBytesUsed(file);
     }
 }

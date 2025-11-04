@@ -99,6 +99,14 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeDataForm
         return Collections.unmodifiableList(checkedOutWriters);
     }
 
+    public long getNativeBytesUsed() {
+        long totalNativeBytesUsed = 0;
+        for (CompositeDataFormatWriter compositeDataFormatWriter : this) {
+            totalNativeBytesUsed += compositeDataFormatWriter.getNativeBytesUsed();
+        }
+        return totalNativeBytesUsed;
+    }
+
     /**
      * Check if {@link CompositeDataFormatWriter} is part of this pool.
      *
@@ -116,7 +124,7 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeDataForm
     }
 
     @Override
-    public synchronized Iterator<CompositeDataFormatWriter> iterator() {
+    public Iterator<CompositeDataFormatWriter> iterator() {
         return List.copyOf(writers).iterator();
     }
 

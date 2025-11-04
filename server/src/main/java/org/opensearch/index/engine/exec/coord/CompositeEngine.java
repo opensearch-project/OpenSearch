@@ -149,7 +149,7 @@ public class CompositeEngine implements Indexer {
     }
 
     public synchronized void refresh(String source) throws EngineException {
-        refresh(source, Collections.EMPTY_MAP);
+        refresh(source, Collections.emptyMap());
     }
 
     public synchronized void refresh(String source, Map<DataFormat, RefreshInput> refreshInputs) throws EngineException {
@@ -274,6 +274,10 @@ public class CompositeEngine implements Indexer {
         }
     }
 
+    public long getNativeBytesUsed() {
+        return engine.getNativeBytesUsed();
+    }
+
     public static void main(String[] args) throws Exception {
         CompositeEngine coordinator = new CompositeEngine(null, null, null, null);
 
@@ -354,7 +358,7 @@ public class CompositeEngine implements Indexer {
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
-
+        refresh("write indexing buffer");
     }
 
     @Override
