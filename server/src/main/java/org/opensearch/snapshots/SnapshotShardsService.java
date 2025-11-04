@@ -322,17 +322,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         });
     }
 
-    private boolean isRemoteSnapshot(ShardId shardId) {
-        final IndexService indexService = indicesService.indexService(shardId.getIndex());
-        if (indexService != null) {
-            final IndexShard shard = indexService.getShardOrNull(shardId.id());
-            if (shard != null) {
-                return shard.isRemoteSnapshot();
-            }
-        }
-        return false;
-    }
-
     // package private for testing
     static String summarizeFailure(Throwable t) {
         if (t.getCause() == null) {

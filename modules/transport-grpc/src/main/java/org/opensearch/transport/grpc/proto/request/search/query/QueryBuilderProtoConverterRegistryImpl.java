@@ -61,6 +61,12 @@ public class QueryBuilderProtoConverterRegistryImpl implements QueryBuilderProto
         delegate.registerConverter(new IdsQueryBuilderProtoConverter());
         delegate.registerConverter(new RangeQueryBuilderProtoConverter());
         delegate.registerConverter(new TermsSetQueryBuilderProtoConverter());
+        delegate.registerConverter(new ConstantScoreQueryBuilderProtoConverter());
+        delegate.registerConverter(new FuzzyQueryBuilderProtoConverter());
+        delegate.registerConverter(new PrefixQueryBuilderProtoConverter());
+        delegate.registerConverter(new MatchQueryBuilderProtoConverter());
+        delegate.registerConverter(new MatchBoolPrefixQueryBuilderProtoConverter());
+        delegate.registerConverter(new MatchPhrasePrefixQueryBuilderProtoConverter());
 
         // Set the registry on all converters so they can access each other
         delegate.setRegistryOnAllConverters(this);

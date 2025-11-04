@@ -35,7 +35,6 @@ import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
-import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -774,14 +773,6 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(1L).build()))
             .version(2L)
             .build();
-    }
-
-    private BlobPath getPath() {
-        BlobPath indexRoutingPath = basePath.add(INDEX_ROUTING_TABLE);
-        return RemoteStoreEnums.PathType.HASHED_PREFIX.path(
-            RemoteStorePathStrategy.PathInput.builder().basePath(indexRoutingPath).indexUUID("uuid").build(),
-            RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64
-        );
     }
 
     public void testDeleteStaleIndexRoutingPaths() throws IOException {

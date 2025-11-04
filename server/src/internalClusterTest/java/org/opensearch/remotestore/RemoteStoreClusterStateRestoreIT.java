@@ -83,10 +83,6 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true).build();
     }
 
-    private void addNewNodes(int dataNodeCount, int clusterManagerNodeCount) {
-        internalCluster().startNodes(dataNodeCount + clusterManagerNodeCount);
-    }
-
     private Map<String, Long> initialTestSetup(int shardCount, int replicaCount, int dataNodeCount, int clusterManagerNodeCount) {
         prepareCluster(clusterManagerNodeCount, dataNodeCount, INDEX_NAME, replicaCount, shardCount);
         Map<String, Long> indexStats = indexData(1, false, INDEX_NAME);
