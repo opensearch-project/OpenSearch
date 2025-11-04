@@ -78,7 +78,7 @@ dependencies {
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 
-  implementation 'org.apache.commons:commons-lang3:3.17.0'
+  implementation "org.apache.commons:commons-lang3:${versions.commonslang}"
 
   api libs.bundles.lucene
 
