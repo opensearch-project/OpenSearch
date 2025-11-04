@@ -341,7 +341,7 @@ public class CompositeEngine implements Indexer {
 
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) throws EngineException, IOException {
-
+        mergeScheduler.forceMerge(maxNumSegments);
     }
 
     @Override

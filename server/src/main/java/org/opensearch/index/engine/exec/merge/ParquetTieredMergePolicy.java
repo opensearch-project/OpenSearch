@@ -47,6 +47,47 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
         };
     }
 
+    public List<List<ParquetFileInfo>> findForceMergeCandidates(List<ParquetFileInfo> segments, int maxSegmentCount) throws IOException {
+        // Convert Parquet segments to Lucene-style segments
+        List<SegmentCommitInfo> luceneSegments = new ArrayList<>();
+        Map<SegmentCommitInfo, ParquetFileInfo> segmentMap = new HashMap<>();
+        Map<SegmentCommitInfo, Boolean> segmentsToMerge = new HashMap<>();
+
+        for (ParquetFileInfo parquetSegment : segments) {
+            ParquetSegmentWrapper wrapper = new ParquetSegmentWrapper(parquetSegment);
+            luceneSegments.add(wrapper);
+            segmentMap.put(wrapper, parquetSegment);
+            segmentsToMerge.put(wrapper, true);
+        }
+
+        // Create SegmentInfos (required by Lucene 10)
+        SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
+        luceneSegments.forEach(segmentInfos::add);
+
+        // Find merge candidates using Lucene's policy
+        List<List<ParquetFileInfo>> merges = new ArrayList<>();
+        try {
+            MergePolicy.MergeSpecification mergeSpecification = luceneMergePolicy.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, this);
+
+            if(mergeSpecification != null) {
+                List<MergePolicy.OneMerge> luceneMerges = mergeSpecification.merges;
+
+                // Convert back to Parquet segments
+                for (MergePolicy.OneMerge merge : luceneMerges) {
+                    List<ParquetFileInfo> parquetMerge = new ArrayList<>();
+
+                    for(SegmentCommitInfo segment : merge.segments) {
+                        parquetMerge.add(segmentMap.get(segment));
+                    }
+                    merges.add(parquetMerge);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error finding merge candidates", e);
+        }
+        return merges;
+    }
+
     public List<List<ParquetFileInfo>> findMergeCandidates(List<ParquetFileInfo> segments) throws IOException {
 
         // Convert Parquet segments to Lucene-style segments

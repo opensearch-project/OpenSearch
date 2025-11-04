@@ -47,6 +47,8 @@ public abstract class MergeHandler {
 
     public abstract Collection<OneMerge> findMerges();
 
+    public abstract Collection<OneMerge> findForceMerges(int maxSegmentCount);
+
     public MergeResult doMerge(OneMerge oneMerge) {
 
         Map<DataFormat, Collection<FileMetadata>> mergedFiles = new HashMap<>();
