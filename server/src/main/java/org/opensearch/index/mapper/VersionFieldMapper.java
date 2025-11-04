@@ -59,7 +59,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
      *
      * @opensearch.internal
      */
-    static final class VersionFieldType extends MappedFieldType {
+    public static final class VersionFieldType extends MappedFieldType {
 
         public static final VersionFieldType INSTANCE = new VersionFieldType();
 

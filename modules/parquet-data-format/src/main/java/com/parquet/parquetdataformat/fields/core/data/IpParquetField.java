@@ -10,6 +10,7 @@ package com.parquet.parquetdataformat.fields.core.data;
 
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -23,9 +24,9 @@ import java.net.InetAddress;
  * Parquet field implementation for handling IP address data types in OpenSearch documents.
  *
  * <p>This class provides the conversion logic between OpenSearch IP fields and Apache Arrow
- * UTF-8 string vectors for columnar storage in Parquet format. IP address values are encoded
- * using Lucene's {@link InetAddressPoint} encoding and stored using Apache Arrow's 
- * {@link VarCharVector}, which provides efficient variable-length binary storage.</p>
+ * Binary        string vectors for columnar storage in Parquet format. IP address values are encoded
+ * using Lucene's {@link InetAddressPoint} encoding and stored using Apache Arrow's
+ * {@link VarBinaryVector}, which provides efficient variable-length binary storage.</p>
  *
  * <p>This field type corresponds to OpenSearch's {@code ip} field mapping, which is used
  * for storing IPv4 and IPv6 addresses. The IP addresses are internally encoded as binary
@@ -34,12 +35,12 @@ import java.net.InetAddress;
  * <p><strong>Usage Example:</strong></p>
  * <pre>{@code
  * IpParquetField ipField = new IpParquetField();
- * ArrowType arrowType = ipField.getArrowType(); // Returns ArrowType.Utf8
- * FieldType fieldType = ipField.getFieldType(); // Returns nullable UTF-8 field type
+ * ArrowType arrowType = ipField.getArrowType(); // Returns ArrowType.Binary
+ * FieldType fieldType = ipField.getFieldType(); // Returns nullable Binary field type
  * }</pre>
  *
  * @see ParquetField
- * @see VarCharVector
+ * @see VarBinaryVector
  * @see InetAddressPoint
  * @see ArrowType.Utf8
  * @since 1.0
@@ -48,15 +49,15 @@ public class IpParquetField extends ParquetField {
 
     @Override
     public void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        VarCharVector varCharVector = (VarCharVector) managedVSR.getVector(mappedFieldType.name());
+        VarBinaryVector varBinaryVector = (VarBinaryVector) managedVSR.getVector(mappedFieldType.name());
         int rowIndex = managedVSR.getRowCount();
         final BytesRef bytesRef = new BytesRef(InetAddressPoint.encode((InetAddress) parseValue));
-        varCharVector.setSafe(rowIndex, bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        varBinaryVector.setSafe(rowIndex, bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }
 
     @Override
     public ArrowType getArrowType() {
-        return new ArrowType.Utf8();
+        return new ArrowType.Binary();
     }
 
     @Override

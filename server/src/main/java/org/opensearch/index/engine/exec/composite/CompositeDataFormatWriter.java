@@ -8,7 +8,6 @@
 
 package org.opensearch.index.engine.exec.composite;
 
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.DocumentInput;
@@ -19,10 +18,14 @@ import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.Writer;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.VersionFieldMapper;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -32,7 +35,7 @@ import java.util.stream.Collectors;
 
 public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWriter.CompositeDocumentInput>, Lock {
 
-    private final List<ImmutablePair<DataFormat, Writer<? extends DocumentInput<?>>>> writers;
+    private final List<Map.Entry<DataFormat, Writer<? extends DocumentInput<?>>>> writers;
     private final Runnable postWrite;
     private final ReentrantLock lock;
     private final SetOnce<Boolean> flushPending = new SetOnce<>();
@@ -43,14 +46,14 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     public static final String ROW_ID = "___row_id";
 
     public CompositeDataFormatWriter(CompositeIndexingExecutionEngine engine,
-        long writerGeneration) {
+                                     long writerGeneration) {
         this.writers = new ArrayList<>();
         this.lock = new ReentrantLock();
         this.aborted = false;
         this.writerGeneration = writerGeneration;
         engine.getDelegates().forEach(delegate -> {
             try {
-                writers.add(ImmutablePair.of(delegate.getDataFormat(), delegate.createWriter(writerGeneration)));
+                writers.add(new AbstractMap.SimpleImmutableEntry<>(delegate.getDataFormat(), delegate.createWriter(writerGeneration)));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -69,11 +72,11 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     @Override
     public FileInfos flush(FlushIn flushIn) throws IOException {
         FileInfos fileInfos = new FileInfos();
-        for (ImmutablePair<DataFormat, Writer<? extends DocumentInput<?>>> writerPair : writers) {
-            Optional<WriterFileSet> fileMetadataOptional = writerPair.getRight().flush(flushIn)
-                .getWriterFileSet(writerPair.getLeft());
+        for (Map.Entry<DataFormat, Writer<? extends DocumentInput<?>>> writerPair : writers) {
+            Optional<WriterFileSet> fileMetadataOptional = writerPair.getValue().flush(flushIn)
+                .getWriterFileSet(writerPair.getKey());
             fileMetadataOptional.ifPresent(
-                fileMetadata -> fileInfos.putWriterFileSet(writerPair.getLeft(), fileMetadata));
+                fileMetadata -> fileInfos.putWriterFileSet(writerPair.getKey(), fileMetadata));
         }
         hasFlushed.set(true);
         return fileInfos;
@@ -86,8 +89,8 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
 
     @Override
     public void close() {
-        for (ImmutablePair<DataFormat, Writer<? extends DocumentInput<?>>> writerPair : writers) {
-            writerPair.getRight().close();
+        for (Map.Entry<DataFormat, Writer<? extends DocumentInput<?>>> writerPair : writers) {
+            writerPair.getValue().close();
         }
     }
 
@@ -95,7 +98,7 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     public CompositeDocumentInput newDocumentInput() {
 
         CompositeDocumentInput compositeDocumentInput = new CompositeDocumentInput(
-            writers.stream().map(ImmutablePair::getRight).map(Writer::newDocumentInput).collect(Collectors.toList()),
+            writers.stream().map(Map.Entry::getValue).map(Writer::newDocumentInput).collect(Collectors.toList()),
             this, postWrite);
 
         compositeDocumentInput.addRowIdField(ROW_ID, rowIdGenerator.getAndIncrementRowId());
@@ -162,9 +165,12 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
         List<? extends DocumentInput<?>> inputs;
         CompositeDataFormatWriter writer;
         Runnable onClose;
+        private long version = -1;
+        private long seqNo = -2L;
+        private long primaryTerm = 0;
 
         public CompositeDocumentInput(List<? extends DocumentInput<?>> inputs, CompositeDataFormatWriter writer,
-            Runnable onClose) {
+                                      Runnable onClose) {
             this.inputs = inputs;
             this.writer = writer;
             this.onClose = onClose;
@@ -181,6 +187,26 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
         public void addField(MappedFieldType fieldType, Object value) {
             for (DocumentInput<?> input : inputs) {
                 input.addField(fieldType, value);
+            }
+        }
+
+        @Override
+        public void setVersion(long version) {
+            this.version = version;
+            addField(VersionFieldMapper.VersionFieldType.INSTANCE, version);
+        }
+
+        @Override
+        public void setSeqNo(long seqNo) {
+            this.seqNo = seqNo;
+            addField(SeqNoFieldMapper.SeqNoFieldType.INSTANCE, seqNo);
+        }
+
+        @Override
+        public void setPrimaryTerm(String fieldName, long primaryTerm) {
+            this.primaryTerm = primaryTerm;
+            for (DocumentInput<?> input : inputs) {
+                input.setPrimaryTerm(fieldName, primaryTerm);
             }
         }
 

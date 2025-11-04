@@ -22,4 +22,16 @@ public interface DocumentInput<T> extends AutoCloseable {
     T getFinalInput();
 
     WriteResult addToWriter() throws IOException;
+
+    default void setVersion(long version) {
+        // Default no-op implementations, override as needed
+    }
+
+    default void setSeqNo(long seqNo) {
+        // Default no-op implementations, override as needed
+    }
+
+    default void setPrimaryTerm(String fieldName, long seqNo) {
+        // Default no-op implementations, override as needed
+    }
 }

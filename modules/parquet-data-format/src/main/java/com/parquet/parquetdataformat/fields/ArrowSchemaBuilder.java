@@ -12,9 +12,14 @@ import com.parquet.parquetdataformat.fields.core.data.number.LongParquetField;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
+import org.opensearch.index.mapper.FieldNamesFieldMapper;
+import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.SourceFieldMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +68,7 @@ public final class ArrowSchemaBuilder {
         final List<Field> fields = new ArrayList<>();
 
         for (final Mapper mapper : mapperService.documentMapper().mappers()) {
-            if (isMetadataField(mapper)) {
+            if (notSupportedMetadataField(mapper)) {
                 continue;
             }
 
@@ -72,18 +77,23 @@ public final class ArrowSchemaBuilder {
         }
 
         fields.add(new Field(CompositeDataFormatWriter.ROW_ID, new LongParquetField().getFieldType(), null));
+        fields.add(new Field(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField().getFieldType(), null));
 
         return fields;
     }
 
     /**
-     * Checks if the given mapper represents a metadata field.
+     * Checks if the given mapper represents a not supported metadata field.
      *
      * @param mapper the mapper to check
-     * @return true if the mapper is a metadata field, false otherwise
+     * @return true if the mapper is a not supported metadata field, false otherwise
      */
-    private static boolean isMetadataField(final Mapper mapper) {
-        return mapper instanceof MetadataFieldMapper;
+    private static boolean notSupportedMetadataField(final Mapper mapper) {
+        return mapper instanceof SourceFieldMapper
+            || mapper instanceof FieldNamesFieldMapper
+            || mapper instanceof IndexFieldMapper
+            || mapper instanceof NestedPathFieldMapper
+            || Objects.equals(mapper.typeName(), "_feature");
     }
 
     /**

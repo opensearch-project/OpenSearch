@@ -60,6 +60,13 @@ public class ParquetDocumentInput implements DocumentInput<ManagedVSR> {
     }
 
     @Override
+    public void setPrimaryTerm(String fieldName, long primaryTerm) {
+        BigIntVector bigIntVector = (BigIntVector) managedVSR.getVector(fieldName);
+        int rowCount = managedVSR.getRowCount();
+        bigIntVector.setSafe(rowCount, primaryTerm);
+    }
+
+    @Override
     public ManagedVSR getFinalInput() {
         return managedVSR;
     }

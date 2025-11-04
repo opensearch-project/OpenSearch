@@ -8,9 +8,11 @@
 
 package com.parquet.parquetdataformat.fields;
 
+import com.parquet.parquetdataformat.fields.core.data.number.LongParquetField;
 import com.parquet.parquetdataformat.plugins.fields.CoreDataFieldPlugin;
 import com.parquet.parquetdataformat.plugins.fields.MetadataFieldPlugin;
 import com.parquet.parquetdataformat.plugins.fields.ParquetFieldPlugin;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.Collections;
 import java.util.Map;
@@ -87,6 +89,8 @@ public final class ArrowFieldRegistry {
 
                 FIELD_REGISTRY.put(fieldType, parquetField);
             }
+
+            FIELD_REGISTRY.put(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField());
         }
     }
 
