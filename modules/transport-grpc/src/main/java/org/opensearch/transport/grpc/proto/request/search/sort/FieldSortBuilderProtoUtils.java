@@ -37,26 +37,6 @@ public class FieldSortBuilderProtoUtils {
     }
 
     /**
-     * Converts a Protocol Buffer field sort representation to OpenSearch SortBuilder objects.
-     * Similar to {@link FieldSortBuilder#fromXContent(XContentParser, String)}, this method
-     * parses field sort definitions from Protocol Buffers and adds them to the provided list.
-     *
-     * @param sortBuilder The list of SortBuilder objects to add the parsed field sorts to
-     * @param fieldWithOrderMap The Protocol Buffer map containing field names and their sort orders
-     */
-    public static void fromProto(List<SortBuilder<?>> sortBuilder, FieldWithOrderMap fieldWithOrderMap) {
-        for (Map.Entry<String, ScoreSort> entry : fieldWithOrderMap.getFieldWithOrderMapMap().entrySet()) {
-
-            String fieldName = entry.getKey();
-            ScoreSort scoreSort = entry.getValue();
-
-            SortOrder order = SortOrderProtoUtils.fromProto(scoreSort.getOrder());
-
-            sortBuilder.add(fieldOrScoreSort(fieldName).order(order));
-        }
-    }
-
-    /**
      * Converts a Protocol Buffer FieldSort to a FieldSortBuilder with complex options.
      * Similar to {@link FieldSortBuilder#fromXContent}, this method parses the
      * Protocol Buffer representation and creates a properly configured FieldSortBuilder

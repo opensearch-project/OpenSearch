@@ -126,7 +126,7 @@ public class ScriptSortProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull(result);
         // Default order should be ASC (ScriptSortBuilder default)
         assertEquals(org.opensearch.search.sort.SortOrder.ASC, result.order());
-        assertNull(result.sortMode()); // Should be null when not specified
-        assertNull(result.getNestedSort()); // Should be null when not specified
+        assertNull(result.sortMode());
+        assertNull(result.getNestedSort());
     }
 }

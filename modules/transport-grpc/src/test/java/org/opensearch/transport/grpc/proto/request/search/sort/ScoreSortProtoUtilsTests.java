@@ -17,31 +17,30 @@ import org.opensearch.test.OpenSearchTestCase;
  */
 public class ScoreSortProtoUtilsTests extends OpenSearchTestCase {
 
-    public void testFromProto_WithUnspecifiedOrder() {
-        ScoreSort scoreSort = ScoreSort.newBuilder().setOrder(SortOrder.SORT_ORDER_UNSPECIFIED).build();
+    public void testFromProto_SortOrders() {
+        // Test 1: Unspecified order (should default to DESC)
+        ScoreSort scoreSortUnspecified = ScoreSort.newBuilder()
+            .setOrder(SortOrder.SORT_ORDER_UNSPECIFIED)
+            .build();
+        ScoreSortBuilder resultUnspecified = ScoreSortProtoUtils.fromProto(scoreSortUnspecified);
+        assertNotNull("Result should not be null for UNSPECIFIED order", resultUnspecified);
+        assertEquals("Unspecified order should default to DESC", org.opensearch.search.sort.SortOrder.DESC, resultUnspecified.order());
 
-        ScoreSortBuilder result = ScoreSortProtoUtils.fromProto(scoreSort);
+        // Test 2: ASC order
+        ScoreSort scoreSortAsc = ScoreSort.newBuilder()
+            .setOrder(SortOrder.SORT_ORDER_ASC)
+            .build();
+        ScoreSortBuilder resultAsc = ScoreSortProtoUtils.fromProto(scoreSortAsc);
+        assertNotNull("Result should not be null for ASC order", resultAsc);
+        assertEquals("ASC order should be preserved", org.opensearch.search.sort.SortOrder.ASC, resultAsc.order());
 
-        assertNotNull(result);
-        assertEquals(org.opensearch.search.sort.SortOrder.DESC, result.order());
-    }
-
-    public void testFromProto_WithAscOrder() {
-        ScoreSort scoreSort = ScoreSort.newBuilder().setOrder(SortOrder.SORT_ORDER_ASC).build();
-
-        ScoreSortBuilder result = ScoreSortProtoUtils.fromProto(scoreSort);
-
-        assertNotNull(result);
-        assertEquals(org.opensearch.search.sort.SortOrder.ASC, result.order());
-    }
-
-    public void testFromProto_WithDescOrder() {
-        ScoreSort scoreSort = ScoreSort.newBuilder().setOrder(SortOrder.SORT_ORDER_DESC).build();
-
-        ScoreSortBuilder result = ScoreSortProtoUtils.fromProto(scoreSort);
-
-        assertNotNull(result);
-        assertEquals(org.opensearch.search.sort.SortOrder.DESC, result.order());
+        // Test 3: DESC order
+        ScoreSort scoreSortDesc = ScoreSort.newBuilder()
+            .setOrder(SortOrder.SORT_ORDER_DESC)
+            .build();
+        ScoreSortBuilder resultDesc = ScoreSortProtoUtils.fromProto(scoreSortDesc);
+        assertNotNull("Result should not be null for DESC order", resultDesc);
+        assertEquals("DESC order should be preserved", org.opensearch.search.sort.SortOrder.DESC, resultDesc.order());
     }
 
     public void testFromProto_NullInput() {

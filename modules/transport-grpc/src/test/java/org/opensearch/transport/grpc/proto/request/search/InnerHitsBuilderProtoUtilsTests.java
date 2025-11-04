@@ -268,34 +268,28 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithSort() throws IOException {
-        // Create a protobuf InnerHits with sort (this will throw UnsupportedOperationException due to SortBuilderProtoUtils)
         InnerHits innerHits = InnerHits.newBuilder()
             .setName("test_inner_hits")
             .addSort(org.opensearch.protobufs.SortCombinations.newBuilder().build())
             .build();
 
-        // This should throw UnsupportedOperationException from SortBuilderProtoUtils.fromProto
-        UnsupportedOperationException exception = expectThrows(
-            UnsupportedOperationException.class,
-            () -> InnerHitsBuilderProtoUtils.fromProto(innerHits)
-        );
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits);
 
-        assertEquals("sort not supported yet", exception.getMessage());
+        assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
+        assertNotNull("Sorts should not be null", innerHitBuilder.getSorts());
+        assertEquals("Name should match", "test_inner_hits", innerHitBuilder.getName());
     }
 
     public void testFromProtoWithHighlight() throws IOException {
-        // Create a protobuf InnerHits with highlight
         org.opensearch.protobufs.Highlight highlightProto = org.opensearch.protobufs.Highlight.newBuilder().build();
 
         InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").setHighlight(highlightProto).build();
 
-        // This should throw UnsupportedOperationException from HighlightBuilderProtoUtils.fromProto
-        UnsupportedOperationException exception = expectThrows(
-            UnsupportedOperationException.class,
-            () -> InnerHitsBuilderProtoUtils.fromProto(innerHits)
-        );
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits);
 
-        assertEquals("highlight not supported yet", exception.getMessage());
+        assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
+        assertNotNull("HighlightBuilder should not be null", innerHitBuilder.getHighlightBuilder());
+        assertEquals("Name should match", "test_inner_hits", innerHitBuilder.getName());
     }
 
     public void testFromProtoWithCollapse() throws IOException {
