@@ -242,6 +242,17 @@ tasks.register('copyNativeLib', Copy) {
 
 }
 
+// Enhanced clean task to remove native build artifacts
+clean {
+    doFirst {
+        delete fileTree('src/main/resources/native') {
+            exclude '.gitkeep' // Keep any gitkeep files if they exist
+        }
+        delete 'src/main/rust/target'
+        println "Cleaned native build artifacts: src/main/resources/native and src/main/rust/target"
+    }
+}
+
 // Wire Rust build tasks into the Gradle build lifecycle
 compileJava.dependsOn copyNativeLib
 processResources.dependsOn copyNativeLib
