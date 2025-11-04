@@ -35,6 +35,7 @@ import org.opensearch.index.engine.exec.merge.OneMerge;
 import org.opensearch.index.engine.exec.merge.ParquetMergeHandler;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
@@ -135,6 +136,9 @@ public class CompositeEngine implements Indexer {
     }
 
     public Engine.IndexResult index(Engine.Index index) throws IOException {
+        index.documentInput.setSeqNo(index.seqNo());
+        index.documentInput.setPrimaryTerm(SeqNoFieldMapper.PRIMARY_TERM_NAME, index.primaryTerm());
+        index.documentInput.setVersion(1); // we are not supporting update in parquet
         WriteResult writeResult = index.documentInput.addToWriter();
         // translog, checkpoint, other checks
         return new Engine.IndexResult(writeResult.version(), writeResult.seqNo(), writeResult.term(), writeResult.success());

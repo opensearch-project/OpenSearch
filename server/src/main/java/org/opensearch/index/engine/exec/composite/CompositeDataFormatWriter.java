@@ -19,6 +19,8 @@ import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.Writer;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.VersionFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -162,6 +164,9 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
         List<? extends DocumentInput<?>> inputs;
         CompositeDataFormatWriter writer;
         Runnable onClose;
+        private long version = -1;
+        private long seqNo = -2L;
+        private long primaryTerm = 0;
 
         public CompositeDocumentInput(List<? extends DocumentInput<?>> inputs, CompositeDataFormatWriter writer,
             Runnable onClose) {
@@ -181,6 +186,26 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
         public void addField(MappedFieldType fieldType, Object value) {
             for (DocumentInput<?> input : inputs) {
                 input.addField(fieldType, value);
+            }
+        }
+
+        @Override
+        public void setVersion(long version) {
+            this.version = version;
+            addField(VersionFieldMapper.VersionFieldType.INSTANCE, version);
+        }
+
+        @Override
+        public void setSeqNo(long seqNo) {
+            this.seqNo = seqNo;
+            addField(SeqNoFieldMapper.SeqNoFieldType.INSTANCE, seqNo);
+        }
+
+        @Override
+        public void setPrimaryTerm(String fieldName, long primaryTerm) {
+            this.primaryTerm = primaryTerm;
+            for (DocumentInput<?> input : inputs) {
+                input.setPrimaryTerm(fieldName, primaryTerm);
             }
         }
 
