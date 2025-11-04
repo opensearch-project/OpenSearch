@@ -72,9 +72,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithFieldWithDirection() {
         List<SortCombinations> sortProto = new ArrayList<>();
 
-        SortOrderMap sortOrderMap = SortOrderMap.newBuilder()
-            .putSortOrderMap("message", SortOrder.SORT_ORDER_DESC)
-            .build();
+        SortOrderMap sortOrderMap = SortOrderMap.newBuilder().putSortOrderMap("message", SortOrder.SORT_ORDER_DESC).build();
 
         sortProto.add(SortCombinations.newBuilder().setFieldWithDirection(sortOrderMap).build());
 
@@ -89,9 +87,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         List<SortCombinations> sortProto = new ArrayList<>();
 
         FieldSort fieldSort = FieldSort.newBuilder().build();
-        FieldSortMap fieldSortMap = FieldSortMap.newBuilder()
-            .putFieldSortMap("timestamp", fieldSort)
-            .build();
+        FieldSortMap fieldSortMap = FieldSortMap.newBuilder().putFieldSortMap("timestamp", fieldSort).build();
 
         sortProto.add(SortCombinations.newBuilder().setFieldWithOrder(fieldSortMap).build());
 
@@ -135,10 +131,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         SortOrderMap sortOrderMap = SortOrderMap.newBuilder().build();
         sortProto.add(SortCombinations.newBuilder().setFieldWithDirection(sortOrderMap).build());
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> SortBuilderProtoUtils.fromProto(sortProto)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> SortBuilderProtoUtils.fromProto(sortProto));
         assertEquals("SortOrderMap cannot be empty or contain multiple entries", exception.getMessage());
     }
 
@@ -147,10 +140,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         SortOptions sortOptions = SortOptions.newBuilder().build();
         sortProto.add(SortCombinations.newBuilder().setOptions(sortOptions).build());
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> SortBuilderProtoUtils.fromProto(sortProto)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> SortBuilderProtoUtils.fromProto(sortProto));
         assertEquals("Unknown sort options type", exception.getMessage());
     }
 
@@ -180,14 +170,14 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         List<SortCombinations> sortProto = new ArrayList<>();
 
         GeoLocationArray locationArray = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
+                    .build()
+            )
             .build();
 
-        GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder()
-            .putLocation("location", locationArray)
-            .build();
+        GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder().putLocation("location", locationArray).build();
         SortOptions sortOptions = SortOptions.newBuilder().setXGeoDistance(geoDistanceSort).build();
 
         sortProto.add(SortCombinations.newBuilder().setOptions(sortOptions).build());
@@ -209,10 +199,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         sortProto.add(SortCombinations.newBuilder().setFieldWithDirection(sortOrderMap).build());
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> SortBuilderProtoUtils.fromProto(sortProto)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> SortBuilderProtoUtils.fromProto(sortProto));
         assertEquals("SortOrderMap cannot be empty or contain multiple entries", exception.getMessage());
     }
 
@@ -221,10 +208,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
         FieldSortMap fieldSortMap = FieldSortMap.newBuilder().build();
         sortProto.add(SortCombinations.newBuilder().setFieldWithOrder(fieldSortMap).build());
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> SortBuilderProtoUtils.fromProto(sortProto)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> SortBuilderProtoUtils.fromProto(sortProto));
         assertEquals("FieldSortMap cannot be empty or contain multiple entries", exception.getMessage());
     }
 
@@ -239,10 +223,7 @@ public class SortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         sortProto.add(SortCombinations.newBuilder().setFieldWithOrder(fieldSortMap).build());
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> SortBuilderProtoUtils.fromProto(sortProto)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> SortBuilderProtoUtils.fromProto(sortProto));
         assertEquals("FieldSortMap cannot be empty or contain multiple entries", exception.getMessage());
     }
 }

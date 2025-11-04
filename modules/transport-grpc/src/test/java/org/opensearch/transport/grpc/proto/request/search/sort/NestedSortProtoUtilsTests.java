@@ -49,10 +49,7 @@ public class NestedSortProtoUtilsTests extends OpenSearchTestCase {
 
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
 
-        NestedSortValue innerNested = NestedSortValue.newBuilder()
-            .setPath("inner.nested")
-            .setMaxChildren(5)
-            .build();
+        NestedSortValue innerNested = NestedSortValue.newBuilder().setPath("inner.nested").setMaxChildren(5).build();
 
         NestedSortValue nestedSortValue = NestedSortValue.newBuilder()
             .setPath("outer.nested")
@@ -109,9 +106,7 @@ public class NestedSortProtoUtilsTests extends OpenSearchTestCase {
 
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
 
-        NestedSortValue.Builder nestedSortValueBuilder = NestedSortValue.newBuilder()
-            .setPath("nested.field")
-            .setFilter(queryContainer);
+        NestedSortValue.Builder nestedSortValueBuilder = NestedSortValue.newBuilder().setPath("nested.field").setFilter(queryContainer);
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,

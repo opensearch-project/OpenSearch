@@ -8,9 +8,7 @@
 package org.opensearch.transport.grpc.proto.request.search.sort;
 
 import org.opensearch.common.geo.GeoDistance;
-import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.index.query.GeoValidationMethod;
 import org.opensearch.protobufs.GeoDistanceSort;
 import org.opensearch.protobufs.GeoDistanceType;
 import org.opensearch.protobufs.GeoLocation;
@@ -33,9 +31,11 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithGeoDistanceSort() {
         // Create a GeoDistanceSort with basic parameters
         GeoLocationArray locationArray = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
+                    .build()
+            )
             .build();
 
         GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder()
@@ -56,14 +56,14 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithDefaultValues() {
         GeoLocationArray locationArray = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(51.5).setLon(-0.1).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(51.5).setLon(-0.1).build())
+                    .build()
+            )
             .build();
 
-        GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder()
-            .putLocation("geo_field", locationArray)
-            .build();
+        GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder().putLocation("geo_field", locationArray).build();
 
         GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort);
 
@@ -75,10 +75,7 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithNullInput() {
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> GeoDistanceSortProtoUtils.fromProto(null)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortProtoUtils.fromProto(null));
 
         assertEquals("GeoDistanceSort cannot be null", exception.getMessage());
     }
@@ -96,15 +93,19 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithMultipleLocations() {
         GeoLocationArray locationArray1 = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
+                    .build()
+            )
             .build();
 
         GeoLocationArray locationArray2 = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(51.5).setLon(-0.1).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(51.5).setLon(-0.1).build())
+                    .build()
+            )
             .build();
 
         GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder()
@@ -122,17 +123,19 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithMultipleGeoPointsInOneField() {
         GeoLocationArray locationArray = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
-                .build())
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(51.5).setLon(-0.1).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
+                    .build()
+            )
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(51.5).setLon(-0.1).build())
+                    .build()
+            )
             .build();
 
-        GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder()
-            .putLocation("location_field", locationArray)
-            .build();
+        GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder().putLocation("location_field", locationArray).build();
 
         GeoDistanceSortBuilder result = GeoDistanceSortProtoUtils.fromProto(geoDistanceSort);
 
@@ -142,9 +145,11 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithUnspecifiedEnums() {
         GeoLocationArray locationArray = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
+                    .build()
+            )
             .build();
 
         GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder()
@@ -164,9 +169,11 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithIgnoreUnmapped() {
         GeoLocationArray locationArray = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
+                    .build()
+            )
             .build();
 
         GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder()
@@ -182,9 +189,11 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithSortMode() {
         GeoLocationArray locationArray = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
+                    .build()
+            )
             .build();
 
         GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder()
@@ -199,9 +208,11 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithValidationMethod() {
         GeoLocationArray locationArray = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
+                    .build()
+            )
             .build();
 
         GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder()
@@ -216,9 +227,11 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithNestedSort() {
         GeoLocationArray locationArray = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
+                    .build()
+            )
             .build();
 
         org.opensearch.protobufs.NestedSortValue nestedSort = org.opensearch.protobufs.NestedSortValue.newBuilder()
@@ -238,12 +251,16 @@ public class GeoDistanceSortProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithAllParameters() {
         GeoLocationArray locationArray = GeoLocationArray.newBuilder()
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
-                .build())
-            .addGeoLocationArray(GeoLocation.newBuilder()
-                .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(38.0).setLon(-68.0).build())
-                .build())
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(40.0).setLon(-70.0).build())
+                    .build()
+            )
+            .addGeoLocationArray(
+                GeoLocation.newBuilder()
+                    .setLatlon(org.opensearch.protobufs.LatLonGeoLocation.newBuilder().setLat(38.0).setLon(-68.0).build())
+                    .build()
+            )
             .build();
 
         GeoDistanceSort geoDistanceSort = GeoDistanceSort.newBuilder()

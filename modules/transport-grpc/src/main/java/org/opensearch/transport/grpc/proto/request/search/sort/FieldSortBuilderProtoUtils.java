@@ -8,22 +8,14 @@
 
 package org.opensearch.transport.grpc.proto.request.search.sort;
 
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.protobufs.FieldSort;
-import org.opensearch.protobufs.FieldWithOrderMap;
-import org.opensearch.protobufs.ScoreSort;
 import org.opensearch.search.sort.FieldSortBuilder;
-import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortMode;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
-import java.util.List;
-import java.util.Map;
-
 import static org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils.SCORE_NAME;
-import static org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils.fieldOrScoreSort;
 
 /**
  * Utility class for converting FieldSort Protocol Buffers to OpenSearch FieldSortBuilder objects.
