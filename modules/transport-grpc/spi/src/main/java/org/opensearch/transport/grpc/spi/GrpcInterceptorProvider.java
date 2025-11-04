@@ -17,10 +17,6 @@ import io.grpc.ServerInterceptor;
  * SPI interface for providing gRPC interceptors.
  * Plugins can implement this interface to provide custom gRPC interceptors
  * that will be executed in the order specified by their OrderedGrpcInterceptor.
- *
- * Similar to REST handler wrappers that receive ThreadContext via
- * {@link org.opensearch.plugins.ActionPlugin#getRestHandlerWrapper(ThreadContext)},
- * gRPC interceptors receive ThreadContext to manage request context and headers.
  */
 public interface GrpcInterceptorProvider {
 
@@ -31,8 +27,8 @@ public interface GrpcInterceptorProvider {
      * This follows the pattern established by REST handler wrappers where
      * the thread context is provided to allow interceptors to:
      * - Extract headers from gRPC metadata and store in ThreadContext
-     * - Preserve context across async boundaries*
-     * @param threadContext The thread context for managing request context and headers
+     * - Preserve context across async boundaries
+     * @param threadContext The thread context for managing request context
      * @return List of ordered gRPC interceptors
      */
     List<OrderedGrpcInterceptor> getOrderedGrpcInterceptors(ThreadContext threadContext);
@@ -54,8 +50,7 @@ public interface GrpcInterceptorProvider {
         /**
          * Returns the actual gRPC ServerInterceptor instance.
          * The interceptor can use the ThreadContext provided to the parent
-         * GrpcInterceptorProvider to manage request context, similar to how
-         * REST handlers manage context through the RestController.
+         * GrpcInterceptorProvider to manage request context.
          *
          * @return the server interceptor
          */

@@ -16,6 +16,7 @@ import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInte
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
@@ -86,7 +87,6 @@ public class GrpcInterceptorChain implements ServerInterceptor {
     ) {
         logger.debug("GrpcInterceptorChain.interceptCall() executing on thread: {}", Thread.currentThread().getName());
 
-        // Build the interceptor chain in reverse order
         ServerCallHandler<ReqT, RespT> currentHandler = next;
 
         for (int i = interceptors.size() - 1; i >= 0; i--) {
@@ -120,17 +120,17 @@ public class GrpcInterceptorChain implements ServerInterceptor {
 
         ServerCall.Listener<ReqT> delegate = currentHandler.startCall(call, headers);
 
-        // Capture ThreadContext state AFTER interceptors have executed
-        // Interceptors may have added transients/headers that need to propagate across thread switches
-        final ThreadContext.StoredContext capturedContext = threadContext.newStoredContext(false);
+        // Capture ThreadContext state AFTER interceptors have executed using newRestorableContext
+        // This follows the same pattern as ContextPreservingActionListener.
+        // Interceptors may have added transients/headers that need to propagate across thread switches.
+        final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(false);
         logger.debug("Captured ThreadContext after interceptors on thread: {}", Thread.currentThread().getName());
 
         // Wrap the listener to restore ThreadContext in all callbacks
         return new ForwardingServerCallListener.SimpleForwardingServerCallListener<>(delegate) {
             private void runWithThreadContext(Runnable r) {
                 logger.debug("Restoring ThreadContext on thread: {}", Thread.currentThread().getName());
-                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                    capturedContext.restore();
+                try (ThreadContext.StoredContext ignored = contextSupplier.get()) {
                     r.run();
                 }
             }
