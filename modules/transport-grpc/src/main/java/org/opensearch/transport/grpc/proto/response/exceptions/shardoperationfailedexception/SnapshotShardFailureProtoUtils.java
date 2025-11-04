@@ -11,6 +11,10 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ShardFailure;
 import org.opensearch.snapshots.SnapshotShardFailure;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
+import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
+
+import java.io.IOException;
 
 /**
  * Utility class for converting SnapshotShardFailure objects to Protocol Buffers.
@@ -28,15 +32,18 @@ public class SnapshotShardFailureProtoUtils {
      * @param exception The SnapshotShardFailure to convert
      * @return A Protocol Buffer Struct containing the exception metadata
      */
-    public static ShardFailure toProto(SnapshotShardFailure exception) {
+    public static ShardFailure toProto(SnapshotShardFailure exception, ResponseHandlingParams params) throws IOException {
         ShardFailure.Builder shardFailure = ShardFailure.newBuilder();
-        shardFailure.setIndex(exception.index());
+        if (exception.index() != null) {
+            shardFailure.setIndex(exception.index());
+        }
         // shardFailure.setIndexUuid(exception.index()); // TODO no field called index_uuid in ShardFailure protos
         shardFailure.setShard(exception.shardId());
-        // shardFailure.setReason(exception.reason()); // TODO ErrorCause type in ShardFailure, not string
-        shardFailure.setIndex(exception.index());
-        shardFailure.setNode(exception.nodeId());
+        if (exception.nodeId() != null) {
+            shardFailure.setNode(exception.nodeId());
+        }
         shardFailure.setStatus(exception.status().name());
+        shardFailure.setReason(OpenSearchExceptionProtoUtils.generateThrowableProto(exception.getCause(), params));
         return shardFailure.build();
     }
 }

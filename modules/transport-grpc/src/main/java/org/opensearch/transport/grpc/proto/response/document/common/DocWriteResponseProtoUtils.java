@@ -14,6 +14,7 @@ import org.opensearch.protobufs.Id;
 import org.opensearch.protobufs.NullValue;
 import org.opensearch.protobufs.ResponseItem;
 import org.opensearch.protobufs.ShardInfo;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 
@@ -36,7 +37,7 @@ public class DocWriteResponseProtoUtils {
      * @return A ResponseItem.Builder with the DocWriteResponse data
      *
      */
-    public static ResponseItem.Builder toProto(DocWriteResponse response) throws IOException {
+    public static ResponseItem.Builder toProto(DocWriteResponse response, ResponseHandlingParams params) throws IOException {
         ResponseItem.Builder responseItem = ResponseItem.newBuilder();
 
         // Set the index name
@@ -60,7 +61,7 @@ public class DocWriteResponseProtoUtils {
             responseItem.setForcedRefresh(true);
         }
         // Handle shard information
-        ShardInfo shardInfo = ShardInfoProtoUtils.toProto(response.getShardInfo());
+        ShardInfo shardInfo = ShardInfoProtoUtils.toProto(response.getShardInfo(), params);
         responseItem.setXShards(shardInfo);
 
         // Set sequence number and primary term if available

@@ -13,6 +13,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.SearchResponse;
 import org.opensearch.rest.action.RestActions;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 
@@ -44,8 +45,11 @@ public class ProtoActionsProtoUtils {
         int successful,
         int skipped,
         int failed,
-        ShardOperationFailedException[] shardFailures
+        ShardOperationFailedException[] shardFailures,
+        ResponseHandlingParams params
     ) throws IOException {
-        searchResponseProtoBuilder.setXShards(ShardStatisticsProtoUtils.getShardStats(total, successful, skipped, failed, shardFailures));
+        searchResponseProtoBuilder.setXShards(
+            ShardStatisticsProtoUtils.getShardStats(total, successful, skipped, failed, shardFailures, params)
+        );
     }
 }

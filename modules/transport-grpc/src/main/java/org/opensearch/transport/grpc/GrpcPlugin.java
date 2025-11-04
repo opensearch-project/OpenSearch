@@ -78,7 +78,9 @@ import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.
 public final class GrpcPlugin extends Plugin implements NetworkPlugin, ExtensiblePlugin {
     private static final Logger logger = LogManager.getLogger(GrpcPlugin.class);
 
-    /** The name of the gRPC thread pool */
+    /**
+     * The name of the gRPC thread pool
+     */
     public static final String GRPC_THREAD_POOL_NAME = "grpc";
 
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
@@ -209,8 +211,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
 
-        boolean detailedErrorsEnabled = SETTING_GRPC_DETAILED_ERRORS_ENABLED.get(settings);
         return Collections.singletonMap(GRPC_TRANSPORT_SETTING_KEY, () -> {
+            boolean detailedErrorsEnabled = SETTING_GRPC_DETAILED_ERRORS_ENABLED.get(settings);
             List<BindableService> grpcServices = new ArrayList<>(
                 List.of(
                     new DocumentServiceImpl(client, detailedErrorsEnabled),
@@ -319,7 +321,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             SETTING_GRPC_MAX_MSG_SIZE,
             SETTING_GRPC_MAX_CONNECTION_AGE,
             SETTING_GRPC_MAX_CONNECTION_IDLE,
-            SETTING_GRPC_KEEPALIVE_TIMEOUT
+            SETTING_GRPC_KEEPALIVE_TIMEOUT,
+            SETTING_GRPC_DETAILED_ERRORS_ENABLED
         );
     }
 

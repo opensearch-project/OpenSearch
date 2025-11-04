@@ -12,6 +12,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ClusterStatistics;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,9 +36,10 @@ public class SearchResponseProtoUtils {
      * @return A Protocol Buffer SearchResponse representation
      * @throws IOException if there's an error during conversion
      */
-    public static org.opensearch.protobufs.SearchResponse toProto(SearchResponse response) throws IOException {
+    public static org.opensearch.protobufs.SearchResponse toProto(SearchResponse response, ResponseHandlingParams params)
+        throws IOException {
         org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        toProto(response, searchResponseProtoBuilder);
+        toProto(response, searchResponseProtoBuilder, params);
         return searchResponseProtoBuilder.build();
     }
 
@@ -47,10 +49,14 @@ public class SearchResponseProtoUtils {
      *
      * @param response The SearchResponse to convert
      * @param searchResponseProtoBuilder The builder to populate with the SearchResponse data
+     * @param params
      * @throws IOException if there's an error during conversion
      */
-    public static void toProto(SearchResponse response, org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder)
-        throws IOException {
+    public static void toProto(
+        SearchResponse response,
+        org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder,
+        ResponseHandlingParams params
+    ) throws IOException {
 
         // Set optional fields only if they exist
         if (response.getScrollId() != null) {
@@ -86,7 +92,8 @@ public class SearchResponseProtoUtils {
             response.getSuccessfulShards(),
             response.getSkippedShards(),
             response.getFailedShards(),
-            response.getShardFailures()
+            response.getShardFailures(),
+            params
         );
 
         // Add clusters information

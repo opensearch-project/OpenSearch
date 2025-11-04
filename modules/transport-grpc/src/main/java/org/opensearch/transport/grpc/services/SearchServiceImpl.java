@@ -15,6 +15,7 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.transport.grpc.listeners.SearchRequestActionListener;
 import org.opensearch.transport.grpc.proto.request.search.SearchRequestProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
 import java.io.IOException;
@@ -64,14 +65,14 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
         org.opensearch.protobufs.SearchRequest request,
         StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver
     ) {
+        ResponseHandlingParams params = new ResponseHandlingParams(detailedErrorsEnabled, request.getGlobalParams());
         try {
-            GrpcErrorHandler.validateErrorTracingConfiguration(detailedErrorsEnabled, request.getGlobalParams());
             org.opensearch.action.search.SearchRequest searchRequest = SearchRequestProtoUtils.prepareRequest(request, client, queryUtils);
-            SearchRequestActionListener listener = new SearchRequestActionListener(responseObserver);
+            SearchRequestActionListener listener = new SearchRequestActionListener(responseObserver, params);
             client.search(searchRequest, listener);
         } catch (RuntimeException | IOException e) {
             logger.debug("SearchServiceImpl failed to process search request, request=" + request + ", error=" + e.getMessage());
-            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e, params);
             responseObserver.onError(grpcError);
         }
     }

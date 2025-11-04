@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.proto.response.search.SearchResponseProtoUtils;
 import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
@@ -27,27 +28,32 @@ public class SearchRequestActionListener implements ActionListener<SearchRespons
     private static final Logger logger = LogManager.getLogger(SearchRequestActionListener.class);
 
     private final StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver;
+    private final ResponseHandlingParams params;
 
     /**
      * Constructs a new SearchRequestActionListener.
      *
      * @param responseObserver the gRPC stream observer to send the search response to
      */
-    public SearchRequestActionListener(StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver) {
+    public SearchRequestActionListener(
+        StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver,
+        ResponseHandlingParams params
+    ) {
         super();
         this.responseObserver = responseObserver;
+        this.params = params;
     }
 
     @Override
     public void onResponse(SearchResponse response) {
         // Search execution succeeded. Convert the opensearch internal response to protobuf
         try {
-            org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(response);
+            org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(response, params);
             responseObserver.onNext(protoResponse);
             responseObserver.onCompleted();
         } catch (RuntimeException | IOException e) {
             logger.error("Failed to convert search response to protobuf: " + e.getMessage());
-            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e, params);
             responseObserver.onError(grpcError);
         }
     }
@@ -55,7 +61,7 @@ public class SearchRequestActionListener implements ActionListener<SearchRespons
     @Override
     public void onFailure(Exception e) {
         logger.debug("SearchRequestActionListener failed to process search request: " + e.getMessage());
-        StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+        StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e, params);
         responseObserver.onError(grpcError);
     }
 }

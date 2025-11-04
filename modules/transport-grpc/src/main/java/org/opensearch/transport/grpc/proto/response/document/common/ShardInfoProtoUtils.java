@@ -12,6 +12,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ShardFailure;
 import org.opensearch.protobufs.ShardInfo;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ public class ShardInfoProtoUtils {
      * @return The protobuf representation of the shard information
      * @throws IOException If there's an error during conversion
      */
-    public static ShardInfo toProto(ReplicationResponse.ShardInfo shardInfo) throws IOException {
+    public static ShardInfo toProto(ReplicationResponse.ShardInfo shardInfo, ResponseHandlingParams params) throws IOException {
         ShardInfo.Builder shardInfoBuilder = ShardInfo.newBuilder();
         shardInfoBuilder.setTotal(shardInfo.getTotal());
         shardInfoBuilder.setSuccessful(shardInfo.getSuccessful());
@@ -41,7 +42,7 @@ public class ShardInfoProtoUtils {
 
         // Add any shard failures
         for (ReplicationResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {
-            shardInfoBuilder.addFailures(toProto(failure));
+            shardInfoBuilder.addFailures(toProto(failure, params));
         }
 
         return shardInfoBuilder.build();
@@ -55,12 +56,12 @@ public class ShardInfoProtoUtils {
      * @return The protobuf representation of the shard failure
      * @throws IOException If there's an error during conversion
      */
-    private static ShardFailure toProto(ReplicationResponse.ShardInfo.Failure failure) throws IOException {
+    private static ShardFailure toProto(ReplicationResponse.ShardInfo.Failure failure, ResponseHandlingParams params) throws IOException {
         ShardFailure.Builder shardFailure = ShardFailure.newBuilder();
         shardFailure.setIndex(failure.index());
         shardFailure.setShard(failure.shardId());
         shardFailure.setNode(failure.nodeId());
-        shardFailure.setReason(OpenSearchExceptionProtoUtils.generateThrowableProto(failure.getCause()));
+        shardFailure.setReason(OpenSearchExceptionProtoUtils.generateThrowableProto(failure.getCause(), params));
         shardFailure.setStatus(failure.status().name());
         shardFailure.setPrimary(failure.primary());
         return shardFailure.build();
