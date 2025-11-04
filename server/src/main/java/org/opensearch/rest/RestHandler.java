@@ -64,17 +64,6 @@ public interface RestHandler {
     }
 
     /**
-     * Estimate additional heap bytes that will be consumed by handling this request.
-     * This is used by the circuit breaker in addition to the content length.
-     *
-     * @param request the REST request to estimate heap usage for
-     * @return estimated additional heap bytes, or 0 for no additional estimation
-     */
-    default long estimateHeapUsage(RestRequest request) {
-        return 0;
-    }
-
-    /**
      * Indicates if the RestHandler supports content as a stream. A stream would be multiple objects delineated by
      * {@link XContent#streamSeparator()}. If a handler returns true this will affect the types of content that can be sent to
      * this endpoint.
@@ -212,11 +201,6 @@ public interface RestHandler {
         @Override
         public boolean supportsStreaming() {
             return delegate.supportsStreaming();
-        }
-
-        @Override
-        public long estimateHeapUsage(RestRequest request) {
-            return delegate.estimateHeapUsage(request);
         }
     }
 

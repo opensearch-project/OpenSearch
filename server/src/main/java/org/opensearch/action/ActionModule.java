@@ -312,7 +312,6 @@ import org.opensearch.action.update.TransportUpdateAction;
 import org.opensearch.action.update.UpdateAction;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.breaker.ResponseLimitSettings;
@@ -331,6 +330,7 @@ import org.opensearch.extensions.action.ExtensionProxyAction;
 import org.opensearch.extensions.action.ExtensionProxyTransportAction;
 import org.opensearch.extensions.rest.RestInitializeExtensionAction;
 import org.opensearch.extensions.rest.RestSendToExtensionAction;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.persistent.CompletionPersistentTaskAction;
@@ -557,7 +557,6 @@ public class ActionModule extends AbstractModule {
     private final ThreadPool threadPool;
     private final ExtensionsManager extensionsManager;
     private final ResponseLimitSettings responseLimitSettings;
-    private final ClusterService clusterService;
 
     public ActionModule(
         Settings settings,
@@ -571,7 +570,7 @@ public class ActionModule extends AbstractModule {
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
         SystemIndices systemIndices,
-        ClusterService clusterService,
+        IdentityService identityService,
         ExtensionsManager extensionsManager
     ) {
         this.settings = settings;
@@ -581,7 +580,6 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
-        this.clusterService = clusterService;
         this.extensionsManager = extensionsManager;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
@@ -928,7 +926,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSimulateTemplateAction());
 
         registerHandler.accept(new RestPutMappingAction());
-        registerHandler.accept(new RestGetMappingAction(threadPool, clusterService));
+        registerHandler.accept(new RestGetMappingAction(threadPool));
         registerHandler.accept(new RestGetFieldMappingAction());
 
         registerHandler.accept(new RestRefreshAction());

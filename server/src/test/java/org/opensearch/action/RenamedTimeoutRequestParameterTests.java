@@ -10,7 +10,6 @@ package org.opensearch.action;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.ClusterSettings;
@@ -94,7 +93,6 @@ import java.util.Collections;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_SETTING;
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Mockito.mock;
 
 /**
  * As of 2.0, the request parameter 'master_timeout' in all applicable REST APIs is deprecated,
@@ -357,7 +355,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testGetMapping() {
-        RestGetMappingAction action = new RestGetMappingAction(threadPool, mock(ClusterService.class));
+        RestGetMappingAction action = new RestGetMappingAction(threadPool);
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
