@@ -450,11 +450,6 @@ public class IngestionEngine extends InternalEngine {
     }
 
     @Override
-    public void maybePruneDeletes() {
-        // no need to prune deletes in ingestion engine
-    }
-
-    @Override
     public void close() throws IOException {
         if (streamPoller != null) {
             streamPoller.close();
