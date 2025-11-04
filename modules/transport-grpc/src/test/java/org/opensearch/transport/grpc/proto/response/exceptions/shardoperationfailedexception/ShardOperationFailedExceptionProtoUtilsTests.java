@@ -18,6 +18,7 @@ import org.opensearch.protobufs.ShardFailure;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.snapshots.SnapshotShardFailure;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 
@@ -35,7 +36,7 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         ShardSearchFailure shardSearchFailure = new ShardSearchFailure(new Exception("fake exception"), searchShardTarget);
 
         // Call the method under test
-        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(shardSearchFailure);
+        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(shardSearchFailure, new ResponseHandlingParams());
 
         // Verify the result
         assertNotNull("Proto failure should not be null", protoFailure);
@@ -53,7 +54,7 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         SnapshotShardFailure shardSearchFailure = new SnapshotShardFailure("test_node", shardId, "Snapshot failed");
 
         // Call the method under test
-        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(shardSearchFailure);
+        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(shardSearchFailure, new ResponseHandlingParams());
 
         // Verify the result
         assertNotNull("Proto failure should not be null", protoFailure);
@@ -72,7 +73,7 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         );
 
         // Call the method under test
-        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(defaultShardOperationFailedException);
+        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(defaultShardOperationFailedException, new ResponseHandlingParams());
 
         // Verify the result
         assertNotNull("Proto failure should not be null", protoFailure);
@@ -93,7 +94,7 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         );
 
         // Call the method under test
-        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(replicationResponseFailure);
+        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(replicationResponseFailure, new ResponseHandlingParams());
 
         // Verify the result
         assertNotNull("Proto failure should not be null", protoFailure);
@@ -111,7 +112,7 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         // Call the method under test, should throw UnsupportedOperationException
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
-            () -> ShardOperationFailedExceptionProtoUtils.toProto(mockFailure)
+            () -> ShardOperationFailedExceptionProtoUtils.toProto(mockFailure, new ResponseHandlingParams())
         );
 
         assertTrue(

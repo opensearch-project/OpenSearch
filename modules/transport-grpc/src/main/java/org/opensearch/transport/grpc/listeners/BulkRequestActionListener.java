@@ -33,7 +33,7 @@ public class BulkRequestActionListener implements ActionListener<BulkResponse> {
      * Creates a new BulkRequestActionListener.
      *
      * @param responseObserver The gRPC stream observer to send the response back to the client
-     * @param params
+     * @param params parameters that are going to change how responses and errors are handled
      */
     public BulkRequestActionListener(
         StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver,

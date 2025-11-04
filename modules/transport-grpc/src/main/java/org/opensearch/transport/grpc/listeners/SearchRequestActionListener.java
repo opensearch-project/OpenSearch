@@ -34,6 +34,7 @@ public class SearchRequestActionListener implements ActionListener<SearchRespons
      * Constructs a new SearchRequestActionListener.
      *
      * @param responseObserver the gRPC stream observer to send the search response to
+     * @param params parameters that are going to change how responses and errors are handled
      */
     public SearchRequestActionListener(
         StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver,

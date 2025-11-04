@@ -14,6 +14,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.protobufs.ShardInfo;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ public class ShardInfoProtoUtilsTests extends OpenSearchTestCase {
         ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(5, 3, new ReplicationResponse.ShardInfo.Failure[0]);
 
         // Convert to protobuf ShardInfo
-        ShardInfo protoShardInfo = ShardInfoProtoUtils.toProto(shardInfo);
+        ShardInfo protoShardInfo = ShardInfoProtoUtils.toProto(shardInfo, new ResponseHandlingParams());
 
         // Verify the result
         assertNotNull("ShardInfo should not be null", protoShardInfo);
@@ -55,7 +56,7 @@ public class ShardInfoProtoUtilsTests extends OpenSearchTestCase {
         ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(5, 3, failures);
 
         // Convert to protobuf ShardInfo
-        ShardInfo protoShardInfo = ShardInfoProtoUtils.toProto(shardInfo);
+        ShardInfo protoShardInfo = ShardInfoProtoUtils.toProto(shardInfo, new ResponseHandlingParams());
 
         // Verify the result
         assertNotNull("ShardInfo should not be null", protoShardInfo);
@@ -87,6 +88,6 @@ public class ShardInfoProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithNullShardInfo() throws IOException {
         // Call toProto with null, should throw NullPointerException
-        expectThrows(NullPointerException.class, () -> ShardInfoProtoUtils.toProto(null));
+        expectThrows(NullPointerException.class, () -> ShardInfoProtoUtils.toProto(null, new ResponseHandlingParams()));
     }
 }

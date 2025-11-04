@@ -14,6 +14,7 @@ import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.protobufs.ResponseItem;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 
@@ -32,7 +33,7 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
         indexResponse.setForcedRefresh(true);
 
         // Convert to protobuf ResponseItem.Builder
-        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse);
+        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse, new ResponseHandlingParams());
 
         // Verify the result
         assertNotNull("ResponseItem.Builder should not be null", responseItemBuilder);
@@ -70,7 +71,7 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
         indexResponse.setShardInfo(shardInfo);
 
         // Convert to protobuf ResponseItem.Builder
-        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse);
+        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse, new ResponseHandlingParams());
 
         // Verify the result
         assertNotNull("ResponseItem.Builder should not be null", responseItemBuilder);
@@ -94,7 +95,7 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
         indexResponse.setShardInfo(shardInfo);
 
         // Convert to protobuf ResponseItem.Builder
-        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse);
+        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse, new ResponseHandlingParams());
 
         // Verify the result
         assertNotNull("ResponseItem.Builder should not be null", responseItemBuilder);
@@ -109,6 +110,6 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithNullResponse() throws IOException {
         // Call toProto with null, should throw NullPointerException
-        expectThrows(NullPointerException.class, () -> DocWriteResponseProtoUtils.toProto(null));
+        expectThrows(NullPointerException.class, () -> DocWriteResponseProtoUtils.toProto(null, new ResponseHandlingParams()));
     }
 }

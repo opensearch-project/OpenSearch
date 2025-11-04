@@ -140,7 +140,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         assertTrue("SETTING_GRPC_KEEPALIVE_TIMEOUT should be included", settings.contains(SETTING_GRPC_KEEPALIVE_TIMEOUT));
 
         // Verify the number of settings
-        assertEquals("Should return 13 settings", 13, settings.size());
+        assertEquals("Should return 14 settings", 14, settings.size());
     }
 
     private static class LoadableMockServiceFactory implements GrpcServiceFactory {

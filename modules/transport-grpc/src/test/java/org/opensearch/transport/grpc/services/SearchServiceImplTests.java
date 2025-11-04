@@ -101,10 +101,7 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         SearchServiceImpl serviceWithDisabledErrorsTracing = new SearchServiceImpl(client, queryUtils, false);
 
         // Call search method
-        serviceWithDisabledErrorsTracing.search(request, responseObserver);
-
-        // Verify that responseObserver.onError reports request parameter must be disabled
-        verify(responseObserver).onError(any(StatusRuntimeException.class));
+        expectThrows(IllegalArgumentException.class, () -> serviceWithDisabledErrorsTracing.search(request, responseObserver));
     }
 
     public void testErrorTracingConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsTracing() {

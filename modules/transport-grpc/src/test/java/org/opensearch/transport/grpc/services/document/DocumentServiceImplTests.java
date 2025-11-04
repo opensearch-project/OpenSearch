@@ -75,10 +75,7 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
         DocumentServiceImpl serviceWithDisabledErrorsTracing = new DocumentServiceImpl(client, false);
 
         // Call bulk method
-        serviceWithDisabledErrorsTracing.bulk(request, responseObserver);
-
-        // Verify that an error was sent
-        verify(responseObserver).onError(any(StatusRuntimeException.class));
+        expectThrows(IllegalArgumentException.class, () -> serviceWithDisabledErrorsTracing.bulk(request, responseObserver));
     }
 
     public void testErrorTracingConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsTracing() {
@@ -103,12 +100,9 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
             .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
             .build();
 
-        BulkRequestBody requestBody = BulkRequestBody.newBuilder()
-            .setOperationContainer(org.opensearch.protobufs.OperationContainer.newBuilder().setIndex(indexOp).build())
-            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true))
-            .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
-            .build();
-
-        return BulkRequest.newBuilder().addBulkRequestBody(requestBody).build();
+        return BulkRequest.newBuilder()
+                          .addBulkRequestBody(requestBody)
+                          .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true))
+                          .build();
     }
 }

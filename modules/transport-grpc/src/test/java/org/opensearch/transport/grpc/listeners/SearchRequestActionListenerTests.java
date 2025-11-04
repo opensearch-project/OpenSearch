@@ -17,6 +17,7 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -34,7 +35,7 @@ public class SearchRequestActionListenerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         MockitoAnnotations.openMocks(this);
-        listener = new SearchRequestActionListener(responseObserver);
+        listener = new SearchRequestActionListener(responseObserver, new ResponseHandlingParams());
     }
 
     public void testOnResponse() {
@@ -60,13 +61,6 @@ public class SearchRequestActionListenerTests extends OpenSearchTestCase {
     }
 
     public void testOnFailure() {
-        // Create a mock StreamObserver
-        @SuppressWarnings("unchecked")
-        StreamObserver<org.opensearch.protobufs.SearchResponse> mockResponseObserver = mock(StreamObserver.class);
-
-        // Create a SearchRequestActionListener
-        SearchRequestActionListener listener = new SearchRequestActionListener(mockResponseObserver);
-
         // Create an exception
         Exception exception = new Exception("Test exception");
 
@@ -74,6 +68,6 @@ public class SearchRequestActionListenerTests extends OpenSearchTestCase {
         listener.onFailure(exception);
 
         // Verify that onError was called with a StatusRuntimeException
-        verify(mockResponseObserver, times(1)).onError(any(StatusRuntimeException.class));
+        verify(responseObserver, times(1)).onError(any(StatusRuntimeException.class));
     }
 }

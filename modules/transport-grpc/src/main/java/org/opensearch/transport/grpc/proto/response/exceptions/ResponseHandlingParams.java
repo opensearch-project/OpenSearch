@@ -14,6 +14,10 @@ public class ResponseHandlingParams {
 
     private final TracingLevel errorTracingLevel;
 
+    public ResponseHandlingParams() {
+        this.errorTracingLevel = TracingLevel.SUMMARY;
+    }
+
     public ResponseHandlingParams(boolean detailedErrorsEnabled, GlobalParams errorTracesRequested) {
         this.errorTracingLevel = getTracingLevel(detailedErrorsEnabled, errorTracesRequested);
     }
