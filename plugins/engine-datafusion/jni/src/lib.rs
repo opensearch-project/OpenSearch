@@ -13,6 +13,7 @@ use jni::sys::{jbyteArray, jlong, jstring};
 use jni::JNIEnv;
 use std::ptr::addr_of_mut;
 use std::sync::Arc;
+use std::time::Instant;
 
 mod util;
 mod row_id_optimizer;
@@ -208,6 +209,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
     tokio_runtime_env_ptr: jlong,
     // callback: JObject,
 ) -> jlong {
+    let overall = Instant::now();
     let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
     let runtime_ptr = unsafe { &*(tokio_runtime_env_ptr as *const Runtime)};
     let table_name: String = env.get_string(&table_name).expect("Couldn't get java string!").into();
@@ -228,7 +230,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
 
     // TODO: get config from CSV DataFormat
     let mut config = SessionConfig::new();
-    // config.options_mut().execution.parquet.pushdown_filters = true;
+    config.options_mut().execution.parquet.pushdown_filters = false;
+    config.options_mut().execution.target_partitions = 1;
 
     let state = datafusion::execution::SessionStateBuilder::new()
         .with_config(config)
@@ -265,6 +268,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
 
     });
 
+    let start = Instant::now();
     // TODO : how to close ctx ?
     // Convert Java byte array to Rust Vec<u8>
     let plan_bytes_obj = unsafe { JByteArray::from_raw(substrait_bytes) };
@@ -293,6 +297,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
         let logical_plan = match from_substrait_plan(&ctx.state(), &substrait_plan).await {
             Ok(plan) => {
                 // println!("SUBSTRAIT Rust: LogicalPlan: {:?}", plan);
+                  let duration = start.elapsed();
+                         println!("Rust: Substrait decoding time in milliseconds: {}", duration.as_millis());
                 plan
             },
             Err(e) => {
@@ -300,11 +306,13 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
                 return 0;
             }
         };
-
         let dataframe = ctx.execute_logical_plan(logical_plan).await.unwrap();
         let stream = dataframe.execute_stream().await.unwrap();
         let stream_ptr = Box::into_raw(Box::new(stream)) as jlong;
         // println!("The memory used currently right now: {:?}", jemalloc_stats::refresh_allocated());
+        let duration1 = overall.elapsed();
+        println!("Rust: Overall query setup time in milliseconds: {}", duration1.as_millis());
+
         stream_ptr
 
     })

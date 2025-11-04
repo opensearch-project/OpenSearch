@@ -1,0 +1,74 @@
+[workspace]
+resolver = "2"
+members = [
+    "jni"
+]
+
+[workspace.dependencies]
+# DataFusion dependencies
+datafusion = "49.0.0"
+datafusion-expr = "49.0.0"
+datafusion-datasource = "49.0.0"
+arrow-json = "55.2"
+arrow = { version = "55.2", features = ["ffi", "ipc_compression"] }
+#arrow = "55.2.0"
+arrow-array = "55.2.0"
+arrow-schema = "55.2.0"
+arrow-buffer = "55.2.0"
+
+# JNI dependencies
+jni = "0.21"
+
+# Substrait support
+datafusion-substrait = "49.0.0"
+prost = "0.13"
+
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+#tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+# Parquet support
+parquet = "53.0.0"
+
+# Object store for file access
+object_store = "=0.12.3"
+url = "2.0"
+
+# Substrait support
+substrait = "0.47"
+
+# Temporary directory support
+tempfile = "3.0"
+chrono = "0.4.41"
+
+async-trait = "0.1.89"
+itertools = "0.14.0"
+rstest = "0.26.1"
+regex = "1.11.2"
+#
+#[build-dependencies]
+#cbindgen = "0.27"
+
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 1          # Some optimization for reasonable performance
+lto = false           # Disable LTO for faster builds
+codegen-units = 16    # More parallel compilation
+incremental = true    # Enable incremental compilation

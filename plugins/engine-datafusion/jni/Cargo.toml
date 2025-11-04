@@ -11,66 +11,68 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # DataFusion dependencies
-datafusion = "49.0.0"
-datafusion-expr = "49.0.0"
-datafusion-datasource = "49.0.0"
-arrow-json = "55.2"
-arrow = { version = "55.2", features = ["ffi", "ipc_compression"] }
+datafusion = { workspace = true }
+datafusion-expr = { workspace = true }
+datafusion-datasource = { workspace = true }
+arrow-json = { workspace = true }
+arrow = { workspace = true }
 #arrow = "55.2.0"
-arrow-array = "55.2.0"
-arrow-schema = "55.2.0"
-arrow-buffer = "55.2.0"
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
+arrow-buffer = { workspace = true }
 
 # JNI dependencies
-jni = "0.21"
+jni = { workspace = true }
 
 # Substrait support
-datafusion-substrait = "49.0.0"
-prost = "0.13"
+datafusion-substrait = { workspace = true }
+prost = { workspace = true }
 
 
 # Async runtime
-tokio = { version = "1.0", features = ["full"] }
-futures = "0.3"
+tokio = { workspace = true }
+futures = { workspace = true }
 #tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros"] }
 
 # Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Error handling
-anyhow = "1.0"
-thiserror = "1.0"
+anyhow = { workspace = true }
+thiserror = { workspace = true }
 
 # Logging
-log = "0.4"
+log ={ workspace = true }
 # Parquet support
-parquet = "53.0.0"
+parquet = { workspace = true }
 
 # Object store for file access
-object_store = "=0.12.3"
-url = "2.0"
+object_store = { workspace = true }
+url = { workspace = true }
 
 # Substrait support
-substrait = "0.47"
+substrait = { workspace = true }
 
 # Temporary directory support
-tempfile = "3.0"
-chrono = "0.4.41"
+tempfile ={ workspace = true }
+chrono = { workspace = true }
 
-async-trait = "0.1.89"
-itertools = "0.14.0"
-rstest = "0.26.1"
-regex = "1.11.2"
+async-trait = { workspace = true }
+itertools = { workspace = true }
+rstest = { workspace = true }
+regex = { workspace = true }
 
 [build-dependencies]
 cbindgen = "0.27"
-
+[build]
+rustflags = ["-C", "force-frame-pointers=yes","symbol-mangling-version=v0"]
 
 [profile.release]
 lto = true
 codegen-units = 1
 panic = "abort"
+incremental = true
 
 [profile.dev]
 opt-level = 1          # Some optimization for reasonable performance
