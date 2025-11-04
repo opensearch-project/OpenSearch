@@ -541,7 +541,18 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 continue;
             }
             if (holder.info.type == ThreadPoolType.FORK_JOIN) {
-                stats.add(new ThreadPoolStats.Stats(name, 0, 0, 0, 0, 0, 0, -1, holder.info.getMax()));
+                stats.add(
+                    new ThreadPoolStats.Stats.Builder().name(name)
+                        .threads(0)
+                        .queue(0)
+                        .active(0)
+                        .rejected(0)
+                        .largest(0)
+                        .completed(0)
+                        .waitTimeNanos(-1)
+                        .parallelism(holder.info.getMax())
+                        .build()
+                );
                 continue;
             }
             int threads = -1;

@@ -103,9 +103,12 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
             .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
             .build();
 
-        return BulkRequest.newBuilder()
-            .addRequestBody(requestBody)
-            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true))
-            .build();
+        BulkRequestBody requestBody = BulkRequestBody.newBuilder()
+                                                     .setOperationContainer(org.opensearch.protobufs.OperationContainer.newBuilder().setIndex(indexOp).build())
+                                                     .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true))
+                                                     .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
+                                                     .build();
+
+        return BulkRequest.newBuilder().addBulkRequestBody(requestBody).build();
     }
 }

@@ -124,7 +124,7 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
     private SearchRequest createTestSearchRequest() {
         return SearchRequest.newBuilder()
             .addIndex("test-index")
-            .setRequestBody(SearchRequestBody.newBuilder().setSize(10).build())
+            .setSearchRequestBody(SearchRequestBody.newBuilder().setSize(10).build())
             .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true).build())
             .build();
     }
