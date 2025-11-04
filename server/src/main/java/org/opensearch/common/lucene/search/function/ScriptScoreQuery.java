@@ -268,7 +268,7 @@ public class ScriptScoreQuery extends Query {
         StringBuilder sb = new StringBuilder();
         sb.append("script_score (").append(subQuery.toString(field));
         sb.append(Functions.nameOrEmptyArg(queryName)).append(", script: ");
-        sb.append("{" + script.toString() + "}");
+        sb.append("{" + script + "}");
         return sb.toString();
     }
 

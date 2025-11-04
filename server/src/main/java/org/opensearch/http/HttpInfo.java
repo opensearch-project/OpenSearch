@@ -99,7 +99,7 @@ public class HttpInfo implements ReportingService.Info {
             );
         }
         if (InetAddresses.isInetAddress(hostString) == false) {
-            publishAddressString = hostString + '/' + publishAddress.toString();
+            publishAddressString = hostString + '/' + publishAddress;
         }
         builder.field(Fields.PUBLISH_ADDRESS, publishAddressString);
         builder.humanReadableField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, maxContentLength());

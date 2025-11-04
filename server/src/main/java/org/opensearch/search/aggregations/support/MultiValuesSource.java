@@ -61,7 +61,7 @@ public abstract class MultiValuesSource<VS extends ValuesSource> {
                 final ValuesSource valuesSource = entry.getValue().getValuesSource();
                 if (!(valuesSource instanceof ValuesSource.Numeric numericValuesSource)) {
                     throw new AggregationExecutionException(
-                        "ValuesSource type " + valuesSource.toString() + "is not supported for multi-valued aggregation"
+                        "ValuesSource type " + valuesSource + "is not supported for multi-valued aggregation"
                     );
                 }
                 values.put(entry.getKey(), numericValuesSource);

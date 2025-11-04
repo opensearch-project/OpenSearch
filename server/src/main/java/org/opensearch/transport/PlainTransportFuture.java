@@ -123,6 +123,6 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
 
     @Override
     public String toString() {
-        return "future(" + handler.toString() + ")";
+        return "future(" + handler + ")";
     }
 }

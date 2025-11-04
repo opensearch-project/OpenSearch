@@ -52,7 +52,7 @@ public class ExtensionDependencyResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "ExtensionDependencyResponse{extensiondependency=" + extensionDependencies.toString() + '}';
+        return "ExtensionDependencyResponse{extensiondependency=" + extensionDependencies + '}';
     }
 
     @Override

@@ -3002,7 +3002,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalIndexShardStateException(
                 shardId,
                 state,
-                "operations only allowed when shard state is one of " + readAllowedStates.toString()
+                "operations only allowed when shard state is one of " + readAllowedStates
             );
         }
     }

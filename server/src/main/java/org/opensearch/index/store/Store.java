@@ -927,7 +927,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         @Override
         public String toString() {
-            return "store(" + in.toString() + ")";
+            return "store(" + in + ")";
         }
 
         @Override
@@ -1142,7 +1142,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 final Version version = info.info.getVersion();
                 if (version == null) {
                     // version is written since 3.1+: we should have already hit IndexFormatTooOld.
-                    throw new IllegalArgumentException("expected valid version value: " + info.info.toString());
+                    throw new IllegalArgumentException("expected valid version value: " + info.info);
                 }
                 // With segment replication enabled, we compute metadata snapshots from the latest in memory infos.
                 // In this case we will have SegmentInfos objects fetched from the primary's reader
@@ -1224,8 +1224,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             fileHash.grow(len);
             fileHash.setLength(len);
             final int readBytes = in.readNBytes(fileHash.bytes(), 0, len);
-            assert readBytes == len : Integer.toString(readBytes) + " != " + Integer.toString(len);
-            assert fileHash.length() == len : Integer.toString(fileHash.length()) + " != " + Integer.toString(len);
+            assert readBytes == len : readBytes + " != " + len;
+            assert fileHash.length() == len : fileHash.length() + " != " + len;
         }
 
         @Override
@@ -1496,7 +1496,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     + " expectedLength="
                     + metadata.length()
                     + " (resource="
-                    + metadata.toString()
+                    + metadata
                     + ")",
                 "VerifyingIndexOutput(" + metadata.name() + ")"
             );
@@ -1532,7 +1532,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         + " actual="
                         + actualChecksum
                         + " (resource="
-                        + metadata.toString()
+                        + metadata
                         + ")",
                     "VerifyingIndexOutput(" + metadata.name() + ")"
                 );

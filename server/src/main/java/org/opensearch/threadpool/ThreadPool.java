@@ -791,7 +791,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         @Override
         public String toString() {
-            return "[threaded] " + runnable.toString();
+            return "[threaded] " + runnable;
         }
     }
 
@@ -838,7 +838,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         @Override
         public String toString() {
-            return "[threaded] " + runnable.toString();
+            return "[threaded] " + runnable;
         }
     }
 

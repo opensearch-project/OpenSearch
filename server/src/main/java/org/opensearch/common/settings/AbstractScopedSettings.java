@@ -598,7 +598,7 @@ public abstract class AbstractScopedSettings {
             String msg = msgPrefix + " [" + key + "]";
             List<String> keys = scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
             if (keys.isEmpty() == false) {
-                msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]" : "any of " + keys.toString()) + "?";
+                msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]" : "any of " + keys) + "?";
             } else {
                 msg += " please check that any required plugins are installed, or check the breaking changes documentation for removed "
                     + "settings";
@@ -739,7 +739,7 @@ public abstract class AbstractScopedSettings {
             + " complex matchers to match key ["
             + key
             + "] but got: "
-            + list.toString();
+            + list;
         return true;
     }
 

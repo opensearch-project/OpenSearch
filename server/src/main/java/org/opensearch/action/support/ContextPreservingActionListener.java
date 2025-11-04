@@ -68,7 +68,7 @@ public final class ContextPreservingActionListener<R> implements ActionListener<
 
     @Override
     public String toString() {
-        return getClass().getName() + "/" + delegate.toString();
+        return getClass().getName() + "/" + delegate;
     }
 
     /**

@@ -3572,7 +3572,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (ensureSafeGenerationExists(expectedGen, listener::onFailure) == false) {
                 return;
             }
-            final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
+            final String indexBlob = INDEX_FILE_PREFIX + newGen;
             logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
             Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
             final BytesReference serializedRepoData = BytesReference.bytes(

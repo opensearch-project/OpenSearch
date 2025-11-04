@@ -172,7 +172,7 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
             } else {
                 throw new OpenSearchException(
                     "Unable to resolve shard id. Wrong folder structure at [ "
-                        + path.toString()
+                        + path
                         + " ], expected .../nodes/[NODE-ID]/indices/[INDEX-UUID]/[SHARD-ID]"
                 );
             }

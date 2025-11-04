@@ -123,7 +123,7 @@ public class TransportInfo implements ReportingService.Info {
         String hostString = publishAddress.address().getHostString();
         if (InetAddresses.isInetAddress(hostString) == false) {
             if (cnameInPublishAddress) {
-                publishAddressString = hostString + '/' + publishAddress.toString();
+                publishAddressString = hostString + '/' + publishAddress;
             } else {
                 deprecationLogger.deprecate(
                     "cname_in_publish_address_" + propertyName,

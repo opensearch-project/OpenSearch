@@ -48,7 +48,7 @@ public class FileCachedIndexInput extends IndexInput implements RandomAccessInpu
     }
 
     FileCachedIndexInput(FileCache cache, Path filePath, IndexInput underlyingIndexInput, boolean isClone) {
-        super("FileCachedIndexInput (path=" + filePath.toString() + ")");
+        super("FileCachedIndexInput (path=" + filePath + ")");
         this.cache = cache;
         this.filePath = filePath;
         this.luceneIndexInput = underlyingIndexInput;

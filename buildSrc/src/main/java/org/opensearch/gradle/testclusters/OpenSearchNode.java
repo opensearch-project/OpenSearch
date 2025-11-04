@@ -600,7 +600,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
             }
             Files.write(
                 stdoutFile,
-                ("[" + Instant.now().toString() + "] [BUILD] " + message + "\n").getBytes(StandardCharsets.UTF_8),
+                ("[" + Instant.now() + "] [BUILD] " + message + "\n").getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
             );
@@ -707,7 +707,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     @Override
     public void extraJarFile(File from) {
         if (from.toString().endsWith(".jar") == false) {
-            throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
+            throw new IllegalArgumentException("extra jar file " + from + " doesn't appear to be a JAR");
         }
         extraJarFiles.add(from);
     }

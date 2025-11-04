@@ -48,7 +48,7 @@ public abstract class VerifyingIndexOutput extends FilterIndexOutput {
 
     /** Sole constructor */
     VerifyingIndexOutput(IndexOutput out) {
-        super("VerifyingIndexOutput(out=" + out.toString() + ")", out);
+        super("VerifyingIndexOutput(out=" + out + ")", out);
     }
 
     /**

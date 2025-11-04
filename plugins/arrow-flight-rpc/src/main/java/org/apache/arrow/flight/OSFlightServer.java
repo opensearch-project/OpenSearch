@@ -121,10 +121,10 @@ public class OSFlightServer {
             this.middleware(FlightConstants.HEADER_KEY, new ServerHeaderMiddleware.Factory());
 
             final NettyServerBuilder builder;
-            
+
             // Use primary location for initial setup
             Location primaryLocation = location != null ? location : listenAddresses.get(0);
-            
+
             switch (primaryLocation.getUri().getScheme()) {
                 case LocationSchemes.GRPC_DOMAIN_SOCKET:
                 {
@@ -268,7 +268,7 @@ public class OSFlightServer {
                     builder.addListenAddress(listenAddress.toSocketAddress());
                 }
             }
-            
+
             builder.intercept(new ServerInterceptorAdapter(interceptors));
 
             try {
@@ -472,7 +472,7 @@ public class OSFlightServer {
             this.location = Preconditions.checkNotNull(location);
             return this;
         }
-        
+
         public Builder addListenAddress(Location location) {
             this.listenAddresses.add(Preconditions.checkNotNull(location));
             return this;

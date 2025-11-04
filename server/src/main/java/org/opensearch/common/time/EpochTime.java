@@ -378,7 +378,7 @@ class EpochTime {
 
         @Override
         public String toString() {
-            return "Epoch" + baseUnit.toString() + (rangeUnit != ChronoUnit.FOREVER ? "Of" + rangeUnit.toString() : "");
+            return "Epoch" + baseUnit + (rangeUnit != ChronoUnit.FOREVER ? "Of" + rangeUnit : "");
         }
 
         @Override

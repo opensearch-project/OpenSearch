@@ -106,7 +106,7 @@ public final class Version implements Comparable<Version> {
 
     @Override
     public String toString() {
-        return String.valueOf(getMajor()) + "." + String.valueOf(getMinor()) + "." + String.valueOf(getRevision());
+        return getMajor() + "." + getMinor() + "." + getRevision();
     }
 
     public boolean before(Version compareTo) {

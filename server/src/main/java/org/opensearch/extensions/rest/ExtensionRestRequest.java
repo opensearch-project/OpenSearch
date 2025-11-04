@@ -324,7 +324,7 @@ public class ExtensionRestRequest extends TransportRequest {
             + ", params="
             + params
             + ", headers="
-            + headers.toString()
+            + headers
             + ", xContentType="
             + mediaType
             + ", contentLength="

@@ -288,7 +288,7 @@ public class TypeParsers {
         if (node instanceof String) {
             return DateFormatter.forPattern((String) node);
         }
-        throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
+        throw new IllegalArgumentException("Invalid format: [" + node + "]: expected string value");
     }
 
     public static List<String> parseCopyFields(Object propNode) {

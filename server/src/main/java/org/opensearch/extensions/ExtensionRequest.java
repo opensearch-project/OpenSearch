@@ -61,7 +61,7 @@ public class ExtensionRequest extends TransportRequest {
     }
 
     public String toString() {
-        return "ExtensionRequest{" + request.toString() + '}';
+        return "ExtensionRequest{" + request + '}';
     }
 
     public ExtensionIdentityProto.ExtensionIdentity getExtensionIdentity() {

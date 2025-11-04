@@ -67,11 +67,11 @@ public class UpdateSettingsRequest extends TransportRequest {
     @Override
     public String toString() {
         return "UpdateSettingRequest{settingType="
-            + this.settingType.toString()
+            + this.settingType
             + "componentSetting="
-            + this.componentSetting.toString()
+            + this.componentSetting
             + ", data="
-            + this.data.toString()
+            + this.data
             + "}";
     }
 

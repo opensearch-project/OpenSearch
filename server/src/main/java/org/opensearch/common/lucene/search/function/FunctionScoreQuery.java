@@ -456,7 +456,7 @@ public class FunctionScoreQuery extends Query {
                             "function score, product of:",
                             Explanation.match(
                                 1.0f,
-                                "match filter" + Functions.nameOrEmptyFunc(filterScoreFunction.queryName) + ": " + filterQuery.toString()
+                                "match filter" + Functions.nameOrEmptyFunc(filterScoreFunction.queryName) + ": " + filterQuery
                             ),
                             functionExplanation
                         );

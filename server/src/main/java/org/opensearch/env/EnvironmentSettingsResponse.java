@@ -43,7 +43,7 @@ public class EnvironmentSettingsResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "EnvironmentSettingsResponse{environmentSettings=" + environmentSettings.toString() + '}';
+        return "EnvironmentSettingsResponse{environmentSettings=" + environmentSettings + '}';
     }
 
     @Override

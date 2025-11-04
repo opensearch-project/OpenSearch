@@ -330,7 +330,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * includes a 'p' or 'r' depending on whether the shard is a primary.
      */
     static String shardIdentifierFromRouting(ShardRouting shardRouting) {
-        return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
+        return shardRouting.shardId() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
     }
 
     /**

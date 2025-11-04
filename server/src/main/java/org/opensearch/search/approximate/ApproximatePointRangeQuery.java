@@ -515,7 +515,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
     public final String toString(String field) {
         final StringBuilder sb = new StringBuilder();
         sb.append("Approximate(");
-        sb.append(pointRangeQuery.toString());
+        sb.append(pointRangeQuery);
         sb.append(")");
 
         return sb.toString();

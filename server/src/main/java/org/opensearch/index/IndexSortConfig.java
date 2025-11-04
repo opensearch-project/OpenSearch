@@ -155,9 +155,7 @@ public final class IndexSortConfig {
         if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
             List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
             if (orders.size() != sortSpecs.length) {
-                throw new IllegalArgumentException(
-                    "index.sort.field:" + fields + " index.sort.order:" + orders.toString() + ", size mismatch"
-                );
+                throw new IllegalArgumentException("index.sort.field:" + fields + " index.sort.order:" + orders + ", size mismatch");
             }
             for (int i = 0; i < sortSpecs.length; i++) {
                 sortSpecs[i].order = orders.get(i);

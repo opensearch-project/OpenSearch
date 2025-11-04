@@ -258,7 +258,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                  * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
                  * will be logged at the warn level.
                  */
-                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", map.toString());
+                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", map);
                 throw new UncheckedIOException(message, e);
             }
             return map;
@@ -288,7 +288,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                  * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
                  * will be logged at the warn level.
                  */
-                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", sb.toString());
+                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", sb);
                 throw new UncheckedIOException(message, e);
             }
             return sb.toString();

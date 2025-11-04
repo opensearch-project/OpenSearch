@@ -305,9 +305,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
             }
             if (reject) {
                 workloadGroupState.totalRejections.inc();
-                throw new OpenSearchRejectedExecutionException(
-                    "WorkloadGroup " + workloadGroupId + " is already contended. " + reason.toString()
-                );
+                throw new OpenSearchRejectedExecutionException("WorkloadGroup " + workloadGroupId + " is already contended. " + reason);
             }
         });
     }

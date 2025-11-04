@@ -108,7 +108,7 @@ public interface SegmentReplicationSource {
                 @Override
                 public IndexInput openInput(String name, IOContext context) throws IOException {
                     final IndexInput input = in.openInput(name, context);
-                    return new IndexInput("StatsDirectoryWrapper(" + input.toString() + ")") {
+                    return new IndexInput("StatsDirectoryWrapper(" + input + ")") {
                         @Override
                         public void close() throws IOException {
                             input.close();

@@ -287,7 +287,7 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
     private void outputVerboseInformation(Terminal terminal, Collection<Path> pathsToCleanup, Set<String> indexUUIDs, Metadata metadata) {
         if (terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Paths to clean up:");
-            pathsToCleanup.forEach(p -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + p.toString()));
+            pathsToCleanup.forEach(p -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + p));
             terminal.println(Terminal.Verbosity.VERBOSE, "Indices affected:");
             indexUUIDs.forEach(uuid -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + toIndexName(uuid, metadata)));
         }

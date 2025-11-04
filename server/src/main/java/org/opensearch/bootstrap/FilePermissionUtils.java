@@ -101,7 +101,7 @@ public class FilePermissionUtils {
             // add access for path itself
             policy.add(new FilePermission(path.toString(), permissions));
         }
-        policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
+        policy.add(new FilePermission(path + path.getFileSystem().getSeparator() + "-", permissions));
         /*
          * The file permission model since JDK 9 requires this due to the removal of pathname canonicalization. See also
          * https://github.com/elastic/elasticsearch/issues/21534.
@@ -113,7 +113,7 @@ public class FilePermissionUtils {
                 policy.add(new FilePermission(realPath.toString(), permissions));
             }
             // add access for files underneath
-            policy.add(new FilePermission(realPath.toString() + realPath.getFileSystem().getSeparator() + "-", permissions));
+            policy.add(new FilePermission(realPath + realPath.getFileSystem().getSeparator() + "-", permissions));
         }
     }
 }

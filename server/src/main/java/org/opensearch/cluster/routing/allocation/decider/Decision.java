@@ -367,7 +367,7 @@ public abstract class Decision implements ToXContent, Writeable {
         public String toString() {
             StringBuilder sb = new StringBuilder();
             for (Decision decision : decisions) {
-                sb.append("[").append(decision.toString()).append("]");
+                sb.append("[").append(decision).append("]");
             }
             return sb.toString();
         }

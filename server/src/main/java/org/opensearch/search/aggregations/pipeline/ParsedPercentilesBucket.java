@@ -59,7 +59,7 @@ public class ParsedPercentilesBucket extends ParsedPercentiles implements Percen
         if (value == null) {
             throw new IllegalArgumentException(
                 "Percent requested ["
-                    + String.valueOf(percent)
+                    + percent
                     + "] was not"
                     + " one of the computed percentiles. Available keys are: "
                     + percentiles.keySet()

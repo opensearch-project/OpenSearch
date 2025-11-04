@@ -243,7 +243,7 @@ public class UnifiedHighlighter implements Highlighter {
                 // ignore maxLen
                 return BreakIterator.getWordInstance(locale);
             default:
-                throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
+                throw new IllegalArgumentException("Invalid boundary scanner type: " + type);
         }
     }
 

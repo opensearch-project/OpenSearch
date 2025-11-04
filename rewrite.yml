@@ -1,0 +1,69 @@
+---
+type: specs.openrewrite.org/v1beta/recipe
+name: org.opensearch.openrewrite.SanityCheck
+displayName: Apply all Java & Gradle best practices
+description: Comprehensive code quality recipe combining modernization, security, and best practices.
+tags:
+  - java
+  - gradle
+  - static-analysis
+  - cleanup
+recipeList:
+  - org.openrewrite.gradle.EnableGradleBuildCache
+  - org.openrewrite.gradle.EnableGradleParallelExecution
+  - org.openrewrite.gradle.GradleBestPractices
+  - org.openrewrite.java.format.NormalizeLineBreaks
+  - org.openrewrite.java.format.RemoveTrailingWhitespace
+  - org.openrewrite.staticanalysis.RemoveUnusedPrivateMethods
+  # TBD
+  # - org.openrewrite.java.RemoveUnusedImports
+  # - org.openrewrite.java.format.NormalizeFormat
+  # - org.openrewrite.java.migrate.UpgradeToJava17
+  # - org.openrewrite.java.migrate.lang.FindVirtualThreadOpportunities # don't want to use: https://github.com/diffplug/spotless/pull/2684#discussion_r2433831887
+  # - org.openrewrite.java.migrate.lang.StringRulesRecipes
+  # - org.openrewrite.java.migrate.util.JavaLangAPIs
+  # - org.openrewrite.java.migrate.util.JavaUtilAPIs
+  # - org.openrewrite.java.migrate.util.MigrateInflaterDeflaterToClose
+  # - org.openrewrite.java.migrate.util.ReplaceStreamCollectWithToList
+  # - org.openrewrite.java.migrate.util.SequencedCollection
+  # - org.openrewrite.java.recipes.JavaRecipeBestPractices
+  # - org.openrewrite.java.recipes.RecipeTestingBestPractices
+  # - org.openrewrite.java.security.JavaSecurityBestPractices
+  # - org.openrewrite.staticanalysis.BufferedWriterCreationRecipes
+  # - org.openrewrite.staticanalysis.CommonStaticAnalysis
+  # - org.openrewrite.staticanalysis.EqualsAvoidsNull
+  # - org.openrewrite.staticanalysis.JavaApiBestPractices
+  # - org.openrewrite.staticanalysis.LowercasePackage
+  # - org.openrewrite.staticanalysis.MissingOverrideAnnotation
+  # - org.openrewrite.staticanalysis.ModifierOrder
+  # - org.openrewrite.staticanalysis.NoFinalizer
+  # - org.openrewrite.staticanalysis.NoToStringOnStringType
+  # - org.openrewrite.staticanalysis.NoValueOfOnStringType
+  # - org.openrewrite.staticanalysis.RemoveUnusedLocalVariables
+  # - org.openrewrite.staticanalysis.RemoveUnusedPrivateFields
+  # - org.openrewrite.staticanalysis.ReplaceApacheCommonsLang3ValidateNotNullWithObjectsRequireNonNull
+  # - org.openrewrite.staticanalysis.SimplifyTernaryRecipes
+  # - org.openrewrite.staticanalysis.URLEqualsHashCodeRecipes
+  # - org.openrewrite.staticanalysis.UnnecessaryCloseInTryWithResources
+  # - org.openrewrite.staticanalysis.UnnecessaryExplicitTypeArguments
+  # - org.openrewrite.staticanalysis.UnnecessaryParentheses
+  # - org.openrewrite.staticanalysis.UnnecessaryReturnAsLastStatement
+  # - tech.picnic.errorprone.refasterrules.BigDecimalRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.CharSequenceRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.ClassRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.CollectionRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.ComparatorRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.EqualityRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.FileRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.MapRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.MicrometerRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.MockitoRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.NullRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.OptionalRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.PatternRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.PreconditionsRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.PrimitiveRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.StreamRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.StringRulesRecipes
+  # - tech.picnic.errorprone.refasterrules.TimeRulesRecipes
+---

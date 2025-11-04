@@ -126,7 +126,7 @@ public class SearchAfterSortedDocQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "SearchAfterSortedDocQuery(sort=" + sort + ", afterDoc=" + after.toString() + ")";
+        return "SearchAfterSortedDocQuery(sort=" + sort + ", afterDoc=" + after + ")";
     }
 
     @Override

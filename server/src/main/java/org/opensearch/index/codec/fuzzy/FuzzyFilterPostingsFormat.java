@@ -338,7 +338,7 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
 
             @Override
             public String toString() {
-                return getClass().getSimpleName() + "(filter=" + filter.toString() + ")";
+                return getClass().getSimpleName() + "(filter=" + filter + ")";
             }
         }
 

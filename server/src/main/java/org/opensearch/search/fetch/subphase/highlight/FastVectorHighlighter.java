@@ -309,7 +309,7 @@ public class FastVectorHighlighter implements Highlighter {
                 }
                 return DEFAULT_SIMPLE_BOUNDARY_SCANNER;
             default:
-                throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
+                throw new IllegalArgumentException("Invalid boundary scanner type: " + type);
         }
     }
 

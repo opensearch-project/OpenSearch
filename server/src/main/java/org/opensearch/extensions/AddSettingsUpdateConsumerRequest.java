@@ -74,7 +74,7 @@ public class AddSettingsUpdateConsumerRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "AddSettingsUpdateConsumerRequest{extensionNode=" + this.extensionNode.toString() + "}";
+        return "AddSettingsUpdateConsumerRequest{extensionNode=" + this.extensionNode + "}";
     }
 
     @Override

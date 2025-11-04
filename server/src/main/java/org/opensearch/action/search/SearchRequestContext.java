@@ -115,13 +115,13 @@ public class SearchRequestContext {
             return String.format(
                 Locale.ROOT,
                 "{%s:%s, %s:%s, %s:%s, %s:%s}",
-                ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_TOTAL.toString(),
+                ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_TOTAL,
                 shardStats.get(ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_TOTAL),
-                ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_SUCCESSFUL.toString(),
+                ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_SUCCESSFUL,
                 shardStats.get(ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_SUCCESSFUL),
-                ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_SKIPPED.toString(),
+                ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_SKIPPED,
                 shardStats.get(ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_SKIPPED),
-                ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_FAILED.toString(),
+                ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_FAILED,
                 shardStats.get(ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_FAILED)
             );
         }

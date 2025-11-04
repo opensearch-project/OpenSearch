@@ -94,7 +94,7 @@ public class BoundTransportAddress implements Writeable {
         String hostString = publishAddress.address().getHostString();
         String publishAddressString = publishAddress.toString();
         if (InetAddresses.isInetAddress(hostString) == false) {
-            publishAddressString = hostString + '/' + publishAddress.toString();
+            publishAddressString = hostString + '/' + publishAddress;
         }
         builder.append(publishAddressString);
         builder.append("}, bound_addresses ");

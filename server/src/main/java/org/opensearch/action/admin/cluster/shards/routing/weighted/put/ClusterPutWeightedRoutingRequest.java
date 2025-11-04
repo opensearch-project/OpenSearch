@@ -200,7 +200,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
                 (String.format(
                     Locale.ROOT,
                     "There are too many attribute values [%s] given zero weight [%d]. Maximum expected number of routing weights having zero weight is [%d]",
-                    weightedRouting.weights().toString(),
+                    weightedRouting.weights(),
                     countValueWithZeroWeights,
                     weightedRouting.weights().size() / 2
                 )),
@@ -228,7 +228,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
 
     @Override
     public String toString() {
-        return "ClusterPutWeightedRoutingRequest{" + "weightedRouting= " + weightedRouting.toString() + "version= " + version + "}";
+        return "ClusterPutWeightedRoutingRequest{" + "weightedRouting= " + weightedRouting + "version= " + version + "}";
     }
 
 }

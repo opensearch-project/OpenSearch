@@ -122,7 +122,7 @@ public final class ScriptedSimilarity extends Similarity {
                     float score = score(freq.getValue().floatValue(), norm);
                     return Explanation.match(
                         score,
-                        "score from " + ScriptedSimilarity.this.toString() + " computed from:",
+                        "score from " + ScriptedSimilarity.this + " computed from:",
                         Explanation.match((float) scoreWeight, "weight"),
                         Explanation.match(query.boost, "query.boost"),
                         Explanation.match(field.docCount, "field.docCount"),

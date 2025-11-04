@@ -28,22 +28,22 @@ import java.util.concurrent.ConcurrentMap;
 class FlatFetchProfileTree {
     private static final Set<String> ROOT_KEYS = Set.of(
         FetchTimingType.CREATE_STORED_FIELDS_VISITOR.toString(),
-        FetchTimingType.CREATE_STORED_FIELDS_VISITOR.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX,
+        FetchTimingType.CREATE_STORED_FIELDS_VISITOR + Timer.TIMING_TYPE_COUNT_SUFFIX,
         FetchTimingType.BUILD_SUB_PHASE_PROCESSORS.toString(),
-        FetchTimingType.BUILD_SUB_PHASE_PROCESSORS.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX,
+        FetchTimingType.BUILD_SUB_PHASE_PROCESSORS + Timer.TIMING_TYPE_COUNT_SUFFIX,
         FetchTimingType.LOAD_STORED_FIELDS.toString(),
-        FetchTimingType.LOAD_STORED_FIELDS.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX,
+        FetchTimingType.LOAD_STORED_FIELDS + Timer.TIMING_TYPE_COUNT_SUFFIX,
         FetchTimingType.LOAD_SOURCE.toString(),
-        FetchTimingType.LOAD_SOURCE.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX,
+        FetchTimingType.LOAD_SOURCE + Timer.TIMING_TYPE_COUNT_SUFFIX,
         FetchTimingType.GET_NEXT_READER.toString(),
-        FetchTimingType.GET_NEXT_READER.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX
+        FetchTimingType.GET_NEXT_READER + Timer.TIMING_TYPE_COUNT_SUFFIX
     );
 
     private static final Set<String> SUB_PHASE_KEYS = Set.of(
         FetchTimingType.PROCESS.toString(),
-        FetchTimingType.PROCESS.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX,
+        FetchTimingType.PROCESS + Timer.TIMING_TYPE_COUNT_SUFFIX,
         FetchTimingType.SET_NEXT_READER.toString(),
-        FetchTimingType.SET_NEXT_READER.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX
+        FetchTimingType.SET_NEXT_READER + Timer.TIMING_TYPE_COUNT_SUFFIX
     );
 
     private static class Node {

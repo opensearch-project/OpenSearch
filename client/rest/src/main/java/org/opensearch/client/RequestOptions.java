@@ -153,7 +153,7 @@ public final class RequestOptions {
                 if (h != 0) {
                     b.append(',');
                 }
-                b.append(headers.get(h).toString());
+                b.append(headers.get(h));
             }
         }
         if (parameters.size() > 0) {

@@ -103,7 +103,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         shardAttributesMap = new HashMap<>();
         shardAttributesMap.put(shardId, new ShardAttributes(customDataPath));
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
-        this.reroutingKey = "ShardId=[" + shardId.toString() + "]";
+        this.reroutingKey = "ShardId=[" + shardId + "]";
         cache = new ShardCache<>(logger, reroutingKey, type, clusterManagerMetrics);
     }
 

@@ -89,7 +89,7 @@ public class SuggestingErrorOnUnknown implements ErrorOnUnknown {
         if (keys.size() == 1) {
             builder.append("[").append(keys.get(0)).append("]");
         } else {
-            builder.append("any of ").append(keys.toString());
+            builder.append("any of ").append(keys);
         }
         builder.append("?");
         return builder.toString();

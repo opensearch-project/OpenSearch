@@ -102,7 +102,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
         if (contextMapping == null) {
             List<String> keys = new ArrayList<>(contextNameMap.keySet());
             Collections.sort(keys);
-            throw new IllegalArgumentException("Unknown context name [" + name + "], must be one of " + keys.toString());
+            throw new IllegalArgumentException("Unknown context name [" + name + "], must be one of " + keys);
         }
         return contextMapping;
     }

@@ -86,7 +86,7 @@ public class HeaderWarning {
     private static final String WARNING_PREFIX = String.format(
         Locale.ROOT,
         "299 OpenSearch-%s%s-%s",
-        Version.CURRENT.toString(),
+        Version.CURRENT,
         Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
         Build.CURRENT.hash()
     );

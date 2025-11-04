@@ -900,7 +900,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
             sb.append(", a").append(allocationId);
         }
         if (this.unassignedInfo != null) {
-            sb.append(", ").append(unassignedInfo.toString());
+            sb.append(", ").append(unassignedInfo);
         }
         if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             sb.append(", expected_shard_size[").append(expectedShardSize).append("]");

@@ -250,7 +250,7 @@ public final class ConfigurationUtils {
                 processorType,
                 processorTag,
                 propertyName,
-                "property cannot be converted to an int [" + value.toString() + "]"
+                "property cannot be converted to an int [" + value + "]"
             );
         }
     }
@@ -278,7 +278,7 @@ public final class ConfigurationUtils {
                 processorType,
                 processorTag,
                 propertyName,
-                "property cannot be converted to a double [" + value.toString() + "]"
+                "property cannot be converted to a double [" + value + "]"
             );
         }
     }

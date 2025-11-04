@@ -51,7 +51,7 @@ public class TelemetryValidators {
             sb.append("SpanData validation failed for validator " + entry.getKey());
             sb.append("\n");
             for (MockSpanData span : entry.getValue()) {
-                sb.append(span.toString());
+                sb.append(span);
             }
         }
         return sb.toString();

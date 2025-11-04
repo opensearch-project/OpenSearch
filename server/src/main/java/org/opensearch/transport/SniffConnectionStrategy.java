@@ -494,7 +494,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         if (proxyAddress == null || proxyAddress.isEmpty()) {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(address));
             return new DiscoveryNode(
-                clusterAlias + "#" + transportAddress.toString(),
+                clusterAlias + "#" + transportAddress,
                 transportAddress,
                 Version.CURRENT.minimumCompatibilityVersion()
             );

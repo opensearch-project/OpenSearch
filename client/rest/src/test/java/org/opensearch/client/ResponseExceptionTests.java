@@ -93,7 +93,7 @@ public class ResponseExceptionTests extends RestClientTestCase {
             response.getRequestLine().getMethod(),
             response.getHost(),
             response.getRequestLine().getUri(),
-            response.getStatusLine().toString()
+            response.getStatusLine()
         );
 
         if (hasBody) {

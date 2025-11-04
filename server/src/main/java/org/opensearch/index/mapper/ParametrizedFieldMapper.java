@@ -496,7 +496,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     return;
                 }
                 throw new MapperParsingException(
-                    "Unknown value [" + v + "] for field [" + name + "] - accepted values are " + acceptedValues.toString()
+                    "Unknown value [" + v + "] for field [" + name + "] - accepted values are " + acceptedValues
                 );
             });
         }

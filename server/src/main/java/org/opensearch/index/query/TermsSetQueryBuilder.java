@@ -352,7 +352,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
         @Override
         public String toString() {
-            return "script(" + script.toString() + ")";
+            return "script(" + script + ")";
         }
 
         @Override

@@ -86,7 +86,7 @@ public final class Snapshot implements Writeable {
 
     @Override
     public String toString() {
-        return repository + ":" + snapshotId.toString();
+        return repository + ":" + snapshotId;
     }
 
     @Override

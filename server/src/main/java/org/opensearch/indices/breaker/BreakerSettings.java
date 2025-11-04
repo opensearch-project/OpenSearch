@@ -153,7 +153,7 @@ public final class BreakerSettings {
         return "["
             + this.name
             + ",type="
-            + this.type.toString()
+            + this.type
             + ",durability="
             + (this.durability == null ? "null" : this.durability.toString())
             + ",limit="

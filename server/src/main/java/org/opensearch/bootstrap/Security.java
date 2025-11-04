@@ -303,16 +303,14 @@ final class Security {
             String previous = System.setProperty(aliasProperty, url.toString());
             if (previous != null) {
                 throw new IllegalStateException(
-                    "codebase property already set: " + aliasProperty + " -> " + previous + ", cannot set to " + url.toString()
+                    "codebase property already set: " + aliasProperty + " -> " + previous + ", cannot set to " + url
                 );
             }
         }
         propertiesSet.add(property);
         String previous = System.setProperty(property, url.toString());
         if (previous != null) {
-            throw new IllegalStateException(
-                "codebase property already set: " + property + " -> " + previous + ", cannot set to " + url.toString()
-            );
+            throw new IllegalStateException("codebase property already set: " + property + " -> " + previous + ", cannot set to " + url);
         }
     }
 

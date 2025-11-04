@@ -214,7 +214,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         if (intervalType.equals(IntervalTypeEnum.CALENDAR) || tryIntervalAsCalendarUnit() != null) {
             return dateHistogramInterval;
         }
-        throw new IllegalStateException("Cannot convert [" + intervalType.toString() + "] interval type into calendar interval");
+        throw new IllegalStateException("Cannot convert [" + intervalType + "] interval type into calendar interval");
     }
 
     /**
@@ -244,7 +244,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         if (intervalType.equals(IntervalTypeEnum.FIXED) || tryIntervalAsFixedUnit() != null) {
             return dateHistogramInterval;
         }
-        throw new IllegalStateException("Cannot convert [" + intervalType.toString() + "] interval type into fixed interval");
+        throw new IllegalStateException("Cannot convert [" + intervalType + "] interval type into fixed interval");
     }
 
     /**

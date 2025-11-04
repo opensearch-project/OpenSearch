@@ -294,7 +294,7 @@ public class DiscoveryNodeFilters {
             for (String value : values) {
                 sb.append(value);
                 if (valueCount > 1) {
-                    sb.append(" ").append(opType.toString()).append(" ");
+                    sb.append(" ").append(opType).append(" ");
                 }
                 valueCount--;
             }

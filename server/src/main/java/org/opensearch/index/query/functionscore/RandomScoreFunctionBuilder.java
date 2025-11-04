@@ -225,7 +225,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                         } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
-                                "random_score seed must be an int, long or string, not '" + token.toString() + "'"
+                                "random_score seed must be an int, long or string, not '" + token + "'"
                             );
                         }
                     } else if (token == XContentParser.Token.VALUE_STRING) {
@@ -233,7 +233,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
-                            "random_score seed must be an int/long or string, not '" + token.toString() + "'"
+                            "random_score seed must be an int/long or string, not '" + token + "'"
                         );
                     }
                 } else if ("field".equals(currentFieldName)) {

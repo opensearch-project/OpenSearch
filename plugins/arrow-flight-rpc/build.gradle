@@ -27,7 +27,7 @@ dependencies {
   api "org.apache.arrow:arrow-vector:${versions.arrow}"
   api "org.apache.arrow:arrow-format:${versions.arrow}"
 
-  compileOnly 'org.checkerframework:checker-qual:3.44.0'
+  compileOnly 'org.checkerframework:checker-qual:3.51.1'
   api "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
@@ -54,7 +54,7 @@ dependencies {
   runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
   implementation "io.grpc:grpc-stub:${versions.grpc}"
   implementation "io.grpc:grpc-netty:${versions.grpc}"
-  implementation "com.google.errorprone:error_prone_annotations:2.31.0"
+  // implementation "com.google.errorprone:error_prone_annotations:2.42.0"
 
   runtimeOnly "com.google.code.findbugs:jsr305:3.0.2"
   annotationProcessor 'org.immutables:value:2.10.1'
@@ -65,7 +65,7 @@ dependencies {
   runtimeOnly "io.grpc:grpc-protobuf:${versions.grpc}"
 
   runtimeOnly "com.google.guava:failureaccess:1.0.1"
-  runtimeOnly('com.google.guava:guava:33.3.1-jre') {
+  runtimeOnly("com.google.guava:guava:${versions.guava}") {
     attributes {
       attribute(Attribute.of('org.gradle.jvm.environment', String), 'standard-jvm')
     }

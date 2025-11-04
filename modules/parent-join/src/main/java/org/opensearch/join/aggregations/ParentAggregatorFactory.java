@@ -94,7 +94,7 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
         ValuesSource rawValuesSource = config.getValuesSource();
         if (rawValuesSource instanceof WithOrdinals == false) {
             throw new AggregationExecutionException(
-                "ValuesSource type " + rawValuesSource.toString() + "is not supported for aggregation " + this.name()
+                "ValuesSource type " + rawValuesSource + "is not supported for aggregation " + this.name()
             );
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;

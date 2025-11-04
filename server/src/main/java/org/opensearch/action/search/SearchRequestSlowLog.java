@@ -204,7 +204,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             final StringBuilder sb = new StringBuilder();
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ");
             sb.append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
-            sb.append("phase_took_millis[").append(searchRequestContext.phaseTookMap().toString()).append("], ");
+            sb.append("phase_took_millis[").append(searchRequestContext.phaseTookMap()).append("], ");
             if (searchRequestContext.totalHits() != null) {
                 sb.append("total_hits[").append(searchRequestContext.totalHits()).append("], ");
             } else {

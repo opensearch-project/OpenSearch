@@ -152,7 +152,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                                         }
                                     }
                                     osDetails.put("version", sb.toString());
-                                    osDetails.put("full", uaClient.operatingSystem.name + " " + sb.toString());
+                                    osDetails.put("full", uaClient.operatingSystem.name + " " + sb);
                                 }
                                 uaDetails.put("os", osDetails);
                             }

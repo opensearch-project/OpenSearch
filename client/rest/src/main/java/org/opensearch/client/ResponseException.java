@@ -65,7 +65,7 @@ public final class ResponseException extends IOException {
             response.getRequestLine().getMethod(),
             response.getHost(),
             response.getRequestLine().getUri(),
-            response.getStatusLine().toString()
+            response.getStatusLine()
         );
 
         if (response.hasWarnings()) {

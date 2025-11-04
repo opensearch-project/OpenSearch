@@ -43,10 +43,7 @@ public class ResourceUsageInfo {
                 updateResourceUsageInfo(resourceStatsInfo, resourceUsageMetric);
             } else {
                 throw new IllegalStateException(
-                    "cannot update ["
-                        + resourceUsageMetric.getStats().toString()
-                        + "] entry as its not present current_stats_info:"
-                        + statsInfo
+                    "cannot update [" + resourceUsageMetric.getStats() + "] entry as its not present current_stats_info:" + statsInfo
                 );
             }
         }

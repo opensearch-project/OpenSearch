@@ -242,7 +242,7 @@ public class WeightedRoutingService {
                 (String.format(
                     Locale.ROOT,
                     "There are too many discovered attribute values [%s] given zero weight [%d]. Maximum expected number of routing weights having zero weight is [%d]",
-                    request.getWeightedRouting().weights().toString(),
+                    request.getWeightedRouting().weights(),
                     countWithZeroWeight.get(),
                     allAwarenessValues.size() / 2
                 )),

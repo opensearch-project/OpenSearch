@@ -1230,7 +1230,7 @@ public abstract class Rounding implements Writeable {
                     Locale.ROOT,
                     "Expected to find the rounding in 100 iterations but didn't for [%d] with [%s]",
                     utcMillis,
-                    TimeIntervalRounding.this.toString()
+                    TimeIntervalRounding.this
                 );
                 logger.debug(
                     "Expected to find the rounding in 100 iterations but didn't for {} using {}",

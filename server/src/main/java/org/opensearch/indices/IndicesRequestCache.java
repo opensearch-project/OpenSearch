@@ -231,7 +231,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             .setKeySerializer(new IRCKeyWriteableSerializer())
             .setValueSerializer(new BytesReferenceSerializer())
             .setClusterSettings(clusterService.getClusterSettings())
-            .setStoragePath(nodeEnvironment.nodePaths()[0].path.toString() + "/request_cache");
+            .setStoragePath(nodeEnvironment.nodePaths()[0].path + "/request_cache");
 
         if (!CacheService.storeNamePresent(CacheType.INDICES_REQUEST_CACHE, settings)) {
             // If a store name is absent, use the max size based on the IRC setting into the config.

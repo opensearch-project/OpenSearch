@@ -327,7 +327,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             List<String> plugins = checkMisspelledPlugin(pluginId);
             String msg = "Unknown plugin " + pluginId;
             if (plugins.isEmpty() == false) {
-                msg += ", did you mean " + (plugins.size() == 1 ? "[" + plugins.get(0) + "]" : "any of " + plugins.toString()) + "?";
+                msg += ", did you mean " + (plugins.size() == 1 ? "[" + plugins.get(0) + "]" : "any of " + plugins) + "?";
             }
             throw new UserException(ExitCodes.USAGE, msg);
         }

@@ -392,7 +392,7 @@ public class SslDiagnostics {
             final String fingerprint = SslUtil.calculateFingerprint(certificate);
             return "fingerprint [" + fingerprint + "]";
         } catch (CertificateEncodingException e) {
-            return "invalid encoding [" + e.toString() + "]";
+            return "invalid encoding [" + e + "]";
         }
     }
 

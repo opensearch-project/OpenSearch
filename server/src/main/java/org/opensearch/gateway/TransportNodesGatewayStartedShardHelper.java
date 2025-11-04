@@ -227,7 +227,7 @@ public class TransportNodesGatewayStartedShardHelper {
                 buf.append(",storeException=").append(storeException);
             }
             if (replicationCheckpoint != null) {
-                buf.append(",ReplicationCheckpoint=").append(replicationCheckpoint.toString());
+                buf.append(",ReplicationCheckpoint=").append(replicationCheckpoint);
             }
             buf.append("]");
             return buf.toString();

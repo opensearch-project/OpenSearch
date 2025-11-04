@@ -50,7 +50,7 @@ public abstract class SortedUnsignedLongDocValuesSetQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return new StringBuilder().append(field).append(": ").append(numbers.toString()).toString();
+        return new StringBuilder().append(field).append(": ").append(numbers).toString();
     }
 
     @Override

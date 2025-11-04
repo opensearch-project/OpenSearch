@@ -52,7 +52,7 @@ public class RuleUtils {
         Map<Attribute, Set<String>> attributeMap,
         String featureValue
     ) {
-        String combined = description + "|" + featureType.getName() + "|" + attributeMap.toString() + "|" + featureValue;
+        String combined = description + "|" + featureType.getName() + "|" + attributeMap + "|" + featureValue;
         UUID uuid = UUID.nameUUIDFromBytes(combined.getBytes(StandardCharsets.UTF_8));
         return uuid.toString();
     }

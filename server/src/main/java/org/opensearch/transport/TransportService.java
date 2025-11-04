@@ -1615,7 +1615,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public String toString() {
-            return getClass().getName() + "/" + delegate.toString();
+            return getClass().getName() + "/" + delegate;
         }
 
         void setTimeoutHandler(TimeoutHandler handler) {
@@ -1838,7 +1838,7 @@ public class TransportService extends AbstractLifecycleComponent
 
                     @Override
                     public String toString() {
-                        return getClass().getName() + "/[" + action + "]:" + handler.toString();
+                        return getClass().getName() + "/[" + action + "]:" + handler;
                     }
                 };
             } else {

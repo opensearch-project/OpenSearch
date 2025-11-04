@@ -364,7 +364,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         StringBuilder message = new StringBuilder();
         for (List<String> fieldset : exclusiveFields) {
             if (fieldset.size() > 1) {
-                message.append("The following fields are not allowed together: ").append(fieldset.toString()).append(" ");
+                message.append("The following fields are not allowed together: ").append(fieldset).append(" ");
             }
         }
         if (message.length() > 0) {

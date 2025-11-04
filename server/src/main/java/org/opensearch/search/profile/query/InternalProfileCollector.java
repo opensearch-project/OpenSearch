@@ -137,7 +137,7 @@ public class InternalProfileCollector implements Collector, InternalProfileCompo
 
         // Aggregation collector toString()'s include the user-defined agg name
         if (reason.equals(CollectorResult.REASON_AGGREGATION) || reason.equals(CollectorResult.REASON_AGGREGATION_GLOBAL)) {
-            s += ": [" + c.toString() + "]";
+            s += ": [" + c + "]";
         }
         return s;
     }

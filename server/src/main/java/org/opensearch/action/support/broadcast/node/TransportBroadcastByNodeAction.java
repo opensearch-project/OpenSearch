@@ -348,7 +348,7 @@ public abstract class TransportBroadcastByNodeAction<
                     unavailableShardExceptions.add(
                         new NoShardAvailableActionException(
                             shard.shardId(),
-                            " no shards available for shard " + shard.toString() + " while executing " + actionName
+                            " no shards available for shard " + shard + " while executing " + actionName
                         )
                     );
                 }

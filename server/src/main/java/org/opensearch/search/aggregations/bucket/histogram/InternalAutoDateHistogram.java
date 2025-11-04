@@ -265,7 +265,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
         RoundingInfo roundingInfo = this.bucketInfo.roundingInfos[this.bucketInfo.roundingIdx];
         String unitAbbreviation = roundingInfo.unitAbbreviation;
-        return new DateHistogramInterval(Long.toString(bucketInnerInterval) + unitAbbreviation);
+        return new DateHistogramInterval(bucketInnerInterval + unitAbbreviation);
     }
 
     @Override

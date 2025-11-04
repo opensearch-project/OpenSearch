@@ -76,10 +76,10 @@ class Parameter {
             result.append(" ");
         }
         if (bindingAnnotation != null) {
-            result.append(bindingAnnotation.toString());
+            result.append(bindingAnnotation);
             result.append(" ");
         }
-        result.append(type.toString());
+        result.append(type);
         return result.toString();
     }
 

@@ -123,7 +123,7 @@ public class RequestLoggerTests extends RestClientTestCase {
         int statusCode = randomIntBetween(200, 599);
         String reasonPhrase = "REASON";
         StatusLine statusLine = new StatusLine(protocolVersion, statusCode, reasonPhrase);
-        String expected = "# " + statusLine.toString();
+        String expected = "# " + statusLine;
         ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(statusCode, reasonPhrase);
         int numHeaders = randomIntBetween(0, 3);
         for (int i = 0; i < numHeaders; i++) {

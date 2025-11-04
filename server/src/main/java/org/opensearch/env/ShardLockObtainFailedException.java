@@ -63,7 +63,7 @@ public class ShardLockObtainFailedException extends OpenSearchException {
 
     private static String buildMessage(ShardId shardId, String message) {
         StringBuilder sb = new StringBuilder();
-        sb.append(shardId.toString());
+        sb.append(shardId);
         sb.append(": ");
         sb.append(message);
         return sb.toString();

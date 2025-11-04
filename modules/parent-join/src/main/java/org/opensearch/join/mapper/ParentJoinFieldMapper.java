@@ -142,7 +142,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             }
         }
         if (conflicts.isEmpty() == false) {
-            throw new IllegalArgumentException("invalid definition for join field [" + name + "]:\n" + conflicts.toString());
+            throw new IllegalArgumentException("invalid definition for join field [" + name + "]:\n" + conflicts);
         }
     }
 

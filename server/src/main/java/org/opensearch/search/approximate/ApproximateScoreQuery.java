@@ -61,11 +61,7 @@ public final class ApproximateScoreQuery extends Query {
 
     @Override
     public String toString(String s) {
-        return "ApproximateScoreQuery(originalQuery="
-            + originalQuery.toString()
-            + ", approximationQuery="
-            + approximationQuery.toString()
-            + ")";
+        return "ApproximateScoreQuery(originalQuery=" + originalQuery + ", approximationQuery=" + approximationQuery + ")";
     }
 
     @Override

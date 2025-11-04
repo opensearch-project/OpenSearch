@@ -259,7 +259,7 @@ public class DecommissionService {
                             listener.onFailure(
                                 new NotClusterManagerException(
                                     "node ["
-                                        + transportService.getLocalNode().toString()
+                                        + transportService.getLocalNode()
                                         + "] not eligible to execute decommission request. Will retry until timeout."
                                 )
                             );
@@ -276,9 +276,9 @@ public class DecommissionService {
                     @Override
                     public void onTimeout(TimeValue timeout) {
                         String errorMsg = "timed out ["
-                            + timeout.toString()
+                            + timeout
                             + "] while removing to-be-decommissioned cluster manager eligible nodes ["
-                            + nodeIdsToBeExcluded.toString()
+                            + nodeIdsToBeExcluded
                             + "] from voting config";
                         logger.error(errorMsg);
                         listener.onFailure(new OpenSearchTimeoutException(errorMsg));
@@ -424,7 +424,7 @@ public class DecommissionService {
         } else if (awarenessAttributes.contains(decommissionAttribute.attributeName()) == false) {
             msg = "invalid awareness attribute requested for decommissioning";
         } else if (forcedAwarenessAttributes.containsKey(decommissionAttribute.attributeName()) == false) {
-            msg = "forced awareness attribute [" + forcedAwarenessAttributes.toString() + "] doesn't have the decommissioning attribute";
+            msg = "forced awareness attribute [" + forcedAwarenessAttributes + "] doesn't have the decommissioning attribute";
         }
         // we don't need to check for attributes presence in forced awareness attribute because, weights API ensures that weights are set
         // for all discovered routing attributes and forced attributes.
@@ -501,7 +501,7 @@ public class DecommissionService {
                     case SUCCESSFUL:
                         // one awareness attribute is already decommissioned. We will reject the new request
                         msg = "one awareness attribute ["
-                            + decommissionAttributeMetadata.decommissionAttribute().toString()
+                            + decommissionAttributeMetadata.decommissionAttribute()
                             + "] already successfully decommissioned, recommission before triggering another decommission";
                         throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
                     case DRAINING:
@@ -509,7 +509,7 @@ public class DecommissionService {
                     case INIT:
                         // it means the decommission has been initiated or is inflight. In that case, will fail new request
                         msg = "there's an inflight decommission request for attribute ["
-                            + decommissionAttributeMetadata.decommissionAttribute().toString()
+                            + decommissionAttributeMetadata.decommissionAttribute()
                             + "] is in progress, cannot process this request";
                         throw new DecommissioningFailedException(requestedDecommissionAttribute, msg);
                     case FAILED:

@@ -136,7 +136,7 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     @Override
     public String toString() {
-        return "script" + sScript.toString();
+        return "script" + sScript;
     }
 
     @Override

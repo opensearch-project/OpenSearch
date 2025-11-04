@@ -39,7 +39,7 @@ public class Publish implements Plugin<Project> {
             publishing.repositories(repositories -> {
                 repositories.maven(maven -> {
                     maven.setName(STAGING_REPO);
-                    maven.setUrl(buildDirectory.toString() + LOCAL_STAGING_REPO_PATH);
+                    maven.setUrl(buildDirectory + LOCAL_STAGING_REPO_PATH);
                 });
             });
         });

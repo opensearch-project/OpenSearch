@@ -1,4 +1,4 @@
-name: Gradle Precommit
+name: Gradle PreCommit
 on: [pull_request]
 
 jobs:
@@ -21,8 +21,11 @@ jobs:
           java-version: ${{ matrix.java }}
           distribution: temurin
           cache: gradle
-      - name: Run Gradle (precommit)
+      - name: Run Gradle (pre-commit)
         continue-on-error: ${{ matrix.experimental }}
         shell: bash
-        run: |
-          ./gradlew javadoc precommit --parallel
+        run: ./gradlew javadoc precommit --parallel
+      - name: Run Gradle (sanity-check)
+        continue-on-error: ${{ matrix.experimental }}
+        shell: bash
+        run: ./gradlew rewriteDryRun -Dorg.gradle.jvmargs=-Xmx8G

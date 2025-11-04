@@ -121,7 +121,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         if (percentile == null) {
             throw new IllegalArgumentException(
                 "Percent requested ["
-                    + String.valueOf(percent)
+                    + percent
                     + "] was not"
                     + " one of the computed percentiles.  Available keys are: "
                     + Arrays.toString(percents)
@@ -177,7 +177,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
                 builder.field("key", percent);
                 builder.field("value", hasValue ? value : null);
                 if (hasValue && format != DocValueFormat.RAW) {
-                    builder.field(String.valueOf(percent) + "_as_string", percentileAsString(percent));
+                    builder.field(percent + "_as_string", percentileAsString(percent));
                 }
                 builder.endObject();
             }

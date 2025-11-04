@@ -53,7 +53,7 @@ public class SearchContextSourcePrinter {
         builder.append(searchContext.indexShard().shardId());
         builder.append(" ");
         if (searchContext.request() != null && searchContext.request().source() != null) {
-            builder.append("source[").append(searchContext.request().source().toString()).append("], ");
+            builder.append("source[").append(searchContext.request().source()).append("], ");
         } else {
             builder.append("source[], ");
         }

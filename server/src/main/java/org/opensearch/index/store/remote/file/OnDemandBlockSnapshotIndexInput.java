@@ -61,7 +61,7 @@ public class OnDemandBlockSnapshotIndexInput extends AbstractBlockIndexInput {
     public OnDemandBlockSnapshotIndexInput(FileInfo fileInfo, FSDirectory directory, TransferManager transferManager) {
         this(
             "BlockedSnapshotIndexInput(path=\""
-                + directory.getDirectory().toString()
+                + directory.getDirectory()
                 + "/"
                 + fileInfo.physicalName()
                 + "\", "

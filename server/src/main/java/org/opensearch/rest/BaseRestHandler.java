@@ -167,7 +167,7 @@ public abstract class BaseRestHandler implements RestHandler {
                 if (keys.size() == 1) {
                     message.append("[").append(keys.get(0)).append("]");
                 } else {
-                    message.append("any of ").append(keys.toString());
+                    message.append("any of ").append(keys);
                 }
                 message.append("?");
             }

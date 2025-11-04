@@ -195,7 +195,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
         if (minimumIntervalExpression != null && !ALLOWED_INTERVALS.containsValue(minimumIntervalExpression)) {
             throw new IllegalArgumentException(
-                MINIMUM_INTERVAL_FIELD.getPreferredName() + " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]"
+                MINIMUM_INTERVAL_FIELD.getPreferredName() + " must be one of [" + ALLOWED_INTERVALS.values() + "]"
             );
         }
         this.minimumIntervalExpression = minimumIntervalExpression;
@@ -306,7 +306,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             this.innerIntervals = innerIntervals;
             Objects.requireNonNull(dateTimeUnit, "dateTimeUnit cannot be null");
             if (!ALLOWED_INTERVALS.containsKey(dateTimeUnit)) {
-                throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet().toString());
+                throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet());
             }
             this.dateTimeUnit = ALLOWED_INTERVALS.get(dateTimeUnit);
         }

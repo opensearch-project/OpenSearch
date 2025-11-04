@@ -259,16 +259,16 @@ public final class AggregateRefCountedCacheStats implements IRefCountedCacheStat
         return getClass().getSimpleName()
             + '{'
             + "overallRefCountedCacheStats="
-            + overallCacheStats.toString()
+            + overallCacheStats
             + ", "
             + "fullRefCountedCacheStats="
-            + fullFileCacheStats.toString()
+            + fullFileCacheStats
             + ", "
             + "blockRefCountedCacheStats="
-            + blockFileCacheStats.toString()
+            + blockFileCacheStats
             + ", "
             + "pinnedRefCountedCacheStats="
-            + pinnedFileCacheStats.toString()
+            + pinnedFileCacheStats
             + '}';
     }
 }

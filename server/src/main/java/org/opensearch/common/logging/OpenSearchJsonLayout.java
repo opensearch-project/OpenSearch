@@ -120,7 +120,7 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
         if (maxMessageLength < 0) {
             throw new IllegalArgumentException("layout parameter 'maxmessagelength' cannot be a negative number");
         } else if (maxMessageLength > 0) {
-            messageFormat = "%.-" + Integer.toString(maxMessageLength) + "m";
+            messageFormat = "%.-" + maxMessageLength + "m";
         }
 
         Map<String, Object> map = new LinkedHashMap<>();
@@ -166,7 +166,7 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
 
     private void appendField(StringBuilder sb, Map.Entry<String, Object> entry) {
         sb.append(jsonKey(entry.getKey()));
-        sb.append(entry.getValue().toString());
+        sb.append(entry.getValue());
     }
 
     private String notEmpty(String value) {

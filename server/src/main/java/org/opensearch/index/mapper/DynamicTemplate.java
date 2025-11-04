@@ -228,7 +228,7 @@ public class DynamicTemplate implements ToXContentObject {
         }
 
         if (match == null && pathMatch == null && matchMappingType == null) {
-            throw new MapperParsingException("template must have match, path_match or match_mapping_type set " + conf.toString());
+            throw new MapperParsingException("template must have match, path_match or match_mapping_type set " + conf);
         }
         if (mapping == null) {
             throw new MapperParsingException("template must have mapping set");

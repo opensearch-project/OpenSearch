@@ -450,7 +450,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         merged.mergeSharedOptions(toMerge, conflicts);
         merged.mergeOptions(toMerge, conflicts);
         if (conflicts.isEmpty() == false) {
-            throw new IllegalArgumentException("Mapper for [" + name() + "] conflicts with existing mapping:\n" + conflicts.toString());
+            throw new IllegalArgumentException("Mapper for [" + name() + "] conflicts with existing mapping:\n" + conflicts);
         }
         merged.multiFields = multiFields.merge(toMerge.multiFields);
         // apply changeable values

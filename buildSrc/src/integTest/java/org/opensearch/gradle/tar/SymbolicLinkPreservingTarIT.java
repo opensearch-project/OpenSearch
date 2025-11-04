@@ -167,7 +167,7 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
             .withProjectDir(getProjectDir())
             .withArguments(
                 task,
-                "-Dtests.symbolic_link_preserving_tar_source=" + temporaryFolder.getRoot().toString(),
+                "-Dtests.symbolic_link_preserving_tar_source=" + temporaryFolder.getRoot(),
                 "-Dtests.symbolic_link_preserving_tar_preserve_file_timestamps=" + preserveFileTimestamps,
                 "-i"
             )

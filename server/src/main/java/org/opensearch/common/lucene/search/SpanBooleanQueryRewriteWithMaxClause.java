@@ -90,7 +90,7 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
             public Query rewrite(IndexSearcher searcher, MultiTermQuery query) throws IOException {
                 Collection<SpanQuery> queries = collectTerms(searcher.getIndexReader(), query);
                 if (queries.size() == 0) {
-                    return new SpanMatchNoDocsQuery(query.getField(), "no expansion found for " + query.toString());
+                    return new SpanMatchNoDocsQuery(query.getField(), "no expansion found for " + query);
                 } else if (queries.size() == 1) {
                     return queries.iterator().next();
                 } else {
@@ -121,7 +121,7 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
                             if (hardLimit) {
                                 throw new RuntimeException(
                                     "["
-                                        + query.toString()
+                                        + query
                                         + " ] "
                                         + "exceeds maxClauseCount [ Boolean maxClauseCount is set to "
                                         + IndexSearcher.getMaxClauseCount()

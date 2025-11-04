@@ -189,7 +189,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
             throw new InvalidUserDataException("Missing [pattern] for invalid pattern rule");
         }
         if (props.isEmpty() == false) {
-            throw new InvalidUserDataException("Unknown arguments for ForbiddenPatterns rule mapping: " + props.keySet().toString());
+            throw new InvalidUserDataException("Unknown arguments for ForbiddenPatterns rule mapping: " + props.keySet());
         }
         // TODO: fail if pattern contains a newline, it won't work (currently)
         patterns.put(name, pattern);

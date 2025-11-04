@@ -90,7 +90,7 @@ class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
 
             final Path file = getPath(argumentValues.get(i + 1));
             if (Files.exists(file) == false) {
-                throw new UserException(ExitCodes.IO_ERROR, "File [" + file.toString() + "] does not exist");
+                throw new UserException(ExitCodes.IO_ERROR, "File [" + file + "] does not exist");
             }
 
             keyStore.setFile(setting, Files.readAllBytes(file));

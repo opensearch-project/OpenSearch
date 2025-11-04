@@ -122,7 +122,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         ActionListener<Void> completionListener = ActionListener.wrap(
             resp -> latchedActionListener.onResponse(remoteIndexRoutingTable.getUploadedMetadata()),
             ex -> latchedActionListener.onFailure(
-                new RemoteStateTransferException("Exception in writing index to remote store: " + indexRouting.getIndex().toString(), ex)
+                new RemoteStateTransferException("Exception in writing index to remote store: " + indexRouting.getIndex(), ex)
             )
         );
 

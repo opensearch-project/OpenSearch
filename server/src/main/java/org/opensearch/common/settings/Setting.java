@@ -1212,7 +1212,7 @@ public class Setting<T> implements ToXContentObject {
 
                 @Override
                 public String toString() {
-                    return "Updater for: " + setting.toString();
+                    return "Updater for: " + setting;
                 }
             };
         }
@@ -1231,7 +1231,7 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public String toString() {
-            return "Updater for: " + Setting.this.toString();
+            return "Updater for: " + Setting.this;
         }
 
         @Override

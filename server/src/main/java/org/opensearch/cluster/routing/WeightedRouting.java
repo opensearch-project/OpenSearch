@@ -75,7 +75,7 @@ public class WeightedRouting implements Writeable {
 
     @Override
     public String toString() {
-        return "WeightedRouting{" + attributeName + "}{" + weights().toString() + "}";
+        return "WeightedRouting{" + attributeName + "}{" + weights() + "}";
     }
 
     public Map<String, Double> weights() {
