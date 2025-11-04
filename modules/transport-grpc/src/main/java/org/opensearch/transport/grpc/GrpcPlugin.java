@@ -52,6 +52,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import io.grpc.BindableService;
 
@@ -122,7 +123,6 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             // Note: ThreadContext will be provided during component creation
             // For now, we collect providers to be initialized later with ThreadContext
             this.interceptorProviders = providers;
-
             logger.info("Found {} gRPC interceptor providers, will initialize during component creation", providers.size());
         }
         // Load discovered gRPC service factories
@@ -358,9 +358,15 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             // Check for duplicates and throw exception if found
             for (Map.Entry<Integer, List<OrderedGrpcInterceptor>> entry : orderMap.entrySet()) {
                 if (entry.getValue().size() > 1) {
+                    String conflictingInterceptors = entry.getValue()
+                        .stream()
+                        .map(i -> i.getInterceptor().getClass().getName())
+                        .collect(Collectors.joining(", "));
                     throw new IllegalArgumentException(
-                        "Multiple gRPC interceptors have the same order value: "
+                        "Multiple gRPC interceptors have the same order value ["
                             + entry.getKey()
+                            + "]: "
+                            + conflictingInterceptors
                             + ". Each interceptor must have a unique order value."
                     );
                 }
