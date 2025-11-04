@@ -8,6 +8,8 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.MultiCollector;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -33,6 +35,7 @@ import java.util.Queue;
  */
 @PublicApi(since = "2.10.0")
 public class BucketCollectorProcessor {
+    private static final Logger logger = LogManager.getLogger(BucketCollectorProcessor.class);
 
     /**
      * Performs {@link BucketCollector#postCollection()} on all the {@link BucketCollector} in the given {@link Collector} collector tree
@@ -59,6 +62,8 @@ public class BucketCollectorProcessor {
      * @param collectorTree collector tree used by calling thread
      */
     public void processPostCollection(Collector collectorTree) throws IOException {
+        if (logger.isDebugEnabled()) logger.debug("DIAG: processPostCollection enter");
+        
         final Queue<Collector> collectors = new LinkedList<>();
         collectors.offer(collectorTree);
         while (!collectors.isEmpty()) {
@@ -74,6 +79,7 @@ public class BucketCollectorProcessor {
             } else if (currentCollector instanceof BucketCollector) {
                 // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator) {
+                    if (logger.isDebugEnabled()) logger.debug("DIAG: post/build agg={}", currentCollector.getClass().getName());
                     // Do not perform postCollection for MultiBucketCollector as we are unwrapping that below
                     ((BucketCollector) currentCollector).postCollection();
                     ((Aggregator) currentCollector).buildTopLevel();
@@ -84,6 +90,8 @@ public class BucketCollectorProcessor {
                 }
             }
         }
+        
+        if (logger.isDebugEnabled()) logger.debug("DIAG: processPostCollection exit");
     }
 
     /**
@@ -106,11 +114,8 @@ public class BucketCollectorProcessor {
                     collectors.offer(innerCollector);
                 }
             } else if (currentCollector instanceof BucketCollector) {
-                // Perform build aggregation during post collection
+                // Build one batch without altering collector finalization state
                 if (currentCollector instanceof Aggregator) {
-                    // Call postCollection() before building to ensure collectors finalize their data
-                    // This is critical for aggregators like CardinalityAggregator that defer processing until postCollect()
-                    ((BucketCollector) currentCollector).postCollection();
                     aggregations.add(((Aggregator) currentCollector).buildTopLevelBatch());
                 } else if (currentCollector instanceof MultiBucketCollector) {
                     for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
@@ -172,7 +177,18 @@ public class BucketCollectorProcessor {
             }
 
             if (currentCollector instanceof Aggregator) {
-                internalAggregations.add(((Aggregator) currentCollector).getPostCollectionAggregation());
+                Aggregator agg = (Aggregator) currentCollector;
+
+                InternalAggregation ia = agg.getPostCollectionAggregation();
+                if (ia == null) {
+                    // Finalize only if needed; idempotent and scoped to this aggregator
+                    ((BucketCollector) currentCollector).postCollection();
+                    ia = agg.getPostCollectionAggregation();
+                }
+                if (ia == null) {
+                    throw new AssertionError("Null InternalAggregation from " + agg.getClass().getName());
+                }
+                internalAggregations.add(ia);
             } else if (currentCollector instanceof MultiBucketCollector) {
                 allCollectors.addAll(Arrays.asList(((MultiBucketCollector) currentCollector).getCollectors()));
             }

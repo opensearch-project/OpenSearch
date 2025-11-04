@@ -69,7 +69,7 @@ public final class FlushModeResolver {
      */
     public static final Setting<Long> STREAMING_MIN_ESTIMATED_BUCKET_COUNT = Setting.longSetting(
         "search.aggregations.streaming.min_estimated_bucket_count",
-        1000L,
+        1L,
         1L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -116,25 +116,37 @@ public final class FlushModeResolver {
      * @return combined metrics if all collectors support streaming, nonStreamable otherwise
      */
     private static StreamingCostMetrics collectMetrics(Collector collector) {
-        if (!(collector instanceof Streamable || collector instanceof MultiBucketCollector || collector instanceof MultiCollector)) {
+        // Fast reject for unknown collector types
+        if (!(collector instanceof Streamable || collector instanceof MultiBucketCollector || collector instanceof MultiCollector
+            || collector instanceof ProfilingAggregator || collector instanceof AggregatorBase)) {
             return StreamingCostMetrics.nonStreamable();
         }
-        StreamingCostMetrics nodeMetrics;
+
+        // Compute metrics for the current node if it is streamable
+        StreamingCostMetrics nodeMetrics = null;
         if (collector instanceof Streamable) {
             nodeMetrics = ((Streamable) collector).getStreamingCostMetrics();
             if (!nodeMetrics.isStreamable()) {
                 return StreamingCostMetrics.nonStreamable();
             }
-        } else {
-            return StreamingCostMetrics.nonStreamable();
         }
+
+        // Always recurse into children (handles MultiCollector/MultiBucketCollector/ProfilingAggregator cases)
         StreamingCostMetrics childMetrics = null;
         for (Collector child : getChildren(collector)) {
             StreamingCostMetrics childResult = collectMetrics(child);
-            if (!childResult.isStreamable()) return StreamingCostMetrics.nonStreamable();
-
+            // Be tolerant of non-streamable children: skip them and rely on streamable parents/siblings
+            if (!childResult.isStreamable()) {
+                continue;
+            }
             childMetrics = (childMetrics == null) ? childResult : childMetrics.combineWithSibling(childResult);
         }
+
+        // If current node is not streamable, rely solely on children metrics
+        if (nodeMetrics == null) {
+            return childMetrics == null ? StreamingCostMetrics.nonStreamable() : childMetrics;
+        }
+        // Combine current node metrics with children
         return childMetrics != null ? nodeMetrics.combineWithSubAggregation(childMetrics) : nodeMetrics;
     }
 

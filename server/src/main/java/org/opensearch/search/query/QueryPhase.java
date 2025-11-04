@@ -161,6 +161,8 @@ public class QueryPhase {
         suggestProcessor.process(searchContext);
         aggregationProcessor.postProcess(searchContext);
 
+        // Do not set default TopDocs here; collector postProcess paths handle it.
+
         if (searchContext.getProfilers() != null) {
             ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(
                 searchContext.getProfilers(),
@@ -200,10 +202,7 @@ public class QueryPhase {
             Query query = searchContext.query();
             assert query == searcher.rewrite(query); // already rewritten
 
-            // Add streaming path
-            if (searchContext.isStreamingSearch()) {
-                return executeStreamingQuery(searchContext, searcher, query);
-            }
+            // Streaming search uses the standard query path; collectors/managers decide streaming behavior
 
             final ScrollContext scrollContext = searchContext.scrollContext();
             if (scrollContext != null) {

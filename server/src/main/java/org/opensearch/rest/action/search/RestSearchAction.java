@@ -151,7 +151,10 @@ public class RestSearchAction extends BaseRestHandler {
             parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
-        if (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) {
+        // Honor streaming when cluster setting is enabled OR feature flag is enabled
+        final boolean streamingEnabledEffective = (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) 
+            || FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
+        if (streamingEnabledEffective) {
             if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
                 if (canUseStreamSearch(searchRequest)) {
                     String scoringMode = request.param("stream_scoring_mode");

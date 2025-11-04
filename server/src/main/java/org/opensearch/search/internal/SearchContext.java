@@ -565,14 +565,10 @@ public abstract class SearchContext implements Releasable {
     }
 
     @ExperimentalApi
-    public void setStreamChannelListener(StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> listener) {
-        throw new IllegalStateException("Set search channel listener should be implemented for stream search");
-    }
+    public void setStreamChannelListener(StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> listener) {}
 
     @ExperimentalApi
-    public StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> getStreamChannelListener() {
-        throw new IllegalStateException("Get search channel listener should be implemented for stream search");
-    }
+    public StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> getStreamChannelListener() { return null; }
 
     @ExperimentalApi
     public boolean isStreamSearch() {

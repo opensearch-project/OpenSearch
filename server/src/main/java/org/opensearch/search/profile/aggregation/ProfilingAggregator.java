@@ -142,6 +142,9 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
         timer.start();
         try {
             delegate.preCollection();
+            // Capture static/debug info early so it always appears in the profile output
+            // even if the aggregator does not populate it during buildAggregations.
+            delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
         } finally {
             timer.stop();
         }

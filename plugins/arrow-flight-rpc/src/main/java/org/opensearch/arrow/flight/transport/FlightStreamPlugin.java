@@ -235,6 +235,21 @@ public class FlightStreamPlugin extends Plugin
         return Collections.emptyMap();
     }
 
+    @Override
+    public Map<String, Supplier<Transport>> getStreamTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService,
+        Tracer tracer
+    ) {
+        // Return empty map since getTransports() already registers the FLIGHT transport
+        // The NetworkModule will find it via getStreamTransportSupplier() which looks in transportFactories
+        return Collections.emptyMap();
+    }
+
     /**
      * Gets the auxiliary transports for the FlightStream plugin.
      * @param settings The settings for the plugin.

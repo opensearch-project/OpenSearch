@@ -8,6 +8,8 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Collector;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -31,6 +33,8 @@ import java.util.List;
 @ExperimentalApi
 public final class AggregatorTreeEvaluator {
 
+    private static final Logger logger = LogManager.getLogger(AggregatorTreeEvaluator.class);
+
     private AggregatorTreeEvaluator() {}
 
     /**
@@ -51,7 +55,7 @@ public final class AggregatorTreeEvaluator {
         SearchContext searchContext,
         CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider
     ) throws IOException {
-        if (!searchContext.isStreamSearch()) {
+        if (!searchContext.isStreamSearch() && searchContext.getStreamingMode() == null) {
             return collector;
         }
 
@@ -60,6 +64,7 @@ public final class AggregatorTreeEvaluator {
         if (flushMode == FlushMode.PER_SEGMENT) {
             return collector;
         } else {
+            // Streaming not beneficial: recreate collector tree with non-streaming aggregators
             return MultiBucketCollector.wrap(aggProvider.apply(searchContext));
         }
     }
@@ -85,8 +90,16 @@ public final class AggregatorTreeEvaluator {
         if (!searchContext.setFlushModeIfAbsent(mode)) {
             // this could happen in case of race condition, we go ahead with what's been set already
             FlushMode existingMode = searchContext.getFlushMode();
-            return existingMode != null ? existingMode : mode;
+            mode = existingMode != null ? existingMode : mode;
         }
+
+        logger.debug("STREAM DEBUG: flushMode={} isStreamSearch={} minRatio={} minBuckets={} maxBuckets={}",
+            mode,
+            searchContext.isStreamSearch(),
+            searchContext.getStreamingMinCardinalityRatio(),
+            searchContext.getStreamingMinEstimatedBucketCount(),
+            searchContext.getStreamingMaxEstimatedBucketCount()
+        );
 
         return mode;
     }

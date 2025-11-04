@@ -10,6 +10,8 @@ package org.opensearch.streaming.aggregation;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -45,6 +47,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -52,6 +55,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 3, maxNumDataNodes = 3)
 public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(SubAggregationIT.class);
 
     public SubAggregationIT(Settings dynamicSettings) {
         super(dynamicSettings);
@@ -84,6 +88,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
+                    .put("stream.search.enabled", true)
                     .put("search.aggregations.streaming.max_estimated_bucket_count", 1000)
                     .put("search.aggregations.streaming.min_cardinality_ratio", 0.001)
                     .put("search.aggregations.streaming.min_estimated_bucket_count", 1)
@@ -179,6 +184,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
+                    .putNull("stream.search.enabled")
                     .putNull("search.aggregations.streaming.max_estimated_bucket_count")
                     .putNull("search.aggregations.streaming.min_cardinality_ratio")
                     .putNull("search.aggregations.streaming.min_estimated_bucket_count")
@@ -197,8 +203,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .setSize(0)
             .setRequestCache(false)
             .setProfile(true)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
         assertEquals(90, resp.getHits().getTotalHits().value());
@@ -231,8 +250,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .addAggregation(agg)
             .setSize(0)
             .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
         assertEquals(90, resp.getHits().getTotalHits().value());
@@ -272,8 +304,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .setSize(0)
             .setRequestCache(false)
             .setProfile(true)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
         assertEquals(90, resp.getHits().getTotalHits().value());
@@ -305,8 +350,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .addAggregation(agg)
             .setSize(0)
             .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
 
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
@@ -340,8 +398,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .addAggregation(agg)
             .setSize(0)
             .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute(); // No profile
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
 
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
@@ -383,8 +454,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                 .setSize(0)
                 .setRequestCache(false)
                 .setProfile(true)
+                .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
                 .execute();
-            SearchResponse resp = future.actionGet();
+            SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
 
             assertNotNull(resp);
             assertEquals(NUM_SHARDS, resp.getTotalShards());
@@ -446,8 +530,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .setSize(0)
             .setRequestCache(false)
             .setProfile(true)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
         assertEquals(90, resp.getHits().getTotalHits().value());
@@ -487,8 +584,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .addAggregation(AggregationBuilders.cardinality("cardinality_agg").field("field1").precisionThreshold(1000))
             .setSize(0)
             .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
 
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
@@ -510,8 +620,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .addAggregation(AggregationBuilders.cardinality("cardinality_high").field("field1").precisionThreshold(1000))
             .setSize(0)
             .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
 
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());
@@ -540,8 +663,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .addAggregation(agg)
             .setSize(0)
             .setRequestCache(false)
+            .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
             .execute();
-        SearchResponse resp = future.actionGet();
+        SearchResponse resp;
+        try {
+            resp = future.actionGet(TimeValue.timeValueSeconds(35));
+        } catch (Exception e) {
+            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+            all.forEach((t, st) -> {
+                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                for (StackTraceElement el : st) {
+                    logger.error("  at {}", el);
+                }
+            });
+            throw e;
+        }
 
         assertNotNull(resp);
         assertEquals(NUM_SHARDS, resp.getTotalShards());

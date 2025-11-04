@@ -218,6 +218,10 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
 
         @Override
         void postProcess(QuerySearchResult result) {
+            // If topDocs already present, nothing to do
+            if (result.hasTopDocs()) {
+                return;
+            }
             final TotalHits totalHitCount = hitCountSupplier.get();
             final TopDocs topDocs;
             if (sort != null) {
@@ -311,6 +315,10 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
 
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
+            // If topDocs already present, nothing to do
+            if (result.hasTopDocs()) {
+                return;
+            }
             final CollapseTopFieldDocs topDocs = topDocsCollector.getTopDocs();
             result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.apply(topDocs)), sortFmt);
         }
@@ -675,6 +683,10 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
 
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
+            // If topDocs already present, nothing to do
+            if (result.hasTopDocs()) {
+                return;
+            }
             final TopDocsAndMaxScore topDocs = newTopDocs();
             result.topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats);
         }
@@ -740,6 +752,10 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
 
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
+            // Skip if topDocs have already been consumed (streaming already sent final response)
+            if (result.hasConsumedTopDocs()) {
+                return;
+            }
             final TopDocsAndMaxScore topDocs = newTopDocs();
             if (scrollContext.totalHits == null) {
                 // first round
@@ -768,6 +784,19 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
      */
     public static TopDocsCollectorContext createStreamingTopDocsCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
         throws IOException {
+
+        // For size=0, use the standard empty top docs context so totalHits is computed accurately
+        if (searchContext.size() == 0) {
+            final IndexReader reader = searchContext.searcher().getIndexReader();
+            final Query query = searchContext.query();
+            return new EmptyTopDocsCollectorContext(
+                reader,
+                query,
+                searchContext.sort(),
+                searchContext.trackTotalHitsUpTo(),
+                hasFilterCollector
+            );
+        }
 
         // Get circuit breaker from search context
         CircuitBreaker circuitBreaker = null;

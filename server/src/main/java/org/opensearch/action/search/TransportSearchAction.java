@@ -57,6 +57,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.action.ActionListener;
@@ -1101,9 +1102,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
             && (searchRequest.source() == null || searchRequest.source().size() > 0);
         final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
+        final boolean streamingEnabledEffective = streamingEnabledSetting || FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
         final boolean useStreamingTransportForConnection = isStreamingCandidate
             && streamSearchTransportService != null
-            && streamingEnabledSetting;
+            && streamingEnabledEffective;
         final SearchTransportService connectionTransport = useStreamingTransportForConnection
             ? streamSearchTransportService
             : searchTransportService;
@@ -1244,9 +1246,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
             && (searchRequest.source() == null || searchRequest.source().size() > 0);
 
-        // Check if streaming transport is actually available and enabled
+        // Check if streaming transport is actually available and enabled (cluster setting OR feature flag)
         final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
-        final boolean canUseStreamingTransport = (streamSearchTransportService != null) && streamingEnabledSetting;
+        final boolean streamingEnabledEffective = streamingEnabledSetting || FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
+        final boolean canUseStreamingTransport = (streamSearchTransportService != null) && streamingEnabledEffective;
 
         // Use streaming transport for streaming search requests
         final boolean useStreamingTransport = isStreamingCandidate && canUseStreamingTransport;

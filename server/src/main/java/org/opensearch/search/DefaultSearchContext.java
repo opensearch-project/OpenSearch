@@ -298,12 +298,8 @@ final class DefaultSearchContext extends SearchContext {
         if (request.getStreamingSearchMode() != null) {
             try {
                 this.streamingMode = StreamingSearchMode.fromString(request.getStreamingSearchMode());
-                // If a streaming mode is set, enable streaming search
-                this.isStreamSearch = true;
-                // Set FlushMode to PER_SEGMENT for streaming aggregations
-                this.cachedFlushMode.trySet(FlushMode.PER_SEGMENT);
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Initialized streaming search with mode: {} and FlushMode: PER_SEGMENT", this.streamingMode);
+                    logger.debug("Initialized streaming search with mode: {}", this.streamingMode);
                 }
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Invalid streaming search mode: " + request.getStreamingSearchMode(), e);
@@ -1288,12 +1284,11 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     public void setStreamChannelListener(StreamSearchChannelListener listener) {
-        assert isStreamSearch() : "Stream search not enabled";
+        this.isStreamSearch = true;
         this.listener = listener;
     }
 
     public StreamSearchChannelListener getStreamChannelListener() {
-        assert isStreamSearch() : "Stream search not enabled";
         return listener;
     }
 
