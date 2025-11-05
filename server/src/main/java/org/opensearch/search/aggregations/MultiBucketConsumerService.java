@@ -218,4 +218,9 @@ public class MultiBucketConsumerService {
     public MultiBucketConsumer create() {
         return new MultiBucketConsumer(maxBucket, breaker);
     }
+
+    public CircuitBreaker getBreaker() {
+        return breaker;
+    }
+
 }

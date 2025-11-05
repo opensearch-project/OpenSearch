@@ -130,7 +130,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         );
     }
 
-    public void testCircuitBreakerWhenAddEmptyBuckets() {
+    public void testTooManyBucketsExceptionWhenAddingEmptyBuckets() {
         String name = randomAlphaOfLength(5);
         double interval = 1;
         double lowerBound = 1;
@@ -153,17 +153,21 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         InternalHistogram histogram2 = new InternalHistogram(name, bucket2, order, 0, emptyBucketInfo, format, false, null);
 
         CircuitBreaker breaker = Mockito.mock(CircuitBreaker.class);
-        Mockito.when(breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets")).thenThrow(CircuitBreakingException.class);
+        Mockito.when(breaker.addEstimateBytesAndMaybeBreak(50L * 2, "empty histogram buckets")).thenThrow(CircuitBreakingException.class);
 
         MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(0, breaker);
         InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
             null,
             null,
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY
+            PipelineAggregator.PipelineTree.EMPTY,
+            breaker
         );
-        expectThrows(CircuitBreakingException.class, () -> histogram1.reduce(List.of(histogram1, histogram2), reduceContext));
-        Mockito.verify(breaker, Mockito.times(1)).addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+        List<InternalHistogram.Bucket> reducedBuckets = histogram1.reduceBuckets(List.of(histogram1, histogram2), reduceContext);
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> histogram1.addEmptyBuckets(reducedBuckets, reduceContext)
+        );
     }
 
     @Override
