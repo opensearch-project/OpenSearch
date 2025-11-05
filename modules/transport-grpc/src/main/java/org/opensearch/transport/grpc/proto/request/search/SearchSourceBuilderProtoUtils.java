@@ -9,19 +9,23 @@ package org.opensearch.transport.grpc.proto.request.search;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
 import org.opensearch.protobufs.Rescore;
 import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.protobufs.TrackHits;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
+import org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationContainerProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.suggest.SuggestBuilderProtoUtils;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.Map;
@@ -55,7 +59,7 @@ public class SearchSourceBuilderProtoUtils {
         AbstractQueryBuilderProtoUtils queryUtils
     ) throws IOException {
         // Parse all non-query fields
-        parseNonQueryFields(searchSourceBuilder, protoRequest);
+        parseNonQueryFields(searchSourceBuilder, protoRequest, queryUtils);
 
         // Handle queries using the instance-based approach
         if (protoRequest.hasQuery()) {
@@ -67,9 +71,21 @@ public class SearchSourceBuilderProtoUtils {
     }
 
     /**
-     * Parses all fields except queries from the protobuf SearchRequestBody.
+     * Parses all non-query fields from the protobuf SearchRequestBody in the same order as REST API.
+     * This excludes the main 'query' and 'postFilter' fields which are handled separately.
+     * This matches the order in {@link SearchSourceBuilder#parseXContent(XContentParser, boolean)}.
+     *
+     * @param searchSourceBuilder The SearchSourceBuilder to populate
+     * @param protoRequest The Protocol Buffer SearchRequestBody to parse
+     * @param queryUtils The query utils instance for parsing queries in aggregations/filters
+     * @throws IOException if there's an error during parsing
      */
-    private static void parseNonQueryFields(SearchSourceBuilder searchSourceBuilder, SearchRequestBody protoRequest) throws IOException {
+    private static void parseNonQueryFields(
+        SearchSourceBuilder searchSourceBuilder,
+        SearchRequestBody protoRequest,
+        AbstractQueryBuilderProtoUtils queryUtils
+    ) throws IOException {
+        QueryBuilderProtoConverterRegistry registry = queryUtils.getRegistry();
         // TODO what to do about parser.getDeprecationHandler() for protos?
 
         if (protoRequest.hasFrom()) {
@@ -148,10 +164,14 @@ public class SearchSourceBuilderProtoUtils {
             }
         }
 
-        // TODO support aggregations
-        /*
-        if(protoRequest.hasAggs()){}
-        */
+        if (protoRequest.getAggregationsCount() > 0) {
+            for (Map.Entry<String, AggregationContainer> entry : protoRequest.getAggregationsMap().entrySet()) {
+                String aggName = entry.getKey();
+                AggregationContainer aggContainer = entry.getValue();
+                AggregationBuilder aggBuilder = AggregationContainerProtoUtils.fromProto(aggName, aggContainer, queryUtils);
+                searchSourceBuilder.aggregation(aggBuilder);
+            }
+        }
 
         if (protoRequest.hasHighlight()) {
             searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight()));
