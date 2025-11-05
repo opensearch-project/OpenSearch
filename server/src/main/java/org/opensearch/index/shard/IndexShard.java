@@ -5806,7 +5806,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void startPeriodicFlushTask() {
         TimeValue interval = indexSettings.getPeriodicFlushInterval();
-        // Only start if interval is valid (> 0) and task is not already running
+        // Only start the async flush task if interval is >0 and task is not already running
         if (interval.millis() > 0 && periodicFlushTask == null) {
             periodicFlushTask = new AsyncShardFlushTask(this, interval);
             logger.info("Started periodic flush task for shard [{}] with interval [{}]", shardId, interval);

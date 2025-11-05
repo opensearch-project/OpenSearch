@@ -383,17 +383,17 @@ public final class IndexSettings {
 
     /**
      * Periodic flush interval setting. By default, periodic flush is disabled (-1).
-     * For pull-based ingestion indices, this defaults to 30 minutes to ensure offsets are regularly committed.
+     * For pull-based ingestion indices, this defaults to 10 minutes to ensure offsets are regularly committed.
      */
     public static final TimeValue DEFAULT_PERIODIC_FLUSH_INTERVAL = TimeValue.MINUS_ONE;
     public static final TimeValue MINIMUM_PERIODIC_FLUSH_INTERVAL = TimeValue.MINUS_ONE;
     public static final Setting<TimeValue> INDEX_PERIODIC_FLUSH_INTERVAL_SETTING = Setting.timeSetting(
         "index.periodic_flush_interval",
         (settings) -> {
-            // Default to 30 minutes for pull-based ingestion indices, disabled otherwise
+            // Default to 10 minutes for pull-based ingestion indices, disabled otherwise
             String ingestionSourceType = IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.get(settings);
             if (ingestionSourceType != null && !IndexMetadata.NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType)) {
-                return TimeValue.timeValueMinutes(30);
+                return TimeValue.timeValueMinutes(10);
             }
             return DEFAULT_PERIODIC_FLUSH_INTERVAL;
         },
@@ -1675,7 +1675,6 @@ public final class IndexSettings {
 
     /**
      * Returns the interval at which a periodic flush should be executed. {@code -1} means periodic flush is disabled.
-     * For pull-based ingestion indices, this defaults to 30 minutes to ensure offsets are regularly committed.
      */
     public TimeValue getPeriodicFlushInterval() {
         return periodicFlushInterval;

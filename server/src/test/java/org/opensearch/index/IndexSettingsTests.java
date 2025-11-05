@@ -1110,7 +1110,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     }
 
     public void testDefaultPeriodicFlushIntervalForPullBasedIngestionIndex() {
-        // Test that ingestion indices have periodic flush enabled (30 minutes) by default
+        // Test that ingestion indices have periodic flush enabled by default
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
@@ -1118,7 +1118,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             .build();
 
         TimeValue defaultValue = IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.get(indexSettings);
-        assertEquals(TimeValue.timeValueMinutes(30), defaultValue);
+        assertEquals(TimeValue.timeValueMinutes(10), defaultValue);
     }
 
     public void testPeriodicFlushIntervalExplicitValue() {
@@ -1143,8 +1143,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
 
-        // Verify default is 30 minutes
-        assertEquals(TimeValue.timeValueMinutes(30), settings.getPeriodicFlushInterval());
+        // Verify default value
+        assertEquals(TimeValue.timeValueMinutes(10), settings.getPeriodicFlushInterval());
 
         // Update to 10 minutes
         settings.updateIndexMetadata(
