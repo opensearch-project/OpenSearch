@@ -34,6 +34,13 @@ afterEvaluate {
     // configure cluster to start in FIPS JVM
     javaRestTest {
       keystorePassword 'notarealpasswordphrase'
+      extraConfigFile 'opensearch-fips-truststore.bcfks',
+          file("${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks")
+      systemProperty 'javax.net.ssl.trustStore', '${OPENSEARCH_PATH_CONF}/opensearch-fips-truststore.bcfks'
+      systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
+      systemProperty 'javax.net.ssl.trustStoreProvider', 'BCFIPS'
+      systemProperty 'javax.net.ssl.trustStorePassword', 'changeit'
+
       configurations.bcFips.resolve().each { jarFile ->
         extraJarFile jarFile
       }

@@ -9,6 +9,7 @@
 package org.opensearch.plugin.kafka;
 
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -89,25 +90,32 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     /**
+     * Create consumer properties with default configurations and apply user provided overrides on top.
+     * @param clientId the client id
+     * @param config the Kafka source config
+     * @return the consumer properties
+     */
+    protected static Properties createConsumerProperties(String clientId, KafkaSourceConfig config) {
+        Properties consumerProp = new Properties();
+        consumerProp.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, config.getBootstrapServers());
+        consumerProp.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
+
+        // apply user provided overrides
+        consumerProp.putAll(config.getConsumerConfigurations());
+
+        logger.info("Kafka consumer properties for topic {}: {}", config.getTopic(), consumerProp);
+        return consumerProp;
+    }
+
+    /**
      * Create a Kafka consumer. visible for testing
      * @param clientId the client id
      * @param config the Kafka source config
      * @return the Kafka consumer
      */
     protected static Consumer<byte[], byte[]> createConsumer(String clientId, KafkaSourceConfig config) {
-        Properties consumerProp = new Properties();
-        consumerProp.put("bootstrap.servers", config.getBootstrapServers());
-        consumerProp.put("client.id", clientId);
+        Properties consumerProp = createConsumerProperties(clientId, config);
 
-        logger.info("Kafka consumer properties for topic {}: {}", config.getTopic(), config.getConsumerConfigurations());
-        consumerProp.putAll(config.getConsumerConfigurations());
-
-        // TODO: why Class org.apache.kafka.common.serialization.StringDeserializer could not be found if set the deserializer as prop?
-        // consumerProp.put("key.deserializer",
-        // "org.apache.kafka.common.serialization.StringDeserializer");
-        // consumerProp.put("value.deserializer",
-        // "org.apache.kafka.common.serialization.StringDeserializer");
-        //
         // wrap the kafka consumer creation in a privileged block to apply plugin security policies
         final ClassLoader restore = Thread.currentThread().getContextClassLoader();
         try {
@@ -124,6 +132,15 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         }
     }
 
+    /**
+     * Read the next batch of messages from Kafka, starting from the provided offset.
+     * @param offset the pointer to start reading from,
+     * @param includeStart whether to include the start pointer in the read
+     * @param maxMessages this setting is not honored for Kafka at this stage. maxMessages is instead set at consumer initialization.
+     * @param timeoutMillis the maximum time to wait for messages
+     * @return the next read result
+     * @throws TimeoutException
+     */
     @Override
     public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(
         KafkaOffset offset,
@@ -132,25 +149,22 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         int timeoutMillis
     ) throws TimeoutException {
         List<ReadResult<KafkaOffset, KafkaMessage>> records = AccessController.doPrivileged(
-            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(
-                offset.getOffset(),
-                includeStart,
-                maxMessages,
-                timeoutMillis
-            )
+            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(offset.getOffset(), includeStart, timeoutMillis)
         );
         return records;
     }
 
+    /**
+     * Read the next batch of messages from Kafka.
+     * @param maxMessages this setting is not honored for Kafka at this stage. maxMessages is instead set at consumer initialization.
+     * @param timeoutMillis the maximum time to wait for messages
+     * @return the next read result
+     * @throws TimeoutException
+     */
     @Override
     public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(long maxMessages, int timeoutMillis) throws TimeoutException {
         List<ReadResult<KafkaOffset, KafkaMessage>> records = AccessController.doPrivileged(
-            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(
-                lastFetchedOffset,
-                false,
-                maxMessages,
-                timeoutMillis
-            )
+            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(lastFetchedOffset, false, timeoutMillis)
         );
         return records;
     }
@@ -209,12 +223,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         return new KafkaOffset(offsetValue);
     }
 
-    private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(
-        long startOffset,
-        boolean includeStart,
-        long maxMessages,
-        int timeoutMillis
-    ) {
+    private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, boolean includeStart, int timeoutMillis) {
         long kafkaStartOffset = startOffset;
         if (!includeStart) {
             kafkaStartOffset += 1;
@@ -229,16 +238,10 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
 
         ConsumerRecords<byte[], byte[]> consumerRecords = consumer.poll(Duration.ofMillis(timeoutMillis));
         List<ConsumerRecord<byte[], byte[]>> messageAndOffsets = consumerRecords.records(topicPartition);
-
-        long endOffset = kafkaStartOffset + maxMessages;
         List<ReadResult<KafkaOffset, KafkaMessage>> results = new ArrayList<>();
 
         for (ConsumerRecord<byte[], byte[]> messageAndOffset : messageAndOffsets) {
             long currentOffset = messageAndOffset.offset();
-            if (currentOffset >= endOffset) {
-                // fetched more message than max
-                break;
-            }
             lastFetchedOffset = currentOffset;
             KafkaOffset kafkaOffset = new KafkaOffset(currentOffset);
             KafkaMessage message = new KafkaMessage(messageAndOffset.key(), messageAndOffset.value(), messageAndOffset.timestamp());
@@ -250,6 +253,35 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     @Override
     public int getShardId() {
         return topicPartition.partition();
+    }
+
+    /**
+     * Compute Kafka offset based lag as the difference between latest available offset and last consumed offset.
+     * Note: This method is not thread-safe and should only be called from the poller thread to avoid multi-threaded
+     * access to KafkaConsumer.
+     *
+     * @param expectedStartPointer the pointer where ingestion would start if no messages have been consumed yet
+     * @return offset based lag. -1 is returned if errors are encountered.
+     */
+    @Override
+    public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
+        try {
+            // Get the end offset for the partition
+            long endOffset = consumer.endOffsets(Collections.singletonList(topicPartition)).getOrDefault(topicPartition, 0L);
+
+            if (lastFetchedOffset < 0) {
+                // Haven't fetched anything yet, use the expected start pointer.
+                // Set lag as 0 in case expectedStartPointer is beyond endOffset.
+                long startOffset = ((KafkaOffset) expectedStartPointer).getOffset();
+                return Math.max(0, endOffset - startOffset);
+            }
+
+            // Calculate lag as difference between latest and last consumed offset
+            return endOffset - lastFetchedOffset - 1;
+        } catch (Exception e) {
+            logger.warn("Failed to calculate pointer based lag for partition {}: {}", topicPartition.partition(), e.getMessage());
+            return -1;
+        }
     }
 
     @Override

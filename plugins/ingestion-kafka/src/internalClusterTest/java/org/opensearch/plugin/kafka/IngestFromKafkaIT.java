@@ -493,14 +493,14 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         refresh(indexName);
         waitForSearchableDocs(40, List.of(nodeA, nodeB));
 
-        // Verify both primary and replica have polled only remaining 20 messages
+        // Verify both primary and replica have indexed remaining messages
         Map<String, PollingIngestStats> shardTypeToStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
         assertNotNull(shardTypeToStats.get("primary"));
         assertNotNull(shardTypeToStats.get("replica"));
-        assertThat(shardTypeToStats.get("primary").getConsumerStats().totalPolledCount(), is(20L));
+        assertThat(shardTypeToStats.get("primary").getConsumerStats().totalPolledCount(), is(21L));
         assertThat(shardTypeToStats.get("primary").getConsumerStats().totalPollerMessageDroppedCount(), is(0L));
         assertThat(shardTypeToStats.get("primary").getConsumerStats().totalPollerMessageFailureCount(), is(0L));
-        assertThat(shardTypeToStats.get("replica").getConsumerStats().totalPolledCount(), is(20L));
+        assertThat(shardTypeToStats.get("replica").getConsumerStats().totalPolledCount(), is(21L));
         assertThat(shardTypeToStats.get("replica").getConsumerStats().totalPollerMessageDroppedCount(), is(0L));
         assertThat(shardTypeToStats.get("replica").getConsumerStats().totalPollerMessageFailureCount(), is(0L));
     }
@@ -557,14 +557,74 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                     );
         });
 
-        // validate there are 8 duplicate messages encountered after reset
+        // validate there are 8 messages polled after reset
         waitForState(() -> {
             Map<String, PollingIngestStats> shardTypeToStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
             assertNotNull(shardTypeToStats.get("primary"));
             assertNotNull(shardTypeToStats.get("replica"));
-            return shardTypeToStats.get("primary").getConsumerStats().totalDuplicateMessageSkippedCount() == 8
-                && shardTypeToStats.get("replica").getConsumerStats().totalDuplicateMessageSkippedCount() == 8;
+            return shardTypeToStats.get("primary").getConsumerStats().totalPolledCount() == 8
+                && shardTypeToStats.get("replica").getConsumerStats().totalPolledCount() == 8;
         });
+    }
+
+    public void testAllActiveOffsetBasedLag() throws Exception {
+        // Create all-active pull-based index
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.pointer_based_lag_update_interval", "3s")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+        // no messages published, expect 0 lag
+        assertTrue(validateOffsetBasedLagForPrimaryAndReplica(0));
+
+        // pause ingestion
+        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
+        assertTrue(pauseResponse.isAcknowledged());
+        assertTrue(pauseResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 2
+                && ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
+        });
+
+        // produce 10 messages in paused state and validate lag
+        for (int i = 0; i < 10; i++) {
+            produceData(Integer.toString(i), "name" + i, "30");
+        }
+        waitForState(() -> validateOffsetBasedLagForPrimaryAndReplica(10));
+
+        // resume ingestion
+        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
+        assertTrue(resumeResponse.isAcknowledged());
+        assertTrue(resumeResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 2
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(
+                        state -> state.isPollerPaused() == false
+                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
+                    );
+        });
+        waitForSearchableDocs(10, List.of(nodeA, nodeB));
+        waitForState(() -> validateOffsetBasedLagForPrimaryAndReplica(0));
     }
 
     // returns PollingIngestStats for single primary and single replica
@@ -582,5 +642,15 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         }
 
         return shardTypeToStats;
+    }
+
+    private boolean validateOffsetBasedLagForPrimaryAndReplica(long expectedLag) {
+        boolean valid = true;
+        Map<String, PollingIngestStats> shardTypeToStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
+        valid &= shardTypeToStats.get("primary") != null
+            && shardTypeToStats.get("primary").getConsumerStats().pointerBasedLag() == expectedLag;
+        valid &= shardTypeToStats.get("replica") != null
+            && shardTypeToStats.get("replica").getConsumerStats().pointerBasedLag() == expectedLag;
+        return valid;
     }
 }

@@ -74,19 +74,24 @@ if [[ -f bin/opensearch-users ]]; then
 fi
 
 if ls "/usr/share/opensearch/lib" | grep -E -q "bc-fips.*\.jar"; then
-  # If BouncyCastle FIPS is detected - enforcing keystore password policy.
 
+  # If BouncyCastle FIPS is detected - configure FIPS trust store in test mode
+  if [[ "$FIPS_GENERATE_TRUSTSTORE" == "true" ]]; then
+    (run_as_other_user_if_needed opensearch-fips-demo-installer --non-interactive)
+  fi
+
+  # If BouncyCastle FIPS is detected - enforce keystore password policy.
   if [[ -z "$KEYSTORE_PASSWORD" ]]; then
     echo "[ERROR] FIPS mode requires a keystore password. KEYSTORE_PASSWORD is not set." >&2
     exit 1
   fi
 
   if [[ ! -f /usr/share/opensearch/config/opensearch.keystore ]]; then
-    # Keystore not found - creating with password.
+    # Keystore not found - create with password.
     COMMANDS="$(printf "%s\n%s" "$KEYSTORE_PASSWORD" "$KEYSTORE_PASSWORD")"
     echo "$COMMANDS" | run_as_other_user_if_needed opensearch-keystore create -p
   else
-    # Keystore already exists - checking encryption.
+    # Keystore already exists - check encryption.
     if ! run_as_other_user_if_needed opensearch-keystore has-passwd --silent; then
       # Keystore is unencrypted - securing it for FIPS mode.
       COMMANDS="$(printf "%s\n%s" "$KEYSTORE_PASSWORD" "$KEYSTORE_PASSWORD")"

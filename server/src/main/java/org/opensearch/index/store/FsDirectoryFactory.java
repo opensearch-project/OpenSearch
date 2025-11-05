@@ -99,8 +99,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 final Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
-                if (primaryDirectory instanceof MMapDirectory) {
-                    MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
+                if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
                     return new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions), nioExtensions);
                 } else {
                     return primaryDirectory;

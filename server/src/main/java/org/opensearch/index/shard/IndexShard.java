@@ -157,11 +157,13 @@ import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -389,6 +391,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MergedSegmentPublisher mergedSegmentPublisher;
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
+    private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
     @InternalApi
     public IndexShard(
@@ -452,6 +455,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.isAssignedOnRemoteNode(),
             () -> getRemoteTranslogUploadBufferInterval(remoteStoreSettings::getClusterRemoteTranslogBufferInterval)
         );
+        this.mergedSegmentTransferTracker = new MergedSegmentTransferTracker();
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats(threadPool);
@@ -1000,8 +1004,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 // Ensures all in-flight remote store refreshes drain, before we perform the performSegRep.
                 for (ReferenceManager.RefreshListener refreshListener : internalRefreshListener) {
-                    if (refreshListener instanceof ReleasableRetryableRefreshListener) {
-                        releasablesOnHandoffFailures.add(((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes());
+                    if (refreshListener instanceof ReleasableRetryableRefreshListener releasableListener) {
+                        releasablesOnHandoffFailures.add(releasableListener.drainRefreshes());
                     }
                 }
 
@@ -1499,13 +1503,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public RefreshStats refreshStats() {
         int listeners = refreshListeners.pendingCount();
-        return new RefreshStats(
-            refreshMetric.count(),
-            TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()),
-            externalRefreshMetric.count(),
-            TimeUnit.NANOSECONDS.toMillis(externalRefreshMetric.sum()),
-            listeners
-        );
+        return new RefreshStats.Builder().total(refreshMetric.count())
+            .totalTimeInMillis(TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()))
+            .externalTotal(externalRefreshMetric.count())
+            .externalTotalTimeInMillis(TimeUnit.NANOSECONDS.toMillis(externalRefreshMetric.sum()))
+            .listeners(listeners)
+            .build();
     }
 
     public FlushStats flushStats() {
@@ -1778,8 +1781,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Optional<NRTReplicationEngine> getReplicationEngine() {
         try {
-            if (getEngine() instanceof NRTReplicationEngine) {
-                return Optional.of((NRTReplicationEngine) getEngine());
+            if (getEngine() instanceof NRTReplicationEngine nrtEngine) {
+                return Optional.of(nrtEngine);
             } else {
                 return Optional.empty();
             }
@@ -2275,6 +2278,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
+    }
+
+    public MergedSegmentTransferTracker mergedSegmentTransferTracker() {
+        return mergedSegmentTransferTracker;
     }
 
     /**
@@ -3400,8 +3407,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void handleRefreshException(Exception e) {
         if (e instanceof AlreadyClosedException) {
             // ignore
-        } else if (e instanceof RefreshFailedEngineException) {
-            RefreshFailedEngineException rfee = (RefreshFailedEngineException) e;
+        } else if (e instanceof RefreshFailedEngineException rfee) {
             if (rfee.getCause() instanceof InterruptedException) {
                 // ignore, we are being shutdown
             } else if (rfee.getCause() instanceof ClosedByInterruptException) {
@@ -4322,7 +4328,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // timeseries
             () -> docMapper(),
             mergedSegmentWarmerFactory.get(this),
-            clusterApplierService
+            clusterApplierService,
+            mergedSegmentTransferTracker
         );
     }
 
@@ -5289,7 +5296,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getThreadPool(),
             indexSettings.getRemoteStorePathStrategy(),
             remoteStoreSettings,
-            indexSettings().isTranslogMetadataEnabled()
+            indexSettings().isTranslogMetadataEnabled(),
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
         );
     }
 
@@ -5312,7 +5320,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             shardId,
             indexSettings.getRemoteStorePathStrategy(),
             indexSettings().isTranslogMetadataEnabled(),
-            0
+            0,
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
         );
     }
 
@@ -5322,6 +5331,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteStorePathStrategy remoteStorePathStrategy,
         boolean isTranslogMetadataEnabled,
         long timestamp
+    ) throws IOException {
+        this.syncTranslogFilesFromGivenRemoteTranslog(
+            repository,
+            shardId,
+            remoteStorePathStrategy,
+            isTranslogMetadataEnabled,
+            timestamp,
+            false
+        );
+    }
+
+    public void syncTranslogFilesFromGivenRemoteTranslog(
+        Repository repository,
+        ShardId shardId,
+        RemoteStorePathStrategy remoteStorePathStrategy,
+        boolean isTranslogMetadataEnabled,
+        long timestamp,
+        boolean isServerSideEncryptionEnabled
     ) throws IOException {
         RemoteFsTranslog.download(
             repository,
@@ -5333,7 +5360,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger,
             shouldSeedRemoteStore(),
             isTranslogMetadataEnabled,
-            timestamp
+            timestamp,
+            isServerSideEncryptionEnabled
         );
     }
 
@@ -5687,11 +5715,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateShardIngestionState(IngestionSettings ingestionSettings) {
         synchronized (engineMutex) {
-            if (getEngineOrNull() instanceof IngestionEngine == false) {
+            if (!(getEngineOrNull() instanceof IngestionEngine ingestionEngine)) {
                 return;
             }
-
-            IngestionEngine ingestionEngine = (IngestionEngine) getEngineOrNull();
             ingestionEngine.updateIngestionSettings(ingestionSettings);
         }
     }
@@ -5702,11 +5728,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Override
     public ShardIngestionState getIngestionState() {
         Engine engine = getEngineOrNull();
-        if (indexSettings.getIndexMetadata().useIngestionSource() == false || engine instanceof IngestionEngine == false) {
+        if (indexSettings.getIndexMetadata().useIngestionSource() == false || !(engine instanceof IngestionEngine ingestionEngine)) {
             throw new OpenSearchException("Unable to retrieve ingestion state as the shard does not have ingestion enabled.");
         }
 
-        IngestionEngine ingestionEngine = (IngestionEngine) engine;
         return ingestionEngine.getIngestionState();
     }
 

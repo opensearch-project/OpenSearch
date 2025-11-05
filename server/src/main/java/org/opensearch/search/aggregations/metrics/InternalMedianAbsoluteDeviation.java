@@ -43,6 +43,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import com.tdunning.math.stats.Centroid;
+
 /**
  * Implementation of median absolute deviation agg
  *
@@ -57,11 +59,14 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         } else {
             final double approximateMedian = valuesSketch.quantile(0.5);
             final TDigestState approximatedDeviationsSketch = new TDigestState(valuesSketch.compression());
-            valuesSketch.centroids().forEach(centroid -> {
+            for (Centroid centroid : valuesSketch.centroids()) {
                 final double deviation = Math.abs(approximateMedian - centroid.mean());
-                approximatedDeviationsSketch.add(deviation, centroid.count());
-            });
-
+                // Weighted add() isn't supported for faster MergingDigest implementation, so add iteratively instead. see
+                // https://github.com/tdunning/t-digest/issues/167
+                for (int i = 0; i < centroid.count(); i++) {
+                    approximatedDeviationsSketch.add(deviation);
+                }
+            }
             return approximatedDeviationsSketch.quantile(0.5);
         }
     }
