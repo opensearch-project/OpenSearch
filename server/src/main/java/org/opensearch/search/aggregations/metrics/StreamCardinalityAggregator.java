@@ -84,17 +84,13 @@ public class StreamCardinalityAggregator extends CardinalityAggregator implement
     @Override
     public void doReset() {
         super.doReset();
-        // Clean up the stream collector for the next batch
+        // Clean up the stream collector for the next batch, but preserve cumulative HLL counts
         if (streamCollector != null) {
             streamCollector.close();
             streamCollector = null;
         }
-        // Close and recreate the HyperLogLog counts for the next batch
-        // HyperLogLog doesn't have a public reset method, so we need to recreate it
-        if (counts != null) {
-            counts.close();
-            counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
-        }
+        // DO NOT close/recreate counts - preserve cumulative cardinality state for final reduction
+        // This keeps the HyperLogLog registers intact across batches so final buildAggregation() is correct
     }
 
     @Override

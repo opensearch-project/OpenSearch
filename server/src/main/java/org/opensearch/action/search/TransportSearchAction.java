@@ -1099,8 +1099,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
         final DiscoveryNodes nodes = clusterState.nodes();
-        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
-            && (searchRequest.source() == null || searchRequest.source().size() > 0);
+        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null);
         final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
         final boolean streamingEnabledEffective = streamingEnabledSetting || FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
         final boolean useStreamingTransportForConnection = isStreamingCandidate
@@ -1243,8 +1242,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequestContext searchRequestContext
     ) {
         // Determine if this request should use streaming transport
-        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
-            && (searchRequest.source() == null || searchRequest.source().size() > 0);
+        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null);
 
         // Check if streaming transport is actually available and enabled (cluster setting OR feature flag)
         final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
@@ -1307,8 +1305,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.setStreamingSearchMode(StreamingSearchMode.SCORED_UNSORTED.toString());
             }
 
-            final boolean isStreamingRequest = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
-                && (searchRequest.source() == null || searchRequest.source().size() > 0);
+            final boolean isStreamingRequest = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null);
 
             final SearchProgressListener progressListener = (isStreamingRequest && useStreamingTransport)
                 ? new StreamingSearchProgressListener(listener, searchPhaseController, searchRequest)
