@@ -350,7 +350,14 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
                     if (doc.deleted) {
                         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
                         booleanQueryBuilder.add(LongPoint.newRangeQuery(longFieldName, doc.metric, doc.metric), BooleanClause.Occur.MUST);
-                        booleanQueryBuilder.add(LongField.newRangeQuery(dateFieldName, dateFieldType.parse(doc.timestamp.toString()), dateFieldType.parse(doc.timestamp.toString())), BooleanClause.Occur.MUST);
+                        booleanQueryBuilder.add(
+                            LongField.newRangeQuery(
+                                dateFieldName,
+                                dateFieldType.parse(doc.timestamp.toString()),
+                                dateFieldType.parse(doc.timestamp.toString())
+                            ),
+                            BooleanClause.Occur.MUST
+                        );
                         indexWriter.deleteDocuments(booleanQueryBuilder.build());
                     }
                 }
