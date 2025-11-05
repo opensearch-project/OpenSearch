@@ -99,32 +99,9 @@ public class BucketCollectorProcessor {
      */
     @ExperimentalApi
     public List<InternalAggregation> buildAggBatch(Collector collectorTree) throws IOException {
-        final List<InternalAggregation> aggregations = new ArrayList<>();
-
-        final Queue<Collector> collectors = new LinkedList<>();
-        collectors.offer(collectorTree);
-        while (!collectors.isEmpty()) {
-            Collector currentCollector = collectors.poll();
-            if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
-                collectors.offer(internalProfileCollector.getCollector());
-            } else if (currentCollector instanceof MinimumScoreCollector minimumScoreCollector) {
-                collectors.offer(minimumScoreCollector.getCollector());
-            } else if (currentCollector instanceof MultiCollector multiCollector) {
-                for (Collector innerCollector : multiCollector.getCollectors()) {
-                    collectors.offer(innerCollector);
-                }
-            } else if (currentCollector instanceof BucketCollector) {
-                // Build one batch without altering collector finalization state
-                if (currentCollector instanceof Aggregator) {
-                    aggregations.add(((Aggregator) currentCollector).buildTopLevelBatch());
-                } else if (currentCollector instanceof MultiBucketCollector) {
-                    for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
-                        collectors.offer(innerCollector);
-                    }
-                }
-            }
-        }
-        return aggregations;
+        // Temporarily disable batch emission to prevent destructive resets
+        // Keep method for existing call sites that guard on non-empty
+        return new ArrayList<>();
     }
 
     /**
@@ -176,7 +153,7 @@ public class BucketCollectorProcessor {
 
             if (currentCollector instanceof Aggregator) {
                 Aggregator agg = (Aggregator) currentCollector;
-
+                // Include all aggregators in final reduction - no more skipping streaming aggregators
                 InternalAggregation ia = agg.getPostCollectionAggregation();
                 if (ia == null) {
                     // Finalize only if needed; idempotent and scoped to this aggregator
