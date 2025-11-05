@@ -38,6 +38,12 @@ dependencies {
   implementation "org.opensearch:protobufs:${versions.opensearchprotobufs}"
   testImplementation project(':test:framework')
 }
+repositories {
+  maven {
+    url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+  }
+  // mavenLocal()
+}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /grpc-.*/, to: 'grpc'

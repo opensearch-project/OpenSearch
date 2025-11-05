@@ -41,3 +41,9 @@ thirdPartyAudit {
     'com.google.common.util.concurrent.ListenableFuture'
   )
 }
+
+repositories {
+  maven {
+    url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+  }
+}
