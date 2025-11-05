@@ -117,6 +117,14 @@ public final class HttpTransportSettings {
         Property.NodeScope
     );
     public static final Setting<Integer> SETTING_HTTP_PUBLISH_PORT = intSetting("http.publish_port", -1, -1, Property.NodeScope);
+
+    public static final Setting<TimeValue> SETTING_HTTP_GRACEFUL_SHUTDOWN = Setting.timeSetting(
+        "http.graceful_shutdown",
+        new TimeValue(0),
+        new TimeValue(0),
+        Property.NodeScope
+    );
+
     public static final Setting<Boolean> SETTING_HTTP_DETAILED_ERRORS_ENABLED = Setting.boolSetting(
         "http.detailed_errors.enabled",
         true,
