@@ -5814,7 +5814,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     // Visible for testing
-    public AsyncShardFlushTask getPeriodicFlushTask() {
+    AsyncShardFlushTask getPeriodicFlushTask() {
         return periodicFlushTask;
     }
 
@@ -5822,8 +5822,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Async shard flush task to call flush at a regular interval.
      * This is particularly useful for pull-based ingestion index without translog to ensure offsets are regularly committed.
      */
-    @ExperimentalApi
-    public final class AsyncShardFlushTask extends AbstractAsyncTask {
+    final class AsyncShardFlushTask extends AbstractAsyncTask {
 
         private final IndexShard indexShard;
         private final Logger logger;
