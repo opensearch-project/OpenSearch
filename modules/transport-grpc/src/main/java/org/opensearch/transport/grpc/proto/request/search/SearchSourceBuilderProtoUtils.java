@@ -65,10 +65,6 @@ public class SearchSourceBuilderProtoUtils {
         if (protoRequest.hasPostFilter()) {
             searchSourceBuilder.postFilter(queryUtils.parseInnerQueryBuilderProto(protoRequest.getPostFilter()));
         }
-
-        if (protoRequest.hasHighlight()) {
-            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), queryUtils.getRegistry()));
-        }
     }
 
     /**
@@ -162,6 +158,9 @@ public class SearchSourceBuilderProtoUtils {
         if(protoRequest.hasAggs()){}
         */
 
+        if (protoRequest.hasHighlight()) {
+            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), registry));
+        }
         if (protoRequest.hasSuggest()) {
             searchSourceBuilder.suggest(SuggestBuilderProtoUtils.fromProto(protoRequest.getSuggest()));
         }
