@@ -56,14 +56,6 @@ public class LuceneStoreDirectory implements FormatStoreDirectory<DataFormat> {
     }
 
     @Override
-    @Deprecated
-    public boolean acceptsFile(String fileName) {
-        // This method is deprecated - format determination should be done through FileMetadata
-        // For backward compatibility, return true for all files since Lucene is the default format
-        return true;
-    }
-
-    @Override
     public Path getDirectoryPath() {
         return directoryPath;
     }
@@ -173,16 +165,6 @@ public class LuceneStoreDirectory implements FormatStoreDirectory<DataFormat> {
     }
 
     @Override
-    public boolean fileExists(String name) throws IOException {
-        try {
-            wrappedDirectory.fileLength(name);
-            return true;
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            return false;
-        }
-    }
-
-    @Override
     public void close() throws IOException {
         wrappedDirectory.close();
     }
@@ -199,105 +181,6 @@ public class LuceneStoreDirectory implements FormatStoreDirectory<DataFormat> {
     public long calculateChecksum(String fileName) throws IOException {
         try (IndexInput indexInput = wrappedDirectory.openInput(fileName, IOContext.READONCE)) {
             return CodecUtil.retrieveChecksum(indexInput);
-        }
-    }
-
-    // Upload-specific methods for remote segment upload
-
-    @Override
-    public InputStream createUploadInputStream(String fileName) throws IOException {
-        if (fileName == null || fileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("File name cannot be null or empty");
-        }
-
-        logger.debug("Creating Lucene upload input stream: file={}, directoryPath={}",
-            fileName, directoryPath.resolve(fileName));
-
-        // Convert Lucene IndexInput to standard InputStream using inline adapter
-        IndexInput indexInput = wrappedDirectory.openInput(fileName, IOContext.DEFAULT);
-
-        logger.trace("Lucene upload input stream created successfully: file={}, indexInputType={}",
-            fileName, indexInput.getClass().getSimpleName());
-
-        return new InputStream() {
-            @Override
-            public int read() throws IOException {
-                if (indexInput.getFilePointer() >= indexInput.length()) {
-                    return -1; // EOF
-                }
-                return indexInput.readByte() & 0xFF;
-            }
-
-            @Override
-            public int read(byte[] b, int off, int len) throws IOException {
-                if (indexInput.getFilePointer() >= indexInput.length()) {
-                    return -1; // EOF
-                }
-
-                long remaining = indexInput.length() - indexInput.getFilePointer();
-                int toRead = (int) Math.min(len, remaining);
-
-                indexInput.readBytes(b, off, toRead);
-                return toRead;
-            }
-
-            @Override
-            public long skip(long n) throws IOException {
-                long remaining = indexInput.length() - indexInput.getFilePointer();
-                long toSkip = Math.min(n, remaining);
-
-                if (toSkip > 0) {
-                    indexInput.seek(indexInput.getFilePointer() + toSkip);
-                }
-
-                return toSkip;
-            }
-
-            @Override
-            public void close() throws IOException {
-                indexInput.close();
-            }
-        };
-    }
-
-    @Override
-    public InputStream createUploadRangeInputStream(String fileName, long offset, long length) throws IOException {
-        if (fileName == null || fileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("File name cannot be null or empty");
-        }
-        if (offset < 0) {
-            throw new IllegalArgumentException("Offset cannot be negative: " + offset);
-        }
-        if (length <= 0) {
-            throw new IllegalArgumentException("Length must be positive: " + length);
-        }
-
-        // Create range-based stream from Lucene IndexInput using existing OffsetRangeIndexInputStream
-        IndexInput indexInput = wrappedDirectory.openInput(fileName, IOContext.DEFAULT);
-
-        // Validate that the range is within file bounds
-        long fileLength = indexInput.length();
-        if (offset >= fileLength) {
-            indexInput.close();
-            throw new IllegalArgumentException("Offset " + offset + " is beyond file length " + fileLength);
-        }
-        if (offset + length > fileLength) {
-            indexInput.close();
-            throw new IllegalArgumentException("Range [" + offset + ", " + (offset + length) +
-                ") exceeds file length " + fileLength);
-        }
-
-        try {
-            return new org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream(
-                indexInput, length, offset);
-        } catch (IOException e) {
-            // Clean up IndexInput if OffsetRangeIndexInputStream creation fails
-            try {
-                indexInput.close();
-            } catch (IOException closeException) {
-                e.addSuppressed(closeException);
-            }
-            throw e;
         }
     }
 
@@ -328,27 +211,7 @@ public class LuceneStoreDirectory implements FormatStoreDirectory<DataFormat> {
     }
 
     @Override
-    public void onUploadComplete(String fileName, String remoteFileName) throws IOException {
-        if (fileName == null || fileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("File name cannot be null or empty");
-        }
-        if (remoteFileName == null || remoteFileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Remote file name cannot be null or empty");
-        }
-
-        logger.debug("Lucene upload completed: localFile={}, remoteFile={}, format={}, directoryPath={}",
-            fileName, remoteFileName, fileName, directoryPath.resolve(fileName));
-
-        // Future enhancements could include:
-        // - Updating local metadata about uploaded files
-        // - Triggering Lucene-specific cleanup operations
-        // - Notifying Lucene-specific monitoring systems
-        // - Validating Lucene file integrity post-upload
-    }
-
-    @Override
     public IndexInput openIndexInput(String name, IOContext context) throws IOException {
         return wrappedDirectory.openInput(name, context);
     }
-
 }
