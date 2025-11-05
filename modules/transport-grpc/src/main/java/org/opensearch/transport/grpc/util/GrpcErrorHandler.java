@@ -95,19 +95,16 @@ public class GrpcErrorHandler {
             return Status.DEADLINE_EXCEEDED.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof InterruptedException) {
-            return Status.CANCELLED.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
+            return Status.CANCELLED.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace)).asRuntimeException();
         } else if (e instanceof IOException) {
-            return Status.INTERNAL.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
+            return Status.INTERNAL.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace)).asRuntimeException();
         }
 
         // ========== 5. Unknown/Unmapped Exceptions ==========
         // Safety fallback for any unexpected exception to {@code Status.INTERNAL} with full debugging info
         else {
             logger.warn("Unmapped exception type: {}, treating as INTERNAL error", e.getClass().getSimpleName());
-            return Status.INTERNAL.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
+            return Status.INTERNAL.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace)).asRuntimeException();
         }
     }
 
