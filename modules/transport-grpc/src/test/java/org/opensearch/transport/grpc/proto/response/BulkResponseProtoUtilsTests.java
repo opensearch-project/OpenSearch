@@ -17,11 +17,12 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.grpc.proto.response.document.bulk.BulkResponseProtoUtils;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 
 import io.grpc.Status;
+
+import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 
 public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
 
@@ -38,7 +39,7 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkResponse bulkResponse = new BulkResponse(responses, 100);
 
         // Convert to Protocol Buffer
-        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the conversion
         assertEquals("Should have the correct took time", 100, protoResponse.getTook());
@@ -66,7 +67,7 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkResponse bulkResponse = new BulkResponse(responses, 100);
 
         // Convert to Protocol Buffer
-        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the conversion
         assertEquals("Should have the correct took time", 100, protoResponse.getTook());
@@ -95,7 +96,7 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkResponse bulkResponse = new BulkResponse(responses, 100, 50);
 
         // Convert to Protocol Buffer
-        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the conversion
         assertEquals("Should have the correct took time", 100, protoResponse.getTook());

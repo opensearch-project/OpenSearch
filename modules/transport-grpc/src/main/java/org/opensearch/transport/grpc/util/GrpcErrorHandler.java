@@ -21,7 +21,7 @@ import org.opensearch.core.compress.NotXContentException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
+import org.opensearch.protobufs.GlobalParams;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
@@ -48,63 +48,66 @@ public class GrpcErrorHandler {
      * @param params
      * @return StatusRuntimeException with appropriate gRPC status and enhanced error details
      */
-    public static StatusRuntimeException convertToGrpcError(Exception e, ResponseHandlingParams params) {
-        ResponseHandlingParams.TracingLevel errorTracingLevel = params.getErrorTracingLevel();
+    public static StatusRuntimeException convertToGrpcError(Exception e, GlobalParams params) {
+        boolean shouldIncludeDetailedStackTrace = GrpcParamsHandler.isDetailedStackTraceRequested(params);
         // ========== OpenSearch Business Logic Exceptions ==========
         // Custom OpenSearch exceptions which extend {@link OpenSearchException}.
         // Uses {@link RestToGrpcStatusConverter} for REST -> gRPC status mapping and
         // follows {@link OpenSearchException#generateFailureXContent} unwrapping logic
         if (e instanceof OpenSearchException) {
-            return handleOpenSearchException((OpenSearchException) e, errorTracingLevel);
+            return handleOpenSearchException((OpenSearchException) e, shouldIncludeDetailedStackTrace);
         }
         // ========== OpenSearch Core System Exceptions ==========
         // Low-level OpenSearch exceptions that don't extend OpenSearchException - include full details
         else if (e instanceof OpenSearchRejectedExecutionException) {
-            return Status.RESOURCE_EXHAUSTED.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel))
+            return Status.RESOURCE_EXHAUSTED.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof NotXContentException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel))
+            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof NotCompressedException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel))
+            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         }
 
         // ========== 3. Third-party Library Exceptions ==========
         // External library exceptions (Jackson JSON parsing) - include full details
         else if (e instanceof InputCoercionException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel))
+            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof JsonParseException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel))
+            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         }
 
         // ========== 4. Standard Java Exceptions ==========
         // Generic Java runtime exceptions - include full exception details for debugging
         else if (e instanceof IllegalArgumentException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel))
+            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof IllegalStateException) {
-            return Status.FAILED_PRECONDITION.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel))
+            return Status.FAILED_PRECONDITION.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof SecurityException) {
-            return Status.PERMISSION_DENIED.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel))
+            return Status.PERMISSION_DENIED.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof TimeoutException) {
-            return Status.DEADLINE_EXCEEDED.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel))
+            return Status.DEADLINE_EXCEEDED.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof InterruptedException) {
-            return Status.CANCELLED.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel)).asRuntimeException();
+            return Status.CANCELLED.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+                .asRuntimeException();
         } else if (e instanceof IOException) {
-            return Status.INTERNAL.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel)).asRuntimeException();
+            return Status.INTERNAL.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+                .asRuntimeException();
         }
 
         // ========== 5. Unknown/Unmapped Exceptions ==========
         // Safety fallback for any unexpected exception to {@code Status.INTERNAL} with full debugging info
         else {
             logger.warn("Unmapped exception type: {}, treating as INTERNAL error", e.getClass().getSimpleName());
-            return Status.INTERNAL.withDescription(getErrorDescriptionRespectingTracingLevel(e, errorTracingLevel)).asRuntimeException();
+            return Status.INTERNAL.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+                .asRuntimeException();
         }
     }
 
@@ -117,7 +120,7 @@ public class GrpcErrorHandler {
      * @param ose The OpenSearchException to convert
      * @return StatusRuntimeException with mapped gRPC status and HTTP-identical error message
      */
-    private static StatusRuntimeException handleOpenSearchException(OpenSearchException ose, ResponseHandlingParams.TracingLevel params) {
+    private static StatusRuntimeException handleOpenSearchException(OpenSearchException ose, boolean shouldIncludeDetailedStackTrace) {
         Status grpcStatus = RestToGrpcStatusConverter.convertRestToGrpcStatus(ose.status());
 
         // Use existing HTTP logic but enhance description with metadata from XContent
@@ -125,7 +128,7 @@ public class GrpcErrorHandler {
         String baseDescription = ExceptionsHelper.summaryMessage(unwrapped);
 
         // Extract metadata using the same XContent infrastructure as HTTP
-        String enhancedDescription = enhanceDescriptionWithXContentMetadata(unwrapped, baseDescription, params);
+        String enhancedDescription = enhanceDescriptionWithXContentMetadata(unwrapped, baseDescription, shouldIncludeDetailedStackTrace);
 
         return grpcStatus.withDescription(enhancedDescription).asRuntimeException();
     }
@@ -143,7 +146,7 @@ public class GrpcErrorHandler {
     private static String enhanceDescriptionWithXContentMetadata(
         Throwable exception,
         String baseDescription,
-        ResponseHandlingParams.TracingLevel tracingLevel
+        boolean shouldIncludeDetailedStackTrace
     ) {
         try {
             // Use the exact same method as HTTP error responses
@@ -153,12 +156,11 @@ public class GrpcErrorHandler {
 
                 // Use the same method as HTTP REST responses (BytesRestResponse.build)
                 // This includes root_cause analysis, just like HTTP
-                boolean shouldExposeDetailedStackTrace = tracingLevel == ResponseHandlingParams.TracingLevel.DETAILED_TRACE;
                 OpenSearchException.generateFailureXContent(
                     builder,
                     ToXContent.EMPTY_PARAMS,
                     (Exception) exception,
-                    shouldExposeDetailedStackTrace
+                    shouldIncludeDetailedStackTrace
                 );
 
                 // Add status field like HTTP does
@@ -184,11 +186,8 @@ public class GrpcErrorHandler {
         }
     }
 
-    private static String getErrorDescriptionRespectingTracingLevel(Throwable exception, ResponseHandlingParams.TracingLevel tracingLevel) {
-        if (tracingLevel == ResponseHandlingParams.TracingLevel.DETAILED_TRACE) {
-            return ExceptionsHelper.stackTrace(exception);
-        }
-        return exception.getMessage();
+    private static String getErrorDescriptionRespectingTracingLevel(Throwable exception, boolean shouldIncludeDetailedStackTrace) {
+        return shouldIncludeDetailedStackTrace ? ExceptionsHelper.stackTrace(exception) : exception.getMessage();
     }
 
 }

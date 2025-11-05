@@ -13,8 +13,8 @@ import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ShardFailure;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
      * @param exception The DefaultShardOperationFailedException to convert
      * @return A Protocol Buffer Struct containing the exception metadata
      */
-    public static ShardFailure toProto(DefaultShardOperationFailedException exception, ResponseHandlingParams params) throws IOException {
+    public static ShardFailure toProto(DefaultShardOperationFailedException exception, GlobalParams params) throws IOException {
         ShardFailure.Builder shardFailureBuilder = ShardFailure.newBuilder();
 
         if (exception instanceof AddIndexBlockResponse.AddBlockShardResult.Failure) {
@@ -62,7 +62,7 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
     public static void innerToProto(
         ShardFailure.Builder shardFailureBuilder,
         AddIndexBlockResponse.AddBlockShardResult.Failure exception,
-        ResponseHandlingParams params
+        GlobalParams params
     ) throws IOException {
         if (exception.getNodeId() != null) {
             shardFailureBuilder.setNode(exception.getNodeId());
@@ -81,7 +81,7 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
     public static void innerToProto(
         ShardFailure.Builder shardFailureBuilder,
         IndicesShardStoresResponse.Failure exception,
-        ResponseHandlingParams params
+        GlobalParams params
     ) throws IOException {
         shardFailureBuilder.setNode(exception.nodeId());
         parentInnerToProto(shardFailureBuilder, exception, params);
@@ -98,7 +98,7 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
     public static void innerToProto(
         ShardFailure.Builder shardFailureBuilder,
         CloseIndexResponse.ShardResult.Failure exception,
-        ResponseHandlingParams params
+        GlobalParams params
     ) throws IOException {
         if (exception.getNodeId() != null) {
             shardFailureBuilder.setNode(exception.getNodeId());
@@ -117,7 +117,7 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
     public static void parentInnerToProto(
         ShardFailure.Builder shardFailureBuilder,
         DefaultShardOperationFailedException exception,
-        ResponseHandlingParams params
+        GlobalParams params
     ) throws IOException {
         shardFailureBuilder.setShard(exception.shardId());
         if (exception.index() != null) {

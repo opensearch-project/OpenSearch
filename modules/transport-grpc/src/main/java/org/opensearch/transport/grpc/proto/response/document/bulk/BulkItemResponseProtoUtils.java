@@ -14,12 +14,12 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.protobufs.ErrorCause;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.Id;
 import org.opensearch.protobufs.NullValue;
 import org.opensearch.protobufs.ResponseItem;
 import org.opensearch.transport.grpc.proto.response.document.common.DocWriteResponseProtoUtils;
 import org.opensearch.transport.grpc.proto.response.document.get.GetResultProtoUtils;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
 import org.opensearch.transport.grpc.util.RestToGrpcStatusConverter;
 
@@ -46,7 +46,7 @@ public class BulkItemResponseProtoUtils {
      * @throws IOException if there's an error during conversion
      *
      */
-    public static ResponseItem toProto(BulkItemResponse response, ResponseHandlingParams params) throws IOException {
+    public static ResponseItem toProto(BulkItemResponse response, GlobalParams params) throws IOException {
         ResponseItem.Builder responseItemBuilder;
 
         if (response.isFailed() == false) {

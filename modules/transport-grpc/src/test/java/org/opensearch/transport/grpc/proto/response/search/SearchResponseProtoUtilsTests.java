@@ -16,12 +16,12 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.protobufs.PhaseTook;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -42,7 +42,7 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
         when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
 
         // Call the method under test
-        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
@@ -70,7 +70,7 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
         when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
 
         // Call the method under test
-        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
@@ -93,7 +93,7 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
         when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
 
         // Call the method under test
-        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
@@ -127,7 +127,7 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
         when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
 
         // Call the method under test
-        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
@@ -156,7 +156,7 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
         when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
 
         // Call the method under test
-        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
@@ -179,7 +179,7 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
         when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
 
         // Call the method under test
-        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
@@ -201,7 +201,7 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
         when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
 
         // Call the method under test
-        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.SearchResponse protoResponse = SearchResponseProtoUtils.toProto(mockResponse, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);

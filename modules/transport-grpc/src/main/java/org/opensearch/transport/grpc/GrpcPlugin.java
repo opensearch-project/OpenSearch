@@ -42,6 +42,7 @@ import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInte
 import org.opensearch.transport.grpc.spi.GrpcServiceFactory;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
+import org.opensearch.transport.grpc.util.GrpcParamsHandler;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
@@ -212,12 +213,9 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         }
 
         return Collections.singletonMap(GRPC_TRANSPORT_SETTING_KEY, () -> {
-            boolean detailedErrorsEnabled = SETTING_GRPC_DETAILED_ERRORS_ENABLED.get(settings);
+            GrpcParamsHandler.initialize(settings);
             List<BindableService> grpcServices = new ArrayList<>(
-                List.of(
-                    new DocumentServiceImpl(client, detailedErrorsEnabled),
-                    new SearchServiceImpl(client, queryUtils, detailedErrorsEnabled)
-                )
+                List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
                 List<BindableService> pluginServices = serviceFac.initClient(client)
@@ -268,12 +266,9 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         }
 
         return Collections.singletonMap(GRPC_SECURE_TRANSPORT_SETTING_KEY, () -> {
-            boolean detailedErrorsEnabled = SETTING_GRPC_DETAILED_ERRORS_ENABLED.get(settings);
+            GrpcParamsHandler.initialize(settings);
             List<BindableService> grpcServices = new ArrayList<>(
-                List.of(
-                    new DocumentServiceImpl(client, detailedErrorsEnabled),
-                    new SearchServiceImpl(client, queryUtils, detailedErrorsEnabled)
-                )
+                List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
                 List<BindableService> pluginServices = serviceFac.initClient(client)

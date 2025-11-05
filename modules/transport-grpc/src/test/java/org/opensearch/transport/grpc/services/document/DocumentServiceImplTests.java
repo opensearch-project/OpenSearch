@@ -9,12 +9,16 @@
 package org.opensearch.transport.grpc.services.document;
 
 import com.google.protobuf.ByteString;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
 import org.opensearch.protobufs.IndexOperation;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
 import org.opensearch.transport.grpc.services.DocumentServiceImpl;
+import org.opensearch.transport.grpc.util.GrpcParamsHandler;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -41,7 +45,13 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
-        service = new DocumentServiceImpl(client, true);
+        service = new DocumentServiceImpl(client);
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(true));
+    }
+
+    @After
+    public void resetStackTraceSettings() {
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(true));
     }
 
     public void testBulkSuccess() {
@@ -72,10 +82,14 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
     public void testErrorTracingConfigValidationFailsWhenServerSettingIsDisabledAndRequestRequiresTracing() {
         // Setup request and the service, server setting is off and request requires tracing
         BulkRequest request = createTestBulkRequest();
-        DocumentServiceImpl serviceWithDisabledErrorsTracing = new DocumentServiceImpl(client, false);
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
+        DocumentServiceImpl serviceThatFailsToProvideErrorInfo = new DocumentServiceImpl(client);
 
         // Call bulk method
-        expectThrows(IllegalArgumentException.class, () -> serviceWithDisabledErrorsTracing.bulk(request, responseObserver));
+        serviceThatFailsToProvideErrorInfo.bulk(request, responseObserver);
+
+        // Verify that an error was sent
+        verify(responseObserver).onError(any(StatusRuntimeException.class));
     }
 
     public void testErrorTracingConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsTracing() {
@@ -83,10 +97,11 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
         BulkRequest request = createTestBulkRequest().toBuilder()
             .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(false))
             .build();
-        DocumentServiceImpl serviceWithDisabledErrorsTracing = new DocumentServiceImpl(client, false);
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
+        DocumentServiceImpl serviceThatFailsToProvideErrorInfo = new DocumentServiceImpl(client);
 
         // Call bulk method
-        serviceWithDisabledErrorsTracing.bulk(request, responseObserver);
+        serviceThatFailsToProvideErrorInfo.bulk(request, responseObserver);
 
         // Verify that client.bulk was called
         verify(client).bulk(any(org.opensearch.action.bulk.BulkRequest.class), any());
@@ -101,8 +116,12 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
             .build();
 
         return BulkRequest.newBuilder()
-                          .addBulkRequestBody(requestBody)
-                          .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true))
-                          .build();
+            .addBulkRequestBody(requestBody)
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true))
+            .build();
+    }
+
+    private Settings settingsWithGivenStackTraceConfig(boolean stackTracesEnabled) {
+        return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_DETAILED_ERRORS_ENABLED.getKey(), stackTracesEnabled).build();
     }
 }

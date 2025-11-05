@@ -8,12 +8,16 @@
 
 package org.opensearch.transport.grpc.services;
 
+import org.opensearch.common.settings.Settings;
 import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
+import org.opensearch.transport.grpc.util.GrpcParamsHandler;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -42,22 +46,25 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
         queryUtils = QueryBuilderProtoTestUtils.createQueryUtils();
-        service = new SearchServiceImpl(client, queryUtils, true);
+        service = new SearchServiceImpl(client, queryUtils);
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(true));
+    }
+
+    @After
+    public void resetStackTraceSettings() {
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(true));
     }
 
     public void testConstructorWithNullClient() {
         // Test that constructor throws IllegalArgumentException when client is null
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SearchServiceImpl(null, queryUtils, true)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(null, queryUtils));
 
         assertEquals("Client cannot be null", exception.getMessage());
     }
 
     public void testConstructorWithNullQueryUtils() {
         // Test that constructor throws IllegalArgumentException when queryUtils is null
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(client, null, true));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(client, null));
 
         assertEquals("Query utils cannot be null", exception.getMessage());
     }
@@ -65,7 +72,7 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
     public void testConstructorWithBothNull() {
         // Test that constructor throws IllegalArgumentException when both parameters are null
         // Should fail on the first null check (client)
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(null, null, true));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(null, null));
 
         assertEquals("Client cannot be null", exception.getMessage());
     }
@@ -98,10 +105,14 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
     public void testErrorTracingConfigValidationFailsWhenServerSettingIsDisabledAndRequestRequiresTracing() {
         // Setup request and the service, server setting is off and request requires tracing
         SearchRequest request = createTestSearchRequest();
-        SearchServiceImpl serviceWithDisabledErrorsTracing = new SearchServiceImpl(client, queryUtils, false);
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
+        SearchServiceImpl serviceThatFailsToProvideErrorInfo = new SearchServiceImpl(client, queryUtils);
 
         // Call search method
-        expectThrows(IllegalArgumentException.class, () -> serviceWithDisabledErrorsTracing.search(request, responseObserver));
+        serviceThatFailsToProvideErrorInfo.search(request, responseObserver);
+
+        // Verify that responseObserver.onError reports request parameter must be disabled
+        verify(responseObserver).onError(any(StatusRuntimeException.class));
     }
 
     public void testErrorTracingConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsTracing() {
@@ -109,10 +120,11 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         SearchRequest request = createTestSearchRequest().toBuilder()
             .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(false))
             .build();
-        SearchServiceImpl serviceWithDisabledErrorsTracing = new SearchServiceImpl(client, queryUtils, false);
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
+        SearchServiceImpl serviceThatFailsToProvideErrorInfo = new SearchServiceImpl(client, queryUtils);
 
         // Call search method
-        serviceWithDisabledErrorsTracing.search(request, responseObserver);
+        serviceThatFailsToProvideErrorInfo.search(request, responseObserver);
 
         // Verify that client.search was called
         verify(client).search(any(org.opensearch.action.search.SearchRequest.class), any());
@@ -124,5 +136,9 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
             .setSearchRequestBody(SearchRequestBody.newBuilder().setSize(10).build())
             .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true).build())
             .build();
+    }
+
+    private Settings settingsWithGivenStackTraceConfig(boolean stackTracesEnabled) {
+        return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_DETAILED_ERRORS_ENABLED.getKey(), stackTracesEnabled).build();
     }
 }

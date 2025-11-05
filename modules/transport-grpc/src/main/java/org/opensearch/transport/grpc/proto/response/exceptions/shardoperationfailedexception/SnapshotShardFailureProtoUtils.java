@@ -9,9 +9,9 @@ package org.opensearch.transport.grpc.proto.response.exceptions.shardoperationfa
 
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ShardFailure;
 import org.opensearch.snapshots.SnapshotShardFailure;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ public class SnapshotShardFailureProtoUtils {
      * @param exception The SnapshotShardFailure to convert
      * @return A Protocol Buffer Struct containing the exception metadata
      */
-    public static ShardFailure toProto(SnapshotShardFailure exception, ResponseHandlingParams params) throws IOException {
+    public static ShardFailure toProto(SnapshotShardFailure exception, GlobalParams params) throws IOException {
         ShardFailure.Builder shardFailure = ShardFailure.newBuilder();
         if (exception.index() != null) {
             shardFailure.setIndex(exception.index());

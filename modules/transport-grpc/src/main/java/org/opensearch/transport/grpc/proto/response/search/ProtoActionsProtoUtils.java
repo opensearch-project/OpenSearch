@@ -11,9 +11,9 @@ package org.opensearch.transport.grpc.proto.response.search;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.SearchResponse;
 import org.opensearch.rest.action.RestActions;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 
@@ -46,7 +46,7 @@ public class ProtoActionsProtoUtils {
         int skipped,
         int failed,
         ShardOperationFailedException[] shardFailures,
-        ResponseHandlingParams params
+        GlobalParams params
     ) throws IOException {
         searchResponseProtoBuilder.setXShards(
             ShardStatisticsProtoUtils.getShardStats(total, successful, skipped, failed, shardFailures, params)

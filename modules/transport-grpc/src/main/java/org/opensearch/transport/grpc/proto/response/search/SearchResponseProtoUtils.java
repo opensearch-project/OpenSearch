@@ -12,7 +12,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ClusterStatistics;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
+import org.opensearch.protobufs.GlobalParams;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,8 +36,7 @@ public class SearchResponseProtoUtils {
      * @return A Protocol Buffer SearchResponse representation
      * @throws IOException if there's an error during conversion
      */
-    public static org.opensearch.protobufs.SearchResponse toProto(SearchResponse response, ResponseHandlingParams params)
-        throws IOException {
+    public static org.opensearch.protobufs.SearchResponse toProto(SearchResponse response, GlobalParams params) throws IOException {
         org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder = org.opensearch.protobufs.SearchResponse.newBuilder();
         toProto(response, searchResponseProtoBuilder, params);
         return searchResponseProtoBuilder.build();
@@ -55,7 +54,7 @@ public class SearchResponseProtoUtils {
     public static void toProto(
         SearchResponse response,
         org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder,
-        ResponseHandlingParams params
+        GlobalParams params
     ) throws IOException {
 
         // Set optional fields only if they exist

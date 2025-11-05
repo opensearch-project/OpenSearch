@@ -21,7 +21,6 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -30,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 
 import io.grpc.Status;
+
+import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 
 public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
 
@@ -48,7 +49,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, indexResponse);
 
         // Convert to protobuf ResponseItem
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            FULL_STACK_TRACE_REQUESTED
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -73,7 +77,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.CREATE, indexResponse);
 
         // Convert to protobuf ResponseItem
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            FULL_STACK_TRACE_REQUESTED
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -98,7 +105,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.DELETE, deleteResponse);
 
         // Convert to protobuf ResponseItem
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            FULL_STACK_TRACE_REQUESTED
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -123,7 +133,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE, updateResponse);
 
         // Convert to protobuf Item
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            FULL_STACK_TRACE_REQUESTED
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -166,7 +179,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE, updateResponse);
 
         // Convert to protobuf Item
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            FULL_STACK_TRACE_REQUESTED
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -196,7 +212,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, failure);
 
         // Convert to protobuf Item
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse, new ResponseHandlingParams());
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            FULL_STACK_TRACE_REQUESTED
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -211,6 +230,6 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithNullResponse() throws IOException {
         // Call toProto with null, should throw NullPointerException
-        expectThrows(NullPointerException.class, () -> BulkItemResponseProtoUtils.toProto(null, new ResponseHandlingParams()));
+        expectThrows(NullPointerException.class, () -> BulkItemResponseProtoUtils.toProto(null, FULL_STACK_TRACE_REQUESTED));
     }
 }

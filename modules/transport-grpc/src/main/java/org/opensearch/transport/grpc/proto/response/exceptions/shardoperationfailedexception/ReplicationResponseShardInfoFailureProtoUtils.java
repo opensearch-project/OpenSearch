@@ -10,8 +10,8 @@ package org.opensearch.transport.grpc.proto.response.exceptions.shardoperationfa
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ShardFailure;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ public class ReplicationResponseShardInfoFailureProtoUtils {
      * @param exception The ReplicationResponse.ShardInfo.Failure to convert metadata from
      * @return A map containing the exception's metadata as ObjectMap.Value objects
      */
-    public static ShardFailure toProto(ReplicationResponse.ShardInfo.Failure exception, ResponseHandlingParams params) throws IOException {
+    public static ShardFailure toProto(ReplicationResponse.ShardInfo.Failure exception, GlobalParams params) throws IOException {
         ShardFailure.Builder shardFailure = ShardFailure.newBuilder();
         if (exception.index() != null) {
             shardFailure.setIndex(exception.index());

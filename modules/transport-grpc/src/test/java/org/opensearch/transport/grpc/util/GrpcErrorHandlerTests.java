@@ -18,7 +18,6 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
@@ -33,7 +32,7 @@ import io.grpc.StatusRuntimeException;
  */
 public class GrpcErrorHandlerTests extends OpenSearchTestCase {
 
-    private final ResponseHandlingParams detailedErrorsInResponse = new ResponseHandlingParams(true, GlobalParams.newBuilder().setErrorTrace(true).build());
+    private final GlobalParams detailedErrorsInResponse = GlobalParams.newBuilder().setErrorTrace(true).build();
 
     public void testOpenSearchExceptionConversion() {
         OpenSearchException exception = new OpenSearchException("Test exception") {

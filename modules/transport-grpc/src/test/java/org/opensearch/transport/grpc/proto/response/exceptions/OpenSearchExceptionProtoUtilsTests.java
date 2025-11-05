@@ -17,14 +17,12 @@ import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.protobufs.ErrorCause;
-import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.StringOrStringArray;
 import org.opensearch.script.ScriptException;
 import org.opensearch.search.SearchParseException;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
 
 import java.io.IOException;
@@ -33,21 +31,20 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.transport.grpc.proto.response.TestFixtures.ERROR_SUMMARY_REQUESTED;
+import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
     private static final String TEST_NODE_ID = "test_node_id";
 
-    private final ResponseHandlingParams detailedErrorsEnabled = new ResponseHandlingParams(true, GlobalParams.newBuilder().setErrorTrace(true).build());
-    private final ResponseHandlingParams errorsSummaryEnabled = new ResponseHandlingParams();
-
     public void testToProtoWithOpenSearchException() throws IOException {
         // Create an OpenSearchException
         OpenSearchException exception = new OpenSearchException("Test exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, detailedErrorsEnabled);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -63,7 +60,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         OpenSearchException exception = new OpenSearchException("Test exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, errorsSummaryEnabled);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, ERROR_SUMMARY_REQUESTED);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -78,7 +75,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         OpenSearchException exception = new OpenSearchException("Test exception", cause);
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, detailedErrorsEnabled);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -101,7 +98,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         OpenSearchException exception = new OpenSearchException("Test exception", cause);
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, errorsSummaryEnabled);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, ERROR_SUMMARY_REQUESTED);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -123,7 +120,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         OpenSearchException exception = new OpenSearchException("Test exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, new ResponseHandlingParams());
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -136,7 +133,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         IOException exception = new IOException("Test IO exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, new ResponseHandlingParams());
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -149,7 +146,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         RuntimeException exception = new RuntimeException("Test runtime exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, new ResponseHandlingParams());
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -162,7 +159,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         RuntimeException exception = new RuntimeException((String) null);
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, new ResponseHandlingParams());
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -176,7 +173,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         exception.addSuppressed(new IllegalArgumentException("Suppressed exception"));
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, errorsSummaryEnabled);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, ERROR_SUMMARY_REQUESTED);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -196,7 +193,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         RuntimeException exception = new RuntimeException("Test exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, detailedErrorsEnabled);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -210,7 +207,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         RuntimeException exception = new RuntimeException("Test exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, errorsSummaryEnabled);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, ERROR_SUMMARY_REQUESTED);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots

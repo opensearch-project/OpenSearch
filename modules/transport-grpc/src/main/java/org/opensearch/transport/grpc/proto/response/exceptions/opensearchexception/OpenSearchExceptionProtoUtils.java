@@ -17,6 +17,7 @@ import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ErrorCause;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.StringArray;
 import org.opensearch.protobufs.StringOrStringArray;
@@ -26,12 +27,12 @@ import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.transport.grpc.proto.response.exceptions.CircuitBreakingExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.FailedNodeExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.ParsingExceptionProtoUtils;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.proto.response.exceptions.ResponseLimitBreachedExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.ScriptExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.SearchParseExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.SearchPhaseExecutionExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.TooManyBucketsExceptionProtoUtils;
+import org.opensearch.transport.grpc.util.GrpcParamsHandler;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -60,7 +61,7 @@ public class OpenSearchExceptionProtoUtils {
      * @return A Protocol Buffer ErrorCause representation
      * @throws IOException if there's an error during conversion
      */
-    public static ErrorCause toProto(OpenSearchException exception, ResponseHandlingParams params) throws IOException {
+    public static ErrorCause toProto(OpenSearchException exception, GlobalParams params) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(exception);
         if (ex != exception) {
             return generateThrowableProto(ex, params);
@@ -88,7 +89,7 @@ public class OpenSearchExceptionProtoUtils {
      * @return A Protocol Buffer ErrorCause representation
      * @throws IOException if there's an error during conversion
      */
-    public static ErrorCause generateThrowableProto(Throwable t, ResponseHandlingParams params) throws IOException {
+    public static ErrorCause generateThrowableProto(Throwable t, GlobalParams params) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
         if (t instanceof OpenSearchException) {
@@ -118,7 +119,7 @@ public class OpenSearchExceptionProtoUtils {
         Map<String, List<String>> headers,
         Map<String, List<String>> metadata,
         Throwable cause,
-        ResponseHandlingParams params
+        GlobalParams params
     ) throws IOException {
         ErrorCause.Builder errorCauseBuilder = ErrorCause.newBuilder();
 
@@ -160,7 +161,7 @@ public class OpenSearchExceptionProtoUtils {
         }
 
         // Add stack trace
-        if (params.getErrorTracingLevel() == ResponseHandlingParams.TracingLevel.DETAILED_TRACE) {
+        if (GrpcParamsHandler.isDetailedStackTraceRequested(params)) {
             errorCauseBuilder.setStackTrace(ExceptionsHelper.stackTrace(throwable));
         }
 

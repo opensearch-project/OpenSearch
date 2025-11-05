@@ -13,9 +13,9 @@ import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ShardFailure;
 import org.opensearch.snapshots.SnapshotShardFailure;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 
@@ -35,7 +35,7 @@ public class ShardOperationFailedExceptionProtoUtils {
      * @param exception The ShardOperationFailedException to convert metadata from
      * @return ShardFailure
      */
-    public static ShardFailure toProto(ShardOperationFailedException exception, ResponseHandlingParams params) throws IOException {
+    public static ShardFailure toProto(ShardOperationFailedException exception, GlobalParams params) throws IOException {
         if (exception instanceof ShardSearchFailure) {
             return ShardSearchFailureProtoUtils.toProto((ShardSearchFailure) exception, params);
         } else if (exception instanceof SnapshotShardFailure) {

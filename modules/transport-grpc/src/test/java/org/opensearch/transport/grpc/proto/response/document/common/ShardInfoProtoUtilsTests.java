@@ -14,11 +14,12 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.protobufs.ShardInfo;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 
 public class ShardInfoProtoUtilsTests extends OpenSearchTestCase {
 
@@ -27,7 +28,7 @@ public class ShardInfoProtoUtilsTests extends OpenSearchTestCase {
         ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(5, 3, new ReplicationResponse.ShardInfo.Failure[0]);
 
         // Convert to protobuf ShardInfo
-        ShardInfo protoShardInfo = ShardInfoProtoUtils.toProto(shardInfo, new ResponseHandlingParams());
+        ShardInfo protoShardInfo = ShardInfoProtoUtils.toProto(shardInfo, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("ShardInfo should not be null", protoShardInfo);
@@ -56,7 +57,7 @@ public class ShardInfoProtoUtilsTests extends OpenSearchTestCase {
         ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(5, 3, failures);
 
         // Convert to protobuf ShardInfo
-        ShardInfo protoShardInfo = ShardInfoProtoUtils.toProto(shardInfo, new ResponseHandlingParams());
+        ShardInfo protoShardInfo = ShardInfoProtoUtils.toProto(shardInfo, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("ShardInfo should not be null", protoShardInfo);
@@ -88,6 +89,6 @@ public class ShardInfoProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithNullShardInfo() throws IOException {
         // Call toProto with null, should throw NullPointerException
-        expectThrows(NullPointerException.class, () -> ShardInfoProtoUtils.toProto(null, new ResponseHandlingParams()));
+        expectThrows(NullPointerException.class, () -> ShardInfoProtoUtils.toProto(null, FULL_STACK_TRACE_REQUESTED));
     }
 }

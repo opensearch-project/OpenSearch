@@ -12,8 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.transport.grpc.proto.response.document.bulk.BulkResponseProtoUtils;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
 import java.io.IOException;
@@ -27,7 +27,7 @@ import io.grpc.stub.StreamObserver;
 public class BulkRequestActionListener implements ActionListener<BulkResponse> {
     private static final Logger logger = LogManager.getLogger(BulkRequestActionListener.class);
     private final StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver;
-    private final ResponseHandlingParams params;
+    private final GlobalParams params;
 
     /**
      * Creates a new BulkRequestActionListener.
@@ -35,10 +35,7 @@ public class BulkRequestActionListener implements ActionListener<BulkResponse> {
      * @param responseObserver The gRPC stream observer to send the response back to the client
      * @param params parameters that are going to change how responses and errors are handled
      */
-    public BulkRequestActionListener(
-        StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver,
-        ResponseHandlingParams params
-    ) {
+    public BulkRequestActionListener(StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver, GlobalParams params) {
         super();
         this.responseObserver = responseObserver;
         this.params = params;

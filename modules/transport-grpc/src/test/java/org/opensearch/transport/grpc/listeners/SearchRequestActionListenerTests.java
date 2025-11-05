@@ -10,6 +10,7 @@ package org.opensearch.transport.grpc.listeners;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
 import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -17,10 +18,8 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -35,7 +34,7 @@ public class SearchRequestActionListenerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         MockitoAnnotations.openMocks(this);
-        listener = new SearchRequestActionListener(responseObserver, new ResponseHandlingParams());
+        listener = new SearchRequestActionListener(responseObserver, GlobalParams.newBuilder().build());
     }
 
     public void testOnResponse() {

@@ -11,7 +11,7 @@ import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
+import org.opensearch.protobufs.GlobalParams;
 
 import java.io.IOException;
 
@@ -34,7 +34,7 @@ public class BulkResponseProtoUtils {
      * @return A Protocol Buffer BulkResponse representation
      * @throws IOException if there's an error during conversion
      */
-    public static org.opensearch.protobufs.BulkResponse toProto(BulkResponse response, ResponseHandlingParams params) throws IOException {
+    public static org.opensearch.protobufs.BulkResponse toProto(BulkResponse response, GlobalParams params) throws IOException {
         // System.out.println("=== grpc bulk response=" + response.toString());
 
         org.opensearch.protobufs.BulkResponse.Builder bulkResponse = org.opensearch.protobufs.BulkResponse.newBuilder();

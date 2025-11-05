@@ -10,11 +10,11 @@ package org.opensearch.transport.grpc.proto.response.document.common;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.Id;
 import org.opensearch.protobufs.NullValue;
 import org.opensearch.protobufs.ResponseItem;
 import org.opensearch.protobufs.ShardInfo;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
 
@@ -37,7 +37,7 @@ public class DocWriteResponseProtoUtils {
      * @return A ResponseItem.Builder with the DocWriteResponse data
      *
      */
-    public static ResponseItem.Builder toProto(DocWriteResponse response, ResponseHandlingParams params) throws IOException {
+    public static ResponseItem.Builder toProto(DocWriteResponse response, GlobalParams params) throws IOException {
         ResponseItem.Builder responseItem = ResponseItem.newBuilder();
 
         // Set the index name

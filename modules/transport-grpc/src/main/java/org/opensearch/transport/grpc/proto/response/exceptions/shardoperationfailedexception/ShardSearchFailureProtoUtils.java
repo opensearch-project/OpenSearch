@@ -10,8 +10,8 @@ package org.opensearch.transport.grpc.proto.response.exceptions.shardoperationfa
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ShardFailure;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ public class ShardSearchFailureProtoUtils {
      * @param exception The ShardSearchFailure to convert
      * @return A Protocol Buffer Struct containing the exception metadata
      */
-    public static ShardFailure toProto(ShardSearchFailure exception, ResponseHandlingParams params) throws IOException {
+    public static ShardFailure toProto(ShardSearchFailure exception, GlobalParams params) throws IOException {
         ShardFailure.Builder shardFailure = ShardFailure.newBuilder();
         shardFailure.setShard(exception.shardId());
         shardFailure.setIndex(exception.index());

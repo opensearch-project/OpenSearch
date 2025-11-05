@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.transport.grpc.proto.response.search.SearchResponseProtoUtils;
 import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
@@ -28,7 +28,7 @@ public class SearchRequestActionListener implements ActionListener<SearchRespons
     private static final Logger logger = LogManager.getLogger(SearchRequestActionListener.class);
 
     private final StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver;
-    private final ResponseHandlingParams params;
+    private final GlobalParams params;
 
     /**
      * Constructs a new SearchRequestActionListener.
@@ -36,10 +36,7 @@ public class SearchRequestActionListener implements ActionListener<SearchRespons
      * @param responseObserver the gRPC stream observer to send the search response to
      * @param params parameters that are going to change how responses and errors are handled
      */
-    public SearchRequestActionListener(
-        StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver,
-        ResponseHandlingParams params
-    ) {
+    public SearchRequestActionListener(StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver, GlobalParams params) {
         super();
         this.responseObserver = responseObserver;
         this.params = params;

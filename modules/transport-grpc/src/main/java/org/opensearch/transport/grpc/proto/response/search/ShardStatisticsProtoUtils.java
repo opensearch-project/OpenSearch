@@ -13,8 +13,8 @@ import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ShardStatistics;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 import org.opensearch.transport.grpc.proto.response.exceptions.shardoperationfailedexception.ShardOperationFailedExceptionProtoUtils;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ public class ShardStatisticsProtoUtils {
         int skipped,
         int failed,
         ShardOperationFailedException[] shardFailures,
-        ResponseHandlingParams params
+        GlobalParams params
     ) throws IOException {
         ShardStatistics.Builder shardStats = ShardStatistics.newBuilder();
         shardStats.setTotal(total);

@@ -15,9 +15,10 @@ import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.protobufs.ShardFailure;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.proto.response.exceptions.ResponseHandlingParams;
 
 import java.io.IOException;
+
+import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 
 public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTestCase {
 
@@ -30,7 +31,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
         );
 
         // Call the method under test
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, new ResponseHandlingParams());
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("ShardFailure should not be null", shardFailure);
@@ -50,7 +51,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
         );
 
         // Call the method under test
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, new ResponseHandlingParams());
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("ShardFailure should not be null", shardFailure);
@@ -71,7 +72,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
         );
 
         // Call the method under test
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, new ResponseHandlingParams());
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("ShardFailure should not be null", shardFailure);
@@ -92,7 +93,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
         );
 
         // Call the method under test
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, new ResponseHandlingParams());
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("ShardFailure should not be null", shardFailure);
@@ -113,7 +114,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
         );
 
         // Call the method under test
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, new ResponseHandlingParams());
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Verify the result
         assertNotNull("ShardFailure should not be null", shardFailure);
