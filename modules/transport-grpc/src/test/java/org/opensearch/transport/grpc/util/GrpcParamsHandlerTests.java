@@ -16,7 +16,7 @@ import org.junit.After;
 import static org.opensearch.transport.grpc.proto.response.TestFixtures.ERROR_SUMMARY_REQUESTED;
 import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 
-public class GrpcParamsHandlerTest extends OpenSearchTestCase {
+public class GrpcParamsHandlerTests extends OpenSearchTestCase {
 
     @After
     public void resetStackTraceSettings() {
