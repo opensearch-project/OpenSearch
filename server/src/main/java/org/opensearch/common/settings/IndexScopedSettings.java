@@ -54,6 +54,7 @@ import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.exec.merge.ParquetTieredMergePolicyProvider;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.MapperService;
@@ -139,6 +140,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
                 TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
                 TieredMergePolicyProvider.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
+                ParquetTieredMergePolicyProvider.INDEX_MERGE_PARQUET_POLICY_FLOOR_SEGMENT_SETTING,
+                ParquetTieredMergePolicyProvider.INDEX_MERGE_PARQUET_POLICY_MAX_MERGED_SEGMENT_SETTING,
+                ParquetTieredMergePolicyProvider.INDEX_MERGE_PARQUET_POLICY_MAX_MERGE_AT_ONCE_SETTING,
+                ParquetTieredMergePolicyProvider.INDEX_MERGE_PARQUET_POLICY_SEGMENTS_PER_TIER_SETTING,
                 IndexSortConfig.INDEX_SORT_FIELD_SETTING,
                 IndexSortConfig.INDEX_SORT_ORDER_SETTING,
                 IndexSortConfig.INDEX_SORT_MISSING_SETTING,

@@ -48,6 +48,8 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.engine.exec.merge.ParquetTieredMergePolicy;
+import org.opensearch.index.engine.exec.merge.ParquetTieredMergePolicyProvider;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -846,6 +848,7 @@ public final class IndexSettings {
     private volatile ByteSizeValue flushAfterMergeThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final TieredMergePolicyProvider tieredMergePolicyProvider;
+    private final ParquetTieredMergePolicyProvider parquetTieredMergePolicyProvider;
     private final LogByteSizeMergePolicyProvider logByteSizeMergePolicyProvider;
     private final IndexSortConfig indexSortConfig;
     private final IndexScopedSettings scopedSettings;
@@ -1084,6 +1087,7 @@ public final class IndexSettings {
         maxNestedQueryDepth = scopedSettings.get(MAX_NESTED_QUERY_DEPTH_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.tieredMergePolicyProvider = new TieredMergePolicyProvider(logger, this);
+        this.parquetTieredMergePolicyProvider = new ParquetTieredMergePolicyProvider(logger, this);
         this.logByteSizeMergePolicyProvider = new LogByteSizeMergePolicyProvider(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
@@ -1172,6 +1176,24 @@ public final class IndexSettings {
             LogByteSizeMergePolicyProvider.INDEX_LBS_NO_CFS_RATIO_SETTING,
             logByteSizeMergePolicyProvider::setLBSNoCFSRatio
         );
+
+        scopedSettings.addSettingsUpdateConsumer(
+            ParquetTieredMergePolicyProvider.INDEX_MERGE_PARQUET_POLICY_FLOOR_SEGMENT_SETTING,
+            parquetTieredMergePolicyProvider::setFloorSegmentSetting
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            ParquetTieredMergePolicyProvider.INDEX_MERGE_PARQUET_POLICY_MAX_MERGE_AT_ONCE_SETTING,
+            parquetTieredMergePolicyProvider::setMaxMergesAtOnce
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            ParquetTieredMergePolicyProvider.INDEX_MERGE_PARQUET_POLICY_MAX_MERGED_SEGMENT_SETTING,
+            parquetTieredMergePolicyProvider::setMaxMergedSegment
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            ParquetTieredMergePolicyProvider.INDEX_MERGE_PARQUET_POLICY_SEGMENTS_PER_TIER_SETTING,
+            parquetTieredMergePolicyProvider::setSegmentsPerTier
+        );
+
         scopedSettings.addSettingsUpdateConsumer(
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
@@ -1877,6 +1899,10 @@ public final class IndexSettings {
             logger.trace("Index: " + this.index.getName() + ", Merge policy used: " + mergePolicyProvider);
         }
         return mergePolicyProvider.getMergePolicy();
+    }
+
+    public ParquetTieredMergePolicy getParquetMergePolicy() {
+        return parquetTieredMergePolicyProvider.getMergePolicy();
     }
 
     public <T> T getValue(Setting<T> setting) {

@@ -29,17 +29,17 @@ public class ParquetMergeHandler extends MergeHandler {
     private final CompositeIndexingExecutionEngine compositeIndexingExecutionEngine;
     private final String PARQUET_DATAFORMAT = "parquet";
 
-    public ParquetMergeHandler(CompositeEngine compositeEngine, CompositeIndexingExecutionEngine compositeIndexingExecutionEngine, Any dataFormats) {
+    public ParquetMergeHandler(
+        CompositeEngine compositeEngine,
+        CompositeIndexingExecutionEngine compositeIndexingExecutionEngine,
+        Any dataFormats,
+        ParquetTieredMergePolicy parquetTieredMergePolicy
+    ) {
         super(compositeEngine, compositeIndexingExecutionEngine, dataFormats);
         this.compositeEngine = compositeEngine;
         this.compositeIndexingExecutionEngine = compositeIndexingExecutionEngine;
 
-        mergePolicy = new ParquetTieredMergePolicy();
-        // Merge Policy configurations
-        this.mergePolicy.setMaxMergedSegmentMB(2000);
-        this.mergePolicy.setSegmentsPerTier(10.0);
-//        this.mergePolicy.setMaxMergeAtOnce(5);
-//        this.mergePolicy.setFloorSegmentMB(1.0);
+        mergePolicy = parquetTieredMergePolicy;
     }
 
     @Override
