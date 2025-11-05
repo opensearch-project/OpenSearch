@@ -10,6 +10,7 @@ package com.parquet.parquetdataformat.vsr;
 
 import com.parquet.parquetdataformat.bridge.ArrowExport;
 import com.parquet.parquetdataformat.bridge.NativeParquetWriter;
+import com.parquet.parquetdataformat.bridge.ParquetFileMetadata;
 import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import org.apache.arrow.vector.FieldVector;
@@ -123,7 +124,7 @@ public class VSRManager implements AutoCloseable {
 
             // Write through native writer handle
             try (ArrowExport export = currentVSR.exportToArrow()) {
-                writer.write(export.getArrayAddress(), export.getSchemaAddress());
+                ParquetFileMetadata fileMetadata = writer.write(export.getArrayAddress(), export.getSchemaAddress());
                 writer.close();
             }
             logger.info("Successfully flushed data for {}", fileName);
