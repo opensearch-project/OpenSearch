@@ -29,7 +29,7 @@ import java.util.List;
  * This class provides methods to transform Protocol Buffer representations of function score queries
  * into their corresponding OpenSearch FunctionScoreQueryBuilder implementations for search operations.
  */
-public class FunctionScoreQueryBuilderProtoUtils {
+class FunctionScoreQueryBuilderProtoUtils {
 
     // Registry for query conversion - injected by the gRPC plugin
     private static QueryBuilderProtoConverterRegistry REGISTRY;
@@ -46,15 +46,6 @@ public class FunctionScoreQueryBuilderProtoUtils {
      */
     public static void setRegistry(QueryBuilderProtoConverterRegistry registry) {
         REGISTRY = registry;
-    }
-
-    /**
-     * Gets the current registry.
-     *
-     * @return The current registry
-     */
-    static QueryBuilderProtoConverterRegistry getRegistry() {
-        return REGISTRY;
     }
 
     /**
