@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
+import static org.opensearch.Version.MASK;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -46,7 +47,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
 
     private IndexSettings newTestIndexSettings(int maxTermsCount, int maxResultWindow) {
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, 2000099)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, 2000099 ^ MASK)
             .put("index.max_terms_count", maxTermsCount)
             .put("index.max_result_window", maxResultWindow)
             .build();

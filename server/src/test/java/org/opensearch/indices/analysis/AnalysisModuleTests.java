@@ -203,7 +203,7 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer._invalid_name.tokenizer", "standard")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, "1")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromString("1.0.0"))
             .build();
         try {
             getIndexAnalyzers(settings);
