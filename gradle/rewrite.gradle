@@ -1,0 +1,28 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+project.apply plugin: 'org.openrewrite.rewrite'
+
+rewrite {
+  activeRecipe('org.opensearch.openrewrite.SanityCheck')
+  exclusion('**ActionListener.java')
+  exclusion('**SearchAfterIT.java')
+  exclusion('**StarTreeMapper.java')
+  exclusion('**package-info.java')
+  setExportDatatables(true)
+  setFailOnDryRunResults(true)
+}
+
+dependencies {
+  rewrite(platform('org.openrewrite.recipe:rewrite-recipe-bom:3.17.0'))
+  rewrite('org.openrewrite.recipe:rewrite-migrate-java:3.20.0')
+  rewrite('org.openrewrite.recipe:rewrite-java-security:3.19.2')
+  rewrite('org.openrewrite.recipe:rewrite-rewrite:0.14.1')
+  rewrite('org.openrewrite.recipe:rewrite-static-analysis:2.20.0')
+  rewrite('org.openrewrite.recipe:rewrite-third-party:0.30.0')
+}
