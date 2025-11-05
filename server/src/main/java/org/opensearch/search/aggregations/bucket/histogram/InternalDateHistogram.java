@@ -433,12 +433,15 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         // need to add emptyBucketCount
         final int estimateEmptyBucketCount = estimateTotalBucketCount(list) - originalSize;
         assert estimateEmptyBucketCount >= 0;
+
+        // First check bucket count limit before attempting memory allocation
+        reduceContext.consumeBucketsAndMaybeBreak(estimateEmptyBucketCount);
+
         CircuitBreaker breaker = reduceContext.getBreaker();
         if (breaker != null) {
             // 50 bytes memory usage for each empty bucket
             breaker.addEstimateBytesAndMaybeBreak(50L * estimateEmptyBucketCount, "empty date histogram buckets");
         }
-        reduceContext.consumeBucketsAndMaybeBreak(estimateEmptyBucketCount);
 
         ListIterator<Bucket> iter = list.listIterator();
 
