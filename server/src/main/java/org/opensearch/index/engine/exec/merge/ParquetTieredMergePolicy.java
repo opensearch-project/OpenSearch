@@ -13,6 +13,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
+import org.opensearch.index.engine.exec.FileMetadata;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,7 +25,7 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
     private final TieredMergePolicy luceneMergePolicy;
     private final InfoStream infoStream;
 
-    private static final Set<SegmentCommitInfo> mergingSegments = new HashSet<>();
+    private static final HashSet<SegmentCommitInfo> mergingSegments = new HashSet<>();
     private static final Set<String> mergingFileNames = new HashSet<>();
 
     public ParquetTieredMergePolicy() {
@@ -116,23 +117,12 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
 
                 // Convert back to Parquet segments
                 for (MergePolicy.OneMerge merge : luceneMerges) {
-                    boolean validMerge = true;
                     List<ParquetFileInfo> parquetMerge = new ArrayList<>();
-                    for (SegmentCommitInfo segment : merge.segments) {
-                        if(mergingFileNames.contains(segment.info.name)) {
-                            validMerge = false;
-                        }
+
+                    for(SegmentCommitInfo segment : merge.segments) {
                         parquetMerge.add(segmentMap.get(segment));
                     }
-                    if(validMerge) {
-                        for(SegmentCommitInfo segment : merge.segments) {
-                            mergingSegments.add(segment);
-                            mergingFileNames.add(segment.info.name);
-                        }
-                        merges.add(parquetMerge);
-                    } else {
-                        System.out.println("Not valid merge already in file!! Rejecting !!!");
-                    }
+                    merges.add(parquetMerge);
                 }
             }
         } catch (Exception e) {
@@ -171,6 +161,34 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
         luceneMergePolicy.setSegmentsPerTier(segments);
     }
 
+    public synchronized void addMergingSegment(Collection<FileMetadata> files) {
+        try {
+            for (FileMetadata fileMetadata : files) {
+                mergingSegments.add(new ParquetSegmentWrapper(new ParquetFileInfo(fileMetadata.directory() + "/" + fileMetadata.file())));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    public synchronized void removeMergingSegment(Collection<FileMetadata> files) {
+        List<SegmentCommitInfo> segmentToRemove = new ArrayList<>();
+        try {
+            for(FileMetadata fileMetadata : files) {
+                for(SegmentCommitInfo segment : mergingSegments) {
+                    if(segment.info.name.equals(fileMetadata.directory()+"/"+fileMetadata.file())) {
+                        segmentToRemove.add(segment);
+                    }
+                }
+            }
+            segmentToRemove.forEach(segment -> mergingSegments.remove(segment));
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
     public void setMaxMergeAtOnce(int count) {
         luceneMergePolicy.setMaxMergeAtOnce(count);
     }
@@ -193,6 +211,7 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
             // For now doc count we are deriving from size of file.
             // Once we have that info as part of Refresh Result, we can change this.
             this.docCount = Files.size(this.path)/1000;
+
             // SegmentName is same as fileName
             this.segmentName = path;
         }

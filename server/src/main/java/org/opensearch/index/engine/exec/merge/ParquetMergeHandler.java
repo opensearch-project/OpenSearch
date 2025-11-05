@@ -36,8 +36,8 @@ public class ParquetMergeHandler extends MergeHandler {
 
         mergePolicy = new ParquetTieredMergePolicy();
         // Merge Policy configurations
-        this.mergePolicy.setMaxMergedSegmentMB(10);
-        this.mergePolicy.setSegmentsPerTier(2);
+        this.mergePolicy.setMaxMergedSegmentMB(2000);
+        this.mergePolicy.setSegmentsPerTier(10.0);
 //        this.mergePolicy.setMaxMergeAtOnce(5);
 //        this.mergePolicy.setFloorSegmentMB(1.0);
     }
@@ -110,5 +110,20 @@ public class ParquetMergeHandler extends MergeHandler {
             throw new RuntimeException(e);
         }
         return oneMerges;
+    }
+
+    public synchronized void registerMerge(OneMerge oneMerge) {
+        super.registerMerge(oneMerge);
+        mergePolicy.addMergingSegment(oneMerge.getFilesToMerge());
+    }
+
+    public synchronized void onMergeFinished(OneMerge oneMerge) {
+        super.onMergeFinished(oneMerge);
+        mergePolicy.removeMergingSegment(oneMerge.getFilesToMerge());
+    }
+
+    public synchronized void onMergeFailure(OneMerge oneMerge) {
+        super.onMergeFailure(oneMerge);
+        mergePolicy.removeMergingSegment(oneMerge.getFilesToMerge());
     }
 }

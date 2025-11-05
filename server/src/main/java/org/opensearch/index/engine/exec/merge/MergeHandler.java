@@ -16,9 +16,13 @@ import org.opensearch.index.engine.exec.coord.Any;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 
+import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 
 public abstract class MergeHandler {
@@ -29,6 +33,8 @@ public abstract class MergeHandler {
 
     private CompositeEngine compositeEngine;
     private Map<DataFormat, Merger> dataFormatMergerMap;
+    private final Deque<OneMerge> mergingSegments = new ArrayDeque<>();
+    private final Set<String> mergingFileNames = new HashSet<>();
 
     public MergeHandler(CompositeEngine compositeEngine, CompositeIndexingExecutionEngine compositeIndexingExecutionEngine, Any dataFormats) {
         this.compositeDataFormat = dataFormats;
@@ -48,6 +54,52 @@ public abstract class MergeHandler {
     public abstract Collection<OneMerge> findMerges();
 
     public abstract Collection<OneMerge> findForceMerges(int maxSegmentCount);
+
+    public void updatePendingMerges() {
+        Collection<OneMerge> oneMerges = findMerges();
+        for (OneMerge oneMerge : oneMerges) {
+            boolean isValidMerge = true;
+            for(FileMetadata fileMetadata : oneMerge.getFilesToMerge()) {
+                if(mergingFileNames.contains(fileMetadata.directory()+"/"+fileMetadata.file())) {
+                    isValidMerge = false;
+                }
+            }
+            if(isValidMerge) {
+                registerMerge(oneMerge);
+            }
+        }
+    }
+
+    public synchronized void registerMerge(OneMerge merge) {
+        mergingSegments.add(merge);
+        for(FileMetadata fileMetadata : merge.getFilesToMerge()) {
+            mergingFileNames.add(fileMetadata.directory()+"/"+fileMetadata.file());
+        }
+    }
+
+    public boolean hasPendingMerges() {
+        return mergingSegments.size() > 0;
+    }
+
+    public synchronized OneMerge getNextMerge() {
+        if(mergingSegments.isEmpty()) {
+            return null;
+        }
+        OneMerge oneMerge = mergingSegments.removeFirst();
+        return oneMerge;
+    }
+
+    public synchronized void onMergeFinished(OneMerge oneMerge) {
+        mergingSegments.remove(oneMerge);
+        for(FileMetadata fileMetadata : oneMerge.getFilesToMerge()) {
+            mergingFileNames.remove(fileMetadata.directory()+"/"+fileMetadata.file());
+        }
+    }
+
+    public synchronized void onMergeFailure(OneMerge oneMerge) {
+        onMergeFinished(oneMerge); // Removing failed merge from merging segment so next merge can pick this files
+        System.out.println("Merge FAILED for oneMerge: " + oneMerge);
+    }
 
     public MergeResult doMerge(OneMerge oneMerge) {
 
