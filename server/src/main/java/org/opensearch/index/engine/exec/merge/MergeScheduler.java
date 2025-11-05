@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.merge;
 
+import org.apache.lucene.index.MergePolicy;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 
 import java.io.IOException;
@@ -24,14 +25,18 @@ public class MergeScheduler {
     }
 
     public void triggerMerges() throws IOException {
-        // TODO: Move the merge to seperate thread
-        Collection<OneMerge> oneMerges = mergeHandler.findMerges();
+        mergeHandler.updatePendingMerges();
 
-        // TODO: For now it is serial. we can make it concurrent if needed, similar to concurrent/serial merge scheduler
-
-        for(OneMerge oneMerge : oneMerges) {
-            MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
-            this.compositeEngine.applyMergeChanges(mergeResult, oneMerge);
+        while(mergeHandler.hasPendingMerges()) {
+            OneMerge oneMerge = mergeHandler.getNextMerge();
+            try {
+                // TODO: Move the merge to seperate thread
+                MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
+                this.compositeEngine.applyMergeChanges(mergeResult, oneMerge);
+                mergeHandler.onMergeFinished(oneMerge);
+            } catch (Exception e) {
+                mergeHandler.onMergeFailure(oneMerge);
+            }
         }
     }
 
