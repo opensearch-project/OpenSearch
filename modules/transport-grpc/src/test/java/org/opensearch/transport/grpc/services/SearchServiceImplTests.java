@@ -102,8 +102,8 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         verify(responseObserver).onError(any());
     }
 
-    public void testErrorTracingConfigValidationFailsWhenServerSettingIsDisabledAndRequestRequiresTracing() {
-        // Setup request and the service, server setting is off and request requires tracing
+    public void testErrorTraceConfigValidationFailsWhenServerSettingIsDisabledAndRequestRequiresStackTrace() {
+        // Setup request and the service, server setting is off and request requires a stack trace
         SearchRequest request = createTestSearchRequest();
         GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
         SearchServiceImpl serviceThatFailsToProvideErrorInfo = new SearchServiceImpl(client, queryUtils);
@@ -115,8 +115,8 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         verify(responseObserver).onError(any(StatusRuntimeException.class));
     }
 
-    public void testErrorTracingConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsTracing() {
-        // Setup request and the service, server setting is off and request skips tracing
+    public void testErrorTraceConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsStackTrace() {
+        // Setup request and the service, server setting is off and request skips a stack trace
         SearchRequest request = createTestSearchRequest().toBuilder()
             .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(false))
             .build();

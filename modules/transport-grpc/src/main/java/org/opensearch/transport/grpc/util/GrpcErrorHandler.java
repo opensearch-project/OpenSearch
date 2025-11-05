@@ -60,45 +60,45 @@ public class GrpcErrorHandler {
         // ========== OpenSearch Core System Exceptions ==========
         // Low-level OpenSearch exceptions that don't extend OpenSearchException - include full details
         else if (e instanceof OpenSearchRejectedExecutionException) {
-            return Status.RESOURCE_EXHAUSTED.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.RESOURCE_EXHAUSTED.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof NotXContentException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof NotCompressedException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         }
 
         // ========== 3. Third-party Library Exceptions ==========
         // External library exceptions (Jackson JSON parsing) - include full details
         else if (e instanceof InputCoercionException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof JsonParseException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         }
 
         // ========== 4. Standard Java Exceptions ==========
         // Generic Java runtime exceptions - include full exception details for debugging
         else if (e instanceof IllegalArgumentException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof IllegalStateException) {
-            return Status.FAILED_PRECONDITION.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.FAILED_PRECONDITION.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof SecurityException) {
-            return Status.PERMISSION_DENIED.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.PERMISSION_DENIED.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof TimeoutException) {
-            return Status.DEADLINE_EXCEEDED.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.DEADLINE_EXCEEDED.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof InterruptedException) {
-            return Status.CANCELLED.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.CANCELLED.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         } else if (e instanceof IOException) {
-            return Status.INTERNAL.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.INTERNAL.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         }
 
@@ -106,7 +106,7 @@ public class GrpcErrorHandler {
         // Safety fallback for any unexpected exception to {@code Status.INTERNAL} with full debugging info
         else {
             logger.warn("Unmapped exception type: {}, treating as INTERNAL error", e.getClass().getSimpleName());
-            return Status.INTERNAL.withDescription(getErrorDescriptionRespectingTracingLevel(e, shouldIncludeDetailedStackTrace))
+            return Status.INTERNAL.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
                 .asRuntimeException();
         }
     }
@@ -186,7 +186,13 @@ public class GrpcErrorHandler {
         }
     }
 
-    private static String getErrorDescriptionRespectingTracingLevel(Throwable exception, boolean shouldIncludeDetailedStackTrace) {
+    /**
+     * Gets either a full stack trace of an error or just a message based on the flag that comes from the gRPC request Global Params.
+     * @param exception The exception to get details from
+     * @param shouldIncludeDetailedStackTrace Flag indicating whether to include full stack trace
+     * @return String with either full stack trace or just the error message
+     */
+    private static String getErrorDetailsForConfig(Throwable exception, boolean shouldIncludeDetailedStackTrace) {
         return shouldIncludeDetailedStackTrace ? ExceptionsHelper.stackTrace(exception) : exception.getMessage();
     }
 

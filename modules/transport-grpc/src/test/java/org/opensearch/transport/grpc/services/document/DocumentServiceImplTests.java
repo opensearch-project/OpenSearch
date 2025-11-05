@@ -79,8 +79,8 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
         verify(responseObserver).onError(any(RuntimeException.class));
     }
 
-    public void testErrorTracingConfigValidationFailsWhenServerSettingIsDisabledAndRequestRequiresTracing() {
-        // Setup request and the service, server setting is off and request requires tracing
+    public void testErrorTraceConfigValidationFailsWhenServerSettingIsDisabledAndRequestRequiresStackTrace() {
+        // Setup request and the service, server setting is off and request requires a stack trace
         BulkRequest request = createTestBulkRequest();
         GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
         DocumentServiceImpl serviceThatFailsToProvideErrorInfo = new DocumentServiceImpl(client);
@@ -92,8 +92,8 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
         verify(responseObserver).onError(any(StatusRuntimeException.class));
     }
 
-    public void testErrorTracingConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsTracing() {
-        // Setup request and the service, server setting is off and request does not require tracing
+    public void testErrorTraceConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsStackTrace() {
+        // Setup request and the service, server setting is off and request does not require a stack trace
         BulkRequest request = createTestBulkRequest().toBuilder()
             .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(false))
             .build();

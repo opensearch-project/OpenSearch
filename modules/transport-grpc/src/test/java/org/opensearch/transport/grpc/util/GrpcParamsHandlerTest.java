@@ -8,13 +8,13 @@
 
 package org.opensearch.transport.grpc.util;
 
-import static org.opensearch.transport.grpc.proto.response.TestFixtures.ERROR_SUMMARY_REQUESTED;
-import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
-
-import org.junit.After;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
+import org.junit.After;
+
+import static org.opensearch.transport.grpc.proto.response.TestFixtures.ERROR_SUMMARY_REQUESTED;
+import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 
 public class GrpcParamsHandlerTest extends OpenSearchTestCase {
 
@@ -44,8 +44,14 @@ public class GrpcParamsHandlerTest extends OpenSearchTestCase {
     }
 
     public void testGrpcParamsHandlerPicksErrorTraceRequestParameter() {
-        assertTrue("Params handler must directly pick error_trace=true", GrpcParamsHandler.isDetailedStackTraceRequested(FULL_STACK_TRACE_REQUESTED));
-        assertFalse("Params handler must directly pick error_trace=false", GrpcParamsHandler.isDetailedStackTraceRequested(ERROR_SUMMARY_REQUESTED));
+        assertTrue(
+            "Params handler must directly pick error_trace=true",
+            GrpcParamsHandler.isDetailedStackTraceRequested(FULL_STACK_TRACE_REQUESTED)
+        );
+        assertFalse(
+            "Params handler must directly pick error_trace=false",
+            GrpcParamsHandler.isDetailedStackTraceRequested(ERROR_SUMMARY_REQUESTED)
+        );
     }
 
     private Settings settingsWithGivenStackTraceConfig(boolean stackTracesEnabled) {
