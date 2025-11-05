@@ -20,7 +20,7 @@ import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
  *
  * @opensearch.internal
  */
-public class NestedSortProtoUtils {
+class NestedSortProtoUtils {
 
     private NestedSortProtoUtils() {
         // Utility class
@@ -33,16 +33,12 @@ public class NestedSortProtoUtils {
      * with the appropriate path, filter, max_children, and recursive nested sorting settings.
      *
      * @param nestedSortValue The Protocol Buffer NestedSortValue to convert
-     * @param registry The registry for converting nested sort filters
      * @return A configured NestedSortBuilder
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
-    public static NestedSortBuilder fromProto(NestedSortValue nestedSortValue, QueryBuilderProtoConverterRegistry registry) {
+    static NestedSortBuilder fromProto(NestedSortValue nestedSortValue, QueryBuilderProtoConverterRegistry registry) {
         if (nestedSortValue == null) {
             throw new IllegalArgumentException("NestedSortValue cannot be null");
-        }
-        if (registry == null) {
-            throw new IllegalArgumentException("Registry cannot be null");
         }
 
         String path = nestedSortValue.getPath();
@@ -55,6 +51,9 @@ public class NestedSortProtoUtils {
         NestedSortBuilder nestedSort = null;
 
         if (nestedSortValue.hasFilter()) {
+            if (registry == null) {
+                throw new IllegalStateException("QueryBuilderProtoConverterRegistry cannot be null.");
+            }
             try {
                 filter = registry.fromProto(nestedSortValue.getFilter());
             } catch (Exception e) {

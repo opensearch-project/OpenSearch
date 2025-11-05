@@ -7,6 +7,7 @@
  */
 package org.opensearch.transport.grpc.proto.request.search;
 
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.protobufs.FieldCollapse;
 import org.opensearch.search.collapse.CollapseBuilder;
@@ -29,23 +30,18 @@ public class CollapseBuilderProtoUtils {
     }
 
     /**
-     * Converts a Protocol Buffer FieldCollapse to a CollapseBuilder.
+     * Converts a Protocol Buffer FieldCollapse to an OpenSearch CollapseBuilder.
+     * Similar to {@link CollapseBuilder#fromXContent(XContentParser)}, this method
+     * parses the Protocol Buffer representation and creates a properly configured
+     * CollapseBuilder with the appropriate field, max concurrent group searches,
+     * and inner hits settings.
      *
      * @param collapseProto The Protocol Buffer FieldCollapse to convert
-     * @param registry The registry for converting inner hits
-     * @return A configured CollapseBuilder
+     * @param registry The registry for query conversion (needed for inner hits with sorts/highlights)
+     * @return A configured CollapseBuilder instance
      * @throws IOException if there's an error during parsing or conversion
      */
-    protected static CollapseBuilder fromProto(FieldCollapse collapseProto, QueryBuilderProtoConverterRegistry registry)
-        throws IOException {
-        if (collapseProto == null) {
-            throw new IllegalArgumentException("FieldCollapse cannot be null");
-        }
-
-        if (registry == null) {
-            throw new IllegalArgumentException("Registry cannot be null");
-        }
-
+    static CollapseBuilder fromProto(FieldCollapse collapseProto, QueryBuilderProtoConverterRegistry registry) throws IOException {
         CollapseBuilder collapseBuilder = new CollapseBuilder(collapseProto.getField());
 
         if (collapseProto.hasMaxConcurrentGroupSearches()) {

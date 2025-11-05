@@ -140,4 +140,22 @@ public class ScriptSortProtoUtilsTests extends OpenSearchTestCase {
         assertNull(result.sortMode());
         assertNull(result.getNestedSort());
     }
+
+    public void testFromProto_UnspecifiedType() {
+        InlineScript inlineScript = InlineScript.newBuilder()
+            .setSource("doc['price'].value")
+            .setLang(
+                ScriptLanguage.newBuilder().setBuiltin(org.opensearch.protobufs.BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS)
+            )
+            .build();
+
+        Script script = Script.newBuilder().setInline(inlineScript).build();
+
+        ScriptSort scriptSort = ScriptSort.newBuilder().setScript(script).setType(ScriptSortType.SCRIPT_SORT_TYPE_UNSPECIFIED).build();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            ScriptSortProtoUtils.fromProto(scriptSort, registry);
+        });
+        assertEquals("ScriptSortType must be specified", exception.getMessage());
+    }
 }

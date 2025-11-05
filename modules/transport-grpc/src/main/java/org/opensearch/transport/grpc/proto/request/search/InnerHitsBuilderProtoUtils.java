@@ -38,17 +38,13 @@ public class InnerHitsBuilderProtoUtils {
      * Each InnerHits protobuf message represents ONE inner hit definition.
      *
      * @param innerHits the protobuf InnerHits to convert
-     * @param registry The registry for converting inner hit queries and sorts
+     * @param registry The registry for query conversion (needed for sorts and highlights with queries)
      * @return the converted OpenSearch InnerHitBuilder
      * @throws IOException if there's an error during parsing
      */
     public static InnerHitBuilder fromProto(InnerHits innerHits, QueryBuilderProtoConverterRegistry registry) throws IOException {
         if (innerHits == null) {
             throw new IllegalArgumentException("InnerHits cannot be null");
-        }
-
-        if (registry == null) {
-            throw new IllegalArgumentException("Registry cannot be null");
         }
 
         InnerHitBuilder innerHitBuilder = new InnerHitBuilder();

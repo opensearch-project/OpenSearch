@@ -37,7 +37,7 @@ public class FieldSortBuilderProtoUtils {
      *
      * @param fieldName The name of the field to sort by
      * @param fieldSort The Protocol Buffer FieldSort containing sorting options
-     * @param registry The registry for converting nested sort filters
+     * @param registry The registry for query conversion (needed for nested sorts with filters)
      * @return A configured FieldSortBuilder
      * @throws IllegalArgumentException if fieldName is null or empty, or fieldSort is null
      */
@@ -48,10 +48,6 @@ public class FieldSortBuilderProtoUtils {
 
         if (fieldSort == null) {
             throw new IllegalArgumentException("FieldSort cannot be null");
-        }
-
-        if (registry == null) {
-            throw new IllegalArgumentException("Registry cannot be null");
         }
 
         FieldSortBuilder builder = new FieldSortBuilder(fieldName);

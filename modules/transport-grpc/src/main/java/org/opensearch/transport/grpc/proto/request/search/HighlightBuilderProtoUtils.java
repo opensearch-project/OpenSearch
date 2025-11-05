@@ -26,7 +26,7 @@ import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
  * This class provides methods to transform Protocol Buffer representations of highlights
  * into their corresponding OpenSearch HighlightBuilder implementations for search result highlighting.
  */
-public class HighlightBuilderProtoUtils {
+class HighlightBuilderProtoUtils {
 
     private HighlightBuilderProtoUtils() {
         // Utility class, no instances
@@ -41,14 +41,11 @@ public class HighlightBuilderProtoUtils {
      * @param highlightProto The Protocol Buffer Highlight to convert
      * @param registry The registry for converting highlight queries
      * @return A configured HighlightBuilder instance
-     * @throws IllegalArgumentException if highlightProto or registry is null
+     * @throws IllegalArgumentException if highlightProto is null
      */
-    public static HighlightBuilder fromProto(Highlight highlightProto, QueryBuilderProtoConverterRegistry registry) {
+    static HighlightBuilder fromProto(Highlight highlightProto, QueryBuilderProtoConverterRegistry registry) {
         if (highlightProto == null) {
             throw new IllegalArgumentException("Highlight cannot be null");
-        }
-        if (registry == null) {
-            throw new IllegalArgumentException("Registry cannot be null");
         }
 
         HighlightBuilder highlightBuilder = new HighlightBuilder();
@@ -140,6 +137,9 @@ public class HighlightBuilderProtoUtils {
         }
 
         if (highlightProto.hasHighlightQuery()) {
+            if (registry == null) {
+                throw new IllegalStateException("QueryBuilderProtoConverterRegistry cannot be null.");
+            }
             QueryBuilder query = registry.fromProto(highlightProto.getHighlightQuery());
             highlightBuilder.highlightQuery(query);
         }
@@ -226,6 +226,9 @@ public class HighlightBuilderProtoUtils {
                 }
 
                 if (fieldProto.hasHighlightQuery()) {
+                    if (registry == null) {
+                        throw new IllegalStateException("QueryBuilderProtoConverterRegistry cannot be null.");
+                    }
                     QueryBuilder query = registry.fromProto(fieldProto.getHighlightQuery());
                     fieldBuilder.highlightQuery(query);
                 }

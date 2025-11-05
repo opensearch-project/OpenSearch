@@ -22,6 +22,7 @@ import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.suggest.SuggestBuilderProtoUtils;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.Map;
@@ -55,7 +56,7 @@ public class SearchSourceBuilderProtoUtils {
         AbstractQueryBuilderProtoUtils queryUtils
     ) throws IOException {
         // Parse all non-query fields
-        parseNonQueryFields(searchSourceBuilder, protoRequest, queryUtils);
+        parseNonQueryFields(searchSourceBuilder, protoRequest, queryUtils.getRegistry());
 
         // Handle queries using the instance-based approach
         if (protoRequest.hasQuery()) {
@@ -76,7 +77,7 @@ public class SearchSourceBuilderProtoUtils {
     private static void parseNonQueryFields(
         SearchSourceBuilder searchSourceBuilder,
         SearchRequestBody protoRequest,
-        AbstractQueryBuilderProtoUtils queryUtils
+        QueryBuilderProtoConverterRegistry registry
     ) throws IOException {
         // TODO what to do about parser.getDeprecationHandler() for protos?
 
@@ -126,7 +127,7 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.storedFields(StoredFieldsContextProtoUtils.fromProto(protoRequest.getStoredFieldsList()));
         }
         if (protoRequest.getSortCount() > 0) {
-            for (SortBuilder<?> sortBuilder : SortBuilderProtoUtils.fromProto(protoRequest.getSortList(), queryUtils.getRegistry())) {
+            for (SortBuilder<?> sortBuilder : SortBuilderProtoUtils.fromProto(protoRequest.getSortList(), registry)) {
                 searchSourceBuilder.sort(sortBuilder);
             }
         }
@@ -178,7 +179,7 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.slice(SliceBuilderProtoUtils.fromProto(protoRequest.getSlice()));
         }
         if (protoRequest.hasCollapse()) {
-            searchSourceBuilder.collapse(CollapseBuilderProtoUtils.fromProto(protoRequest.getCollapse(), queryUtils.getRegistry()));
+            searchSourceBuilder.collapse(CollapseBuilderProtoUtils.fromProto(protoRequest.getCollapse(), registry));
         }
         if (protoRequest.hasPit()) {
             searchSourceBuilder.pointInTimeBuilder(PointInTimeBuilderProtoUtils.fromProto(protoRequest.getPit()));
@@ -198,7 +199,7 @@ public class SearchSourceBuilderProtoUtils {
             for (FieldAndFormat fieldAndFormatProto : protoRequest.getDocvalueFieldsList()) {
                 /**
                  * Similar to {@link org.opensearch.search.fetch.subphase.FieldAndFormat#fromXContent(XContentParser)}
-                */
+                 */
                 searchSourceBuilder.docValueField(fieldAndFormatProto.getField(), fieldAndFormatProto.getFormat());
             }
 

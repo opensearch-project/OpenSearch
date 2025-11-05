@@ -50,10 +50,15 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProto_WithoutRegistry() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            HighlightBuilderProtoUtils.fromProto(Highlight.newBuilder().build(), null);
+        Highlight highlightWithQuery = Highlight.newBuilder()
+            .setHighlightQuery(QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build())
+            .build();
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
+            HighlightBuilderProtoUtils.fromProto(highlightWithQuery, null);
         });
-        assertEquals("Registry cannot be null", exception.getMessage());
+
+        assertEquals("QueryBuilderProtoConverterRegistry cannot be null.", exception.getMessage());
     }
 
     public void testFromProto_EmptyHighlight() {

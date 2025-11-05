@@ -103,10 +103,25 @@ public class NestedSortProtoUtilsTests extends OpenSearchTestCase {
 
         NestedSortValue.Builder nestedSortValueBuilder = NestedSortValue.newBuilder().setPath("nested.field").setFilter(queryContainer);
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
             () -> NestedSortProtoUtils.fromProto(nestedSortValueBuilder.build(), null)
         );
-        assertEquals("Registry cannot be null", exception.getMessage());
+        assertEquals("QueryBuilderProtoConverterRegistry cannot be null.", exception.getMessage());
+    }
+
+    public void testFromProto_WithInvalidFilter() {
+        QueryContainer invalidQueryContainer = QueryContainer.newBuilder().build();
+
+        NestedSortValue nestedSortValue = NestedSortValue.newBuilder().setPath("nested.field").setFilter(invalidQueryContainer).build();
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> NestedSortProtoUtils.fromProto(nestedSortValue, registry)
+        );
+        assertTrue(
+            "Exception message should mention 'Failed to convert nested sort filter'",
+            exception.getMessage().contains("Failed to convert nested sort filter")
+        );
     }
 }

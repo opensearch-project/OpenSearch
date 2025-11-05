@@ -41,15 +41,11 @@ public class SortBuilderProtoUtils {
      * by delegating to specific sort utilities based on the SortCombinations structure.
      *
      * @param sortProto The list of Protocol Buffer SortCombinations to convert
-     * @param registry The registry for converting sort filters
+     * @param registry The registry for query conversion (needed for nested sorts with filters)
      * @return A list of configured SortBuilder instances
      * @throws IllegalArgumentException if invalid sort combinations are provided
      */
     public static List<SortBuilder<?>> fromProto(List<SortCombinations> sortProto, QueryBuilderProtoConverterRegistry registry) {
-        if (registry == null) {
-            throw new IllegalArgumentException("Registry cannot be null");
-        }
-
         List<SortBuilder<?>> sortFields = new ArrayList<>(sortProto.size());
 
         for (SortCombinations sortCombination : sortProto) {

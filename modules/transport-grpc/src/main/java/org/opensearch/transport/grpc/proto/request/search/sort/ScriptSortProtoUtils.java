@@ -37,17 +37,13 @@ public class ScriptSortProtoUtils {
      * with the appropriate script, type, sort order, mode, and nested sorting settings.
      *
      * @param scriptSort The Protocol Buffer ScriptSort to convert
-     * @param registry The registry for converting nested sort filters
+     * @param registry The registry for query conversion (needed for nested sorts with filters)
      * @return A configured ScriptSortBuilder
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
     public static ScriptSortBuilder fromProto(ScriptSort scriptSort, QueryBuilderProtoConverterRegistry registry) {
         if (scriptSort == null) {
             throw new IllegalArgumentException("ScriptSort cannot be null");
-        }
-
-        if (registry == null) {
-            throw new IllegalArgumentException("Registry cannot be null");
         }
 
         if (!scriptSort.hasScript()) {

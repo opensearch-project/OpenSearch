@@ -48,7 +48,7 @@ public class GeoDistanceSortProtoUtils {
      * with the appropriate field name, geo points, distance type, units, validation, and nested sorting settings.
      *
      * @param geoDistanceSort The Protocol Buffer GeoDistanceSort to convert
-     * @param registry The registry for converting nested sort filters
+     * @param registry The registry for query conversion (needed for nested sorts with filters)
      * @return A configured GeoDistanceSortBuilder
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
@@ -56,11 +56,6 @@ public class GeoDistanceSortProtoUtils {
         if (geoDistanceSort == null) {
             throw new IllegalArgumentException("GeoDistanceSort cannot be null");
         }
-
-        if (registry == null) {
-            throw new IllegalArgumentException("Registry cannot be null");
-        }
-
         String fieldName = null;
         List<GeoPoint> geoPoints = null;
         DistanceUnit unit = DistanceUnit.DEFAULT;
