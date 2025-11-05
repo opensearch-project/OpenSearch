@@ -104,9 +104,7 @@ public class ExpDecayFunctionProtoConverterTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithWrongFunctionType() {
-        FunctionScoreContainer container = FunctionScoreContainer.newBuilder()
-            .setWeight(1.0f)
-            .build();
+        FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setWeight(1.0f).build();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(container));
 
