@@ -14,8 +14,6 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.exec.DataFormat;
-import org.opensearch.index.engine.exec.coord.Any;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
@@ -30,7 +28,6 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -124,9 +121,6 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             // Derive the path for data directory of SEGMENTS
             BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
 
-            // Create format discovery for CompositeRemoteDirectory
-            //Any dataFormats = createDataFormats();
-
             // Create CompositeRemoteDirectory with format support
             CompositeRemoteDirectory compositeDataDirectory = new CompositeRemoteDirectory(
                 blobStoreRepository.blobStore(),
@@ -150,11 +144,9 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .indexFixedPrefix(indexFixedPrefix)
                 .build();
 
-            // Derive the path for metadata directory of SEGMENTS - remains regular RemoteDirectory
             BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
             RemoteDirectory metadataDirectory = new RemoteDirectory(blobStoreRepository.blobStore().blobContainer(mdPath));
 
-            // Create lock manager
             RemoteStoreLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
                 repositoriesService.get(),
                 repositoryName,
@@ -165,7 +157,6 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 indexFixedPrefix
             );
 
-            // Create and return RemoteSegmentStoreDirectory (extends Directory)
             return new RemoteSegmentStoreDirectory(
                 compositeDataDirectory,
                 metadataDirectory,

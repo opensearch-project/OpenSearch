@@ -82,14 +82,6 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
     }
 
     @Override
-    public boolean acceptsFile(String fileName) {
-        if (acceptedExtensions == null) {
-            return true; // Accept all files if no extensions specified
-        }
-        return acceptedExtensions.stream().anyMatch(fileName::endsWith);
-    }
-
-    @Override
     public Path getDirectoryPath() {
         return directoryPath;
     }
@@ -246,22 +238,6 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
     }
 
     @Override
-    public boolean fileExists(String name) throws IOException {
-        Path filePath = directoryPath.resolve(name);
-        try {
-            return Files.exists(filePath) && Files.isRegularFile(filePath);
-        } catch (Exception e) {
-            throw new MultiFormatStoreException(
-                "Failed to check file existence: " + name,
-                dataFormat,
-                "fileExists",
-                filePath,
-                e
-            );
-        }
-    }
-
-    @Override
     public long calculateChecksum(String fileName) throws IOException {
         Path filePath = directoryPath.resolve(fileName);
         try (InputStream inputStream = Files.newInputStream(filePath, StandardOpenOption.READ)) {
@@ -300,171 +276,6 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
     public void close() throws IOException {
         // No resources to close for generic directory
         logger.debug("Closed GenericStoreDirectory for format: {}", dataFormat.name());
-    }
-
-    // Upload-specific methods for remote segment upload
-
-    @Override
-    public InputStream createUploadInputStream(String fileName) throws IOException {
-        if (fileName == null || fileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("File name cannot be null or empty");
-        }
-
-        Path filePath = directoryPath.resolve(fileName);
-
-        logger.debug("Creating generic upload input stream: file={}, format={}, filePath={}",
-            fileName, dataFormat.name(), filePath);
-
-        try {
-            // Validate file before creating stream
-            if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
-                throw new IOException("File does not exist or is not a regular file: " + filePath);
-            }
-
-            // Create standard file input stream
-            InputStream inputStream = Files.newInputStream(filePath, StandardOpenOption.READ);
-
-            logger.trace("Generic upload input stream created successfully: file={}, format={}",
-                fileName, dataFormat.name());
-
-            return inputStream;
-
-        } catch (IOException e) {
-            logger.error("Failed to create generic upload input stream: file={}, format={}, filePath={}, error={}",
-                fileName, dataFormat.name(), filePath, e.getMessage(), e);
-
-            throw new MultiFormatStoreException(
-                "Failed to create upload input stream for file: " + fileName,
-                dataFormat,
-                "createUploadInputStream",
-                filePath,
-                e
-            );
-        }
-    }
-
-    @Override
-    public InputStream createUploadRangeInputStream(String fileName, long offset, long length) throws IOException {
-        if (fileName == null || fileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("File name cannot be null or empty");
-        }
-        if (offset < 0) {
-            throw new IllegalArgumentException("Offset cannot be negative: " + offset);
-        }
-        if (length <= 0) {
-            throw new IllegalArgumentException("Length must be positive: " + length);
-        }
-
-        Path filePath = directoryPath.resolve(fileName);
-
-        try {
-            // Validate file before creating stream
-            if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
-                throw new IOException("File does not exist or is not a regular file: " + filePath);
-            }
-
-            // Validate that the range is within file bounds
-            long fileSize = Files.size(filePath);
-            if (offset >= fileSize) {
-                throw new IllegalArgumentException("Offset " + offset + " is beyond file size " + fileSize);
-            }
-            if (offset + length > fileSize) {
-                throw new IllegalArgumentException("Range [" + offset + ", " + (offset + length) +
-                    ") exceeds file size " + fileSize);
-            }
-
-            // Create range-based file input stream using FileChannel
-            FileChannel channel = FileChannel.open(filePath, StandardOpenOption.READ);
-
-            try {
-                // Create inline range input stream
-                return new InputStream() {
-                    private long position = 0;
-                    private boolean closed = false;
-
-                    @Override
-                    public int read() throws IOException {
-                        checkClosed();
-
-                        if (position >= length) {
-                            return -1; // EOF
-                        }
-
-                        java.nio.ByteBuffer buffer = java.nio.ByteBuffer.allocate(1);
-                        int bytesRead = channel.read(buffer, offset + position);
-                        if (bytesRead == -1) {
-                            return -1;
-                        }
-
-                        position++;
-                        return buffer.get(0) & 0xFF;
-                    }
-
-                    @Override
-                    public int read(byte[] b, int off, int len) throws IOException {
-                        checkClosed();
-
-                        if (position >= length) {
-                            return -1; // EOF
-                        }
-
-                        int toRead = (int) Math.min(len, length - position);
-                        java.nio.ByteBuffer buffer = java.nio.ByteBuffer.wrap(b, off, toRead);
-
-                        int bytesRead = channel.read(buffer, offset + position);
-                        if (bytesRead > 0) {
-                            position += bytesRead;
-                        }
-
-                        return bytesRead;
-                    }
-
-                    @Override
-                    public long skip(long n) throws IOException {
-                        checkClosed();
-
-                        long toSkip = Math.min(n, length - position);
-                        if (toSkip > 0) {
-                            position += toSkip;
-                        }
-
-                        return toSkip;
-                    }
-
-                    @Override
-                    public void close() throws IOException {
-                        if (!closed) {
-                            channel.close();
-                            closed = true;
-                        }
-                    }
-
-                    private void checkClosed() throws IOException {
-                        if (closed) {
-                            throw new IOException("Stream is closed");
-                        }
-                    }
-                };
-            } catch (Exception e) {
-                // Clean up FileChannel if OffsetRangeFileInputStream creation fails
-                try {
-                    channel.close();
-                } catch (IOException closeException) {
-                    e.addSuppressed(closeException);
-                }
-                throw e;
-            }
-
-        } catch (IOException e) {
-            throw new MultiFormatStoreException(
-                "Failed to create upload range input stream for file: " + fileName +
-                " (offset=" + offset + ", length=" + length + ")",
-                dataFormat,
-                "createUploadRangeInputStream",
-                filePath,
-                e
-            );
-        }
     }
 
     @Override
@@ -506,28 +317,6 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
                 e
             );
         }
-    }
-
-    @Override
-    public void onUploadComplete(String fileName, String remoteFileName) throws IOException {
-        if (fileName == null || fileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("File name cannot be null or empty");
-        }
-        if (remoteFileName == null || remoteFileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Remote file name cannot be null or empty");
-        }
-
-        Path filePath = directoryPath.resolve(fileName);
-
-        logger.debug("Generic format upload completed: localFile={}, remoteFile={}, format={}, filePath={}",
-            fileName, remoteFileName, dataFormat.name(), filePath);
-
-        // Future enhancements could include:
-        // - Format-specific cleanup operations
-        // - Updating local metadata about uploaded files
-        // - Triggering format-specific monitoring or alerting
-        // - Performing format-specific validation of upload success
-        // - Format-specific post-upload integrity checks
     }
 
     @Override
@@ -653,7 +442,6 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
             return length;
         }
 
-        // === RandomAccessInput Methods (like NIOFSDirectory) ===
 
         @Override
         public byte readByte(long pos) throws IOException {

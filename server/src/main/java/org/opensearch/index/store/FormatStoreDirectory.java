@@ -38,25 +38,6 @@ public interface FormatStoreDirectory<T extends DataFormat> extends Closeable {
     T getDataFormat();
 
     /**
-     * Checks if this directory can handle the given DataFormat
-     * @param format the DataFormat to check
-     * @return true if this directory supports the format, false otherwise
-     */
-    default boolean supportsFormat(DataFormat format) {
-        return getDataFormat().equals(format);
-    }
-
-    /**
-     * Determines if this directory can handle the given file
-     * @param fileName the name of the file to check
-     * @return true if this directory accepts the file, false otherwise
-     * @deprecated Use format-based routing with FileMetadata instead of file extension detection.
-     *             This method will be removed in a future version.
-     */
-    @Deprecated
-    boolean acceptsFile(String fileName);
-
-    /**
      * Returns the directory path for this format
      * @return the path to this format's directory
      */
@@ -136,48 +117,12 @@ public interface FormatStoreDirectory<T extends DataFormat> extends Closeable {
     void rename(String source, String dest) throws IOException;
 
     /**
-     * Checks if a file exists
-     * @param name the name of the file to check
-     * @return true if the file exists, false otherwise
-     * @throws IOException if the existence check fails
-     */
-    boolean fileExists(String name) throws IOException;
-
-    /**
      * Calculates the checksum for the specified file using format-specific method
      * @param fileName the name of the file to calculate checksum for
      * @return the checksum as a string representation
      * @throws IOException if checksum calculation fails
      */
     long calculateChecksum(String fileName) throws IOException;
-
-    // Upload-specific methods for remote segment upload
-
-    /**
-     * Creates an input stream for reading complete file content during upload operations.
-     * This method provides format-agnostic access to file content for remote upload.
-     *
-     * @param fileName the name of the file to read
-     * @return InputStream for reading the complete file content
-     * @throws IOException if the input stream cannot be created or the file does not exist
-     */
-    InputStream createUploadInputStream(String fileName) throws IOException;
-
-    /**
-     * Creates a range-based input stream for multi-part upload operations.
-     * This method enables efficient multi-stream uploads by providing access to specific
-     * byte ranges within a file, supporting parallel upload of large files.
-     *
-     * @param fileName the name of the file to read
-     * @param offset the starting byte offset within the file (0-based)
-     * @param length the number of bytes to read from the offset
-     * @return InputStream for reading the specified byte range
-     * @throws IOException if the range stream cannot be created, the file does not exist,
-     *                     or the offset/length parameters are invalid
-     * @throws IllegalArgumentException if offset is negative, length is negative or zero,
-     *                                  or offset + length exceeds file size
-     */
-    InputStream createUploadRangeInputStream(String fileName, long offset, long length) throws IOException;
 
     /**
      * Calculates format-specific checksum for upload verification.
@@ -190,17 +135,6 @@ public interface FormatStoreDirectory<T extends DataFormat> extends Closeable {
      * @throws IOException if checksum calculation fails or the file cannot be accessed
      */
     String calculateUploadChecksum(String fileName) throws IOException;
-
-    /**
-     * Performs format-specific post-upload operations after successful file upload.
-     * This method allows format implementations to execute any necessary cleanup,
-     * logging, or state updates after a file has been successfully uploaded to remote storage.
-     *
-     * @param fileName the name of the local file that was uploaded
-     * @param remoteFileName the name/path of the file in remote storage
-     * @throws IOException if post-upload operations fail
-     */
-    void onUploadComplete(String fileName, String remoteFileName) throws IOException;
 
     /**
      * Opens an IndexInput for reading from the specified file.
