@@ -71,8 +71,19 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
     }
 
     @Override
+    public void countNode(int count) {
+        throw new UnsupportedOperationException("countNode should be unreachable");
+    }
+
+    @Override
+    public void count() {
+        throw new UnsupportedOperationException("countNode should be unreachable");
+    }
+
+    @Override
     public void collectDocId(int docId) {
         if (isDocLive(docId)) {
+            counter++;
             bitSet.set(docId);
         }
     }
@@ -83,6 +94,7 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
         iter.nextDoc();
         for (int doc = iter.docID(); doc < DocIdSetIterator.NO_MORE_DOCS; doc = iter.nextDoc()) {
             if (isDocLive(doc)) {
+                counter++;
                 bitSet.set(doc);
             }
         }
