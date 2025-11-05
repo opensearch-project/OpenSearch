@@ -91,7 +91,7 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
         }
 
         /**
-         * This constructor will be deprecated starting in version 3.3.0.
+         * This constructor will be deprecated starting in version 3.4.0.
          * Use {@link Builder} instead.
          */
         @Deprecated
@@ -107,6 +107,11 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             this.parallelism = -1;
         }
 
+        /**
+         * This constructor will be deprecated starting in version 3.4.0.
+         * Use {@link Builder} instead.
+         */
+        @Deprecated
         public Stats(
             String name,
             int threads,

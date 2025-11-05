@@ -8,9 +8,10 @@
 
 package org.opensearch.tools.cli.fips.truststore;
 
+import org.opensearch.cli.SuppressForbidden;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.ByteArrayInputStream;
 import java.io.PrintWriter;
@@ -27,34 +28,15 @@ import picocli.CommandLine;
 import static org.opensearch.tools.cli.fips.truststore.ConfigureSystemTrustStore.findPKCS11ProviderService;
 
 public class TrustStoreServiceTests extends OpenSearchTestCase {
-
-    private static Path sharedTempDir;
+    @ClassRule
+    public static TemporaryFolder tempFolder = new TemporaryFolder();
 
     private CommandLine.Model.CommandSpec spec;
     private StringWriter outputCapture;
     private Path confPath;
 
-    @BeforeClass
-    public static void setUpClass() throws Exception {
-        sharedTempDir = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")), "truststore-test-");
-    }
-
-    @AfterClass
-    public static void tearDownClass() throws Exception {
-        if (sharedTempDir != null && Files.exists(sharedTempDir)) {
-            try (var walk = Files.walk(sharedTempDir)) {
-                walk.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                });
-            }
-        }
-    }
-
     @Override
+    @SuppressForbidden(reason = "the java.io.File is exposed by TemporaryFolder")
     public void setUp() throws Exception {
         super.setUp();
         outputCapture = new StringWriter();
@@ -66,7 +48,7 @@ public class TrustStoreServiceTests extends OpenSearchTestCase {
         commandLine.setOut(new PrintWriter(outputCapture, true));
         spec = commandLine.getCommandSpec();
 
-        confPath = Files.createTempDirectory(sharedTempDir, "conf-");
+        confPath = Files.createTempDirectory(tempFolder.newFolder().toPath(), "conf-");
     }
 
     public void testUseSystemTrustStoreUserCancels() {

@@ -423,8 +423,8 @@ public class TranslogTransferManager {
                     exceptionSetOnce.set(e);
                 }
             }, e -> {
-                if (e instanceof RuntimeException) {
-                    throw (RuntimeException) e;
+                if (e instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
                 }
                 logger.error(() -> new ParameterizedMessage("Exception while listing metadata files"), e);
                 exceptionSetOnce.set((IOException) e);

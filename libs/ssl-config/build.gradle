@@ -58,7 +58,5 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.test {
-    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-        jvmArgs += ["--add-opens", "java.base/java.security.cert=ALL-UNNAMED"]
-    }
+    jvmArgs += ["--add-opens", "java.base/java.security.cert=ALL-UNNAMED"]
 }

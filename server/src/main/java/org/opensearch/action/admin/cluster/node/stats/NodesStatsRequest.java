@@ -172,17 +172,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
-    /**
-     * Helper method for adding metrics during deserialization.
-     * @param includeMetric Whether or not to include a metric.
-     * @param metricName Name of the metric to add.
-     */
-    private void optionallyAddMetric(boolean includeMetric, String metricName) {
-        if (includeMetric) {
-            requestedMetrics.add(metricName);
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

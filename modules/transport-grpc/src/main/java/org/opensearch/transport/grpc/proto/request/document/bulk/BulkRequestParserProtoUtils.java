@@ -116,7 +116,7 @@ public class BulkRequestParserProtoUtils {
         String defaultPipeline,
         Boolean defaultRequireAlias
     ) {
-        List<BulkRequestBody> bulkRequestBodyList = request.getRequestBodyList();
+        List<BulkRequestBody> bulkRequestBodyList = request.getBulkRequestBodyList();
         DocWriteRequest<?>[] docWriteRequests = new DocWriteRequest<?>[bulkRequestBodyList.size()];
 
         // Process each operation in the request body
