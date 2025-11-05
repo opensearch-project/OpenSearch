@@ -80,16 +80,14 @@ public class MergeScheduler {
 
         // Submit merges up to available capacity
         int scheduled = 0;
+        int availableToSchedule = getAvailableMergeSlots();
 
-        while(mergeHandler.hasPendingMerges()) {
+        while(availableToSchedule >= scheduled && mergeHandler.hasPendingMerges()) {
             OneMerge oneMerge = mergeHandler.getNextMerge();
             if (oneMerge == null) {
                 return;
             }
             try {
-//                if (scheduled >= mergesToSchedule) {
-//                    break;
-//                }
                 submitMergeTask(oneMerge);
                 scheduled++;
             } catch (Exception e) {
