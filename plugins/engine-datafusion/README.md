@@ -36,14 +36,26 @@ curl --location --request PUT 'http://localhost:9200/index-7' \
     },
     "mappings": {
         "properties": {
-            "message": {
+            "id": {
+                "type": "keyword"
+            },
+            "name": {
+                "type": "keyword"
+            },
+            "age": {
+                "type": "integer"
+            },
+            "salary": {
                 "type": "long"
             },
-            "message2": {
-                "type": "long"
+            "score": {
+                "type": "double"
             },
-            "message3": {
-                "type": "long"
+            "active": {
+                "type": "boolean"
+            },
+            "created_date": {
+                "type": "date"
             }
         }
     }
@@ -54,9 +66,18 @@ curl --location --request PUT 'http://localhost:9200/index-7' \
 curl --location --request POST 'http://localhost:9200/_bulk' \
 --header 'Content-Type: application/json' \
 --data-raw '{"index":{"_index":"index-7"}}
-{"message": 2,"message2": 3,"message3": 4}
+{"id":"1","name":"Alice","age":30,"salary":75000,"score":95.5,"active":true,"created_date":"2024-01-15"}
 {"index":{"_index":"index-7"}}
-{"message": 3,"message2": 4,"message3": 5}
+{"id":"2","name":"Bob","age":25,"salary":60000,"score":88.3,"active":true,"created_date":"2024-02-20"}
+{"index":{"_index":"index-7"}}
+{"id":"3","name":"Charlie","age":35,"salary":90000,"score":92.7,"active":false,"created_date":"2024-03-10"}
+{"index":{"_index":"index-7"}}
+{"id":"4","name":"Diana","age":28,"salary":70000,"score":89.1,"active":true,"created_date":"2024-04-05"}
+{"index":{"_index":"index-7"}}
+{"id":"5","name":"Bob","age":30,"salary":55000,"score":81.1,"active":true,"created_date":"2024-04-05"}
+{"index":{"_index":"index-7"}}
+{"id":"5","name":"Diana","age":35,"salary":65000,"score":71.1,"active":true,"created_date":"2024-02-05"}
+'
 '
 ```
 4. Refresh the index
@@ -68,6 +89,36 @@ curl localhost:9200/index-7/_refresh
 curl --location --request POST 'http://localhost:9200/_plugins/_ppl' \
 --header 'Content-Type: application/json' \
 --data-raw '{
-  "query": "source=index-7 | stats count(), min(message) as min, max(message2) as max"
+  "query": "source=index-7 | stats count(), min(age) as min, max(age) as max, avg(age) as avg"
+}'
+
+
+curl --location --request POST 'http://localhost:9200/_plugins/_ppl' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "query": "source=index-7 | stats count() as c by name | sort c"
+}'
+
+curl --location --request POST 'http://localhost:9200/_plugins/_ppl' --header 'Content-Type: application/json' --data-raw '{
+  "query": "source=index-7 | stats count(), sum(age) as c by name | sort c"
+}'
+
+curl --location --request POST 'http://localhost:9200/_plugins/_ppl' --header 'Content-Type: application/json' --data-raw '{
+  "query": "source=index-7 | where name = \"Bob\" | stats sum(age)"
+}'
+
+
+curl --location --request POST 'http://localhost:9200/_plugins/_ppl' --header 'Content-Type: application/json' --data-raw '{
+  "query": "source=index-7 | stats sum(age) as s by name | sort s"
+}'
+
+curl --location --request POST 'http://localhost:9200/_plugins/_ppl' --header 'Content-Type: application/json' --data-raw '{
+  "query": "source=index-7 | stats sum(age) as s by name | sort name"
+}'
+
+curl --location --request POST 'http://localhost:9200/_plugins/_ppl' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "query": "source=index-7 | stats count() as c by name"
 }'
 ```
