@@ -59,6 +59,7 @@ plugins {
   id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
+  id 'org.openrewrite.rewrite' version '7.19.0' apply false
 }
 
 apply from: 'gradle/build-complete.gradle'
@@ -70,6 +71,7 @@ apply from: 'gradle/local-distribution.gradle'
 apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
+apply from: 'gradle/rewrite.gradle'
 
 // Apply FIPS configuration to all projects
 allprojects {

@@ -41,8 +41,8 @@ dependencies {
 preProcessFixture {
   dependsOn jar, configurations.runtimeClasspath
   // always run the task, otherwise the folders won't be created
-  outputs.upToDateWhen { 
-    false 
+  outputs.upToDateWhen {
+    false
   }
   doLast {
     file("${testFixturesDir}/shared").mkdirs()
