@@ -252,7 +252,6 @@ impl NativeParquetWriter {
             (&created_by_jstring).into(),
         ])?;
 
-
         Ok(java_metadata)
     }
 
