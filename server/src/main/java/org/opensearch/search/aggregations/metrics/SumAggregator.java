@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.FixedBitSet;
@@ -42,6 +44,7 @@ import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
@@ -67,6 +70,7 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  * @opensearch.internal
  */
 public class SumAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
+    private static final Logger logger = LogManager.getLogger(SumAggregator.class);
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
@@ -98,10 +102,12 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
 
     @Override
     public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        logger.info("try pre-computing sum aggregation for leaf");
         if (valuesSource == null) {
             return false;
         }
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
+        logger.info("Supported star-tree for sum aggregation: {}", supportedStarTree);
         if (supportedStarTree != null) {
             if (parent != null && subAggregators.length == 0) {
                 // If this a child aggregator, then the parent will trigger star-tree pre-computation.
@@ -158,9 +164,11 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
             sums.set(0, kahanSummation.value());
             compensations.set(0, kahanSummation.delta());
         };
+        logger.info("precomputing sum aggregation using star-tree");
 
         if (context.getProfilers() != null) {
             StarTreeProfileBreakdown breakdown = context.getProfilers().getAggregationProfiler().getStarTreeProfileBreakdown(this);
+            logger.info("breakdown: " + breakdown.toString());
             FixedBitSet filteredValues = scanStarTreeProfiling(context, valuesSource, ctx, starTree, metric, breakdown);
             buildBucketsFromStarTreeProfiling(
                 context,

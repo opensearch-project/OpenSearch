@@ -32,6 +32,8 @@
 
 package org.opensearch.search.profile.aggregation;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
@@ -58,6 +60,7 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
     private final Aggregator delegate;
     private final AggregationProfiler profiler;
     private AggregationProfileBreakdown profileBreakdown;
+    private static final Logger logger = LogManager.getLogger(ProfilingAggregator.class);
 
     public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) throws IOException {
         this.profiler = profiler;
@@ -123,6 +126,7 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+        logger.info("get leaf collector profiling");
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
         timer.start();
         try {
