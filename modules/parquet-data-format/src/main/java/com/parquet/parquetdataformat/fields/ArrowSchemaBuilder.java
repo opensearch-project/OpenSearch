@@ -93,7 +93,8 @@ public final class ArrowSchemaBuilder {
             || mapper instanceof FieldNamesFieldMapper
             || mapper instanceof IndexFieldMapper
             || mapper instanceof NestedPathFieldMapper
-            || Objects.equals(mapper.typeName(), "_feature");
+            || Objects.equals(mapper.typeName(), "_feature")
+            || Objects.equals(mapper.typeName(), "_data_stream_timestamp");
     }
 
     /**

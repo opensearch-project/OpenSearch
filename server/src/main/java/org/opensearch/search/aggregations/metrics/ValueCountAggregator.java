@@ -54,8 +54,6 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
@@ -215,7 +213,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
 
     @Override
     public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
-            Object[] values = shardResult.get(name);
-            return new InternalValueCount(name, ((Number) values[row]).longValue(), metadata());
+        Object[] values = shardResult.get(name);
+        return new InternalValueCount(name, ((Number) values[row]).longValue(), metadata());
     }
 }
