@@ -342,7 +342,6 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         List<OrderedGrpcInterceptor> orderedList = new ArrayList<>();
 
         // Then add plugin-provided interceptors
-        // Similar to how ActionPlugin.getRestHandlerWrapper receives ThreadContext
         if (!interceptorProviders.isEmpty()) {
             for (GrpcInterceptorProvider provider : interceptorProviders) {
                 orderedList.addAll(provider.getOrderedGrpcInterceptors(threadPool.getThreadContext()));

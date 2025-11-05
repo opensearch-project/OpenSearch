@@ -85,8 +85,6 @@ public class GrpcInterceptorChain implements ServerInterceptor {
         Metadata headers,
         ServerCallHandler<ReqT, RespT> next
     ) {
-        logger.debug("GrpcInterceptorChain.interceptCall() executing on thread: {}", Thread.currentThread().getName());
-
         ServerCallHandler<ReqT, RespT> currentHandler = next;
 
         for (int i = interceptors.size() - 1; i >= 0; i--) {
@@ -124,12 +122,10 @@ public class GrpcInterceptorChain implements ServerInterceptor {
         // This follows the same pattern as ContextPreservingActionListener.
         // Interceptors may have added transients/headers that need to propagate across thread switches.
         final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(false);
-        logger.debug("Captured ThreadContext after interceptors on thread: {}", Thread.currentThread().getName());
 
         // Wrap the listener to restore ThreadContext in all callbacks
         return new ForwardingServerCallListener.SimpleForwardingServerCallListener<>(delegate) {
             private void runWithThreadContext(Runnable r) {
-                logger.debug("Restoring ThreadContext on thread: {}", Thread.currentThread().getName());
                 try (ThreadContext.StoredContext ignored = contextSupplier.get()) {
                     r.run();
                 }
