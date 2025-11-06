@@ -2,26 +2,19 @@ package com.parquet.parquetdataformat.bridge;
 
 /**
  * Represents metadata information for a Parquet file.
- * 
+ * <p>
  * This class holds the essential metadata extracted from a Parquet file
  * when the writer is closed, providing visibility into the file's characteristics.
  */
-public class ParquetFileMetadata {
-    private final int version;
-    private final long numRows;
-    private final String createdBy;
-
+public record ParquetFileMetadata(int version, long numRows, String createdBy) {
     /**
      * Constructs a new ParquetFileMetadata instance.
      *
-     * @param version the Parquet format version used
-     * @param numRows the total number of rows in the file
+     * @param version   the Parquet format version used
+     * @param numRows   the total number of rows in the file
      * @param createdBy the application/library that created the file (can be null)
      */
-    public ParquetFileMetadata(int version, long numRows, String createdBy) {
-        this.version = version;
-        this.numRows = numRows;
-        this.createdBy = createdBy;
+    public ParquetFileMetadata {
     }
 
     /**
@@ -29,7 +22,8 @@ public class ParquetFileMetadata {
      *
      * @return the version number
      */
-    public int getVersion() {
+    @Override
+    public int version() {
         return version;
     }
 
@@ -38,7 +32,8 @@ public class ParquetFileMetadata {
      *
      * @return the number of rows
      */
-    public long getNumRows() {
+    @Override
+    public long numRows() {
         return numRows;
     }
 
@@ -47,17 +42,18 @@ public class ParquetFileMetadata {
      *
      * @return the creator information, or null if not available
      */
-    public String getCreatedBy() {
+    @Override
+    public String createdBy() {
         return createdBy;
     }
 
     @Override
     public String toString() {
         return "ParquetFileMetadata{" +
-                "version=" + version +
-                ", numRows=" + numRows +
-                ", createdBy='" + createdBy + '\'' +
-                '}';
+            "version=" + version +
+            ", numRows=" + numRows +
+            ", createdBy='" + createdBy + '\'' +
+            '}';
     }
 
     @Override
