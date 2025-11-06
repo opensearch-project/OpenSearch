@@ -52,4 +52,13 @@ public class AbstractQueryBuilderProtoUtils {
 
         return registry.fromProto(queryContainer);
     }
+
+    /**
+     * Returns the registry used by this utility for query conversion.
+     *
+     * @return The QueryBuilderProtoConverterRegistry instance
+     */
+    public QueryBuilderProtoConverterRegistryImpl getRegistry() {
+        return registry;
+    }
 }
