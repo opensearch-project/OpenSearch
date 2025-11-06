@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add pluggable gRPC interceptors with explicit ordering([#19005](https://github.com/opensearch-project/OpenSearch/pull/19005))
 - Add BindableServices extension point to transport-grpc-spi ([#19304](https://github.com/opensearch-project/OpenSearch/pull/19304))
 - Add metrics for the merged segment warmer feature ([#18929](https://github.com/opensearch-project/OpenSearch/pull/18929))
-- Add separate grpc.detailed_errors.enabled error handling setting for gRPC ([#19644](https://github.com/opensearch-project/OpenSearch/pull/19644))
+- Add handling for the global gRPC error_trace parameter ([#19644](https://github.com/opensearch-project/OpenSearch/pull/19644))
 - Handle deleted documents for filter rewrite subaggregation optimization ([#19643](https://github.com/opensearch-project/OpenSearch/pull/19643))
 - Add pointer based lag metric in pull-based ingestion ([#19635](https://github.com/opensearch-project/OpenSearch/pull/19635))
 - Introduced internal API for retrieving metadata about requested indices from transport actions  ([#18523](https://github.com/opensearch-project/OpenSearch/pull/18523))
