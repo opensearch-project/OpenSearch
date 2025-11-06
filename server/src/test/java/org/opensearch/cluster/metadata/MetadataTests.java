@@ -1678,9 +1678,9 @@ public class MetadataTests extends OpenSearchTestCase {
             mappingB = builder.toString();
         }
 
-        // Build metadata with 4 indices:
+        // Build metadata with 6 indices:
         // - index1, index2, index3 → mappingA
-        // - index4 → mappingB
+        // - index4, index5, index6 → mappingB
         final Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("index1")
@@ -1710,6 +1710,20 @@ public class MetadataTests extends OpenSearchTestCase {
                     .numberOfReplicas(0)
                     .putMapping(mappingB)
             )
+            .put(
+                IndexMetadata.builder("index5")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putMapping(mappingB)
+            )
+            .put(
+                IndexMetadata.builder("index6")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putMapping(mappingB)
+            )
             .build();
 
         final Predicate<String> pShared = MapperPlugin.NOOP_FIELD_PREDICATE; // returns true for all fields
@@ -1717,11 +1731,13 @@ public class MetadataTests extends OpenSearchTestCase {
 
         // Apply findMappings with different predicates per index
         Map<String, MappingMetadata> result = metadata.findMappings(
-            new String[] { "index1", "index2", "index3", "index4" },
+            new String[] { "index1", "index2", "index3", "index4", "index5", "index6" },
             index -> switch (index) {
                 case "index1", "index2" -> pShared; // same predicate + same mapping
                 case "index3" -> pOther;            // different predicate, same mapping
                 case "index4" -> pShared;           // same predicate, but different mapping
+                case "index5" -> pOther;            // index5 and index6 share mapping and predicate
+                case "index6" -> pOther;
                 default -> MapperPlugin.NOOP_FIELD_PREDICATE;
             }
         );
@@ -1730,21 +1746,28 @@ public class MetadataTests extends OpenSearchTestCase {
         MappingMetadata m2 = result.get("index2");
         MappingMetadata m3 = result.get("index3");
         MappingMetadata m4 = result.get("index4");
+        MappingMetadata m5 = result.get("index5");
+        MappingMetadata m6 = result.get("index6");
 
-        // Same mapping bytes + same predicate → MUST dedupe (same object)
-        assertEquals("index1 and index2 must share the MappingMetadata instance", m1, m2);
+        // Same mapping bytes + same predicate → MUST dedupe (equals in this case since predicate is NOOP and they are passthrough)
+        assertEquals("index1 and index2 mappings should be equal", m1, m2);
 
         // Same mapping bytes + different predicate → MUST NOT dedupe
-        assertNotEquals("index1 and index3 must not share because predicate differs", m1, m3);
+        assertEquals("index1 and index3 mappings are equal after field filter applied", m1, m3);
 
         // Different mapping bytes + same predicate → MUST NOT dedupe
         assertNotEquals("index1 and index4 must not share because mapping differs", m1, m4);
 
+        // Same mapping bytes + same predicate → MUST dedupe (assertSame here since its deduped and these are the same object)
+        assertSame("index5 and index6 must share the MappingMetadata instance", m5, m6);
+
         // Shared predicate keeps all fields (NOOP filter)
-        assertTrue(m1.source().string().contains("extra_keyword_field"));
+        assertTrue(m4.source().string().contains("extra_keyword_field"));
 
         // pOther removes "extra_keyword_field" from index3
         assertFalse(m3.source().string().contains("extra_keyword_field"));
+        assertFalse(m5.source().string().contains("extra_keyword_field"));
+        assertFalse(m6.source().string().contains("extra_keyword_field"));
     }
 
 }
