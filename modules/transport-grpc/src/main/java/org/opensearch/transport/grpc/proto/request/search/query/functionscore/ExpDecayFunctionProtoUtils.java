@@ -8,7 +8,7 @@
 package org.opensearch.transport.grpc.proto.request.search.query.functionscore;
 
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.index.query.functionscore.LinearDecayFunctionBuilder;
+import org.opensearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.opensearch.protobufs.DateDecayPlacement;
 import org.opensearch.protobufs.DecayFunction;
@@ -20,30 +20,28 @@ import org.opensearch.transport.grpc.proto.request.common.GeoPointProtoUtils;
 import java.util.Map;
 
 /**
- * Protocol Buffer converter for LinearDecayFunction.
- * This converter handles the transformation of Protocol Buffer LinearDecayFunction objects
- * into OpenSearch LinearDecayFunctionBuilder instances.
+ * Utility class for converting Protocol Buffer DecayFunction to OpenSearch ExponentialDecayFunctionBuilder.
+ * This utility handles the transformation of Protocol Buffer DecayFunction objects
+ * into OpenSearch ExponentialDecayFunctionBuilder instances.
  */
-public class LinearDecayFunctionProtoConverter {
+class ExpDecayFunctionProtoUtils {
 
-    /**
-     * Default constructor for LinearDecayFunctionProtoConverter.
-     */
-    public LinearDecayFunctionProtoConverter() {
-        // Default constructor
+    private ExpDecayFunctionProtoUtils() {
+        // Utility class, no instances
     }
 
     /**
      * Converts a Protocol Buffer DecayFunction to an OpenSearch ScoreFunctionBuilder.
-     * Similar to {@link org.opensearch.index.query.functionscore.LinearDecayFunctionBuilder},
+     * Similar to {@link org.opensearch.index.query.functionscore.DecayFunctionParser#fromXContent(org.opensearch.core.xcontent.XContentParser)},
      * this method parses the Protocol Buffer representation and creates a properly configured
-     * LinearDecayFunctionBuilder with decay placement parameters (numeric, geo, or date).
+     * ExponentialDecayFunctionBuilder with decay placement parameters (numeric, geo, or date).
+     * Equivalent to {@code #fromProto(DecayFunction)} for gRPC Protocol Buffer conversion.
      *
      * @param decayFunction the Protocol Buffer DecayFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder
      * @throws IllegalArgumentException if the decayFunction is null or doesn't contain placements
      */
-    public ScoreFunctionBuilder<?> fromProto(DecayFunction decayFunction) {
+    static ScoreFunctionBuilder<?> fromProto(DecayFunction decayFunction) {
         if (decayFunction == null || decayFunction.getPlacementCount() == 0) {
             throw new IllegalArgumentException("DecayFunction must have at least one placement");
         }
@@ -53,29 +51,23 @@ public class LinearDecayFunctionProtoConverter {
         DecayPlacement decayPlacement = entry.getValue();
 
         if (decayPlacement.hasNumericDecayPlacement()) {
-            return parseNumericLinearDecay(fieldName, decayPlacement.getNumericDecayPlacement());
+            return parseNumericExpDecay(fieldName, decayPlacement.getNumericDecayPlacement());
         } else if (decayPlacement.hasGeoDecayPlacement()) {
-            return parseGeoLinearDecay(fieldName, decayPlacement.getGeoDecayPlacement());
+            return parseGeoExpDecay(fieldName, decayPlacement.getGeoDecayPlacement());
         } else if (decayPlacement.hasDateDecayPlacement()) {
-            return parseDateLinearDecay(fieldName, decayPlacement.getDateDecayPlacement());
+            return parseDateExpDecay(fieldName, decayPlacement.getDateDecayPlacement());
         } else {
             throw new IllegalArgumentException("Unsupported decay placement type");
         }
     }
 
     /**
-     * Parses a numeric decay placement and creates a LinearDecayFunctionBuilder.
-     * Similar to {@link org.opensearch.index.query.functionscore.DecayFunctionParser},
-     * this method constructs a decay function for numeric field values.
-     *
-     * @param fieldName the field name to apply linear decay
-     * @param numericPlacement the protobuf numeric decay placement containing origin, scale, offset, and decay
-     * @return the corresponding OpenSearch LinearDecayFunctionBuilder
+     * Parses a numeric decay placement for exponential decay.
      */
-    private static ScoreFunctionBuilder<?> parseNumericLinearDecay(String fieldName, NumericDecayPlacement numericPlacement) {
-        LinearDecayFunctionBuilder builder;
+    private static ScoreFunctionBuilder<?> parseNumericExpDecay(String fieldName, NumericDecayPlacement numericPlacement) {
+        ExponentialDecayFunctionBuilder builder;
         if (numericPlacement.hasDecay()) {
-            builder = new LinearDecayFunctionBuilder(
+            builder = new ExponentialDecayFunctionBuilder(
                 fieldName,
                 numericPlacement.getOrigin(),
                 numericPlacement.getScale(),
@@ -83,7 +75,7 @@ public class LinearDecayFunctionProtoConverter {
                 numericPlacement.getDecay()
             );
         } else {
-            builder = new LinearDecayFunctionBuilder(
+            builder = new ExponentialDecayFunctionBuilder(
                 fieldName,
                 numericPlacement.getOrigin(),
                 numericPlacement.getScale(),
@@ -95,20 +87,14 @@ public class LinearDecayFunctionProtoConverter {
     }
 
     /**
-     * Parses a geo decay placement and creates a LinearDecayFunctionBuilder.
-     * Similar to {@link org.opensearch.index.query.functionscore.DecayFunctionParser},
-     * this method constructs a decay function for geographic field values.
-     *
-     * @param fieldName the field name to apply linear decay
-     * @param geoPlacement the protobuf geo decay placement containing origin (lat/lon), scale, offset, and decay
-     * @return the corresponding OpenSearch LinearDecayFunctionBuilder
+     * Parses a geo decay placement for exponential decay.
      */
-    private static ScoreFunctionBuilder<?> parseGeoLinearDecay(String fieldName, GeoDecayPlacement geoPlacement) {
+    private static ScoreFunctionBuilder<?> parseGeoExpDecay(String fieldName, GeoDecayPlacement geoPlacement) {
         GeoPoint geoPoint = GeoPointProtoUtils.parseGeoPoint(geoPlacement.getOrigin());
 
-        LinearDecayFunctionBuilder builder;
+        ExponentialDecayFunctionBuilder builder;
         if (geoPlacement.hasDecay()) {
-            builder = new LinearDecayFunctionBuilder(
+            builder = new ExponentialDecayFunctionBuilder(
                 fieldName,
                 geoPoint,
                 geoPlacement.getScale(),
@@ -116,7 +102,7 @@ public class LinearDecayFunctionProtoConverter {
                 geoPlacement.getDecay()
             );
         } else {
-            builder = new LinearDecayFunctionBuilder(
+            builder = new ExponentialDecayFunctionBuilder(
                 fieldName,
                 geoPoint,
                 geoPlacement.getScale(),
@@ -128,20 +114,14 @@ public class LinearDecayFunctionProtoConverter {
     }
 
     /**
-     * Parses a date decay placement and creates a LinearDecayFunctionBuilder.
-     * Similar to {@link org.opensearch.index.query.functionscore.DecayFunctionParser},
-     * this method constructs a decay function for date field values.
-     *
-     * @param fieldName the field name to apply linear decay
-     * @param datePlacement the protobuf date decay placement containing origin (date), scale, offset, and decay
-     * @return the corresponding OpenSearch LinearDecayFunctionBuilder
+     * Parses a date decay placement for exponential decay.
      */
-    private static ScoreFunctionBuilder<?> parseDateLinearDecay(String fieldName, DateDecayPlacement datePlacement) {
+    private static ScoreFunctionBuilder<?> parseDateExpDecay(String fieldName, DateDecayPlacement datePlacement) {
         Object origin = datePlacement.hasOrigin() ? datePlacement.getOrigin() : null;
 
-        LinearDecayFunctionBuilder builder;
+        ExponentialDecayFunctionBuilder builder;
         if (datePlacement.hasDecay()) {
-            builder = new LinearDecayFunctionBuilder(
+            builder = new ExponentialDecayFunctionBuilder(
                 fieldName,
                 origin,
                 datePlacement.getScale(),
@@ -149,7 +129,7 @@ public class LinearDecayFunctionProtoConverter {
                 datePlacement.getDecay()
             );
         } else {
-            builder = new LinearDecayFunctionBuilder(
+            builder = new ExponentialDecayFunctionBuilder(
                 fieldName,
                 origin,
                 datePlacement.getScale(),

@@ -8,7 +8,7 @@
 package org.opensearch.transport.grpc.proto.request.search.query.functionscore;
 
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.index.query.functionscore.GaussDecayFunctionBuilder;
+import org.opensearch.index.query.functionscore.LinearDecayFunctionBuilder;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.opensearch.protobufs.DateDecayPlacement;
 import org.opensearch.protobufs.DecayFunction;
@@ -20,30 +20,28 @@ import org.opensearch.transport.grpc.proto.request.common.GeoPointProtoUtils;
 import java.util.Map;
 
 /**
- * Protocol Buffer converter for GaussDecayFunction.
- * This converter handles the transformation of Protocol Buffer GaussDecayFunction objects
- * into OpenSearch GaussDecayFunctionBuilder instances.
+ * Utility class for converting Protocol Buffer DecayFunction to OpenSearch LinearDecayFunctionBuilder.
+ * This utility handles the transformation of Protocol Buffer DecayFunction objects
+ * into OpenSearch LinearDecayFunctionBuilder instances.
  */
-public class GaussDecayFunctionProtoConverter {
+class LinearDecayFunctionProtoUtils {
 
-    /**
-     * Default constructor for GaussDecayFunctionProtoConverter.
-     */
-    public GaussDecayFunctionProtoConverter() {
-        // Default constructor
+    private LinearDecayFunctionProtoUtils() {
+        // Utility class, no instances
     }
 
     /**
      * Converts a Protocol Buffer DecayFunction to an OpenSearch ScoreFunctionBuilder.
-     * Similar to {@link org.opensearch.index.query.functionscore.GaussDecayFunctionBuilder},
+     * Similar to {@link org.opensearch.index.query.functionscore.DecayFunctionParser#fromXContent(org.opensearch.core.xcontent.XContentParser)},
      * this method parses the Protocol Buffer representation and creates a properly configured
-     * GaussDecayFunctionBuilder with decay placement parameters (numeric, geo, or date).
+     * LinearDecayFunctionBuilder with decay placement parameters (numeric, geo, or date).
+     * Equivalent to {@code #fromProto(DecayFunction)} for gRPC Protocol Buffer conversion.
      *
      * @param decayFunction the Protocol Buffer DecayFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder
      * @throws IllegalArgumentException if the decayFunction is null or doesn't contain placements
      */
-    public ScoreFunctionBuilder<?> fromProto(DecayFunction decayFunction) {
+    static ScoreFunctionBuilder<?> fromProto(DecayFunction decayFunction) {
         if (decayFunction == null || decayFunction.getPlacementCount() == 0) {
             throw new IllegalArgumentException("DecayFunction must have at least one placement");
         }
@@ -53,23 +51,29 @@ public class GaussDecayFunctionProtoConverter {
         DecayPlacement decayPlacement = entry.getValue();
 
         if (decayPlacement.hasNumericDecayPlacement()) {
-            return parseNumericGaussDecay(fieldName, decayPlacement.getNumericDecayPlacement());
+            return parseNumericLinearDecay(fieldName, decayPlacement.getNumericDecayPlacement());
         } else if (decayPlacement.hasGeoDecayPlacement()) {
-            return parseGeoGaussDecay(fieldName, decayPlacement.getGeoDecayPlacement());
+            return parseGeoLinearDecay(fieldName, decayPlacement.getGeoDecayPlacement());
         } else if (decayPlacement.hasDateDecayPlacement()) {
-            return parseDateGaussDecay(fieldName, decayPlacement.getDateDecayPlacement());
+            return parseDateLinearDecay(fieldName, decayPlacement.getDateDecayPlacement());
         } else {
             throw new IllegalArgumentException("Unsupported decay placement type");
         }
     }
 
     /**
-     * Parses a numeric decay placement for Gaussian decay.
+     * Parses a numeric decay placement and creates a LinearDecayFunctionBuilder.
+     * Similar to {@link org.opensearch.index.query.functionscore.DecayFunctionParser},
+     * this method constructs a decay function for numeric field values.
+     *
+     * @param fieldName the field name to apply linear decay
+     * @param numericPlacement the protobuf numeric decay placement containing origin, scale, offset, and decay
+     * @return the corresponding OpenSearch LinearDecayFunctionBuilder
      */
-    private static ScoreFunctionBuilder<?> parseNumericGaussDecay(String fieldName, NumericDecayPlacement numericPlacement) {
-        GaussDecayFunctionBuilder builder;
+    private static ScoreFunctionBuilder<?> parseNumericLinearDecay(String fieldName, NumericDecayPlacement numericPlacement) {
+        LinearDecayFunctionBuilder builder;
         if (numericPlacement.hasDecay()) {
-            builder = new GaussDecayFunctionBuilder(
+            builder = new LinearDecayFunctionBuilder(
                 fieldName,
                 numericPlacement.getOrigin(),
                 numericPlacement.getScale(),
@@ -77,7 +81,7 @@ public class GaussDecayFunctionProtoConverter {
                 numericPlacement.getDecay()
             );
         } else {
-            builder = new GaussDecayFunctionBuilder(
+            builder = new LinearDecayFunctionBuilder(
                 fieldName,
                 numericPlacement.getOrigin(),
                 numericPlacement.getScale(),
@@ -89,14 +93,20 @@ public class GaussDecayFunctionProtoConverter {
     }
 
     /**
-     * Parses a geo decay placement for Gaussian decay.
+     * Parses a geo decay placement and creates a LinearDecayFunctionBuilder.
+     * Similar to {@link org.opensearch.index.query.functionscore.DecayFunctionParser},
+     * this method constructs a decay function for geographic field values.
+     *
+     * @param fieldName the field name to apply linear decay
+     * @param geoPlacement the protobuf geo decay placement containing origin (lat/lon), scale, offset, and decay
+     * @return the corresponding OpenSearch LinearDecayFunctionBuilder
      */
-    private static ScoreFunctionBuilder<?> parseGeoGaussDecay(String fieldName, GeoDecayPlacement geoPlacement) {
+    private static ScoreFunctionBuilder<?> parseGeoLinearDecay(String fieldName, GeoDecayPlacement geoPlacement) {
         GeoPoint geoPoint = GeoPointProtoUtils.parseGeoPoint(geoPlacement.getOrigin());
 
-        GaussDecayFunctionBuilder builder;
+        LinearDecayFunctionBuilder builder;
         if (geoPlacement.hasDecay()) {
-            builder = new GaussDecayFunctionBuilder(
+            builder = new LinearDecayFunctionBuilder(
                 fieldName,
                 geoPoint,
                 geoPlacement.getScale(),
@@ -104,7 +114,7 @@ public class GaussDecayFunctionProtoConverter {
                 geoPlacement.getDecay()
             );
         } else {
-            builder = new GaussDecayFunctionBuilder(
+            builder = new LinearDecayFunctionBuilder(
                 fieldName,
                 geoPoint,
                 geoPlacement.getScale(),
@@ -116,14 +126,20 @@ public class GaussDecayFunctionProtoConverter {
     }
 
     /**
-     * Parses a date decay placement for Gaussian decay.
+     * Parses a date decay placement and creates a LinearDecayFunctionBuilder.
+     * Similar to {@link org.opensearch.index.query.functionscore.DecayFunctionParser},
+     * this method constructs a decay function for date field values.
+     *
+     * @param fieldName the field name to apply linear decay
+     * @param datePlacement the protobuf date decay placement containing origin (date), scale, offset, and decay
+     * @return the corresponding OpenSearch LinearDecayFunctionBuilder
      */
-    private static ScoreFunctionBuilder<?> parseDateGaussDecay(String fieldName, DateDecayPlacement datePlacement) {
+    private static ScoreFunctionBuilder<?> parseDateLinearDecay(String fieldName, DateDecayPlacement datePlacement) {
         Object origin = datePlacement.hasOrigin() ? datePlacement.getOrigin() : null;
 
-        GaussDecayFunctionBuilder builder;
+        LinearDecayFunctionBuilder builder;
         if (datePlacement.hasDecay()) {
-            builder = new GaussDecayFunctionBuilder(
+            builder = new LinearDecayFunctionBuilder(
                 fieldName,
                 origin,
                 datePlacement.getScale(),
@@ -131,7 +147,7 @@ public class GaussDecayFunctionProtoConverter {
                 datePlacement.getDecay()
             );
         } else {
-            builder = new GaussDecayFunctionBuilder(
+            builder = new LinearDecayFunctionBuilder(
                 fieldName,
                 origin,
                 datePlacement.getScale(),
@@ -141,5 +157,4 @@ public class GaussDecayFunctionProtoConverter {
 
         return builder;
     }
-
 }

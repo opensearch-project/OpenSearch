@@ -12,29 +12,27 @@ import org.opensearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.opensearch.protobufs.RandomScoreFunction;
 
 /**
- * Protocol Buffer converter for RandomScoreFunction.
- * This converter handles the transformation of Protocol Buffer RandomScoreFunction objects
+ * Utility class for converting Protocol Buffer RandomScoreFunction to OpenSearch objects.
+ * This utility handles the transformation of Protocol Buffer RandomScoreFunction objects
  * into OpenSearch RandomScoreFunctionBuilder instances.
  */
-public class RandomScoreFunctionProtoConverter {
+class RandomScoreFunctionProtoUtils {
 
-    /**
-     * Default constructor for RandomScoreFunctionProtoConverter.
-     */
-    public RandomScoreFunctionProtoConverter() {
-        // Default constructor
+    private RandomScoreFunctionProtoUtils() {
+        // Utility class, no instances
     }
 
     /**
      * Converts a Protocol Buffer RandomScoreFunction to an OpenSearch ScoreFunctionBuilder.
-     * Similar to {@link RandomScoreFunctionBuilder#fromXContent(XContentParser)},
-     * this method parses the seed and optional field parameters.
+     * Similar to {@link RandomScoreFunctionBuilder#fromXContent(XContentParser)}, this method
+     * parses the seed and optional field parameters.
+     * Equivalent to {@code #fromProto(RandomScoreFunction)} for gRPC Protocol Buffer conversion.
      *
      * @param randomScore the Protocol Buffer RandomScoreFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder
      * @throws IllegalArgumentException if the randomScore is null
      */
-    public ScoreFunctionBuilder<?> fromProto(RandomScoreFunction randomScore) {
+    static ScoreFunctionBuilder<?> fromProto(RandomScoreFunction randomScore) {
         if (randomScore == null) {
             throw new IllegalArgumentException("RandomScoreFunction cannot be null");
         }

@@ -13,29 +13,27 @@ import org.opensearch.protobufs.FieldValueFactorModifier;
 import org.opensearch.protobufs.FieldValueFactorScoreFunction;
 
 /**
- * Protocol Buffer converter for FieldValueFactorScoreFunction.
- * This converter handles the transformation of Protocol Buffer FieldValueFactorScoreFunction objects
+ * Utility class for converting Protocol Buffer FieldValueFactorScoreFunction to OpenSearch objects.
+ * This utility handles the transformation of Protocol Buffer FieldValueFactorScoreFunction objects
  * into OpenSearch FieldValueFactorFunctionBuilder instances.
  */
-public class FieldValueFactorFunctionProtoConverter {
+class FieldValueFactorFunctionProtoUtils {
 
-    /**
-     * Default constructor for FieldValueFactorFunctionProtoConverter.
-     */
-    public FieldValueFactorFunctionProtoConverter() {
-        // Default constructor
+    private FieldValueFactorFunctionProtoUtils() {
+        // Utility class, no instances
     }
 
     /**
      * Converts a Protocol Buffer FieldValueFactorScoreFunction to an OpenSearch ScoreFunctionBuilder.
-     * Similar to {@link org.opensearch.index.query.functionscore.FieldValueFactorFunctionBuilder#fromXContent},
-     * this method parses the field, factor, missing value, and modifier parameters.
+     * Similar to {@link FieldValueFactorFunctionBuilder#fromXContent(XContentParser)}, this method
+     * parses the field, factor, missing value, and modifier parameters.
+     * Equivalent to {@code #fromProto(FieldValueFactorScoreFunction)} for gRPC Protocol Buffer conversion.
      *
      * @param fieldValueFactor the Protocol Buffer FieldValueFactorScoreFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder
      * @throws IllegalArgumentException if the fieldValueFactor is null
      */
-    public ScoreFunctionBuilder<?> fromProto(FieldValueFactorScoreFunction fieldValueFactor) {
+    static ScoreFunctionBuilder<?> fromProto(FieldValueFactorScoreFunction fieldValueFactor) {
         if (fieldValueFactor == null) {
             throw new IllegalArgumentException("FieldValueFactorScoreFunction cannot be null");
         }

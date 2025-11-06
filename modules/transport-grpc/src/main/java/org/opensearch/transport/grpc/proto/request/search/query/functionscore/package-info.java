@@ -7,19 +7,9 @@
  */
 
 /**
- * Package for converting protobuf function score containers to OpenSearch ScoreFunctionBuilder instances.
- *
- * This package contains converters for various function score types including:
- * <ul>
- *   <li>Exponential decay functions</li>
- *   <li>Gaussian decay functions</li>
- *   <li>Linear decay functions</li>
- *   <li>Script score functions</li>
- *   <li>Field value factor functions</li>
- *   <li>Random score functions</li>
- * </ul>
- *
- * Each converter is responsible for converting protobuf representations to their corresponding
- * OpenSearch ScoreFunctionBuilder implementations.
+ * This package contains utility classes for converting function score components between OpenSearch
+ * and Protocol Buffers formats. These utilities handle the transformation of score function builders,
+ * function parameters, and function configurations to ensure proper communication between gRPC clients
+ * and the OpenSearch server.
  */
 package org.opensearch.transport.grpc.proto.request.search.query.functionscore;

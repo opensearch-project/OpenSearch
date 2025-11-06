@@ -15,15 +15,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RandomScoreFunctionProtoConverterTests extends OpenSearchTestCase {
-
-    private RandomScoreFunctionProtoConverter converter;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        converter = new RandomScoreFunctionProtoConverter();
-    }
+public class RandomScoreFunctionProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithValidRandomScoreFunction() {
         // Create a random score function with int32 seed
@@ -31,7 +23,7 @@ public class RandomScoreFunctionProtoConverterTests extends OpenSearchTestCase {
 
         RandomScoreFunction randomScore = RandomScoreFunction.newBuilder().setField("_seq_no").setSeed(seed).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(randomScore);
+        ScoreFunctionBuilder<?> result = RandomScoreFunctionProtoUtils.fromProto(randomScore);
 
         assertThat(result, instanceOf(RandomScoreFunctionBuilder.class));
         RandomScoreFunctionBuilder randomScoreBuilder = (RandomScoreFunctionBuilder) result;
@@ -45,7 +37,7 @@ public class RandomScoreFunctionProtoConverterTests extends OpenSearchTestCase {
 
         RandomScoreFunction randomScore = RandomScoreFunction.newBuilder().setField("_id").setSeed(seed).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(randomScore);
+        ScoreFunctionBuilder<?> result = RandomScoreFunctionProtoUtils.fromProto(randomScore);
 
         assertThat(result, instanceOf(RandomScoreFunctionBuilder.class));
         RandomScoreFunctionBuilder randomScoreBuilder = (RandomScoreFunctionBuilder) result;
@@ -59,7 +51,7 @@ public class RandomScoreFunctionProtoConverterTests extends OpenSearchTestCase {
 
         RandomScoreFunction randomScore = RandomScoreFunction.newBuilder().setField("").setSeed(seed).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(randomScore);
+        ScoreFunctionBuilder<?> result = RandomScoreFunctionProtoUtils.fromProto(randomScore);
 
         assertThat(result, instanceOf(RandomScoreFunctionBuilder.class));
         RandomScoreFunctionBuilder randomScoreBuilder = (RandomScoreFunctionBuilder) result;
@@ -71,7 +63,7 @@ public class RandomScoreFunctionProtoConverterTests extends OpenSearchTestCase {
         // Create a random score function without seed
         RandomScoreFunction randomScore = RandomScoreFunction.newBuilder().setField("_seq_no").build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(randomScore);
+        ScoreFunctionBuilder<?> result = RandomScoreFunctionProtoUtils.fromProto(randomScore);
 
         assertThat(result, instanceOf(RandomScoreFunctionBuilder.class));
         RandomScoreFunctionBuilder randomScoreBuilder = (RandomScoreFunctionBuilder) result;
@@ -81,7 +73,10 @@ public class RandomScoreFunctionProtoConverterTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithNullRandomScoreFunction() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { converter.fromProto(null); });
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> { RandomScoreFunctionProtoUtils.fromProto(null); }
+        );
         assertEquals("RandomScoreFunction cannot be null", exception.getMessage());
     }
 }

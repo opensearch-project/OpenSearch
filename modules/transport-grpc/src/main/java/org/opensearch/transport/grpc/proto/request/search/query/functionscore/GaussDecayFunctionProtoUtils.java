@@ -8,7 +8,7 @@
 package org.opensearch.transport.grpc.proto.request.search.query.functionscore;
 
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
+import org.opensearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.opensearch.protobufs.DateDecayPlacement;
 import org.opensearch.protobufs.DecayFunction;
@@ -20,30 +20,28 @@ import org.opensearch.transport.grpc.proto.request.common.GeoPointProtoUtils;
 import java.util.Map;
 
 /**
- * Protocol Buffer converter for ExpDecayFunction.
- * This converter handles the transformation of Protocol Buffer ExpDecayFunction objects
- * into OpenSearch ExpDecayFunctionBuilder instances.
+ * Utility class for converting Protocol Buffer DecayFunction to OpenSearch GaussDecayFunctionBuilder.
+ * This utility handles the transformation of Protocol Buffer DecayFunction objects
+ * into OpenSearch GaussDecayFunctionBuilder instances.
  */
-public class ExpDecayFunctionProtoConverter {
+class GaussDecayFunctionProtoUtils {
 
-    /**
-     * Default constructor for ExpDecayFunctionProtoConverter.
-     */
-    public ExpDecayFunctionProtoConverter() {
-        // Default constructor
+    private GaussDecayFunctionProtoUtils() {
+        // Utility class, no instances
     }
 
     /**
      * Converts a Protocol Buffer DecayFunction to an OpenSearch ScoreFunctionBuilder.
-     * Similar to {@link org.opensearch.index.query.functionscore.ExponentialDecayFunctionBuilder},
+     * Similar to {@link org.opensearch.index.query.functionscore.DecayFunctionParser#fromXContent(org.opensearch.core.xcontent.XContentParser)},
      * this method parses the Protocol Buffer representation and creates a properly configured
-     * ExponentialDecayFunctionBuilder with decay placement parameters (numeric, geo, or date).
+     * GaussDecayFunctionBuilder with decay placement parameters (numeric, geo, or date).
+     * Equivalent to {@code #fromProto(DecayFunction)} for gRPC Protocol Buffer conversion.
      *
      * @param decayFunction the Protocol Buffer DecayFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder
      * @throws IllegalArgumentException if the decayFunction is null or doesn't contain placements
      */
-    public ScoreFunctionBuilder<?> fromProto(DecayFunction decayFunction) {
+    static ScoreFunctionBuilder<?> fromProto(DecayFunction decayFunction) {
         if (decayFunction == null || decayFunction.getPlacementCount() == 0) {
             throw new IllegalArgumentException("DecayFunction must have at least one placement");
         }
@@ -53,23 +51,23 @@ public class ExpDecayFunctionProtoConverter {
         DecayPlacement decayPlacement = entry.getValue();
 
         if (decayPlacement.hasNumericDecayPlacement()) {
-            return parseNumericExpDecay(fieldName, decayPlacement.getNumericDecayPlacement());
+            return parseNumericGaussDecay(fieldName, decayPlacement.getNumericDecayPlacement());
         } else if (decayPlacement.hasGeoDecayPlacement()) {
-            return parseGeoExpDecay(fieldName, decayPlacement.getGeoDecayPlacement());
+            return parseGeoGaussDecay(fieldName, decayPlacement.getGeoDecayPlacement());
         } else if (decayPlacement.hasDateDecayPlacement()) {
-            return parseDateExpDecay(fieldName, decayPlacement.getDateDecayPlacement());
+            return parseDateGaussDecay(fieldName, decayPlacement.getDateDecayPlacement());
         } else {
             throw new IllegalArgumentException("Unsupported decay placement type");
         }
     }
 
     /**
-     * Parses a numeric decay placement for exponential decay.
+     * Parses a numeric decay placement for Gaussian decay.
      */
-    private static ScoreFunctionBuilder<?> parseNumericExpDecay(String fieldName, NumericDecayPlacement numericPlacement) {
-        ExponentialDecayFunctionBuilder builder;
+    private static ScoreFunctionBuilder<?> parseNumericGaussDecay(String fieldName, NumericDecayPlacement numericPlacement) {
+        GaussDecayFunctionBuilder builder;
         if (numericPlacement.hasDecay()) {
-            builder = new ExponentialDecayFunctionBuilder(
+            builder = new GaussDecayFunctionBuilder(
                 fieldName,
                 numericPlacement.getOrigin(),
                 numericPlacement.getScale(),
@@ -77,7 +75,7 @@ public class ExpDecayFunctionProtoConverter {
                 numericPlacement.getDecay()
             );
         } else {
-            builder = new ExponentialDecayFunctionBuilder(
+            builder = new GaussDecayFunctionBuilder(
                 fieldName,
                 numericPlacement.getOrigin(),
                 numericPlacement.getScale(),
@@ -89,14 +87,14 @@ public class ExpDecayFunctionProtoConverter {
     }
 
     /**
-     * Parses a geo decay placement for exponential decay.
+     * Parses a geo decay placement for Gaussian decay.
      */
-    private static ScoreFunctionBuilder<?> parseGeoExpDecay(String fieldName, GeoDecayPlacement geoPlacement) {
+    private static ScoreFunctionBuilder<?> parseGeoGaussDecay(String fieldName, GeoDecayPlacement geoPlacement) {
         GeoPoint geoPoint = GeoPointProtoUtils.parseGeoPoint(geoPlacement.getOrigin());
 
-        ExponentialDecayFunctionBuilder builder;
+        GaussDecayFunctionBuilder builder;
         if (geoPlacement.hasDecay()) {
-            builder = new ExponentialDecayFunctionBuilder(
+            builder = new GaussDecayFunctionBuilder(
                 fieldName,
                 geoPoint,
                 geoPlacement.getScale(),
@@ -104,7 +102,7 @@ public class ExpDecayFunctionProtoConverter {
                 geoPlacement.getDecay()
             );
         } else {
-            builder = new ExponentialDecayFunctionBuilder(
+            builder = new GaussDecayFunctionBuilder(
                 fieldName,
                 geoPoint,
                 geoPlacement.getScale(),
@@ -116,14 +114,14 @@ public class ExpDecayFunctionProtoConverter {
     }
 
     /**
-     * Parses a date decay placement for exponential decay.
+     * Parses a date decay placement for Gaussian decay.
      */
-    private static ScoreFunctionBuilder<?> parseDateExpDecay(String fieldName, DateDecayPlacement datePlacement) {
+    private static ScoreFunctionBuilder<?> parseDateGaussDecay(String fieldName, DateDecayPlacement datePlacement) {
         Object origin = datePlacement.hasOrigin() ? datePlacement.getOrigin() : null;
 
-        ExponentialDecayFunctionBuilder builder;
+        GaussDecayFunctionBuilder builder;
         if (datePlacement.hasDecay()) {
-            builder = new ExponentialDecayFunctionBuilder(
+            builder = new GaussDecayFunctionBuilder(
                 fieldName,
                 origin,
                 datePlacement.getScale(),
@@ -131,7 +129,7 @@ public class ExpDecayFunctionProtoConverter {
                 datePlacement.getDecay()
             );
         } else {
-            builder = new ExponentialDecayFunctionBuilder(
+            builder = new GaussDecayFunctionBuilder(
                 fieldName,
                 origin,
                 datePlacement.getScale(),
@@ -141,5 +139,4 @@ public class ExpDecayFunctionProtoConverter {
 
         return builder;
     }
-
 }

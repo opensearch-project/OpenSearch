@@ -13,28 +13,26 @@ import org.opensearch.script.Script;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 
 /**
- * Converter for ScriptScoreFunction.
- * This class converts Protocol Buffer ScriptScoreFunction objects into OpenSearch ScriptScoreFunctionBuilder instances.
+ * Utility class for converting Protocol Buffer ScriptScoreFunction to OpenSearch objects.
+ * This utility converts Protocol Buffer ScriptScoreFunction objects into OpenSearch ScriptScoreFunctionBuilder instances.
  */
-public class ScriptScoreFunctionProtoConverter {
+class ScriptScoreFunctionProtoUtils {
 
-    /**
-     * Default constructor for ScriptScoreFunctionProtoConverter.
-     */
-    public ScriptScoreFunctionProtoConverter() {
-        // Default constructor
+    private ScriptScoreFunctionProtoUtils() {
+        // Utility class, no instances
     }
 
     /**
      * Converts a Protocol Buffer ScriptScoreFunction to an OpenSearch ScoreFunctionBuilder.
-     * Similar to {@link org.opensearch.index.query.functionscore.ScriptScoreFunctionBuilder#fromXContent(XContentParser)},
-     * this method parses the script parameter and constructs the builder.
+     * Similar to {@link org.opensearch.index.query.functionscore.ScriptScoreFunctionBuilder#fromXContent(org.opensearch.core.xcontent.XContentParser)}, this method
+     * parses the script parameter and constructs the builder.
+     * Equivalent to {@code #fromProto(ScriptScoreFunction)} for gRPC Protocol Buffer conversion.
      *
      * @param scriptScore the Protocol Buffer ScriptScoreFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder
      * @throws IllegalArgumentException if the scriptScore is null or doesn't contain a script
      */
-    public ScoreFunctionBuilder<?> fromProto(ScriptScoreFunction scriptScore) {
+    static ScoreFunctionBuilder<?> fromProto(ScriptScoreFunction scriptScore) {
         if (scriptScore == null) {
             throw new IllegalArgumentException("ScriptScoreFunction cannot be null");
         }

@@ -5,14 +5,14 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.transport.grpc.proto.request.search.query;
+package org.opensearch.transport.grpc.proto.request.search.query.functionscore;
 
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.opensearch.protobufs.FunctionScoreQuery;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.proto.request.search.query.functionscore.FunctionScoreQueryBuilderProtoConverter;
+import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
 
 /**
  * Tests for {@link FunctionScoreQueryBuilderProtoConverter}.
