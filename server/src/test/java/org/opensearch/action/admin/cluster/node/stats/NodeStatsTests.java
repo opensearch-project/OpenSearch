@@ -734,17 +734,16 @@ public class NodeStatsTests extends OpenSearchTestCase {
             List<ThreadPoolStats.Stats> threadPoolStatsList = new ArrayList<>();
             for (int i = 0; i < numThreadPoolStats; i++) {
                 threadPoolStatsList.add(
-                    new ThreadPoolStats.Stats(
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomNonNegativeLong(),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(-1, 10),
-                        -1 // Non-ForkJoinPool: use -1
-                    )
+                    new ThreadPoolStats.Stats.Builder().name(randomAlphaOfLengthBetween(3, 10))
+                        .threads(randomIntBetween(1, 1000))
+                        .queue(randomIntBetween(1, 1000))
+                        .active(randomIntBetween(1, 1000))
+                        .rejected(randomNonNegativeLong())
+                        .largest(randomIntBetween(1, 1000))
+                        .completed(randomIntBetween(1, 1000))
+                        .waitTimeNanos(randomIntBetween(-1, 10))
+                        .parallelism(-1) // Non-ForkJoinPool: use -1
+                        .build()
                 );
             }
             threadPoolStats = new ThreadPoolStats(threadPoolStatsList);
@@ -1148,10 +1147,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
         long numDeletedDocs = randomLongBetween(0, 100);
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
-        commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
-        commonStats.store = new StoreStats(100, 0L);
+        commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
         commonStats.indexing = new IndexingStats();
-        DocsStats hostDocStats = new DocsStats(numDocs, numDeletedDocs, 0);
+        DocsStats hostDocStats = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
 
         CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
         commonStatsFlags.clear();
@@ -1194,8 +1193,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
         levelParams.add(NodeIndicesStats.StatsLevel.NODE);
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
-        commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
-        commonStats.store = new StoreStats(100, 0L);
+        commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
         commonStats.indexing = new IndexingStats();
 
         CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
@@ -1245,8 +1244,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
         levelParams.add(NodeIndicesStats.StatsLevel.NODE);
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
-        commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
-        commonStats.store = new StoreStats(100, 0L);
+        commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
         commonStats.indexing = new IndexingStats();
 
         CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
@@ -1365,8 +1364,13 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
     private CommonStats createRandomCommonStats() {
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
-        commonStats.docs = new DocsStats(randomLongBetween(0, 10000), randomLongBetween(0, 100), randomLongBetween(0, 1000));
-        commonStats.store = new StoreStats(randomLongBetween(0, 100), randomLongBetween(0, 1000));
+        commonStats.docs = new DocsStats.Builder().count(randomLongBetween(0, 10000))
+            .deleted(randomLongBetween(0, 100))
+            .totalSizeInBytes(randomLongBetween(0, 1000))
+            .build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(randomLongBetween(0, 100))
+            .reservedSize(randomLongBetween(0, 1000))
+            .build();
         commonStats.indexing = new IndexingStats();
         commonStats.completion = new CompletionStats();
         commonStats.flush = new FlushStats(randomLongBetween(0, 100), randomLongBetween(0, 100), randomLongBetween(0, 100));

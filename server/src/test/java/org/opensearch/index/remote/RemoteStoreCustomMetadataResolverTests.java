@@ -16,12 +16,16 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -269,6 +273,56 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
                 .build()
         );
         assertEquals(randomPrefix, remoteStoreSettings.getSegmentsPathFixedPrefix());
+    }
 
+    public void testIsRemoteStoreRepoServerSideEncryptionEnabled() {
+        Settings settings = Settings.builder().put(CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.getKey(), true).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+
+        BlobStoreRepository repositoryMock = mock(BlobStoreRepository.class);
+        when(repositoryMock.isSeverSideEncryptionEnabled()).thenReturn(Boolean.TRUE);
+        when(repositoriesService.repository(Mockito.any())).thenReturn(repositoryMock);
+
+        RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(
+            remoteStoreSettings,
+            () -> Version.V_3_4_0,
+            () -> repositoriesService,
+            settings
+        );
+        assertTrue(resolver.isRemoteStoreRepoServerSideEncryptionEnabled());
+    }
+
+    public void testIsRemoteStoreRepoServerSideEncryptionDisabled() {
+        Settings settings = Settings.builder().put(CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.getKey(), true).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+
+        BlobStoreRepository repositoryMock = mock(BlobStoreRepository.class);
+        when(repositoryMock.isSeverSideEncryptionEnabled()).thenReturn(Boolean.FALSE);
+        when(repositoriesService.repository(Mockito.any())).thenReturn(repositoryMock);
+
+        RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(
+            remoteStoreSettings,
+            () -> Version.V_3_4_0,
+            () -> repositoriesService,
+            settings
+        );
+        assertFalse(resolver.isRemoteStoreRepoServerSideEncryptionEnabled());
+    }
+
+    public void testIsRemoteStoreRepoServerSideEncryptionWithOldVersion() {
+        Settings settings = Settings.builder().put(CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED.getKey(), true).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+        when(repositoriesService.repository(Mockito.any())).thenThrow(new RepositoryMissingException("Repository missing"));
+
+        RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(
+            remoteStoreSettings,
+            () -> Version.V_3_1_0,
+            () -> repositoriesService,
+            settings
+        );
+        expectThrows(IllegalArgumentException.class, resolver::isRemoteStoreRepoServerSideEncryptionEnabled);
     }
 }

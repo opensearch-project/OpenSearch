@@ -855,7 +855,7 @@ public class StoreTests extends OpenSearchTestCase {
 
         final long otherStatsBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsReservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES : randomLongBetween(0L, Integer.MAX_VALUE);
-        stats.add(new StoreStats(otherStatsBytes, otherStatsReservedBytes));
+        stats.add(new StoreStats.Builder().sizeInBytes(otherStatsBytes).reservedSize(otherStatsReservedBytes).build());
         assertEquals(initialStoreSize + otherStatsBytes, stats.getSize().getBytes());
         assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.getReservedSize().getBytes());
 

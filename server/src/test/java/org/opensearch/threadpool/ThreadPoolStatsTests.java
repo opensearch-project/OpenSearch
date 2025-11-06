@@ -54,13 +54,20 @@ import static org.hamcrest.Matchers.equalTo;
 public class ThreadPoolStatsTests extends OpenSearchTestCase {
     public void testThreadPoolStatsSort() throws IOException {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
-        stats.add(new ThreadPoolStats.Stats("z", -1, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("m", 3, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("m", 1, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("d", -1, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("m", 2, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("t", -1, 0, 0, 0, 0, 0L, 0L, -1));
-        stats.add(new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L, 0L, -1));
+        ThreadPoolStats.Stats.Builder defaultStats = new ThreadPoolStats.Stats.Builder().queue(0)
+            .active(0)
+            .rejected(0)
+            .largest(0)
+            .completed(0L)
+            .waitTimeNanos(0L)
+            .parallelism(-1);
+        stats.add(defaultStats.name("z").threads(-1).build());
+        stats.add(defaultStats.name("m").threads(3).build());
+        stats.add(defaultStats.name("m").threads(1).build());
+        stats.add(defaultStats.name("d").threads(-1).build());
+        stats.add(defaultStats.name("m").threads(2).build());
+        stats.add(defaultStats.name("t").threads(-1).build());
+        stats.add(defaultStats.name("a").threads(-1).build());
 
         List<ThreadPoolStats.Stats> copy = new ArrayList<>(stats);
         Collections.sort(copy);
@@ -80,7 +87,16 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
 
     public void testStatsParallelismConstructorAndToXContent() throws IOException {
         // Test constructor and toXContent with parallelism set
-        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, 8);
+        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats.Builder().name("test")
+            .threads(1)
+            .queue(2)
+            .active(3)
+            .rejected(4L)
+            .largest(5)
+            .completed(6L)
+            .waitTimeNanos(7L)
+            .parallelism(8)
+            .build();
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -89,7 +105,16 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
         assertTrue(json.contains("\"parallelism\":8"));
 
         // Test with parallelism = -1 (should not output the field)
-        stats = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, -1);
+        stats = new ThreadPoolStats.Stats.Builder().name("test")
+            .threads(1)
+            .queue(2)
+            .active(3)
+            .rejected(4L)
+            .largest(5)
+            .completed(6L)
+            .waitTimeNanos(7L)
+            .parallelism(-1)
+            .build();
         builder = XContentFactory.jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -100,7 +125,16 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
 
     public void testStatsSerializationParallelismVersion() throws IOException {
         // Serialization for version >= 3.4.0 (parallelism is written and read)
-        ThreadPoolStats.Stats statsOut = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, 9);
+        ThreadPoolStats.Stats statsOut = new ThreadPoolStats.Stats.Builder().name("test")
+            .threads(1)
+            .queue(2)
+            .active(3)
+            .rejected(4L)
+            .largest(5)
+            .completed(6L)
+            .waitTimeNanos(7L)
+            .parallelism(9)
+            .build();
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(Version.V_3_4_0);
         statsOut.writeTo(out);
@@ -120,10 +154,19 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
     }
 
     public void testStatsCompareToWithParallelism() {
-        ThreadPoolStats.Stats s1 = new ThreadPoolStats.Stats("a", 1, 2, 3, 4L, 5, 6L, 7L, 8);
-        ThreadPoolStats.Stats s2 = new ThreadPoolStats.Stats("a", 1, 2, 3, 4L, 5, 6L, 7L, 8);
-        ThreadPoolStats.Stats s3 = new ThreadPoolStats.Stats("a", 2, 2, 3, 4L, 5, 6L, 7L, 8);
-        ThreadPoolStats.Stats s4 = new ThreadPoolStats.Stats("b", 1, 2, 3, 4L, 5, 6L, 7L, 8);
+        ThreadPoolStats.Stats.Builder builder = new ThreadPoolStats.Stats.Builder().name("a")
+            .threads(1)
+            .queue(2)
+            .active(3)
+            .rejected(4L)
+            .largest(5)
+            .completed(6L)
+            .waitTimeNanos(7L)
+            .parallelism(8);
+        ThreadPoolStats.Stats s1 = builder.build();
+        ThreadPoolStats.Stats s2 = builder.build();
+        ThreadPoolStats.Stats s3 = builder.threads(2).build();
+        ThreadPoolStats.Stats s4 = builder.name("b").build();
 
         assertEquals(0, s1.compareTo(s2));
         assertTrue(s1.compareTo(s3) < 0);
@@ -131,7 +174,16 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
     }
 
     public void testStatsGetters() {
-        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, 8);
+        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats.Builder().name("test")
+            .threads(1)
+            .queue(2)
+            .active(3)
+            .rejected(4L)
+            .largest(5)
+            .completed(6L)
+            .waitTimeNanos(7L)
+            .parallelism(8)
+            .build();
         assertEquals("test", stats.getName());
         assertEquals(1, stats.getThreads());
         assertEquals(2, stats.getQueue());
@@ -147,11 +199,18 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
 
             List<ThreadPoolStats.Stats> stats = new ArrayList<>();
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, -1, 0, 0, 0, 0, 0L, 0L, -1));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.WARMER, -1, 0, 0, 0, 0, 0L, -1L, -1));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.GENERIC, -1, 0, 0, 0, 0, 0L, -1L, -1));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, -1, 0, 0, 0, 0, 0L, -1L, -1));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SAME, -1, 0, 0, 0, 0, 0L, -1L, -1));
+            ThreadPoolStats.Stats.Builder defaultStats = new ThreadPoolStats.Stats.Builder().threads(-1)
+                .queue(0)
+                .active(0)
+                .rejected(0)
+                .largest(0)
+                .completed(0L)
+                .parallelism(-1);
+            stats.add(defaultStats.name(ThreadPool.Names.SEARCH).waitTimeNanos(0L).build());
+            stats.add(defaultStats.name(ThreadPool.Names.WARMER).waitTimeNanos(-1L).build());
+            stats.add(defaultStats.name(ThreadPool.Names.GENERIC).waitTimeNanos(-1L).build());
+            stats.add(defaultStats.name(ThreadPool.Names.FORCE_MERGE).waitTimeNanos(-1L).build());
+            stats.add(defaultStats.name(ThreadPool.Names.SAME).waitTimeNanos(-1L).build());
 
             ThreadPoolStats threadPoolStats = new ThreadPoolStats(stats);
             try (XContentBuilder builder = new XContentBuilder(MediaTypeRegistry.JSON.xContent(), os)) {

@@ -85,11 +85,16 @@ preProcessFixture {
   dependsOn war, opensearch_distributions.docker
 }
 
+tasks.named('spotlessJava').configure {
+  mustRunAfter preProcessFixture
+}
+
 dockerCompose {
-  useComposeFiles = ['docker-compose.yml']
-  if (BuildParams.inFipsJvm) {
-    environment.put("KEYSTORE_PASSWORD", "notarealpasswordphrase")
+  def composeFiles = ['docker-compose.yml']
+  if (BuildParams.isInFipsJvm()) {
+    composeFiles.add('docker-compose.fips.yml')
   }
+  useComposeFiles = composeFiles
 }
 
 tasks.register("integTest", TestTask) {
