@@ -11,7 +11,6 @@ import org.opensearch.index.query.functionscore.FieldValueFactorFunctionBuilder;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.opensearch.protobufs.FieldValueFactorModifier;
 import org.opensearch.protobufs.FieldValueFactorScoreFunction;
-import org.opensearch.protobufs.FunctionScoreContainer;
 
 /**
  * Protocol Buffer converter for FieldValueFactorScoreFunction.
@@ -28,38 +27,15 @@ public class FieldValueFactorFunctionProtoConverter {
     }
 
     /**
-     * Returns the function score container case that this converter handles.
+     * Converts a Protocol Buffer FieldValueFactorScoreFunction to an OpenSearch ScoreFunctionBuilder.
+     * Similar to {@link org.opensearch.index.query.functionscore.FieldValueFactorFunctionBuilder#fromXContent},
+     * this method parses the field, factor, missing value, and modifier parameters.
      *
-     * @return the FIELD_VALUE_FACTOR function score container case
-     */
-    public FunctionScoreContainer.FunctionScoreContainerCase getHandledFunctionCase() {
-        return FunctionScoreContainer.FunctionScoreContainerCase.FIELD_VALUE_FACTOR;
-    }
-
-    /**
-     * Converts a Protocol Buffer FunctionScoreContainer containing a field value factor function
-     * to an OpenSearch ScoreFunctionBuilder.
-     *
-     * @param container the Protocol Buffer FunctionScoreContainer containing the field value factor function
+     * @param fieldValueFactor the Protocol Buffer FieldValueFactorScoreFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder
-     * @throws IllegalArgumentException if the container is null or doesn't contain a FIELD_VALUE_FACTOR function
+     * @throws IllegalArgumentException if the fieldValueFactor is null
      */
-    public ScoreFunctionBuilder<?> fromProto(FunctionScoreContainer container) {
-        if (container == null
-            || container.getFunctionScoreContainerCase() != FunctionScoreContainer.FunctionScoreContainerCase.FIELD_VALUE_FACTOR) {
-            throw new IllegalArgumentException("FunctionScoreContainer must contain a FieldValueFactorScoreFunction");
-        }
-
-        return parseFieldValueFactorFunction(container.getFieldValueFactor());
-    }
-
-    /**
-     * Parses a FieldValueFactorScoreFunction and creates a FieldValueFactorFunctionBuilder.
-     *
-     * @param fieldValueFactor the protobuf FieldValueFactorScoreFunction
-     * @return the corresponding OpenSearch FieldValueFactorFunctionBuilder
-     */
-    private static FieldValueFactorFunctionBuilder parseFieldValueFactorFunction(FieldValueFactorScoreFunction fieldValueFactor) {
+    public ScoreFunctionBuilder<?> fromProto(FieldValueFactorScoreFunction fieldValueFactor) {
         if (fieldValueFactor == null) {
             throw new IllegalArgumentException("FieldValueFactorScoreFunction cannot be null");
         }

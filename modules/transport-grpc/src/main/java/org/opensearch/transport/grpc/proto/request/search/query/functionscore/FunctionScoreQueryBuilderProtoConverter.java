@@ -29,8 +29,6 @@ public class FunctionScoreQueryBuilderProtoConverter implements QueryBuilderProt
     @Override
     public void setRegistry(QueryBuilderProtoConverterRegistry registry) {
         this.registry = registry;
-        // Pass the registry to the utility class so it can convert nested queries
-        FunctionScoreQueryBuilderProtoUtils.setRegistry(registry);
     }
 
     @Override
@@ -44,6 +42,6 @@ public class FunctionScoreQueryBuilderProtoConverter implements QueryBuilderProt
             throw new IllegalArgumentException("QueryContainer does not contain a FunctionScore query");
         }
 
-        return FunctionScoreQueryBuilderProtoUtils.fromProto(queryContainer.getFunctionScore());
+        return FunctionScoreQueryBuilderProtoUtils.fromProto(queryContainer.getFunctionScore(), registry);
     }
 }

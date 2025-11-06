@@ -29,10 +29,6 @@ public class GaussDecayFunctionProtoConverterTests extends OpenSearchTestCase {
         converter = new GaussDecayFunctionProtoConverter();
     }
 
-    public void testGetHandledFunctionCase() {
-        assertEquals(FunctionScoreContainer.FunctionScoreContainerCase.GAUSS, converter.getHandledFunctionCase());
-    }
-
     public void testFromProtoWithNumericPlacement() {
         // Test with numeric decay placement
         NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder()
@@ -48,7 +44,7 @@ public class GaussDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setGauss(decayFunction).setWeight(2.0f).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(decayFunction);
 
         assertThat(result, instanceOf(GaussDecayFunctionBuilder.class));
         GaussDecayFunctionBuilder gaussFunction = (GaussDecayFunctionBuilder) result;
@@ -71,7 +67,7 @@ public class GaussDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setGauss(decayFunction).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(decayFunction);
 
         assertThat(result, instanceOf(GaussDecayFunctionBuilder.class));
         GaussDecayFunctionBuilder gaussFunction = (GaussDecayFunctionBuilder) result;
@@ -92,7 +88,7 @@ public class GaussDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setGauss(decayFunction).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(decayFunction);
 
         assertThat(result, instanceOf(GaussDecayFunctionBuilder.class));
         GaussDecayFunctionBuilder gaussFunction = (GaussDecayFunctionBuilder) result;
@@ -124,7 +120,7 @@ public class GaussDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setGauss(decayFunction).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(decayFunction);
 
         assertThat(result, instanceOf(GaussDecayFunctionBuilder.class));
         GaussDecayFunctionBuilder gaussFunction = (GaussDecayFunctionBuilder) result;
@@ -154,7 +150,7 @@ public class GaussDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setGauss(decayFunction).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(decayFunction);
 
         assertThat(result, instanceOf(GaussDecayFunctionBuilder.class));
         GaussDecayFunctionBuilder gaussFunction = (GaussDecayFunctionBuilder) result;
@@ -165,28 +161,15 @@ public class GaussDecayFunctionProtoConverterTests extends OpenSearchTestCase {
     public void testFromProtoWithNullContainer() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(null));
 
-        assertThat(exception.getMessage(), containsString("FunctionScoreContainer must contain a GaussDecayFunction"));
-    }
-
-    public void testFromProtoWithWrongFunctionType() {
-        // Create a container with a different function type
-        FunctionScoreContainer container = FunctionScoreContainer.newBuilder()
-            .setWeight(1.0f) // Only weight, no specific function
-            .build();
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(container));
-
-        assertThat(exception.getMessage(), containsString("FunctionScoreContainer must contain a GaussDecayFunction"));
+        assertThat(exception.getMessage(), containsString("DecayFunction must have at least one placement"));
     }
 
     public void testFromProtoWithEmptyDecayFunction() {
         // Create an empty decay function (no placements)
         DecayFunction decayFunction = DecayFunction.newBuilder().build();
 
-        FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setGauss(decayFunction).setWeight(1.0f).build();
-
         // This should throw an exception because decay function has no placements
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(container));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(decayFunction));
 
         assertThat(exception.getMessage(), containsString("DecayFunction must have at least one placement"));
     }
@@ -197,10 +180,8 @@ public class GaussDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         DecayFunction decayFunction = DecayFunction.newBuilder().putPlacement("field", decayPlacement).build();
 
-        FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setGauss(decayFunction).setWeight(1.0f).build();
-
         // This should throw an exception because decay placement has no valid type
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(container));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(decayFunction));
 
         assertThat(exception.getMessage(), containsString("Unsupported decay placement type"));
     }

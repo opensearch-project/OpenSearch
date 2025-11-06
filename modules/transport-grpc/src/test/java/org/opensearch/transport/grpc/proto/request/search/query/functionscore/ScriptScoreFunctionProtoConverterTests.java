@@ -34,10 +34,6 @@ public class ScriptScoreFunctionProtoConverterTests extends OpenSearchTestCase {
         converter = new ScriptScoreFunctionProtoConverter();
     }
 
-    public void testGetHandledFunctionCase() {
-        assertEquals(FunctionScoreContainer.FunctionScoreContainerCase.SCRIPT_SCORE, converter.getHandledFunctionCase());
-    }
-
     public void testFromProtoWithInlineScript() {
         InlineScript inlineScript = InlineScript.newBuilder()
             .setSource("doc['score'].value * params.factor")
@@ -49,7 +45,7 @@ public class ScriptScoreFunctionProtoConverterTests extends OpenSearchTestCase {
         ScriptScoreFunction scriptScoreFunction = ScriptScoreFunction.newBuilder().setScript(script).build();
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setScriptScore(scriptScoreFunction).setWeight(1.5f).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(scriptScoreFunction);
 
         assertThat(result, instanceOf(ScriptScoreFunctionBuilder.class));
         ScriptScoreFunctionBuilder scriptFunction = (ScriptScoreFunctionBuilder) result;
@@ -70,7 +66,7 @@ public class ScriptScoreFunctionProtoConverterTests extends OpenSearchTestCase {
         ScriptScoreFunction scriptScoreFunction = ScriptScoreFunction.newBuilder().setScript(script).build();
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setScriptScore(scriptScoreFunction).setWeight(2.0f).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(scriptScoreFunction);
 
         assertThat(result, instanceOf(ScriptScoreFunctionBuilder.class));
         ScriptScoreFunctionBuilder scriptFunction = (ScriptScoreFunctionBuilder) result;
@@ -88,7 +84,7 @@ public class ScriptScoreFunctionProtoConverterTests extends OpenSearchTestCase {
         ScriptScoreFunction scriptScoreFunction = ScriptScoreFunction.newBuilder().setScript(script).build();
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setScriptScore(scriptScoreFunction).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(scriptScoreFunction);
 
         assertThat(result, instanceOf(ScriptScoreFunctionBuilder.class));
         ScriptScoreFunctionBuilder scriptFunction = (ScriptScoreFunctionBuilder) result;
@@ -97,18 +93,9 @@ public class ScriptScoreFunctionProtoConverterTests extends OpenSearchTestCase {
         assertEquals("doc['score'].value", openSearchScript.getIdOrCode());
     }
 
-    public void testFromProtoWithNullContainer() {
+    public void testFromProtoWithNullScriptScoreFunction() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(null));
-        assertThat(exception.getMessage(), containsString("FunctionScoreContainer must contain a ScriptScoreFunction"));
-    }
-
-    public void testFromProtoWithWrongFunctionType() {
-        FunctionScoreContainer container = FunctionScoreContainer.newBuilder()
-            .setWeight(1.0f) // Only weight, no specific function
-            .build();
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(container));
-        assertThat(exception.getMessage(), containsString("FunctionScoreContainer must contain a ScriptScoreFunction"));
+        assertThat(exception.getMessage(), containsString("ScriptScoreFunction cannot be null"));
     }
 
     public void testFromProtoWithNullScript() {
@@ -125,7 +112,10 @@ public class ScriptScoreFunctionProtoConverterTests extends OpenSearchTestCase {
         ScriptScoreFunction scriptScoreFunction = ScriptScoreFunction.newBuilder().setScript(script).build();
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setScriptScore(scriptScoreFunction).build();
 
-        UnsupportedOperationException exception = expectThrows(UnsupportedOperationException.class, () -> converter.fromProto(container));
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> converter.fromProto(scriptScoreFunction)
+        );
         assertThat(exception.getMessage(), containsString("No valid script type detected"));
     }
 }

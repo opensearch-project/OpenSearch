@@ -29,10 +29,6 @@ public class LinearDecayFunctionProtoConverterTests extends OpenSearchTestCase {
         converter = new LinearDecayFunctionProtoConverter();
     }
 
-    public void testGetHandledFunctionCase() {
-        assertEquals(FunctionScoreContainer.FunctionScoreContainerCase.LINEAR, converter.getHandledFunctionCase());
-    }
-
     public void testFromProtoWithNumericPlacement() {
         NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder()
             .setOrigin(100.0)
@@ -47,7 +43,7 @@ public class LinearDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setLinear(decayFunction).setWeight(1.0f).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(decayFunction);
 
         assertThat(result, instanceOf(LinearDecayFunctionBuilder.class));
         LinearDecayFunctionBuilder linearFunction = (LinearDecayFunctionBuilder) result;
@@ -69,7 +65,7 @@ public class LinearDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setLinear(decayFunction).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(decayFunction);
 
         assertThat(result, instanceOf(LinearDecayFunctionBuilder.class));
         LinearDecayFunctionBuilder linearFunction = (LinearDecayFunctionBuilder) result;
@@ -89,7 +85,7 @@ public class LinearDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setLinear(decayFunction).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(decayFunction);
 
         assertThat(result, instanceOf(LinearDecayFunctionBuilder.class));
         LinearDecayFunctionBuilder linearFunction = (LinearDecayFunctionBuilder) result;
@@ -97,26 +93,16 @@ public class LinearDecayFunctionProtoConverterTests extends OpenSearchTestCase {
         assertEquals("date_field", linearFunction.getFieldName());
     }
 
-    public void testFromProtoWithNullContainer() {
+    public void testFromProtoWithNullDecayFunction() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(null));
 
-        assertThat(exception.getMessage(), containsString("FunctionScoreContainer must contain a LinearDecayFunction"));
-    }
-
-    public void testFromProtoWithWrongFunctionType() {
-        FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setWeight(1.0f).build();
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(container));
-
-        assertThat(exception.getMessage(), containsString("FunctionScoreContainer must contain a LinearDecayFunction"));
+        assertThat(exception.getMessage(), containsString("DecayFunction must have at least one placement"));
     }
 
     public void testFromProtoWithEmptyDecayFunction() {
         DecayFunction decayFunction = DecayFunction.newBuilder().build();
 
-        FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setLinear(decayFunction).setWeight(1.0f).build();
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(container));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(decayFunction));
 
         assertThat(exception.getMessage(), containsString("DecayFunction must have at least one placement"));
     }
@@ -126,9 +112,7 @@ public class LinearDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         DecayFunction decayFunction = DecayFunction.newBuilder().putPlacement("field", decayPlacement).build();
 
-        FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setLinear(decayFunction).setWeight(1.0f).build();
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(container));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(decayFunction));
 
         assertThat(exception.getMessage(), containsString("Unsupported decay placement type"));
     }
@@ -156,7 +140,7 @@ public class LinearDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setLinear(decayFunction).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(decayFunction);
 
         assertThat(result, instanceOf(LinearDecayFunctionBuilder.class));
         LinearDecayFunctionBuilder linearFunction = (LinearDecayFunctionBuilder) result;
@@ -185,7 +169,7 @@ public class LinearDecayFunctionProtoConverterTests extends OpenSearchTestCase {
 
         FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setLinear(decayFunction).build();
 
-        ScoreFunctionBuilder<?> result = converter.fromProto(container);
+        ScoreFunctionBuilder<?> result = converter.fromProto(decayFunction);
 
         assertThat(result, instanceOf(LinearDecayFunctionBuilder.class));
         LinearDecayFunctionBuilder linearFunction = (LinearDecayFunctionBuilder) result;

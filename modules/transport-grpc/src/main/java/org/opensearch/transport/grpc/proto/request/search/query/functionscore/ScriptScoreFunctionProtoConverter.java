@@ -8,15 +8,13 @@
 package org.opensearch.transport.grpc.proto.request.search.query.functionscore;
 
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.opensearch.protobufs.FunctionScoreContainer;
 import org.opensearch.protobufs.ScriptScoreFunction;
 import org.opensearch.script.Script;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 
 /**
- * Protocol Buffer converter for ScriptScoreFunction.
- * This converter handles the transformation of Protocol Buffer ScriptScoreFunction objects
- * into OpenSearch ScriptScoreFunctionBuilder instances.
+ * Converter for ScriptScoreFunction.
+ * This class converts Protocol Buffer ScriptScoreFunction objects into OpenSearch ScriptScoreFunctionBuilder instances.
  */
 public class ScriptScoreFunctionProtoConverter {
 
@@ -28,38 +26,15 @@ public class ScriptScoreFunctionProtoConverter {
     }
 
     /**
-     * Returns the function score container case that this converter handles.
+     * Converts a Protocol Buffer ScriptScoreFunction to an OpenSearch ScoreFunctionBuilder.
+     * Similar to {@link org.opensearch.index.query.functionscore.ScriptScoreFunctionBuilder#fromXContent(XContentParser)},
+     * this method parses the script parameter and constructs the builder.
      *
-     * @return the SCRIPT_SCORE function score container case
-     */
-    public FunctionScoreContainer.FunctionScoreContainerCase getHandledFunctionCase() {
-        return FunctionScoreContainer.FunctionScoreContainerCase.SCRIPT_SCORE;
-    }
-
-    /**
-     * Converts a Protocol Buffer FunctionScoreContainer containing a script score function
-     * to an OpenSearch ScoreFunctionBuilder.
-     *
-     * @param container the Protocol Buffer FunctionScoreContainer containing the script score function
+     * @param scriptScore the Protocol Buffer ScriptScoreFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder
-     * @throws IllegalArgumentException if the container is null or doesn't contain a SCRIPT_SCORE function
+     * @throws IllegalArgumentException if the scriptScore is null or doesn't contain a script
      */
-    public ScoreFunctionBuilder<?> fromProto(FunctionScoreContainer container) {
-        if (container == null
-            || container.getFunctionScoreContainerCase() != FunctionScoreContainer.FunctionScoreContainerCase.SCRIPT_SCORE) {
-            throw new IllegalArgumentException("FunctionScoreContainer must contain a ScriptScoreFunction");
-        }
-
-        return parseScriptScoreFunction(container.getScriptScore());
-    }
-
-    /**
-     * Parses a ScriptScoreFunction and creates a ScriptScoreFunctionBuilder.
-     *
-     * @param scriptScore the protobuf ScriptScoreFunction
-     * @return the corresponding OpenSearch ScriptScoreFunctionBuilder
-     */
-    private static ScoreFunctionBuilder<?> parseScriptScoreFunction(ScriptScoreFunction scriptScore) {
+    public ScoreFunctionBuilder<?> fromProto(ScriptScoreFunction scriptScore) {
         if (scriptScore == null) {
             throw new IllegalArgumentException("ScriptScoreFunction cannot be null");
         }

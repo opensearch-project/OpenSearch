@@ -31,21 +31,8 @@ import java.util.List;
  */
 class FunctionScoreQueryBuilderProtoUtils {
 
-    // Registry for query conversion - injected by the gRPC plugin
-    private static QueryBuilderProtoConverterRegistry REGISTRY;
-
     private FunctionScoreQueryBuilderProtoUtils() {
         // Utility class, no instances
-    }
-
-    /**
-     * Sets the registry injected by the gRPC plugin.
-     * This method is called when the FunctionScore converter receives the populated registry.
-     *
-     * @param registry The registry to use
-     */
-    public static void setRegistry(QueryBuilderProtoConverterRegistry registry) {
-        REGISTRY = registry;
     }
 
     /**
@@ -56,10 +43,11 @@ class FunctionScoreQueryBuilderProtoUtils {
      * max boost, min score, boost, and query name settings.
      *
      * @param functionScoreQueryProto The Protocol Buffer FunctionScoreQuery object
+     * @param registry The registry to use for converting nested queries
      * @return A configured FunctionScoreQueryBuilder instance
      * @throws IllegalArgumentException if the function score query is invalid or contains unsupported function types
      */
-    public static FunctionScoreQueryBuilder fromProto(FunctionScoreQuery functionScoreQueryProto) {
+    static FunctionScoreQueryBuilder fromProto(FunctionScoreQuery functionScoreQueryProto, QueryBuilderProtoConverterRegistry registry) {
         if (functionScoreQueryProto == null) {
             throw new IllegalArgumentException("FunctionScoreQuery cannot be null");
         }
@@ -77,12 +65,12 @@ class FunctionScoreQueryBuilderProtoUtils {
 
         if (functionScoreQueryProto.hasQuery()) {
             QueryContainer queryContainer = functionScoreQueryProto.getQuery();
-            query = REGISTRY.fromProto(queryContainer);
+            query = registry.fromProto(queryContainer);
         }
 
         if (functionScoreQueryProto.getFunctionsCount() > 0) {
             for (FunctionScoreContainer container : functionScoreQueryProto.getFunctionsList()) {
-                FunctionScoreQueryBuilder.FilterFunctionBuilder filterFunctionBuilder = parseFunctionScoreContainer(container);
+                FunctionScoreQueryBuilder.FilterFunctionBuilder filterFunctionBuilder = parseFunctionScoreContainer(container, registry);
                 filterFunctionBuilders.add(filterFunctionBuilder);
             }
         }
@@ -96,7 +84,8 @@ class FunctionScoreQueryBuilderProtoUtils {
             filterFunctionBuilders.toArray(new FunctionScoreQueryBuilder.FilterFunctionBuilder[0])
         );
 
-        if (functionScoreQueryProto.hasBoostMode()) {
+        if (functionScoreQueryProto.hasBoostMode()
+            && functionScoreQueryProto.getBoostMode() != FunctionBoostMode.FUNCTION_BOOST_MODE_UNSPECIFIED) {
             combineFunction = parseBoostMode(functionScoreQueryProto.getBoostMode());
         }
 
@@ -139,7 +128,10 @@ class FunctionScoreQueryBuilderProtoUtils {
     /**
      * Parses a FunctionScoreContainer and creates the appropriate FilterFunctionBuilder.
      */
-    private static FunctionScoreQueryBuilder.FilterFunctionBuilder parseFunctionScoreContainer(FunctionScoreContainer container) {
+    private static FunctionScoreQueryBuilder.FilterFunctionBuilder parseFunctionScoreContainer(
+        FunctionScoreContainer container,
+        QueryBuilderProtoConverterRegistry registry
+    ) {
         if (container == null) {
             throw new IllegalArgumentException("FunctionScoreContainer cannot be null");
         }
@@ -149,7 +141,7 @@ class FunctionScoreQueryBuilderProtoUtils {
         Float functionWeight = null;
         if (container.hasFilter()) {
             QueryContainer filterContainer = container.getFilter();
-            filter = REGISTRY.fromProto(filterContainer);
+            filter = registry.fromProto(filterContainer);
         }
 
         // Check for weight (only set if present, otherwise use default)
@@ -191,12 +183,12 @@ class FunctionScoreQueryBuilderProtoUtils {
         FunctionScoreContainer.FunctionScoreContainerCase functionCase = container.getFunctionScoreContainerCase();
 
         return switch (functionCase) {
-            case FIELD_VALUE_FACTOR -> new FieldValueFactorFunctionProtoConverter().fromProto(container);
-            case RANDOM_SCORE -> new RandomScoreFunctionProtoConverter().fromProto(container);
-            case SCRIPT_SCORE -> new ScriptScoreFunctionProtoConverter().fromProto(container);
-            case EXP -> new ExpDecayFunctionProtoConverter().fromProto(container);
-            case GAUSS -> new GaussDecayFunctionProtoConverter().fromProto(container);
-            case LINEAR -> new LinearDecayFunctionProtoConverter().fromProto(container);
+            case FIELD_VALUE_FACTOR -> new FieldValueFactorFunctionProtoConverter().fromProto(container.getFieldValueFactor());
+            case RANDOM_SCORE -> new RandomScoreFunctionProtoConverter().fromProto(container.getRandomScore());
+            case SCRIPT_SCORE -> new ScriptScoreFunctionProtoConverter().fromProto(container.getScriptScore());
+            case EXP -> new ExpDecayFunctionProtoConverter().fromProto(container.getExp());
+            case GAUSS -> new GaussDecayFunctionProtoConverter().fromProto(container.getGauss());
+            case LINEAR -> new LinearDecayFunctionProtoConverter().fromProto(container.getLinear());
             default -> throw new IllegalArgumentException("Unsupported function score type: " + functionCase);
         };
     }
@@ -219,7 +211,7 @@ class FunctionScoreQueryBuilderProtoUtils {
             case FUNCTION_BOOST_MODE_SUM:
                 return CombineFunction.SUM;
             default:
-                return FunctionScoreQueryBuilder.DEFAULT_BOOST_MODE;
+                throw new IllegalArgumentException("Unsupported boost mode: " + boostMode);
         }
     }
 
