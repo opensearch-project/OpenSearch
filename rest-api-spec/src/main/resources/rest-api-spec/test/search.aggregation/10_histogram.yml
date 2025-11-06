@@ -686,8 +686,8 @@ setup:
 ---
 "histogram creating empty buckets":
   - skip:
-      version: " - 2.99.99"
-      reason:  fix currently only in 3.0
+      version: " - 3.3.99"
+      reason:  fix currently only in 3.4
 
   - do:
       indices.create:
