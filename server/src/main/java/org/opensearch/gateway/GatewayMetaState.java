@@ -38,10 +38,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationState.PersistedState;
 import org.opensearch.cluster.coordination.InMemoryPersistedState;
@@ -377,40 +375,6 @@ public class GatewayMetaState implements Closeable {
             return true;
         }
         return false;
-    }
-
-    private static class GatewayClusterApplier implements ClusterStateApplier {
-
-        private static final Logger logger = LogManager.getLogger(GatewayClusterApplier.class);
-
-        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
-
-        private GatewayClusterApplier(IncrementalClusterStateWriter incrementalClusterStateWriter) {
-            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
-        }
-
-        @Override
-        public void applyClusterState(ClusterChangedEvent event) {
-            if (event.state().blocks().disableStatePersistence()) {
-                incrementalClusterStateWriter.setIncrementalWrite(false);
-                return;
-            }
-
-            try {
-                // Hack: This is to ensure that non-cluster-manager-eligible Zen2 nodes always store a current term
-                // that's higher than the last accepted term.
-                // TODO: can we get rid of this hack?
-                if (event.state().term() > incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm()) {
-                    incrementalClusterStateWriter.setCurrentTerm(event.state().term());
-                }
-
-                incrementalClusterStateWriter.updateClusterState(event.state());
-                incrementalClusterStateWriter.setIncrementalWrite(true);
-            } catch (WriteStateException e) {
-                logger.warn("Exception occurred when storing new meta data", e);
-            }
-        }
-
     }
 
     @Override

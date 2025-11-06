@@ -59,6 +59,7 @@ plugins {
   id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
+  id 'net.ltgt.errorprone' version '4.3.0' apply false
 }
 
 apply from: 'gradle/build-complete.gradle'
@@ -71,13 +72,10 @@ apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
 
-// Apply FIPS configuration to all projects
 allprojects {
+  apply from: "$rootDir/gradle/error-prone.gradle"
   apply from: "$rootDir/gradle/fips.gradle"
-}
-
-// common maven publishing configuration
-allprojects {
+  // common maven publishing configuration
   group = 'org.opensearch'
   version = VersionProperties.getOpenSearch()
   description = "OpenSearch subproject ${project.path}"

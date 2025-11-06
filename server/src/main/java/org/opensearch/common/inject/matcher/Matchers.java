@@ -29,8 +29,6 @@
 
 package org.opensearch.common.inject.matcher;
 
-import org.opensearch.common.SuppressForbidden;
-
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -71,10 +69,6 @@ public class Matchers {
         @Override
         public String toString() {
             return "any()";
-        }
-
-        public Object readResolve() {
-            return any();
         }
     }
 
@@ -371,12 +365,6 @@ public class Matchers {
         @Override
         public String toString() {
             return "inPackage(" + targetPackage.getName() + ")";
-        }
-
-        @SuppressForbidden(reason = "ClassLoader.getDefinedPackage not available yet")
-        public Object readResolve() {
-            // TODO minJava >= 9 : use ClassLoader.getDefinedPackage and remove @SuppressForbidden
-            return inPackage(Package.getPackage(packageName));
         }
     }
 
