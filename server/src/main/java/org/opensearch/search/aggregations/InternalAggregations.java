@@ -246,9 +246,5 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         public void reset() throws IOException {
             size = 0;
         }
-
-        public long length() {
-            return size;
-        }
     }
 }

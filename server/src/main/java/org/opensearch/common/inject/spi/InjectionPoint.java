@@ -76,12 +76,6 @@ public final class InjectionPoint {
     private final Member member;
     private final List<Dependency<?>> dependencies;
 
-    private InjectionPoint(Member member, List<Dependency<?>> dependencies, boolean optional) {
-        this.member = member;
-        this.dependencies = dependencies;
-        this.optional = optional;
-    }
-
     InjectionPoint(TypeLiteral<?> type, Method method) {
         this.member = method;
 

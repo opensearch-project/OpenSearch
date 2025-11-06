@@ -243,22 +243,6 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
          * @param sortAndFormats The query sort
          * @param numHits The number of collapsed top hits to retrieve.
          * @param trackMaxScore True if max score should be tracked
-         */
-        private CollapsingTopDocsCollectorContext(
-            CollapseContext collapseContext,
-            @Nullable SortAndFormats sortAndFormats,
-            int numHits,
-            boolean trackMaxScore
-        ) {
-            this(collapseContext, sortAndFormats, numHits, trackMaxScore, null);
-        }
-
-        /**
-         * Ctr
-         * @param collapseContext The collapsing context
-         * @param sortAndFormats The query sort
-         * @param numHits The number of collapsed top hits to retrieve.
-         * @param trackMaxScore True if max score should be tracked
          * @param searchAfter The search after value
          */
         private CollapsingTopDocsCollectorContext(

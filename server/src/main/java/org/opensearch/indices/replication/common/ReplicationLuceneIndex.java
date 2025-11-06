@@ -374,10 +374,6 @@ public final class ReplicationLuceneIndex extends ReplicationTimer implements To
             return fileMetadataMap.size();
         }
 
-        public boolean isEmpty() {
-            return fileMetadataMap.isEmpty();
-        }
-
         public void clear() {
             fileMetadataMap.clear();
             complete = false;

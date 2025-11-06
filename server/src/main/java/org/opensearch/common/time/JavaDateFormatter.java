@@ -247,15 +247,6 @@ class JavaDateFormatter implements DateFormatter {
 
     private JavaDateFormatter(
         String format,
-        DateTimeFormatter printer,
-        List<DateTimeFormatter> roundUpParsers,
-        List<DateTimeFormatter> parsers
-    ) {
-        this(format, format, wrapFormatter(printer), wrapAllFormatters(roundUpParsers), wrapAllFormatters(parsers), false);
-    }
-
-    private JavaDateFormatter(
-        String format,
         OpenSearchDateTimePrinter printer,
         List<OpenSearchDateTimeFormatter> roundUpParsers,
         List<OpenSearchDateTimeFormatter> parsers

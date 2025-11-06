@@ -1,0 +1,50 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'net.ltgt.errorprone'
+
+tasks.withType(JavaCompile).configureEach {
+  options.errorprone {
+    disableAllChecks = true // remove once complain
+    error(
+      'UnusedMethod'
+    )
+    errorproneArgs.add(
+      '-XepExcludedPaths:' +
+      '.*AggregatorTestCase.java|' + // https://github.com/google/error-prone/issues/5289
+      '.*FactoryProvider.java|' +
+      '.*IT.java|' + // 6+ findings
+      '.*MockBigArrays.java|' +
+      '.*MoreTypes.java|' +
+      '.*OpenSearchNode.java|' +
+      '.*SnapshotsService.java|' +
+      '.*Terms.java|' +
+      '.*Tests.java|' + // 15+ findings
+      '.*x-content.*' // generated code
+    )
+  }
+}
+
+dependencies {
+  errorprone('com.google.errorprone:error_prone_core:2.42.0')
+  errorprone('tech.picnic.error-prone-support:error-prone-contrib:0.25.0')
+}
+
+configurations.configureEach { // remove once in sync (collision resolved)
+  resolutionStrategy {
+    force 'com.google.code.findbugs:jsr305:3.0.2'
+    force 'com.google.errorprone:error_prone_annotations:2.42.0'
+    force 'com.google.errorprone:error_prone_core:2.42.0'
+    force 'com.google.guava:guava:33.4.0-jre'
+    force 'org.checkerframework:checker-qual:3.43.0'
+  }
+}
+
+repositories {
+  mavenCentral()
+}
