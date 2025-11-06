@@ -53,7 +53,7 @@ public class ParquetMergeHandler extends MergeHandler {
 
             for(WriterFileSet writerFileSet : parquetWriterSet) {
                 for(String file: writerFileSet.getFiles()) {
-                    parquetSegmentInfos.add(new ParquetTieredMergePolicy.ParquetFileInfo(file));
+                    parquetSegmentInfos.add(new ParquetTieredMergePolicy.ParquetFileInfo(writerFileSet.getDirectory()+"/"+file));
                 }
             }
 
@@ -88,7 +88,7 @@ public class ParquetMergeHandler extends MergeHandler {
 
             for(WriterFileSet writerFileSet : parquetWriterSet) {
                 for(String file: writerFileSet.getFiles()) {
-                    parquetSegmentInfos.add(new ParquetTieredMergePolicy.ParquetFileInfo(file));
+                    parquetSegmentInfos.add(new ParquetTieredMergePolicy.ParquetFileInfo(writerFileSet.getDirectory()+"/"+file));
                 }
             }
 
@@ -107,6 +107,7 @@ public class ParquetMergeHandler extends MergeHandler {
                 oneMerges.add(new OneMerge(compositeIndexingExecutionEngine.getDataFormat().getDataFormats().get(0), files));
             }
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException(e);
         }
         return oneMerges;
