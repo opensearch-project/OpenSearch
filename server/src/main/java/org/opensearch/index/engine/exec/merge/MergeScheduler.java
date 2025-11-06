@@ -156,6 +156,7 @@ public class MergeScheduler {
 
             } catch (Exception e) {
                 logger.error("[{}] Unexpected error during merge for: {}", getName(), oneMerge, e);
+                mergeHandler.onMergeFailure(oneMerge);
             } finally {
                 activeMerges.decrementAndGet();
                 mergeThreads.remove(this);
