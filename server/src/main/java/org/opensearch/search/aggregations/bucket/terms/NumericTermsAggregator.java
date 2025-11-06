@@ -46,6 +46,7 @@ import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -53,10 +54,12 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.ShardResultConvertor;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
@@ -73,7 +76,9 @@ import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -88,7 +93,7 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
  *
  * @opensearch.internal
  */
-public class NumericTermsAggregator extends TermsAggregator implements StarTreePreComputeCollector {
+public class NumericTermsAggregator extends TermsAggregator implements StarTreePreComputeCollector, ShardResultConvertor {
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;
     private final LongKeyedBucketOrds bucketOrds;
@@ -439,7 +444,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         public final void close() {}
     }
 
-    class LongTermsResults extends StandardTermsResultStrategy<LongTerms, LongTerms.Bucket> {
+    class LongTermsResults extends StandardTermsResultStrategy<LongTerms, LongTerms.Bucket> implements ShardResultConvertor {
         LongTermsResults(boolean showTermDocCountError) {
             super(showTermDocCountError);
         }
@@ -516,9 +521,45 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 bucketCountThresholds
             );
         }
+
+        @Override
+        public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+                int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(name).length ;
+                List<LongTerms.Bucket> buckets = new ArrayList<>(rowCount);
+                for (int i = 0; i < rowCount; i++) {
+                    final int j = i;
+                    buckets.add(new LongTerms.Bucket(
+                        ((Number) searchContext.convertToComparable(shardResult.get(name)[i])).longValue(),
+                        1,
+                        InternalAggregations.from(Arrays.stream(subAggregators).map(subAgg -> ((ShardResultConvertor)subAgg).convertRow(shardResult, j, searchContext)).toList()),
+                        true,
+                        0,
+                        format
+                    ));
+                }
+                final BucketOrder reduceOrder;
+                if (isKeyOrder(order) == false) {
+                    reduceOrder = InternalOrder.key(true);
+                } else {
+                    reduceOrder = order;
+                }
+                return Collections.singletonList(new LongTerms(
+                    name,
+                    reduceOrder,
+                    order,
+                    metadata(),
+                    format,
+                    bucketCountThresholds.getShardSize(),
+                    true,
+                    0,
+                    buckets,
+                    0,
+                    bucketCountThresholds
+                ));
+        }
     }
 
-    class DoubleTermsResults extends StandardTermsResultStrategy<DoubleTerms, DoubleTerms.Bucket> {
+    class DoubleTermsResults extends StandardTermsResultStrategy<DoubleTerms, DoubleTerms.Bucket> implements ShardResultConvertor {
 
         DoubleTermsResults(boolean showTermDocCountError) {
             super(showTermDocCountError);
@@ -595,6 +636,42 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 0,
                 bucketCountThresholds
             );
+        }
+
+        @Override
+        public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+            int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(name).length ;
+            List<DoubleTerms.Bucket> buckets = new ArrayList<>(rowCount);
+            for (int i = 0; i < rowCount; i++) {
+                final int j = i;
+                buckets.add(new DoubleTerms.Bucket(
+                    ((Number) searchContext.convertToComparable(shardResult.get(name)[i])).doubleValue(),
+                    1,
+                    InternalAggregations.from(Arrays.stream(subAggregators).map(subAgg -> ((ShardResultConvertor)subAgg).convertRow(shardResult, j, searchContext)).toList()),
+                    true,
+                    0,
+                    format
+                ));
+            }
+            final BucketOrder reduceOrder;
+            if (isKeyOrder(order) == false) {
+                reduceOrder = InternalOrder.key(true);
+            } else {
+                reduceOrder = order;
+            }
+            return Collections.singletonList(new DoubleTerms(
+                name,
+                reduceOrder,
+                order,
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                true,
+                0,
+                buckets,
+                0,
+                bucketCountThresholds
+            ));
         }
     }
 
@@ -795,4 +872,12 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         }
     }
 
+    @Override
+    public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+        if (resultStrategy instanceof ShardResultConvertor) {
+            return ((ShardResultConvertor) resultStrategy).convert(shardResult, searchContext);
+        } else {
+            throw new UnsupportedOperationException("Result strategy not supported for conversion " + resultStrategy.getClass().getName());
+        }
+    }
 }
