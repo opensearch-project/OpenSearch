@@ -3,6 +3,8 @@ package com.parquet.parquetdataformat.writer;
 import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.vsr.VSRManager;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
@@ -34,6 +36,9 @@ import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DAT
  * to the {@link VSRManager}.
  */
 public class ParquetWriter implements Writer<ParquetDocumentInput> {
+
+    private static final Logger logger = LogManager.getLogger(ParquetWriter.class);
+
     private final String file;
     private final Schema schema;
     private final VSRManager vsrManager;
@@ -79,11 +84,11 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
 
     /**
      * Gets the native memory usage of the ArrowWriter associated with this ParquetWriter.
-     * 
+     *
      * <p>This method calls into the native Rust backend to retrieve the current memory
      * usage of the underlying ArrowWriter. The memory usage includes buffers and internal
      * state maintained by the ArrowWriter for writing Parquet data.
-     * 
+     *
      * <p>This method provides visibility into the memory consumption of the writer, which
      * can be useful for:
      * <ul>
@@ -92,11 +97,15 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
      *   <li>Debugging memory-related issues</li>
      *   <li>Integration with OpenSearch's memory management systems</li>
      * </ul>
-     * 
+     *
      * @return the number of bytes currently used by the native ArrowWriter, or 0 if the
      *         writer doesn't exist or memory usage cannot be determined
      */
     public long getNativeBytesUsed() {
-        return RustBridge.getNativeBytesUsed(file);
+        long vsrMemory = vsrManager.getActiveManagedVSR().getAllocator().getAllocatedMemory();
+        long arrowWriterMemory = RustBridge.getNativeBytesUsed(file);
+        logger.info("[{}] Native memory used by VSR: {}", file, vsrMemory);
+        logger.info("[{}] Native memory used by Arrow: {}", file, arrowWriterMemory);
+        return vsrMemory + arrowWriterMemory;
     }
 }

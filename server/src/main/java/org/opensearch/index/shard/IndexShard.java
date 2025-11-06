@@ -3443,7 +3443,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void writeIndexingBuffer() {
         try {
-            getIndexer().writeIndexingBuffer();
+            getIndexingExecutionCoordinator().writeIndexingBuffer();
         } catch (Exception e) {
             handleRefreshException(e);
         }

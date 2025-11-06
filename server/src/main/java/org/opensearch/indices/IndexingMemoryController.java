@@ -464,7 +464,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                         continue;
                     }
 
-                    if (shardBytesUsed > 0) {
+                    if (shardBytesUsed > 0 || shardNativeBytesUsed > 0) {
                         if (shardWritingBytes != 0) {
                             logger.info(
                                 "shard [{}] is using [{}] heap, [{}] native, writing [{}] heap",
@@ -475,8 +475,8 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                             );
                         } else {
                             logger.info(
-                                "shard [{}] is using [{}] heap, [{}] native, not writing any bytes", 
-                                shard.shardId(), 
+                                "shard [{}] is using [{}] heap, [{}] native, not writing any bytes",
+                                shard.shardId(),
                                 new ByteSizeValue(shardBytesUsed),
                                 new ByteSizeValue(shardNativeBytesUsed)
                             );

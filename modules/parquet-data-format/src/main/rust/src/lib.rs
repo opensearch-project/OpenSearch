@@ -48,7 +48,8 @@ impl NativeParquetWriter {
         let file_clone = file.try_clone()?;
         FILE_MANAGER.insert(filename.clone(), file_clone);
         let props = WriterProperties::builder()
-            .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
+//             .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
+            .set_max_row_group_size(256 * 1024 * 1024)
             .build();
         let writer = ArrowWriter::try_new(file, schema, Some(props))?;
         WRITER_MANAGER.insert(filename, Arc::new(Mutex::new(writer)));
