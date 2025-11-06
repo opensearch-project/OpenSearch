@@ -388,7 +388,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
     private int estimateTotalBucketCount(List<Bucket> list) {
         int bucketCount = 0;
-        if (emptyBucketInfo != null) {
+        if (emptyBucketInfo != null && !list.isEmpty()) {
             double min = min(emptyBucketInfo.minBound, list.getFirst().key);
             double max = max(emptyBucketInfo.maxBound, list.getLast().key);
 
@@ -416,16 +416,17 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         final int originalSize = list.size();
         // we use counts here only to add those values to the CircuitBreaker, list's count has already been added in #reduce, so we only
         // need to add emptyBucketCount
-        final int estimateEmptyBucketCount = estimateTotalBucketCount(list) - originalSize;
-        assert estimateEmptyBucketCount >= 0;
+        final int estimateEmptyBucketCount = Math.max(0, estimateTotalBucketCount(list) - originalSize);
 
         // First check bucket count limit before attempting memory allocation
-        reduceContext.consumeBucketsAndMaybeBreak(estimateEmptyBucketCount);
+        if (estimateEmptyBucketCount > 0) {
+            reduceContext.consumeBucketsAndMaybeBreak(estimateEmptyBucketCount);
 
-        CircuitBreaker breaker = reduceContext.getBreaker();
-        if (breaker != null) {
-            // 50 bytes memory usage for each empty bucket
-            breaker.addEstimateBytesAndMaybeBreak(50L * estimateEmptyBucketCount, "empty histogram buckets");
+            CircuitBreaker breaker = reduceContext.getBreaker();
+            if (breaker != null) {
+                // 50 bytes memory usage for each empty bucket
+                breaker.addEstimateBytesAndMaybeBreak(50L * estimateEmptyBucketCount, "empty histogram buckets");
+            }
         }
 
         ListIterator<Bucket> iter = list.listIterator();

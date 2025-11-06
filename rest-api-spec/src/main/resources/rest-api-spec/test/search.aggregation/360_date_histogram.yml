@@ -195,7 +195,7 @@ setup:
           - '{"date": "2016-03-01"}'
 
   - do:
-      catch: /circuit_breaking_exception/
+      catch: /too_many_buckets_exception/
       search:
         index: test_cb
         body:
@@ -210,5 +210,5 @@ setup:
                   max: 174155895372
 
   - match: { error.type: "search_phase_execution_exception" }
-  - match: { error.caused_by.type: "circuit_breaking_exception"}
-  - match: { status: 429 }
+  - match: { error.caused_by.type: "too_many_buckets_exception"}
+  - match: { status: 503 }

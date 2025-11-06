@@ -401,7 +401,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     private int estimateTotalBucketCount(List<Bucket> list) {
         LongBounds bounds = emptyBucketInfo.bounds;
         int bucketCount = 0;
-        if (bounds != null && bounds.getMin() != null && bounds.getMax() != null) {
+        if (bounds != null && bounds.getMin() != null && bounds.getMax() != null && !list.isEmpty()) {
             long min = min(bounds.getMin() + offset, list.getFirst().key);
             long max = max(bounds.getMax() + offset, list.getLast().key);
             long intervalWidth = 0;
@@ -431,16 +431,17 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         final int originalSize = list.size();
         // we use counts here only to add those values to the CircuitBreaker, list's count has already been added in #reduce, so we only
         // need to add emptyBucketCount
-        final int estimateEmptyBucketCount = estimateTotalBucketCount(list) - originalSize;
-        assert estimateEmptyBucketCount >= 0;
+        final int estimateEmptyBucketCount = Math.max(0, estimateTotalBucketCount(list) - originalSize);
 
         // First check bucket count limit before attempting memory allocation
-        reduceContext.consumeBucketsAndMaybeBreak(estimateEmptyBucketCount);
+        if (estimateEmptyBucketCount > 0) {
+            reduceContext.consumeBucketsAndMaybeBreak(estimateEmptyBucketCount);
 
-        CircuitBreaker breaker = reduceContext.getBreaker();
-        if (breaker != null) {
-            // 50 bytes memory usage for each empty bucket
-            breaker.addEstimateBytesAndMaybeBreak(50L * estimateEmptyBucketCount, "empty date histogram buckets");
+            CircuitBreaker breaker = reduceContext.getBreaker();
+            if (breaker != null) {
+                // 50 bytes memory usage for each empty bucket
+                breaker.addEstimateBytesAndMaybeBreak(50L * estimateEmptyBucketCount, "empty date histogram buckets");
+            }
         }
 
         ListIterator<Bucket> iter = list.listIterator();

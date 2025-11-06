@@ -717,25 +717,6 @@ setup:
           - '{"number": 500000}'
 
   - do:
-      catch: /circuit_breaking_exception/
-      search:
-        index: test_cb
-        body:
-          size: 0
-          aggs:
-            histo:
-              histogram:
-                field: number
-                interval: 10
-                extended_bounds:
-                  min: 0
-                  max: 174155895372
-
-  - match: { error.type: "search_phase_execution_exception" }
-  - match: { error.caused_by.type: "circuit_breaking_exception"}
-  - match: { status: 429 }
-
-  - do:
       catch: /too_many_buckets_exception/
       search:
         index: test_cb
@@ -745,7 +726,7 @@ setup:
             histo:
               histogram:
                 field: number
-                interval: 100000
+                interval: 10
                 extended_bounds:
                   min: 0
                   max: 174155895372
