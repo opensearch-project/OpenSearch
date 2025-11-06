@@ -85,7 +85,7 @@ class NestedQueryBuilderProtoUtils {
 
         if (nestedQueryProto.hasInnerHits()) {
             try {
-                innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(nestedQueryProto.getInnerHits());
+                innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(nestedQueryProto.getInnerHits(), registry);
             } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to convert inner hits for NestedQuery: " + e.getMessage(), e);
             }

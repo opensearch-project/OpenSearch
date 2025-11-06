@@ -687,7 +687,7 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
 
         // add a single node
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1-5.x", Version.fromId(5060099))))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1-1.0", Version.fromString("1.0.0"))))
             .build();
         clusterState = ClusterState.builder(clusterState).routingTable(allocation.reroute(clusterState, "reroute").routingTable()).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
@@ -698,9 +698,9 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(3));
 
-        // add another 5.6 node
+        // add another 1.0 node
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2-5.x", Version.fromId(5060099))))
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2-1.0", Version.fromString("1.0.0"))))
             .build();
 
         // start the shards, should have 1 primary and 1 replica available
