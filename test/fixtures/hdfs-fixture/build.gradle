@@ -58,6 +58,7 @@ dependencies {
     exclude module: "org.eclipse.jetty"
     exclude group: "commons-lang"
     exclude group: "org.jsonschema2pojo"
+    exclude group: "com.microsoft.sqlserver"
   }
   api "dnsjava:dnsjava:3.6.3"
   api "org.codehaus.jettison:jettison:${versions.jettison}"

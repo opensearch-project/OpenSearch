@@ -69,6 +69,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.Version.MASK;
 import static org.opensearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,7 +124,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", numShard)
                     .put("index.number_of_replicas", numberOfReplicas)
                     .build()
@@ -251,7 +252,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata metadata1 = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 4)
                     .put("index.number_of_replicas", numberOfReplicas)
                     .build()
@@ -281,7 +282,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
                 Settings.builder()
                     .put("index.number_of_replicas", numberOfReplicas)
                     .put("index.number_of_shards", 4)
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .build()
             )
             .creationDate(metadata1.getCreationDate())
@@ -319,7 +320,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 32)
                     .put("index.number_of_replicas", numberOfReplicas)
                     .build()
@@ -368,7 +369,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 10)
                     .put("index.number_of_replicas", numberOfReplicas)
                     .build()
@@ -388,7 +389,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata split = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 2)
                     .put("index.number_of_replicas", 0)
                     .build()
@@ -400,7 +401,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata shrink = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 32)
                     .put("index.number_of_replicas", 0)
                     .build()
@@ -427,7 +428,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
-                    .put("index.version.created", 1)
+                    .put("index.version.created", 1 ^ MASK)
                     .put("index.number_of_shards", 2)
                     .put("index.number_of_replicas", 0)
                     .build()
@@ -462,7 +463,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
 
     public void testIndexFormat() {
         Settings defaultSettings = Settings.builder()
-            .put("index.version.created", 1)
+            .put("index.version.created", 1 ^ MASK)
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 1)
             .build();

@@ -187,7 +187,8 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
             )
         ).thenReturn(List.of(metadataFilename, metadataFilename2, metadataFilename3));
 
-        long pinnedTimestampMatchingMetadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getTimestamp(metadataFilename2) + 10;
+        long pinnedTimestampMatchingMetadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getTimestamp(metadataFilename2)
+            + 10;
         String blobName = "snapshot1__" + pinnedTimestampMatchingMetadataFilename2;
         when(blobContainer.listBlobs()).thenReturn(Map.of(blobName, new PlainBlobMetadata(blobName, 100)));
 

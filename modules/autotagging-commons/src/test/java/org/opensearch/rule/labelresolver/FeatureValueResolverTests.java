@@ -50,14 +50,12 @@ public class FeatureValueResolverTests extends OpenSearchTestCase {
     }
 
     public void testResolveSingleIntersection() {
-        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(Arrays.asList(
-            new MatchLabel<>("a", 0.9f),
-            new MatchLabel<>("b", 0.8f)
-        ));
-        when(attr2.findAttributeMatches(extractor2, store2)).thenReturn(Arrays.asList(
-            new MatchLabel<>("a", 0.95f),
-            new MatchLabel<>("c", 0.7f)
-        ));
+        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(
+            Arrays.asList(new MatchLabel<>("a", 0.9f), new MatchLabel<>("b", 0.8f))
+        );
+        when(attr2.findAttributeMatches(extractor2, store2)).thenReturn(
+            Arrays.asList(new MatchLabel<>("a", 0.95f), new MatchLabel<>("c", 0.7f))
+        );
 
         FeatureValueResolver resolver = new FeatureValueResolver(storeFactory, Arrays.asList(extractor1, extractor2));
         Optional<String> result = resolver.resolve();
@@ -66,12 +64,8 @@ public class FeatureValueResolverTests extends OpenSearchTestCase {
     }
 
     public void testResolveEmptyIntersection() {
-        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(Arrays.asList(
-            new MatchLabel<>("a", 0.9f)
-        ));
-        when(attr2.findAttributeMatches(extractor2, store2)).thenReturn(Arrays.asList(
-            new MatchLabel<>("b", 0.8f)
-        ));
+        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(Arrays.asList(new MatchLabel<>("a", 0.9f)));
+        when(attr2.findAttributeMatches(extractor2, store2)).thenReturn(Arrays.asList(new MatchLabel<>("b", 0.8f)));
 
         FeatureValueResolver resolver = new FeatureValueResolver(storeFactory, Arrays.asList(extractor1, extractor2));
         Optional<String> result = resolver.resolve();
@@ -79,15 +73,12 @@ public class FeatureValueResolverTests extends OpenSearchTestCase {
     }
 
     public void testResolveTieBreakingWithoutResult() {
-        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(Arrays.asList(
-            new MatchLabel<>("a", 0.9f),
-            new MatchLabel<>("b", 0.9f),
-            new MatchLabel<>("c", 0.7f)
-        ));
-        when(attr2.findAttributeMatches(extractor2, store2)).thenReturn(Arrays.asList(
-            new MatchLabel<>("a", 0.95f),
-            new MatchLabel<>("b", 0.95f)
-        ));
+        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(
+            Arrays.asList(new MatchLabel<>("a", 0.9f), new MatchLabel<>("b", 0.9f), new MatchLabel<>("c", 0.7f))
+        );
+        when(attr2.findAttributeMatches(extractor2, store2)).thenReturn(
+            Arrays.asList(new MatchLabel<>("a", 0.95f), new MatchLabel<>("b", 0.95f))
+        );
 
         FeatureValueResolver resolver = new FeatureValueResolver(storeFactory, Arrays.asList(extractor1, extractor2));
         Optional<String> result = resolver.resolve();
@@ -95,15 +86,12 @@ public class FeatureValueResolverTests extends OpenSearchTestCase {
     }
 
     public void testResolveTieBreaking() {
-        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(Arrays.asList(
-            new MatchLabel<>("a", 0.9f),
-            new MatchLabel<>("b", 0.9f),
-            new MatchLabel<>("c", 0.7f)
-        ));
-        when(attr2.findAttributeMatches(extractor2, store2)).thenReturn(Arrays.asList(
-            new MatchLabel<>("b", 0.95f),
-            new MatchLabel<>("a", 0.9f)
-        ));
+        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(
+            Arrays.asList(new MatchLabel<>("a", 0.9f), new MatchLabel<>("b", 0.9f), new MatchLabel<>("c", 0.7f))
+        );
+        when(attr2.findAttributeMatches(extractor2, store2)).thenReturn(
+            Arrays.asList(new MatchLabel<>("b", 0.95f), new MatchLabel<>("a", 0.9f))
+        );
 
         FeatureValueResolver resolver = new FeatureValueResolver(storeFactory, Arrays.asList(extractor1, extractor2));
         Optional<String> result = resolver.resolve();
@@ -112,9 +100,7 @@ public class FeatureValueResolverTests extends OpenSearchTestCase {
     }
 
     public void testResolveSingleExtractor() {
-        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(Arrays.asList(
-            new MatchLabel<>("x", 1.0f)
-        ));
+        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(Arrays.asList(new MatchLabel<>("x", 1.0f)));
 
         FeatureValueResolver resolver = new FeatureValueResolver(storeFactory, Collections.singletonList(extractor1));
         Optional<String> result = resolver.resolve();
