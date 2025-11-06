@@ -31,6 +31,7 @@ public class BulkResponseProtoUtils {
      * This method is equivalent to {@link BulkResponse#toXContent(XContentBuilder, ToXContent.Params)}
      *
      * @param response The BulkResponse to convert
+     * @param params The global gRPC request parameters
      * @return A Protocol Buffer BulkResponse representation
      * @throws IOException if there's an error during conversion
      */

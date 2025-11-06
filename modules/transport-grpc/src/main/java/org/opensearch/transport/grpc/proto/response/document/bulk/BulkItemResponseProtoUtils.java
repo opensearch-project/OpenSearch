@@ -42,6 +42,7 @@ public class BulkItemResponseProtoUtils {
      *
      *
      * @param response The BulkItemResponse to convert
+     * @param params The global gRPC request parameters
      * @return A Protocol Buffer ResponseItem representation
      * @throws IOException if there's an error during conversion
      *

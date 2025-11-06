@@ -34,6 +34,7 @@ public class DocWriteResponseProtoUtils {
      * This method is equivalent to the {@link DocWriteResponse#innerToXContent(XContentBuilder, ToXContent.Params)}
      *
      * @param response The DocWriteResponse to convert
+     * @param params The global gRPC request parameters
      * @return A ResponseItem.Builder with the DocWriteResponse data
      *
      */

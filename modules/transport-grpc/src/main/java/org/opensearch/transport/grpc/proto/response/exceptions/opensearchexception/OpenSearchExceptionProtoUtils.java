@@ -55,9 +55,11 @@ public class OpenSearchExceptionProtoUtils {
 
     /**
      * Converts an OpenSearchException to its Protocol Buffer representation.
-     * This method is equivalent to the {@link OpenSearchException#toXContent(XContentBuilder, ToXContent.Params)}
+     * The corresponding global gRPC request parameters are used to control whether the full stacktrace is included or only a summary.
+     * This method is equivalent to the {@link OpenSearchException#toXContent(XContentBuilder, ToXContent.Params)}.
      *
      * @param exception The OpenSearchException to convert
+     * @param params Global gRPC params to control how much details of an error should be included
      * @return A Protocol Buffer ErrorCause representation
      * @throws IOException if there's an error during conversion
      */
@@ -83,9 +85,11 @@ public class OpenSearchExceptionProtoUtils {
      * as Protocol Buffers.
      * <p>
      * This method is usually used when the {@link Throwable} is rendered as a part of another Protocol Buffer object.
+     * The corresponding global gRPC request parameters are used to control whether the full stacktrace is included or only a summary.
      * It is equivalent to the {@link OpenSearchException#generateThrowableXContent(XContentBuilder, ToXContent.Params, Throwable)}
      *
      * @param t The throwable to convert
+     * @param params Global gRPC params to control how much details of an error should be included
      * @return A Protocol Buffer ErrorCause representation
      * @throws IOException if there's an error during conversion
      */
@@ -101,6 +105,7 @@ public class OpenSearchExceptionProtoUtils {
 
     /**
      * Inner helper method for converting a Throwable to its Protocol Buffer representation.
+     * The corresponding global gRPC request parameters are used to control whether the full stacktrace is included or only a summary.
      * This method is equivalent to the {@link OpenSearchException#innerToXContent(XContentBuilder, ToXContent.Params, Throwable, String, String, Map, Map, Throwable)}.
      *
      * @param throwable The throwable to convert
@@ -109,6 +114,7 @@ public class OpenSearchExceptionProtoUtils {
      * @param headers The exception headers
      * @param metadata The exception metadata
      * @param cause The exception cause
+     * @param params Global gRPC params to control how much details of an error should be included
      * @return A Protocol Buffer ErrorCause representation
      * @throws IOException if there's an error during conversion
      */

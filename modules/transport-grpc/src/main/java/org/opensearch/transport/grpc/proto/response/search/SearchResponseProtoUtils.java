@@ -33,6 +33,7 @@ public class SearchResponseProtoUtils {
      * This method is equivalent to {@link SearchResponse#toXContent(XContentBuilder, ToXContent.Params)}
      *
      * @param response The SearchResponse to convert
+     * @param params The global gRPC request parameters
      * @return A Protocol Buffer SearchResponse representation
      * @throws IOException if there's an error during conversion
      */

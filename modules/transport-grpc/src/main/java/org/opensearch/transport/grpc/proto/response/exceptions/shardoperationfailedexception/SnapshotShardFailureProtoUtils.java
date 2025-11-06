@@ -30,6 +30,7 @@ public class SnapshotShardFailureProtoUtils {
      * Similar to {@link SnapshotShardFailure#toXContent(XContentBuilder, ToXContent.Params)}     *
      *
      * @param exception The SnapshotShardFailure to convert
+     * @param params The global gRPC request parameters
      * @return A Protocol Buffer Struct containing the exception metadata
      */
     public static ShardFailure toProto(SnapshotShardFailure exception, GlobalParams params) throws IOException {

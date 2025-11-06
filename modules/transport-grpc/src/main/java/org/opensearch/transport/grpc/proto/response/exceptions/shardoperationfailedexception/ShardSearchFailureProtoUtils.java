@@ -30,6 +30,7 @@ public class ShardSearchFailureProtoUtils {
      * Similar to {@link ShardSearchFailure#toXContent(XContentBuilder, ToXContent.Params)}     *
      *
      * @param exception The ShardSearchFailure to convert
+     * @param params The global gRPC request parameters
      * @return A Protocol Buffer Struct containing the exception metadata
      */
     public static ShardFailure toProto(ShardSearchFailure exception, GlobalParams params) throws IOException {

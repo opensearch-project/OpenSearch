@@ -34,6 +34,7 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
      * This method is overridden by various exception classes, which are hardcoded here.
      *
      * @param exception The DefaultShardOperationFailedException to convert
+     * @param params The global gRPC request parameters
      * @return A Protocol Buffer Struct containing the exception metadata
      */
     public static ShardFailure toProto(DefaultShardOperationFailedException exception, GlobalParams params) throws IOException {
@@ -57,6 +58,7 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
      *
      * @param shardFailureBuilder the builder to populate with failure information
      * @param exception The AddIndexBlockResponse.AddBlockShardResult.Failure to convert
+     * @param params The global gRPC request parameters
      * @throws IOException if there's an error during conversion
      */
     public static void innerToProto(
@@ -76,6 +78,7 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
      *
      * @param shardFailureBuilder the builder to populate with failure information
      * @param exception The IndicesShardStoresResponse.Failure to convert
+     * @param params The global gRPC request parameters
      * @throws IOException if there's an error during conversion
      */
     public static void innerToProto(
@@ -93,6 +96,7 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
      *
      * @param shardFailureBuilder the builder to populate with failure information
      * @param exception The CloseIndexResponse.ShardResult.Failure to convert
+     * @param params The global gRPC request parameters
      * @throws IOException if there's an error during conversion
      */
     public static void innerToProto(
@@ -112,6 +116,7 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
      *
      * @param shardFailureBuilder the builder to populate with failure information
      * @param exception The DefaultShardOperationFailedException to convert
+     * @param params The global gRPC request parameters
      * @throws IOException if there's an error during conversion
      */
     public static void parentInnerToProto(

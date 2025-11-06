@@ -31,6 +31,7 @@ public class ShardInfoProtoUtils {
      * Similar to {@link ReplicationResponse.ShardInfo#toXContent(XContentBuilder, ToXContent.Params)}
      *
      * @param shardInfo The shard information to convert to protobuf format
+     * @param params The global gRPC request parameters
      * @return The protobuf representation of the shard information
      * @throws IOException If there's an error during conversion
      */

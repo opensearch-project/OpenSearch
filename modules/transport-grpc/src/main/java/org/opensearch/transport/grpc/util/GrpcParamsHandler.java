@@ -27,6 +27,11 @@ public class GrpcParamsHandler {
 
     private GrpcParamsHandler() {}
 
+    /**
+     * Initializes the handler with the given settings.
+     *
+     * @param settings the node settings
+     */
     public static void initialize(Settings settings) {
         detailedErrorsEnabled.set(SETTING_GRPC_DETAILED_ERRORS_ENABLED.get(settings));
     }

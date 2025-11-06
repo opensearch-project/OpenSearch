@@ -39,6 +39,7 @@ public class ShardStatisticsProtoUtils {
      * @param skipped the number of skipped shards
      * @param failed the number of failed shards
      * @param shardFailures the array of shard operation failures
+     * @param params The global gRPC request parameters
      * @return A Protocol Buffer ShardStatistics representation
      * @throws IOException if there's an error during conversion
      */

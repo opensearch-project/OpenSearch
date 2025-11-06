@@ -37,6 +37,7 @@ public class ProtoActionsProtoUtils {
      * @param skipped the number of skipped shards
      * @param failed the number of failed shards
      * @param shardFailures the array of shard operation failures
+     * @param params The global gRPC request parameters
      * @throws IOException if there's an error during conversion
      */
     protected static void buildBroadcastShardsHeader(

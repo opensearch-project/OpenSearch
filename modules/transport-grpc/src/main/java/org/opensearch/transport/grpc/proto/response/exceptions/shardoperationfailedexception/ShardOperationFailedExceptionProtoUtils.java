@@ -33,6 +33,7 @@ public class ShardOperationFailedExceptionProtoUtils {
      * This method is overridden by various exception classes, which are hardcoded here.
      *
      * @param exception The ShardOperationFailedException to convert metadata from
+     * @param params The global gRPC request parameters
      * @return ShardFailure
      */
     public static ShardFailure toProto(ShardOperationFailedException exception, GlobalParams params) throws IOException {

@@ -30,6 +30,7 @@ public class ReplicationResponseShardInfoFailureProtoUtils {
      * This method is overridden by various exception classes, which are hardcoded here.
      *
      * @param exception The ReplicationResponse.ShardInfo.Failure to convert metadata from
+     * @param params The global gRPC request parameters
      * @return A map containing the exception's metadata as ObjectMap.Value objects
      */
     public static ShardFailure toProto(ReplicationResponse.ShardInfo.Failure exception, GlobalParams params) throws IOException {
