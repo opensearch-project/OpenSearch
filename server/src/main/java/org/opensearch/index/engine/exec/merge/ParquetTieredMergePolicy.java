@@ -34,7 +34,7 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
             @Override
             public void message(String s, String s1) {
                 // TODO: Add logger
-                // System.out.println("Parquet merge: " + s + " : " + s1);
+                 System.out.println("Parquet merge: " + s + " : " + s1);
             }
 
             @Override
@@ -97,6 +97,7 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
 
         for (ParquetFileInfo parquetSegment : segments) {
             ParquetSegmentWrapper wrapper = new ParquetSegmentWrapper(parquetSegment);
+            wrapper.info.setFiles(Arrays.asList(parquetSegment.path.getFileName().toString()));
             luceneSegments.add(wrapper);
             segmentMap.put(wrapper, parquetSegment);
         }
@@ -230,7 +231,7 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
                 // SegmentInfo
                 new SegmentInfo(
                     // directory - not used for our purpose
-                    new NIOFSDirectory(Paths.get("/tmp")),
+                    new NIOFSDirectory(parquetInfo.path.getParent()),
                     // version
                     Version.LATEST,
                     // min version

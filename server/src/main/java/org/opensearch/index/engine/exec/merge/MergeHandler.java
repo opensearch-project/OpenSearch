@@ -57,6 +57,7 @@ public abstract class MergeHandler {
 
     public void updatePendingMerges() {
         Collection<OneMerge> oneMerges = findMerges();
+        System.out.println("Found merges : " + oneMerges);
         for (OneMerge oneMerge : oneMerges) {
             boolean isValidMerge = true;
             for(FileMetadata fileMetadata : oneMerge.getFilesToMerge()) {
@@ -71,6 +72,7 @@ public abstract class MergeHandler {
     }
 
     public synchronized void registerMerge(OneMerge merge) {
+        System.out.println("Registering Merge : " + merge);
         mergingSegments.add(merge);
         for(FileMetadata fileMetadata : merge.getFilesToMerge()) {
             mergingFileNames.add(fileMetadata.directory()+"/"+fileMetadata.file());
