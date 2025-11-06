@@ -12,7 +12,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Objects;
 
 public class RustBridgeTests extends OpenSearchTestCase {
@@ -30,12 +29,12 @@ public class RustBridgeTests extends OpenSearchTestCase {
             ParquetFileMetadata metadata = RustBridge.getFileMetadata(filePath);
 
             assertNotNull("Metadata should not be null", metadata);
-            assertTrue("Version should be positive", metadata.getVersion() > 0);
-            assertTrue("Number of rows should be non-negative", metadata.getNumRows() >= 0);
+            assertTrue("Version should be positive", metadata.version() > 0);
+            assertTrue("Number of rows should be non-negative", metadata.numRows() >= 0);
 
             // Log the metadata for verification
             logger.info("Small file 1 metadata - Version: {}, NumRows: {}, CreatedBy: {}",
-                metadata.getVersion(), metadata.getNumRows(), metadata.getCreatedBy());
+                metadata.version(), metadata.numRows(), metadata.createdBy());
 
         } catch (UnsatisfiedLinkError e) {
             logger.warn("Native library not loaded, skipping test: " + e.getMessage());
