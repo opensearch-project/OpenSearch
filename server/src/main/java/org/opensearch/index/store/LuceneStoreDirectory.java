@@ -155,11 +155,6 @@ public class LuceneStoreDirectory implements FormatStoreDirectory<DataFormat> {
     }
 
     @Override
-    public void syncMetaData() throws IOException {
-        wrappedDirectory.syncMetaData();
-    }
-
-    @Override
     public void rename(String source, String dest) throws IOException {
         wrappedDirectory.rename(source, dest);
     }
@@ -167,14 +162,6 @@ public class LuceneStoreDirectory implements FormatStoreDirectory<DataFormat> {
     @Override
     public void close() throws IOException {
         wrappedDirectory.close();
-    }
-
-    /**
-     * Returns the wrapped Lucene Directory for direct access
-     * @return the wrapped Directory instance
-     */
-    public Directory getWrappedDirectory() {
-        return wrappedDirectory;
     }
 
     @Override

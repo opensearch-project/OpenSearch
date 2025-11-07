@@ -52,13 +52,6 @@ public class DefaultCompositeStoreDirectoryFactory implements CompositeStoreDire
     /**
      * Creates a new CompositeStoreDirectory with plugin-based format discovery.
      *
-     * Process:
-     * 1. Log directory creation start
-     * 2. Attempt plugin-based format discovery
-     * 3. Create CompositeStoreDirectory with discovered formats
-     * 4. Fallback to default formats if plugin discovery fails
-     * 5. Handle errors with detailed logging and context
-     *
      * @param indexSettings the shard's index settings
      * @param shardPath the path the shard is using
      * @param pluginsService service for discovering DataFormat plugins
@@ -78,8 +71,6 @@ public class DefaultCompositeStoreDirectoryFactory implements CompositeStoreDire
         }
 
         try {
-            // Attempt to create CompositeStoreDirectory with plugin discovery
-            // This uses the auto-discovery constructor that finds DataFormat plugins
             CompositeStoreDirectory compositeDirectory = new CompositeStoreDirectory(
                 indexSettings,
                 pluginsService,
@@ -95,7 +86,6 @@ public class DefaultCompositeStoreDirectoryFactory implements CompositeStoreDire
             return compositeDirectory;
 
         }catch (Exception fallbackException) {
-                // Both plugin discovery and fallback failed
                 logger.error("Failed to create CompositeStoreDirectory for shard: {} - both plugin discovery and fallback failed",
                     shardPath.getShardId(), fallbackException);
 

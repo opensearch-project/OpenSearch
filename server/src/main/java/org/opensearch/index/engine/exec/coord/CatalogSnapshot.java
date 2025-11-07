@@ -8,10 +8,8 @@
 
 package org.opensearch.index.engine.exec.coord;
 
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -21,7 +19,17 @@ import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.Serializable;
+import java.io.DataOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectOutputStream;
+import java.io.ObjectInputStream;
+import java.io.InputStream;
+import java.io.DataInputStream;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -30,7 +38,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.opensearch.index.engine.exec.FileMetadata;
 
 @ExperimentalApi
 public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
@@ -41,7 +48,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
     private static final String CATALOG_SNAPSHOT_KEY = "_catalog_snapshot_";
     private Map<String, String> userData;
 
-    // Todo: update version increment logic properly @kamal
+    // Todo: @Kamal, update version increment logic properly
     public CatalogSnapshot(RefreshResult refreshResult, long id, long version) {
         super("catalog_snapshot");
         this.id = id;
@@ -153,16 +160,14 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
         Collection<FileMetadata> allFileMetadata = new ArrayList<>();
 
         for (Segment segment : segments) {
-            // Each segment contains multiple data formats
             segment.dfGroupedSearchableFiles.forEach((dataFormatName, writerFileSet) -> {
-                // Create FileMetadata for each file in this WriterFileSet
                 for (String filePath : writerFileSet.getFiles()) {
                     File file = new File(filePath);
                     String fileName = file.getName();
                     FileMetadata fileMetadata = new FileMetadata(
-                        dataFormatName,  // String dataFormat
+                        dataFormatName,
                         writerFileSet.getDirectory(),
-                        fileName        // String file
+                        fileName
                     );
                     allFileMetadata.add(fileMetadata);
                 }
@@ -182,7 +187,6 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     /**
      * Returns user data associated with this catalog snapshot.
-     * TODO: Implement proper user data storage when catalog snapshot supports it
      *
      * @return map of user data key-value pairs
      */
@@ -192,7 +196,6 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     /**
      * Sets user data for this catalog snapshot.
-     * TODO: Implement proper user data storage when catalog snapshot supports it
      *
      * @param userData the user data map to set
      * @param doIncrementVersion whether to increment version (for compatibility with SegmentInfos API)
@@ -328,17 +331,13 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
      * @return a new CatalogSnapshot instance with the same data
      */
     public CatalogSnapshot clone() {
-        // Create new CatalogSnapshot with same ID and deep copy of data
         CatalogSnapshot cloned = new CatalogSnapshot(null, this.id, this.version);
         cloned.userData = new HashMap<>(this.userData);
 
-        // Deep copy the dfGroupedSearchableFiles map
         for (Map.Entry<String, Collection<WriterFileSet>> entry : this.dfGroupedSearchableFiles.entrySet()) {
             String dataFormat = entry.getKey();
             Collection<WriterFileSet> writerFileSets = entry.getValue();
 
-            // Create a new collection with the same WriterFileSet references
-            // WriterFileSet objects are typically immutable, so shallow copy of the collection is sufficient
             Collection<WriterFileSet> clonedWriterFileSets = new ArrayList<>(writerFileSets);
             cloned.dfGroupedSearchableFiles.put(dataFormat, clonedWriterFileSets);
         }

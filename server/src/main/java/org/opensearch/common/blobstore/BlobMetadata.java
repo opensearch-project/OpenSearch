@@ -37,9 +37,8 @@ import org.opensearch.common.annotation.PublicApi;
 /**
  * An interface for providing basic metadata about a blob.
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 public interface BlobMetadata {
 
     /**

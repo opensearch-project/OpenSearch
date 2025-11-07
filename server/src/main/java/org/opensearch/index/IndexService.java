@@ -463,7 +463,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             clusterDefaultMaxMergeAtOnce,
             searchEnginePlugin,
             pluginsService,
-            null  // compositeStoreDirectoryFactory - null for backward compatibility
+            null
         );
     }
 
@@ -750,7 +750,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             }
 
-            Directory directory = null;
+            Directory directory;
             if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isWarmIndex()) {
@@ -766,10 +766,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
             }
 
-            // Create CompositeStoreDirectory using factory if available
-            CompositeStoreDirectory factoryCreatedCompositeDirectory = createCompositeStoreDirectory(path);
+            CompositeStoreDirectory compositeStoreDirectory = createCompositeStoreDirectory(path);
 
-            // Create Store with factory-created CompositeStoreDirectory for multi-format support
             store = new Store(
                 shardId,
                 this.indexSettings,
@@ -778,7 +776,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
                 path,
                 pluginsService,
-                factoryCreatedCompositeDirectory
+                compositeStoreDirectory
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
@@ -824,11 +822,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
-            
+
+            // ToDO:@Kamal, Discuss a better place for it's initialization,
             // Complete CompositeEngine initialization after remote store stats trackers have been created
             // This ensures that RemoteStoreRefreshListener gets a non-null segmentTracker
             indexShard.completeCompositeEngineInitialization();
-            
+
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             success = true;
             return indexShard;
@@ -1377,7 +1376,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             );
         }
 
-        // Fallback - return null to let Store handle internal creation
         logger.debug("No CompositeStoreDirectoryFactory available, Store will handle internal creation for: {}", shardPath);
         return null;
     }

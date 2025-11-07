@@ -10,7 +10,14 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.*;
+import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.SearchExecEngine;
+import org.opensearch.index.engine.Segment;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.RefreshInput;
@@ -81,13 +88,18 @@ public class CompositeEngine implements Indexer {
 
         // TODO : how to extend this for Lucene ? where engine is a r/w engine
         // Create read specific engines for each format which is associated with shard
+        InitalizeSearchEngine(searchEnginePlugins, shardPath);
 
+    }
+
+    public void InitalizeSearchEngine(List<SearchEnginePlugin> searchEnginePlugins, ShardPath shardPath) throws IOException
+    {
         for (SearchEnginePlugin searchEnginePlugin : searchEnginePlugins) {
             for (org.opensearch.vectorized.execution.search.DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
                 List<SearchExecEngine<?, ?, ?, ?>> currentSearchEngines = readEngines.getOrDefault(dataFormat, new ArrayList<>());
                 SearchExecEngine<?, ?, ?, ?> newSearchEngine = searchEnginePlugin.createEngine(dataFormat,
-                        Collections.emptyList(),
-                        shardPath);
+                    Collections.emptyList(),
+                    shardPath);
 
                 currentSearchEngines.add(newSearchEngine);
                 readEngines.put(dataFormat, currentSearchEngines);
@@ -110,12 +122,22 @@ public class CompositeEngine implements Indexer {
                 throw new RuntimeException(e);
             }
         });
-        // Note: EngineConfig-based refresh listeners will be initialized later via initializeRefreshListeners()
+    }
+
+    public void updateSearchEngine() throws IOException {
+        catalogSnapshotAwareRefreshListeners.forEach(ref -> {
+            try {
+                ref.afterRefresh(true, catalogSnapshot);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     /**
      * Initialize refresh listeners from EngineConfig after all dependencies are ready.
      * This method should be called after remote store stats trackers have been created.
+     * ToDo: Added as part of upload flow test, Need to discuss.
      */
     public void initializeRefreshListeners(EngineConfig engineConfig) {
         // Add EngineConfig refresh listeners to catalogSnapshotAwareRefreshListeners
@@ -263,8 +285,13 @@ public class CompositeEngine implements Indexer {
         }
     }
 
-    public CatalogSnapshot catalogSnapshot() {
-        return catalogSnapshot;
+    public GatedCloseable<CatalogSnapshot> getCatalogSnapshotReference() {
+        if(catalogSnapshot == null) {
+            return new GatedCloseable<>(null, () -> {});
+        }
+
+        catalogSnapshot.incRef();
+        return new GatedCloseable<>(catalogSnapshot, () -> catalogSnapshot.decRef());
     }
 
     public void setCatalogSnapshot(CatalogSnapshot catalogSnapshot) {
@@ -383,7 +410,6 @@ public class CompositeEngine implements Indexer {
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        // Increment version before commit (similar to SegmentInfos pattern - matches Lucene behavior)
         if (catalogSnapshot != null) {
             catalogSnapshot.changed();
         }

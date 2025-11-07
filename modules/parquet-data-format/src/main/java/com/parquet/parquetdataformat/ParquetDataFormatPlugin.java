@@ -17,6 +17,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import com.parquet.parquetdataformat.bridge.RustBridge;
@@ -64,7 +65,7 @@ import java.util.Set;
  *   <li>Memory management via {@link com.parquet.parquetdataformat.memory} package</li>
  * </ul>
  */
-public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin {
+public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin, DataSourcePlugin {
 
     /**
      * Set of file extensions that Parquet format handles
@@ -77,21 +78,9 @@ public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin 
         return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(() -> ArrowSchemaBuilder.getSchema(mapperService), shardPath);
     }
 
-    private Class<? extends DataFormat> getDataFormatType() {
-        return ParquetDataFormat.class;
-    }
-
     @Override
     public DataFormat getDataFormat() {
         return new ParquetDataFormat();
-    }
-
-    @Override
-    public BlobContainer createBlobContainer(BlobStore blobStore, BlobPath baseBlobPath) throws IOException
-    {
-        BlobPath formatPath = baseBlobPath.add(getDataFormat().name().toLowerCase());
-        BlobContainer container = blobStore.blobContainer(formatPath);
-        return container;
     }
 
     @Override
@@ -110,7 +99,6 @@ public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin 
         IndexSettings indexSettings,
         ShardPath shardPath
     ) throws IOException {
-        // Create a GenericStoreDirectory for the parquet subdirectory
         Logger logger = LogManager.getLogger("index.store.parquet." + shardPath.getShardId());
 
         return new GenericStoreDirectory<>(
@@ -119,6 +107,13 @@ public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin 
             PARQUET_EXTENSIONS,
             logger
         );
+    }
+
+    @Override
+    public BlobContainer createBlobContainer(BlobStore blobStore, BlobPath baseBlobPath) throws IOException
+    {
+        BlobPath formatPath = baseBlobPath.add(getDataFormat().name().toLowerCase());
+        return blobStore.blobContainer(formatPath);
     }
 
     // for testing locally only
