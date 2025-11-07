@@ -166,7 +166,7 @@ public class VSRManager {
      * Handles VSR rotation after successful document addition.
      * Checks if rotation is needed and immediately processes any frozen VSR.
      */
-    private void handleVSRRotationAfterAddToManagedVSR() throws IOException {
+    public void handleVSRRotationAfterAddToManagedVSR() throws IOException {
         try {
             // Check if rotation is needed and perform it if safe
             boolean rotated = vsrPool.maybeRotateActiveVSR();

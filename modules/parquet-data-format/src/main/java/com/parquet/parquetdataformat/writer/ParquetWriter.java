@@ -78,6 +78,12 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
 
     @Override
     public ParquetDocumentInput newDocumentInput() {
+        try {
+            vsrManager.handleVSRRotationAfterAddToManagedVSR();
+        } catch (IOException e) {
+            logger.error("Failed to handle VSR rotation: {}", e.getMessage(), e);
+        }
+
         // Get a new ManagedVSR from VSRManager for this document input
         return new ParquetDocumentInput(vsrManager.getActiveManagedVSR());
     }
