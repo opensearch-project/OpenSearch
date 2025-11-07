@@ -198,6 +198,34 @@ public class IngestionEngineTests extends EngineTestCase {
         assertEquals(6, stats.getConsumerStats().totalPolledCount());
     }
 
+    public void testShouldPeriodicallyFlush() throws IOException {
+        // Wait for messages to be ingested first so batchStartPointer is set
+        waitForResults(ingestionEngine, 2);
+
+        // Should flush because lastCommittedBatchStartPointer is null (no commit yet)
+        assertTrue(ingestionEngine.shouldPeriodicallyFlush());
+
+        // After first flush, lastCommittedBatchStartPointer is set
+        ingestionEngine.flush(false, true);
+
+        // Should not flush immediately after commit since pointer hasn't changed
+        assertFalse(ingestionEngine.shouldPeriodicallyFlush());
+
+        // Publish new messages, which will advance the batch start pointer
+        publishData("{\"_id\":\"3\",\"_source\":{\"name\":\"john\", \"age\": 30}}");
+        publishData("{\"_id\":\"4\",\"_source\":{\"name\":\"jane\", \"age\": 25}}");
+        waitForResults(ingestionEngine, 4);
+
+        // Should flush because batchStartPointer has changed since last commit
+        assertTrue(ingestionEngine.shouldPeriodicallyFlush());
+
+        // Flush again
+        ingestionEngine.flush(false, true);
+
+        // Should not flush immediately after commit
+        assertFalse(ingestionEngine.shouldPeriodicallyFlush());
+    }
+
     private IngestionEngine buildIngestionEngine(
         AtomicLong globalCheckpoint,
         Store store,
