@@ -446,3 +446,21 @@ pub extern "system" fn Java_org_opensearch_datafusion_RecordBatchStream_getSchem
         }
     }
 }
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_RecordBatchStream_closeStream(
+    mut env: JNIEnv,
+    _class: JClass,
+    stream: jlong
+) {
+    let _ = unsafe { Box::from_raw(stream as *mut SendableRecordBatchStream) };
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeGlobalRuntime(
+    _env: JNIEnv,
+    _class: JClass,
+    runtime: jlong
+) {
+    let _ = unsafe { Box::from_raw(runtime as *mut RuntimeEnv) };
+}
