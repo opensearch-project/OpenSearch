@@ -103,11 +103,27 @@ public class RemoteStoreStatsTestHelper {
     }
 
     static DirectoryFileTransferTracker.Stats createSampleDirectoryFileTransferStats() {
-        return new DirectoryFileTransferTracker.Stats(10, 0, 10, 12345, 5, 5, 5, 10);
+        return new DirectoryFileTransferTracker.Stats.Builder().transferredBytesStarted(10)
+            .transferredBytesFailed(0)
+            .transferredBytesSucceeded(10)
+            .lastTransferTimestampMs(12345)
+            .totalTransferTimeInMs(5)
+            .transferredBytesMovingAverage(5)
+            .lastSuccessfulTransferInBytes(5)
+            .transferredBytesPerSecMovingAverage(10)
+            .build();
     }
 
     static DirectoryFileTransferTracker.Stats createZeroDirectoryFileTransferStats() {
-        return new DirectoryFileTransferTracker.Stats(0, 0, 0, 0, 0, 0, 0, 0);
+        return new DirectoryFileTransferTracker.Stats.Builder().transferredBytesStarted(0)
+            .transferredBytesFailed(0)
+            .transferredBytesSucceeded(0)
+            .lastTransferTimestampMs(0)
+            .totalTransferTimeInMs(0)
+            .transferredBytesMovingAverage(0)
+            .lastSuccessfulTransferInBytes(0)
+            .transferredBytesPerSecMovingAverage(0)
+            .build();
     }
 
     static ShardRouting createShardRouting(ShardId shardId, boolean isPrimary) {
