@@ -55,6 +55,7 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.query.MultiMatchQueryBuilder.Type;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.lucene.queries.ExtendedCommonTermsQuery;
+import org.opensearch.search.approximate.ApproximateBooleanQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
@@ -562,6 +563,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         query = new BoolQueryBuilder().should(new MultiMatchQueryBuilder("the").field(TEXT_FIELD_NAME).analyzer("stop"))
             .toQuery(createShardContext());
         expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD).build();
+        expected = new ApproximateScoreQuery(expected, new ApproximateBooleanQuery((BooleanQuery) expected));
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(
@@ -571,6 +573,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f),
             BooleanClause.Occur.SHOULD
         ).build();
+        expected = new ApproximateScoreQuery(expected, new ApproximateBooleanQuery((BooleanQuery) expected));
         assertEquals(expected, query);
     }
 

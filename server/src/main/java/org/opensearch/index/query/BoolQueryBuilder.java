@@ -45,6 +45,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.approximate.ApproximateBooleanQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -335,7 +337,18 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
         Query query = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
-        return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
+
+        if (adjustPureNegative) {
+            query = fixNegativeQueryIfNeeded(query);
+        }
+
+        // limit approximate query construction since several mappers (prefixQuery) expect a BooleanQuery not ApproximateBooleanQuery
+        if (query instanceof BooleanQuery boolQuery
+            && (boolQuery.getClauses(Occur.FILTER).size() == boolQuery.clauses().size() || boolQuery.clauses().size() == 1)) {
+            return new ApproximateScoreQuery(query, new ApproximateBooleanQuery(boolQuery));
+        }
+
+        return query;
     }
 
     private static void addBooleanClauses(

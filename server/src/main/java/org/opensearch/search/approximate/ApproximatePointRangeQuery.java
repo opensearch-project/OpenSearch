@@ -57,6 +57,9 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
     private SortOrder sortOrder;
     public PointRangeQuery pointRangeQuery;
     private final Function<byte[], String> valueToString;
+    private boolean isTopLevel = true;  // Default to true, set to false when nested in boolean query
+
+    private boolean hasBeenFullyTraversed = false;
 
     public ApproximatePointRangeQuery(
         String field,
@@ -96,12 +99,24 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         this.size = size;
     }
 
+    public boolean isTopLevel() {
+        return this.isTopLevel;
+    }
+
+    public void setTopLevel(boolean isTopLevel) {
+        this.isTopLevel = isTopLevel;
+    }
+
     public SortOrder getSortOrder() {
         return this.sortOrder;
     }
 
     public void setSortOrder(SortOrder sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public boolean getFullyTraversed() {
+        return hasBeenFullyTraversed;
     }
 
     @Override
@@ -173,7 +188,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
                     @Override
                     public void visit(int docID) {
-                        // it is possible that size < 1024 and docCount < size but we will continue to count through all the 1024 docs
                         adder.add(docID);
                         docCount[0]++;
                     }
@@ -242,7 +256,8 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
             private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, long[] docCount)
                 throws IOException {
-                intersectLeft(visitor, pointTree, docCount);
+                intersectLeft(visitor, pointTree, docCount); // Top-level call
+                // Only assert for complete traversals (top-level calls)
                 assert pointTree.moveToParent() == false;
             }
 
@@ -346,6 +361,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                hasBeenFullyTraversed = false;
                 LeafReader reader = context.reader();
                 long[] docCount = { 0 };
 
@@ -353,58 +369,133 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 if (checkValidPointValues(values) == false) {
                     return null;
                 }
+
                 // values.size(): total points indexed, In most cases: values.size() ≈ number of documents (assuming single-valued fields)
-                if (size > values.size()) {
+                if (size > values.size() && isTopLevel) {
                     return pointRangeQueryWeight.scorerSupplier(context);
                 } else {
                     if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
                         return new ScorerSupplier() {
-
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
-                            final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
+                            // Keep a visitor for cost estimation only
+                            DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
+                            PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
+                            long lastDoc = -1;
 
                             @Override
                             public Scorer get(long leadCost) throws IOException {
-                                intersectLeft(values.getPointTree(), visitor, docCount);
-                                DocIdSetIterator iterator = result.build().iterator();
-                                return new ConstantScoreScorer(score(), scoreMode, iterator);
+                                if (!isTopLevel) {
+                                    // Use leadCost as dynamic size if it's reasonable, otherwise use original size
+                                    int dynamicSize = (leadCost > 0 && leadCost < Integer.MAX_VALUE) ? (int) leadCost : size;
+                                    return getWithSize(dynamicSize);
+                                } else {
+                                    // For top-level queries, use standard approach
+                                    return getWithSize(size);
+                                }
+                            }
+
+                            public Scorer getWithSize(int dynamicSize) throws IOException {
+                                // Temporarily update size for this call
+                                int originalSize = size;
+                                size = dynamicSize;
+
+                                try {
+                                    if (size > values.size()) {
+                                        hasBeenFullyTraversed = true;
+                                    }
+                                    // For windowed approach, create fresh iterator without ResumableDISI state
+                                    DocIdSetBuilder freshResult = new DocIdSetBuilder(reader.maxDoc(), values);
+                                    long[] freshDocCount = new long[1];
+                                    PointValues.IntersectVisitor freshVisitor = getIntersectVisitor(freshResult, freshDocCount);
+
+                                    // Always start fresh traversal from root
+                                    intersectLeft(values.getPointTree(), freshVisitor, freshDocCount);
+
+                                    DocIdSetIterator iterator = freshResult.build().iterator();
+                                    lastDoc = iterator.docIDRunEnd();
+                                    return new ConstantScoreScorer(score(), scoreMode, iterator);
+                                } finally {
+                                    // Restore original size
+                                    size = originalSize;
+                                }
                             }
 
                             @Override
                             public long cost() {
                                 if (cost == -1) {
-                                    // Computing the cost may be expensive, so only do it if necessary
-                                    cost = values.estimateDocCount(visitor);
-                                    assert cost >= 0;
+                                    if (isTopLevel) {
+                                        // Computing the cost may be expensive, so only do it if necessary
+                                        cost = values.estimateDocCount(visitor);
+                                        assert cost >= 0;
+                                    } else {
+                                        return lastDoc != -1 ? lastDoc : values.estimateDocCount(visitor);
+                                    }
                                 }
                                 return cost;
                             }
                         };
                     } else {
+                        // Descending sort - use intersectRight
                         // we need to fetch size + deleted docs since the collector will prune away deleted docs resulting in fewer results
                         // than expected
                         final int deletedDocs = reader.numDeletedDocs();
-                        size += deletedDocs;
-                        return new ScorerSupplier() {
+                        int adjustedSize = size + deletedDocs;
 
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
-                            final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
+                        return new ScorerSupplier() {
+                            // Keep a visitor for cost estimation only
+                            DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
+                            PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
+                            long lastDoc = -1;
 
                             @Override
                             public Scorer get(long leadCost) throws IOException {
-                                intersectRight(values.getPointTree(), visitor, docCount);
-                                DocIdSetIterator iterator = result.build().iterator();
-                                return new ConstantScoreScorer(score(), scoreMode, iterator);
+                                if (!isTopLevel) {
+                                    // Use leadCost as dynamic size if it's reasonable, otherwise use original size
+                                    int dynamicSize = (leadCost > 0 && leadCost < Integer.MAX_VALUE) ? (int) leadCost : adjustedSize;
+                                    return getWithSize(dynamicSize);
+                                } else {
+                                    // For top-level queries, use standard approach
+                                    return getWithSize(adjustedSize);
+                                }
+                            }
+
+                            public Scorer getWithSize(int dynamicSize) throws IOException {
+                                // Temporarily update size for this call
+                                int originalSize = size;
+                                size = dynamicSize;
+
+                                try {
+                                    if (size > values.size()) {
+                                        hasBeenFullyTraversed = true;
+                                    }
+                                    // For windowed approach, create fresh iterator without ResumableDISI state
+                                    DocIdSetBuilder freshResult = new DocIdSetBuilder(reader.maxDoc(), values);
+                                    long[] freshDocCount = new long[1];
+                                    PointValues.IntersectVisitor freshVisitor = getIntersectVisitor(freshResult, freshDocCount);
+
+                                    // Always start fresh traversal from root using intersectRight for descending
+                                    intersectRight(values.getPointTree(), freshVisitor, freshDocCount);
+
+                                    DocIdSetIterator iterator = freshResult.build().iterator();
+                                    lastDoc = iterator.docIDRunEnd();
+                                    return new ConstantScoreScorer(score(), scoreMode, iterator);
+                                } finally {
+                                    // Restore original size
+                                    size = originalSize;
+                                }
                             }
 
                             @Override
                             public long cost() {
                                 if (cost == -1) {
-                                    // Computing the cost may be expensive, so only do it if necessary
-                                    cost = values.estimateDocCount(visitor);
-                                    assert cost >= 0;
+                                    if (isTopLevel) {
+                                        // Computing the cost may be expensive, so only do it if necessary
+                                        cost = values.estimateDocCount(visitor);
+                                        assert cost >= 0;
+                                    } else {
+                                        return lastDoc != -1 ? lastDoc : values.estimateDocCount(visitor);
+                                    }
                                 }
                                 return cost;
                             }

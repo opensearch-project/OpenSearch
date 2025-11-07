@@ -9,6 +9,7 @@
 package org.opensearch.search.approximate;
 
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -50,6 +51,7 @@ public final class ApproximateScoreQuery extends Query {
         }
         Query rewritten = resolvedQuery.rewrite(indexSearcher);
         if (rewritten != resolvedQuery) {
+            // To make sure that query goes through entire rewrite process
             resolvedQuery = rewritten;
         }
         return this;
@@ -57,7 +59,24 @@ public final class ApproximateScoreQuery extends Query {
 
     public void setContext(SearchContext context) {
         resolvedQuery = approximationQuery.canApproximate(context) ? approximationQuery : originalQuery;
-    };
+
+        if ((resolvedQuery instanceof BooleanQuery) || (resolvedQuery instanceof ApproximateBooleanQuery)) {
+            resolvedQuery = ApproximateBooleanQuery.boolRewrite(resolvedQuery, context.searcher());
+        }
+
+        if (resolvedQuery instanceof ApproximateBooleanQuery approximateBool) {
+            for (BooleanClause boolClause : approximateBool.boolQuery.clauses()) {
+                if (boolClause.query() instanceof ApproximateScoreQuery approximateQuery) {
+                    if (approximateQuery.resolvedQuery instanceof ApproximateBooleanQuery boolQuery) {
+                        boolQuery.setTopLevel(false);
+                    } else if (approximateQuery.resolvedQuery instanceof ApproximatePointRangeQuery pointQuery) {
+                        pointQuery.setTopLevel(false);
+                    }
+                    approximateQuery.setContext(context);
+                }
+            }
+        }
+    }
 
     @Override
     public String toString(String s) {

@@ -56,6 +56,8 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.search.SimpleQueryStringQueryParser;
+import org.opensearch.search.approximate.ApproximateBooleanQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -775,6 +777,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         query = new BoolQueryBuilder().should(new SimpleQueryStringBuilder("the").field(TEXT_FIELD_NAME).analyzer("stop"))
             .toQuery(createShardContext());
         expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD).build();
+        expected = new ApproximateScoreQuery(expected, new ApproximateBooleanQuery((BooleanQuery) expected));
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(
