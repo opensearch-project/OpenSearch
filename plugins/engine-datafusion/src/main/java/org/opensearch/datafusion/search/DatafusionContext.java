@@ -810,12 +810,12 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public Comparable<?> convertToComparable(Object rawValue) {
-        if (rawValue instanceof Number) {
-            return (Comparable) rawValue;
-        } else if (rawValue instanceof Text) {
-            return rawValue.toString();
-        } else {
-            throw new IllegalArgumentException("Conversion to Comparable not supported for type " + rawValue.getClass());
-        }
+        return switch (rawValue) {
+            case Number number -> (Comparable<?>) rawValue;
+            case Text text -> rawValue.toString();
+            case Boolean b -> (Comparable<?>) rawValue;
+            case null, default ->
+                throw new IllegalArgumentException("Conversion to Comparable not supported for type " + rawValue.getClass());
+        };
     }
 }

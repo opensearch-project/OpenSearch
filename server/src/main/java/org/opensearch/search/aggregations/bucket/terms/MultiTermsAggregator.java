@@ -36,8 +36,10 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.ShardResultConvertor;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
@@ -71,7 +73,7 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  *
  * @opensearch.internal
  */
-public class MultiTermsAggregator extends DeferableBucketAggregator implements StarTreePreComputeCollector {
+public class MultiTermsAggregator extends DeferableBucketAggregator implements StarTreePreComputeCollector, ShardResultConvertor {
 
     private final BytesKeyedBucketOrds bucketOrds;
     private final MultiTermsValuesSource multiTermsValue;
@@ -700,5 +702,42 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
                 };
             };
         }
+    }
+
+    @Override
+    public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+        int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(fields.getFirst()).length ;
+        List<InternalMultiTerms.Bucket> buckets = new ArrayList<>();
+        for (int i = 0; i < rowCount; i++) {
+            final int j = i;
+            List<Object> key = fields.stream().map(fieldName -> (Object) searchContext.convertToComparable(shardResult.get(fieldName)[j])).toList();
+            List<InternalAggregation> subAggs = new ArrayList<>(subAggregators.length);
+            for (Aggregator aggregator : subAggregators) {
+                ShardResultConvertor convertor = (ShardResultConvertor) aggregator;
+                subAggs.add(convertor.convertRow(shardResult, i, searchContext));
+            }
+            buckets.add(new InternalMultiTerms.Bucket(key, 1, InternalAggregations.from(subAggs), showTermDocCountError, 0, formats));
+        }
+        // TODO : Not reducing using Priority Queue into top buckets as depending on Substrait plan.
+        BucketOrder reduceOrder;
+        if (isKeyOrder(order) == false) {
+            reduceOrder = InternalOrder.key(true);
+            //buckets.sort(reduceOrder.comparator());
+        } else {
+            reduceOrder = order;
+        }
+        return Collections.singletonList(new InternalMultiTerms(
+            name,
+            reduceOrder,
+            order,
+            metadata(),
+            bucketCountThresholds.getShardSize(),
+            showTermDocCountError,
+            0,
+            0,
+            formats,
+            buckets,
+            bucketCountThresholds
+        ));
     }
 }

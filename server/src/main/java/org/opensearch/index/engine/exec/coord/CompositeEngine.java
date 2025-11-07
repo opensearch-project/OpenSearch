@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec.coord;
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
@@ -67,7 +68,10 @@ public class CompositeEngine implements Indexer {
 
     private MergeScheduler mergeScheduler;
     private MergeHandler mergeHandler;
-    public CompositeEngine(MapperService mapperService, PluginsService pluginsService, ShardPath shardPath) throws IOException {
+    public CompositeEngine(MapperService mapperService,
+                           PluginsService pluginsService,
+                           ShardPath shardPath,
+                           IndexSettings indexSettings) throws IOException {
         List<SearchEnginePlugin> searchEnginePlugins = pluginsService.filterPlugins(SearchEnginePlugin.class);
         // How to bring the Dataformat here? Currently this means only Text and LuceneFormat can be used
         this.engine = new CompositeIndexingExecutionEngine(mapperService, pluginsService, shardPath, 0);
@@ -79,7 +83,8 @@ public class CompositeEngine implements Indexer {
             this.catalogSnapshot = this.catalogSnapshot.remapPaths(shardPath.getDataPath());
         }
 
-        this.mergeHandler = new ParquetMergeHandler(this, this.engine, this.engine.getDataFormat());
+        this.mergeHandler = new ParquetMergeHandler(this, this.engine, this.engine.getDataFormat(),
+            indexSettings.getParquetMergePolicy());
         mergeScheduler = new MergeScheduler(this.mergeHandler, this);
 
         // Refresh here so that catalog snapshot gets initialized
@@ -326,7 +331,7 @@ public class CompositeEngine implements Indexer {
     }
 
     public static void main(String[] args) throws Exception {
-        CompositeEngine coordinator = new CompositeEngine(null, null, null);
+        CompositeEngine coordinator = new CompositeEngine(null, null, null, null);
 
         for (int i = 0; i < 5; i++) {
 

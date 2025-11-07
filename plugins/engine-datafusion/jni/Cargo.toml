@@ -73,9 +73,13 @@ lto = true
 codegen-units = 1
 panic = "abort"
 incremental = true
+debug = true
+strip = false
 
 [profile.dev]
 opt-level = 1          # Some optimization for reasonable performance
 lto = false           # Disable LTO for faster builds
 codegen-units = 16    # More parallel compilation
 incremental = true    # Enable incremental compilation
+debug = true
+strip = false

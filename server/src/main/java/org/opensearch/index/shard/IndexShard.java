@@ -572,7 +572,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 startRefreshTask();
             }
         }
-        this.compositeEngine = new CompositeEngine(mapperService, pluginsService, path);
+        this.compositeEngine = new CompositeEngine(mapperService, pluginsService, path, indexSettings);
     }
 
     public CompositeEngine getIndexingExecutionCoordinator() {

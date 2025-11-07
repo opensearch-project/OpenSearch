@@ -69,7 +69,7 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
     }
 
     private String getMergedFileName(long generation) {
-        return "generation-m-" + generation + ".parquet";
+        return "_parquet_file_merged_" + generation + ".parquet";
     }
 
     private String getMergedFilePath(long generation, String outputDirectory) {
