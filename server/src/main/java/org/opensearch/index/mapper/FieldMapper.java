@@ -436,7 +436,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public FieldMapper merge(Mapper mergeWith) {
         FieldMapper merged = clone();
         List<String> conflicts = new ArrayList<>();
-        if (mergeWith instanceof FieldMapper == false) {
+        if (!(mergeWith instanceof FieldMapper toMerge)) {
             throw new IllegalArgumentException(
                 "mapper ["
                     + mappedFieldType.name()
@@ -447,7 +447,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     + "]"
             );
         }
-        FieldMapper toMerge = (FieldMapper) mergeWith;
         merged.mergeSharedOptions(toMerge, conflicts);
         merged.mergeOptions(toMerge, conflicts);
         if (conflicts.isEmpty() == false) {

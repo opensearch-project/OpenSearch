@@ -13,6 +13,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -24,6 +26,8 @@ import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 public abstract class FipsTrustStoreCommandTestCase extends OpenSearchTestCase {
+    @ClassRule
+    public static TemporaryFolder tempFolder = new TemporaryFolder();
 
     protected StringWriter outputCapture;
     protected StringWriter errorCapture;
@@ -31,25 +35,15 @@ public abstract class FipsTrustStoreCommandTestCase extends OpenSearchTestCase {
     protected static Path sharedTempDir;
 
     @BeforeClass
+    @SuppressForbidden(reason = "the java.io.File is exposed by TemporaryFolder")
     static void setUpClass() throws Exception {
-        sharedTempDir = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")), "system-command-test-");
+        sharedTempDir = tempFolder.newFolder().toPath();
         setProperties();
     }
 
     @AfterClass
     static void tearDownClass() throws Exception {
         clearProperties();
-        if (sharedTempDir != null && Files.exists(sharedTempDir)) {
-            try (var walk = Files.walk(sharedTempDir)) {
-                walk.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                });
-            }
-        }
     }
 
     @SuppressForbidden(reason = "set system properties as part of test setup")

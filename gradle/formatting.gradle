@@ -66,6 +66,7 @@ allprojects {
           target '**/*.java'
 
           removeUnusedImports()
+          forbidWildcardImports()
           importOrder(
               'de.thetaphi',
               'com.carrotsearch',
@@ -84,13 +85,6 @@ allprojects {
           eclipse().configFile rootProject.file('buildSrc/formatterConfig.xml')
           trimTrailingWhitespace()
           endWithNewline()
-
-          custom 'Refuse wildcard imports', {
-                // Wildcard imports can't be resolved; fail the build
-                if (it =~ /\s+import .*\*;/) {
-                    throw new AssertionError("Do not use wildcard imports.  'spotlessApply' cannot resolve this issue.")
-                }
-          }
 
           // See DEVELOPER_GUIDE.md for details of when to enable this.
           if (System.getProperty('spotless.paddedcell') != null) {

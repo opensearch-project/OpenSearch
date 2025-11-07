@@ -8,10 +8,12 @@
 
 package org.opensearch.tools.cli.fips.truststore;
 
+import org.opensearch.cli.SuppressForbidden;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -19,39 +21,24 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
-import java.util.Comparator;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import picocli.CommandLine;
 
 public class CreateFipsTrustStoreTests extends OpenSearchTestCase {
+    @ClassRule
+    public static TemporaryFolder tempFolder = new TemporaryFolder();
 
     private static final Path JAVA_HOME = Path.of(System.getProperty("java.home"));
-    private static Path sharedTempDir;
+    private static Path confDir;
 
     private CommandLine.Model.CommandSpec spec;
 
     @BeforeClass
+    @SuppressForbidden(reason = "the java.io.File is exposed by TemporaryFolder")
     public static void setUpClass() throws IOException {
-        sharedTempDir = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")), "fips-test-");
-        Path confDir = sharedTempDir.resolve("config");
+        confDir = tempFolder.newFolder().toPath().resolve("config");
         Files.createDirectories(confDir);
-    }
-
-    @AfterClass
-    public static void tearDownClass() throws IOException {
-        if (sharedTempDir != null && Files.exists(sharedTempDir)) {
-            try (Stream<Path> walk = Files.walk(sharedTempDir)) {
-                walk.sorted(Comparator.reverseOrder()).forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                });
-            }
-        }
     }
 
     @Before
@@ -67,7 +54,6 @@ public class CreateFipsTrustStoreTests extends OpenSearchTestCase {
         spec = commandLine.getCommandSpec();
 
         // Clean up any existing truststore file from previous tests
-        Path confDir = sharedTempDir.resolve("config");
         Path trustStorePath = confDir.resolve("opensearch-fips-truststore.bcfks");
         if (Files.exists(trustStorePath)) {
             Files.delete(trustStorePath);
@@ -150,10 +136,9 @@ public class CreateFipsTrustStoreTests extends OpenSearchTestCase {
         CommonOptions options = new CommonOptions();
         options.force = false;
         String password = "testPassword123";
-        Path confPath = sharedTempDir.resolve("config");
 
         // when
-        Path result = CreateFipsTrustStore.convertToBCFKS(spec, sourceKeyStore, options, password, confPath);
+        Path result = CreateFipsTrustStore.convertToBCFKS(spec, sourceKeyStore, options, password, confDir);
 
         // then
         assertNotNull(result);
@@ -181,8 +166,7 @@ public class CreateFipsTrustStoreTests extends OpenSearchTestCase {
         String password = "testPassword123";
 
         // Create file first to simulate existing truststore
-        Path confPath = sharedTempDir.resolve("config");
-        Path trustStorePath = confPath.resolve("opensearch-fips-truststore.bcfks");
+        Path trustStorePath = confDir.resolve("opensearch-fips-truststore.bcfks");
         Files.createFile(trustStorePath);
 
         assertTrue("Test setup: file should exist", Files.exists(trustStorePath));
@@ -190,7 +174,7 @@ public class CreateFipsTrustStoreTests extends OpenSearchTestCase {
         // when/then
         RuntimeException exception = expectThrows(
             RuntimeException.class,
-            () -> CreateFipsTrustStore.convertToBCFKS(spec, sourceKeyStore, options, password, confPath)
+            () -> CreateFipsTrustStore.convertToBCFKS(spec, sourceKeyStore, options, password, confDir)
         );
         assertEquals("Operation cancelled. Trust store file already exists.", exception.getMessage());
     }
@@ -207,14 +191,13 @@ public class CreateFipsTrustStoreTests extends OpenSearchTestCase {
         String password = "testPassword123";
 
         // Create file first
-        Path confPath = sharedTempDir.resolve("config");
-        Path trustStorePath = confPath.resolve("opensearch-fips-truststore.bcfks");
+        Path trustStorePath = confDir.resolve("opensearch-fips-truststore.bcfks");
         Files.createFile(trustStorePath);
 
         assertTrue(Files.exists(trustStorePath));
 
         // when
-        Path result = CreateFipsTrustStore.convertToBCFKS(spec, sourceKeyStore, options, password, confPath);
+        Path result = CreateFipsTrustStore.convertToBCFKS(spec, sourceKeyStore, options, password, confDir);
 
         // then
         assertNotNull(result);

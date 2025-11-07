@@ -117,7 +117,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         return BulkRequest.newBuilder()
-            .addRequestBody(requestBody)
+            .addBulkRequestBody(requestBody)
             .setRefresh(org.opensearch.protobufs.Refresh.REFRESH_TRUE)
             .setPipeline("test-pipeline")
             .build();
@@ -129,7 +129,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
             .setOperationContainer(OperationContainer.newBuilder().setCreate(writeOp).build())
             .build();
 
-        return BulkRequest.newBuilder().addRequestBody(requestBody).build();
+        return BulkRequest.newBuilder().addBulkRequestBody(requestBody).build();
     }
 
     private BulkRequest createBulkRequestWithDeleteOperation() {
@@ -138,7 +138,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
             .setOperationContainer(OperationContainer.newBuilder().setDelete(deleteOp).build())
             .build();
 
-        return BulkRequest.newBuilder().addRequestBody(requestBody).build();
+        return BulkRequest.newBuilder().addBulkRequestBody(requestBody).build();
     }
 
     private BulkRequest createBulkRequestWithUpdateOperation() {
@@ -147,6 +147,6 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
             .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOp).build())
             .build();
 
-        return BulkRequest.newBuilder().addRequestBody(requestBody).build();
+        return BulkRequest.newBuilder().addBulkRequestBody(requestBody).build();
     }
 }
