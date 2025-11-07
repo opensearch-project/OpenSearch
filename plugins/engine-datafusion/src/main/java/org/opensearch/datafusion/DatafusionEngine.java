@@ -159,14 +159,16 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         return false;
     }
 
+    RootAllocator allocator = null;
+    RecordBatchStream stream = null;
     @Override
     public Map<String, Object[]> execute(DatafusionContext context) {
         Map<String, Object[]> finalRes = new HashMap<>();
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
             long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer());
-            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-            RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getTokioRuntimePointer() , allocator);
+            allocator = new RootAllocator(Long.MAX_VALUE);
+            stream = new RecordBatchStream(streamPointer, datafusionService.getTokioRuntimePointer() , allocator);
 
             // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
             // Is the possible? need to check
@@ -198,6 +200,13 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
         } catch (Exception exception) {
             logger.error("Failed to execute Substrait query plan", exception);
+        } finally {
+            try {
+                stream.close();
+                allocator.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
         return finalRes;
     }
