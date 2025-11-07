@@ -268,6 +268,7 @@ import org.opensearch.snapshots.SnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.task.commons.clients.TaskManagerClient;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskAwareBigArrays;
 import org.opensearch.tasks.TaskCancellationMonitoringService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
 import org.opensearch.tasks.TaskCancellationService;
@@ -2228,7 +2229,7 @@ public class Node implements Closeable {
      * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
      */
     BigArrays createBigArrays(PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
-        return new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
+        return new TaskAwareBigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
     }
 
     /**

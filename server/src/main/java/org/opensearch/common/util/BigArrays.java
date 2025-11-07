@@ -45,6 +45,7 @@ import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.util.BigArray;
 import org.opensearch.core.common.util.ByteArray;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.tasks.TaskAwareBigArrays;
 
 import java.util.Arrays;
 
@@ -442,7 +443,7 @@ public class BigArrays {
         if (checkBreaker) {
             this.circuitBreakingInstance = this;
         } else {
-            this.circuitBreakingInstance = new BigArrays(recycler, breakerService, breakerName, true);
+            this.circuitBreakingInstance = new TaskAwareBigArrays(recycler, breakerService, breakerName, true);
         }
     }
 

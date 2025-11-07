@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Current task information
@@ -91,6 +92,8 @@ public class Task {
     private final Map<String, String> headers;
 
     private final Map<Long, List<ThreadResourceInfo>> resourceStats;
+
+    private final LongAdder applicationManagedBytes = new LongAdder();
 
     private final List<NotifyOnceListener<Task>> resourceTrackingCompletionListeners;
 
@@ -300,7 +303,10 @@ public class Task {
      * In the future, these values can be cached as an optimization.
      */
     public TaskResourceUsage getTotalResourceStats() {
-        return new TaskResourceUsage(getTotalResourceUtilization(ResourceStats.CPU), getTotalResourceUtilization(ResourceStats.MEMORY));
+        return new TaskResourceUsage(
+            getTotalResourceUtilization(ResourceStats.CPU),
+            getTotalResourceUtilization(ResourceStats.MEMORY) + applicationManagedBytes.sum()
+        );
     }
 
     /**
@@ -592,5 +598,15 @@ public class Task {
         }
 
         return count;
+    }
+
+    /**
+     * This method adds the bytes to task which are managed by PageCacheRecycler, since lots of those allocations end
+     * up reusing already allocated pages hence might not get tracked in ThreadMXBean implementation because those bytes
+     * were not allocated using "new" operator.
+     * @param bytes
+     */
+    public void addApplicationManagedBytes(long bytes) {
+        applicationManagedBytes.add(bytes);
     }
 }
