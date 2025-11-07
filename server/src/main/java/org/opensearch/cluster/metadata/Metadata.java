@@ -1609,7 +1609,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         private void canonicalizeMappingsInPlace() {
-            final Map<CompressedXContent, CompressedXContent> pool = new HashMap<>();
+            final Map<CompressedXContent, MappingMetadata> pool = new HashMap<>();
 
             for (Map.Entry<String, IndexMetadata> e : indices.entrySet()) {
                 final IndexMetadata im = e.getValue();
@@ -1617,12 +1617,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 if (mm == null) continue;
 
                 final CompressedXContent src = mm.source();
-                final CompressedXContent canon = pool.computeIfAbsent(src, k -> k);
-                // first time we've seen this mapping, do not deduplicate
-                if (canon == src) continue;
+                if (!pool.containsKey(src)) {
+                    // first time we've seen this mapping, do not deduplicate
+                    pool.put(src, mm);
+                    continue;
+                }
 
                 // Seen this mapping in another index. Perform de-duplication.
-                final MappingMetadata newMm = new MappingMetadata(canon);
+                final MappingMetadata newMm = pool.get(src);
                 final IndexMetadata newIm = IndexMetadata.builder(im).putMapping(newMm).build();
                 e.setValue(newIm);
             }
