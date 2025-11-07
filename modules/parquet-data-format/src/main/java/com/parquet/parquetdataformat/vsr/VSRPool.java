@@ -142,6 +142,16 @@ public class VSRPool {
         return frozenVSR.get();
     }
 
+    public void unsetFrozenVSR() throws IOException {
+        if (frozenVSR.get() == null) {
+            throw new IOException("unsetFrozenVSR called when frozen VSR is not set");
+        }
+        if (!VSRState.CLOSED.equals(frozenVSR.get().getState())) {
+            throw new IOException("frozenVSR cannot be unset, state is " + frozenVSR.get().getState());
+        }
+        frozenVSR.set(null);
+    }
+
     /**
      * Takes the frozen VSR for processing and clears the frozen slot.
      *

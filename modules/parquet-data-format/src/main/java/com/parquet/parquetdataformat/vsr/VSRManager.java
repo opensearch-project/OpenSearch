@@ -190,6 +190,7 @@ public class VSRManager {
 
                     // Complete the VSR processing
                     vsrPool.completeVSR(frozenVSR);
+                    vsrPool.unsetFrozenVSR();
                 } else {
                     System.err.println("[JAVA] WARNING: Rotation occurred but no frozen VSR found");
                 }
