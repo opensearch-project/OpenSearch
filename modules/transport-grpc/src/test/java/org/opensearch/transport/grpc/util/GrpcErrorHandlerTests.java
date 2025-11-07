@@ -16,14 +16,18 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+
+import static org.opensearch.transport.grpc.TestFixtures.ERROR_SUMMARY_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.settingsWithGivenStackTraceConfig;
 
 /**
  * Tests for GrpcErrorHandler utility.
@@ -32,9 +36,17 @@ import io.grpc.StatusRuntimeException;
  */
 public class GrpcErrorHandlerTests extends OpenSearchTestCase {
 
-    private final GlobalParams detailedErrorsInResponse = GlobalParams.newBuilder().setErrorTrace(true).build();
+    @Before
+    public void setUpGrpcParamsHandler() {
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(true));
+    }
 
-    public void testOpenSearchExceptionConversion() {
+    @Before
+    public void resetGrpcParamsHandlerStackTraces() {
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(true));
+    }
+
+    public void testOpenSearchExceptionConversionWithTheStackTrace() {
         OpenSearchException exception = new OpenSearchException("Test exception") {
             @Override
             public RestStatus status() {
@@ -42,22 +54,72 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
             }
         };
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // BAD_REQUEST -> INVALID_ARGUMENT via RestToGrpcStatusConverter
         assertEquals(Status.INVALID_ARGUMENT.getCode(), result.getStatus().getCode());
-        // Uses ExceptionsHelper.summaryMessage() format + XContent details
-        assertTrue(result.getMessage().contains("OpenSearchException[Test exception]"));
-        assertTrue(result.getMessage().contains("details="));
-        assertTrue(result.getMessage().contains("\"type\":\"exception\""));
-        assertTrue(result.getMessage().contains("\"reason\":\"Test exception\""));
-        assertTrue(result.getMessage().contains("\"status\":400"));
+        assertTrue(
+            "Error type with the cause must be present",
+            result.getMessage().contains("INVALID_ARGUMENT: OpenSearchException[Test exception];")
+        );
+        assertTrue("Details must be present", result.getMessage().contains("details="));
+        assertTrue("Exception type must be populated", result.getMessage().contains("\"type\":\"exception\""));
+        assertTrue("Reason must be given", result.getMessage().contains("\"reason\":\"Test exception\""));
+        assertTrue("Status must be populated", result.getMessage().contains("\"status\":400"));
+        assertTrue("Stack trace must be populated", result.getMessage().contains("\"stack_trace\":\"OpenSearchException[Test exception]"));
+    }
+
+    public void testOpenSearchExceptionConversionWithoutTheStackTrace() {
+        OpenSearchException exception = new OpenSearchException("Test exception") {
+            @Override
+            public RestStatus status() {
+                return RestStatus.BAD_REQUEST;
+            }
+        };
+
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, ERROR_SUMMARY_REQUESTED);
+
+        // BAD_REQUEST -> INVALID_ARGUMENT via RestToGrpcStatusConverter
+        assertEquals(Status.INVALID_ARGUMENT.getCode(), result.getStatus().getCode());
+        assertTrue(
+            "Error type with the cause must be present",
+            result.getMessage().contains("INVALID_ARGUMENT: OpenSearchException[Test exception];")
+        );
+        assertTrue("Details must be present", result.getMessage().contains("details="));
+        assertTrue("Exception type must be present", result.getMessage().contains("\"type\":\"exception\""));
+        assertTrue("Reason must be present", result.getMessage().contains("\"reason\":\"Test exception\""));
+        assertTrue("Status must be populated", result.getMessage().contains("\"status\":400"));
+        assertFalse("Stack trace must be omitted", result.getMessage().contains("\"stack_trace\""));
+    }
+
+    public void testOpenSearchExceptionConversionWhenDetailedErrorsAreDisabledOnTheServerSide() {
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
+        OpenSearchException exception = new OpenSearchException("Test exception") {
+            @Override
+            public RestStatus status() {
+                return RestStatus.BAD_REQUEST;
+            }
+        };
+
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, ERROR_SUMMARY_REQUESTED);
+
+        // BAD_REQUEST -> INVALID_ARGUMENT via RestToGrpcStatusConverter
+        assertEquals(Status.INVALID_ARGUMENT.getCode(), result.getStatus().getCode());
+        assertTrue(
+            "Error type with the cause must be present",
+            result.getMessage().contains("INVALID_ARGUMENT: OpenSearchException[Test exception];")
+        );
+        assertTrue("Details must be present", result.getMessage().contains("details="));
+        assertFalse("Exception type must be omitted", result.getMessage().contains("\"type\""));
+        assertFalse("Reason must be omitted", result.getMessage().contains("\"reason\""));
+        assertTrue("Status must be populated", result.getMessage().contains("\"status\":400"));
+        assertFalse("Stack trace must be omitted", result.getMessage().contains("\"stack_trace\""));
     }
 
     public void testIllegalArgumentExceptionConversion() {
         IllegalArgumentException exception = new IllegalArgumentException("Invalid parameter");
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // IllegalArgumentException -> INVALID_ARGUMENT via direct gRPC mapping
         assertEquals(Status.INVALID_ARGUMENT.getCode(), result.getStatus().getCode());
@@ -68,7 +130,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     public void testInputCoercionExceptionConversion() {
         InputCoercionException exception = new InputCoercionException(null, "Cannot coerce string to number", null, String.class);
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // InputCoercionException -> INVALID_ARGUMENT via direct gRPC mapping
         assertEquals(Status.INVALID_ARGUMENT.getCode(), result.getStatus().getCode());
@@ -80,7 +142,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     public void testJsonParseExceptionConversion() {
         JsonParseException exception = new JsonParseException(null, "Unexpected character");
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // JsonParseException -> INVALID_ARGUMENT via direct gRPC mapping
         assertEquals(Status.INVALID_ARGUMENT.getCode(), result.getStatus().getCode());
@@ -92,7 +154,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     public void testOpenSearchRejectedExecutionExceptionConversion() {
         OpenSearchRejectedExecutionException exception = new OpenSearchRejectedExecutionException("Thread pool full");
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // OpenSearchRejectedExecutionException -> RESOURCE_EXHAUSTED via direct gRPC mapping
         assertEquals(Status.RESOURCE_EXHAUSTED.getCode(), result.getStatus().getCode());
@@ -104,7 +166,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     public void testIllegalStateExceptionConversion() {
         IllegalStateException exception = new IllegalStateException("Invalid state");
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // IllegalStateException -> FAILED_PRECONDITION via direct gRPC mapping
         assertEquals(Status.FAILED_PRECONDITION.getCode(), result.getStatus().getCode());
@@ -115,7 +177,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     public void testSecurityExceptionConversion() {
         SecurityException exception = new SecurityException("Access denied");
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // SecurityException -> PERMISSION_DENIED via direct gRPC mapping
         assertEquals(Status.PERMISSION_DENIED.getCode(), result.getStatus().getCode());
@@ -126,7 +188,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     public void testTimeoutExceptionConversion() {
         TimeoutException exception = new TimeoutException("Operation timed out");
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // TimeoutException -> DEADLINE_EXCEEDED via direct gRPC mapping
         assertEquals(Status.DEADLINE_EXCEEDED.getCode(), result.getStatus().getCode());
@@ -137,7 +199,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     public void testInterruptedExceptionConversion() {
         InterruptedException exception = new InterruptedException();
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // InterruptedException -> CANCELLED via direct gRPC mapping
         assertEquals(Status.CANCELLED.getCode(), result.getStatus().getCode());
@@ -148,7 +210,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     public void testIOExceptionConversion() {
         IOException exception = new IOException("I/O error");
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // IOException -> INTERNAL via direct gRPC mapping
         assertEquals(Status.INTERNAL.getCode(), result.getStatus().getCode());
@@ -159,7 +221,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     public void testUnknownExceptionConversion() {
         RuntimeException exception = new RuntimeException("Unknown error");
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // RuntimeException -> INTERNAL via fallback (unknown exception type)
         assertEquals(Status.INTERNAL.getCode(), result.getStatus().getCode());
@@ -175,7 +237,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
             }
         };
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // NOT_FOUND -> NOT_FOUND via RestToGrpcStatusConverter
         assertEquals(Status.NOT_FOUND.getCode(), result.getStatus().getCode());
@@ -187,7 +249,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     public void testCircuitBreakingExceptionInCleanMessage() {
         CircuitBreakingException exception = new CircuitBreakingException("Memory circuit breaker", 100, 90, null);
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // CircuitBreakingException extends OpenSearchException with TOO_MANY_REQUESTS -> RESOURCE_EXHAUSTED
         assertEquals(Status.RESOURCE_EXHAUSTED.getCode(), result.getStatus().getCode());
@@ -203,7 +265,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
             new org.opensearch.action.search.ShardSearchFailure[0]
         );
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // SearchPhaseExecutionException extends OpenSearchException with SERVICE_UNAVAILABLE -> UNAVAILABLE
         assertEquals(Status.UNAVAILABLE.getCode(), result.getStatus().getCode());
@@ -224,7 +286,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
         };
         exception.addMetadata("opensearch.test_key", "test_value");
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Should include metadata in JSON details
         assertTrue(result.getMessage().contains("details="));
@@ -250,7 +312,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
             }
         };
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(exception, FULL_STACK_TRACE_REQUESTED);
 
         // Should fall back to base description when XContent extraction fails
         assertEquals(Status.INVALID_ARGUMENT.getCode(), result.getStatus().getCode());
@@ -275,7 +337,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
             }
         };
 
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(wrappedException, detailedErrorsInResponse);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(wrappedException, FULL_STACK_TRACE_REQUESTED);
 
         // Should include root_cause array like HTTP responses
         assertTrue(result.getMessage().contains("root_cause"));

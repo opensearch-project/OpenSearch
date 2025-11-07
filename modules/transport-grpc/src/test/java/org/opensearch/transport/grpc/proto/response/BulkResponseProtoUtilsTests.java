@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import io.grpc.Status;
 
-import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 
 public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
 

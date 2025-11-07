@@ -24,6 +24,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.GlobalParams;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 import io.grpc.Status;
@@ -34,6 +35,10 @@ import io.grpc.StatusRuntimeException;
  */
 public class GrpcErrorHandler {
     private static final Logger logger = LogManager.getLogger(GrpcErrorHandler.class);
+
+    private static final ToXContent.MapParams INCLUDE_STACK_TRACES = new ToXContent.MapParams(
+        Map.of(OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false")
+    );
 
     private GrpcErrorHandler() {
         // Utility class, no instances
@@ -153,11 +158,12 @@ public class GrpcErrorHandler {
 
                 // Use the same method as HTTP REST responses (BytesRestResponse.build)
                 // This includes root_cause analysis, just like HTTP
+                ToXContent.Params params = shouldIncludeDetailedStackTrace ? INCLUDE_STACK_TRACES : ToXContent.EMPTY_PARAMS;
                 OpenSearchException.generateFailureXContent(
                     builder,
-                    ToXContent.EMPTY_PARAMS,
+                    params,
                     (Exception) exception,
-                    shouldIncludeDetailedStackTrace
+                    GrpcParamsHandler.isDetailedErrorsEnabled()
                 );
 
                 // Add status field like HTTP does

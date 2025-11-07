@@ -31,8 +31,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.transport.grpc.proto.response.TestFixtures.ERROR_SUMMARY_REQUESTED;
-import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.ERROR_SUMMARY_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

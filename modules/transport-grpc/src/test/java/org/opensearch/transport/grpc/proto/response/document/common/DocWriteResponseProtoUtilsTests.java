@@ -17,7 +17,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 
 public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
 

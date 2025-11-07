@@ -9,7 +9,12 @@
 package org.opensearch.transport.grpc.util;
 
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.protobufs.GlobalParams;
+import org.opensearch.rest.AbstractRestChannel;
+import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestRequest;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -17,6 +22,10 @@ import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GR
 
 /**
  * Central utility class to handle how global gRPC request parameters are handled.
+ * Handling of the server side {@code detailedErrorsEnabled} and the fail-fast behaviour
+ * in case of faulty configuration is aligned with the
+ * {@link RestController#tryAllHandlers(RestRequest, RestChannel, ThreadContext)} and the
+ * {@link AbstractRestChannel}.
  */
 public class GrpcParamsHandler {
 
@@ -46,6 +55,15 @@ public class GrpcParamsHandler {
      */
     public static boolean isDetailedStackTraceRequested(GlobalParams globalParams) {
         return globalParams.getErrorTrace();
+    }
+
+    /**
+     * Checks if detailed errors are enabled on the gRPC server.
+     *
+     * @return true if detailed errors are enabled, false otherwise
+     */
+    public static boolean isDetailedErrorsEnabled() {
+        return detailedErrorsEnabled.get();
     }
 
     /**

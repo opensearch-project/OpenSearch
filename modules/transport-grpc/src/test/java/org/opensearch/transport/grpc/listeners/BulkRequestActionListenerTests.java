@@ -23,7 +23,7 @@ import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 

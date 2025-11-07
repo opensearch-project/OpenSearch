@@ -8,12 +8,10 @@
 
 package org.opensearch.transport.grpc.services;
 
-import org.opensearch.common.settings.Settings;
 import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
-import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
 import org.opensearch.transport.grpc.util.GrpcParamsHandler;
@@ -27,6 +25,7 @@ import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import static org.opensearch.transport.grpc.TestFixtures.settingsWithGivenStackTraceConfig;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -136,9 +135,5 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
             .setSearchRequestBody(SearchRequestBody.newBuilder().setSize(10).build())
             .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true).build())
             .build();
-    }
-
-    private Settings settingsWithGivenStackTraceConfig(boolean stackTracesEnabled) {
-        return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_DETAILED_ERRORS_ENABLED.getKey(), stackTracesEnabled).build();
     }
 }

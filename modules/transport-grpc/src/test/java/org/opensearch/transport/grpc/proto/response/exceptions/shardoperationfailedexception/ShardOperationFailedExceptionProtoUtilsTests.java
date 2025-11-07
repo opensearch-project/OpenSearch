@@ -21,7 +21,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
 import static org.mockito.Mockito.mock;
 
 public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTestCase {

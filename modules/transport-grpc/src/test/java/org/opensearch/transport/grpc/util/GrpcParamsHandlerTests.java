@@ -8,13 +8,12 @@
 
 package org.opensearch.transport.grpc.util;
 
-import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
 import org.junit.After;
 
-import static org.opensearch.transport.grpc.proto.response.TestFixtures.ERROR_SUMMARY_REQUESTED;
-import static org.opensearch.transport.grpc.proto.response.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.ERROR_SUMMARY_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.settingsWithGivenStackTraceConfig;
 
 public class GrpcParamsHandlerTests extends OpenSearchTestCase {
 
@@ -52,10 +51,6 @@ public class GrpcParamsHandlerTests extends OpenSearchTestCase {
             "Params handler must directly pick error_trace=false",
             GrpcParamsHandler.isDetailedStackTraceRequested(ERROR_SUMMARY_REQUESTED)
         );
-    }
-
-    private Settings settingsWithGivenStackTraceConfig(boolean stackTracesEnabled) {
-        return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_DETAILED_ERRORS_ENABLED.getKey(), stackTracesEnabled).build();
     }
 
 }

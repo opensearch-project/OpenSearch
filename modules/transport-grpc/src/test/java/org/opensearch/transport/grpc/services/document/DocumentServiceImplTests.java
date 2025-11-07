@@ -9,13 +9,11 @@
 package org.opensearch.transport.grpc.services.document;
 
 import com.google.protobuf.ByteString;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
 import org.opensearch.protobufs.IndexOperation;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
-import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
 import org.opensearch.transport.grpc.services.DocumentServiceImpl;
 import org.opensearch.transport.grpc.util.GrpcParamsHandler;
 import org.junit.After;
@@ -28,6 +26,7 @@ import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import static org.opensearch.transport.grpc.TestFixtures.settingsWithGivenStackTraceConfig;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -119,9 +118,5 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
             .addBulkRequestBody(requestBody)
             .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true))
             .build();
-    }
-
-    private Settings settingsWithGivenStackTraceConfig(boolean stackTracesEnabled) {
-        return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_DETAILED_ERRORS_ENABLED.getKey(), stackTracesEnabled).build();
     }
 }
