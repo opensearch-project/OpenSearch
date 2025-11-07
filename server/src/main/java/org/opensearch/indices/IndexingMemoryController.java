@@ -49,6 +49,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
+import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.ThreadPool;
@@ -191,11 +192,11 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         // null means we used the default (10%)
         if (nativeIndexingBufferSetting == null || nativeIndexingBufferSetting.endsWith("%")) {
             // Calculate based on total system memory rather than JVM heap
-            long totalSystemMemory = OsProbe.getInstance().getTotalPhysicalMemorySize();
+            long totalAvailableSystemMemory = OsProbe.getInstance().getTotalPhysicalMemorySize() - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
             RatioValue nativeIndexingBufferPercentage = RatioValue.parseRatioValue(INDEX_NATIVE_BUFFER_SIZE_SETTING.get(settings));
-            if (totalSystemMemory > 0) {
+            if (totalAvailableSystemMemory > 0) {
                 // Apply percentage to total system memory
-                nativeIndexingBuffer = new ByteSizeValue((long) (totalSystemMemory * nativeIndexingBufferPercentage.getAsRatio()));
+                nativeIndexingBuffer = new ByteSizeValue((long) (totalAvailableSystemMemory * nativeIndexingBufferPercentage.getAsRatio()));
 
                 // Apply min/max bounds when % value was used
                 ByteSizeValue minNativeIndexingBuffer = MIN_INDEX_NATIVE_BUFFER_SIZE_SETTING.get(settings);
