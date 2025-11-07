@@ -67,12 +67,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.opensearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.opensearch.cluster.metadata.Metadata.Builder.validateDataStreams;
+import static org.opensearch.plugins.MapperPlugin.NOOP_FIELD_PREDICATE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -806,7 +808,7 @@ public class MetadataTests extends OpenSearchTestCase {
                 if (index.equals("index2")) {
                     return field -> false;
                 }
-                return MapperPlugin.NOOP_FIELD_PREDICATE;
+                return NOOP_FIELD_PREDICATE;
             });
 
             assertIndexMappingsNoFields(mappings, "index2");
@@ -988,78 +990,79 @@ public class MetadataTests extends OpenSearchTestCase {
         assertLeafs(subFieldsDef, subFields);
     }
 
-    private static final String FIND_MAPPINGS_TEST_ITEM = "{\n"
-        + "  \"_doc\": {\n"
-        + "      \"_routing\": {\n"
-        + "        \"required\":true\n"
-        + "      },"
-        + "      \"_source\": {\n"
-        + "        \"enabled\":false\n"
-        + "      },"
-        + "      \"properties\": {\n"
-        + "        \"name\": {\n"
-        + "          \"properties\": {\n"
-        + "            \"first\": {\n"
-        + "              \"type\": \"keyword\"\n"
-        + "            },\n"
-        + "            \"last\": {\n"
-        + "              \"type\": \"keyword\"\n"
-        + "            }\n"
-        + "          }\n"
-        + "        },\n"
-        + "        \"birth\": {\n"
-        + "          \"type\": \"date\"\n"
-        + "        },\n"
-        + "        \"age\": {\n"
-        + "          \"type\": \"integer\"\n"
-        + "        },\n"
-        + "        \"ip\": {\n"
-        + "          \"type\": \"ip\"\n"
-        + "        },\n"
-        + "        \"suggest\" : {\n"
-        + "          \"type\": \"completion\"\n"
-        + "        },\n"
-        + "        \"address\": {\n"
-        + "          \"type\": \"object\",\n"
-        + "          \"properties\": {\n"
-        + "            \"street\": {\n"
-        + "              \"type\": \"keyword\"\n"
-        + "            },\n"
-        + "            \"location\": {\n"
-        + "              \"type\": \"geo_point\"\n"
-        + "            },\n"
-        + "            \"area\": {\n"
-        + "              \"type\": \"geo_shape\",  \n"
-        + "              \"tree\": \"quadtree\",\n"
-        + "              \"precision\": \"1m\"\n"
-        + "            }\n"
-        + "          }\n"
-        + "        },\n"
-        + "        \"properties\": {\n"
-        + "          \"type\": \"nested\",\n"
-        + "          \"properties\": {\n"
-        + "            \"key\" : {\n"
-        + "              \"type\": \"text\",\n"
-        + "              \"fields\": {\n"
-        + "                \"keyword\" : {\n"
-        + "                  \"type\" : \"keyword\"\n"
-        + "                }\n"
-        + "              }\n"
-        + "            },\n"
-        + "            \"value\" : {\n"
-        + "              \"type\": \"text\",\n"
-        + "              \"fields\": {\n"
-        + "                \"keyword\" : {\n"
-        + "                  \"type\" : \"keyword\"\n"
-        + "                }\n"
-        + "              }\n"
-        + "            }\n"
-        + "          }\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String FIND_MAPPINGS_TEST_ITEM = """
+        {
+          "_doc": {
+              "_routing": {
+                "required":true
+              },
+              "_source": {
+                "enabled":false
+              },
+              "properties": {
+                "name": {
+                  "properties": {
+                    "first": {
+                      "type": "keyword"
+                    },
+                    "last": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "birth": {
+                  "type": "date"
+                },
+                "age": {
+                  "type": "integer"
+                },
+                "ip": {
+                  "type": "ip"
+                },
+                "suggest" : {
+                  "type": "completion"
+                },
+                "address": {
+                  "type": "object",
+                  "properties": {
+                    "street": {
+                      "type": "keyword"
+                    },
+                    "location": {
+                      "type": "geo_point"
+                    },
+                    "area": {
+                      "type": "geo_shape",
+                      "tree": "quadtree",
+                      "precision": "1m"
+                    }
+                  }
+                },
+                "properties": {
+                  "type": "nested",
+                  "properties": {
+                    "key" : {
+                      "type": "text",
+                      "fields": {
+                        "keyword" : {
+                          "type" : "keyword"
+                        }
+                      }
+                    },
+                    "value" : {
+                      "type": "text",
+                      "fields": {
+                        "keyword" : {
+                          "type" : "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }""";
 
     public void testTransientSettingsOverridePersistentSettings() {
         final Setting setting = Setting.simpleString("key");
@@ -1657,4 +1660,114 @@ public class MetadataTests extends OpenSearchTestCase {
             assertEquals(previousMetadata.version() + 1, newMetadata.version());
         }
     }
+
+    public void testFindMappingsDedupeWithDefinedPredicates() throws Exception {
+        // Base mapping (mappingA)
+        final String mappingA = FIND_MAPPINGS_TEST_ITEM;
+
+        // Modified mapping with an additional field (mappingB)
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mapA = XContentHelper.convertToMap(JsonXContent.jsonXContent, FIND_MAPPINGS_TEST_ITEM, false);
+        Map<String, Object> doc = (Map<String, Object>) mapA.get("_doc");
+        Map<String, Object> props = (Map<String, Object>) doc.get("properties");
+        props.put("extra_keyword_field", Map.of("type", "keyword"));
+
+        final String mappingB;
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.map(mapA);
+            mappingB = builder.toString();
+        }
+
+        // Build metadata with 6 indices:
+        // - index1, index2, index3 → mappingA
+        // - index4, index5, index6 → mappingB
+        final Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("index1")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putMapping(mappingA)
+            )
+            .put(
+                IndexMetadata.builder("index2")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putMapping(mappingA)
+            )
+            .put(
+                IndexMetadata.builder("index3")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putMapping(mappingA)
+            )
+            .put(
+                IndexMetadata.builder("index4")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putMapping(mappingB)
+            )
+            .put(
+                IndexMetadata.builder("index5")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putMapping(mappingB)
+            )
+            .put(
+                IndexMetadata.builder("index6")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putMapping(mappingB)
+            )
+            .build();
+
+        final Predicate<String> pShared = MapperPlugin.NOOP_FIELD_PREDICATE; // returns true for all fields
+        final Predicate<String> pOther = f -> !"extra_keyword_field".equals(f); // filters out just that field
+
+        // Apply findMappings with different predicates per index
+        Map<String, MappingMetadata> result = metadata.findMappings(
+            new String[] { "index1", "index2", "index3", "index4", "index5", "index6" },
+            index -> switch (index) {
+                case "index1", "index2" -> pShared; // same predicate + same mapping
+                case "index3" -> pOther;            // different predicate, same mapping
+                case "index4" -> pShared;           // same predicate, but different mapping
+                case "index5" -> pOther;            // index5 and index6 share mapping and predicate
+                case "index6" -> pOther;
+                default -> MapperPlugin.NOOP_FIELD_PREDICATE;
+            }
+        );
+
+        MappingMetadata m1 = result.get("index1");
+        MappingMetadata m2 = result.get("index2");
+        MappingMetadata m3 = result.get("index3");
+        MappingMetadata m4 = result.get("index4");
+        MappingMetadata m5 = result.get("index5");
+        MappingMetadata m6 = result.get("index6");
+
+        // Same mapping bytes + same predicate → MUST dedupe (equals in this case since predicate is NOOP and they are passthrough)
+        assertEquals("index1 and index2 mappings should be equal", m1, m2);
+
+        // Same mapping bytes + different predicate → MUST NOT dedupe
+        assertEquals("index1 and index3 mappings are equal after field filter applied", m1, m3);
+
+        // Different mapping bytes + same predicate → MUST NOT dedupe
+        assertNotEquals("index1 and index4 must not share because mapping differs", m1, m4);
+
+        // Same mapping bytes + same predicate → MUST dedupe (assertSame here since its deduped and these are the same object)
+        assertSame("index5 and index6 must share the MappingMetadata instance", m5, m6);
+
+        // Shared predicate keeps all fields (NOOP filter)
+        assertTrue(m4.source().string().contains("extra_keyword_field"));
+
+        // pOther removes "extra_keyword_field" from index3
+        assertFalse(m3.source().string().contains("extra_keyword_field"));
+        assertFalse(m5.source().string().contains("extra_keyword_field"));
+        assertFalse(m6.source().string().contains("extra_keyword_field"));
+    }
+
 }

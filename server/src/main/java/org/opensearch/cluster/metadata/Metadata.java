@@ -52,6 +52,7 @@ import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -507,12 +508,62 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return Map.of();
         }
 
-        final Map<String, MappingMetadata> indexMapBuilder = new HashMap<>();
-        Arrays.stream(concreteIndices)
-            .filter(indices.keySet()::contains)
-            .forEach((idx) -> indexMapBuilder.put(idx, filterFields(indices.get(idx).mapping(), fieldFilter.apply(idx))));
+        // 0) Buckets:
+        // - passthrough: indexes with null mapping or NOOP predicate
+        // - byPredicate: for all other indexes, group by predicate instance
+        final List<String> passthrough = new ArrayList<>();
+        final Map<Predicate<String>, List<String>> byPredicate = new HashMap<>();
 
-        return Collections.unmodifiableMap(indexMapBuilder);
+        for (String idx : concreteIndices) {
+            final IndexMetadata imd = indices.get(idx);
+            if (imd == null) {
+                continue; // unknown index; skip (keeps behavior consistent with existing call-site filtering)
+            }
+            final MappingMetadata mm = imd.mapping();
+            final Predicate<String> pred = fieldFilter.apply(idx);
+
+            if (mm == null || pred == MapperPlugin.NOOP_FIELD_PREDICATE) {
+                passthrough.add(idx);
+            } else {
+                byPredicate.computeIfAbsent(pred, k -> new ArrayList<>()).add(idx);
+            }
+        }
+
+        // 1) For each predicate bucket, group indexes by *compressed mapping bytes* and filter once per group
+        final Map<String, MappingMetadata> out = new HashMap<>(concreteIndices.length);
+
+        for (Map.Entry<Predicate<String>, List<String>> bucket : byPredicate.entrySet()) {
+            final Predicate<String> pred = bucket.getKey();
+            final List<String> idxs = bucket.getValue();
+
+            // mappingBlob -> sample index names
+            final Map<CompressedXContent, List<String>> byMapping = new HashMap<>();
+            for (String idx : idxs) {
+                final MappingMetadata mm = indices.get(idx).mapping(); // non-null by construction in this bucket
+                byMapping.computeIfAbsent(mm.source(), k -> new ArrayList<>()).add(idx);
+            }
+
+            // For each identical mapping blob, run filterFields once and fan out the same result
+            for (Map.Entry<CompressedXContent, List<String>> g : byMapping.entrySet()) {
+                final List<String> groupIdxs = g.getValue();
+                final String sample = groupIdxs.get(0);
+                final MappingMetadata sampleMm = indices.get(sample).mapping();
+
+                final MappingMetadata filtered = filterFields(sampleMm, pred);
+                for (String idx : groupIdxs) {
+                    out.put(idx, filtered);
+                }
+            }
+        }
+
+        // 2) Passthrough indices: original mapping (or EMPTY if null)
+        for (String idx : passthrough) {
+            final IndexMetadata imd = indices.get(idx);
+            final MappingMetadata mm = (imd == null) ? null : imd.mapping();
+            out.put(idx, mm == null ? MappingMetadata.EMPTY_MAPPINGS : mm);
+        }
+
+        return Collections.unmodifiableMap(out);
     }
 
     /**
