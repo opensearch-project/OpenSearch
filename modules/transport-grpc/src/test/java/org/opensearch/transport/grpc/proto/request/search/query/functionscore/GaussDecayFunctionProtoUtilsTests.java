@@ -43,11 +43,7 @@ public class GaussDecayFunctionProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithNumericPlacementWithoutDecay() {
         // Test with numeric decay placement without decay parameter
-        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder()
-            .setOrigin(50.0)
-            .setScale(25.0)
-            .setOffset(5.0)
-            .build();
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(50.0).setScale(25.0).setOffset(5.0).build();
 
         DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
 

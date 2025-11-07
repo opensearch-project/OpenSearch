@@ -41,11 +41,7 @@ public class ExpDecayFunctionProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithNumericPlacementWithoutDecay() {
-        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder()
-            .setOrigin(100.0)
-            .setScale(50.0)
-            .setOffset(5.0)
-            .build();
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(100.0).setScale(50.0).setOffset(5.0).build();
 
         DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
 

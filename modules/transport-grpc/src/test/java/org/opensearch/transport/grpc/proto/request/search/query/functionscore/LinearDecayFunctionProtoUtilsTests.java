@@ -179,11 +179,7 @@ public class LinearDecayFunctionProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithNumericPlacementWithoutDecay() {
-        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder()
-            .setOrigin(75.0)
-            .setScale(25.0)
-            .setOffset(5.0)
-            .build();
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(75.0).setScale(25.0).setOffset(5.0).build();
 
         DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
 

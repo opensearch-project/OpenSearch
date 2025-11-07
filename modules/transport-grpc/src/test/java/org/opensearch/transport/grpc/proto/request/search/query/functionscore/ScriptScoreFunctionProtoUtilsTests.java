@@ -18,7 +18,6 @@ import org.opensearch.protobufs.ObjectMap.Value;
 import org.opensearch.protobufs.Script;
 import org.opensearch.protobufs.ScriptLanguage;
 import org.opensearch.protobufs.ScriptScoreFunction;
-import org.opensearch.protobufs.StoredScriptId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.containsString;
