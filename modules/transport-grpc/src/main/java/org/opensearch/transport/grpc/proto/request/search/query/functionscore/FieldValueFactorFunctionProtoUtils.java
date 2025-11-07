@@ -27,7 +27,6 @@ class FieldValueFactorFunctionProtoUtils {
      * Converts a Protocol Buffer FieldValueFactorScoreFunction to an OpenSearch ScoreFunctionBuilder.
      * Similar to {@link FieldValueFactorFunctionBuilder#fromXContent(XContentParser)}, this method
      * parses the field, factor, missing value, and modifier parameters.
-     * Equivalent to {@code #fromProto(FieldValueFactorScoreFunction)} for gRPC Protocol Buffer conversion.
      *
      * @param fieldValueFactor the Protocol Buffer FieldValueFactorScoreFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder

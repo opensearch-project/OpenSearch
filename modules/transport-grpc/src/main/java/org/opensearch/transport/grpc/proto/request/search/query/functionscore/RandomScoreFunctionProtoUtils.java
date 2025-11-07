@@ -26,7 +26,6 @@ class RandomScoreFunctionProtoUtils {
      * Converts a Protocol Buffer RandomScoreFunction to an OpenSearch ScoreFunctionBuilder.
      * Similar to {@link RandomScoreFunctionBuilder#fromXContent(XContentParser)}, this method
      * parses the seed and optional field parameters.
-     * Equivalent to {@code #fromProto(RandomScoreFunction)} for gRPC Protocol Buffer conversion.
      *
      * @param randomScore the Protocol Buffer RandomScoreFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder

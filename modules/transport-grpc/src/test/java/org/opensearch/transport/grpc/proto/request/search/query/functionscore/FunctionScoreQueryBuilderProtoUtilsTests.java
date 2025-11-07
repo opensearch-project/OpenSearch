@@ -449,6 +449,36 @@ public class FunctionScoreQueryBuilderProtoUtilsTests extends OpenSearchTestCase
         assertThat(result3, instanceOf(FunctionScoreQueryBuilder.class));
         FunctionScoreQueryBuilder builder3 = (FunctionScoreQueryBuilder) result3;
         assertEquals(org.opensearch.common.lucene.search.function.CombineFunction.SUM, builder3.boostMode());
+
+        // Test AVG boost mode
+        FunctionScoreQuery functionScoreQuery4 = FunctionScoreQuery.newBuilder()
+            .setBoostMode(FunctionBoostMode.FUNCTION_BOOST_MODE_AVG)
+            .build();
+
+        QueryBuilder result4 = FunctionScoreQueryBuilderProtoUtils.fromProto(functionScoreQuery4, registry);
+        assertThat(result4, instanceOf(FunctionScoreQueryBuilder.class));
+        FunctionScoreQueryBuilder builder4 = (FunctionScoreQueryBuilder) result4;
+        assertEquals(org.opensearch.common.lucene.search.function.CombineFunction.AVG, builder4.boostMode());
+
+        // Test MAX boost mode
+        FunctionScoreQuery functionScoreQuery5 = FunctionScoreQuery.newBuilder()
+            .setBoostMode(FunctionBoostMode.FUNCTION_BOOST_MODE_MAX)
+            .build();
+
+        QueryBuilder result5 = FunctionScoreQueryBuilderProtoUtils.fromProto(functionScoreQuery5, registry);
+        assertThat(result5, instanceOf(FunctionScoreQueryBuilder.class));
+        FunctionScoreQueryBuilder builder5 = (FunctionScoreQueryBuilder) result5;
+        assertEquals(org.opensearch.common.lucene.search.function.CombineFunction.MAX, builder5.boostMode());
+
+        // Test MIN boost mode
+        FunctionScoreQuery functionScoreQuery6 = FunctionScoreQuery.newBuilder()
+            .setBoostMode(FunctionBoostMode.FUNCTION_BOOST_MODE_MIN)
+            .build();
+
+        QueryBuilder result6 = FunctionScoreQueryBuilderProtoUtils.fromProto(functionScoreQuery6, registry);
+        assertThat(result6, instanceOf(FunctionScoreQueryBuilder.class));
+        FunctionScoreQueryBuilder builder6 = (FunctionScoreQueryBuilder) result6;
+        assertEquals(org.opensearch.common.lucene.search.function.CombineFunction.MIN, builder6.boostMode());
     }
 
     public void testFromProtoWithDifferentScoreModes() {
@@ -481,6 +511,36 @@ public class FunctionScoreQueryBuilderProtoUtilsTests extends OpenSearchTestCase
         assertThat(result3, instanceOf(FunctionScoreQueryBuilder.class));
         FunctionScoreQueryBuilder builder3 = (FunctionScoreQueryBuilder) result3;
         assertEquals(org.opensearch.common.lucene.search.function.FunctionScoreQuery.ScoreMode.AVG, builder3.scoreMode());
+
+        // Test FIRST score mode
+        FunctionScoreQuery functionScoreQuery4 = FunctionScoreQuery.newBuilder()
+            .setScoreMode(FunctionScoreMode.FUNCTION_SCORE_MODE_FIRST)
+            .build();
+
+        QueryBuilder result4 = FunctionScoreQueryBuilderProtoUtils.fromProto(functionScoreQuery4, registry);
+        assertThat(result4, instanceOf(FunctionScoreQueryBuilder.class));
+        FunctionScoreQueryBuilder builder4 = (FunctionScoreQueryBuilder) result4;
+        assertEquals(org.opensearch.common.lucene.search.function.FunctionScoreQuery.ScoreMode.FIRST, builder4.scoreMode());
+
+        // Test MAX score mode
+        FunctionScoreQuery functionScoreQuery5 = FunctionScoreQuery.newBuilder()
+            .setScoreMode(FunctionScoreMode.FUNCTION_SCORE_MODE_MAX)
+            .build();
+
+        QueryBuilder result5 = FunctionScoreQueryBuilderProtoUtils.fromProto(functionScoreQuery5, registry);
+        assertThat(result5, instanceOf(FunctionScoreQueryBuilder.class));
+        FunctionScoreQueryBuilder builder5 = (FunctionScoreQueryBuilder) result5;
+        assertEquals(org.opensearch.common.lucene.search.function.FunctionScoreQuery.ScoreMode.MAX, builder5.scoreMode());
+
+        // Test MIN score mode
+        FunctionScoreQuery functionScoreQuery6 = FunctionScoreQuery.newBuilder()
+            .setScoreMode(FunctionScoreMode.FUNCTION_SCORE_MODE_MIN)
+            .build();
+
+        QueryBuilder result6 = FunctionScoreQueryBuilderProtoUtils.fromProto(functionScoreQuery6, registry);
+        assertThat(result6, instanceOf(FunctionScoreQueryBuilder.class));
+        FunctionScoreQueryBuilder builder6 = (FunctionScoreQueryBuilder) result6;
+        assertEquals(org.opensearch.common.lucene.search.function.FunctionScoreQuery.ScoreMode.MIN, builder6.scoreMode());
     }
 
     public void testFromProtoWithFunctionAndFilter() {
@@ -597,4 +657,5 @@ public class FunctionScoreQueryBuilderProtoUtilsTests extends OpenSearchTestCase
         assertNotNull(functionScoreQueryBuilder.filterFunctionBuilders());
         assertEquals(2, functionScoreQueryBuilder.filterFunctionBuilders().length);
     }
+
 }

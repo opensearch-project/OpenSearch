@@ -26,7 +26,6 @@ class ScriptScoreFunctionProtoUtils {
      * Converts a Protocol Buffer ScriptScoreFunction to an OpenSearch ScoreFunctionBuilder.
      * Similar to {@link org.opensearch.index.query.functionscore.ScriptScoreFunctionBuilder#fromXContent(org.opensearch.core.xcontent.XContentParser)}, this method
      * parses the script parameter and constructs the builder.
-     * Equivalent to {@code #fromProto(ScriptScoreFunction)} for gRPC Protocol Buffer conversion.
      *
      * @param scriptScore the Protocol Buffer ScriptScoreFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder

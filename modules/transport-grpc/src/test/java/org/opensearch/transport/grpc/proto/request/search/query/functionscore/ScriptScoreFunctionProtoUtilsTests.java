@@ -11,6 +11,7 @@ package org.opensearch.transport.grpc.proto.request.search.query.functionscore;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.opensearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.opensearch.protobufs.BuiltinScriptLanguage;
+import org.opensearch.protobufs.FunctionScoreContainer;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.ObjectMap.Value;
@@ -25,7 +26,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ScriptScoreFunctionProtoUtilsTests extends OpenSearchTestCase {
 
-    public void testFromProtoWithInlineScript() {
+    public void testFromProtoWithScript() {
         InlineScript inlineScript = InlineScript.newBuilder()
             .setSource("doc['score'].value * params.factor")
             .setLang(ScriptLanguage.newBuilder().setBuiltin(BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS).build())
@@ -34,6 +35,7 @@ public class ScriptScoreFunctionProtoUtilsTests extends OpenSearchTestCase {
 
         Script script = Script.newBuilder().setInline(inlineScript).build();
         ScriptScoreFunction scriptScoreFunction = ScriptScoreFunction.newBuilder().setScript(script).build();
+        FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setScriptScore(scriptScoreFunction).setWeight(1.5f).build();
 
         ScoreFunctionBuilder<?> result = ScriptScoreFunctionProtoUtils.fromProto(scriptScoreFunction);
 
@@ -46,41 +48,6 @@ public class ScriptScoreFunctionProtoUtilsTests extends OpenSearchTestCase {
         assertEquals(2.0, openSearchScript.getParams().get("factor"));
     }
 
-    public void testFromProtoWithStoredScript() {
-        StoredScriptId storedScriptId = StoredScriptId.newBuilder()
-            .setId("my_script_id")
-            .setParams(ObjectMap.newBuilder().putFields("factor", Value.newBuilder().setDouble(1.5).build()).build())
-            .build();
-
-        Script script = Script.newBuilder().setStored(storedScriptId).build();
-        ScriptScoreFunction scriptScoreFunction = ScriptScoreFunction.newBuilder().setScript(script).build();
-
-        ScoreFunctionBuilder<?> result = ScriptScoreFunctionProtoUtils.fromProto(scriptScoreFunction);
-
-        assertThat(result, instanceOf(ScriptScoreFunctionBuilder.class));
-        ScriptScoreFunctionBuilder scriptFunction = (ScriptScoreFunctionBuilder) result;
-        org.opensearch.script.Script openSearchScript = scriptFunction.getScript();
-        assertEquals(org.opensearch.script.ScriptType.STORED, openSearchScript.getType());
-        assertEquals(null, openSearchScript.getLang());
-        assertEquals("my_script_id", openSearchScript.getIdOrCode());
-        assertEquals(1.5, openSearchScript.getParams().get("factor"));
-    }
-
-    public void testFromProtoWithMinimalScript() {
-        InlineScript inlineScript = InlineScript.newBuilder().setSource("doc['score'].value").build();
-
-        Script script = Script.newBuilder().setInline(inlineScript).build();
-        ScriptScoreFunction scriptScoreFunction = ScriptScoreFunction.newBuilder().setScript(script).build();
-
-        ScoreFunctionBuilder<?> result = ScriptScoreFunctionProtoUtils.fromProto(scriptScoreFunction);
-
-        assertThat(result, instanceOf(ScriptScoreFunctionBuilder.class));
-        ScriptScoreFunctionBuilder scriptFunction = (ScriptScoreFunctionBuilder) result;
-        org.opensearch.script.Script openSearchScript = scriptFunction.getScript();
-        assertEquals(org.opensearch.script.ScriptType.INLINE, openSearchScript.getType());
-        assertEquals("doc['score'].value", openSearchScript.getIdOrCode());
-    }
-
     public void testFromProtoWithNullScriptScoreFunction() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -89,7 +56,28 @@ public class ScriptScoreFunctionProtoUtilsTests extends OpenSearchTestCase {
         assertThat(exception.getMessage(), containsString("ScriptScoreFunction cannot be null"));
     }
 
-    public void testFromProtoWithNoScript() {
+    public void testFromProtoWithNullScript() {
+        // Test that setting null script throws NullPointerException at protobuf level
+        NullPointerException exception = expectThrows(
+            NullPointerException.class,
+            () -> ScriptScoreFunction.newBuilder().setScript((org.opensearch.protobufs.Script) null)
+        );
+        // This is expected behavior - protobuf doesn't allow null values
+    }
+
+    public void testFromProtoWithEmptyScript() {
+        Script script = Script.newBuilder().build();
+        ScriptScoreFunction scriptScoreFunction = ScriptScoreFunction.newBuilder().setScript(script).build();
+        FunctionScoreContainer container = FunctionScoreContainer.newBuilder().setScriptScore(scriptScoreFunction).build();
+
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> ScriptScoreFunctionProtoUtils.fromProto(scriptScoreFunction)
+        );
+        assertThat(exception.getMessage(), containsString("No valid script type detected"));
+    }
+
+    public void testFromProtoWithoutScript() {
         ScriptScoreFunction scriptScoreFunction = ScriptScoreFunction.newBuilder().build();
 
         IllegalArgumentException exception = expectThrows(

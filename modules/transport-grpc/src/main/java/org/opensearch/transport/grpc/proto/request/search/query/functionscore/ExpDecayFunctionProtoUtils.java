@@ -35,7 +35,6 @@ class ExpDecayFunctionProtoUtils {
      * Similar to {@link org.opensearch.index.query.functionscore.DecayFunctionParser#fromXContent(org.opensearch.core.xcontent.XContentParser)},
      * this method parses the Protocol Buffer representation and creates a properly configured
      * ExponentialDecayFunctionBuilder with decay placement parameters (numeric, geo, or date).
-     * Equivalent to {@code #fromProto(DecayFunction)} for gRPC Protocol Buffer conversion.
      *
      * @param decayFunction the Protocol Buffer DecayFunction
      * @return the corresponding OpenSearch ScoreFunctionBuilder
