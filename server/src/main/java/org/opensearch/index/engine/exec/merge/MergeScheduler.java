@@ -35,7 +35,7 @@ public class MergeScheduler {
 
     public MergeScheduler(MergeHandler mergeHandler, CompositeEngine compositeEngine) {
 //        this(mergeHandler, compositeEngine, Math.max(1, Runtime.getRuntime().availableProcessors() / 4));
-        this(mergeHandler, compositeEngine, 1);
+        this(mergeHandler, compositeEngine, 2);
 
     }
 
@@ -83,7 +83,7 @@ public class MergeScheduler {
         int scheduled = 0;
         int availableToSchedule = getAvailableMergeSlots();
 
-        while(availableToSchedule >= scheduled && mergeHandler.hasPendingMerges()) {
+        while(mergeThreads.size() < maxConcurrentMerges && mergeHandler.hasPendingMerges()) {
             OneMerge oneMerge = mergeHandler.getNextMerge();
             if (oneMerge == null) {
                 return;
@@ -156,6 +156,8 @@ public class MergeScheduler {
                 long durationMs = (System.nanoTime() - startTime) / 1_000_000;
                 logger.info("[{}] Merge completed in {}ms for: {}", getName(), durationMs, oneMerge);
 
+                // triggering merge at the end
+                triggerMerges();
             } catch (Exception e) {
                 logger.error("[{}] Unexpected error during merge for: {}", getName(), oneMerge, e);
                 mergeHandler.onMergeFailure(oneMerge);
