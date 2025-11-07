@@ -34,7 +34,8 @@ public class MergeScheduler {
     private volatile int maxMergeCount;
 
     public MergeScheduler(MergeHandler mergeHandler, CompositeEngine compositeEngine) {
-        this(mergeHandler, compositeEngine, Math.max(1, Runtime.getRuntime().availableProcessors() / 4));
+//        this(mergeHandler, compositeEngine, Math.max(1, Runtime.getRuntime().availableProcessors() / 4));
+        this(mergeHandler, compositeEngine, 1);
 
     }
 
@@ -122,6 +123,7 @@ public class MergeScheduler {
         MergeThread thread = new MergeThread(oneMerge);
         mergeThreads.add(thread);
         thread.start();
+        System.out.println("Total merge threads : " + mergeThreads.size() + " Active merges : " + activeMerges.get());
     }
 
     /**
@@ -131,7 +133,7 @@ public class MergeScheduler {
         private final OneMerge oneMerge;
 
         MergeThread(OneMerge oneMerge) {
-            super("merge-scheduler-" + oneMerge.toString());
+            super("merge-scheduler-" + (mergeThreads.size()+1));
             this.oneMerge = oneMerge;
             setDaemon(true);
         }
