@@ -49,7 +49,7 @@ import java.util.Map;
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
  *
- * @opensearch.api
+ * @opensearch.internal
  */
 @PublicApi(since = "1.0.0")
 public interface BlobContainer {
@@ -278,8 +278,8 @@ public interface BlobContainer {
 
     /**
      * The type representing sort order of blob names
+     * @opensearch.api
      */
-    @PublicApi(since = "1.0.0")
     enum BlobNameSortOrder {
 
         LEXICOGRAPHIC(Comparator.comparing(BlobMetadata::name));

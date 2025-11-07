@@ -32,7 +32,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-import java.util.Collections;
 
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILES;
 
@@ -183,29 +182,6 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     }
 
     /**
-     * Increments the failure count for a specific format.
-     * This helps track which formats are experiencing upload issues.
-     *
-     * @param formatName the name of the format that failed to upload
-     */
-    public void incrementFormatUploadFailure(String formatName) {
-        formatFailureCountMap.computeIfAbsent(formatName, k -> new AtomicLong(0)).incrementAndGet();
-        logger.debug("Format upload failure recorded: format={}, totalFailures={}",
-                    formatName, formatFailureCountMap.get(formatName).get());
-    }
-
-    /**
-     * Gets the failure count for a specific format.
-     *
-     * @param formatName the format name
-     * @return the number of upload failures for this format
-     */
-    public long getFormatUploadFailureCount(String formatName) {
-        AtomicLong count = formatFailureCountMap.get(formatName);
-        return count != null ? count.get() : 0;
-    }
-
-    /**
      * Gets all format failure counts for monitoring and debugging.
      *
      * @return a map of format names to failure counts
@@ -349,21 +325,6 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         incrementRejectionCount();
     }
 
-    long getRejectionCount(String rejectionReason) {
-        return rejectionCountMap.get(rejectionReason).get();
-    }
-
-    public Map<String, Long> getLatestLocalFileNameLengthMap() {
-        // Convert FileMetadata-based map to String-based for backward compatibility
-        return latestLocalFileNameLengthMap.entrySet().stream()
-            .collect(Collectors.toMap(
-                entry -> entry.getKey().file(),
-                Map.Entry::getValue,
-                (existing, replacement) -> existing,
-                java.util.LinkedHashMap::new
-            ));
-    }
-
     /**
      * Updates the latestLocalFileNameLengthMap directly from FileMetadata map.
      * Uses same conditional logic as the original String-based method - only updates files not in map or with size 0.
@@ -386,14 +347,13 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
                 latestLocalFileNameLengthMap.put(entry.getKey(), entry.getValue());
             });
 
-        // Remove stale entries - SAME LOGIC as original method
         Set<FileMetadata> fileMetadataSet = new HashSet<>(fileMetadataToSizeMap.keySet());
         latestLocalFileNameLengthMap.entrySet().removeIf(entry -> fileMetadataSet.contains(entry.getKey()) == false);
 
         computeBytesLag();
     }
 
-    /** ToDo: Remove this API
+    /** ToDo: Remove this API, Tests still uses this API
      * Updates the latestLocalFileNameLengthMap by adding file name and it's size to the map.
      * The method is given a function as an argument which is used for determining the file size (length in bytes).
      * This method is also provided the collection of segment files which are the latest refresh local segment files.
@@ -444,6 +404,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     }
 
     /**
+     * ToDo: @Remove this API, currently used in Tests.
      * String-based method for backward compatibility.
      * Searches for matching FileMetadata with this filename and adds it.
      * @param file the filename to add
@@ -464,61 +425,6 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         this.latestUploadedFiles.clear();
         this.latestUploadedFiles.addAll(fileMetadataSet);
         computeBytesLag();
-    }
-
-    /**
-     * String-based method for backward compatibility.
-     * Searches for matching FileMetadata for the given filenames.
-     * @param files the set of filenames
-     */
-    public void setLatestUploadedFilesByName(Set<String> files) {
-        this.latestUploadedFiles.clear();
-        // Find matching FileMetadata for each filename
-        files.forEach(file -> {
-            latestLocalFileNameLengthMap.keySet().stream()
-                .filter(fm -> fm.file().equals(file))
-                .forEach(this.latestUploadedFiles::add);
-        });
-        computeBytesLag();
-    }
-
-    /**
-     * Increments upload count for a specific format for format-aware monitoring.
-     * @param formatName the name of the data format (e.g., "LUCENE", "PARQUET", "TEXT")
-     */
-    public void incrementFormatUploadCount(String formatName) {
-        formatUploadCounts.computeIfAbsent(formatName, k -> new AtomicLong(0)).incrementAndGet();
-        logger.debug("Incremented upload count for format {}: new count = {}",
-            formatName, formatUploadCounts.get(formatName).get());
-    }
-
-    /**
-     * Adds bytes uploaded for a specific format for detailed format-aware monitoring.
-     * @param formatName the name of the data format
-     * @param bytes the number of bytes uploaded
-     */
-    public void addFormatUploadBytes(String formatName, long bytes) {
-        formatUploadBytes.computeIfAbsent(formatName, k -> new AtomicLong(0)).addAndGet(bytes);
-        logger.debug("Added {} bytes for format {}: total bytes = {}",
-            bytes, formatName, formatUploadBytes.get(formatName).get());
-    }
-
-    /**
-     * Gets upload count for a specific format.
-     * @param formatName the name of the data format
-     * @return the number of uploads for this format
-     */
-    public long getFormatUploadCount(String formatName) {
-        return formatUploadCounts.getOrDefault(formatName, new AtomicLong(0)).get();
-    }
-
-    /**
-     * Gets total bytes uploaded for a specific format.
-     * @param formatName the name of the data format
-     * @return the total bytes uploaded for this format
-     */
-    public long getFormatUploadBytes(String formatName) {
-        return formatUploadBytes.getOrDefault(formatName, new AtomicLong(0)).get();
     }
 
     /**

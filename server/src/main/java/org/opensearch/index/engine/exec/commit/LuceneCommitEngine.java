@@ -54,6 +54,7 @@ public class LuceneCommitEngine implements Committer {
         this.indexWriter = new IndexWriter(store.directory(), indexWriterConfig);
     }
 
+    @Override
     public void addLuceneIndexes(CatalogSnapshot catalogSnapshot) {
         Collection<WriterFileSet> luceneFileCollection = catalogSnapshot.getSearchableFiles(DataFormat.LUCENE.name());
         luceneFileCollection.forEach(writerFileSet -> {

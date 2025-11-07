@@ -151,15 +151,15 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
     }
 
     private Map<FileMetadata, String> uploadMergedSegmentsToRemoteStore(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
-        Collection<String> segmentsToUpload = checkpoint.getMetadataMap().keySet();
+        Collection<FileMetadata> segmentsToUpload = checkpoint.getFormatAwareMetadataMap().keySet();
         Map<FileMetadata, String> localToRemoteStoreFilenames = new ConcurrentHashMap<>();
 
-        Map<String, Long> segmentsSizeMap = checkpoint.getMetadataMap()
+        Map<FileMetadata, Long> segmentsSizeMap = checkpoint.getFormatAwareMetadataMap()
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().length()));
         final CountDownLatch latch = new CountDownLatch(1);
-        getRemoteStoreUploaderService(indexShard).uploadSegmentsLegacy(segmentsToUpload, segmentsSizeMap, new ActionListener<>() {
+        getRemoteStoreUploaderService(indexShard).uploadSegments(segmentsToUpload, segmentsSizeMap, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 logger.trace(() -> new ParameterizedMessage("Successfully uploaded segments {} to remote store", segmentsToUpload));

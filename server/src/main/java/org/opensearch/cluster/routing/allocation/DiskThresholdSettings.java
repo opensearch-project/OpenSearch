@@ -73,7 +73,7 @@ public class DiskThresholdSettings {
     );
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.disk.watermark.low",
-        "99%",
+        "85%",
         (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.low"),
         new LowDiskWatermarkValidator(),
         Setting.Property.Dynamic,
@@ -81,7 +81,7 @@ public class DiskThresholdSettings {
     );
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.disk.watermark.high",
-        "99%",
+        "90%",
         (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.high"),
         new HighDiskWatermarkValidator(),
         Setting.Property.Dynamic,
@@ -89,7 +89,7 @@ public class DiskThresholdSettings {
     );
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.disk.watermark.flood_stage",
-        "99%",
+        "95%",
         (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.flood_stage"),
         new FloodStageValidator(),
         Setting.Property.Dynamic,

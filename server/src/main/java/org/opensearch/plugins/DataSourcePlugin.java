@@ -30,12 +30,12 @@ public interface DataSourcePlugin {
 
     <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath);
 
-    public FormatStoreDirectory<?> createFormatStoreDirectory(
+    FormatStoreDirectory<?> createFormatStoreDirectory(
         IndexSettings indexSettings,
         ShardPath shardPath
     ) throws IOException;
 
-    public BlobContainer createBlobContainer(BlobStore blobStore, BlobPath blobPath) throws IOException;
+    BlobContainer createBlobContainer(BlobStore blobStore, BlobPath blobPath) throws IOException;
 
     DataFormat getDataFormat();
 }
