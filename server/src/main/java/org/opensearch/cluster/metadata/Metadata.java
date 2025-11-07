@@ -52,6 +52,7 @@ import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -1607,6 +1608,28 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        private void canonicalizeMappingsInPlace() {
+            final Map<CompressedXContent, MappingMetadata> pool = new HashMap<>();
+
+            for (Map.Entry<String, IndexMetadata> e : indices.entrySet()) {
+                final IndexMetadata im = e.getValue();
+                final MappingMetadata mm = im.mapping();
+                if (mm == null) continue;
+
+                final CompressedXContent src = mm.source();
+                if (!pool.containsKey(src)) {
+                    // first time we've seen this mapping, do not deduplicate
+                    pool.put(src, mm);
+                    continue;
+                }
+
+                // Seen this mapping in another index. Perform de-duplication.
+                final MappingMetadata newMm = pool.get(src);
+                final IndexMetadata newIm = IndexMetadata.builder(im).putMapping(newMm).build();
+                e.setValue(newIm);
+            }
+        }
+
         public Metadata build() {
             DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
             DataStreamMetadata previousDataStreamMetadata = (previousMetadata != null)
@@ -1614,6 +1637,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 : null;
 
             buildSystemTemplatesLookup();
+
+            canonicalizeMappingsInPlace();
 
             boolean recomputeRequiredforIndicesLookups = (previousMetadata == null)
                 || (indices.equals(previousMetadata.indices) == false)
