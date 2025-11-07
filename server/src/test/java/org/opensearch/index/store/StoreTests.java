@@ -796,7 +796,7 @@ public class StoreTests extends OpenSearchTestCase {
             assertEquals(shardId, theLock.getShardId());
             assertEquals(lock, theLock);
             count.incrementAndGet();
-        }, null);
+        }, null, null);
         assertEquals(count.get(), 0);
 
         final int iters = randomIntBetween(1, 10);
@@ -821,7 +821,8 @@ public class StoreTests extends OpenSearchTestCase {
             StoreTests.newDirectory(random()),
             new DummyShardLock(shardId),
             Store.OnClose.EMPTY,
-            shardPath
+            shardPath,
+            null
         );
         assertEquals(shardPath, store.shardPath());
         store.close();
