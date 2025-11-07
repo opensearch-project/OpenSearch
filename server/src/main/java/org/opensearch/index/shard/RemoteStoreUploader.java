@@ -37,25 +37,4 @@ public interface RemoteStoreUploader {
         Function<Map<FileMetadata, Long>, UploadListener> uploadListenerFunction,
         boolean isLowPriorityUpload
     );
-
-    /**
-     * Legacy method for backward compatibility - will be deprecated
-     *
-     * @param localSegments collection of segment file names
-     * @param localSegmentsSizeMap map of segment file names to their sizes
-     * @param listener listener to be notified when upload completes
-     * @param uploadListenerFunction function to create upload listeners
-     * @param isLowPriorityUpload whether this is a low priority upload
-     * @deprecated Use {@link #uploadSegments(Collection, Map, ActionListener, Function, boolean)} with FileMetadata instead
-     */
-    @Deprecated
-    default void uploadSegmentsLegacy(
-        Collection<String> localSegments,
-        Map<String, Long> localSegmentsSizeMap,
-        ActionListener<Void> listener,
-        Function<Map<String, Long>, UploadListener> uploadListenerFunction,
-        boolean isLowPriorityUpload
-    ) {
-        throw new UnsupportedOperationException("Legacy uploadSegments method not implemented");
-    }
 }

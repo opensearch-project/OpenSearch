@@ -103,12 +103,6 @@ public interface FormatStoreDirectory<T extends DataFormat> extends Closeable {
     void sync(Collection<String> names) throws IOException;
 
     /**
-     * Syncs metadata to persistent storage
-     * @throws IOException if metadata sync fails
-     */
-    void syncMetaData() throws IOException;
-
-    /**
      * Renames a file
      * @param source the current name of the file
      * @param dest the new name for the file

@@ -205,22 +205,6 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
     }
 
     @Override
-    public void syncMetaData() throws IOException {
-        // Force sync of directory metadata
-        try (FileChannel channel = FileChannel.open(directoryPath, StandardOpenOption.READ)) {
-            channel.force(true);
-        } catch (IOException e) {
-            throw new MultiFormatStoreException(
-                "Failed to sync directory metadata",
-                dataFormat,
-                "syncMetaData",
-                directoryPath,
-                e
-            );
-        }
-    }
-
-    @Override
     public void rename(String source, String dest) throws IOException {
         Path sourcePath = directoryPath.resolve(source);
         Path destPath = directoryPath.resolve(dest);

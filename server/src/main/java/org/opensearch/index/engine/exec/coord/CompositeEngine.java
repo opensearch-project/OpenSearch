@@ -15,7 +15,14 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.*;
+import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.SearchExecEngine;
+import org.opensearch.index.engine.Segment;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.RefreshInput;
@@ -126,77 +133,20 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     @Nullable
     protected final String historyUUID;
 
-    private final LocalCheckpointTracker localCheckpointTracker;
-    private final ReentrantLock failEngineLock = new ReentrantLock();
-    private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
-    private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
-    private final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
-    private final Lock flushLock = new ReentrantLock();
-    private final CountDownLatch closedLatch = new CountDownLatch(1);
-    private final IndexThrottle throttle;
-    // How many callers are currently requesting index throttling. Currently, there are only two situations where we do this: when merges
-    // are falling behind and when writing indexing buffer to disk is too slow. When this is 0, there is no throttling, else we throttling
-    // incoming indexing ops to a single thread:
-    private final AtomicInteger throttleRequestCount = new AtomicInteger();
-    /*
-     * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
-     *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still
-     *    consider it active for the duration of the configured active to inactive period. If we initialize to 0 or Long.MAX_VALUE we
-     *    either immediately or never mark it inactive if no writes at all happen to the shard.
-     *  - we also use this to flush big-ass merges on an inactive engine / shard but if we we initialize 0 or Long.MAX_VALUE we either
-     *    immediately or never commit merges even though we shouldn't from a user perspective (this can also have funky side effects in
-     *    tests when we open indices with lots of segments and suddenly merges kick in.
-     *  NOTE: don't use this value for anything accurate it's a best effort for freeing up diskspace after merges and on a shard level to
-     *  reduce index buffer sizes on inactive shards.
-     */
-    private volatile long lastWriteNanos = System.nanoTime();
-    private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
-    private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
-    // max_seq_no_of_updates_or_deletes tracks the max seq_no of update or delete operations that have been processed in this engine.
-    // An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
-    // The value of this marker never goes backwards, and is tracked/updated differently on primary and replica.
-    private final AtomicLong maxSeqNoOfUpdatesOrDeletes;
-    private final IndexingStrategyPlanner indexingStrategyPlanner;
-    private final CatalogSnapshotManager catalogSnapshotManager;
-    private ReleasableRef<CatalogSnapshot> lastCommitedCatalogSnapshotRef;
-    private final EventListener eventListener;
+        // TODO : how to extend this for Lucene ? where engine is a r/w engine
+        // Create read specific engines for each format which is associated with shard
+        InitalizeSearchEngine(searchEnginePlugins, shardPath);
 
-    public CompositeEngine(
-        EngineConfig engineConfig,
-        MapperService mapperService,
-        PluginsService pluginsService,
-        IndexSettings indexSettings,
-        ShardPath shardPath,
-        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        TranslogEventListener translogEventListener
-    ) {
-        this.logger = Loggers.getLogger(CompositeEngine.class, engineConfig.getShardId());
-        this.engineConfig = engineConfig;
-        this.eventListener = engineConfig.getEventListener();
-        this.store = engineConfig.getStore();
-        this.shardId = engineConfig.getShardId();
-        final TranslogDeletionPolicy translogDeletionPolicy = getTranslogDeletionPolicy(engineConfig);
-        Committer committerRef = null;
-        TranslogManager translogManagerRef = null;
-        boolean success = false;
-        try {
-            this.store.incRef();
-            if (engineConfig.isAutoGeneratedIDsOptimizationEnabled() == false) {
-                updateAutoIdTimestamp(Long.MAX_VALUE, true);
-            }
-            // initialize local checkpoint tracker and translog manager
-            this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
-            final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
-            String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
-            TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
-                @Override
-                public void onAfterTranslogSync() {
-                    try {
-                        translogManager.trimUnreferencedReaders();
-                    } catch (IOException ex) {
-                        throw new TranslogException(shardId, "Failed to trim unreferenced translog generations on translog synced", ex);
-                    }
-                }
+    }
+
+    public void InitalizeSearchEngine(List<SearchEnginePlugin> searchEnginePlugins, ShardPath shardPath) throws IOException
+    {
+        for (SearchEnginePlugin searchEnginePlugin : searchEnginePlugins) {
+            for (org.opensearch.vectorized.execution.search.DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
+                List<SearchExecEngine<?, ?, ?, ?>> currentSearchEngines = readEngines.getOrDefault(dataFormat, new ArrayList<>());
+                SearchExecEngine<?, ?, ?, ?> newSearchEngine = searchEnginePlugin.createEngine(dataFormat,
+                    Collections.emptyList(),
+                    shardPath);
 
                 @Override
                 public void onAfterTranslogRecovery() {
@@ -319,12 +269,22 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 throw new RuntimeException(e);
             }
         });
-        // Note: EngineConfig-based refresh listeners will be initialized later via initializeRefreshListeners()
+    }
+
+    public void updateSearchEngine() throws IOException {
+        catalogSnapshotAwareRefreshListeners.forEach(ref -> {
+            try {
+                ref.afterRefresh(true, catalogSnapshot);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     /**
      * Initialize refresh listeners from EngineConfig after all dependencies are ready.
      * This method should be called after remote store stats trackers have been created.
+     * ToDo: Added as part of upload flow test, Need to discuss.
      */
     public void initializeRefreshListeners(EngineConfig engineConfig) {
         // Add EngineConfig refresh listeners to catalogSnapshotAwareRefreshListeners
@@ -684,7 +644,21 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     }
 
     public void triggerPossibleMerges() {
-        mergeScheduler.triggerMerges();
+        try {
+            mergeScheduler.triggerMerges();
+        } catch (IOException e) {
+            System.out.println("ERROR in MERGE : " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public GatedCloseable<CatalogSnapshot> getCatalogSnapshotReference() {
+        if(catalogSnapshot == null) {
+            return new GatedCloseable<>(null, () -> {});
+        }
+
+        catalogSnapshot.incRef();
+        return new GatedCloseable<>(catalogSnapshot, () -> catalogSnapshot.decRef());
     }
 
     public void setCatalogSnapshot(CatalogSnapshot catalogSnapshot) {
@@ -783,7 +757,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        // Increment version before commit (similar to SegmentInfos pattern - matches Lucene behavior)
         if (catalogSnapshot != null) {
             catalogSnapshot.changed();
         }

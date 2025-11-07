@@ -86,7 +86,7 @@ public class VersionedCodecStreamWrapper<T> {
     public void writeStream(IndexOutput indexOutput, T content) throws IOException {
         this.writeHeader(indexOutput);
         getHandlerForVersion(this.currentVersion).writeContent(indexOutput, content);
-        // ToDo: @kamal it's failing
+        // Todo: @Kamal, This API doesn't work with Parquet files.
         // this.writeFooter(indexOutput);
     }
 

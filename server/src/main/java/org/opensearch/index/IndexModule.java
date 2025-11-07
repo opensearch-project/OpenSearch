@@ -72,9 +72,15 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.*;
+import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexingOperationListener;
+import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
-import org.opensearch.index.store.*;
+import org.opensearch.index.store.CompositeStoreDirectoryFactory;
+import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
+import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.TranslogFactory;
@@ -893,7 +899,7 @@ public final class IndexModule {
         final Map<String, CompositeStoreDirectoryFactory> compositeStoreDirectoryFactories
     ) {
         if (compositeStoreDirectoryFactories.isEmpty()) {
-            return null;  // No factory available, Store will handle internally
+            return null;
         }
         // For now, return the default factory if available
         // In future, could add index setting to select specific factory type
