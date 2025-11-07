@@ -606,7 +606,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "classname",
             "FakePlugin"
         );
-        expectThrows(NumberFormatException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
     }
 
     public void testhMultipleOpenSearchRangesInDependencies() throws Exception {

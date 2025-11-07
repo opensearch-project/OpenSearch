@@ -54,6 +54,7 @@ import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -87,6 +88,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
+import org.opensearch.index.BucketedCompositeDirectory;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
 import org.opensearch.index.engine.Engine;
@@ -95,6 +97,7 @@ import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -123,6 +126,7 @@ import java.util.zip.Checksum;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+import static org.opensearch.index.store.FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING;
 import static org.opensearch.index.store.Store.MetadataSnapshot.loadMetadata;
 
 /**
@@ -179,6 +183,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardPath shardPath;
     private final boolean isParentFieldEnabledVersion;
     private final boolean isIndexSortEnabled;
+    private final IndexStorePlugin.DirectoryFactory directoryFactory;
 
     // used to ref count files when a new Reader is opened for PIT/Scroll queries
     // prevents segment files deletion until the PIT/Scroll expires or is discarded
@@ -192,7 +197,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     };
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
-        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null);
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null, null);
     }
 
     public Store(
@@ -202,6 +207,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         ShardLock shardLock,
         OnClose onClose,
         ShardPath shardPath
+    ) {
+        this(shardId, indexSettings, directory, shardLock, onClose, shardPath, null);
+    }
+
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        ShardPath shardPath,
+        IndexStorePlugin.DirectoryFactory directoryFactory
     ) {
         super(shardId, indexSettings);
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
@@ -213,6 +230,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.shardPath = shardPath;
         this.isIndexSortEnabled = indexSettings.getIndexSortConfig().hasIndexSort();
         this.isParentFieldEnabledVersion = indexSettings.getIndexVersionCreated().onOrAfter(org.opensearch.Version.V_3_2_0);
+        this.directoryFactory = directoryFactory;
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
@@ -221,6 +239,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public Directory directory() {
         ensureOpen();
         return directory;
+    }
+
+    public Directory newTempDirectory(String pathString) throws IOException {
+        return directoryFactory.newFSDirectory(
+            shardPath.resolveIndex().resolve(pathString),
+            this.indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING),
+            this.indexSettings
+        );
     }
 
     public ShardPath shardPath() {
@@ -944,13 +970,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
             long fileSize = from.fileLength(src);
-            beforeDownload(fileSize);
+            boolean isCopyingFromRemoteDirectory = !((from instanceof FSDirectory)
+                && ((((FSDirectory) from).getDirectory().toString().contains(BucketedCompositeDirectory.CHILD_DIRECTORY_PREFIX))));
+            if (isCopyingFromRemoteDirectory) {
+                // Update the stats only when we are copying from remote to local directory. As this function gets called
+                // from addIndexes as well when data from child level writer is synced from parent level writer.
+                beforeDownload(fileSize);
+            }
+
             boolean success = false;
             long startTime = System.currentTimeMillis();
             try {
                 super.copyFrom(from, src, dest, context);
                 success = true;
-                afterDownload(fileSize, startTime);
+                if (isCopyingFromRemoteDirectory) {
+                    afterDownload(fileSize, startTime);
+                }
             } finally {
                 if (!success) {
                     downloadFailed(fileSize, startTime);
