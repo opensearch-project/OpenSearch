@@ -35,7 +35,7 @@ public class ArrowBufferPool {
 //        this.maxAllocation = parseByteSize(settings.get("parquet.memory.max_allocation", "1gb"));
 //        this.initReservation = parseByteSize(settings.get("parquet.memory.init_reservation", "100mb"));
         // TODO get these from settings?
-        this.maxAllocation = 1024 * 1024 * 1024;
+        this.maxAllocation = 10L * 1024 * 1024 * 1024;
         this.initReservation = 1024 * 1024 * 100;
 
         // Set up allocation listener for monitoring
@@ -62,7 +62,7 @@ public class ArrowBufferPool {
      * @return BufferAllocator configured with specified limits
      */
     public BufferAllocator createAllocator(String name, long initReservation, long maxAllocation) {
-        BufferAllocator childAllocator = rootAllocator.newChildAllocator(name, initReservation, maxAllocation);
+        BufferAllocator childAllocator = rootAllocator.newChildAllocator(name, initReservation, 1024 * 1024 * 1024);
 //        activeAllocators.put(name, childAllocator);
         return childAllocator;
     }
