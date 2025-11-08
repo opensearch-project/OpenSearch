@@ -1,5 +1,6 @@
 package com.parquet.parquetdataformat.engine;
 
+import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.merge.CompactionStrategy;
 import com.parquet.parquetdataformat.merge.ParquetMergeExecutor;
 import com.parquet.parquetdataformat.merge.ParquetMerger;
@@ -59,10 +60,12 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     private final List<WriterFileSet> filesWrittenAlready = new ArrayList<>();
     private final ShardPath shardPath;
     private final ParquetMerger parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH);
+    private final ArrowBufferPool arrowBufferPool;
 
     public ParquetExecutionEngine(Supplier<Schema> schema, ShardPath shardPath) {
         this.schema = schema;
         this.shardPath = shardPath;
+        this.arrowBufferPool = new ArrowBufferPool();
     }
 
     @Override
@@ -73,7 +76,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     @Override
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) throws IOException {
         String fileName = Path.of(shardPath.getDataPath().toString(), FILE_NAME_PREFIX + "_" + writerGeneration + ".parquet").toString();
-        return new ParquetWriter(fileName, schema.get(), writerGeneration);
+        return new ParquetWriter(fileName, schema.get(), writerGeneration, arrowBufferPool);
     }
 
     @Override

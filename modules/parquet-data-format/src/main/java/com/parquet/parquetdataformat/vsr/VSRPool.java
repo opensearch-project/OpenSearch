@@ -32,10 +32,10 @@ public class VSRPool {
     // Configuration
     private final int maxRowsPerVSR;
 
-    public VSRPool(String poolId, Schema schema, MemoryPressureMonitor memoryMonitor) {
+    public VSRPool(String poolId, Schema schema, MemoryPressureMonitor memoryMonitor, ArrowBufferPool arrowBufferPool) {
         this.poolId = poolId;
         this.schema = schema;
-        this.bufferPool = new ArrowBufferPool(org.opensearch.common.settings.Settings.EMPTY, memoryMonitor);
+        this.bufferPool = arrowBufferPool;
         this.memoryMonitor = memoryMonitor;
 
         this.activeVSR = new AtomicReference<>();

@@ -1,6 +1,7 @@
 package com.parquet.parquetdataformat.writer;
 
 import com.parquet.parquetdataformat.bridge.RustBridge;
+import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.vsr.VSRManager;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
@@ -44,10 +45,10 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final VSRManager vsrManager;
     private final long writerGeneration;
 
-    public ParquetWriter(String file, Schema schema, long writerGeneration) {
+    public ParquetWriter(String file, Schema schema, long writerGeneration, ArrowBufferPool arrowBufferPool) {
         this.file = file;
         this.schema = schema;
-        this.vsrManager = new VSRManager(file, schema);
+        this.vsrManager = new VSRManager(file, schema, arrowBufferPool);
         this.writerGeneration = writerGeneration;
     }
 

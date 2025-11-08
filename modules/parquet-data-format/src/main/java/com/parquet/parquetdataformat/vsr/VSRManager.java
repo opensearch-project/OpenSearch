@@ -10,6 +10,7 @@ package com.parquet.parquetdataformat.vsr;
 
 import com.parquet.parquetdataformat.bridge.ArrowExport;
 import com.parquet.parquetdataformat.bridge.RustBridge;
+import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.memory.MemoryPressureMonitor;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import org.apache.arrow.vector.FieldVector;
@@ -40,7 +41,7 @@ public class VSRManager {
     private final String fileName;
     private final VSRPool vsrPool;
 
-    public VSRManager(String fileName, Schema schema) {
+    public VSRManager(String fileName, Schema schema, ArrowBufferPool arrowBufferPool) {
         this.fileName = fileName;
         this.schema = schema;
 
@@ -48,8 +49,7 @@ public class VSRManager {
         MemoryPressureMonitor memoryMonitor = new MemoryPressureMonitor(org.opensearch.common.settings.Settings.EMPTY);
 
         // Create VSR pool
-        this.vsrPool = new VSRPool("pool-" + fileName, schema, memoryMonitor);
-
+        this.vsrPool = new VSRPool("pool-" + fileName, schema, memoryMonitor, arrowBufferPool);
 
         // Get active VSR from pool
         this.managedVSR = vsrPool.getActiveVSR();
