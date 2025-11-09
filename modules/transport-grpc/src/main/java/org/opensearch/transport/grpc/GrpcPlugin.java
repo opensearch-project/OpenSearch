@@ -210,7 +210,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
 
         return Collections.singletonMap(GRPC_TRANSPORT_SETTING_KEY, () -> {
             List<BindableService> grpcServices = new ArrayList<>(
-                List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
+                List.of(new DocumentServiceImpl(client, settings), new SearchServiceImpl(client, queryUtils))
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
                 List<BindableService> pluginServices = serviceFac.initClient(client)
@@ -259,10 +259,9 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         if (client == null || queryRegistry == null) {
             throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
-
         return Collections.singletonMap(GRPC_SECURE_TRANSPORT_SETTING_KEY, () -> {
             List<BindableService> grpcServices = new ArrayList<>(
-                List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
+                List.of(new DocumentServiceImpl(client, settings), new SearchServiceImpl(client, queryUtils))
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
                 List<BindableService> pluginServices = serviceFac.initClient(client)

@@ -8,6 +8,7 @@
 
 package org.opensearch.transport.grpc.proto.request.document.bulk;
 
+import com.google.protobuf.ByteString;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BulkRequestParser;
 import org.opensearch.action.delete.DeleteRequest;
@@ -106,6 +107,7 @@ public class BulkRequestParserProtoUtils {
      * @param defaultFetchSourceContext
      * @param defaultPipeline
      * @param defaultRequireAlias
+     * @param allowExplicitIndex whether explicit index specification is allowed (security setting)
      * @return
      */
     public static DocWriteRequest<?>[] getDocWriteRequests(
@@ -114,7 +116,8 @@ public class BulkRequestParserProtoUtils {
         String defaultRouting,
         FetchSourceContext defaultFetchSourceContext,
         String defaultPipeline,
-        Boolean defaultRequireAlias
+        Boolean defaultRequireAlias,
+        boolean allowExplicitIndex
     ) {
         List<BulkRequestBody> bulkRequestBodyList = request.getBulkRequestBodyList();
         DocWriteRequest<?>[] docWriteRequests = new DocWriteRequest<?>[bulkRequestBodyList.size()];
@@ -152,7 +155,9 @@ public class BulkRequestParserProtoUtils {
                         pipeline,
                         ifSeqNo,
                         ifPrimaryTerm,
-                        requireAlias
+                        requireAlias,
+                        defaultIndex,
+                        allowExplicitIndex
                     );
                     break;
                 case INDEX:
@@ -168,13 +173,25 @@ public class BulkRequestParserProtoUtils {
                         pipeline,
                         ifSeqNo,
                         ifPrimaryTerm,
-                        requireAlias
+                        requireAlias,
+                        defaultIndex,
+                        allowExplicitIndex
                     );
                     break;
                 case UPDATE:
+                    // Extract the doc field from UpdateAction (matches REST API structure)
+                    // Use ByteString directly to avoid unnecessary byte array allocation
+                    ByteString updateDocBytes = ByteString.EMPTY;
+                    if (bulkRequestBodyEntry.hasUpdateAction() && bulkRequestBodyEntry.getUpdateAction().hasDoc()) {
+                        updateDocBytes = bulkRequestBodyEntry.getUpdateAction().getDoc();
+                    } else if (bulkRequestBodyEntry.hasObject()) {
+                        // Fallback to object field for backwards compatibility
+                        // TODO: Remove this fallback once all clients use UpdateAction.doc
+                        updateDocBytes = bulkRequestBodyEntry.getObject();
+                    }
                     docWriteRequest = buildUpdateRequest(
                         operationContainer.getUpdate(),
-                        bulkRequestBodyEntry.getObject().toByteArray(),
+                        updateDocBytes,
                         bulkRequestBodyEntry,
                         index,
                         id,
@@ -184,7 +201,9 @@ public class BulkRequestParserProtoUtils {
                         pipeline,
                         ifSeqNo,
                         ifPrimaryTerm,
-                        requireAlias
+                        requireAlias,
+                        defaultIndex,
+                        allowExplicitIndex
                     );
                     break;
                 case DELETE:
@@ -196,7 +215,9 @@ public class BulkRequestParserProtoUtils {
                         version,
                         versionType,
                         ifSeqNo,
-                        ifPrimaryTerm
+                        ifPrimaryTerm,
+                        defaultIndex,
+                        allowExplicitIndex
                     );
                     break;
                 case OPERATIONCONTAINER_NOT_SET:
@@ -225,6 +246,8 @@ public class BulkRequestParserProtoUtils {
      * @param ifSeqNo The default sequence number for optimistic concurrency control
      * @param ifPrimaryTerm The default primary term for optimistic concurrency control
      * @param requireAlias Whether the index must be an alias
+     * @param defaultIndex The default index from the request URL (for security check)
+     * @param allowExplicitIndex Whether explicit index specification is allowed
      * @return The constructed IndexRequest
      */
     public static IndexRequest buildCreateRequest(
@@ -238,9 +261,18 @@ public class BulkRequestParserProtoUtils {
         String pipeline,
         long ifSeqNo,
         long ifPrimaryTerm,
-        boolean requireAlias
+        boolean requireAlias,
+        String defaultIndex,
+        boolean allowExplicitIndex
     ) {
-        index = createOperation.hasXIndex() ? createOperation.getXIndex() : index;
+        // Check explicit index (matches REST BulkRequestParser line 218-221)
+        if (createOperation.hasXIndex()) {
+            if (!allowExplicitIndex && defaultIndex != null) {
+                throw new IllegalArgumentException("explicit index in bulk is not allowed");
+            }
+            index = createOperation.getXIndex();
+        }
+
         id = createOperation.hasXId() ? createOperation.getXId() : id;
         routing = createOperation.hasRouting() ? createOperation.getRouting() : routing;
         pipeline = createOperation.hasPipeline() ? createOperation.getPipeline() : pipeline;
@@ -275,6 +307,8 @@ public class BulkRequestParserProtoUtils {
      * @param ifSeqNo The default sequence number for optimistic concurrency control
      * @param ifPrimaryTerm The default primary term for optimistic concurrency control
      * @param requireAlias Whether the index must be an alias
+     * @param defaultIndex The default index from the request URL (for security check)
+     * @param allowExplicitIndex Whether explicit index specification is allowed
      * @return The constructed IndexRequest
      */
     public static IndexRequest buildIndexRequest(
@@ -289,10 +323,20 @@ public class BulkRequestParserProtoUtils {
         String pipeline,
         long ifSeqNo,
         long ifPrimaryTerm,
-        boolean requireAlias
+        boolean requireAlias,
+        String defaultIndex,
+        boolean allowExplicitIndex
     ) {
         opType = indexOperation.hasOpType() ? indexOperation.getOpType() : opType;
-        index = indexOperation.hasXIndex() ? indexOperation.getXIndex() : index;
+
+        // Check explicit index (matches REST BulkRequestParser line 218-221)
+        if (indexOperation.hasXIndex()) {
+            if (!allowExplicitIndex && defaultIndex != null) {
+                throw new IllegalArgumentException("explicit index in bulk is not allowed");
+            }
+            index = indexOperation.getXIndex();
+        }
+
         id = indexOperation.hasXId() ? indexOperation.getXId() : id;
         routing = indexOperation.hasRouting() ? indexOperation.getRouting() : routing;
         version = indexOperation.hasVersion() ? indexOperation.getVersion() : version;
@@ -335,7 +379,7 @@ public class BulkRequestParserProtoUtils {
      * Builds an UpdateRequest from an UpdateOperation protobuf message.
      *
      * @param updateOperation The update operation protobuf message
-     * @param document The document content as bytes
+     * @param documentBytes The document content as ByteString (zero-copy reference)
      * @param bulkRequestBody The bulk request body containing additional update options
      * @param index The default index name
      * @param id The default document ID
@@ -346,11 +390,13 @@ public class BulkRequestParserProtoUtils {
      * @param ifSeqNo The default sequence number for optimistic concurrency control
      * @param ifPrimaryTerm The default primary term for optimistic concurrency control
      * @param requireAlias Whether the index must be an alias
+     * @param defaultIndex The default index from the request URL (for security check)
+     * @param allowExplicitIndex Whether explicit index specification is allowed
      * @return The constructed UpdateRequest
      */
     public static UpdateRequest buildUpdateRequest(
         UpdateOperation updateOperation,
-        byte[] document,
+        ByteString documentBytes,
         BulkRequestBody bulkRequestBody,
         String index,
         String id,
@@ -360,19 +406,26 @@ public class BulkRequestParserProtoUtils {
         String pipeline,
         long ifSeqNo,
         long ifPrimaryTerm,
-        boolean requireAlias
+        boolean requireAlias,
+        String defaultIndex,
+        boolean allowExplicitIndex
     ) {
-        index = updateOperation.hasXIndex() ? updateOperation.getXIndex() : index;
+        // Check explicit index (matches REST BulkRequestParser line 218-221)
+        if (updateOperation.hasXIndex()) {
+            if (!allowExplicitIndex && defaultIndex != null) {
+                throw new IllegalArgumentException("explicit index in bulk is not allowed");
+            }
+            index = updateOperation.getXIndex();
+        }
+
         id = updateOperation.hasXId() ? updateOperation.getXId() : id;
         routing = updateOperation.hasRouting() ? updateOperation.getRouting() : routing;
-        fetchSourceContext = bulkRequestBody.hasUpdateAction() && bulkRequestBody.getUpdateAction().hasXSource()
-            ? FetchSourceContextProtoUtils.fromProto(bulkRequestBody.getUpdateAction().getXSource())
-            : fetchSourceContext;
         retryOnConflict = updateOperation.hasRetryOnConflict() ? updateOperation.getRetryOnConflict() : retryOnConflict;
         ifSeqNo = updateOperation.hasIfSeqNo() ? updateOperation.getIfSeqNo() : ifSeqNo;
         ifPrimaryTerm = updateOperation.hasIfPrimaryTerm() ? updateOperation.getIfPrimaryTerm() : ifPrimaryTerm;
         requireAlias = updateOperation.hasRequireAlias() ? updateOperation.getRequireAlias() : requireAlias;
 
+        // Create UpdateRequest with operation-level fields
         UpdateRequest updateRequest = new UpdateRequest().index(index)
             .id(id)
             .routing(routing)
@@ -382,77 +435,106 @@ public class BulkRequestParserProtoUtils {
             .setRequireAlias(requireAlias)
             .routing(routing);
 
-        updateRequest = fromProto(updateRequest, document, bulkRequestBody, updateOperation);
+        // Populate all document-level fields
+        updateRequest = fromProto(updateRequest, documentBytes, bulkRequestBody, ifSeqNo, ifPrimaryTerm);
 
+        // Apply fetchSourceContext default
         if (fetchSourceContext != null) {
             updateRequest.fetchSource(fetchSourceContext);
         }
-        // TODO: how is upsertRequest used?
-        // IndexRequest upsertRequest = updateRequest.upsertRequest();
-        // if (upsertRequest != null) {
-        // upsertRequest.setPipeline(pipeline);
-        // }
+
+        // Set pipeline on upsert request if it exists
+        IndexRequest upsertRequest = updateRequest.upsertRequest();
+        if (upsertRequest != null) {
+            upsertRequest.setPipeline(pipeline);
+        }
 
         return updateRequest;
     }
 
     /**
      * Populates an UpdateRequest with values from protobuf messages.
-     * Similar to {@link UpdateRequest#fromXContent(XContentParser)}
+     * Equivalent to {@link UpdateRequest#fromXContent(XContentParser)} for REST API.
      *
-     * @param updateRequest The update request to populate
-     * @param document The document content as bytes
+     * @param updateRequest The update request to populate (may already have if_seq_no/if_primary_term set)
+     * @param documentBytes The document content as ByteString (zero-copy reference)
      * @param bulkRequestBody The bulk request body containing update options
-     * @param updateOperation The update operation protobuf message
+     * @param ifSeqNoFromOperation The sequence number
+     * @param ifPrimaryTermFromOperation The primary term
      * @return The populated UpdateRequest
      */
-    public static UpdateRequest fromProto(
+    private static UpdateRequest fromProto(
         UpdateRequest updateRequest,
-        byte[] document,
+        ByteString documentBytes,
         BulkRequestBody bulkRequestBody,
-        UpdateOperation updateOperation
+        long ifSeqNoFromOperation,
+        long ifPrimaryTermFromOperation
     ) {
+        // Start with operation metadata values
+        long ifSeqNo = ifSeqNoFromOperation;
+        long ifPrimaryTerm = ifPrimaryTermFromOperation;
         if (bulkRequestBody.hasUpdateAction()) {
             UpdateAction updateAction = bulkRequestBody.getUpdateAction();
 
+            // 1. script
             if (updateAction.hasScript()) {
                 Script script = ScriptProtoUtils.parseFromProtoRequest(updateAction.getScript());
                 updateRequest.script(script);
             }
 
+            // 2. scripted_upsert
             if (updateAction.hasScriptedUpsert()) {
                 updateRequest.scriptedUpsert(updateAction.getScriptedUpsert());
             }
 
+            // 3. upsert
             if (updateAction.hasUpsert()) {
-                byte[] upsertBytes = updateAction.getUpsert().toByteArray();
-                MediaType upsertMediaType = detectMediaType(upsertBytes);
-                updateRequest.upsert(upsertBytes, upsertMediaType);
+                ByteString upsertBytes = updateAction.getUpsert();
+                byte[] upsertArray = upsertBytes.toByteArray();
+                MediaType upsertMediaType = detectMediaType(upsertArray);
+                updateRequest.upsert(upsertArray, upsertMediaType);
             }
+        }
 
+        // 4. doc
+        // Only set doc if ByteString is non-empty (empty ByteString = field not provided in proto)
+        // This check is structural, not business validation:
+        // - ByteString.EMPTY = no doc field in proto → don't call doc() → keeps doc=null
+        // - Non-empty ByteString = doc field in proto → call doc() → sets doc!=null
+        // UpdateRequest.validate() then handles business rules:
+        // - If script!=null && doc!=null → validation error
+        // - If script==null && doc==null → validation error
+        if (documentBytes != null && !documentBytes.isEmpty()) {
+            byte[] docArray = documentBytes.toByteArray();
+            MediaType mediaType = detectMediaType(docArray);
+            updateRequest.doc(docArray, mediaType);
+        }
+
+        if (bulkRequestBody.hasUpdateAction()) {
+            UpdateAction updateAction = bulkRequestBody.getUpdateAction();
+
+            // 5. doc_as_upsert
             if (updateAction.hasDocAsUpsert()) {
                 updateRequest.docAsUpsert(updateAction.getDocAsUpsert());
             }
 
+            // 6. detect_noop
             if (updateAction.hasDetectNoop()) {
                 updateRequest.detectNoop(updateAction.getDetectNoop());
             }
 
+            // 7. _source
             if (updateAction.hasXSource()) {
                 updateRequest.fetchSource(FetchSourceContextProtoUtils.fromProto(updateAction.getXSource()));
             }
+
+            // 8 + 9. if_seq_no and if_primary_term are excluded from UpdateAction protobufs intentionally, as users can just provide them
+            // in UpdateOperation.
         }
 
-        MediaType mediaType = detectMediaType(document);
-        updateRequest.doc(document, mediaType);
-
-        if (updateOperation.hasIfSeqNo()) {
-            updateRequest.setIfSeqNo(updateOperation.getIfSeqNo());
-        }
-
-        if (updateOperation.hasIfPrimaryTerm()) {
-            updateRequest.setIfPrimaryTerm(updateOperation.getIfPrimaryTerm());
-        }
+        // Set if_seq_no and if_primary_term
+        updateRequest.setIfSeqNo(ifSeqNo);
+        updateRequest.setIfPrimaryTerm(ifPrimaryTerm);
 
         return updateRequest;
     }
@@ -468,6 +550,8 @@ public class BulkRequestParserProtoUtils {
      * @param versionType The default version type
      * @param ifSeqNo The default sequence number for optimistic concurrency control
      * @param ifPrimaryTerm The default primary term for optimistic concurrency control
+     * @param defaultIndex The default index from the request URL (for security check)
+     * @param allowExplicitIndex Whether explicit index specification is allowed
      * @return The constructed DeleteRequest
      */
     public static DeleteRequest buildDeleteRequest(
@@ -478,9 +562,18 @@ public class BulkRequestParserProtoUtils {
         long version,
         VersionType versionType,
         long ifSeqNo,
-        long ifPrimaryTerm
+        long ifPrimaryTerm,
+        String defaultIndex,
+        boolean allowExplicitIndex
     ) {
-        index = deleteOperation.hasXIndex() ? deleteOperation.getXIndex() : index;
+        // Check explicit index (matches REST BulkRequestParser line 218-221)
+        if (deleteOperation.hasXIndex()) {
+            if (!allowExplicitIndex && defaultIndex != null) {
+                throw new IllegalArgumentException("explicit index in bulk is not allowed");
+            }
+            index = deleteOperation.getXIndex();
+        }
+
         id = deleteOperation.hasXId() ? deleteOperation.getXId() : id;
         routing = deleteOperation.hasRouting() ? deleteOperation.getRouting() : routing;
         version = deleteOperation.hasVersion() ? deleteOperation.getVersion() : version;

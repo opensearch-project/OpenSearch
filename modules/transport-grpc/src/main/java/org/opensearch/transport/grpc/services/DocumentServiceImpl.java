@@ -10,6 +10,7 @@ package org.opensearch.transport.grpc.services;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.protobufs.services.DocumentServiceGrpc;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.grpc.listeners.BulkRequestActionListener;
@@ -25,14 +26,17 @@ import io.grpc.stub.StreamObserver;
 public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImplBase {
     private static final Logger logger = LogManager.getLogger(DocumentServiceImpl.class);
     private final Client client;
+    private final Settings settings;
 
     /**
      * Creates a new DocumentServiceImpl.
      *
      * @param client Client for executing actions on the local node
+     * @param settings Node settings for security and configuration
      */
-    public DocumentServiceImpl(Client client) {
+    public DocumentServiceImpl(Client client, Settings settings) {
         this.client = client;
+        this.settings = settings;
     }
 
     /**
@@ -44,7 +48,7 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
     @Override
     public void bulk(org.opensearch.protobufs.BulkRequest request, StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver) {
         try {
-            org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
+            org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, settings);
             BulkRequestActionListener listener = new BulkRequestActionListener(responseObserver);
             client.bulk(bulkRequest, listener);
         } catch (RuntimeException e) {
