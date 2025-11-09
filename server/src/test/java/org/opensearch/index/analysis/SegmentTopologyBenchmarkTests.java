@@ -86,7 +86,7 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
         validateMergeSettings(ShardSizeCategory.SMALL, 50L * 1024 * 1024, 10L * 1024 * 1024, 5.0);
         validateMergeSettings(ShardSizeCategory.MEDIUM, 200L * 1024 * 1024, 25L * 1024 * 1024, 8.0);
         validateMergeSettings(ShardSizeCategory.LARGE, 1024L * 1024 * 1024, 50L * 1024 * 1024, 10.0);
-        validateMergeSettings(ShardSizeCategory.VERY_LARGE, 2L * 1024 * 1024 * 1024, 100L * 1024 * 1024, 12.0);
+        validateMergeSettings(ShardSizeCategory.VERY_LARGE, 5L * 1024 * 1024 * 1024, 100L * 1024 * 1024, 12.0);
     }
 
     private void validateRecommendationsForShardSize(long shardSize, String description) {
@@ -206,7 +206,7 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
         } else if (shardSizeBytes < 10L * 1024 * 1024 * 1024) {
             return 1024L * 1024 * 1024;
         } else {
-            return 2L * 1024 * 1024 * 1024;
+            return 5L * 1024 * 1024 * 1024;
         }
     }
 
