@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.search.aggregations.BitSetDocIdStream;
@@ -24,8 +23,6 @@ import org.opensearch.search.aggregations.bucket.filterrewrite.Ranges;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Range collector implementation that supports sub-aggregations by collecting doc IDs.
