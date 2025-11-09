@@ -209,7 +209,7 @@ public class Task {
         boolean cancelled = this instanceof CancellableTask cancellableTask && cancellableTask.isCancelled();
         Long cancellationStartTime = null;
         if (cancelled) {
-            cancellationStartTime = cancellableTask.getCancellationStartTime();
+            cancellationStartTime = ((CancellableTask) this).getCancellationStartTime();
         }
         return new TaskInfo(
             new TaskId(localNodeId, getId()),
