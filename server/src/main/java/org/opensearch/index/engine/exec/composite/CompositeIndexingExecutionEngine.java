@@ -172,6 +172,6 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     public long getNativeBytesUsed() {
-        return dataFormatWriterPool.getNativeBytesUsed();
+        return delegates.stream().mapToLong(IndexingExecutionEngine::getNativeBytesUsed).sum();
     }
 }

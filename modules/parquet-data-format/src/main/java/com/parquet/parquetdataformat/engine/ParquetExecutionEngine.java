@@ -99,4 +99,9 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     public DataFormat getDataFormat() {
         return new ParquetDataFormat();
     }
+
+    @Override
+    public long getNativeBytesUsed() {
+        return arrowBufferPool.getAllocatedBytes();
+    }
 }

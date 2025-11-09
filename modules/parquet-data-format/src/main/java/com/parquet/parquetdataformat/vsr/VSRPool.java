@@ -251,6 +251,7 @@ public class VSRPool {
     }
 
     private ManagedVSR createNewVSR() {
+
         String vsrId = poolId + "-vsr-" + vsrCounter.incrementAndGet();
         BufferAllocator allocator = null;
         VectorSchemaRoot vsr = null;

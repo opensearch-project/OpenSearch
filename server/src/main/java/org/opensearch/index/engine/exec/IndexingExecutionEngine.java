@@ -27,4 +27,8 @@ public interface IndexingExecutionEngine<T extends DataFormat> {
     RefreshResult refresh(RefreshInput refreshInput) throws IOException;
 
     DataFormat getDataFormat();
+
+    default long getNativeBytesUsed() {
+        return 0;
+    }
 }

@@ -62,9 +62,13 @@ public class ArrowBufferPool {
      * @return BufferAllocator configured with specified limits
      */
     public BufferAllocator createAllocator(String name, long initReservation, long maxAllocation) {
-        BufferAllocator childAllocator = rootAllocator.newChildAllocator(name, initReservation, 1024 * 1024 * 1024);
+        BufferAllocator childAllocator = rootAllocator.newChildAllocator(name, 0, 1024 * 1024 * 1024);
 //        activeAllocators.put(name, childAllocator);
         return childAllocator;
+    }
+
+    public long getAllocatedBytes() {
+        return rootAllocator.getAllocatedMemory();
     }
 
     /**
