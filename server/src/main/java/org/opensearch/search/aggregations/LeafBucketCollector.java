@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
@@ -121,6 +122,21 @@ public abstract class LeafBucketCollector implements LeafCollector {
     @Override
     public void collect(int doc) throws IOException {
         collect(doc, 0);
+    }
+
+    @Override
+    public void collect(DocIdStream stream) throws IOException {
+        collect(stream, 0);
+    }
+
+    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+        // for (docCount = stream.intoArray(docBuffer); docCount != 0; docCount = stream.intoArray(docBuffer)) {
+        // if (docCount == docBuffer.length) {
+        // collect(docBuffer, owningBucketOrd);
+        // }
+        // }
+        // collectRemaining();
+        stream.forEach((doc) -> collect(doc, owningBucketOrd));
     }
 
     @Override
