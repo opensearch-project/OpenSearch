@@ -143,10 +143,5 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
         public LuceneDocumentInput newDocumentInput() {
             return new LuceneDocumentInput(new ParseContext.Document(), writer);
         }
-
-        @Override
-        public long getNativeBytesUsed() {
-            return 0;
-        }
     }
 }

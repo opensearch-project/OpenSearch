@@ -21,6 +21,4 @@ public interface Writer<P extends DocumentInput<?>> {
     void close();
 
     P newDocumentInput();
-
-    long getNativeBytesUsed();
 }

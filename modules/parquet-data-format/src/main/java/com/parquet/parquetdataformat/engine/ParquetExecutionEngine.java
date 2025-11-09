@@ -1,5 +1,6 @@
 package com.parquet.parquetdataformat.engine;
 
+import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.merge.CompactionStrategy;
 import com.parquet.parquetdataformat.merge.ParquetMergeExecutor;
@@ -7,6 +8,8 @@ import com.parquet.parquetdataformat.merge.ParquetMerger;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.exec.DataFormat;
@@ -58,6 +61,8 @@ import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DAT
  */
 public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDataFormat> {
 
+    private static final Logger logger = LogManager.getLogger(ParquetExecutionEngine.class);
+
     public static final String FILE_NAME_PREFIX = "_parquet_file_generation";
     private final Supplier<Schema> schema;
     private final List<WriterFileSet> filesWrittenAlready = new ArrayList<>();
@@ -105,7 +110,12 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
 
     @Override
     public long getNativeBytesUsed() {
-        return arrowBufferPool.getTotalAllocatedBytes();
+        long vsrMemory = arrowBufferPool.getTotalAllocatedBytes();
+        String shardDataPath = shardPath.getDataPath().toString();
+        long filteredArrowWriterMemory = RustBridge.getFilteredNativeBytesUsed(shardDataPath);
+        logger.info("Native memory used by VSR Buffer Pool: {}", vsrMemory);
+        logger.info("Native memory used by ArrowWriters in shard path {}: {}", shardDataPath, filteredArrowWriterMemory);
+        return vsrMemory + filteredArrowWriterMemory;
     }
 
     @Override

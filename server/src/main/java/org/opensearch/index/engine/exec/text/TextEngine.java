@@ -184,10 +184,5 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
             return new TextInput(this);
         }
 
-        @Override
-        public long getNativeBytesUsed() {
-            return 0;
-        }
-
     }
 }
