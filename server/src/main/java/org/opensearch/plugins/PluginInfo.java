@@ -63,6 +63,8 @@ import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.opensearch.semver.SemverRange.RANGE_PATTERN;
+
 /**
  * An in-memory representation of the plugin descriptor.
  *
@@ -322,8 +324,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
             if (dependenciesMap.keySet().stream().noneMatch(s -> s.equals("opensearch"))) {
                 throw new IllegalArgumentException("Only opensearch is allowed to be specified as a plugin dependency: " + dependenciesMap);
             }
-            String[] ranges = dependenciesMap.get("opensearch").split(",");
-            if (ranges.length != 1) {
+            String opensearchVersion = dependenciesMap.get("opensearch");
+            String[] ranges = opensearchVersion.split(",");
+            if (RANGE_PATTERN.matcher(opensearchVersion).matches()) {
+                ranges[0] = opensearchVersion;
+//                opensearchVersionRanges.add(SemverRange.fromString(opensearchVersion.trim()));
+            } else if (ranges.length != 1) {
                 throw new IllegalArgumentException(
                     "Exactly one range is allowed to be specified in dependencies for the plugin [\" + name + \"]"
                 );
