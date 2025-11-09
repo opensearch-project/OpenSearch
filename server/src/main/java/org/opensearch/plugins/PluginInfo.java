@@ -331,7 +331,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
                 opensearchVersion = opensearchDependencyVersion;
             } else if (ranges.length != 1) {
                 throw new IllegalArgumentException(
-                    "Exactly one range is allowed to be specified in dependencies for the plugin [\" + name + \"]"
+                    "Exactly one range is allowed to be specified in dependencies for the plugin [" + name + "]"
                 );
             }
             opensearchVersionRanges.add(SemverRange.fromString(opensearchVersion.trim()));
