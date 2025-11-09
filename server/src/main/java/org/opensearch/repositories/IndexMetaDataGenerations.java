@@ -167,10 +167,9 @@ public final class IndexMetaDataGenerations {
         if (this == that) {
             return true;
         }
-        if (that instanceof IndexMetaDataGenerations == false) {
+        if (!(that instanceof IndexMetaDataGenerations other)) {
             return false;
         }
-        final IndexMetaDataGenerations other = (IndexMetaDataGenerations) that;
         return lookup.equals(other.lookup) && identifiers.equals(other.identifiers);
     }
 

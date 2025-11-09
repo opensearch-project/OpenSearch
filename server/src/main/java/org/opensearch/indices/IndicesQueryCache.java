@@ -198,8 +198,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        while (weight instanceof CachingWeightWrapper) {
-            weight = ((CachingWeightWrapper) weight).in;
+        while (weight instanceof CachingWeightWrapper cachingWeightWrapper) {
+            weight = cachingWeightWrapper.in;
         }
         final Weight in = cache.doCache(weight, policy);
         // We wrap the weight to track the readers it sees and map them with
