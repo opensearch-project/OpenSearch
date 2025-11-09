@@ -324,11 +324,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
             if (dependenciesMap.keySet().stream().noneMatch(s -> s.equals("opensearch"))) {
                 throw new IllegalArgumentException("Only opensearch is allowed to be specified as a plugin dependency: " + dependenciesMap);
             }
-            String opensearchVersionDependency = dependenciesMap.get("opensearch");
-            String[] ranges = opensearchVersionDependency.split(",");
+            String opensearchDependencyVersion = dependenciesMap.get("opensearch");
+            String[] ranges = opensearchDependencyVersion.split(",");
             String opensearchVersion = ranges[0];
-            if (RANGE_PATTERN.matcher(opensearchVersionDependency).matches()) {
-                opensearchVersion = opensearchVersionDependency;
+            if (RANGE_PATTERN.matcher(opensearchDependencyVersion).matches()) {
+                opensearchVersion = opensearchDependencyVersion;
             } else if (ranges.length != 1) {
                 throw new IllegalArgumentException(
                     "Exactly one range is allowed to be specified in dependencies for the plugin [\" + name + \"]"
