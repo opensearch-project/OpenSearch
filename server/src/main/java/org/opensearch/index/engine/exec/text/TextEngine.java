@@ -70,6 +70,11 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
         return refreshResult;
     }
 
+    @Override
+    public void close() throws IOException {
+
+    }
+
     public static class TextInput implements DocumentInput<String> {
 
         private final StringBuilder sb = new StringBuilder();

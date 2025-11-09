@@ -64,6 +64,11 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
         return DataFormat.LUCENE;
     }
 
+    @Override
+    public void close() throws IOException {
+
+    }
+
 
     public static class LuceneDocumentInput implements DocumentInput<ParseContext.Document> {
 

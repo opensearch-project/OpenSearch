@@ -10,12 +10,13 @@ package org.opensearch.index.engine.exec;
 
 import org.opensearch.index.mapper.MappedFieldType;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-public interface IndexingExecutionEngine<T extends DataFormat> {
+public interface IndexingExecutionEngine<T extends DataFormat> extends Closeable {
 
     List<String> supportedFieldTypes();
 

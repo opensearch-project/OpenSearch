@@ -55,7 +55,7 @@ import java.util.List;
 import java.util.Map;
 
 @ExperimentalApi
-public class CompositeEngine implements Indexer {
+public class CompositeEngine implements Indexer, Closeable {
 
     private final CompositeIndexingExecutionEngine engine;
     private final Committer compositeEngineCommitter;
@@ -389,5 +389,10 @@ public class CompositeEngine implements Indexer {
     @Override
     public String getHistoryUUID() {
         return "";
+    }
+
+    @Override
+    public void close() throws IOException {
+        engine.close();
     }
 }

@@ -7,6 +7,8 @@ import com.parquet.parquetdataformat.merge.ParquetMerger;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.index.engine.exec.RefreshInput;
@@ -16,6 +18,7 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.shard.ShardPath;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -62,10 +65,10 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     private final ParquetMerger parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH);
     private final ArrowBufferPool arrowBufferPool;
 
-    public ParquetExecutionEngine(Supplier<Schema> schema, ShardPath shardPath) {
+    public ParquetExecutionEngine(Settings settings, Supplier<Schema> schema, ShardPath shardPath) {
         this.schema = schema;
         this.shardPath = shardPath;
-        this.arrowBufferPool = new ArrowBufferPool();
+        this.arrowBufferPool = new ArrowBufferPool(settings);
     }
 
     @Override
@@ -102,6 +105,11 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
 
     @Override
     public long getNativeBytesUsed() {
-        return arrowBufferPool.getAllocatedBytes();
+        return arrowBufferPool.getTotalAllocatedBytes();
+    }
+
+    @Override
+    public void close() throws IOException {
+        arrowBufferPool.close();
     }
 }

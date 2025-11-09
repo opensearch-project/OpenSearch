@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
@@ -32,7 +33,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine<Any> {
 
@@ -57,7 +57,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                     .filter(curr -> curr.getDataFormat().equals(dataFormat))
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("dataformat [" + dataFormat + "] is not registered."));
-                delegates.add(plugin.indexingEngine(mapperService, shardPath));
+                delegates.add(plugin.indexingEngine(pluginsService, mapperService, shardPath));
             }
         } catch (NullPointerException e) {
             // my own testing
@@ -84,7 +84,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                 .findAny()
                 .orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
             dataFormats.add(plugin.getDataFormat());
-            delegates.add(plugin.indexingEngine(mapperService, shardPath));
+            delegates.add(plugin.indexingEngine(pluginsService, mapperService, shardPath));
         } catch (NullPointerException e) {
             delegates.add(new TextEngine());
         }
@@ -173,5 +173,10 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
     public long getNativeBytesUsed() {
         return delegates.stream().mapToLong(IndexingExecutionEngine::getNativeBytesUsed).sum();
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(delegates);
     }
 }

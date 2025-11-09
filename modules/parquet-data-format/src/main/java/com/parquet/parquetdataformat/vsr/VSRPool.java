@@ -237,7 +237,6 @@ public class VSRPool {
             frozen.close();
         }
 
-        bufferPool.close();
         memoryMonitor.close();
 
         // Close any remaining VSRs
@@ -257,7 +256,7 @@ public class VSRPool {
         VectorSchemaRoot vsr = null;
 
         try {
-            allocator = bufferPool.createAllocator(vsrId);
+            allocator = bufferPool.createChildAllocator(vsrId);
             vsr = VectorSchemaRoot.create(schema, allocator);
 
             ManagedVSR managedVSR = new ManagedVSR(vsrId, vsr, allocator);

@@ -12,10 +12,11 @@ import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.PluginsService;
 
 public interface DataFormatPlugin  {
 
-    <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath);
+    <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(PluginsService pluginsService, MapperService mapperService, ShardPath shardPath);
 
     DataFormat getDataFormat();
 }

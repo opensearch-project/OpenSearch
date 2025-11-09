@@ -11,21 +11,35 @@ import com.parquet.parquetdataformat.engine.ParquetDataFormat;
 import com.parquet.parquetdataformat.fields.ArrowSchemaBuilder;
 import com.parquet.parquetdataformat.engine.read.ParquetDataSourceCodec;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginsService;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.function.Supplier;
 
 /**
  * OpenSearch plugin that provides Parquet data format support for indexing operations.
@@ -58,10 +72,39 @@ import java.util.Optional;
  */
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin, DataSourcePlugin {
 
+    private Settings settings;
+
+    public static String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
+
+    public static final Setting<String> INDEX_MAX_NATIVE_ALLOCATION = Setting.simpleString(
+        "index.parquet.max_native_allocation",
+        DEFAULT_MAX_NATIVE_ALLOCATION,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     @Override
     @SuppressWarnings("unchecked")
-    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath) {
-        return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(() -> ArrowSchemaBuilder.getSchema(mapperService), shardPath);
+    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(PluginsService pluginsService, MapperService mapperService, ShardPath shardPath) {
+        return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(settings, () -> ArrowSchemaBuilder.getSchema(mapperService), shardPath);
+    }
+
+    @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        this.settings = clusterService.getSettings();
+        return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, indexNameExpressionResolver, repositoriesServiceSupplier);
     }
 
     private Class<? extends DataFormat> getDataFormatType() {
@@ -81,6 +124,11 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         codecs.put(parquetDataSourceCodec.getDataFormat(), new ParquetDataSourceCodec());
         return Optional.of(codecs);
         // return Optional.empty();
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(INDEX_MAX_NATIVE_ALLOCATION);
     }
 
     // for testing locally only
