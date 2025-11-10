@@ -257,23 +257,48 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         }
     }
 
-    public void testCreateIndexFailPrivateSetting() throws IOException {
+    public void testCreateIndexWithCreationDate() throws IOException {
         {
-            // Create index with private setting
-            String indexName = "private_index";
+            // Create index with creation_date setting - should succeed now that it's not private
+            String indexName = "creation_date_index";
             assertFalse(indexExists(indexName));
 
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
 
             Settings.Builder settings = Settings.builder();
-            settings.put(SETTING_CREATION_DATE, -1);
+            settings.put(SETTING_CREATION_DATE, 1234567890L);
             createIndexRequest.settings(settings);
 
-            OpenSearchStatusException exception = expectThrows(
-                OpenSearchStatusException.class,
-                () -> execute(createIndexRequest, highLevelClient().indices()::create, highLevelClient().indices()::createAsync)
+            CreateIndexResponse createIndexResponse = execute(
+                createIndexRequest,
+                highLevelClient().indices()::create,
+                highLevelClient().indices()::createAsync
             );
-            assertTrue(exception.getMessage().contains("private index setting [index.creation_date] can not be set explicitly"));
+            assertTrue(createIndexResponse.isAcknowledged());
+            assertTrue(indexExists(indexName));
+        }
+    }
+
+    public void testUpdateIndexSettingsFailFinalSetting() throws IOException {
+        {
+            // Create index and attempt to update creation_date - should fail as it's a final setting
+            String indexName = "final_setting_index";
+            createIndex(indexName, Settings.EMPTY);
+
+            UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName);
+            Settings.Builder settings = Settings.builder();
+            settings.put(SETTING_CREATION_DATE, 9876543210L);
+            updateSettingsRequest.settings(settings);
+
+            OpenSearchException exception = expectThrows(
+                OpenSearchException.class,
+                () -> execute(
+                    updateSettingsRequest,
+                    highLevelClient().indices()::putSettings,
+                    highLevelClient().indices()::putSettingsAsync
+                )
+            );
+            assertTrue(exception.getMessage().contains("final index setting [index.creation_date], not updateable"));
         }
     }
 
