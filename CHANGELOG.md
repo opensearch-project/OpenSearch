@@ -73,7 +73,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.zookeeper:zookeeper` from 3.9.3 to 3.9.4 ([#19535](https://github.com/opensearch-project/OpenSearch/pull/19535))
 - Bump `com.azure:azure-storage-common` from 12.30.2 to 12.30.3 ([#19615](https://github.com/opensearch-project/OpenSearch/pull/19615))
 - Bump `peter-evans/create-issue-from-file` from 5 to 6 ([#19616](https://github.com/opensearch-project/OpenSearch/pull/19616))
-- Bump `com.squareup.okhttp3:okhttp` from 5.1.0 to 5.2.1 ([#19614](https://github.com/opensearch-project/OpenSearch/pull/19614))
+- Bump `com.squareup.okhttp3:okhttp` from 5.1.0 to 5.3.0 ([#19614](https://github.com/opensearch-project/OpenSearch/pull/19614), [#19944](https://github.com/opensearch-project/OpenSearch/pull/19944))
 - Bump `com.microsoft.azure:msal4j` from 1.21.0 to 1.23.1 ([#19688](https://github.com/opensearch-project/OpenSearch/pull/19688))
 - Bump `commons-net:commons-net` from 3.11.1 to 3.12.0 ([#19687](https://github.com/opensearch-project/OpenSearch/pull/19687))
 - Bump `org.apache.avro:avro` from 1.12.0 to 1.12.1 ([#19692](https://github.com/opensearch-project/OpenSearch/pull/19692))
@@ -97,6 +97,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Deprecated existing constructors in Condition.Stats and DirectoryFileTransferTracker.Stats in favor of the new Builder ([#19862](https://github.com/opensearch-project/OpenSearch/pull/19862))
 - Deprecated existing constructors in RemoteTranslogTransferTracker.Stats and RemoteSegmentTransferTracker.Stats in favor of the new Builder ([#19837](https://github.com/opensearch-project/OpenSearch/pull/19837))
 - Bump `actions/github-script` from 7 to 8 ([#19946](https://github.com/opensearch-project/OpenSearch/pull/19946))
+- Bump `com.google.api:gax-httpjson` from 2.69.0 to 2.72.1 ([#19943](https://github.com/opensearch-project/OpenSearch/pull/19943))
 
 ### Removed
 
