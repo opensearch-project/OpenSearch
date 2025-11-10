@@ -1102,4 +1102,341 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         MediaType result = BulkRequestParserProtoUtils.detectMediaType(invalidBytes);
         assertEquals("application/json", result.mediaTypeWithoutParameters());
     }
+
+    /**
+     * Test buildCreateRequest with explicit index when allowExplicitIndex is false
+     */
+    public void testBuildCreateRequestExplicitIndexNotAllowed() {
+        WriteOperation writeOperation = WriteOperation.newBuilder().setXIndex("explicit-index").build();
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> BulkRequestParserProtoUtils.buildCreateRequest(
+                writeOperation,
+                document,
+                "default-index",
+                "default-id",
+                null,
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                null,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                false,
+                "default-index", // defaultIndex is not null
+                false // allowExplicitIndex is false
+            )
+        );
+
+        assertEquals("explicit index in bulk is not allowed", exception.getMessage());
+    }
+
+    /**
+     * Test buildIndexRequest with explicit index when allowExplicitIndex is false
+     */
+    public void testBuildIndexRequestExplicitIndexNotAllowed() {
+        IndexOperation indexOperation = IndexOperation.newBuilder().setXIndex("explicit-index").build();
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> BulkRequestParserProtoUtils.buildIndexRequest(
+                indexOperation,
+                document,
+                null,
+                "default-index",
+                "default-id",
+                null,
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                null,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                false,
+                "default-index", // defaultIndex is not null
+                false // allowExplicitIndex is false
+            )
+        );
+
+        assertEquals("explicit index in bulk is not allowed", exception.getMessage());
+    }
+
+    /**
+     * Test buildUpdateRequest with explicit index when allowExplicitIndex is false
+     */
+    public void testBuildUpdateRequestExplicitIndexNotAllowed() {
+        UpdateOperation updateOperation = UpdateOperation.newBuilder().setXIndex("explicit-index").build();
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOperation).build())
+            .setObject(ByteString.copyFrom(document))
+            .build();
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> BulkRequestParserProtoUtils.buildUpdateRequest(
+                updateOperation,
+                ByteString.copyFrom(document),
+                bulkRequestBody,
+                "default-index",
+                "default-id",
+                null,
+                null,
+                0,
+                null,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                false,
+                "default-index", // defaultIndex is not null
+                false // allowExplicitIndex is false
+            )
+        );
+
+        assertEquals("explicit index in bulk is not allowed", exception.getMessage());
+    }
+
+    /**
+     * Test buildDeleteRequest with explicit index when allowExplicitIndex is false
+     */
+    public void testBuildDeleteRequestExplicitIndexNotAllowed() {
+        DeleteOperation deleteOperation = DeleteOperation.newBuilder().setXIndex("explicit-index").build();
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> BulkRequestParserProtoUtils.buildDeleteRequest(
+                deleteOperation,
+                "default-index",
+                "default-id",
+                null,
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                "default-index", // defaultIndex is not null
+                false // allowExplicitIndex is false
+            )
+        );
+
+        assertEquals("explicit index in bulk is not allowed", exception.getMessage());
+    }
+
+    /**
+     * Test buildUpdateRequest with upsert request and pipeline
+     */
+    public void testBuildUpdateRequestWithUpsertAndPipeline() {
+        UpdateOperation updateOperation = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+        byte[] upsertDoc = "{\"upsert_field\":\"upsert_value\"}".getBytes(StandardCharsets.UTF_8);
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOperation).build())
+            .setObject(ByteString.copyFrom(document))
+            .setUpdateAction(org.opensearch.protobufs.UpdateAction.newBuilder().setUpsert(ByteString.copyFrom(upsertDoc)).build())
+            .build();
+
+        UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
+            updateOperation,
+            ByteString.copyFrom(document),
+            bulkRequestBody,
+            "default-index",
+            "default-id",
+            null,
+            null,
+            0,
+            "test-pipeline", // pipeline
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            false,
+            null,
+            true
+        );
+
+        assertNotNull("UpdateRequest should not be null", updateRequest);
+        assertNotNull("Upsert request should be set", updateRequest.upsertRequest());
+        assertEquals("Pipeline should be set on upsert request", "test-pipeline", updateRequest.upsertRequest().getPipeline());
+    }
+
+    /**
+     * Test fromProto with empty document bytes (ByteString.EMPTY)
+     */
+    public void testFromProtoWithEmptyDocumentBytes() {
+        UpdateRequest updateRequest = new UpdateRequest("test-index", "test-id");
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setUpdateAction(
+                org.opensearch.protobufs.UpdateAction.newBuilder()
+                    .setScript(
+                        org.opensearch.protobufs.Script.newBuilder()
+                            .setInline(
+                                org.opensearch.protobufs.InlineScript.newBuilder()
+                                    .setSource("ctx._source.counter += 1")
+                                    .setLang(
+                                        org.opensearch.protobufs.ScriptLanguage.newBuilder()
+                                            .setBuiltin(org.opensearch.protobufs.BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS)
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        // Test with ByteString.EMPTY (no doc field)
+        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(
+            updateRequest,
+            ByteString.EMPTY,
+            bulkRequestBody,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM
+        );
+
+        assertNotNull("Result should not be null", result);
+        assertNotNull("Script should be set", result.script());
+        assertNull("Doc should not be set when ByteString is empty", result.doc());
+    }
+
+    /**
+     * Test fromProto with null document bytes
+     */
+    public void testFromProtoWithNullDocumentBytes() {
+        UpdateRequest updateRequest = new UpdateRequest("test-index", "test-id");
+
+        BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
+            .setUpdateAction(
+                org.opensearch.protobufs.UpdateAction.newBuilder()
+                    .setScript(
+                        org.opensearch.protobufs.Script.newBuilder()
+                            .setInline(
+                                org.opensearch.protobufs.InlineScript.newBuilder()
+                                    .setSource("ctx._source.counter += 1")
+                                    .setLang(
+                                        org.opensearch.protobufs.ScriptLanguage.newBuilder()
+                                            .setBuiltin(org.opensearch.protobufs.BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS)
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        // Test with null documentBytes
+        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(
+            updateRequest,
+            null,
+            bulkRequestBody,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM
+        );
+
+        assertNotNull("Result should not be null", result);
+        assertNotNull("Script should be set", result.script());
+        assertNull("Doc should not be set when documentBytes is null", result.doc());
+    }
+
+    /**
+     * Test getDocWriteRequests with update operation using UpdateAction.doc field
+     */
+    public void testGetDocWriteRequestsWithUpdateActionDoc() {
+        UpdateOperation updateOp = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+
+        BulkRequestBody updateBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOp).build())
+            .setUpdateAction(org.opensearch.protobufs.UpdateAction.newBuilder().setDoc(ByteString.copyFrom(document)).build())
+            .build();
+
+        BulkRequest request = BulkRequest.newBuilder().addBulkRequestBody(updateBody).build();
+
+        DocWriteRequest<?>[] requests = BulkRequestParserProtoUtils.getDocWriteRequests(
+            request,
+            "default-index",
+            null,
+            null,
+            null,
+            false,
+            true
+        );
+
+        assertNotNull("Requests should not be null", requests);
+        assertEquals("Should have 1 request", 1, requests.length);
+        assertTrue("Request should be an UpdateRequest", requests[0] instanceof UpdateRequest);
+
+        UpdateRequest updateRequest = (UpdateRequest) requests[0];
+        assertNotNull("Doc should be set from UpdateAction.doc", updateRequest.doc());
+    }
+
+    /**
+     * Test valueOrDefault for String with null value and non-null globalDefault
+     */
+    public void testValueOrDefaultStringWithNullValue() {
+        UpdateOperation updateOp = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+
+        BulkRequestBody updateBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOp).build())
+            .setObject(ByteString.copyFrom(document))
+            .build();
+
+        BulkRequest request = BulkRequest.newBuilder()
+            .addBulkRequestBody(updateBody)
+            .setRouting("global-routing")
+            .setPipeline("global-pipeline")
+            .build();
+
+        DocWriteRequest<?>[] requests = BulkRequestParserProtoUtils.getDocWriteRequests(
+            request,
+            "default-index",
+            null, // defaultRouting is null, should use global routing
+            null,
+            null, // defaultPipeline is null, should use global pipeline
+            false,
+            true
+        );
+
+        assertNotNull("Requests should not be null", requests);
+        assertEquals("Should have 1 request", 1, requests.length);
+
+        UpdateRequest updateRequest = (UpdateRequest) requests[0];
+        assertEquals("Routing should use global value", "global-routing", updateRequest.routing());
+    }
+
+    /**
+     * Test valueOrDefault for Boolean with null value and non-null globalDefault
+     */
+    public void testValueOrDefaultBooleanWithNullValue() {
+        IndexOperation indexOp = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+
+        BulkRequestBody indexBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setIndex(indexOp).build())
+            .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
+            .build();
+
+        BulkRequest request = BulkRequest.newBuilder().addBulkRequestBody(indexBody).setRequireAlias(true).build();
+
+        DocWriteRequest<?>[] requests = BulkRequestParserProtoUtils.getDocWriteRequests(
+            request,
+            "default-index",
+            null,
+            null,
+            null,
+            null, // defaultRequireAlias is null, should use global requireAlias
+            true
+        );
+
+        assertNotNull("Requests should not be null", requests);
+        assertEquals("Should have 1 request", 1, requests.length);
+
+        IndexRequest indexRequest = (IndexRequest) requests[0];
+        assertTrue("RequireAlias should use global value", indexRequest.isRequireAlias());
+    }
 }
