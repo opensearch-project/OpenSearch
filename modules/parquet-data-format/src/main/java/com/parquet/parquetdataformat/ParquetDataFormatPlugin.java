@@ -104,7 +104,6 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         return new GenericStoreDirectory<>(
             new ParquetDataFormat(),
             shardPath.getDataPath(),
-            PARQUET_EXTENSIONS,
             logger
         );
     }

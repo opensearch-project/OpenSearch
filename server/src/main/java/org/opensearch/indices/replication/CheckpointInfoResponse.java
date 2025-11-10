@@ -33,47 +33,6 @@ public class CheckpointInfoResponse extends TransportResponse {
     private final Map<FileMetadata, StoreFileMetadata> formatAwareMetadataMap;
     private final byte[] infosBytes;
 
-    // Private constructor used by factory methods
-    private CheckpointInfoResponse(
-        final ReplicationCheckpoint checkpoint,
-        final Map<String, StoreFileMetadata> legacyMap,
-        final Map<FileMetadata, StoreFileMetadata> formatAwareMap,
-        final byte[] infosBytes
-    ) {
-        this.checkpoint = checkpoint;
-        this.legacyMetadataMap = legacyMap;
-        this.formatAwareMetadataMap = formatAwareMap;
-        this.infosBytes = infosBytes;
-    }
-
-    // Factory method for legacy metadata map (backward compatibility)
-    public static CheckpointInfoResponse fromLegacyMetadata(
-        final ReplicationCheckpoint checkpoint,
-        final Map<String, StoreFileMetadata> metadataMap,
-        final byte[] infosBytes
-    ) {
-        return new CheckpointInfoResponse(
-            checkpoint,
-            metadataMap,
-            convertLegacyToFormatAware(metadataMap),
-            infosBytes
-        );
-    }
-
-    // Factory method for format-aware metadata map (preferred)
-    public static CheckpointInfoResponse fromFormatAwareMetadata(
-        final ReplicationCheckpoint checkpoint,
-        final Map<FileMetadata, StoreFileMetadata> formatAwareMetadataMap,
-        final byte[] infosBytes
-    ) {
-        return new CheckpointInfoResponse(
-            checkpoint,
-            convertFormatAwareToLegacy(formatAwareMetadataMap),
-            formatAwareMetadataMap,
-            infosBytes
-        );
-    }
-
     // Constructor with legacy metadata map for backward compatibility (used by tests)
     public CheckpointInfoResponse(
         final ReplicationCheckpoint checkpoint,
@@ -123,19 +82,6 @@ public class CheckpointInfoResponse extends TransportResponse {
             formatAwareMap.put(fileMetadata, storeMetadata);
         }
         return formatAwareMap;
-    }
-
-    /**
-     * Converts format-aware FileMetadata-based map to legacy String-based metadata map.
-     */
-    private static Map<String, StoreFileMetadata> convertFormatAwareToLegacy(Map<FileMetadata, StoreFileMetadata> formatAwareMap) {
-        Map<String, StoreFileMetadata> legacyMap = new HashMap<>();
-        for (Map.Entry<FileMetadata, StoreFileMetadata> entry : formatAwareMap.entrySet()) {
-            String fileName = entry.getKey().file();
-            StoreFileMetadata storeMetadata = entry.getValue();
-            legacyMap.put(fileName, storeMetadata);
-        }
-        return legacyMap;
     }
 
     public ReplicationCheckpoint getCheckpoint() {

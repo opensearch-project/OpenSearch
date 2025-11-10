@@ -31,6 +31,7 @@ import java.util.Set;
 /**
  * FormatStoreDirectory implementation for Lucene format files.
  * Wraps existing Lucene Directory to maintain full Lucene compatibility.
+ * It will be used when Lucene format will be supported as well.
  */
 public class LuceneStoreDirectory implements FormatStoreDirectory<DataFormat> {
 

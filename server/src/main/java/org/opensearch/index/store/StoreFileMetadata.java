@@ -100,7 +100,6 @@ public class StoreFileMetadata implements Writeable {
             throw new AssertionError(e);
         }
         hash = in.readBytesRef();
-        // For backward compatibility, default to "lucene" if not present
         if (in.available() > 0) {
             dataFormat = in.readString();
         } else {

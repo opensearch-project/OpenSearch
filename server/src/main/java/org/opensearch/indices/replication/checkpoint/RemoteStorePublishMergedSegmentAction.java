@@ -80,7 +80,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
         this.replicationService = targetService;
     }
 
-    // Todo: needs implementation with fileMetadata
+    // Todo:@Kamal, needs implementation with fileMetadata
     @Override
     protected void doReplicaOperation(RemoteStorePublishMergedSegmentRequest shardRequest, IndexShard replica) {
         RemoteStoreMergedSegmentCheckpoint checkpoint = shardRequest.getMergedSegment();

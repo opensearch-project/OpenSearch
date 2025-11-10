@@ -131,7 +131,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 blobStoreRepository::maybeRateLimitLowPriorityDownloadTransfers,
                 pendingDownloadMergedSegments,
                 LogManager.getLogger("index.store.remote.composite." + shardId),
-                pluginsService  // Any parameter as the LAST parameter
+                pluginsService
             );
 
             RemoteStorePathStrategy.ShardDataPathInput mdPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()

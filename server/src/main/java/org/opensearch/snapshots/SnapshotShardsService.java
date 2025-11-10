@@ -412,7 +412,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                 .entrySet()
                                 .stream()
                                 .collect(Collectors.toMap(
-                                    entry -> entry.getKey().file(),  // FileMetadata → String filename
+                                    entry -> entry.getKey().file(),
                                     entry -> entry.getValue().getLength()
                                 ));
                             primaryTerm = lastRemoteUploadedIndexCommit.getPrimaryTerm();

@@ -238,12 +238,12 @@ public final class RemoteStoreFileDownloader {
                     cancellableThreads.executeIO(() -> {
                         // Use format-aware copy - CompositeStoreDirectoryStatsWrapper will route based on format
                         destination.copyFrom(fileMetadata, source, IOContext.DEFAULT);
-                        logger.trace("Downloaded format-aware file {} of format {} of size {}", 
-                                   fileMetadata.file(), fileMetadata.dataFormat(), 
+                        logger.trace("Downloaded format-aware file {} of format {} of size {}",
+                                   fileMetadata.file(), fileMetadata.dataFormat(),
                                    destination.getDelegate().fileLength(fileMetadata));
                         onFileCompletion.run();
-                        
-                        // TODO: Add second destination support for format-aware operations if needed
+
+                        // TODO: @kamal, Add second destination support for format-aware operations if needed
                         // if (secondDestination != null) {
                         //     secondDestination.copyFrom(destination, fileMetadata, fileMetadata, IOContext.DEFAULT);
                         // }

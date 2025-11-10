@@ -201,18 +201,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     };
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
-        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, createTempShardPath(shardId), createMockPluginsService());
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, createTempShardPath(shardId), null);
     }
 
-    public Store(
-        ShardId shardId,
-        IndexSettings indexSettings,
-        Directory directory,
-        ShardLock shardLock,
-        OnClose onClose,
-        ShardPath shardPath
-    ) {
-        this(shardId, indexSettings, directory, shardLock, onClose, shardPath, createMockPluginsService());
+    public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock, OnClose onClose, ShardPath shardPath) {
+        this(shardId, indexSettings, directory, shardLock, onClose, shardPath, null);
     }
 
     public Store(
@@ -242,9 +235,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     ) {
         super(shardId, indexSettings);
 
-        // Use mock PluginsService if none provided
-        PluginsService actualPluginsService = pluginsService != null ? pluginsService : createMockPluginsService();
-        // Create temp ShardPath if none provided
         ShardPath actualShardPath = shardPath != null ? shardPath : createTempShardPath(shardId);
 
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
@@ -257,10 +247,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             this.compositeStoreDirectory = factoryCreatedCompositeDirectory;
             logger.debug("Using factory-created CompositeStoreDirectory");
         } else {
-            // Fallback to internal creation for backward compatibility
-//            List<DataFormat> formats = List.of(DataFormat.LUCENE);
-//            Any dataFormats = new Any(formats);
-//            this.compositeStoreDirectory = new CompositeStoreDirectory(indexSettings, actualPluginsService, dataFormats, actualShardPath, logger);
             this.compositeStoreDirectory = null;
             logger.debug("Created CompositeStoreDirectory with plugin-based discovery (fallback)");
         }
@@ -273,13 +259,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
-    }
-
-    /**
-     * Creates a mock PluginsService with Lucene and Parquet data format plugins for testing
-     */
-    private static MockPluginsServiceWithFormats createMockPluginsService() {
-        return new MockPluginsServiceWithFormats();
     }
 
     /**
@@ -2219,32 +2198,5 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             iwc.setParentField(Lucene.PARENT_FIELD);
         }
         return iwc;
-    }
-
-    /**
-     * Mock PluginsService that provides Lucene data format plugin
-     * This ensures CompositeStoreDirectory can find the LuceneDataFormatPlugin
-     */
-    public static class MockPluginsServiceWithFormats extends PluginsService {
-
-        /**
-         * Creates a mock PluginsService with Lucene data format plugin
-         */
-        public MockPluginsServiceWithFormats() {
-            super(Settings.EMPTY, null, null, null, Collections.emptyList());
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public <T> List<T> filterPlugins(Class<T> type) {
-            if (type == org.opensearch.plugins.DataSourcePlugin.class) {
-                // Return Lucene plugin instance (Parquet will be loaded from modules in production)
-                List<org.opensearch.plugins.DataSourcePlugin> plugins = new ArrayList<>();
-                plugins.add(LuceneDataFormatPlugin.INSTANCE);
-                return (List<T>) plugins;
-            }
-            // For other plugin types, return empty list
-            return Collections.emptyList();
-        }
     }
 }
