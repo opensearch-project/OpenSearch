@@ -1862,7 +1862,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(catalogSnapshot);
             replicationTracker.setLatestReplicationCheckpoint(checkpoint);
-            compositeEngine.setCatalogSnapshot(catalogSnapshot);
+            compositeEngine.setCatalogSnapshot(catalogSnapshot, this.shardPath());
             logger.trace("Updated replication checkpoint from fresh CatalogSnapshot: shard={}, checkpoint={}", shardId, checkpoint);
         } catch (IOException e) {
             logger.error("Error computing replication checkpoint from fresh catalog snapshot for shard [{}]", shardId, e);

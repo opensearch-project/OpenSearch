@@ -72,10 +72,10 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
         for (Map.Entry<String, Collection<WriterFileSet>> entry : dfGroupedSearchableFiles.entrySet()) {
             String dataFormat = entry.getKey();
             List<WriterFileSet> remappedFileSets = new ArrayList<>();
-
+            Path shardDataPath = newShardDataPath.resolve(dataFormat);
             for (WriterFileSet fileSet : entry.getValue()) {
                 // Create new WriterFileSet with updated directory and file paths
-                WriterFileSet remappedFileSet = fileSet.withDirectory(newShardDataPath.toString());
+                WriterFileSet remappedFileSet = fileSet.withDirectory(shardDataPath.toString());
                 remappedFileSets.add(remappedFileSet);
             }
 

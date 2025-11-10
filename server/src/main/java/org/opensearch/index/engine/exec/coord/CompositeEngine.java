@@ -299,8 +299,11 @@ public class CompositeEngine implements Indexer {
         return new GatedCloseable<>(catalogSnapshot, () -> catalogSnapshot.decRef());
     }
 
-    public void setCatalogSnapshot(CatalogSnapshot catalogSnapshot) {
+    public void setCatalogSnapshot(CatalogSnapshot catalogSnapshot, ShardPath shardPath) {
         this.catalogSnapshot = catalogSnapshot;
+        if(this.catalogSnapshot != null) {
+            this.catalogSnapshot = this.catalogSnapshot.remapPaths(shardPath.getDataPath());
+        }
     }
 
     // This should get wired into searcher acquireSnapshot for initializing reader context later

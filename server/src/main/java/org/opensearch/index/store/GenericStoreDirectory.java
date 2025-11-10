@@ -252,7 +252,6 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
             crc32.update(buffer, 0, bytesRead);
         }
 
-        // Use the same format as Lucene checksums for consistency
         return crc32.getValue();
     }
 
@@ -276,7 +275,6 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
         long startTime = System.nanoTime();
 
         try (InputStream inputStream = Files.newInputStream(filePath)) {
-            // Use same CRC32 method as calculateChecksum() for consistency
             long checksum = calculateGenericChecksum(inputStream);
             String checksumString = Long.toString(checksum);
 
@@ -315,16 +313,16 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
             name, dataFormat.name(), context, filePath);
 
         try {
-            // Validate file exists (same as Lucene FSDirectory does)
+            // Validate file exists
             if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
                 throw new IOException("File does not exist or is not a regular file: " + filePath);
             }
 
-            // Open FileChannel (exactly like NIOFSDirectory)
+            // Open FileChannel
             FileChannel channel = FileChannel.open(filePath, StandardOpenOption.READ);
             long fileSize = channel.size();
 
-            // Create FileChannel-based IndexInput (mirrors Lucene pattern)
+            // Create FileChannel-based IndexInput
             return new GenericFileChannelIndexInput(name, channel, fileSize, context);
 
         } catch (IOException e) {
@@ -418,7 +416,7 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
                 throw new EOFException("Seek past EOF: position=" + pos + ", length=" + length);
             }
 
-            position = pos;  // ✅ Full bidirectional seeking (like Lucene)
+            position = pos;
         }
 
         @Override
@@ -440,7 +438,7 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
                 throw new EOFException("Unexpected EOF at position: " + pos);
             }
 
-            return buffer.get(0);  // ✅ True random access (like Lucene)
+            return buffer.get(0);
         }
 
         @Override
@@ -491,10 +489,9 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
             }
 
             buffer.flip();
-            return buffer.getLong();  // ✅ Multi-byte random access
+            return buffer.getLong();
         }
 
-        // === Cloning Support (like Lucene) ===
 
         @Override
         public GenericFileChannelIndexInput clone() {
@@ -506,16 +503,14 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
                 GenericFileChannelIndexInput clone = new GenericFileChannelIndexInput(
                     toString(), channel, length, context, true
                 );
-                clone.position = this.position;  // Maintain current position
+                clone.position = this.position;
 
-                return clone;  // ✅ Cloning support (like Lucene)
+                return clone;
 
             } catch (Exception e) {
                 throw new RuntimeException("Failed to clone IndexInput", e);
             }
         }
-
-        // === Slicing Support (like Lucene) ===
 
         @Override
         public IndexInput slice(String sliceDescription, long offset, long sliceLength) throws IOException {
@@ -530,7 +525,7 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
             // Create slice that shares the same FileChannel but with offset/length bounds
             return new SlicedGenericIndexInput(
                 sliceDescription, channel, offset, sliceLength, context
-            );  // ✅ Slicing support (like Lucene)
+            );
         }
 
         @Override
