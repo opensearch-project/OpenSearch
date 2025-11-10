@@ -11,13 +11,10 @@ package org.opensearch.index.store.remote;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.IOUtils;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -37,11 +34,9 @@ import org.opensearch.index.engine.MergedSegmentWarmer;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.Any;
-import org.opensearch.index.engine.exec.text.TextEngine;
 import org.opensearch.index.store.CompositeStoreDirectory;
 import org.opensearch.index.store.RemoteIndexInput;
 import org.opensearch.index.store.RemoteIndexOutput;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
@@ -52,12 +47,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 /**
  * CompositeRemoteDirectory with direct BlobContainer access per format.
@@ -93,13 +86,11 @@ public class CompositeRemoteDirectory implements Closeable {
      */
     final Map<FileMetadata, String> pendingDownloadMergedSegments;
 
-    // Core architecture: Direct BlobContainer per format with lazy creation
     private final Map<String, BlobContainer> formatBlobContainers;
     private  final BlobContainer metadataBlobContainer;
     private final BlobStore blobStore;
     private final BlobPath baseBlobPath;
     private final Logger logger;
-    private  final Any any;
 
     /**
      * Full constructor with all rate limiter parameters
@@ -123,7 +114,6 @@ public class CompositeRemoteDirectory implements Closeable {
         this.downloadRateLimiterProvider = new DownloadRateLimiterProvider(downloadRateLimiter, lowPriorityDownloadRateLimiter);
         this.pendingDownloadMergedSegments = pendingDownloadMergedSegments;
         this.logger = logger;
-        this.any = null;
 
         BlobPath metadataBlobPath = baseBlobPath.parent().add("metadata");
         this.metadataBlobContainer = blobStore.blobContainer(metadataBlobPath);
@@ -329,7 +319,6 @@ public class CompositeRemoteDirectory implements Closeable {
                 return metadata.get(0).length();
             }
 
-            // This should rarely happen as findContainerForFile already checked existence
             throw new NoSuchFileException(
                 String.format("File %s not found in container for format %s", fileMetadata.file(), fileMetadata.dataFormat())
             );
@@ -348,7 +337,6 @@ public class CompositeRemoteDirectory implements Closeable {
             throw new IllegalArgumentException("Remote file name cannot be null or empty");
         }
         try {
-            // Try to find existing container if file exists
             BlobContainer blobContainer = formatBlobContainers.get(df);
 
             if (blobContainer!=null) {
@@ -380,7 +368,6 @@ public class CompositeRemoteDirectory implements Closeable {
 
         InputStream inputStream = null;
         try {
-            // Try to find existing container if file exists
             BlobContainer blobContainer = getBlobContainer(fileMetadata.dataFormat());
             if (blobContainer==null) {
                 throw new IOException(String.format("Failed to find blobContainer for file %s in format %s", fileMetadata.file(), fileMetadata.dataFormat()));
