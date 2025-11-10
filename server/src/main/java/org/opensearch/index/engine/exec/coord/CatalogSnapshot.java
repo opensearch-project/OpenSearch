@@ -62,14 +62,29 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
         }
     }
 
-        segmentList.forEach(segment -> segment.getDFGroupedSearchableFiles().forEach((dataFormat, writerFiles) -> {
-            dfGroupedSearchableFiles.computeIfAbsent(dataFormat, k -> new ArrayList<>()).add(writerFiles);
-            this.lastWriterGeneration = Math.max(this.lastWriterGeneration, writerFiles.getWriterGeneration());
-        }));
-        this.catalogSnapshotMap = catalogSnapshotMap;
-        this.indexFileDeleterSupplier = indexFileDeleterSupplier;
-        // Whenever a new CatalogSnapshot is created add its files to the IndexFileDeleter
-        indexFileDeleterSupplier.get().addFileReferences(this);
+    private CatalogSnapshot(long id, Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles) {
+        super("catalog_snapshot");
+        this.id = id;
+        this.dfGroupedSearchableFiles = dfGroupedSearchableFiles;
+    }
+
+    public CatalogSnapshot remapPaths(Path newShardDataPath) {
+        Map<String, Collection<WriterFileSet>> remappedFiles = new HashMap<>();
+
+        for (Map.Entry<String, Collection<WriterFileSet>> entry : dfGroupedSearchableFiles.entrySet()) {
+            String dataFormat = entry.getKey();
+            List<WriterFileSet> remappedFileSets = new ArrayList<>();
+            Path shardDataPath = newShardDataPath.resolve(dataFormat);
+            for (WriterFileSet fileSet : entry.getValue()) {
+                // Create new WriterFileSet with updated directory and file paths
+                WriterFileSet remappedFileSet = fileSet.withDirectory(shardDataPath.toString());
+                remappedFileSets.add(remappedFileSet);
+            }
+
+            remappedFiles.put(dataFormat, remappedFileSets);
+        }
+
+        return new CatalogSnapshot(this.id, remappedFiles);
     }
 
     public CatalogSnapshot(StreamInput in) throws IOException {

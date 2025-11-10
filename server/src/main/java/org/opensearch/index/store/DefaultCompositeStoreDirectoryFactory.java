@@ -27,13 +27,6 @@ import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.lo
  * Default implementation of CompositeStoreDirectoryFactory that provides
  * plugin-based format discovery and fallback behavior.
  *
- * This factory:
- * - Discovers DataFormat plugins through PluginsService
- * - Creates CompositeStoreDirectory with all discovered formats
- * - Provides fallback to default formats (Lucene, Text) if no plugins found
- * - Handles errors gracefully with detailed logging
- * - Maintains backward compatibility with existing directory creation
- *
  * @opensearch.experimental
  */
 @ExperimentalApi
