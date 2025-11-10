@@ -32,10 +32,10 @@ public class VSRPool {
     // Configuration
     private final int maxRowsPerVSR;
 
-    public VSRPool(String poolId, Schema schema, MemoryPressureMonitor memoryMonitor) {
+    public VSRPool(String poolId, Schema schema, MemoryPressureMonitor memoryMonitor, ArrowBufferPool arrowBufferPool) {
         this.poolId = poolId;
         this.schema = schema;
-        this.bufferPool = new ArrowBufferPool(org.opensearch.common.settings.Settings.EMPTY, memoryMonitor);
+        this.bufferPool = arrowBufferPool;
         this.memoryMonitor = memoryMonitor;
 
         this.activeVSR = new AtomicReference<>();
@@ -142,6 +142,16 @@ public class VSRPool {
         return frozenVSR.get();
     }
 
+    public void unsetFrozenVSR() throws IOException {
+        if (frozenVSR.get() == null) {
+            throw new IOException("unsetFrozenVSR called when frozen VSR is not set");
+        }
+        if (!VSRState.CLOSED.equals(frozenVSR.get().getState())) {
+            throw new IOException("frozenVSR cannot be unset, state is " + frozenVSR.get().getState());
+        }
+        frozenVSR.set(null);
+    }
+
     /**
      * Takes the frozen VSR for processing and clears the frozen slot.
      *
@@ -227,7 +237,6 @@ public class VSRPool {
             frozen.close();
         }
 
-        bufferPool.close();
         memoryMonitor.close();
 
         // Close any remaining VSRs
@@ -241,12 +250,13 @@ public class VSRPool {
     }
 
     private ManagedVSR createNewVSR() {
+
         String vsrId = poolId + "-vsr-" + vsrCounter.incrementAndGet();
         BufferAllocator allocator = null;
         VectorSchemaRoot vsr = null;
 
         try {
-            allocator = bufferPool.createAllocator(vsrId);
+            allocator = bufferPool.createChildAllocator(vsrId);
             vsr = VectorSchemaRoot.create(schema, allocator);
 
             ManagedVSR managedVSR = new ManagedVSR(vsrId, vsr, allocator);

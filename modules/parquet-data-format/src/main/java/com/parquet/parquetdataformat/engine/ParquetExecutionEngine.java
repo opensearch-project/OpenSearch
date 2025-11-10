@@ -1,11 +1,17 @@
 package com.parquet.parquetdataformat.engine;
 
+import com.parquet.parquetdataformat.bridge.RustBridge;
+import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.merge.CompactionStrategy;
 import com.parquet.parquetdataformat.merge.ParquetMergeExecutor;
 import com.parquet.parquetdataformat.merge.ParquetMerger;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.index.engine.exec.Merger;
@@ -15,6 +21,7 @@ import org.opensearch.index.engine.exec.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.shard.ShardPath;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -59,18 +66,22 @@ import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DAT
  */
 public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDataFormat> {
 
+    private static final Logger logger = LogManager.getLogger(ParquetExecutionEngine.class);
+
+    public static final String FILE_NAME_PREFIX = "_parquet_file_generation";
     private static final Pattern FILE_PATTERN = Pattern.compile(".*_(\\d+)\\.parquet$", Pattern.CASE_INSENSITIVE);
-    private static final String FILE_NAME_PREFIX = "_parquet_file_generation";
     private static final String FILE_NAME_EXT = ".parquet";
 
     private final Supplier<Schema> schema;
     private final List<WriterFileSet> filesWrittenAlready = new ArrayList<>();
     private final ShardPath shardPath;
     private final ParquetMerger parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH);
+    private final ArrowBufferPool arrowBufferPool;
 
-    public ParquetExecutionEngine(Supplier<Schema> schema, ShardPath shardPath) {
+    public ParquetExecutionEngine(Settings settings, Supplier<Schema> schema, ShardPath shardPath) {
         this.schema = schema;
         this.shardPath = shardPath;
+        this.arrowBufferPool = new ArrowBufferPool(settings);
     }
 
     @Override
@@ -98,7 +109,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     @Override
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) throws IOException {
         String fileName = Path.of(shardPath.getDataPath().toString(), FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT).toString();
-        return new ParquetWriter(fileName, schema.get(), writerGeneration);
+        return new ParquetWriter(fileName, schema.get(), writerGeneration, arrowBufferPool);
     }
 
     @Override
@@ -120,5 +131,20 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     @Override
     public DataFormat getDataFormat() {
         return new ParquetDataFormat();
+    }
+
+    @Override
+    public long getNativeBytesUsed() {
+        long vsrMemory = arrowBufferPool.getTotalAllocatedBytes();
+        String shardDataPath = shardPath.getDataPath().toString();
+        long filteredArrowWriterMemory = RustBridge.getFilteredNativeBytesUsed(shardDataPath);
+        logger.info("Native memory used by VSR Buffer Pool: {}", vsrMemory);
+        logger.info("Native memory used by ArrowWriters in shard path {}: {}", shardDataPath, filteredArrowWriterMemory);
+        return vsrMemory + filteredArrowWriterMemory;
+    }
+
+    @Override
+    public void close() throws IOException {
+        arrowBufferPool.close();
     }
 }

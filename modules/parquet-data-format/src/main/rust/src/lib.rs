@@ -189,6 +189,39 @@ impl NativeParquetWriter {
         }
     }
 
+    fn get_filtered_writer_memory_usage(path_prefix: String) -> Result<usize, Box<dyn std::error::Error>> {
+        let log_msg = format!("[RUST] get_filtered_writer_memory_usage called with prefix: {}\n", path_prefix);
+        println!("{}", log_msg.trim());
+        Self::log_to_file(&log_msg);
+
+        let mut total_memory = 0;
+        let mut writer_count = 0;
+
+        for entry in WRITER_MANAGER.iter() {
+            let filename = entry.key();
+            let writer_arc = entry.value();
+
+            // Filter writers by path prefix
+            if filename.starts_with(&path_prefix) {
+                if let Ok(writer) = writer_arc.lock() {
+                    let memory_usage = writer.memory_size();
+                    total_memory += memory_usage;
+                    writer_count += 1;
+
+                    let usage_msg = format!("[RUST] Filtered Writer {}: {} bytes\n", filename, memory_usage);
+                    println!("{}", usage_msg.trim());
+                    Self::log_to_file(&usage_msg);
+                }
+            }
+        }
+
+        let total_msg = format!("[RUST] Total memory usage across {} filtered ArrowWriters (prefix: {}): {} bytes\n", writer_count, path_prefix, total_memory);
+        println!("{}", total_msg.trim());
+        Self::log_to_file(&total_msg);
+
+        Ok(total_memory)
+    }
+
     fn log_to_file(message: &str) {
         if let Ok(mut file) = OpenOptions::new()
             .create(true)
@@ -253,5 +286,18 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_flus
     match NativeParquetWriter::flush_to_disk(filename) {
         Ok(_) => 0,
         Err(_) => -1,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_getFilteredNativeBytesUsed(
+    mut env: JNIEnv,
+    _class: JClass,
+    path_prefix: JString
+) -> jlong {
+    let prefix: String = env.get_string(&path_prefix).expect("Couldn't get java string!").into();
+    match NativeParquetWriter::get_filtered_writer_memory_usage(prefix) {
+        Ok(memory_usage) => memory_usage as jlong,
+        Err(_) => 0,
     }
 }

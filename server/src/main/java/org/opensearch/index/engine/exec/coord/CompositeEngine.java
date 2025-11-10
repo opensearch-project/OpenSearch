@@ -103,7 +103,7 @@ import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNA
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY;
 
 @ExperimentalApi
-public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState, IndexingThrottler {
+public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState, IndexingThrottler, Closeable {
 
     private static final Consumer<ReferenceManager.RefreshListener> PRE_REFRESH_LISTENER_CONSUMER = refreshListener -> {
         try {
@@ -664,7 +664,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     }
 
     public synchronized void refresh(String source) throws EngineException {
-        refresh(source, Collections.EMPTY_MAP);
+        refresh(source, Collections.emptyMap());
     }
 
     public synchronized void refresh(String source, Map<DataFormat, RefreshInput> refreshInputs) throws EngineException {
@@ -773,6 +773,10 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
         }
     }
 
+    public long getNativeBytesUsed() {
+        return engine.getNativeBytesUsed();
+    }
+
     @Override
     public Engine.DeleteResult delete(Engine.Delete delete) throws IOException {
         return null;
@@ -822,7 +826,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
-
+        refresh("write indexing buffer");
     }
 
     @Override
@@ -926,5 +930,10 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     @Override
     public String getHistoryUUID() {
         return historyUUID;
+    }
+
+    @Override
+    public void close() throws IOException {
+        engine.close();
     }
 }
