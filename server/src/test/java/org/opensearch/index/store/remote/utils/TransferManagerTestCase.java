@@ -324,6 +324,18 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         assertEquals(Optional.of(1), Optional.of(fileCache.getRef(blobFetchRequest.getFilePath())));
     }
 
+    public void testRefMultipleCount() throws Exception {
+        List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
+        String blobname = "test-blob";
+        blobParts.add(new BlobFetchRequest.BlobPart("blob", 0, EIGHT_MB));
+        BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build();
+        transferManager.fetchBlob(blobFetchRequest);
+        assertNotNull(fileCache.getRef(blobFetchRequest.getFilePath()));
+        transferManager.fetchBlobAsync(blobFetchRequest).join();
+        waitUntil(() -> fileCache.getRef(blobFetchRequest.getFilePath()) == 1, 10, TimeUnit.SECONDS);
+        assertEquals(Optional.of(1), Optional.of(fileCache.getRef(blobFetchRequest.getFilePath())));
+    }
+
     protected abstract void initializeTransferManager() throws IOException;
 
     protected abstract void mockExceptionWhileReading() throws IOException;
