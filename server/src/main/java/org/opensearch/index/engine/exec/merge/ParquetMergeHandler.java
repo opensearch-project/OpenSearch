@@ -40,6 +40,11 @@ public class ParquetMergeHandler extends MergeHandler {
         this.compositeIndexingExecutionEngine = compositeIndexingExecutionEngine;
 
         mergePolicy = parquetTieredMergePolicy;
+        // Merge Policy configurations
+        this.mergePolicy.setMaxMergedSegmentMB(2000);
+        this.mergePolicy.setSegmentsPerTier(10.0);
+        this.mergePolicy.setMaxMergeAtOnce(5);
+//        this.mergePolicy.setFloorSegmentMB(1.0);
     }
 
     @Override

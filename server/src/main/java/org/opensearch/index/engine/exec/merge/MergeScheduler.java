@@ -70,7 +70,7 @@ public class MergeScheduler {
      * Triggers merges asynchronously in background threads.
      * This method returns immediately, allowing the calling thread to continue.
      */
-    public void triggerMerges() throws IOException {
+    public void triggerMerges() {
         if (isShutdown.get()) {
             logger.warn("MergeScheduler is shutdown, ignoring merge trigger");
             return;
@@ -156,14 +156,14 @@ public class MergeScheduler {
                 long durationMs = (System.nanoTime() - startTime) / 1_000_000;
                 logger.info("[{}] Merge completed in {}ms for: {}", getName(), durationMs, oneMerge);
 
-                // triggering merge at the end
-                triggerMerges();
             } catch (Exception e) {
                 logger.error("[{}] Unexpected error during merge for: {}", getName(), oneMerge, e);
                 mergeHandler.onMergeFailure(oneMerge);
             } finally {
                 activeMerges.decrementAndGet();
                 mergeThreads.remove(this);
+                // triggering merge at the end
+                triggerMerges();
             }
         }
     }
