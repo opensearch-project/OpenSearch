@@ -43,7 +43,7 @@ import static java.util.Arrays.stream;
 @PublicApi(since = "2.13.0")
 public class SemverRange implements ToXContentFragment {
 
-    private static final Pattern RANGE_PATTERN = Pattern.compile("([\\[\\(])([\\d.]+)\\s*,\\s*([\\d.]+)([\\]\\)])");
+    public static final Pattern RANGE_PATTERN = Pattern.compile("([\\[\\(])([\\d.]+)\\s*,\\s*([\\d.]+)([\\]\\)])");
 
     private final Version rangeVersion;
     private final RangeOperator rangeOperator;
