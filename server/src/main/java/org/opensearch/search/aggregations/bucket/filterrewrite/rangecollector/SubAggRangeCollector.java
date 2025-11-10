@@ -12,11 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.search.aggregations.BitSetDocIdStream;
 import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.bucket.filterrewrite.BFSCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.filterrewrite.Ranges;
 
@@ -37,7 +37,6 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
     private final LeafReaderContext leafCtx;
 
     private final FixedBitSet bitSet;
-    private final BitDocIdSet bitDocIdSet;
 
     public SubAggRangeCollector(
         Ranges ranges,
@@ -54,7 +53,6 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
         this.leafCtx = subAggCollectorParam.leafCtx();
         int numDocs = leafCtx.reader().maxDoc();
         bitSet = new FixedBitSet(numDocs);
-        bitDocIdSet = new BitDocIdSet(bitSet);
     }
 
     @Override
@@ -81,9 +79,13 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
 
         // trigger the sub agg collection for this range
         try {
-            DocIdSetIterator iterator = bitDocIdSet.iterator();
             // build a new leaf collector for each bucket
-            LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(leafCtx);
+            LeafBucketCollector sub = null;
+            if (collectableSubAggregators instanceof BFSCollector bfsCollector) {
+                sub = bfsCollector.getBFSLeafCollector(leafCtx);
+            } else {
+                sub = collectableSubAggregators.getLeafCollector(leafCtx);
+            }
             sub.collect(new BitSetDocIdStream(bitSet, 0), bucketOrd);
             logger.trace("collected sub aggregation for bucket {}", bucketOrd);
         } catch (IOException e) {
