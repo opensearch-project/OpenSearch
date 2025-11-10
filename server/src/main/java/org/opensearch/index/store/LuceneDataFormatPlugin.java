@@ -34,16 +34,6 @@ public class LuceneDataFormatPlugin implements DataSourcePlugin {
     public static final LuceneDataFormatPlugin INSTANCE = new LuceneDataFormatPlugin();
 
     /**
-     * Set of file extensions that Lucene format handles
-     */
-    private static final Set<String> LUCENE_EXTENSIONS = Set.of(
-        ".cfs", ".cfe", ".si", ".fnm", ".fdx", ".fdt",
-        ".tim", ".tip", ".doc", ".pos", ".pay",
-        ".nvd", ".nvm", ".dvm", ".dvd", ".tvx", ".tvd", ".tvf",
-        ".del", ".liv"
-    );
-
-    /**
      * Private constructor to enforce singleton pattern
      */
     private LuceneDataFormatPlugin() {
