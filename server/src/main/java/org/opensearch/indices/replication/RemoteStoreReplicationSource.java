@@ -25,16 +25,13 @@ import org.opensearch.index.store.CompositeStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.index.store.remote.CompositeRemoteDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -55,7 +52,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
     private static final Logger logger = LogManager.getLogger(RemoteStoreReplicationSource.class);
 
     private final IndexShard indexShard;
-    private final CompositeRemoteDirectory compositeRemoteDirectory;
     private final RemoteSegmentStoreDirectory remoteDirectory; // Fallback for legacy cases
     private final CancellableThreads cancellableThreads = new CancellableThreads();
 
@@ -65,19 +61,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         // Try to get CompositeRemoteDirectory first, fallback to RemoteSegmentStoreDirectory
         FilterDirectory remoteStoreDirectory = (FilterDirectory) indexShard.remoteStore().directory();
         FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
-        Directory underlyingDirectory = byteSizeCachingStoreDirectory.getDelegate();
-
-        if (underlyingDirectory instanceof RemoteSegmentStoreDirectory) {
-            // Current case - using RemoteSegmentStoreDirectory (which may internally use CompositeRemoteDirectory)
-            this.remoteDirectory = (RemoteSegmentStoreDirectory) underlyingDirectory;
-            this.compositeRemoteDirectory = null;
-            logger.debug("Using RemoteSegmentStoreDirectory for shard: {}", indexShard.shardId());
-        } else {
-            // Fallback case - should not happen in current architecture
-            logger.warn("Unexpected directory type: {} for shard: {}", underlyingDirectory.getClass(), indexShard.shardId());
-            this.remoteDirectory = null;
-            this.compositeRemoteDirectory = null;
-        }
+        this.remoteDirectory = (RemoteSegmentStoreDirectory) byteSizeCachingStoreDirectory.getDelegate();
     }
 
     @Override
@@ -122,14 +106,14 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 .stream()
                 .collect(
                     Collectors.toMap(
-                        e -> e.getKey().file(),  // FileMetadata → String filename
+                        e -> e.getKey().file(),
                         e -> new StoreFileMetadata(
                             e.getValue().getOriginalFilename(),
                             e.getValue().getLength(),
                             Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
                             version,
-                            null, // BytesRef hash
-                            e.getKey().dataFormat() // dataFormat from FileMetadata key
+                            null,
+                            e.getKey().dataFormat()
                         )
                     )
                 );
@@ -158,7 +142,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 final CompositeStoreDirectory storeDirectory = indexShard.store().compositeStoreDirectory();
                 final List<FileMetadata> directoryFiles = List.of(storeDirectory.listAll());
 
-                // Convert StoreFileMetadata to FileMetadata for format-aware operations
                 final List<FileMetadata> toDownloadFileMetadata = new ArrayList<>();
 
                 for (StoreFileMetadata storeFileMetadata : filesToFetch) {
@@ -177,18 +160,14 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 }
 
                 // Use CompositeStoreDirectory with format-aware progress tracking
-                // The critical improvement: Now using FileMetadata for format-aware routing
                 final CompositeStoreDirectoryStatsWrapper statsWrapper = new CompositeStoreDirectoryStatsWrapper(storeDirectory, fileProgressTracker);
 
-
-                // Use new format-aware downloadAsync with CompositeStoreDirectoryStatsWrapper and FileMetadata
-                // This enables proper format-based routing: lucene files → LuceneStoreDirectory, parquet files → ParquetStoreDirectory
                 indexShard.getFileDownloader()
                     .downloadAsync(
                         cancellableThreads,
-                        remoteDirectory,                    // RemoteSegmentStoreDirectory source
-                        statsWrapper,                       // CompositeStoreDirectoryStatsWrapper destination
-                        toDownloadFileMetadata,             // List<FileMetadata> with format information
+                        remoteDirectory,
+                        statsWrapper,
+                        toDownloadFileMetadata,
                         ActionListener.map(listener, r -> new GetSegmentFilesResponse(filesToFetch))
                     );
             } else {

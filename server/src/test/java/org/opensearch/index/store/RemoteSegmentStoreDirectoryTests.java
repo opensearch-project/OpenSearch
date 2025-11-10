@@ -32,6 +32,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
@@ -88,7 +89,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             "abc",
             "pqr",
             "123456",
-            1234
+            1234,
+            "format"
         );
         metadata.setWrittenByMajor(Version.LATEST.major);
         assertEquals("abc::pqr::123456::1234::" + Version.LATEST.major, metadata.toString());
@@ -99,7 +101,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             "abc",
             "pqr",
             "123456",
-            1234
+            1234,
+            "format"
         );
         assertThrows(IllegalArgumentException.class, () -> metadata.setWrittenByMajor(Version.LATEST.major + 1));
     }
@@ -109,7 +112,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             "abc",
             "pqr",
             "123456",
-            1234
+            1234,
+            "format"
         );
         assertThrows(IllegalArgumentException.class, () -> metadata.setWrittenByMajor(Version.LATEST.major - 2));
     }
@@ -615,7 +619,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             UnsupportedOperationException.class,
             () -> uploadedSegmentMetadataMap.put(
                 "_100.si",
-                new RemoteSegmentStoreDirectory.UploadedSegmentMetadata("_100.si", "_100.si__uuid1", "1234", 500)
+                new RemoteSegmentStoreDirectory.UploadedSegmentMetadata("_100.si", "_100.si__uuid1", "1234", 500,"format")
             )
         );
 

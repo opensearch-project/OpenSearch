@@ -42,39 +42,27 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
 
     private final T dataFormat;
     private final Path directoryPath;
-    private final Set<String> acceptedExtensions;
     private final Logger logger;
 
     /**
      * Creates a new GenericStoreDirectory
      * @param dataFormat the data format this directory handles
      * @param shardPath the shard path where directories should be created
-     * @param acceptedExtensions set of file extensions this directory accepts
      * @param logger logger for this directory
      * @throws IOException if directory creation fails
      */
     public GenericStoreDirectory(
         T dataFormat,
         Path shardPath,
-        Set<String> acceptedExtensions,
         Logger logger
     ) throws IOException {
         this.dataFormat = dataFormat;
-        this.acceptedExtensions = Set.copyOf(acceptedExtensions);
         this.directoryPath = shardPath.resolve(dataFormat.name());
         this.logger = logger;
 
         Files.createDirectories(this.directoryPath);
     }
 
-    public GenericStoreDirectory(T dataFormat, ShardPath shardPath, Logger logger) throws IOException {
-        this.dataFormat = dataFormat;
-        this.acceptedExtensions = null;
-        this.directoryPath = shardPath.getDataPath().resolve(dataFormat.name());
-        this.logger = logger;
-
-        Files.createDirectories(this.directoryPath);
-    }
 
     @Override
     public T getDataFormat() {

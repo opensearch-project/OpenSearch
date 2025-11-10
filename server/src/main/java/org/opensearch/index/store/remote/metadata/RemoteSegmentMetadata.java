@@ -236,7 +236,9 @@ public class RemoteSegmentMetadata {
         );
     }
 
-    private static Map<FileMetadata, StoreFileMetadata> toStoreFileMetadata(Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata){
+    private static Map<FileMetadata, StoreFileMetadata> toStoreFileMetadata(
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata
+    ){
         return metadata.entrySet()
             .stream()
             .collect(Collectors.toMap(
