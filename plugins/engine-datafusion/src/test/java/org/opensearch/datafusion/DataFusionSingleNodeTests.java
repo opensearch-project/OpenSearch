@@ -44,7 +44,7 @@ public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     public void testClickBenchQueries() throws IOException {
         String mappings = fileToString(
-            "src/test/resources/clickbench_index_mapping.json",
+            "clickbench_index_mapping.json",
             false
         );
         createIndexWithMappingSource(
@@ -57,7 +57,7 @@ public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
             mappings
         );
         String req = fileToString(
-            "src/test/resources/clickbench.json",
+            "clickbench.json",
             false
         );
         client().admin().indices().prepareRefresh().get();
@@ -66,7 +66,7 @@ public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         // TODO: Uncomment and read queries from file
         String sourceFile = fileToString(
-            "src/test/resources/q1.json",
+            "q1.json",
             false
         );
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -77,12 +77,7 @@ public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
     }
 
     static String getResourceFilePath(String relPath) {
-        String projectRoot = System.getProperty("project.root", null);
-        if (projectRoot == null) {
-            return new File(relPath).getAbsolutePath();
-        } else {
-            return new File(projectRoot + "/" + relPath).getAbsolutePath();
-        }
+        return DataFusionSingleNodeTests.class.getClassLoader().getResource(relPath).getPath();
     }
 
     static String fileToString(
