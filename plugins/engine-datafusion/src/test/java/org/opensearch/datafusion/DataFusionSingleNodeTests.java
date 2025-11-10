@@ -42,7 +42,7 @@ public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     private final String indexName = "hits";
 
-    public void clickBenchTest() throws IOException {
+    public void testClickBenchQueries() throws IOException {
         String mappings = fileToString(
             "src/test/resources/clickbench_index_mapping.json",
             false
@@ -52,7 +52,7 @@ public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.refresh_interval", -1)
+//                .put("index.refresh_interval", -1)
                 .build(),
             mappings
         );
