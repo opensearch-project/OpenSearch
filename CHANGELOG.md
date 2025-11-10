@@ -90,6 +90,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.api.grpc:proto-google-iam-v1` from 1.55.0 to 1.57.0 ([#19872](https://github.com/opensearch-project/OpenSearch/pull/19872))
 - Bump `org.apache.commons:commons-text` from 1.13.1 to 1.14.0 ([#19871](https://github.com/opensearch-project/OpenSearch/pull/19871))
 - Exclude group com.microsoft.sqlserver from hadoop-minicluster ([#19889](https://github.com/opensearch-project/OpenSearch/pull/19889))
+- Bump `actions/github-script` from 7 to 8 ([#19946](https://github.com/opensearch-project/OpenSearch/pull/19946))
+- Bump `com.google.api:gax-httpjson` from 2.69.0 to 2.72.1 ([#19943](https://github.com/opensearch-project/OpenSearch/pull/19943))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
@@ -99,7 +101,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Deprecated existing constructors in Condition.Stats and DirectoryFileTransferTracker.Stats in favor of the new Builder ([#19862](https://github.com/opensearch-project/OpenSearch/pull/19862))
 - Deprecated existing constructors in RemoteTranslogTransferTracker.Stats and RemoteSegmentTransferTracker.Stats in favor of the new Builder ([#19837](https://github.com/opensearch-project/OpenSearch/pull/19837))
 - Deprecated existing constructors in GetStats, FlushStats and QueryCacheStats in favor of the new Builder ([#19935](https://github.com/opensearch-project/OpenSearch/pull/19935))
-- Bump `com.google.api:gax-httpjson` from 2.69.0 to 2.72.1 ([#19943](https://github.com/opensearch-project/OpenSearch/pull/19943))
 
 ### Removed
 
