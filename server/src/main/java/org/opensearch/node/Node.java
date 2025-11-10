@@ -1292,7 +1292,7 @@ public class Node implements Closeable {
                         streamTransport,
                         threadPool,
                         networkModule.getTransportInterceptor(),
-                        new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService),
+                        new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService, true),
                         settingsModule.getClusterSettings(),
                         transportService.getTaskManager(),
                         transportService.getRemoteClusterService(),
@@ -2325,11 +2325,22 @@ public class Node implements Closeable {
         private final String persistentNodeId;
         private final Settings settings;
         private final RemoteStoreNodeService remoteStoreNodeService;
+        private final boolean useStreamTransport;
 
         private LocalNodeFactory(Settings settings, String persistentNodeId, RemoteStoreNodeService remoteStoreNodeService) {
+            this(settings, persistentNodeId, remoteStoreNodeService, false);
+        }
+
+        private LocalNodeFactory(
+            Settings settings,
+            String persistentNodeId,
+            RemoteStoreNodeService remoteStoreNodeService,
+            boolean useStreamTransport
+        ) {
             this.persistentNodeId = persistentNodeId;
             this.settings = settings;
             this.remoteStoreNodeService = remoteStoreNodeService;
+            this.useStreamTransport = useStreamTransport;
         }
 
         @Override
@@ -2340,7 +2351,7 @@ public class Node implements Closeable {
                 persistentNodeId
             );
 
-            if (isRemoteStoreAttributePresent(settings)) {
+            if (!useStreamTransport && isRemoteStoreAttributePresent(settings)) {
                 remoteStoreNodeService.createAndVerifyRepositories(discoveryNode);
             }
 
