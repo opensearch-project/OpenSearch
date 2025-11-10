@@ -274,8 +274,11 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                 highLevelClient().indices()::create,
                 highLevelClient().indices()::createAsync
             );
-            assertTrue(createIndexResponse.isAcknowledged());
-            assertTrue(indexExists(indexName));
+            assertTrue(
+                "Index creation should be acknowledged when setting creation_date during index creation",
+                createIndexResponse.isAcknowledged()
+            );
+            assertTrue("Index should exist after creation with creation_date setting", indexExists(indexName));
         }
     }
 
@@ -298,7 +301,10 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                     highLevelClient().indices()::putSettingsAsync
                 )
             );
-            assertTrue(exception.getMessage().contains("final index setting [index.creation_date], not updateable"));
+            assertTrue(
+                "Exception message should indicate that index.creation_date cannot be updated. Got: " + exception.getMessage(),
+                exception.getMessage().contains("Can't update non dynamic settings [[index.creation_date]]")
+            );
         }
     }
 

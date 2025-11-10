@@ -668,8 +668,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         -1,
         -1,
         Property.IndexScope,
-        Property.Final,
-        Property.UnmodifiableOnRestore
+        Property.Final
     );
 
     /**
