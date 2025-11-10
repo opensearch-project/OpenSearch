@@ -13,9 +13,9 @@ import org.opensearch.protobufs.GlobalParams;
 
 public final class TestFixtures {
 
-    public static final GlobalParams FULL_STACK_TRACE_REQUESTED = GlobalParams.newBuilder().setErrorTrace(true).build();
+    public static final GlobalParams GLOBAL_PARAMS_WITH_ERROR_TRACE_TRUE = GlobalParams.newBuilder().setErrorTrace(true).build();
 
-    public static final GlobalParams ERROR_SUMMARY_REQUESTED = GlobalParams.newBuilder().setErrorTrace(false).build();
+    public static final GlobalParams GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE = GlobalParams.newBuilder().setErrorTrace(false).build();
 
     public static Settings settingsWithGivenStackTraceConfig(boolean stackTracesEnabled) {
         return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_DETAILED_ERRORS_ENABLED.getKey(), stackTracesEnabled).build();

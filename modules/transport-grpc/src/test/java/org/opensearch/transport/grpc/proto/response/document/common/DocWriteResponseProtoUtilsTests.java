@@ -17,7 +17,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE;
 
 public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
 
@@ -34,7 +34,7 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
         indexResponse.setForcedRefresh(true);
 
         // Convert to protobuf ResponseItem.Builder
-        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse, FULL_STACK_TRACE_REQUESTED);
+        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the result
         assertNotNull("ResponseItem.Builder should not be null", responseItemBuilder);
@@ -72,7 +72,7 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
         indexResponse.setShardInfo(shardInfo);
 
         // Convert to protobuf ResponseItem.Builder
-        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse, FULL_STACK_TRACE_REQUESTED);
+        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the result
         assertNotNull("ResponseItem.Builder should not be null", responseItemBuilder);
@@ -96,7 +96,7 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
         indexResponse.setShardInfo(shardInfo);
 
         // Convert to protobuf ResponseItem.Builder
-        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse, FULL_STACK_TRACE_REQUESTED);
+        ResponseItem.Builder responseItemBuilder = DocWriteResponseProtoUtils.toProto(indexResponse, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the result
         assertNotNull("ResponseItem.Builder should not be null", responseItemBuilder);
@@ -111,6 +111,6 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithNullResponse() throws IOException {
         // Call toProto with null, should throw NullPointerException
-        expectThrows(NullPointerException.class, () -> DocWriteResponseProtoUtils.toProto(null, FULL_STACK_TRACE_REQUESTED));
+        expectThrows(NullPointerException.class, () -> DocWriteResponseProtoUtils.toProto(null, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE));
     }
 }

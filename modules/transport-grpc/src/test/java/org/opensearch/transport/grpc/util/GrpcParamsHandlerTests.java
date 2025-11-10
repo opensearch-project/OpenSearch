@@ -11,8 +11,8 @@ package org.opensearch.transport.grpc.util;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 
-import static org.opensearch.transport.grpc.TestFixtures.ERROR_SUMMARY_REQUESTED;
-import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE;
+import static org.opensearch.transport.grpc.TestFixtures.GLOBAL_PARAMS_WITH_ERROR_TRACE_TRUE;
 import static org.opensearch.transport.grpc.TestFixtures.settingsWithGivenStackTraceConfig;
 
 public class GrpcParamsHandlerTests extends OpenSearchTestCase {
@@ -27,7 +27,7 @@ public class GrpcParamsHandlerTests extends OpenSearchTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> GrpcParamsHandler.validateStackTraceDetailsConfiguration(FULL_STACK_TRACE_REQUESTED)
+            () -> GrpcParamsHandler.validateStackTraceDetailsConfiguration(GLOBAL_PARAMS_WITH_ERROR_TRACE_TRUE)
         );
         assertEquals("error traces in responses are disabled.", exception.getMessage());
     }
@@ -36,7 +36,7 @@ public class GrpcParamsHandlerTests extends OpenSearchTestCase {
         GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
 
         try {
-            GrpcParamsHandler.validateStackTraceDetailsConfiguration(ERROR_SUMMARY_REQUESTED);
+            GrpcParamsHandler.validateStackTraceDetailsConfiguration(GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
         } catch (Exception e) {
             fail("Validation should pass without exceptions when stack traces are not requested.");
         }
@@ -45,11 +45,11 @@ public class GrpcParamsHandlerTests extends OpenSearchTestCase {
     public void testGrpcParamsHandlerPicksErrorTraceRequestParameter() {
         assertTrue(
             "Params handler must directly pick error_trace=true",
-            GrpcParamsHandler.isDetailedStackTraceRequested(FULL_STACK_TRACE_REQUESTED)
+            GrpcParamsHandler.isDetailedStackTraceRequested(GLOBAL_PARAMS_WITH_ERROR_TRACE_TRUE)
         );
         assertFalse(
             "Params handler must directly pick error_trace=false",
-            GrpcParamsHandler.isDetailedStackTraceRequested(ERROR_SUMMARY_REQUESTED)
+            GrpcParamsHandler.isDetailedStackTraceRequested(GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE)
         );
     }
 

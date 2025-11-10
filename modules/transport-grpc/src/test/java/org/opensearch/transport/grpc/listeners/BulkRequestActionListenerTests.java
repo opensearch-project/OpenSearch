@@ -23,7 +23,7 @@ import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
@@ -38,7 +38,7 @@ public class BulkRequestActionListenerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         MockitoAnnotations.openMocks(this);
-        listener = new BulkRequestActionListener(responseObserver, FULL_STACK_TRACE_REQUESTED);
+        listener = new BulkRequestActionListener(responseObserver, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
     }
 
     public void testOnResponseWithSuccessfulResponse() {

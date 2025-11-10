@@ -30,7 +30,7 @@ import java.util.Map;
 
 import io.grpc.Status;
 
-import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE;
 
 public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
 
@@ -51,7 +51,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Convert to protobuf ResponseItem
         org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
             bulkItemResponse,
-            FULL_STACK_TRACE_REQUESTED
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
         );
 
         // Verify the result
@@ -79,7 +79,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Convert to protobuf ResponseItem
         org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
             bulkItemResponse,
-            FULL_STACK_TRACE_REQUESTED
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
         );
 
         // Verify the result
@@ -107,7 +107,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Convert to protobuf ResponseItem
         org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
             bulkItemResponse,
-            FULL_STACK_TRACE_REQUESTED
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
         );
 
         // Verify the result
@@ -135,7 +135,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Convert to protobuf Item
         org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
             bulkItemResponse,
-            FULL_STACK_TRACE_REQUESTED
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
         );
 
         // Verify the result
@@ -181,7 +181,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Convert to protobuf Item
         org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
             bulkItemResponse,
-            FULL_STACK_TRACE_REQUESTED
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
         );
 
         // Verify the result
@@ -214,7 +214,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Convert to protobuf Item
         org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
             bulkItemResponse,
-            FULL_STACK_TRACE_REQUESTED
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
         );
 
         // Verify the result
@@ -230,6 +230,6 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithNullResponse() throws IOException {
         // Call toProto with null, should throw NullPointerException
-        expectThrows(NullPointerException.class, () -> BulkItemResponseProtoUtils.toProto(null, FULL_STACK_TRACE_REQUESTED));
+        expectThrows(NullPointerException.class, () -> BulkItemResponseProtoUtils.toProto(null, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE));
     }
 }

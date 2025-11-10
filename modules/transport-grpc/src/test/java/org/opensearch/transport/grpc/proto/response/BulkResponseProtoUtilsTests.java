@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import io.grpc.Status;
 
-import static org.opensearch.transport.grpc.TestFixtures.FULL_STACK_TRACE_REQUESTED;
+import static org.opensearch.transport.grpc.TestFixtures.GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE;
 
 public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
 
@@ -39,7 +39,10 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkResponse bulkResponse = new BulkResponse(responses, 100);
 
         // Convert to Protocol Buffer
-        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse, FULL_STACK_TRACE_REQUESTED);
+        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(
+            bulkResponse,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the conversion
         assertEquals("Should have the correct took time", 100, protoResponse.getTook());
@@ -67,7 +70,10 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkResponse bulkResponse = new BulkResponse(responses, 100);
 
         // Convert to Protocol Buffer
-        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse, FULL_STACK_TRACE_REQUESTED);
+        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(
+            bulkResponse,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the conversion
         assertEquals("Should have the correct took time", 100, protoResponse.getTook());
@@ -96,7 +102,10 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkResponse bulkResponse = new BulkResponse(responses, 100, 50);
 
         // Convert to Protocol Buffer
-        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse, FULL_STACK_TRACE_REQUESTED);
+        org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(
+            bulkResponse,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the conversion
         assertEquals("Should have the correct took time", 100, protoResponse.getTook());
