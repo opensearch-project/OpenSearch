@@ -237,10 +237,7 @@ public class TransportPruneFileCacheActionTests extends OpenSearchTestCase {
         PruneFileCacheRequest globalRequest = new PruneFileCacheRequest();
         TransportPruneFileCacheAction.NodeRequest nodeRequest = new TransportPruneFileCacheAction.NodeRequest(globalRequest);
 
-        RuntimeException exception = expectThrows(
-            RuntimeException.class,
-            () -> action.nodeOperation(nodeRequest)
-        );
+        RuntimeException exception = expectThrows(RuntimeException.class, () -> action.nodeOperation(nodeRequest));
 
         assertTrue("Exception should contain node ID", exception.getMessage().contains("node"));
         assertTrue("Exception should mention failure", exception.getMessage().contains("failed"));

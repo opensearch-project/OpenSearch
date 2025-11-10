@@ -20,6 +20,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -67,7 +68,8 @@ public class SubdirectoryStorePluginTests extends OpenSearchTestCase {
             SubdirectoryStorePluginTests.newFSDirectory(path.resolve("index")),
             new DummyShardLock(shardId),
             Store.OnClose.EMPTY,
-            new ShardPath(false, path, path, shardId)
+            new ShardPath(false, path, path, shardId),
+            new FsDirectoryFactory()
         );
 
         long initialStoreSize = 0;
@@ -87,7 +89,7 @@ public class SubdirectoryStorePluginTests extends OpenSearchTestCase {
 
         final long otherStatsBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsReservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES : randomLongBetween(0L, Integer.MAX_VALUE);
-        stats.add(new StoreStats(otherStatsBytes, otherStatsReservedBytes));
+        stats.add(new StoreStats.Builder().sizeInBytes(otherStatsBytes).reservedSize(otherStatsReservedBytes).build());
         assertEquals(initialStoreSize + otherStatsBytes, stats.getSize().getBytes());
         assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.getReservedSize().getBytes());
 

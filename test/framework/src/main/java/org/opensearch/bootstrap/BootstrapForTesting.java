@@ -139,6 +139,7 @@ public class BootstrapForTesting {
         IfConfig.logIfNecessary();
         if (FipsMode.CHECK.isFipsEnabled()) {
             SecurityProviderManager.removeNonCompliantFipsProviders();
+            FipsTrustStoreValidator.validate();
         }
 
         // install security manager if requested

@@ -13,10 +13,13 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -86,6 +89,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         new TestDoc(2, Instant.parse("2020-03-01T01:00:00Z")),
         new TestDoc(3, Instant.parse("2020-03-01T02:00:00Z")),
         new TestDoc(4, Instant.parse("2020-03-01T03:00:00Z")),
+        new TestDoc(4, Instant.parse("2020-03-01T04:00:00Z"), true),
         new TestDoc(5, Instant.parse("2020-03-01T04:00:00Z")),
         new TestDoc(6, Instant.parse("2020-03-01T04:00:00Z"))
     );
@@ -205,7 +209,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
             dateFieldName
         ).calendarInterval(DateHistogramInterval.HOUR).subAggregation(AggregationBuilders.stats(statsAggName).field(longFieldName));
 
-        InternalDateHistogram result = executeAggregation(DEFAULT_DATA, dateHistogramAggregationBuilder, true);
+        InternalDateHistogram result = executeAggregation(DEFAULT_DATA, dateHistogramAggregationBuilder, false);
 
         // Verify results
         List<? extends InternalDateHistogram.Bucket> buckets = result.getBuckets();
@@ -430,11 +434,35 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
                 for (TestDoc doc : docs) {
                     indexWriter.addDocument(doc.toDocument());
                 }
+
+                indexWriter.commit();
+            }
+
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()))) {
+                for (TestDoc doc : docs) {
+                    if (doc.deleted) {
+                        BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
+                        booleanQueryBuilder.add(LongPoint.newRangeQuery(longFieldName, doc.metric, doc.metric), BooleanClause.Occur.MUST);
+                        booleanQueryBuilder.add(
+                            LongField.newRangeQuery(
+                                dateFieldName,
+                                dateFieldType.parse(doc.timestamp.toString()),
+                                dateFieldType.parse(doc.timestamp.toString())
+                            ),
+                            BooleanClause.Occur.MUST
+                        );
+                        indexWriter.deleteDocuments(booleanQueryBuilder.build());
+                    }
+                }
+
+                indexWriter.commit();
             }
         } else {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (TestDoc doc : docs) {
-                    indexWriter.addDocument(doc.toDocument());
+                    if (!doc.deleted) {
+                        indexWriter.addDocument(doc.toDocument());
+                    }
                 }
             }
         }
@@ -514,10 +542,16 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
     private class TestDoc {
         private final long metric;
         private final Instant timestamp;
+        private final boolean deleted;
 
         public TestDoc(long metric, Instant timestamp) {
+            this(metric, timestamp, false);
+        }
+
+        public TestDoc(long metric, Instant timestamp, boolean deleted) {
             this.metric = metric;
             this.timestamp = timestamp;
+            this.deleted = deleted;
         }
 
         public ParseContext.Document toDocument() {

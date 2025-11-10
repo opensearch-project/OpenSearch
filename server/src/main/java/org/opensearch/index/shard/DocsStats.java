@@ -58,12 +58,28 @@ public class DocsStats implements Writeable, ToXContentFragment {
 
     }
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new DocsStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private DocsStats(Builder builder) {
+        this.count = builder.count;
+        this.deleted = builder.deleted;
+        this.totalSizeInBytes = builder.totalSizeInBytes;
+    }
+
     public DocsStats(StreamInput in) throws IOException {
         count = in.readVLong();
         deleted = in.readVLong();
         totalSizeInBytes = in.readVLong();
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public DocsStats(long count, long deleted, long totalSizeInBytes) {
         this.count = count;
         this.deleted = deleted;
@@ -105,6 +121,41 @@ public class DocsStats implements Writeable, ToXContentFragment {
     public long getAverageSizeInBytes() {
         long totalDocs = count + deleted;
         return totalDocs == 0 ? 0 : totalSizeInBytes / totalDocs;
+    }
+
+    /**
+     * Builder for the {@link DocsStats} class.
+     * Provides a fluent API for constructing a DocsStats object.
+     */
+    public static class Builder {
+        private long count = 0;
+        private long deleted = 0;
+        private long totalSizeInBytes = 0;
+
+        public Builder() {}
+
+        public Builder count(long count) {
+            this.count = count;
+            return this;
+        }
+
+        public Builder deleted(long deleted) {
+            this.deleted = deleted;
+            return this;
+        }
+
+        public Builder totalSizeInBytes(long totalSizeInBytes) {
+            this.totalSizeInBytes = totalSizeInBytes;
+            return this;
+        }
+
+        /**
+         * Creates a {@link DocsStats} object from the builder's current state.
+         * @return A new DocsStats instance.
+         */
+        public DocsStats build() {
+            return new DocsStats(this);
+        }
     }
 
     @Override
