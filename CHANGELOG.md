@@ -24,6 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Implement GRPC Search params `Highlight`and `Sort` ([#19868](https://github.com/opensearch-project/OpenSearch/pull/19868))
 - Implement GRPC ConstantScoreQuery, FuzzyQuery, MatchBoolPrefixQuery, MatchPhrasePrefix, PrefixQuery, MatchQuery ([#19854](https://github.com/opensearch-project/OpenSearch/pull/19854))
 - Add async periodic flush task support for pull-based ingestion ([#19878](https://github.com/opensearch-project/OpenSearch/pull/19878))
+- Add support for context aware segments ([#19098](https://github.com/opensearch-project/OpenSearch/pull/19098))
+- Implement GRPC FunctionScoreQuery ([#19888](https://github.com/opensearch-project/OpenSearch/pull/19888))
 
 ### Changed
 - Faster `terms` query creation for `keyword` field with index and docValues enabled ([#19350](https://github.com/opensearch-project/OpenSearch/pull/19350))
@@ -36,12 +38,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactor the ThreadPoolStats.Stats class to use the Builder pattern instead of constructors ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
 - Refactor the IndexingStats.Stats class to use the Builder pattern instead of constructors ([#19306](https://github.com/opensearch-project/OpenSearch/pull/19306))
 - Remove FeatureFlag.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG. ([#19715](https://github.com/opensearch-project/OpenSearch/pull/19715))
+- Replace java.security.AccessController with org.opensearch.secure_sm.AccessController in discovery plugins ([#19802](https://github.com/opensearch-project/OpenSearch/pull/19802))
 - Change the default value of doc_values in WildcardFieldMapper to true. ([#19796](https://github.com/opensearch-project/OpenSearch/pull/19796))
 - Make Engine#loadHistoryUUID() protected and Origin#isFromTranslog() public ([#19753](https://github.com/opensearch-project/OpenSearch/pull/19752))
 - Bump opensearch-protobufs dependency to 0.23.0 and update transport-grpc module compatibility ([#19831](https://github.com/opensearch-project/OpenSearch/pull/19831))
 - Refactor the RefreshStats class to use the Builder pattern instead of constructors ([#19835](https://github.com/opensearch-project/OpenSearch/pull/19835))
 - Refactor the DocStats and StoreStats class to use the Builder pattern instead of constructors ([#19863](https://github.com/opensearch-project/OpenSearch/pull/19863))
 - Pass registry of headers from ActionPlugin.getRestHeaders to ActionPlugin.getRestHandlerWrapper ([#19875](https://github.com/opensearch-project/OpenSearch/pull/19875))
+- Refactor the Condition.Stats and DirectoryFileTransferTracker.Stats class to use the Builder pattern instead of constructors ([#19862](https://github.com/opensearch-project/OpenSearch/pull/19862))
+- Refactor the RemoteTranslogTransferTracker.Stats and RemoteSegmentTransferTracker.Stats class to use the Builder pattern instead of constructors ([#19837](https://github.com/opensearch-project/OpenSearch/pull/19837))
+- Add RangeSemver for `dependencies` in `plugin-descriptor.properties` ([#19939](https://github.com/opensearch-project/OpenSearch/pull/19939))
 
 ### Fixed
 - Fix Allocation and Rebalance Constraints of WeightFunction are incorrectly reset ([#19012](https://github.com/opensearch-project/OpenSearch/pull/19012))
@@ -57,6 +63,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fixed assertion unsafe use of ClusterService.state() in ResourceUsageCollectorService ([#19775])(https://github.com/opensearch-project/OpenSearch/pull/19775))
 - Fix Unified highlighter for nested fields when using matchPhrasePrefixQuery ([#19442](https://github.com/opensearch-project/OpenSearch/pull/19442))
 - Add S3Repository.LEGACY_MD5_CHECKSUM_CALCULATION to list of repository-s3 settings ([#19788](https://github.com/opensearch-project/OpenSearch/pull/19788))
+- Fix NullPointerException when restoring remote snapshot with missing shard size information ([#19684](https://github.com/opensearch-project/OpenSearch/pull/19684))
 - Fix NPE of ScriptScoreQuery ([#19650](https://github.com/opensearch-project/OpenSearch/pull/19650))
 
 ### Dependencies
@@ -89,6 +96,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Deprecated existing constructors in IndexingStats.Stats in favor of the new Builder ([#19306](https://github.com/opensearch-project/OpenSearch/pull/19306))
 - Deprecated existing constructors in RefreshStats in favor of the new Builder ([#19835](https://github.com/opensearch-project/OpenSearch/pull/19835))
 - Deprecated existing constructors in DocStats and StoreStats in favor of the new Builder ([#19863](https://github.com/opensearch-project/OpenSearch/pull/19863))
+- Deprecated existing constructors in Condition.Stats and DirectoryFileTransferTracker.Stats in favor of the new Builder ([#19862](https://github.com/opensearch-project/OpenSearch/pull/19862))
+- Deprecated existing constructors in RemoteTranslogTransferTracker.Stats and RemoteSegmentTransferTracker.Stats in favor of the new Builder ([#19837](https://github.com/opensearch-project/OpenSearch/pull/19837))
 
 ### Removed
 
