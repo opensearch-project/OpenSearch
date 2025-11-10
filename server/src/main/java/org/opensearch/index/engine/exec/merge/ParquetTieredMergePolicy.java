@@ -34,7 +34,7 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
             @Override
             public void message(String s, String s1) {
                 // TODO: Add logger
-                 System.out.println("Parquet merge: " + s + " : " + s1);
+//                 System.out.println("Parquet merge: " + s + " : " + s1);
             }
 
             @Override
