@@ -463,7 +463,7 @@ public class BulkRequestParserProtoUtils {
      * @param ifPrimaryTermFromOperation The primary term
      * @return The populated UpdateRequest
      */
-    private static UpdateRequest fromProto(
+    static UpdateRequest fromProto(
         UpdateRequest updateRequest,
         ByteString documentBytes,
         BulkRequestBody bulkRequestBody,

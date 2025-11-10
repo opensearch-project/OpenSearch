@@ -9,6 +9,7 @@
 package org.opensearch.transport.grpc.proto.request.document.bulk;
 
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -26,7 +27,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call prepareRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
 
         // Verify the result
         assertNotNull("BulkRequest should not be null", bulkRequest);
@@ -39,7 +40,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = BulkRequest.newBuilder().build();
 
         // Call prepareRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
 
         // Verify the result
         assertNotNull("BulkRequest should not be null", bulkRequest);
@@ -52,7 +53,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = BulkRequest.newBuilder().setTimeout("5s").build();
 
         // Call prepareRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
 
         // Verify the result
         assertNotNull("BulkRequest should not be null", bulkRequest);
@@ -69,7 +70,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = BulkRequest.newBuilder().setWaitForActiveShards(waitForActiveShards).build();
 
         // Call prepareRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
 
         // Verify the result
         assertNotNull("BulkRequest should not be null", bulkRequest);
@@ -82,7 +83,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = BulkRequest.newBuilder().setRequireAlias(true).build();
 
         // Call prepareRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
 
         // Verify the result
         assertNotNull("BulkRequest should not be null", bulkRequest);
@@ -95,7 +96,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = BulkRequest.newBuilder().setPipeline("test-pipeline").build();
 
         // Call prepareRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
 
         // Verify the result
         assertNotNull("BulkRequest should not be null", bulkRequest);
@@ -108,7 +109,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = BulkRequest.newBuilder().setRefresh(org.opensearch.protobufs.Refresh.REFRESH_WAIT_FOR).build();
 
         // Call prepareRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
 
         // Verify the result
         assertNotNull("BulkRequest should not be null", bulkRequest);
@@ -120,7 +121,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = BulkRequest.newBuilder().setRefresh(org.opensearch.protobufs.Refresh.REFRESH_FALSE).build();
 
         // Call prepareRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
 
         // Verify the result
         assertNotNull("BulkRequest should not be null", bulkRequest);

@@ -54,7 +54,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -97,7 +99,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -132,7 +136,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -160,7 +166,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             1L,
             VersionType.INTERNAL,
             1L,
-            2L
+            2L,
+            null,
+            true
         );
 
         assertNotNull("DeleteRequest should not be null", deleteRequest);
@@ -194,7 +202,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            ByteString.copyFrom(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -204,7 +212,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("UpdateRequest should not be null", updateRequest);
@@ -257,7 +267,8 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-routing",
             null,
             "default-pipeline",
-            false
+            false,
+            true
         );
 
         assertNotNull("Requests should not be null", requests);
@@ -301,7 +312,8 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
                 "default-routing",
                 null,
                 "default-pipeline",
-                false
+                false,
+                true
             )
         );
     }
@@ -322,7 +334,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -349,7 +363,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertEquals("Pipeline should use custom value", "custom-pipeline", indexRequest.getPipeline());
@@ -382,7 +398,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -415,7 +433,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -454,7 +474,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            ByteString.copyFrom(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -464,7 +484,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("UpdateRequest should not be null", updateRequest);
@@ -486,7 +508,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            ByteString.copyFrom(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -496,7 +518,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("UpdateRequest should not be null", updateRequest);
@@ -516,7 +540,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            ByteString.copyFrom(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -526,7 +550,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("UpdateRequest should not be null", updateRequest);
@@ -550,7 +576,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            ByteString.copyFrom(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -560,7 +586,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("UpdateRequest should not be null", updateRequest);
@@ -579,7 +607,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
-            document,
+            ByteString.copyFrom(document),
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -589,7 +617,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-pipeline",
             1L,
             2L,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("UpdateRequest should not be null", updateRequest);
@@ -608,7 +638,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             1L,
             VersionType.INTERNAL,
             1L,
-            2L
+            2L,
+            null,
+            true
         );
 
         assertNotNull("DeleteRequest should not be null", deleteRequest);
@@ -642,7 +674,8 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             null, // Pass null to test global routing
             null,
             null, // Pass null to test global pipeline
-            null  // Pass null to test global requireAlias
+            null,  // Pass null to test global requireAlias
+            true
         );
 
         assertNotNull("Requests should not be null", requests);
@@ -666,7 +699,8 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             "default-routing",
             null,
             "default-pipeline",
-            false
+            false,
+            true
         );
 
         assertNotNull("Requests should not be null", requests);
@@ -705,7 +739,13 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateOperation updateOperation = UpdateOperation.newBuilder().setIfSeqNo(123L).setIfPrimaryTerm(456L).build();
 
-        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(updateRequest, document, bulkRequestBody, updateOperation);
+        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(
+            updateRequest,
+            ByteString.copyFrom(document),
+            bulkRequestBody,
+            123L,
+            456L
+        );
 
         assertNotNull("Result should not be null", result);
         assertNotNull("Script should be set", result.script());
@@ -735,7 +775,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -763,7 +805,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -792,7 +836,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -820,7 +866,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -843,7 +891,13 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         UpdateOperation updateOperation = UpdateOperation.newBuilder().build();
 
-        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(updateRequest, document, bulkRequestBody, updateOperation);
+        UpdateRequest result = BulkRequestParserProtoUtils.fromProto(
+            updateRequest,
+            ByteString.copyFrom(document),
+            bulkRequestBody,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
 
         assertNotNull("Result should not be null", result);
         assertNotNull("Upsert should be set", result.upsertRequest());
@@ -865,7 +919,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -891,7 +947,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -919,7 +977,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -948,7 +1008,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
@@ -976,7 +1038,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
-            false
+            false,
+            null,
+            true
         );
 
         assertNotNull("IndexRequest should not be null", indexRequest);
