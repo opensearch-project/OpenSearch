@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReader;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -57,5 +58,14 @@ public class DerivedFieldGenerator {
      */
     public void generate(XContentBuilder builder, LeafReader reader, int docId) throws IOException {
         fieldValueFetcher.write(builder, fieldValueFetcher.fetch(reader, docId));
+    }
+
+    /**
+     * Generate the derived field value based on the preference of derived field and field value type
+     * @param builder - builder to store the derived source filed
+     * @param values - values for which we want to generate the source
+     */
+    public void generate(XContentBuilder builder, List<Object> values) throws IOException {
+        fieldValueFetcher.write(builder, values);
     }
 }

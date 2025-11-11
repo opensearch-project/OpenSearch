@@ -435,7 +435,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
      *    2. When using stored field, for multi value field order would be preserved
      */
     @Override
-    protected DerivedFieldGenerator derivedFieldGenerator() {
+    public DerivedFieldGenerator derivedFieldGenerator() {
         return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {

@@ -17,9 +17,9 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
-import org.opensearch.index.engine.EngineSearcher;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -61,6 +61,7 @@ import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Search context for Datafusion engine
@@ -81,6 +82,11 @@ public class DatafusionContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private final BigArrays bigArrays;
     private final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
+    private int[] docIdsToLoad;
+    private int docsIdsToLoadFrom;
+    private int docsIdsToLoadSize;
+    private int from;
+    private int size;
     private final SearchContext originalContext;
 
     /**
@@ -117,6 +123,8 @@ public class DatafusionContext extends SearchContext {
         );
         this.bigArrays = bigArrays;
         this.originalContext = originalContext;
+        this.size(Optional.ofNullable(request.source()).isPresent() ? request.source().size() : 0);
+        this.from(Optional.ofNullable(request.source()).isPresent() ? request.source().from() : 0);
     }
 
     /**
@@ -387,7 +395,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public MapperService mapperService() {
-        return null;
+        return indexService.mapperService();
     }
 
     @Override
@@ -563,7 +571,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public int from() {
-        return 0;
+        return from;
     }
 
     /**
@@ -572,12 +580,13 @@ public class DatafusionContext extends SearchContext {
      */
     @Override
     public SearchContext from(int from) {
-        return null;
+        this.from = from;
+        return this;
     }
 
     @Override
     public int size() {
-        return 0;
+        return size;
     }
 
     /**
@@ -586,7 +595,8 @@ public class DatafusionContext extends SearchContext {
      */
     @Override
     public SearchContext size(int size) {
-        return null;
+        this.size = size;
+        return this;
     }
 
     @Override
@@ -676,17 +686,17 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public int[] docIdsToLoad() {
-        return new int[0];
+        return docIdsToLoad;
     }
 
     @Override
     public int docIdsToLoadFrom() {
-        return 0;
+        return docsIdsToLoadFrom;
     }
 
     @Override
     public int docIdsToLoadSize() {
-        return 0;
+        return docsIdsToLoadSize;
     }
 
     /**
@@ -697,7 +707,10 @@ public class DatafusionContext extends SearchContext {
      */
     @Override
     public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
-        return null;
+        this.docIdsToLoad = docIdsToLoad;
+        this.docsIdsToLoadFrom = docsIdsToLoadFrom;
+        this.docsIdsToLoadSize = docsIdsToLoadSize;
+        return this;
     }
 
     @Override
@@ -760,7 +773,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public ReaderContext readerContext() {
-        return null;
+        return readerContext;
     }
 
     @Override

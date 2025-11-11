@@ -9,6 +9,8 @@
 package org.opensearch.search.aggregations;
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.io.IOException;
+
 /**
  * Experimental
  * @opensearch.internal
@@ -20,5 +22,5 @@ public interface SearchResultsCollector<T> {
     /**
      * collect
      */
-    void collect(T value);
+    void collect(T value) throws IOException;
 }

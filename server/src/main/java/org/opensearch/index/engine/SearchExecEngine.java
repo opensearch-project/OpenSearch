@@ -48,8 +48,12 @@ public abstract class SearchExecEngine<C extends SearchContext, S extends Engine
     public abstract C createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext) throws IOException;
 
     /**
-     * execute
-     * @return
+     * execute Query Phase
      */
-    public abstract Map<String, Object[]> execute(C context) throws IOException;
+    public abstract Map<String, Object[]> executeQueryPhase(C context) throws IOException;
+
+    /**
+     * execute Fetch Phase
+     */
+    public abstract void executeFetchPhase(C context) throws IOException;
 }
