@@ -37,6 +37,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -352,7 +353,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
         this.address = new TransportAddress(in);
-        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_2_0) && FeatureFlags.isTransportStreamFeatureEnabled()) {
             this.streamAddress = in.readOptionalWriteable(TransportAddress::new);
         } else {
             streamAddress = null;
@@ -435,7 +436,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_2_0) && FeatureFlags.isTransportStreamFeatureEnabled()) {
             out.writeOptionalWriteable(streamAddress);
         }
     }
