@@ -46,13 +46,13 @@ import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.transport.client.OpenSearchClient;
-import org.opensearch.search.query.StreamingSearchMode;
 
 import java.util.Arrays;
 import java.util.List;

@@ -8,6 +8,7 @@
 
 package org.opensearch.search.query;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.LeafCollector;
@@ -16,7 +17,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ import java.util.Collection;
 /**
  * Minimal no-hits streaming collector context for size=0 aggregation-only requests.
  * Preserves streaming aggregation path without collecting hits or setting topDocs.
- * 
+ *
  * @opensearch.internal
  */
 public class StreamingAggregationOnlyCollectorContext extends TopDocsCollectorContext {
@@ -73,7 +73,7 @@ public class StreamingAggregationOnlyCollectorContext extends TopDocsCollectorCo
         public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
             // Get the inner collector's leaf collector (for aggregations)
             final LeafCollector inLeafCollector = (in != null) ? in.getLeafCollector(context) : null;
-            
+
             return new LeafCollector() {
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {

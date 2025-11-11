@@ -359,7 +359,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             collector.setWeight(weight);
 
             // Ensure previous segment is finalized and aggregators are reset before starting a new segment
-            if (searchContext.isStreamSearch() 
+            if (searchContext.isStreamSearch()
                 && searchContext.getFlushMode() == FlushMode.PER_SEGMENT
                 && searchContext.getStreamChannelListener() != null) {
                 List<InternalAggregation> preLeafBatch = searchContext.bucketCollectorProcessor().buildAggBatch(collector);
@@ -416,7 +416,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
 
-        if (searchContext.isStreamSearch() 
+        if (searchContext.isStreamSearch()
             && searchContext.getFlushMode() == FlushMode.PER_SEGMENT
             && searchContext.getStreamChannelListener() != null) {
             logger.debug(

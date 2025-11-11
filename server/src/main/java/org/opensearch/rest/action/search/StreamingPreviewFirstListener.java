@@ -28,23 +28,23 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class StreamingPreviewFirstListener implements ActionListener<SearchResponse>, PreviewFirstPartialReceiver {
     private static final Logger logger = LogManager.getLogger(StreamingPreviewFirstListener.class);
-    
+
     private final RestStatusToXContentListener<SearchResponse> delegate;
     private final AtomicBoolean partialSent = new AtomicBoolean(false);
     private final AtomicBoolean completed = new AtomicBoolean(false);
     private volatile CancellableTask searchTask;
-    
+
     public StreamingPreviewFirstListener(RestChannel channel) {
         this.delegate = new RestStatusToXContentListener<>(channel);
     }
-    
+
     /**
      * Set the search task for cancellation after first partial.
      */
     public void setSearchTask(CancellableTask task) {
         this.searchTask = task;
     }
-    
+
     @Override
     public void onResponse(SearchResponse response) {
         // Only reached if no partial was sent (final response)
@@ -53,31 +53,33 @@ public class StreamingPreviewFirstListener implements ActionListener<SearchRespo
             delegate.onResponse(response);
         }
     }
-    
+
     @Override
     public void onFailure(Exception e) {
         if (completed.compareAndSet(false, true)) {
             delegate.onFailure(e);
         }
     }
-    
+
     @Override
     public void onPartialResponse(SearchResponse partialResponse) {
         // Send only the first partial, then cancel
         if (partialSent.compareAndSet(false, true) && completed.compareAndSet(false, true)) {
             try {
-                logger.debug("Sending preview-first partial response with {} hits, then cancelling task", 
-                    partialResponse.getHits().getHits().length);
-                
+                logger.debug(
+                    "Sending preview-first partial response with {} hits, then cancelling task",
+                    partialResponse.getHits().getHits().length
+                );
+
                 // Send the partial response as standard SearchResponse immediately
                 delegate.onResponse(partialResponse);
-                
+
                 // Cancel the search task to free resources
                 if (searchTask != null) {
                     searchTask.cancel("Preview-first response sent");
                     logger.trace("Cancelled search task after sending preview-first response");
                 }
-                
+
             } catch (Exception e) {
                 logger.error("Failed to send preview-first partial response", e);
                 // Fallback to error response if we haven't sent anything yet
