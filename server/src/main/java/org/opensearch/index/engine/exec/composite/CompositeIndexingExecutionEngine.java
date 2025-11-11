@@ -30,6 +30,7 @@ import org.opensearch.plugins.PluginsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +83,15 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     public void loadWriterFiles() throws IOException {
         for (IndexingExecutionEngine<?> delegate : delegates) {
             delegate.loadWriterFiles();
+        }
+    }
+
+    @Override
+    public void deleteFiles(Map<String,Collection<String>> filesToDelete) throws IOException {
+        for (IndexingExecutionEngine<?> delegate : delegates) {
+            Map<String, Collection<String>> formatSpecificFilesToDelete = new HashMap<>();
+            formatSpecificFilesToDelete.put(delegate.getDataFormat().name(),filesToDelete.get(delegate.getDataFormat().name()));
+            delegate.deleteFiles(formatSpecificFilesToDelete);
         }
     }
 

@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @ExperimentalApi
 public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
@@ -38,6 +39,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
     private final long id;
     private long lastWriterGeneration;
     private final Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles;
+    private static IndexFileDeleter indexFileDeleter;
 
     public CatalogSnapshot(RefreshResult refreshResult, long id) {
         super("catalog_snapshot");
@@ -48,6 +50,12 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
             dfGroupedSearchableFiles.put(dataFormat.name(), writerFiles);
             writerFiles.stream().mapToLong(WriterFileSet::getWriterGeneration).max().ifPresent(value -> this.lastWriterGeneration = value);
         });
+        // Whenever a new CatalogSnapshot is created add its files to the IndexFileDeleter
+        indexFileDeleter.addFileReferences(this);
+    }
+
+    public static void setIndexFileDeleter(IndexFileDeleter deleter) {
+        indexFileDeleter = deleter;
     }
 
     private CatalogSnapshot(long id, Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles) {
@@ -135,7 +143,10 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     @Override
     protected void closeInternal() {
-        // notify to file deleter, search, etc
+        // Notify to FileDeleter to remove references of files referenced in this CatalogSnapshot
+        if (indexFileDeleter != null) {
+            indexFileDeleter.removeFileReferences(this);
+        }
     }
 
     public long getId() {
@@ -144,6 +155,10 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     public long getLastWriterGeneration() {
         return lastWriterGeneration;
+    }
+
+    public Set<String> getDataFormats() {
+        return dfGroupedSearchableFiles.keySet();
     }
 
     @Override

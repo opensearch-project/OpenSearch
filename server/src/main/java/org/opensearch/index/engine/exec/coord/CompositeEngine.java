@@ -16,6 +16,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
@@ -87,6 +88,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -185,6 +187,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
     private final IndexingStrategyPlanner indexingStrategyPlanner;
+    private final IndexFileDeleter indexFileDeleter;
 
     public CompositeEngine(
         EngineConfig engineConfig,
@@ -259,6 +262,10 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 shardPath,
                 lastCommittedWriterGeneration.incrementAndGet()
             );
+            //Initialize IndexFileDeleter before loadWriterFiles to ensure stale files are cleaned up before loading
+            this.indexFileDeleter = new IndexFileDeleter(this.engine, catalogSnapshot, shardPath);
+            CatalogSnapshot.setIndexFileDeleter(this.indexFileDeleter);
+            System.out.println("IndexFile Deleter after initialising : " + indexFileDeleter);
             this.engine.loadWriterFiles();
 
             this.maxSeqNoOfUpdatesOrDeletes =
@@ -689,8 +696,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
-
-        newCatSnap.incRef();
         if (catalogSnapshot != null) {
             catalogSnapshot.decRef();
         }
@@ -700,6 +705,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             refreshListener
         ));
         refreshListeners.forEach(POST_REFRESH_LISTENER_CONSUMER);
+
+        System.out.println("IndexFile Deleter after REFRESH : " + indexFileDeleter);
 
         // trigger merges
         if(!source.equals("merge")) {
@@ -860,6 +867,9 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                         translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
                         final CatalogSnapshot catalogSnapshotToFlush = catalogSnapshot;
+                        final Optional<CatalogSnapshot> previousCatalogSnapshot = compositeEngineCommitter.readLastCommittedCatalogSnapshot();
+                        // Increment refCount of catalogSnapshotToFlush to prevent deletion of files that will be in the latest commit
+                        catalogSnapshotToFlush.incRef();
                         if (catalogSnapshotToFlush != null) {
                             final String serializedCatalogSnapshot = catalogSnapshotToFlush.serializeToString();
                             final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
@@ -877,6 +887,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                                     return commitData.entrySet().iterator();
                                 }, catalogSnapshotToFlush
                             );
+                            // Once commit is successful, decRef the CatalogSnapshot of the older commit
+                            previousCatalogSnapshot.ifPresent(AbstractRefCounted::decRef);
                             logger.trace("finished commit for flush");
                             translogManager.trimUnreferencedReaders();
                         }

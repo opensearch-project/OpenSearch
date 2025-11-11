@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -64,6 +65,11 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
 
     @Override
     public void loadWriterFiles() {
+
+    }
+
+    @Override
+    public void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
 
     }
 
