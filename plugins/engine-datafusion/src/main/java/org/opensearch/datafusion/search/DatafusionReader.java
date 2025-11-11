@@ -35,7 +35,7 @@ public class DatafusionReader implements Closeable {
      * The cache pointer.
      */
     public long cachePtr;
-    private AtomicInteger refCount = new AtomicInteger(0);
+    private AtomicInteger refCount = new AtomicInteger(1);
 
     /**
      * Constructor
@@ -56,7 +56,6 @@ public class DatafusionReader implements Closeable {
         System.out.println("Directory path: " + directoryPath);
 
         this.cachePtr = DataFusionQueryJNI.createDatafusionReader(directoryPath, fileNames);
-        incRef();
     }
 
     /**
@@ -95,8 +94,7 @@ public class DatafusionReader implements Closeable {
         if(cachePtr == -1L) {
             throw new IllegalStateException("Listing table has been already closed");
         }
-
-//        closeDatafusionReader(this.cachePtr);
+        closeDatafusionReader(cachePtr);
         this.cachePtr = -1;
     }
 }

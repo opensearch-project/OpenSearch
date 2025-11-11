@@ -210,7 +210,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createD
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_destroyReader(
+pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeDatafusionReader(
     mut env: JNIEnv,
     _class: JClass,
     ptr: jlong

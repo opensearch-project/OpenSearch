@@ -64,7 +64,6 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
                 release(old);
             }
             this.current = new DatafusionReader(this.path, catalogSnapshot.getSearchableFiles(dataFormat));
-            this.current.incRef();
         }
     }
 }
