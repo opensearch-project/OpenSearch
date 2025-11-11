@@ -94,8 +94,10 @@ public class BucketCollectorProcessor {
      */
     @ExperimentalApi
     public List<InternalAggregation> buildAggBatch(Collector collectorTree) throws IOException {
-        // Batch emission is disabled; retained for compatibility with existing call sites
-        return new ArrayList<>();
+        // Build one aggregation batch result from the provided collector tree
+        List<Collector> collectors = new ArrayList<>(1);
+        collectors.add(collectorTree);
+        return toInternalAggregations(collectors);
     }
 
     /**

@@ -50,6 +50,9 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
     private final CircuitBreaker circuitBreaker;
     private final SearchContext searchContext;
 
+    // Keep a handle to the active collector when using the Collector (non-manager) path
+    private StreamingUnsortedCollector activeCollector;
+
     public StreamingUnsortedCollectorContext(String profilerName, int numHits, SearchContext searchContext) {
         super(profilerName, numHits);
         this.searchContext = searchContext;
@@ -65,7 +68,8 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
     @Override
     public Collector create(Collector in) throws IOException {
         // For NO_SCORING mode, we don't need scoring
-        return new StreamingUnsortedCollector();
+        this.activeCollector = new StreamingUnsortedCollector();
+        return this.activeCollector;
     }
 
     @Override
@@ -75,13 +79,27 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
     @Override
     public void postProcess(org.opensearch.search.query.QuerySearchResult result) throws IOException {
-        // Ensure topDocs is present to avoid serialization NPEs
-        if (!result.hasTopDocs()) {
-            ScoreDoc[] scoreDocs = new ScoreDoc[0];
-            TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+        // If a manager path ran, reduce() should already have populated topDocs. Only handle Collector path here.
+        if (result.hasTopDocs()) {
+            return;
+        }
+
+        if (activeCollector != null) {
+            List<ScoreDoc> firstK = activeCollector.getFirstKDocs();
+            int totalHitsCount = activeCollector.getTotalHitsCount();
+
+            ScoreDoc[] scoreDocs = firstK.toArray(new ScoreDoc[0]);
+            TotalHits totalHits = new TotalHits(totalHitsCount, TotalHits.Relation.EQUAL_TO);
             TopDocs topDocs = new TopDocs(totalHits, scoreDocs);
             result.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, Float.NaN), null);
+            return;
         }
+
+        // Fallback: no collector observed, provide empty topDocs to keep invariants
+        ScoreDoc[] scoreDocs = new ScoreDoc[0];
+        TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+        TopDocs topDocs = new TopDocs(totalHits, scoreDocs);
+        result.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, Float.NaN), null);
     }
 
     /**
