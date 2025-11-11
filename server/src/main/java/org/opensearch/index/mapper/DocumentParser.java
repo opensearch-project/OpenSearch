@@ -548,7 +548,14 @@ final class DocumentParser {
 
     private static void parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper objectMapper) {
-            parseObjectOrNested(context, objectMapper);
+            // Check if preserve_dots is enabled for this object mapper
+            if (objectMapper.preserveDots()) {
+                // Parse as flat field - do not expand dots into nested objects
+                parseFieldWithDots(context, objectMapper);
+            } else {
+                // Existing behavior: parse as nested object
+                parseObjectOrNested(context, objectMapper);
+            }
         } else if (mapper instanceof FieldMapper fieldMapper) {
             fieldMapper.parse(context);
             parseCopyFields(context, fieldMapper.copyTo().copyToFields());
@@ -558,6 +565,184 @@ final class DocumentParser {
             throw new IllegalStateException(
                 "The provided mapper [" + mapper.name() + "] has an unrecognized type [" + mapper.getClass().getSimpleName() + "]."
             );
+        }
+    }
+
+    /**
+     * Parses fields with dots as literal field names when preserve_dots is enabled.
+     * This method treats dotted field names (e.g., "user.name", "metrics.cpu.usage") as flat fields
+     * rather than expanding them into nested object hierarchies.
+     * 
+     * @param context the parse context
+     * @param mapper the object mapper with preserve_dots enabled
+     * @throws IOException if parsing fails
+     */
+    private static void parseFieldWithDots(ParseContext context, ObjectMapper mapper) throws IOException {
+        if (mapper.isEnabled() == false) {
+            context.parser().skipChildren();
+            return;
+        }
+
+        XContentParser parser = context.parser();
+        XContentParser.Token token = parser.currentToken();
+        
+        if (token == XContentParser.Token.VALUE_NULL) {
+            // the object is null, simply bail
+            return;
+        }
+
+        String currentFieldName = parser.currentName();
+        if (token.isValue()) {
+            throw new MapperParsingException(
+                "object mapping for ["
+                    + mapper.name()
+                    + "] tried to parse field ["
+                    + currentFieldName
+                    + "] as object, but found a concrete value"
+            );
+        }
+
+        // if we are at the end of the previous object, advance
+        if (token == XContentParser.Token.END_OBJECT) {
+            token = parser.nextToken();
+        }
+        if (token == XContentParser.Token.START_OBJECT) {
+            // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
+            token = parser.nextToken();
+        }
+
+        try {
+            assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
+            context.incrementFieldCurrentDepth();
+            context.checkFieldDepthLimit();
+            
+            while (token != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                    // For preserve_dots, treat the entire field name (including dots) as a literal field name
+                    // Do not split on dots - this is the key difference from normal object parsing
+                    
+                    // Look up the mapper using the complete dotted field name
+                    Mapper fieldMapper = mapper.getMapper(currentFieldName);
+                    
+                    if (fieldMapper != null) {
+                        // Found an existing mapper for this dotted field name
+                        token = parser.nextToken();
+                        if (fieldMapper instanceof FieldMapper fm) {
+                            fm.parse(context);
+                            parseCopyFields(context, fm.copyTo().copyToFields());
+                        } else if (fieldMapper instanceof ObjectMapper om) {
+                            // Even with preserve_dots, we can have nested ObjectMappers
+                            // for explicitly defined sub-objects
+                            parseObjectOrNested(context, om);
+                        } else {
+                            throw new MapperParsingException(
+                                "Cannot parse field [" + currentFieldName + "] with mapper type [" 
+                                + fieldMapper.getClass().getSimpleName() + "]"
+                            );
+                        }
+                    } else {
+                        // No existing mapper - handle dynamic mapping
+                        token = parser.nextToken();
+                        ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context);
+                        
+                        switch (dynamic) {
+                            case STRICT:
+                                throw new StrictDynamicMappingException(
+                                    dynamic.name().toLowerCase(Locale.ROOT),
+                                    mapper.fullPath(),
+                                    currentFieldName
+                                );
+                            case TRUE:
+                            case STRICT_ALLOW_TEMPLATES:
+                            case FALSE_ALLOW_TEMPLATES:
+                                // Determine the field type based on the token
+                                XContentFieldType fieldType = getFieldType(token);
+                                
+                                Mapper.Builder builder = findTemplateBuilder(
+                                    context,
+                                    currentFieldName,
+                                    fieldType,
+                                    dynamic,
+                                    mapper.fullPath()
+                                );
+                                
+                                if (builder == null) {
+                                    if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                                            parser.skipChildren();
+                                        }
+                                        break;
+                                    }
+                                    // Create a default field mapper based on the value type
+                                    builder = createBuilderFromDynamicValue(
+                                        context,
+                                        token,
+                                        currentFieldName,
+                                        dynamic,
+                                        mapper.fullPath()
+                                    );
+                                }
+                                
+                                if (builder != null) {
+                                    Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
+                                        context.indexSettings().getSettings(),
+                                        context.path()
+                                    );
+                                    Mapper dynamicMapper = builder.build(builderContext);
+                                    context.addDynamicMapper(dynamicMapper);
+                                    
+                                    if (dynamicMapper instanceof FieldMapper fm) {
+                                        fm.parse(context);
+                                        parseCopyFields(context, fm.copyTo().copyToFields());
+                                    } else if (dynamicMapper instanceof ObjectMapper om) {
+                                        parseObjectOrNested(context, om);
+                                    }
+                                }
+                                break;
+                            case FALSE:
+                                // Dynamic mapping is disabled, skip the field
+                                if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                                    parser.skipChildren();
+                                }
+                                break;
+                        }
+                    }
+                } else if (token == null) {
+                    throw new MapperParsingException(
+                        "object mapping for ["
+                            + mapper.name()
+                            + "] tried to parse field ["
+                            + currentFieldName
+                            + "] as object, but got EOF, has a concrete value been provided to it?"
+                    );
+                }
+                token = parser.nextToken();
+            }
+        } finally {
+            context.decrementFieldCurrentDepth();
+        }
+    }
+
+    /**
+     * Determines the XContentFieldType based on the parser token.
+     * Used for dynamic field mapping when preserve_dots is enabled.
+     */
+    private static XContentFieldType getFieldType(XContentParser.Token token) {
+        if (token == XContentParser.Token.START_OBJECT) {
+            return XContentFieldType.OBJECT;
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            return XContentFieldType.OBJECT; // Arrays are treated as objects for template matching
+        } else if (token == XContentParser.Token.VALUE_STRING) {
+            return XContentFieldType.STRING;
+        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+            return XContentFieldType.LONG; // Default to LONG, will be refined by createBuilderFromDynamicValue
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            return XContentFieldType.BOOLEAN;
+        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+            return XContentFieldType.BINARY;
+        } else {
+            return XContentFieldType.STRING; // Default fallback
         }
     }
 
