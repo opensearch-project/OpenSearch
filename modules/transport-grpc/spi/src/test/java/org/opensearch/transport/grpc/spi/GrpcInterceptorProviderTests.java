@@ -8,6 +8,8 @@
 
 package org.opensearch.transport.grpc.spi;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -22,24 +24,43 @@ public class GrpcInterceptorProviderTests extends OpenSearchTestCase {
 
     public void testBasicProviderImplementation() {
         TestGrpcInterceptorProvider provider = new TestGrpcInterceptorProvider(10);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
-        List<GrpcInterceptorProvider.OrderedGrpcInterceptor> interceptors = provider.getOrderedGrpcInterceptors();
+        List<GrpcInterceptorProvider.OrderedGrpcInterceptor> interceptors = provider.getOrderedGrpcInterceptors(threadContext);
         assertNotNull(interceptors);
         assertEquals(1, interceptors.size());
         assertEquals(10, interceptors.get(0).order());
     }
 
     public void testProviderReturnsEmptyList() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         GrpcInterceptorProvider provider = new GrpcInterceptorProvider() {
             @Override
-            public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
+            public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors(ThreadContext threadContext) {
                 return Collections.emptyList();
             }
         };
 
-        List<GrpcInterceptorProvider.OrderedGrpcInterceptor> interceptors = provider.getOrderedGrpcInterceptors();
+        List<GrpcInterceptorProvider.OrderedGrpcInterceptor> interceptors = provider.getOrderedGrpcInterceptors(threadContext);
         assertNotNull(interceptors);
         assertTrue(interceptors.isEmpty());
+    }
+
+    public void testProviderReceivesThreadContext() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("X-Test-Header", "test-value");
+
+        GrpcInterceptorProvider provider = new GrpcInterceptorProvider() {
+            @Override
+            public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors(ThreadContext ctx) {
+                // Verify that the provider receives the ThreadContext
+                assertNotNull("ThreadContext should not be null", ctx);
+                assertEquals("test-value", ctx.getHeader("X-Test-Header"));
+                return Collections.emptyList();
+            }
+        };
+
+        provider.getOrderedGrpcInterceptors(threadContext);
     }
 
     private static class TestGrpcInterceptorProvider implements GrpcInterceptorProvider {
@@ -50,7 +71,7 @@ public class GrpcInterceptorProviderTests extends OpenSearchTestCase {
         }
 
         @Override
-        public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
+        public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors(ThreadContext threadContext) {
             return Collections.singletonList(createTestInterceptor(order, "test-interceptor"));
         }
     }
