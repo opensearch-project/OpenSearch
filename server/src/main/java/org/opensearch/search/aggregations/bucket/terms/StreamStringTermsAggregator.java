@@ -94,8 +94,9 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        this.sortedDocValuesPerBatch = valuesSource.ordinalsValues(ctx);
+        this.sortedDocValuesPerBatch = valuesSource.globalOrdinalsValues(ctx);
         this.valueCount = sortedDocValuesPerBatch.getValueCount();
+        // cardinality
         if (docCounts == null) {
             this.docCounts = context.bigArrays().newLongArray(valueCount, true);
         } else {

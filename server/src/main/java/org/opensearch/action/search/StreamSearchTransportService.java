@@ -84,7 +84,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                 boolean isStreamSearch = request.isStreamingSearch() || request.getStreamingSearchMode() != null;
                 if (logger.isTraceEnabled()) {
                     logger.trace(
-                        "STREAM DEBUG: stream handler for query; isStreamSearch={} listener=StreamSearchChannelListener shard={}",
+                        "stream handler for query; isStreamSearch={} listener=StreamSearchChannelListener shard={}",
                         isStreamSearch,
                         request.shardId()
                     );
@@ -215,7 +215,7 @@ public class StreamSearchTransportService extends SearchTransportService {
 
         if (logger.isTraceEnabled()) {
             logger.trace(
-                "STREAM DEBUG: coordinator sending QUERY to node={} shard={} via stream transport (fetchDocuments={})",
+                "coordinator sending QUERY to node={} shard={} via stream transport (fetchDocuments={})",
                 connection.getNode().getId(),
                 request.shardId(),
                 fetchDocuments

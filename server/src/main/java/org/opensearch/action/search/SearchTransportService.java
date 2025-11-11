@@ -248,7 +248,7 @@ public class SearchTransportService {
 
         if (logger.isTraceEnabled()) {
             logger.trace(
-                "STREAM DEBUG: coordinator sending QUERY to node={} shard={} via classic transport (fetchDocuments={})",
+                "coordinator sending QUERY to node={} shard={} via classic transport (fetchDocuments={})",
                 connection.getNode().getId(),
                 request.shardId(),
                 fetchDocuments
@@ -272,7 +272,7 @@ public class SearchTransportService {
     ) {
         if (logger.isTraceEnabled()) {
             logger.trace(
-                "STREAM DEBUG: coordinator sending QUERY to node={} shard={} via classic transport (fetchDocuments={})",
+                "coordinator sending QUERY to node={} shard={} via classic transport (fetchDocuments={})",
                 connection.getNode().getId(),
                 request.contextId(),
                 false
@@ -586,7 +586,7 @@ public class SearchTransportService {
             (request, channel, task) -> {
                 if (logger.isTraceEnabled()) {
                     logger.trace(
-                        "STREAM DEBUG: classic handler for query; isStreamSearch=false listener=ChannelActionListener shard={} ",
+                        "classic handler for query; isStreamSearch=false listener=ChannelActionListener shard={} ",
                         request.shardId()
                     );
                 }

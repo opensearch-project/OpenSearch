@@ -904,7 +904,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.numberOfShards() == 1) {
                 if (isStreamSearch && logger.isTraceEnabled()) {
                     logger.trace(
-                        "STREAM DEBUG: shard [{}] sending final {}",
+                        "shard [{}] sending final {}",
                         request.shardId(),
                         (request.numberOfShards() == 1 ? "query+fetch" : "query")
                     );
@@ -918,7 +918,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext.setRescoreDocIds(rescoreDocIds);
                 if (isStreamSearch && logger.isTraceEnabled()) {
                     logger.trace(
-                        "STREAM DEBUG: shard [{}] sending final {}",
+                        "shard [{}] sending final {}",
                         request.shardId(),
                         (request.numberOfShards() == 1 ? "query+fetch" : "query")
                     );
@@ -934,7 +934,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     : new OpenSearchException(exception.getCause());
             }
             if (isStreamSearch && logger.isTraceEnabled()) {
-                logger.trace("STREAM DEBUG: shard [{}] failure {}", request.shardId(), exception.toString());
+                logger.trace("shard [{}] failure {}", request.shardId(), exception.toString());
             }
             logger.trace("Query phase failed", exception);
             processFailure(readerContext, exception);
