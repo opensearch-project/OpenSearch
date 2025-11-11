@@ -44,7 +44,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactor the RefreshStats class to use the Builder pattern instead of constructors ([#19835](https://github.com/opensearch-project/OpenSearch/pull/19835))
 - Refactor the DocStats and StoreStats class to use the Builder pattern instead of constructors ([#19863](https://github.com/opensearch-project/OpenSearch/pull/19863))
 - Pass registry of headers from ActionPlugin.getRestHeaders to ActionPlugin.getRestHandlerWrapper ([#19875](https://github.com/opensearch-project/OpenSearch/pull/19875))
+- Refactor the Condition.Stats and DirectoryFileTransferTracker.Stats class to use the Builder pattern instead of constructors ([#19862](https://github.com/opensearch-project/OpenSearch/pull/19862))
 - Refactor the RemoteTranslogTransferTracker.Stats and RemoteSegmentTransferTracker.Stats class to use the Builder pattern instead of constructors ([#19837](https://github.com/opensearch-project/OpenSearch/pull/19837))
+- Refactor the GetStats, FlushStats and QueryCacheStats class to use the Builder pattern instead of constructors ([#19935](https://github.com/opensearch-project/OpenSearch/pull/19935))
+- Add RangeSemver for `dependencies` in `plugin-descriptor.properties` ([#19939](https://github.com/opensearch-project/OpenSearch/pull/19939))
+- Refactor the FieldDataStats and CompletionStats class to use the Builder pattern instead of constructors ([#19936](https://github.com/opensearch-project/OpenSearch/pull/19936))
 
 ### Fixed
 - Fix Allocation and Rebalance Constraints of WeightFunction are incorrectly reset ([#19012](https://github.com/opensearch-project/OpenSearch/pull/19012))
@@ -60,6 +64,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fixed assertion unsafe use of ClusterService.state() in ResourceUsageCollectorService ([#19775])(https://github.com/opensearch-project/OpenSearch/pull/19775))
 - Fix Unified highlighter for nested fields when using matchPhrasePrefixQuery ([#19442](https://github.com/opensearch-project/OpenSearch/pull/19442))
 - Add S3Repository.LEGACY_MD5_CHECKSUM_CALCULATION to list of repository-s3 settings ([#19788](https://github.com/opensearch-project/OpenSearch/pull/19788))
+- Fix NullPointerException when restoring remote snapshot with missing shard size information ([#19684](https://github.com/opensearch-project/OpenSearch/pull/19684))
 - Fix NPE of ScriptScoreQuery ([#19650](https://github.com/opensearch-project/OpenSearch/pull/19650))
 
 ### Dependencies
@@ -70,7 +75,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.zookeeper:zookeeper` from 3.9.3 to 3.9.4 ([#19535](https://github.com/opensearch-project/OpenSearch/pull/19535))
 - Bump `com.azure:azure-storage-common` from 12.30.2 to 12.30.3 ([#19615](https://github.com/opensearch-project/OpenSearch/pull/19615))
 - Bump `peter-evans/create-issue-from-file` from 5 to 6 ([#19616](https://github.com/opensearch-project/OpenSearch/pull/19616))
-- Bump `com.squareup.okhttp3:okhttp` from 5.1.0 to 5.2.1 ([#19614](https://github.com/opensearch-project/OpenSearch/pull/19614))
+- Bump `com.squareup.okhttp3:okhttp` from 5.1.0 to 5.3.0 ([#19614](https://github.com/opensearch-project/OpenSearch/pull/19614), [#19944](https://github.com/opensearch-project/OpenSearch/pull/19944))
 - Bump `com.microsoft.azure:msal4j` from 1.21.0 to 1.23.1 ([#19688](https://github.com/opensearch-project/OpenSearch/pull/19688))
 - Bump `commons-net:commons-net` from 3.11.1 to 3.12.0 ([#19687](https://github.com/opensearch-project/OpenSearch/pull/19687))
 - Bump `org.apache.avro:avro` from 1.12.0 to 1.12.1 ([#19692](https://github.com/opensearch-project/OpenSearch/pull/19692))
@@ -87,13 +92,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-text` from 1.13.1 to 1.14.0 ([#19871](https://github.com/opensearch-project/OpenSearch/pull/19871))
 - Exclude group com.microsoft.sqlserver from hadoop-minicluster ([#19889](https://github.com/opensearch-project/OpenSearch/pull/19889))
 - Bump `netty` to 4.2.4 ([#19178](https://github.com/opensearch-project/OpenSearch/pull/19178))
+- Bump `actions/github-script` from 7 to 8 ([#19946](https://github.com/opensearch-project/OpenSearch/pull/19946))
+- Bump `com.google.api:gax-httpjson` from 2.69.0 to 2.72.1 ([#19943](https://github.com/opensearch-project/OpenSearch/pull/19943))
 
-- ### Deprecated
+### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
 - Deprecated existing constructors in IndexingStats.Stats in favor of the new Builder ([#19306](https://github.com/opensearch-project/OpenSearch/pull/19306))
 - Deprecated existing constructors in RefreshStats in favor of the new Builder ([#19835](https://github.com/opensearch-project/OpenSearch/pull/19835))
 - Deprecated existing constructors in DocStats and StoreStats in favor of the new Builder ([#19863](https://github.com/opensearch-project/OpenSearch/pull/19863))
+- Deprecated existing constructors in Condition.Stats and DirectoryFileTransferTracker.Stats in favor of the new Builder ([#19862](https://github.com/opensearch-project/OpenSearch/pull/19862))
 - Deprecated existing constructors in RemoteTranslogTransferTracker.Stats and RemoteSegmentTransferTracker.Stats in favor of the new Builder ([#19837](https://github.com/opensearch-project/OpenSearch/pull/19837))
+- Deprecated existing constructors in GetStats, FlushStats and QueryCacheStats in favor of the new Builder ([#19935](https://github.com/opensearch-project/OpenSearch/pull/19935))
+- Deprecated existing constructors in FieldDataStats and CompletionStats in favor of the new Builder ([#19936](https://github.com/opensearch-project/OpenSearch/pull/19936))
 
 ### Removed
 

@@ -1513,7 +1513,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public FlushStats flushStats() {
-        return new FlushStats(flushMetric.count(), periodicFlushMetric.count(), TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()));
+        return new FlushStats.Builder().total(flushMetric.count())
+            .periodic(periodicFlushMetric.count())
+            .totalTimeInMillis(TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()))
+            .build();
     }
 
     public DocsStats docStats() {
