@@ -82,16 +82,17 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
     @Override
     public void doReset() {
         super.doReset();
-        Releasables.close(bucketOrds);
-        bucketOrds = null;
+        // DO NOT close/null bucketOrds - preserve cumulative bucket state for final reduction
+        // This keeps all bucket mappings intact across batches so final buildAggregation() is correct
     }
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (bucketOrds != null) {
-            bucketOrds.close();
+        // Only create bucketOrds if it doesn't exist (first segment)
+        // Reuse existing bucketOrds for subsequent segments to preserve all buckets
+        if (bucketOrds == null) {
+            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
         }
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
         SortedNumericDocValues values = resultStrategy.getValues(ctx);
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
             @Override

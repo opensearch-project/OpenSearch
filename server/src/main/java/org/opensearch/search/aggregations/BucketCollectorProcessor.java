@@ -62,8 +62,6 @@ public class BucketCollectorProcessor {
      * @param collectorTree collector tree used by calling thread
      */
     public void processPostCollection(Collector collectorTree) throws IOException {
-        if (logger.isDebugEnabled()) logger.debug("DIAG: processPostCollection enter");
-        
         final Queue<Collector> collectors = new LinkedList<>();
         collectors.offer(collectorTree);
         while (!collectors.isEmpty()) {
@@ -79,7 +77,6 @@ public class BucketCollectorProcessor {
             } else if (currentCollector instanceof BucketCollector) {
                 // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator) {
-                    if (logger.isDebugEnabled()) logger.debug("DIAG: post/build agg={}", currentCollector.getClass().getName());
                     // Do not perform postCollection for MultiBucketCollector as we are unwrapping that below
                     ((BucketCollector) currentCollector).postCollection();
                     ((Aggregator) currentCollector).buildTopLevel();
@@ -90,8 +87,6 @@ public class BucketCollectorProcessor {
                 }
             }
         }
-        
-        if (logger.isDebugEnabled()) logger.debug("DIAG: processPostCollection exit");
     }
 
     /**
@@ -99,8 +94,7 @@ public class BucketCollectorProcessor {
      */
     @ExperimentalApi
     public List<InternalAggregation> buildAggBatch(Collector collectorTree) throws IOException {
-        // Temporarily disable batch emission to prevent destructive resets
-        // Keep method for existing call sites that guard on non-empty
+        // Batch emission is disabled; retained for compatibility with existing call sites
         return new ArrayList<>();
     }
 

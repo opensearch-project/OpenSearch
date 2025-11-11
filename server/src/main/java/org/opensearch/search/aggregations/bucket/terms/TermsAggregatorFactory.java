@@ -122,12 +122,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    // Check if streaming is enabled and flush mode allows it. Require streaming listener to avoid classic path resets
                     if ((context.isStreamSearch() || context.getStreamingMode() != null)
                         && context.getStreamChannelListener() != null
                         && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
-                        logger.debug("STREAM DEBUG: selecting StreamStringTermsAggregator name={} isStreamSearch={} flushMode={}",
-                            name, context.isStreamSearch(), context.getFlushMode());
                         return createStreamStringTermsAggregator(
                             name,
                             factories,
@@ -240,8 +237,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 if ((context.isStreamSearch() || context.getStreamingMode() != null)
                     && context.getStreamChannelListener() != null
                     && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
-                    logger.debug("STREAM DEBUG: selecting StreamNumericTermsAggregator name={} isStreamSearch={} flushMode={}",
-                        name, context.isStreamSearch(), context.getFlushMode());
                     return createStreamNumericTermsAggregator(
                         name,
                         factories,
@@ -690,4 +685,5 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
+
 }

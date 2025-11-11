@@ -91,7 +91,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             protected void innerOnStreamResponse(SearchPhaseResult result) {
                 try {
                     if (getLogger().isTraceEnabled()) {
-                        getLogger().trace("STREAM DEBUG: coordinator received partial from shard {}", shard);
+                        getLogger().trace("coordinator received partial from shard {}", shard);
                     }
                     onStreamResult(result, shardIt, () -> successfulStreamExecution());
                 } finally {
@@ -103,7 +103,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             protected void innerOnCompleteResponse(SearchPhaseResult result) {
                 try {
                     if (getLogger().isTraceEnabled()) {
-                        getLogger().trace("STREAM DEBUG: coordinator received final for shard {}", shard);
+                        getLogger().trace("coordinator received final for shard {}", shard);
                     }
                     onShardResult(result, shardIt);
                 } finally {

@@ -1255,7 +1255,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (preFilter) {
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    "STREAM DEBUG: prefilter using transport [{}] (streaming={}, enabled={}, canUse={})",
+                    "prefilter using transport [{}] (streaming={}, enabled={}, canUse={})",
                     ((isStreamingCandidate && canUseStreamingTransport) ? "stream" : "classic"),
                     isStreamingCandidate,
                     streamingEnabledSetting,
@@ -1322,7 +1322,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    "STREAM DEBUG: query phase using transport [{}] (streamingRequest={}, enabled={}, canUse={})",
+                    "query phase using transport [{}] (streamingRequest={}, enabled={}, canUse={})",
                     ((isStreamingRequest && useStreamingTransport) ? "stream" : "classic"),
                     isStreamingRequest,
                     streamingEnabledSetting,
