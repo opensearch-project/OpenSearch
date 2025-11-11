@@ -10,6 +10,8 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.Engine;
@@ -83,7 +85,7 @@ public class CompositeEngine implements Indexer {
 
         this.mergeHandler = new ParquetMergeHandler(this, this.engine, this.engine.getDataFormat(),
             indexSettings.getParquetMergePolicy());
-        mergeScheduler = new MergeScheduler(this.mergeHandler, this);
+        mergeScheduler = new MergeScheduler(this.mergeHandler, this, indexSettings);
 
         // Refresh here so that catalog snapshot gets initialized
         // TODO : any better way to do this ?
@@ -385,5 +387,10 @@ public class CompositeEngine implements Indexer {
     @Override
     public String getHistoryUUID() {
         return "";
+    }
+
+    @Override
+    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
+        mergeScheduler.refreshConfig();
     }
 }

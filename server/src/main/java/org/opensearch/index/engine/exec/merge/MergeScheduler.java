@@ -8,7 +8,9 @@
 
 package org.opensearch.index.engine.exec.merge;
 
-import org.apache.lucene.index.MergePolicy;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.apache.logging.log4j.LogManager;
@@ -30,39 +32,19 @@ public class MergeScheduler {
     private final List<MergeThread> mergeThreads = new CopyOnWriteArrayList<>();
     private final AtomicInteger activeMerges = new AtomicInteger(0);
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
+    private final MergeSchedulerConfig mergeSchedulerConfig;
+    private final Settings indexSettings;
     private volatile int maxConcurrentMerges;
     private volatile int maxMergeCount;
 
-    public MergeScheduler(MergeHandler mergeHandler, CompositeEngine compositeEngine) {
-        this(mergeHandler, compositeEngine, Math.max(1, Runtime.getRuntime().availableProcessors() / 4));
-
-    }
-
-    public MergeScheduler(MergeHandler mergeHandler, CompositeEngine compositeEngine, int maxConcurrentMerges) {
+    public MergeScheduler(MergeHandler mergeHandler,
+                          CompositeEngine compositeEngine,
+                          IndexSettings indexSettings) {
         this.mergeHandler = mergeHandler;
         this.compositeEngine = compositeEngine;
-        this.maxConcurrentMerges = maxConcurrentMerges;
-        this.maxMergeCount = maxConcurrentMerges + 5;
-    }
-
-    //TODO use this function to refresh the config from IndexSettings.MergeSchedulerConfig
-    /**
-     * Refreshes merge scheduler configuration from MergeSchedulerConfig.
-     * Updates max thread count and max merge count dynamically.
-     */
-    public synchronized void refreshConfig(MergeSchedulerConfig config) {
-        int newMaxThreadCount = config.getMaxThreadCount();
-        int newMaxMergeCount = config.getMaxMergeCount();
-
-        if (newMaxThreadCount == this.maxConcurrentMerges && newMaxMergeCount == this.maxMergeCount) {
-            return;
-        }
-
-        logger.info("Updating merge scheduler config: maxThreadCount {} -> {}, maxMergeCount {} -> {}",
-            this.maxConcurrentMerges, newMaxThreadCount, this.maxMergeCount, newMaxMergeCount);
-
-        this.maxConcurrentMerges = newMaxThreadCount;
-        this.maxMergeCount = newMaxMergeCount;
+        this.mergeSchedulerConfig = indexSettings.getMergeSchedulerConfig();
+        this.indexSettings = indexSettings.getSettings();
+        refreshConfig();
     }
 
     /**
@@ -77,19 +59,13 @@ public class MergeScheduler {
 
         mergeHandler.updatePendingMerges();
 
-
-        // Submit merges up to available capacity
-        int scheduled = 0;
-        int availableToSchedule = getAvailableMergeSlots();
-
-        while(availableToSchedule >= scheduled && mergeHandler.hasPendingMerges()) {
+        while(activeMerges.get() < maxConcurrentMerges && mergeHandler.hasPendingMerges()) {
             OneMerge oneMerge = mergeHandler.getNextMerge();
             if (oneMerge == null) {
                 return;
             }
             try {
                 submitMergeTask(oneMerge);
-                scheduled++;
             } catch (Exception e) {
                 mergeHandler.onMergeFailure(oneMerge);
             }
@@ -119,9 +95,37 @@ public class MergeScheduler {
      */
     private void submitMergeTask(OneMerge oneMerge) {
         activeMerges.incrementAndGet();
-        MergeThread thread = new MergeThread(oneMerge);
+        MergeThread thread = getMergeThread(oneMerge);
         mergeThreads.add(thread);
         thread.start();
+    }
+
+    /**
+     * Refreshes merge scheduler configuration from MergeSchedulerConfig.
+     * Updates max thread count and max merge count dynamically.
+     */
+    public void refreshConfig() {
+        int newMaxThreadCount = this.mergeSchedulerConfig.getMaxThreadCount();
+        int newMaxMergeCount = this.mergeSchedulerConfig.getMaxMergeCount();
+
+        if (newMaxThreadCount == this.getMaxConcurrentMerges() && newMaxMergeCount == this.getMaxMergeCount()) {
+            return;
+        }
+
+        logger.info("Updating merge scheduler config: maxThreadCount {} -> {}, maxMergeCount {} -> {}",
+            this.getActiveMergeCount(), newMaxThreadCount, this.getMaxMergeCount(), newMaxMergeCount);
+
+        this.maxConcurrentMerges = newMaxThreadCount;
+        this.maxMergeCount = newMaxMergeCount;
+    }
+
+    private MergeThread getMergeThread(OneMerge oneMerge) {
+        final MergeThread mergeThread = new MergeThread(oneMerge);
+        //TODO update the merge thread name with the below once shardId info is available
+//        mergeThread.setName(OpenSearchExecutors.threadName(indexSettings, "[" + shardId.getIndexName() + "][" + shardId.id() + "]: " + thread.getName()));
+        mergeThread.setName(OpenSearchExecutors.threadName(indexSettings, mergeThread.getName()));
+        mergeThread.setDaemon(true);
+        return mergeThread;
     }
 
     /**
@@ -131,9 +135,7 @@ public class MergeScheduler {
         private final OneMerge oneMerge;
 
         MergeThread(OneMerge oneMerge) {
-            super("merge-scheduler-" + oneMerge.toString());
             this.oneMerge = oneMerge;
-            setDaemon(true);
         }
 
         @Override
@@ -160,6 +162,12 @@ public class MergeScheduler {
             } finally {
                 activeMerges.decrementAndGet();
                 mergeThreads.remove(this);
+                try {
+                    triggerMerges();
+                } catch (IOException e) {
+                    logger.error("ERROR in MERGE : " + e.getMessage());
+                    e.printStackTrace();
+                }
             }
         }
     }
