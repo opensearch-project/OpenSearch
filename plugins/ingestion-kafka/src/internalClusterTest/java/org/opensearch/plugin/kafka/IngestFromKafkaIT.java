@@ -15,9 +15,7 @@ import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
-import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
-import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
@@ -53,6 +51,7 @@ import static org.awaitility.Awaitility.await;
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
+
     /**
      * test ingestion-kafka-plugin is installed
      */
@@ -290,16 +289,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         // verify pause and resume functionality on replica
 
         // pause ingestion
-        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
-        assertTrue(pauseResponse.isAcknowledged());
-        assertTrue(pauseResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && ingestionState.getFailedShards() == 0
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
-        });
+        pauseIngestionAndWait(indexName, 2);
 
         for (int i = 10; i < 20; i++) {
             produceData(Integer.toString(i), "name" + i, "30");
@@ -310,18 +300,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(10, getSearchableDocCount(nodeB));
 
         // resume ingestion
-        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
-        assertTrue(resumeResponse.isAcknowledged());
-        assertTrue(resumeResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(
-                        state -> state.isPollerPaused() == false
-                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
-                    );
-        });
+        resumeIngestionAndWait(indexName, 2);
 
         // verify replica ingests data after resuming ingestion
         waitForSearchableDocs(20, List.of(nodeA, nodeB));
@@ -532,30 +511,10 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         waitForSearchableDocs(10, List.of(nodeA, nodeB));
 
         // pause ingestion
-        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
-        assertTrue(pauseResponse.isAcknowledged());
-        assertTrue(pauseResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && ingestionState.getFailedShards() == 0
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
-        });
+        pauseIngestionAndWait(indexName, 2);
 
         // reset to offset=2 and resume ingestion
-        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "2");
-        assertTrue(resumeResponse.isAcknowledged());
-        assertTrue(resumeResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(
-                        state -> state.isPollerPaused() == false
-                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
-                    );
-        });
+        resumeIngestionWithResetAndWait(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "2", 2);
 
         // validate there are 8 messages polled after reset
         waitForState(() -> {
@@ -593,16 +552,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         assertTrue(validateOffsetBasedLagForPrimaryAndReplica(0));
 
         // pause ingestion
-        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
-        assertTrue(pauseResponse.isAcknowledged());
-        assertTrue(pauseResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && ingestionState.getFailedShards() == 0
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
-        });
+        pauseIngestionAndWait(indexName, 2);
 
         // produce 10 messages in paused state and validate lag
         for (int i = 0; i < 10; i++) {
@@ -611,18 +561,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         waitForState(() -> validateOffsetBasedLagForPrimaryAndReplica(10));
 
         // resume ingestion
-        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
-        assertTrue(resumeResponse.isAcknowledged());
-        assertTrue(resumeResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 2
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(
-                        state -> state.isPollerPaused() == false
-                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
-                    );
-        });
+        resumeIngestionAndWait(indexName, 2);
         waitForSearchableDocs(10, List.of(nodeA, nodeB));
         waitForState(() -> validateOffsetBasedLagForPrimaryAndReplica(0));
     }
@@ -940,34 +879,8 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         assertEquals("earliest", autoOffsetReset);
 
         // Step 5: Pause and resume ingestion, setting offset to 100 (out-of-range, hence expect auto.offset.reset to be used)
-        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
-        assertTrue(pauseResponse.isAcknowledged());
-        assertTrue(pauseResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 1
-                && ingestionState.getFailedShards() == 0
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
-        });
-
-        ResumeIngestionResponse resumeResponse = resumeIngestion(
-            indexName,
-            0,
-            ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET,
-            "100"
-        );
-        assertTrue(resumeResponse.isAcknowledged());
-        assertTrue(resumeResponse.isShardsAcknowledged());
-        waitForState(() -> {
-            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return ingestionState.getShardStates().length == 1
-                && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(
-                        state -> state.isPollerPaused() == false
-                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
-                    );
-        });
+        pauseIngestionAndWait(indexName, 1);
+        resumeIngestionWithResetAndWait(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "100", 1);
 
         // Step 6: Wait for version conflict count to be 9 and total messages processed to be 10.
         // Since offset 100 doesn't exist, it will fall back to earliest (offset 0).
