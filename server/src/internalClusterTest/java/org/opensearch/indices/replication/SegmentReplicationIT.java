@@ -1515,7 +1515,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final PitReaderContext pitReaderContext = searchService.getPitReaderContext(
             decode(registry, pitResponse.getId()).shards().get(replicaShard.routingEntry().shardId()).getSearchContextId()
         );
-        try (final Engine.Searcher searcher = pitReaderContext.acquireSearcher("test")) {
+        try (final Engine.Searcher searcher = (Engine.Searcher) pitReaderContext.acquireSearcher("test")) {
             final StandardDirectoryReader standardDirectoryReader = NRTReplicationReaderManager.unwrapStandardReader(
                 (OpenSearchDirectoryReader) searcher.getDirectoryReader()
             );

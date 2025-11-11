@@ -57,7 +57,7 @@ public abstract class MergeHandler {
 
     public void updatePendingMerges() {
         Collection<OneMerge> oneMerges = findMerges();
-        System.out.println("Found merges : " + oneMerges);
+//        System.out.println("Found merges : " + oneMerges);
         for (OneMerge oneMerge : oneMerges) {
             boolean isValidMerge = true;
             for(FileMetadata fileMetadata : oneMerge.getFilesToMerge()) {

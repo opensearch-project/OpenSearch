@@ -1,15 +1,17 @@
 
 ## Prerequisites
 
-1. Publish OpenSearch to maven local
+1. Checkout branch `substrait-plan` for OpenSearch SQL Plugin - https://github.com/vinaykpud/sql/tree/substrait-plan OR  https://github.com/bharath-techie/sql/tree/substrait-plan
+
+2. Publish OpenSearch to maven local
 ```
 ./gradlew publishToMavenLocal
 ```
-2. Publish SQL plugin to maven local
+3. Publish SQL plugin to maven local
 ```
 ./gradlew publishToMavenLocal
 ```
-3. Run opensearch with following parameters
+4. Run opensearch with following parameters
 ```
  ./gradlew run --preserve-data -PremotePlugins="['org.opensearch.plugin:opensearch-job-scheduler:3.3.0.0-SNAPSHOT', 'org.opensearch.plugin:opensearch-sql-plugin:3.3.0.0-SNAPSHOT']" -PinstalledPlugins="['engine-datafusion']" --debug-jvm
 ```
@@ -121,4 +123,11 @@ curl --location --request POST 'http://localhost:9200/_plugins/_ppl' \
 --data-raw '{
   "query": "source=index-7 | stats count() as c by name"
 }'
+```
+
+## Steps to Run Unit Tests for Search Flow
+
+Run the following command in **OpenSearch** to execute tests
+```
+./gradlew :plugins:engine-datafusion:test --tests "org.opensearch.datafusion.DataFusionReaderManagerTests"
 ```

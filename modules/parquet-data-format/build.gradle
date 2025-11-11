@@ -99,7 +99,7 @@ dependencies {
   implementation 'com.fasterxml.jackson.core:jackson-annotations:2.18.2'
 
   // FlatBuffers dependency required by Arrow
-  implementation 'com.google.flatbuffers:flatbuffers-java:2.0.0'
+  implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
 
   // Netty dependencies required by Arrow memory management
   implementation 'io.netty:netty-buffer:4.1.118.Final'

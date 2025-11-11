@@ -17,11 +17,36 @@ public class DatafusionQuery {
 
     // List of Search executors which returns a result iterator which contains row id which can be joined in datafusion
     private final List<SearchExecutor> searchExecutors;
+    private Boolean isFetchPhase;
+    private List<Long> queryPhaseRowIds;
+    private List<String> projections;
 
     public DatafusionQuery(String indexName, byte[] substraitBytes, List<SearchExecutor> searchExecutors) {
         this.indexName = indexName;
         this.substraitBytes = substraitBytes;
         this.searchExecutors = searchExecutors;
+        this.isFetchPhase = false;
+    }
+
+    public void setProjections(List<String> projections) {
+        this.projections = projections;
+    }
+
+    public void setFetchPhaseContext(List<Long> queryPhaseRowIds) {
+        this.queryPhaseRowIds = queryPhaseRowIds;
+        this.isFetchPhase = true;
+    }
+
+    public boolean isFetchPhase() {
+        return this.isFetchPhase;
+    }
+
+    public List<Long> getQueryPhaseRowIds() {
+        return this.queryPhaseRowIds;
+    }
+
+    public List<String> getProjections() {
+        return this.projections;
     }
 
     public byte[] getSubstraitBytes() {

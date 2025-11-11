@@ -52,6 +52,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -106,9 +107,25 @@ public class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
+    private static final Logger logger = LogManager.getLogger(FetchPhase.class);
+
     public void execute(SearchContext context) {
         execute(context, "fetch");
     }
+
+    public void executeFetchPhase(SearchContext context) {
+        try {
+            SearchExecEngine searchExecEngine = context.readerContext().indexShard()
+                .getIndexingExecutionCoordinator()
+                .getPrimaryReadEngine();
+
+
+            searchExecEngine.executeFetchPhase(context);
+        } catch (RuntimeException | IOException e) {
+            logger.error(e);
+            throw new RuntimeException(e);
+        }
+    };
 
     public void execute(SearchContext context, String profileDescription) {
         FetchProfileBreakdown breakdown = null;
@@ -126,6 +143,11 @@ public class FetchPhase {
 
         if (context.isCancelled()) {
             throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+        }
+
+        if (context.request().source().queryPlanIR() != null) {
+            executeFetchPhase(context);
+            return;
         }
 
         if (context.docIdsToLoadSize() == 0) {

@@ -24,6 +24,9 @@ hs_err_pid*
 Thumbs.db
 
 # Rust
+target/
+Cargo.lock
+
 jni/target/
 jni/Cargo.lock
 

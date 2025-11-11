@@ -40,6 +40,11 @@ public class ParquetMergeHandler extends MergeHandler {
         this.compositeIndexingExecutionEngine = compositeIndexingExecutionEngine;
 
         mergePolicy = parquetTieredMergePolicy;
+        // Merge Policy configurations
+        this.mergePolicy.setMaxMergedSegmentMB(2000);
+        this.mergePolicy.setSegmentsPerTier(10.0);
+//        this.mergePolicy.setMaxMergeAtOnce(5);
+//        this.mergePolicy.setFloorSegmentMB(1.0);
     }
 
     @Override
@@ -53,7 +58,7 @@ public class ParquetMergeHandler extends MergeHandler {
 
             for(WriterFileSet writerFileSet : parquetWriterSet) {
                 for(String file: writerFileSet.getFiles()) {
-                    parquetSegmentInfos.add(new ParquetTieredMergePolicy.ParquetFileInfo(file));
+                    parquetSegmentInfos.add(new ParquetTieredMergePolicy.ParquetFileInfo(writerFileSet.getDirectory()+"/"+file));
                 }
             }
 
@@ -88,7 +93,7 @@ public class ParquetMergeHandler extends MergeHandler {
 
             for(WriterFileSet writerFileSet : parquetWriterSet) {
                 for(String file: writerFileSet.getFiles()) {
-                    parquetSegmentInfos.add(new ParquetTieredMergePolicy.ParquetFileInfo(file));
+                    parquetSegmentInfos.add(new ParquetTieredMergePolicy.ParquetFileInfo(writerFileSet.getDirectory()+"/"+file));
                 }
             }
 
@@ -107,6 +112,7 @@ public class ParquetMergeHandler extends MergeHandler {
                 oneMerges.add(new OneMerge(compositeIndexingExecutionEngine.getDataFormat().getDataFormats().get(0), files));
             }
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException(e);
         }
         return oneMerges;

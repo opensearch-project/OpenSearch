@@ -8,20 +8,17 @@
 
 package org.opensearch.datafusion.search;
 
-import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.EngineReaderManager;
-import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class DatafusionReaderManager implements EngineReaderManager<DatafusionReader>, CatalogSnapshotAwareRefreshListener {
     private DatafusionReader current;
@@ -31,7 +28,9 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 //    private final List<ReferenceManager.RefreshListener> refreshListeners = new CopyOnWriteArrayList();
 
     public DatafusionReaderManager(String path, Collection<FileMetadata> files, String dataFormat) throws IOException {
-        this.current = null;
+        WriterFileSet writerFileSet = new WriterFileSet(Path.of(URI.create("file:///" + path)), 1);
+        files.forEach(fileMetadata -> writerFileSet.add(fileMetadata.file()));
+        this.current = new DatafusionReader(path, List.of(writerFileSet));;
         this.path = path;
         this.dataFormat = dataFormat;
     }
@@ -65,7 +64,6 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
                 release(old);
             }
             this.current = new DatafusionReader(this.path, catalogSnapshot.getSearchableFiles(dataFormat));
-            this.current.incRef();
         }
     }
 }

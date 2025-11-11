@@ -8,10 +8,6 @@
 
 package org.opensearch.index.engine.exec.composite;
 
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
@@ -29,46 +25,19 @@ import org.opensearch.plugins.PluginsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine<Any> {
 
     private final CompositeDataFormatWriterPool dataFormatWriterPool;
-    private Any dataFormat;
+    private final Any dataFormat;
     private final AtomicLong writerGeneration;
     private final List<IndexingExecutionEngine<?>> delegates = new ArrayList<>();
-
-    public CompositeIndexingExecutionEngine(
-        MapperService mapperService,
-        PluginsService pluginsService,
-        Any dataformat,
-        ShardPath shardPath,
-        long initialWriterGeneration
-    ) {
-        this.dataFormat = dataformat;
-        this.writerGeneration = new AtomicLong(initialWriterGeneration);
-        try {
-            for (DataFormat dataFormat : dataformat.getDataFormats()) {
-                DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class)
-                    .stream()
-                    .filter(curr -> curr.getDataFormat().equals(dataFormat))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("dataformat [" + dataFormat + "] is not registered."));
-                delegates.add(plugin.indexingEngine(mapperService, shardPath));
-            }
-        } catch (NullPointerException e) {
-            // my own testing
-            delegates.add(new TextEngine());
-        }
-        this.dataFormatWriterPool = new CompositeDataFormatWriterPool(
-            () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
-            LinkedList::new,
-            Runtime.getRuntime().availableProcessors()
-        );
-    }
 
     public CompositeIndexingExecutionEngine(
         MapperService mapperService,
@@ -89,11 +58,12 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             delegates.add(new TextEngine());
         }
         this.dataFormat = new Any(dataFormats, dataFormats.get(0));
-        this.dataFormatWriterPool = new CompositeDataFormatWriterPool(
-            () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
-            LinkedList::new,
-            Runtime.getRuntime().availableProcessors()
-        );
+        this.dataFormatWriterPool =
+            new CompositeDataFormatWriterPool(
+                () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
+                LinkedList::new,
+                Runtime.getRuntime().availableProcessors()
+            );
     }
 
     @Override
@@ -107,6 +77,13 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     @Override
+    public void loadWriterFiles(ShardPath shardPath) throws IOException {
+        for (IndexingExecutionEngine<?> delegate : delegates) {
+            delegate.loadWriterFiles(shardPath);
+        }
+    }
+
+    @Override
     public Writer<CompositeDataFormatWriter.CompositeDocumentInput> createWriter(long generation) throws IOException {
         throw new UnsupportedOperationException();
     }
@@ -117,7 +94,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
     @Override
     public RefreshResult refresh(RefreshInput ignore) throws IOException {
-        RefreshResult finalResult = new RefreshResult();
+        RefreshResult finalResult;
         Map<DataFormat, RefreshInput> refreshInputs = new HashMap<>();
         try {
             List<CompositeDataFormatWriter> dataFormatWriters = dataFormatWriterPool.checkoutAll();

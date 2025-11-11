@@ -60,7 +60,11 @@ use futures::{future, stream, Stream, StreamExt, TryStreamExt};
 use itertools::Itertools;
 use object_store::ObjectStore;
 use std::{any::Any, collections::HashMap, str::FromStr, sync::Arc};
+use std::fs::File;
+use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use futures::future::err;
 use regex::Regex;
+use crate::FileMetadata;
 
 /// Indicates the source of the schema for a [`ListingTable`]
 // PartialEq required for assert_eq! in tests
@@ -485,6 +489,8 @@ pub struct ListingOptions {
     ///       multiple equivalent orderings, the outer `Vec` will have a
     ///       single element.
     pub file_sort_order: Vec<Vec<SortExpr>>,
+
+    pub files_metadata: Arc<Vec<FileMetadata>>
 }
 
 impl ListingOptions {
@@ -502,6 +508,7 @@ impl ListingOptions {
             collect_stat: false,
             target_partitions: 1,
             file_sort_order: vec![],
+            files_metadata: Arc::new(vec![])
         }
     }
 
@@ -533,6 +540,11 @@ impl ListingOptions {
     /// ```
     pub fn with_file_extension(mut self, file_extension: impl Into<String>) -> Self {
         self.file_extension = file_extension.into();
+        self
+    }
+
+    pub fn with_files_metadata(mut self, files_metadata: Arc<Vec<FileMetadata>>) -> Self {
+        self.files_metadata = files_metadata.clone();
         self
     }
 
@@ -1111,35 +1123,66 @@ impl ListingTable {
         create_ordering(&self.table_schema, &self.options.file_sort_order)
     }
 
-    fn add_path_preserving_metadata(&self, file_groups: Vec<FileGroup>) -> Vec<FileGroup> {
-        let re = Regex::new(r"generation-(\d+)").unwrap();
-        file_groups
+    fn add_path_preserving_metadata(&self, file_groups: Vec<FileGroup>) -> Result<Vec<FileGroup>, DataFusionError> {
+        // First pass: calculate cumulative row bases
+        let mut cumulative_row_base = 0;
+        let mut file_row_bases: HashMap<String, i32> = HashMap::new();
+
+        // Process files in order to calculate cumulative row bases
+        for group in &file_groups {
+            for file in group.files() {
+                let location = file.object_meta.location.to_string();
+                let row_count = self.options.files_metadata.iter()
+                    .find(|meta| { location.contains(meta.object_meta.location.as_ref()) })
+                    .map(|meta| meta.row_group_row_counts().iter().sum::<i64>() as i32)
+                    // .unwrap_or_default();
+                    .expect(format!("Fail to get row count for file {}", location).as_str());
+
+                // Store current cumulative value as this file's row_base
+                file_row_bases.insert(location.to_string(), cumulative_row_base);
+                // Update cumulative count for next file
+                cumulative_row_base += row_count;
+            }
+        }
+        let row_id_field_datatype = self.file_schema.field_with_name("___row_id").expect("Field ___row_id not found").data_type();
+        if !(row_id_field_datatype.equals_datatype(&DataType::Int32) || row_id_field_datatype.equals_datatype(&DataType::Int64)) {
+            return Err(DataFusionError::Internal(format!("___row_id field must be Int32 or Int64, but found {:?}", row_id_field_datatype)))
+        }
+
+        // Second pass: create new file groups with calculated row_bases
+        Ok(file_groups
             .into_iter()
             .map(|mut group| {
                 let new_files: Vec<PartitionedFile> = group
                     .files()
                     .iter()
-                    .map(|file| PartitionedFile {
-                        object_meta: file.object_meta.clone(),
-                        partition_values: {
-                            let mut values = file.partition_values.clone();
-                            values.push(ScalarValue::Int32(Some(
-                                re.captures(file.object_meta.location.as_ref())
-                                    .and_then(|cap| cap.get(1))
-                                    .and_then(|m| if(!m.as_str().is_empty()) { Some(m.as_str().parse::<i32>().ok().unwrap() - 1) } else { Some(0) }).unwrap_or_default()
-                            )));
-                            values
-                        },
-                        range: file.range.clone(),
-                        statistics: file.statistics.clone(),
-                        extensions: file.extensions.clone(),
-                        metadata_size_hint: file.metadata_size_hint,
+                    .map(|file| {
+                        let location = file.object_meta.location.as_ref();
+                        let row_base = *file_row_bases.get(location).unwrap_or(&0);
+
+                        PartitionedFile {
+                            object_meta: file.object_meta.clone(),
+                            partition_values: {
+                                let mut values = file.partition_values.clone();
+                                if row_id_field_datatype.equals_datatype(&DataType::Int32) {
+                                    values.push(ScalarValue::Int32(Some(row_base)));
+                                } else if row_id_field_datatype.equals_datatype(&DataType::Int64) {
+                                    values.push(ScalarValue::Int64(Some(row_base as i64)));
+                                }
+                                values
+                            },
+                            range: file.range.clone(),
+                            statistics: file.statistics.clone(),
+                            extensions: file.extensions.clone(),
+                            metadata_size_hint: file.metadata_size_hint,
+                        }
                     })
                     .collect();
 
-                FileGroup::new(new_files).with_statistics(Arc::new(group.statistics_mut().cloned().unwrap_or_default()))
+                FileGroup::new(new_files)
+                    .with_statistics(Arc::new(group.statistics_mut().cloned().unwrap_or_default()))
             })
-            .collect()
+            .collect())
     }
 }
 
@@ -1217,7 +1260,7 @@ impl TableProvider for ListingTable {
             return Ok(Arc::new(EmptyExec::new(projected_schema)));
         }
 
-        partitioned_file_lists = self.add_path_preserving_metadata(partitioned_file_lists);
+        partitioned_file_lists = self.add_path_preserving_metadata(partitioned_file_lists).expect("Unable to update Metadata for partitioned files");
 
         let output_ordering = self.try_create_output_ordering()?;
         match state
@@ -1385,6 +1428,7 @@ impl ListingTable {
             return Ok((vec![], Statistics::new_unknown(&self.file_schema)));
         };
         // list files (with partitions)
+        let table_partition_cols:  Vec<(String, DataType)> = vec![]; // Passing empty partition cols as current partition cols are not mapped to directory path
         let file_list = future::try_join_all(self.table_paths.iter().map(|table_path| {
             pruned_partition_list(
                 ctx,
@@ -1392,7 +1436,7 @@ impl ListingTable {
                 table_path,
                 filters,
                 &self.options.file_extension,
-                &self.options.table_partition_cols,
+                &table_partition_cols,
             )
         }))
             .await?;

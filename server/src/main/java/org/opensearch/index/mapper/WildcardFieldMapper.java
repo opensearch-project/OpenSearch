@@ -928,7 +928,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
      *    1. When using doc values, for multi value field, result would be deduplicated and in sorted order
      */
     @Override
-    protected DerivedFieldGenerator derivedFieldGenerator() {
+    public DerivedFieldGenerator derivedFieldGenerator() {
         return new DerivedFieldGenerator(mappedFieldType, new SortedSetDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {

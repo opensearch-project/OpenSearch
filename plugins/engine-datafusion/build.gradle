@@ -47,12 +47,12 @@ dependencies {
     // CheckerFramework annotations required by Arrow 17.0.0
     implementation "org.checkerframework:checker-qual:3.42.0"
     // FlatBuffers dependency required by Arrow 17.0.0
-    implementation "com.google.flatbuffers:flatbuffers-java:23.5.26"
+    implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
 
     testImplementation "junit:junit:${versions.junit}"
     testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
     testImplementation "org.mockito:mockito-core:${versions.mockito}"
-
+    testImplementation project(":modules:parquet-data-format")
     // Add CSV plugin for testing
     // testImplementation project(':plugins:dataformat-csv')
 }

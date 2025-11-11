@@ -12,6 +12,9 @@ use object_store::{path::Path as ObjectPath, ObjectMeta};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
+use datafusion::error::DataFusionError;
+use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use crate::FileMetadata;
 
 /// Set error message from a result using a Consumer<String> Java callback
 pub fn set_error_message_batch<Err: Error>(env: &mut JNIEnv, callback: JObject, result: Result<Vec<RecordBatch>, Err>) {
@@ -157,7 +160,8 @@ pub fn throw_exception(env: &mut JNIEnv, message: &str) {
     let _ = env.throw_new("java/lang/RuntimeException", message);
 }
 
-pub fn create_object_meta_from_filenames(base_path: &str, filenames: Vec<String>) -> Vec<ObjectMeta> {
+pub fn create_file_metadata_from_filenames(base_path: &str, filenames: Vec<String>) -> Result<Vec<FileMetadata>, DataFusionError> {
+    let mut row_base: i64 =0;
     filenames.into_iter().map(|filename| {
         let filename = filename.as_str();
 
@@ -171,17 +175,36 @@ pub fn create_object_meta_from_filenames(base_path: &str, filenames: Vec<String>
         };
 
         let file_size = fs::metadata(&full_path).map(|m| m.len()).unwrap_or(0);
+        let file_result = fs::File::open(&full_path.clone());
+        if(file_result.is_err()) {
+            return Err(DataFusionError::Execution(format!("{} {}", file_result.unwrap_err().to_string(), full_path)))
+        }
+        let file = file_result.unwrap();
+        let parquet_metadata = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+        let row_group_row_counts: Vec<i64> = parquet_metadata.metadata().row_groups()
+            .iter()
+            .map(|row_group| row_group.num_rows())
+            .collect();
+
+
         let modified = fs::metadata(&full_path)
             .and_then(|m| m.modified())
             .map(|t| DateTime::<Utc>::from(t))
             .unwrap_or_else(|_| Utc::now());
 
-        ObjectMeta {
-            location: ObjectPath::from(full_path),
-            last_modified: modified,
-            size: file_size,
-            e_tag: None,
-            version: None,
-        }
+        let file_meta = FileMetadata::new(
+            row_group_row_counts.clone(),
+            row_base,
+            ObjectMeta {
+                location: ObjectPath::from(full_path),
+                last_modified: modified,
+                size: file_size,
+                e_tag: None,
+                version: None,
+            }
+        );
+        //TODO: ensure ordering of files
+        row_base += row_group_row_counts.iter().sum::<i64>();
+        Ok(file_meta)
     }).collect()
 }

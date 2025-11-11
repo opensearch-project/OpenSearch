@@ -219,7 +219,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
      *    4. When using stored field, order and duplicate values would be preserved
      */
     @Override
-    protected DerivedFieldGenerator derivedFieldGenerator() {
+    public DerivedFieldGenerator derivedFieldGenerator() {
         return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {

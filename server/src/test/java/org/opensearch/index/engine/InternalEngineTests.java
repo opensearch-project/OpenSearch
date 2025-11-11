@@ -5725,7 +5725,7 @@ public class InternalEngineTests extends EngineTestCase {
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
             ) {
                 @Override
-                protected long doGenerateSeqNoForOperation(Operation operation) {
+                public long doGenerateSeqNoForOperation(Operation operation) {
                     throw new UnsupportedOperationException();
                 }
             };

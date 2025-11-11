@@ -113,7 +113,17 @@ public class DataFusionQueryJNI {
      * @param substraitPlan the serialized Substrait query plan
      * @return stream pointer for result iteration
      */
-    public static native long executeSubstraitQuery(long cachePtr, String tableName, byte[] substraitPlan, long runtimePtr);
+    public static native long executeQueryPhase(long cachePtr, String tableName, byte[] substraitPlan, long runtimePtr);
+
+    /**
+     * Execute a Substrait query plan
+     * @param cachePtr the session context ID
+     * @param rowIds row ids for which record needs to fetch
+     * @param runtimePtr runtime pointer
+     * @return stream pointer for result iteration
+     */
+
+    public static native long executeFetchPhase(long cachePtr, long[] rowIds, String[] projections, long runtimePtr);
 
     public static native long createDatafusionReader(String path, String[] files);
 

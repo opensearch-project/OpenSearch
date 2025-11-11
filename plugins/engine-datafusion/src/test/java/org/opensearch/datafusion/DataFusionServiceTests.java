@@ -8,41 +8,63 @@
 
 package org.opensearch.datafusion;
 
+import com.parquet.parquetdataformat.ParquetDataFormatPlugin;
 import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.lucene.search.Query;
+import org.apache.arrow.vector.*;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.datafusion.core.SessionContext;
+import org.opensearch.datafusion.search.DatafusionContext;
 import org.opensearch.datafusion.search.DatafusionQuery;
 import org.opensearch.datafusion.search.DatafusionSearcher;
 import org.opensearch.env.Environment;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.engine.exec.FileMetadata;
-import org.opensearch.index.engine.exec.text.TextDF;
-import org.opensearch.index.query.AbstractQueryBuilder;
-import org.opensearch.index.query.BoolQueryBuilder;
-import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.Store;
+import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.SearchResultsCollector;
-import org.opensearch.search.internal.AliasFilter;
-import org.opensearch.search.internal.ReaderContext;
-import org.opensearch.search.internal.ShardSearchContextId;
-import org.opensearch.search.internal.ShardSearchRequest;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.internal.*;
+import org.opensearch.tasks.Task;
+import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.Before;
 
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.vectorized.execution.search.DataFormat;
-import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Path;
 import java.util.*;
-
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import org.apache.arrow.vector.FieldVector;
+import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
 /**
@@ -52,7 +74,7 @@ import org.apache.arrow.vector.types.pojo.Field;
  * They are disabled by default and can be enabled by setting the system property:
  * -Dtest.native.enabled=true
  */
-public class DataFusionServiceTests extends OpenSearchTestCase {
+public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
 
     private DataFusionService service;
 
@@ -95,25 +117,25 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
 //        assertNull(service.getContext(defaultContext.getContext()));
 //    }
 
-    // TO run update proper directory path for generation-1-optimized.parquet file in
-    // this.datafusionReaderManager = new DatafusionReaderManager("TODO://FigureOutPath", formatCatalogSnapshot);
     public void testQueryPhaseExecutor() throws IOException {
         Map<String, Object[]> finalRes = new HashMap<>();
         DatafusionSearcher datafusionSearcher = null;
         try {
-            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(new TextDF(), "hits_data.parquet")), service);
-            datafusionSearcher = engine.acquireSearcher("Search");
-
+            URL resourceUrl = getClass().getClassLoader().getResource("data/");
+            Index index = new Index("index-7", "index-7");
+            final Path path = Path.of(resourceUrl.toURI()).resolve("index-7").resolve("0");
+            ShardPath shardPath = new ShardPath(false, path, path, new ShardId(index, 0));
+            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(DataFormat.CSV.toString(), "generation-1.parquet")), service, shardPath);
+            datafusionSearcher = engine.acquireSearcher("search");
 
             byte[] protoContent;
-
             try (InputStream is = getClass().getResourceAsStream("/substrait_plan.pb")) {
                 protoContent = is.readAllBytes();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
 
-            long streamPointer = datafusionSearcher.search(new DatafusionQuery("test-index",protoContent, new ArrayList<>()), service.getTokioRuntimePointer());
+            long streamPointer = datafusionSearcher.search(new DatafusionQuery(index.getName(), protoContent, new ArrayList<>()), service.getTokioRuntimePointer());
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getTokioRuntimePointer() , allocator);
 
@@ -153,5 +175,210 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
                 datafusionSearcher.close();
             }
         }
+    }
+
+    public void testQueryThenFetchExecutor() throws IOException, URISyntaxException {
+        DatafusionSearcher datafusionSearcher = null;
+        try {
+            URL resourceUrl = getClass().getClassLoader().getResource("data/");
+            Index index = new Index("index-7", "index-7");
+            final Path path = Path.of(resourceUrl.toURI()).resolve("index-7").resolve("0");
+            ShardPath shardPath = new ShardPath(false, path, path, new ShardId(index, 0));
+            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(DataFormat.CSV.toString(), "generation-1.parquet"), new FileMetadata(DataFormat.CSV.toString(), "generation-2.parquet")), service, shardPath);
+            datafusionSearcher = engine.acquireSearcher("Search");
+
+            byte[] protoContent;
+            try (InputStream is = getClass().getResourceAsStream("/substrait_plan.pb")) {
+                protoContent = is.readAllBytes();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            DatafusionQuery query = new DatafusionQuery(index.getName(), protoContent, new ArrayList<>());
+            long streamPointer = datafusionSearcher.search(query, service.getTokioRuntimePointer());
+            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+            RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getTokioRuntimePointer() , allocator);
+
+            ArrayList<Long> row_ids_res = new ArrayList<>();
+
+            while (stream.loadNextBatch().join()) {
+                VectorSchemaRoot root = stream.getVectorSchemaRoot();
+                for (Field field : root.getSchema().getFields()) {
+                    String fieldName = field.getName();
+                    if (fieldName.equals("___row_id")) {
+                        BigIntVector fieldVector = (BigIntVector) root.getVector(fieldName);
+                        for(int i=0; i<fieldVector.getValueCount(); i++) {
+                            row_ids_res.add(fieldVector.get(i));
+                        }
+                    }
+                }
+            }
+
+            logger.info("Final row_ids count: {}", row_ids_res);
+
+            List<String> projections = List.of("message");
+            query.setProjections(projections);
+            query.setFetchPhaseContext(row_ids_res);
+            long fetchPhaseStreamPointer = datafusionSearcher.search(query, service.getTokioRuntimePointer());
+
+            RecordBatchStream fetchPhaseStream = new RecordBatchStream(fetchPhaseStreamPointer, service.getTokioRuntimePointer() , allocator);
+            int total_fetch_results = 0;
+            ArrayList<Long> fetch_row_ids_res = new ArrayList<>();
+
+            while(fetchPhaseStream.loadNextBatch().join()) {
+                VectorSchemaRoot root = fetchPhaseStream.getVectorSchemaRoot();
+                assertEquals(projections.size(), root.getSchema().getFields().size());
+                for (Field field : root.getSchema().getFields()) {
+                    assertTrue("Field was not passed in projections list", projections.contains(field.getName()));
+                    if(field.getName().equals("___row_id")) {
+                        IntVector fieldVector = (IntVector) root.getVector(field.getName());
+                        for(int i=0; i<root.getSchema().getFields().size(); i++) {
+                            fetch_row_ids_res.add((long) fieldVector.get(i));
+                        }
+                    } else if(field.getName().equals("target_ip")) {
+                        ViewVarBinaryVector fieldVector = (ViewVarBinaryVector) root.getVector(field.getName());
+
+                    }
+                }
+                total_fetch_results += root.getRowCount();
+            }
+
+            assertEquals(row_ids_res.size(), total_fetch_results);
+        } catch (Exception exception) {
+            logger.error("Failed to execute Substrait query plan", exception);
+            throw exception;
+        } finally {
+            if(datafusionSearcher != null) {
+                datafusionSearcher.close();
+            }
+        }
+    }
+
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(ParquetDataFormatPlugin.class);
+    }
+
+    public void testQueryThenFetchE2ETest() throws IOException, URISyntaxException, InterruptedException, ExecutionException {
+        URL resourceUrl = getClass().getClassLoader().getResource("data/");
+        Index index = new Index("index-7", "index-7");
+        final Path path = Path.of(resourceUrl.toURI()).resolve("index-7").resolve("0");
+        ShardPath shardPath = new ShardPath(false, path, path, new ShardId(index, 0));
+        DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(DataFormat.CSV.toString(), "generation-1.parquet"), new FileMetadata(DataFormat.CSV.toString(), "generation-2.parquet")), service, shardPath);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).source(new SearchSourceBuilder().size(9).fetchSource(List.of("message").toArray(String[]::new), null));
+        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            new ShardId(index, 0),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+
+        IndexService indexService = createIndex("index-7", Settings.EMPTY, jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("___row_id")
+            .field("type", "long")
+            .endObject()
+            .startObject("message")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+        );
+        ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
+        IndexShard indexShard = createIndexShard(shardPath.getShardId(), true);
+        when(indexShard.getThreadPool()).thenReturn(threadPool);
+        SearchOperationListener searchOperationListener = new SearchOperationListener() {
+        };
+        when(indexShard.getSearchOperationListener()).thenReturn(searchOperationListener);
+
+        EngineSearcherSupplier<?> reader = indexShard.acquireSearcherSupplier();
+        ReaderContext readerContext = createAndPutReaderContext(shardSearchRequest, indexService, indexShard, reader);
+        SearchShardTarget searchShardTarget = new SearchShardTarget("node_1", new ShardId("index-7", "index-7", 0), null, OriginalIndices.NONE);
+        SearchShardTask searchShardTask = new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "my_id"));
+        DatafusionContext datafusionContext = new DatafusionContext(readerContext, shardSearchRequest, searchShardTarget, searchShardTask, engine, null, null);
+
+        byte[] protoContent;
+        try (InputStream is = getClass().getResourceAsStream("/substrait_plan.pb")) {
+            protoContent = is.readAllBytes();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        DatafusionQuery query = new DatafusionQuery(index.getName(), protoContent, new ArrayList<>());
+        List<String> projections = List.of("message");
+        query.setProjections(projections);
+
+        datafusionContext.datafusionQuery(query);
+
+        engine.executeQueryPhase(datafusionContext);
+        int totalHits = Math.toIntExact(datafusionContext.queryResult().getTotalHits().value());
+        int[] docIdsToLoad = new int[totalHits];
+        for (int i=0; i<totalHits; i++) {
+            docIdsToLoad[i] = datafusionContext.queryResult().topDocs().topDocs.scoreDocs[i].doc;
+        }
+        datafusionContext.docIdsToLoad(docIdsToLoad, 0, totalHits);
+        engine.executeFetchPhase(datafusionContext);
+
+        assertTrue(datafusionContext.fetchResult().hits().getHits().length > 0);
+        assertEquals(datafusionContext.docIdsToLoad().length, datafusionContext.fetchResult().hits().getTotalHits().value());
+    }
+
+    final AtomicLong idGenerator = new AtomicLong();
+
+
+    final ReaderContext createAndPutReaderContext(
+        ShardSearchRequest request,
+        IndexService indexService,
+        IndexShard shard,
+        EngineSearcherSupplier<?> reader
+    ) {
+        assert request.readerId() == null;
+        assert request.keepAlive() == null;
+        ReaderContext readerContext = null;
+        Releasable decreaseScrollContexts = null;
+        try {
+
+            final long keepAlive = request.keepAlive() != null ? request.keepAlive().getMillis() : request.readerId() == null ? timeValueMinutes(5).getMillis() : -1;
+
+            final ShardSearchContextId id = new ShardSearchContextId(UUIDs.randomBase64UUID(), idGenerator.incrementAndGet());
+
+            readerContext = new ReaderContext(id, indexService, shard, reader, keepAlive, request.keepAlive() == null);
+            reader = null;
+            final ReaderContext finalReaderContext = readerContext;
+            final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
+            searchOperationListener.onNewReaderContext(finalReaderContext);
+            readerContext.addOnClose(() -> {
+                try {
+                    if (finalReaderContext.scrollContext() != null) {
+                        searchOperationListener.onFreeScrollContext(finalReaderContext);
+                    }
+                } finally {
+                    searchOperationListener.onFreeReaderContext(finalReaderContext);
+                }
+            });
+            readerContext = null;
+            return finalReaderContext;
+        } finally {
+            Releasables.close(reader, readerContext, decreaseScrollContexts);
+        }
+    }
+
+    static IndexShard createIndexShard(ShardId shardId, boolean remoteStoreEnabled) {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, String.valueOf(remoteStoreEnabled))
+            .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
+        Store store = mock(Store.class);
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.indexSettings()).thenReturn(indexSettings);
+        when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.store()).thenReturn(store);
+        return indexShard;
     }
 }

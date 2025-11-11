@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class WriterFileSet implements Serializable, Writeable {
@@ -42,17 +43,11 @@ public class WriterFileSet implements Serializable, Writeable {
     }
 
     public WriterFileSet withDirectory(String newDirectory) {
-        WriterFileSet newFileSet = new WriterFileSet(Path.of(newDirectory), this.writerGeneration);
-
-        // Extract just the filename and reconstruct with new directory
-        for (String oldFilePath : this.files) {
-            Path oldPath = Path.of(oldFilePath);
-            String fileName = oldPath.getFileName().toString();
-            String newFilePath = Path.of(newDirectory, fileName).toString();
-            newFileSet.files.add(newFilePath);
-        }
-
-        return newFileSet;
+        return WriterFileSet.builder()
+            .directory(Path.of(newDirectory))
+            .writerGeneration(this.writerGeneration)
+            .addFiles(this.files)
+            .build();
     }
 
     /**
@@ -111,6 +106,49 @@ public class WriterFileSet implements Serializable, Writeable {
     @Override
     public int hashCode() {
         return this.directory.hashCode() + this.files.hashCode();
+    }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private Path directory;
+        private Long writerGeneration;
+        private final Set<String> files = new HashSet<>();
+
+        public Builder directory(Path directory) {
+            this.directory = directory;
+            return this;
+        }
+
+        public Builder writerGeneration(long writerGeneration) {
+            this.writerGeneration = writerGeneration;
+            return this;
+        }
+
+        public Builder addFile(String file) {
+            this.files.add(file);
+            return this;
+        }
+
+        public Builder addFiles(Set<String> files) {
+            this.files.addAll(files);
+            return this;
+        }
+
+        public WriterFileSet build() {
+            if (directory == null) {
+                throw new IllegalStateException("directory must be set");
+            }
+
+            if (writerGeneration == null) {
+                throw new IllegalStateException("writerGeneration must be set");
+            }
+
+            WriterFileSet fileSet = new WriterFileSet(directory, writerGeneration);
+            fileSet.files.addAll(this.files);
+            return fileSet;
+        }
     }
 }

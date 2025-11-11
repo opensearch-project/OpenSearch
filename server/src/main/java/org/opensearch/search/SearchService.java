@@ -83,7 +83,6 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.engine.SearchExecutionEngine;
 import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.mapper.DerivedFieldResolver;
@@ -141,12 +140,7 @@ import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.SearchProfileShardResults;
-import org.opensearch.search.query.QueryPhase;
-import org.opensearch.search.query.QueryRewriterRegistry;
-import org.opensearch.search.query.QueryPhaseExecutor;
-import org.opensearch.search.query.QuerySearchRequest;
-import org.opensearch.search.query.QuerySearchResult;
-import org.opensearch.search.query.ScrollQuerySearchResult;
+import org.opensearch.search.query.*;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -166,6 +160,7 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -851,8 +846,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // TODO Execute plan here
             // TODO : figure out how to tie this
             byte[] substraitQuery = request.source().queryPlanIR();
+            context.queryResult().from(context.from());
+            context.queryResult().size(context.size());
             if (substraitQuery != null) {
-                Map<String, Object[]> result = searchExecEngine.execute(context);
+                // setDFResults in context
+                Map<String, Object[]> result = searchExecEngine.executeQueryPhase(context);
                 context.setDFResults(result);
             }
 
@@ -1057,7 +1055,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
                 }
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
-                searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
+//                searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
                 searchContext.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
                 try (
                     SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())
@@ -1284,7 +1282,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchShardTask task,
         boolean includeAggregations
     ) throws IOException {
-        return createContext(readerContext, request, task, includeAggregations, false, null);
+        SearchExecEngine searchExecEngine = readerContext.indexShard()
+            .getIndexingExecutionCoordinator()
+            .getPrimaryReadEngine();
+        return createContext(readerContext, request, task, includeAggregations, false, searchExecEngine);
     }
 
     private SearchContext createContext(
