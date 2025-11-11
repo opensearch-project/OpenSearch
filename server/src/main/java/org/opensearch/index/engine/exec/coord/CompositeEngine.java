@@ -816,7 +816,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
         boolean upgradeOnlyAncientSegments,
         String forceMergeUUID
     ) throws EngineException, IOException {
-
+        mergeScheduler.forceMerge(maxNumSegments);
     }
 
     @Override
