@@ -10,6 +10,7 @@ package org.opensearch.repositories.s3.async;
 
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 
 import java.io.IOException;
@@ -28,6 +29,7 @@ public class UploadRequest {
     private final Long expectedChecksum;
     private final Map<String, String> metadata;
     private final boolean uploadRetryEnabled;
+    private final ConditionalWriteOptions conditionalOptions;
     private volatile String serverSideEncryptionType;
     private volatile String serverSideEncryptionKmsKey;
     private volatile boolean serverSideEncryptionBucketKey;
@@ -45,6 +47,12 @@ public class UploadRequest {
      * @param doRemoteDataIntegrityCheck A boolean to inform vendor plugins whether remote data integrity checks need to be done
      * @param expectedChecksum           Checksum of the file being uploaded for remote data integrity check
      * @param metadata                   Metadata of the file being uploaded
+     * @param conditionalOptions         Conditions that must be satisfied for the write to succeed
+     * @param serverSideEncryptionType   Type of server-side encryption
+     * @param serverSideEncryptionKmsKey KMS key for server-side encryption
+     * @param serverSideEncryptionBucketKey Whether to use bucket keys for server-side encryption
+     * @param serverSideEncryptionEncryptionContext Encryption context for server-side encryption
+     * @param expectedBucketOwner        Expected owner of the bucket
      */
     public UploadRequest(
         String bucket,
@@ -56,6 +64,7 @@ public class UploadRequest {
         Long expectedChecksum,
         boolean uploadRetryEnabled,
         @Nullable Map<String, String> metadata,
+        @Nullable ConditionalWriteOptions conditionalOptions,
         String serverSideEncryptionType,
         String serverSideEncryptionKmsKey,
         boolean serverSideEncryptionBucketKey,
@@ -71,6 +80,7 @@ public class UploadRequest {
         this.expectedChecksum = expectedChecksum;
         this.uploadRetryEnabled = uploadRetryEnabled;
         this.metadata = metadata;
+        this.conditionalOptions = conditionalOptions;
         this.serverSideEncryptionType = serverSideEncryptionType;
         this.serverSideEncryptionKmsKey = serverSideEncryptionKmsKey;
         this.serverSideEncryptionBucketKey = serverSideEncryptionBucketKey;
@@ -115,6 +125,14 @@ public class UploadRequest {
      */
     public Map<String, String> getMetadata() {
         return metadata;
+    }
+
+    /**
+     * @return conditional write options for this upload, or null if none are specified
+     */
+    @Nullable
+    public ConditionalWriteOptions getConditionalOptions() {
+        return conditionalOptions;
     }
 
     public String getServerSideEncryptionType() {

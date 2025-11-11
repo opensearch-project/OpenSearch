@@ -45,6 +45,16 @@ public class AsyncMultiStreamEncryptedBlobContainer<T, U> extends EncryptedBlobC
     }
 
     @Override
+    public void asyncBlobUploadConditionally(
+        WriteContext writeContext,
+        ConditionalWrite.ConditionalWriteOptions options,
+        ActionListener<ConditionalWrite.ConditionalWriteResponse> completionListener
+    ) throws IOException {
+        EncryptedWriteContext<T, U> encryptedWriteContext = new EncryptedWriteContext<>(writeContext, cryptoHandler);
+        blobContainer.asyncBlobUploadConditionally(encryptedWriteContext, options, completionListener);
+    }
+
+    @Override
     public void readBlobAsync(String blobName, ActionListener<ReadContext> listener) {
         try {
             final U cryptoContext = cryptoHandler.loadEncryptionMetadata(getEncryptedHeaderContentSupplier(blobName));
