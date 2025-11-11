@@ -655,7 +655,8 @@ public class InternalEngine extends Engine {
                         );
                     }
                     if (get.isReadFromTranslog()) {
-                        // _GET calls deployed due to an update request will attempt to read from the translog first to guarantee the most recent version.
+                        // _GET calls deployed due to an update request will attempt to read from the translog first to guarantee the most
+                        // recent version.
                         // _GET calls invoked by API will also attempt to read from translog when realtime=true (which is the default).
                         if (versionValue.getLocation() != null) {
                             try {
