@@ -239,15 +239,20 @@ public class ClusterStatsResponseTests extends OpenSearchTestCase {
             .build();
         commonStats.indexing = new IndexingStats();
         commonStats.completion = new CompletionStats();
-        commonStats.flush = new FlushStats(randomLongBetween(0, 100), randomLongBetween(0, 100), randomLongBetween(0, 100));
-        commonStats.fieldData = new FieldDataStats(randomLongBetween(0, 100), randomLongBetween(0, 100), null);
-        commonStats.queryCache = new QueryCacheStats(
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100)
-        );
+        commonStats.flush = new FlushStats.Builder().total(randomLongBetween(0, 100))
+            .periodic(randomLongBetween(0, 100))
+            .totalTimeInMillis(randomLongBetween(0, 100))
+            .build();
+        commonStats.fieldData = new FieldDataStats.Builder().memorySize(randomLongBetween(0, 100))
+            .evictions(randomLongBetween(0, 100))
+            .fieldMemoryStats(null)
+            .build();
+        commonStats.queryCache = new QueryCacheStats.Builder().ramBytesUsed(randomLongBetween(0, 100))
+            .hitCount(randomLongBetween(0, 100))
+            .missCount(randomLongBetween(0, 100))
+            .cacheCount(randomLongBetween(0, 100))
+            .cacheSize(randomLongBetween(0, 100))
+            .build();
         commonStats.segments = new SegmentsStats();
 
         return commonStats;
