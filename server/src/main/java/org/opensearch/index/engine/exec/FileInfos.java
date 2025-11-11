@@ -25,12 +25,16 @@ public final class FileInfos {
         return Collections.unmodifiableMap(writerFilesMap);
     }
 
-    public void putWriterFileSet(DataFormat format, WriterFileSet writerFileSet) {
+    private void putWriterFileSet(DataFormat format, WriterFileSet writerFileSet) {
         writerFilesMap.put(format, writerFileSet);
     }
 
     public Optional<WriterFileSet> getWriterFileSet(DataFormat format) {
         return Optional.ofNullable(writerFilesMap.get(format));
+    }
+
+    public static FileInfos empty() {
+        return new FileInfos();
     }
 
     public static Builder builder() {
