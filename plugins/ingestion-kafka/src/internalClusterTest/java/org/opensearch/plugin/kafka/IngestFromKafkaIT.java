@@ -897,4 +897,89 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
         assertThat(response.getHits().getTotalHits().value(), is(2L));
     }
+
+    public void testDynamicUpdateKafkaParams() throws Exception {
+        // Step 1: Publish 10 messages with versioning
+        for (int i = 0; i < 10; i++) {
+            produceDataWithExternalVersion(String.valueOf(i), 1, "name" + i, "25", defaultMessageTimestamp, "index");
+        }
+
+        // Step 2: Create index with pointer.init.reset to offset 1 and auto.offset.reset=latest
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "reset_by_offset")
+                .put("ingestion_source.pointer.init.reset.value", "1")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.param.auto.offset.reset", "latest")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            mapping
+        );
+
+        ensureGreen(indexName);
+
+        // Step 3: Wait for 9 messages to be visible
+        waitForSearchableDocs(9, Arrays.asList(nodeA));
+
+        // Step 4: Update the index settings to set auto.offset.reset to earliest
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("ingestion_source.param.auto.offset.reset", "earliest"))
+            .get();
+
+        // Verify the setting was updated
+        String autoOffsetReset = getSettings(indexName, "index.ingestion_source.param.auto.offset.reset");
+        assertEquals("earliest", autoOffsetReset);
+
+        // Step 5: Pause and resume ingestion, setting offset to 100 (out-of-range, hence expect auto.offset.reset to be used)
+        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
+        assertTrue(pauseResponse.isAcknowledged());
+        assertTrue(pauseResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
+        });
+
+        ResumeIngestionResponse resumeResponse = resumeIngestion(
+            indexName,
+            0,
+            ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET,
+            "100"
+        );
+        assertTrue(resumeResponse.isAcknowledged());
+        assertTrue(resumeResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(
+                        state -> state.isPollerPaused() == false
+                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
+                    );
+        });
+
+        // Step 6: Wait for version conflict count to be 9 and total messages processed to be 10.
+        // Since offset 100 doesn't exist, it will fall back to earliest (offset 0).
+        waitForState(() -> {
+            PollingIngestStats stats = client(nodeA).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+
+            return stats != null
+                && stats.getMessageProcessorStats().totalProcessedCount() == 10L
+                && stats.getMessageProcessorStats().totalVersionConflictsCount() == 9L;
+        });
+
+        waitForSearchableDocs(10, Arrays.asList(nodeA));
+    }
 }
