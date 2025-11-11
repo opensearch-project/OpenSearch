@@ -112,7 +112,7 @@ public class AggregationProfileBreakdown extends AbstractProfileBreakdown {
             if (entry.getValue().getName().equals(AggregationTimingType.PRE_COMPUTE.toString())) {
                 assert entry.getValue() instanceof Timer : "Metric " + entry.getValue().getName() + " is not a timer";
                 total += starTreeTotalPrecomputeTime();
-                break;
+                continue;
             }
             if (entry.getValue() instanceof Timer t) {
                 total += t.getApproximateTiming();
