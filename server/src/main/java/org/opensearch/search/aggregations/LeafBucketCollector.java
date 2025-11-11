@@ -35,6 +35,7 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 
 import java.io.IOException;
@@ -129,13 +130,21 @@ public abstract class LeafBucketCollector implements LeafCollector {
         collect(stream, 0);
     }
 
+    /**
+     * Bulk-collect doc IDs within {@code owningBucketOrd}.
+     *
+     * <p>Note: The provided {@link DocIdStream} may be reused across calls and should be consumed immediately.
+     *
+     * <p>Note: The provided DocIdStream typically only holds a small subset of query matches. This method may be called multiple times per segment.
+     * Like collect(int), it is guaranteed that doc IDs get collected in order, ie. doc IDs are collected in order within a DocIdStream, and if
+     * called twice, all doc IDs from the second DocIdStream will be greater than all doc IDs from the first DocIdStream.
+     *
+     * <p>It is legal for callers to mix calls to {@link #collect(DocIdStream, long)} and {@link #collect(int, long)}.
+     *
+     * <p>The default implementation calls {@code stream.forEach(doc -> collect(doc, owningBucketOrd))}.
+     */
+    @ExperimentalApi
     public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-        // for (docCount = stream.intoArray(docBuffer); docCount != 0; docCount = stream.intoArray(docBuffer)) {
-        // if (docCount == docBuffer.length) {
-        // collect(docBuffer, owningBucketOrd);
-        // }
-        // }
-        // collectRemaining();
         stream.forEach((doc) -> collect(doc, owningBucketOrd));
     }
 
