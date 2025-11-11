@@ -119,9 +119,9 @@ public class TotalHitCountCollectorManager
                 }
 
                 // Only set if not already present
-            if (!result.hasTopDocs()) {
-                result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), null);
-            }
+                if (!result.hasTopDocs()) {
+                    result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), null);
+                }
             };
         }
     }

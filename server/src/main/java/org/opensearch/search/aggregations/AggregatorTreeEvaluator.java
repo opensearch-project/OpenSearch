@@ -93,7 +93,8 @@ public final class AggregatorTreeEvaluator {
             mode = existingMode != null ? existingMode : mode;
         }
 
-        logger.debug("flushMode={} isStreamSearch={} minRatio={} minBuckets={} maxBuckets={}",
+        logger.debug(
+            "flushMode={} isStreamSearch={} minRatio={} minBuckets={} maxBuckets={}",
             mode,
             searchContext.isStreamSearch(),
             searchContext.getStreamingMinCardinalityRatio(),

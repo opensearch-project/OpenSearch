@@ -152,7 +152,7 @@ public class RestSearchAction extends BaseRestHandler {
         );
 
         // Honor streaming when cluster setting is enabled OR feature flag is enabled
-        final boolean streamingEnabledEffective = (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) 
+        final boolean streamingEnabledEffective = (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED))
             || FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
         if (streamingEnabledEffective) {
             if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {

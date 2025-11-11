@@ -15,11 +15,11 @@ package org.opensearch.action.search;
  * @opensearch.internal
  */
 public interface PreviewFirstPartialReceiver {
-    
+
     /**
      * Called when the first partial response is available.
      * Implementation should send the response and cancel the search task.
-     * 
+     *
      * @param partial the first partial search response
      */
     void onPartialResponse(SearchResponse partial);

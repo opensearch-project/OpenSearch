@@ -568,7 +568,9 @@ public abstract class SearchContext implements Releasable {
     public void setStreamChannelListener(StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> listener) {}
 
     @ExperimentalApi
-    public StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> getStreamChannelListener() { return null; }
+    public StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> getStreamChannelListener() {
+        return null;
+    }
 
     @ExperimentalApi
     public boolean isStreamSearch() {

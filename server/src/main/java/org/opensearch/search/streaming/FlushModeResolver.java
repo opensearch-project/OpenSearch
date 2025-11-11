@@ -117,8 +117,11 @@ public final class FlushModeResolver {
      */
     private static StreamingCostMetrics collectMetrics(Collector collector) {
         // Fast reject for unknown collector types
-        if (!(collector instanceof Streamable || collector instanceof MultiBucketCollector || collector instanceof MultiCollector
-            || collector instanceof ProfilingAggregator || collector instanceof AggregatorBase)) {
+        if (!(collector instanceof Streamable
+            || collector instanceof MultiBucketCollector
+            || collector instanceof MultiCollector
+            || collector instanceof ProfilingAggregator
+            || collector instanceof AggregatorBase)) {
             return StreamingCostMetrics.nonStreamable();
         }
 

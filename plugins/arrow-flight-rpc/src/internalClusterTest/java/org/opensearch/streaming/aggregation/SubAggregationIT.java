@@ -457,18 +457,18 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                 .setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30))
                 .execute();
             SearchResponse resp;
-        try {
-            resp = future.actionGet(TimeValue.timeValueSeconds(35));
-        } catch (Exception e) {
-            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
-            all.forEach((t, st) -> {
-                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
-                for (StackTraceElement el : st) {
-                    logger.error("  at {}", el);
-                }
-            });
-            throw e;
-        }
+            try {
+                resp = future.actionGet(TimeValue.timeValueSeconds(35));
+            } catch (Exception e) {
+                Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
+                all.forEach((t, st) -> {
+                    logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
+                    for (StackTraceElement el : st) {
+                        logger.error("  at {}", el);
+                    }
+                });
+                throw e;
+            }
 
             assertNotNull(resp);
             assertEquals(NUM_SHARDS, resp.getTotalShards());
