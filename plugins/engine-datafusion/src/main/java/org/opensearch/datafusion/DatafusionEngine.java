@@ -110,7 +110,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 @Override
                 protected void doClose() {
                     try {
-                        reader.decRef();
+                        datafusionReaderManager.release(reader);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }

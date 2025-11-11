@@ -8,8 +8,11 @@
 
 package org.opensearch.datafusion.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.datafusion.DataFusionQueryJNI;
+import org.opensearch.datafusion.DataFusionService;
 import org.opensearch.datafusion.core.DefaultRecordBatchStream;
 import org.opensearch.index.engine.EngineSearcher;
 import org.opensearch.search.aggregations.SearchResultsCollector;
@@ -25,9 +28,11 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
     private final String source;
     private DatafusionReader reader;
     private Closeable closeable;
+
     public DatafusionSearcher(String source, DatafusionReader reader, Closeable close) {
         this.source = source;
         this.reader = reader;
+        this.closeable = close;
     }
 
     @Override

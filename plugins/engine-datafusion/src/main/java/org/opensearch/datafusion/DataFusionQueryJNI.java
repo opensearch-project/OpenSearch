@@ -8,6 +8,10 @@
 
 package org.opensearch.datafusion;
 
+import org.opensearch.index.engine.exec.FileMetadata;
+
+import java.util.Collection;
+
 /**
  * JNI wrapper for DataFusion operations
  */
