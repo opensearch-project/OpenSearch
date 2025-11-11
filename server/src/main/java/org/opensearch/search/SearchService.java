@@ -345,7 +345,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     // Intra-segment search settings
     public static final Setting<Boolean> INTRA_SEGMENT_SEARCH_ENABLED = Setting.boolSetting(
         "search.intra_segment_search.enabled",
-        true, 
+        true,
         Property.Dynamic,
         Property.NodeScope
     );
