@@ -221,8 +221,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param method GET, POST, etc.
      */
     protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
-        if (handler instanceof BaseRestHandler) {
-            usageService.addRestHandler((BaseRestHandler) handler);
+        if (handler instanceof BaseRestHandler baseRestHandler) {
+            usageService.addRestHandler(baseRestHandler);
         }
         registerHandlerNoWrap(method, path, handlerWrapper.apply(handler));
     }
@@ -301,8 +301,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
             final Exception e;
             if (cause == null) {
                 e = new OpenSearchException("unknown cause");
-            } else if (cause instanceof Exception) {
-                e = (Exception) cause;
+            } else if (cause instanceof Exception exception) {
+                e = exception;
             } else {
                 e = new OpenSearchException(cause);
             }
@@ -346,8 +346,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
             if (handler.supportsStreaming()) {
                 // The handler may support streaming but not the engine, in this case we fail with the bad request
-                if (channel instanceof StreamingRestChannel) {
-                    responseChannel = new StreamHandlingHttpChannel((StreamingRestChannel) channel, circuitBreakerService, contentLength);
+                if (channel instanceof StreamingRestChannel streamingRestChannel) {
+                    responseChannel = new StreamHandlingHttpChannel(streamingRestChannel, circuitBreakerService, contentLength);
                 } else {
                     throw new IllegalStateException(
                         "The engine does not support HTTP streaming, unable to serve uri ["

@@ -352,15 +352,12 @@ public final class Errors {
     }
 
     public static Collection<Message> getMessagesFromThrowable(Throwable throwable) {
-        if (throwable instanceof ProvisionException) {
-            return ((ProvisionException) throwable).getErrorMessages();
-        } else if (throwable instanceof ConfigurationException) {
-            return ((ConfigurationException) throwable).getErrorMessages();
-        } else if (throwable instanceof CreationException) {
-            return ((CreationException) throwable).getErrorMessages();
-        } else {
-            return emptySet();
-        }
+        return switch (throwable) {
+            case ProvisionException provisionException -> provisionException.getErrorMessages();
+            case ConfigurationException configurationException -> configurationException.getErrorMessages();
+            case CreationException creationException -> creationException.getErrorMessages();
+            default -> emptySet();
+        };
     }
 
     public Errors errorInUserCode(Throwable cause, String messageFormat, Object... arguments) {
@@ -649,8 +646,7 @@ public final class Errors {
     }
 
     public static void formatSource(Formatter formatter, Object source) {
-        if (source instanceof Dependency) {
-            Dependency<?> dependency = (Dependency<?>) source;
+        if (source instanceof Dependency<?> dependency) {
             InjectionPoint injectionPoint = dependency.getInjectionPoint();
             if (injectionPoint != null) {
                 formatInjectionPoint(formatter, dependency, injectionPoint);
@@ -658,20 +654,19 @@ public final class Errors {
                 formatSource(formatter, dependency.getKey());
             }
 
-        } else if (source instanceof InjectionPoint) {
-            formatInjectionPoint(formatter, null, (InjectionPoint) source);
+        } else if (source instanceof InjectionPoint injectionPoint) {
+            formatInjectionPoint(formatter, null, injectionPoint);
 
-        } else if (source instanceof Class) {
-            formatter.format("  at %s%n", StackTraceElements.forType((Class<?>) source));
+        } else if (source instanceof Class<?> clazz) {
+            formatter.format("  at %s%n", StackTraceElements.forType(clazz));
 
-        } else if (source instanceof Member) {
-            formatter.format("  at %s%n", StackTraceElements.forMember((Member) source));
+        } else if (source instanceof Member member) {
+            formatter.format("  at %s%n", StackTraceElements.forMember(member));
 
         } else if (source instanceof TypeLiteral) {
             formatter.format("  while locating %s%n", source);
 
-        } else if (source instanceof Key) {
-            Key<?> key = (Key<?>) source;
+        } else if (source instanceof Key<?> key) {
             formatter.format("  while locating %s%n", convert(key));
 
         } else {
