@@ -213,6 +213,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
             final AtomicLong lastCommittedWriterGeneration = new AtomicLong(-1);
             this.compositeEngineCommitter.readLastCommittedCatalogSnapshot().ifPresent(lastCommittedCatalogSnapshot -> {
                 this.catalogSnapshot = lastCommittedCatalogSnapshot;
+                this.catalogSnapshot.remapPaths(shardPath.getDataPath());
                 lastCommittedWriterGeneration.set(lastCommittedCatalogSnapshot.getLastWriterGeneration());
             });
             // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
