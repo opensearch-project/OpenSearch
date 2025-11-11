@@ -8,8 +8,6 @@
 
 package org.opensearch.datafusion;
 
-import org.opensearch.datafusion.search.QueryCallback;
-
 /**
  * JNI wrapper for DataFusion operations
  */

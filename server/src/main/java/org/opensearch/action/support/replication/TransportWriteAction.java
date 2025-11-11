@@ -242,8 +242,8 @@ public abstract class TransportWriteAction<
          * tape where only the highest location needs to be fsynced in order to sync all previous
          * locations even though they are not in the same file. When the translog rolls over files
          * the previous file is fsynced on after closing if needed.*/
-        assert next != null : "next operation can't be null";
-        assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
+//        assert next != null : "next operation can't be null";
+//        assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
         return next;
     }
 

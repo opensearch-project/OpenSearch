@@ -40,7 +40,7 @@ thiserror = "1.0"
 # Logging
 log = "0.4"
 # Parquet support
-parquet = "53.0.0"
+parquet = "54.0.0"
 
 # Object store for file access
 object_store = "=0.12.3"

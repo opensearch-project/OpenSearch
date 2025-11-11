@@ -75,7 +75,11 @@ public abstract class ParquetField {
         Objects.requireNonNull(managedVSR, "ManagedVSR cannot be null");
 
         if (mappedFieldType.isColumnar()) {
-            addToGroup(mappedFieldType, managedVSR, parseValue);
+            // TODO: support dynamic mapping update
+            // for now ignore the field
+            if (managedVSR.getVector(mappedFieldType.name()) != null) {
+                addToGroup(mappedFieldType, managedVSR, parseValue);
+            }
         }
     }
 

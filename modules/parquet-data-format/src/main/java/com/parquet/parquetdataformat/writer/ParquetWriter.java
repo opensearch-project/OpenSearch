@@ -54,6 +54,10 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     public FileInfos flush(FlushIn flushIn) throws IOException {
         String fileName = vsrManager.flush(flushIn);
         FileInfos fileInfos = new FileInfos();
+        // no data flushed
+        if (fileName == null) {
+            return fileInfos;
+        }
         WriterFileSet writerFileSet = new WriterFileSet(Path.of(fileName).getParent(), writerGeneration);
         writerFileSet.add(fileName);
         fileInfos.putWriterFileSet(PARQUET_DATA_FORMAT, writerFileSet);

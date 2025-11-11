@@ -385,6 +385,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
         };
 
         let dataframe = ctx.execute_logical_plan(logical_plan).await.expect("Failed to execute logical plan");
+        let physical_plan = dataframe.clone().create_physical_plan().await.unwrap();
+        println!("Physical Plan:\n{}", datafusion::physical_plan::displayable(physical_plan.as_ref()).indent(true));
 
         let stream = match dataframe.execute_stream().await {
             Ok(stream) => { stream }
