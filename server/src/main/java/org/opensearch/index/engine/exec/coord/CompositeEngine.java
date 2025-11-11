@@ -343,6 +343,16 @@ public class CompositeEngine implements Indexer {
     }
 
     @Override
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return 0;
+    }
+
+    @Override
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
+
+    }
+
+    @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         return 0;
     }

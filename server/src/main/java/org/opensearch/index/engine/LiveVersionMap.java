@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @opensearch.internal
  */
-final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
+public final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
@@ -336,7 +336,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     /**
      * Adds this uid/version to the pending adds map iff the map needs safe access.
      */
-    void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version) {
+    public void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         Maps maps = this.maps;
         if (maps.isSafeAccessMode()) {
@@ -497,11 +497,11 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      * map are broken. We assert on this lock to be hold when calling these methods.
      * @see KeyedLock
      */
-    Releasable acquireLock(BytesRef uid) {
+    public Releasable acquireLock(BytesRef uid) {
         return keyedLock.acquire(uid);
     }
 
-    boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
+    public boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
         assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() + "], uid [" + uid.utf8ToString() + "]";
         return true;
     }

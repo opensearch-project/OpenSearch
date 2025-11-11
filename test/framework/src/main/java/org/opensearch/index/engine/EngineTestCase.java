@@ -736,7 +736,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 }
 
                 @Override
-                protected long doGenerateSeqNoForOperation(final Operation operation) {
+                public long doGenerateSeqNoForOperation(final Operation operation) {
                     return seqNoForOperation != null
                         ? seqNoForOperation.applyAsLong(this, operation)
                         : super.doGenerateSeqNoForOperation(operation);
@@ -752,7 +752,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 }
 
                 @Override
-                protected long doGenerateSeqNoForOperation(final Operation operation) {
+                public long doGenerateSeqNoForOperation(final Operation operation) {
                     return seqNoForOperation != null
                         ? seqNoForOperation.applyAsLong(this, operation)
                         : super.doGenerateSeqNoForOperation(operation);
