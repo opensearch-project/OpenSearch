@@ -230,7 +230,10 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         protected boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode, ParserContext parserContext) {
-            if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
+            if (fieldName.equals("preserve_dots")) {
+                builder.preserveDots(nodeBooleanValue(fieldNode, "preserve_dots"));
+                return true;
+            } else if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 if (fieldNode instanceof List) {
                     List<DateFormatter> formatters = new ArrayList<>();
                     for (Object formatter : (List<?>) fieldNode) {
@@ -425,6 +428,10 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected void doXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         final boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
+        if (preserveDotsExplicit().explicit() || includeDefaults) {
+            builder.field("preserve_dots", preserveDots());
+        }
 
         if (dynamicDateTimeFormatters.explicit() || includeDefaults) {
             builder.startArray("dynamic_date_formats");
