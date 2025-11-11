@@ -95,7 +95,4 @@ grant {
   // client binds to the address returned from the host name of any principal set up as a service principal
   // org.apache.hadoop.ipc.Client.Connection.setupConnection
   permission java.net.SocketPermission "localhost:0", "listen,resolve";
-
-  // allow to access krb5.conf
-  permission java.io.FilePermission "${{java.security.krb5.conf}}", "read";
 };
