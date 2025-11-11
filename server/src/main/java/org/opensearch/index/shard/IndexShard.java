@@ -172,6 +172,7 @@ import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
+import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseStats;
@@ -196,6 +197,7 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogRecoveryRunner;
 import org.opensearch.index.translog.TranslogStats;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.index.warmer.ShardIndexWarmerService;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.indices.IndexingMemoryController;
@@ -316,6 +318,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     private final Object engineMutex = new Object(); // lock ordering: engineMutex -> mutex
     private final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
+    private final AtomicReference<CompositeEngine> currentCompositeEngineReference = new AtomicReference<>();
     final EngineFactory engineFactory;
     final EngineConfigFactory engineConfigFactory;
 
@@ -398,7 +401,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MergedSegmentPublisher mergedSegmentPublisher;
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
-    private final CompositeEngine compositeEngine;
+    private final PluginsService pluginsService;
     @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
@@ -559,16 +562,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.clusterApplierService = clusterApplierService;
         this.mergedSegmentPublisher = mergedSegmentPublisher;
         this.referencedSegmentsPublisher = referencedSegmentsPublisher;
+        this.pluginsService = pluginsService;
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
             }
         }
-        this.compositeEngine = new CompositeEngine(mapperService, pluginsService, path, indexSettings);
     }
 
     public CompositeEngine getIndexingExecutionCoordinator() {
-        return compositeEngine;
+        return currentCompositeEngineReference.get();
     }
     /**
      * By default, UNASSIGNED_SEQ_NO is used as the initial global checkpoint for new shard initialization. Ingestion
@@ -1144,7 +1147,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Engine.Operation.Origin.PRIMARY,
             sourceToParse,
             null,
-            compositeEngine::documentInput
+            currentCompositeEngineReference.get()::documentInput
         );
     }
 
@@ -1673,7 +1676,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (logger.isTraceEnabled()) {
             logger.trace("force merge with {}", forceMerge);
         }
-        Indexer engine = compositeEngine;
+        Indexer engine = currentCompositeEngineReference.get();
         engine.forceMerge(
             forceMerge.flush(),
             forceMerge.maxNumSegments(),
@@ -2188,7 +2191,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        compositeEngine.getPrimaryReadEngine().acquireSearcherSupplier(null, scope);
+        currentCompositeEngineReference.get().getPrimaryReadEngine().acquireSearcherSupplier(null, scope);
         return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
@@ -2890,8 +2893,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
+            CompositeEngine compositeEngine = new CompositeEngine(
+                config,
+                mapperService,
+                pluginsService,
+                indexSettings,
+                path,
+                LocalCheckpointTracker::new,
+                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
+            );
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
+            currentCompositeEngineReference.set(compositeEngine);
 
             if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                 // set initial replication checkpoints into tracker.

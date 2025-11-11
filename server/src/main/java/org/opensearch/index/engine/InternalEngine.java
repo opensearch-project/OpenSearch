@@ -44,6 +44,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
@@ -63,6 +64,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.opensearch.ExceptionsHelper;
@@ -124,6 +126,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -264,7 +267,8 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
-                store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
+                // Interim solution: Skipping trimming of unsafe commits until IndexShard integration of CompositeEngine is completed.
+                // store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
                 final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
                 String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
                 TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
@@ -304,9 +308,10 @@ public class InternalEngine extends Engine {
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 writer = createWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
+                // Interim solution: Skipping loading historyUUID and forceMergeUUID until IndexShard integration of CompositeEngine is completed.
                 final Map<String, String> commitData = commitDataAsMap(writer);
-                historyUUID = loadHistoryUUID(commitData);
-                forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
+                historyUUID = null;
+                forceMergeUUID = null;
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -1891,10 +1896,15 @@ public class InternalEngine extends Engine {
         }
     }
 
+    // Interim solution: Configure InternalEngine to use a temporary directory to prevent IndexWriter conflicts with LuceneCommitEngine.
     private IndexWriter createWriter() throws IOException {
         try {
-            final IndexWriterConfig iwc = getIndexWriterConfig();
-            return createWriter(store.directory(), iwc);
+            IndexWriterConfig iwc = new IndexWriterConfig(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                .setCommitOnClose(false)
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+            Directory directory = new NIOFSDirectory(Files.createTempDirectory("tmp-internal-engine-"));
+            return createWriter(directory, iwc);
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);
             throw ex;
@@ -2162,7 +2172,8 @@ public class InternalEngine extends Engine {
                 return commitData.entrySet().iterator();
             });
             shouldPeriodicallyFlushAfterBigMerge.set(false);
-            writer.commit();
+            // Interim solution: Skipping commit until IndexShard integration of CompositeEngine is completed.
+            // writer.commit();
         } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);
