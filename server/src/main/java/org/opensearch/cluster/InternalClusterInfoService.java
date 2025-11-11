@@ -569,8 +569,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         @Override
         public void onRejection(Exception e) {
-            final boolean shutDown = e instanceof OpenSearchRejectedExecutionException openSearchRejectedExecutionException
-                && openSearchRejectedExecutionException.isExecutorShutdown();
+            final boolean shutDown = e instanceof OpenSearchRejectedExecutionException osre && osre.isExecutorShutdown();
             logger.log(shutDown ? Level.DEBUG : Level.WARN, "refreshing cluster info rejected [{}]", reason, e);
         }
     }
