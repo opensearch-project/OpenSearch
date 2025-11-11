@@ -45,7 +45,7 @@ public class FieldDataStatsTests extends OpenSearchTestCase {
         FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
         FieldDataStats stats = new FieldDataStats.Builder().memorySize(randomNonNegativeLong())
             .evictions(randomNonNegativeLong())
-            .fields(map)
+            .fieldMemoryStats(map)
             .build();
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);

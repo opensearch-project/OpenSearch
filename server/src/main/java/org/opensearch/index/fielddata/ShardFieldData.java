@@ -69,7 +69,7 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
         }
         return new FieldDataStats.Builder().memorySize(totalMetric.count())
             .evictions(evictionsMetric.count())
-            .fields(fieldTotals == null ? null : new FieldMemoryStats(fieldTotals))
+            .fieldMemoryStats(fieldTotals == null ? null : new FieldMemoryStats(fieldTotals))
             .build();
     }
 

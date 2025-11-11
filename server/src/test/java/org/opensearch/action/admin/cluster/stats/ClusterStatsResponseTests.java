@@ -245,7 +245,7 @@ public class ClusterStatsResponseTests extends OpenSearchTestCase {
             .build();
         commonStats.fieldData = new FieldDataStats.Builder().memorySize(randomLongBetween(0, 100))
             .evictions(randomLongBetween(0, 100))
-            .fields(null)
+            .fieldMemoryStats(null)
             .build();
         commonStats.queryCache = new QueryCacheStats.Builder().ramBytesUsed(randomLongBetween(0, 100))
             .hitCount(randomLongBetween(0, 100))

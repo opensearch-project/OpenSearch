@@ -148,7 +148,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder fields(@Nullable FieldMemoryStats fields) {
+        public Builder fieldMemoryStats(@Nullable FieldMemoryStats fields) {
             this.fields = fields;
             return this;
         }
