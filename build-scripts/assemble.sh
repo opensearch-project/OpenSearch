@@ -39,6 +39,7 @@ else
     )
     wazuh_plugins=(
         "wazuh-indexer-setup"
+        "wazuh-indexer-content-manager"
         "wazuh-indexer-reports-scheduler"
         "wazuh-indexer-security-analytics" # Flagged as Trojan by some antivirus software
     )

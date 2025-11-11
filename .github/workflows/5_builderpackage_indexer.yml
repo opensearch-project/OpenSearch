@@ -256,7 +256,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        plugins: ["setup"]
+        plugins: ["setup", "content-manager"]
     runs-on: ubuntu-24.04
     env:
       plugin_name: wazuh-indexer-${{ matrix.plugins }}

@@ -43,6 +43,9 @@ build_plugins() {
     cd ${PLUGINS_REPO_DIR}/plugins/setup
     echo "Building setup plugin..."
     ./gradlew build -Dversion="$version" -Drevision="$revision" --no-daemon
+    cd ${PLUGINS_REPO_DIR}/plugins/content-manager
+    echo "Building content-manager plugin..."
+    ./gradlew build -Dversion="$version" -Drevision="$revision" --no-daemon
 }
 
 # Function to build wazuh-indexer-reporting
@@ -67,6 +70,8 @@ copy_builds() {
     mkdir -p ~/artifacts/plugins
     echo "Copying setup plugin..."
     cp ${PLUGINS_REPO_DIR}/plugins/setup/build/distributions/wazuh-indexer-setup-"$version"."$revision".zip ~/artifacts/plugins
+    echo "Copying content-manager plugin..."
+    cp ${PLUGINS_REPO_DIR}/plugins/content-manager/build/distributions/wazuh-indexer-content-manager-"$version"."$revision".zip ~/artifacts/plugins
     echo "Copying reporting..."
     cp ${REPORTING_REPO_DIR}/build/distributions/wazuh-indexer-reports-scheduler-"$version"."$revision".zip ~/artifacts/plugins
 }
