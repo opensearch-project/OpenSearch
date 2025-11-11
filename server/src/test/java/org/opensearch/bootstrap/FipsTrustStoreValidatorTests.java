@@ -8,24 +8,24 @@
 
 package org.opensearch.bootstrap;
 
+import org.opensearch.cli.SuppressForbidden;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 
+@SuppressForbidden(reason = "the java.io.File is exposed by TemporaryFolder")
 public class FipsTrustStoreValidatorTests extends OpenSearchTestCase {
 
-    private Path tempDir;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        tempDir = createTempDir();
-    }
+    @Rule
+    public TemporaryFolder tempDir = new TemporaryFolder();
 
     public void testTrustStoreWithoutConfiguration() throws Exception {
         var exception = expectThrows(IllegalStateException.class, () -> FipsTrustStoreValidator.validate("", "", "", ""));
@@ -60,7 +60,7 @@ public class FipsTrustStoreValidatorTests extends OpenSearchTestCase {
     public void testBCFKSEmptyTrustStoreWarning() throws Exception {
         assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
 
-        var trustStorePath = tempDir.resolve("empty_trust_store.bcfks");
+        var trustStorePath = tempDir.newFolder().toPath().resolve("empty_trust_store.bcfks");
         var password = "testPassword";
 
         var keyStore = java.security.KeyStore.getInstance("BCFKS", "BCFIPS");
@@ -141,8 +141,8 @@ public class FipsTrustStoreValidatorTests extends OpenSearchTestCase {
         }
     }
 
-    public void testFileDoesNotExist() {
-        var nonExistentPath = tempDir.resolve("non-existent-truststore.p12");
+    public void testFileDoesNotExist() throws IOException {
+        var nonExistentPath = tempDir.newFolder().toPath().resolve("non-existent-truststore.p12");
 
         var exception = expectThrows(
             IllegalStateException.class,
@@ -154,7 +154,7 @@ public class FipsTrustStoreValidatorTests extends OpenSearchTestCase {
     }
 
     public void testEmptyTrustStore() throws Exception {
-        var emptyFile = tempDir.resolve("empty-truststore.p12");
+        var emptyFile = tempDir.newFolder().toPath().resolve("empty-truststore.p12");
         Files.createFile(emptyFile);
 
         var exception = expectThrows(
@@ -187,7 +187,7 @@ public class FipsTrustStoreValidatorTests extends OpenSearchTestCase {
     }
 
     public void testTrustStoreWithInvalidProvider() throws Exception {
-        var trustStorePath = tempDir.resolve("test-truststore.bcfks");
+        var trustStorePath = tempDir.newFolder().toPath().resolve("test-truststore.bcfks");
         var password = "changeit";
         Files.write(trustStorePath, new byte[100]); // Create a dummy file
 
@@ -201,7 +201,7 @@ public class FipsTrustStoreValidatorTests extends OpenSearchTestCase {
     }
 
     public void testWithWrongProvider() throws Exception {
-        var trustStorePath = tempDir.resolve("test-truststore.bcfks");
+        var trustStorePath = tempDir.newFolder().toPath().resolve("test-truststore.bcfks");
         Files.write(trustStorePath, new byte[100]); // Create a dummy file
 
         var exception = expectThrows(

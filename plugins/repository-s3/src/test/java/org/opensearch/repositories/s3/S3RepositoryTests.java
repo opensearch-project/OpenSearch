@@ -33,6 +33,7 @@
 package org.opensearch.repositories.s3;
 
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.blobstore.BlobStoreException;
@@ -172,6 +173,18 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
         try (S3Repository s3Repo = createS3Repo(metadata)) {
             // Don't expect any Exception
             assertThrows(BlobStoreException.class, () -> s3Repo.validateHttpClientType(randomAlphaOfLength(4)));
+        }
+    }
+
+    public void testIsSeverSideEncryptionEnabled_When_AWSKMS_Type() {
+        Settings settings = Settings.builder()
+            .put(S3Repository.SERVER_SIDE_ENCRYPTION_TYPE_SETTING.getKey(), ServerSideEncryption.AWS_KMS.toString())
+            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", settings);
+        try (S3Repository s3Repo = createS3Repo(metadata)) {
+
+            // Don't expect any Exception
+            assertTrue(s3Repo.isSeverSideEncryptionEnabled());
         }
     }
 

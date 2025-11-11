@@ -62,11 +62,26 @@ public class CompletionStats implements Writeable, ToXContentFragment {
 
     public CompletionStats() {}
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new CompletionStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private CompletionStats(Builder builder) {
+        this.sizeInBytes = builder.sizeInBytes;
+        this.fields = builder.fields;
+    }
+
     public CompletionStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
         fields = in.readOptionalWriteable(FieldMemoryStats::new);
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link CompletionStats.Builder} instead.
+     */
+    @Deprecated
     public CompletionStats(long size, @Nullable FieldMemoryStats fields) {
         this.sizeInBytes = size;
         this.fields = fields;
@@ -82,6 +97,35 @@ public class CompletionStats implements Writeable, ToXContentFragment {
 
     public FieldMemoryStats getFields() {
         return fields;
+    }
+
+    /**
+     * Builder for the {@link CompletionStats} class.
+     * Provides a fluent API for constructing a CompletionStats object.
+     */
+    public static class Builder {
+        private long sizeInBytes = 0;
+        private FieldMemoryStats fields = null;
+
+        public Builder() {}
+
+        public Builder sizeInBytes(long bytes) {
+            this.sizeInBytes = bytes;
+            return this;
+        }
+
+        public Builder fieldMemoryStats(FieldMemoryStats fields) {
+            this.fields = fields;
+            return this;
+        }
+
+        /**
+         * Creates a {@link CompletionStats} object from the builder's current state.
+         * @return A new CompletionStats instance.
+         */
+        public CompletionStats build() {
+            return new CompletionStats(this);
+        }
     }
 
     @Override

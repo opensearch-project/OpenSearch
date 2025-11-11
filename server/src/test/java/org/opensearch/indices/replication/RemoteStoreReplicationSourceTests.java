@@ -350,7 +350,9 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         when(mockShard.getSegmentInfosSnapshot()).thenReturn(indexShard.getSegmentInfosSnapshot());
         Store remoteStore = mock(Store.class);
         when(mockShard.remoteStore()).thenReturn(remoteStore);
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate()).getDelegate();
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+            (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate())
+                .getDelegate();
         FilterDirectory remoteStoreFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(remoteSegmentStoreDirectory));
         when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
     }
