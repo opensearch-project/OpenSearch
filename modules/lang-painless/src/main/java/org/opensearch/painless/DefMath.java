@@ -76,19 +76,16 @@ public class DefMath {
     }
 
     private static Object not(Object unary) {
-        if (unary instanceof Long) {
-            return ~(Long) unary;
-        } else if (unary instanceof Integer) {
-            return ~(Integer) unary;
-        } else if (unary instanceof Short) {
-            return ~(Short) unary;
-        } else if (unary instanceof Character) {
-            return ~(Character) unary;
-        } else if (unary instanceof Byte) {
-            return ~(Byte) unary;
-        }
-
-        throw new ClassCastException("Cannot apply [~] operation to type " + "[" + unary.getClass().getCanonicalName() + "].");
+        return switch (unary) {
+            case Long longValue -> ~longValue;
+            case Integer intValue -> ~intValue;
+            case Short shortValue -> ~shortValue;
+            case Character charValue -> ~charValue;
+            case Byte byteValue -> ~byteValue;
+            default -> throw new ClassCastException(
+                "Cannot apply [~] operation to type " + "[" + unary.getClass().getCanonicalName() + "]."
+            );
+        };
     }
 
     // unary negation and plus: applicable to all numeric types
@@ -114,23 +111,18 @@ public class DefMath {
     }
 
     private static Object neg(final Object unary) {
-        if (unary instanceof Double) {
-            return -(double) unary;
-        } else if (unary instanceof Long) {
-            return -(long) unary;
-        } else if (unary instanceof Integer) {
-            return -(int) unary;
-        } else if (unary instanceof Float) {
-            return -(float) unary;
-        } else if (unary instanceof Short) {
-            return -(short) unary;
-        } else if (unary instanceof Character) {
-            return -(char) unary;
-        } else if (unary instanceof Byte) {
-            return -(byte) unary;
-        }
-
-        throw new ClassCastException("Cannot apply [-] operation to type " + "[" + unary.getClass().getCanonicalName() + "].");
+        return switch (unary) {
+            case Double v -> -(double) unary;
+            case Long l -> -(long) unary;
+            case Integer i -> -(int) unary;
+            case Float v -> -(float) unary;
+            case Short i -> -(short) unary;
+            case Character c -> -(char) unary;
+            case Byte b -> -(byte) unary;
+            default -> throw new ClassCastException(
+                "Cannot apply [-] operation to type " + "[" + unary.getClass().getCanonicalName() + "]."
+            );
+        };
     }
 
     private static int plus(int v) {
@@ -154,23 +146,18 @@ public class DefMath {
     }
 
     private static Object plus(final Object unary) {
-        if (unary instanceof Double) {
-            return +(double) unary;
-        } else if (unary instanceof Long) {
-            return +(long) unary;
-        } else if (unary instanceof Integer) {
-            return +(int) unary;
-        } else if (unary instanceof Float) {
-            return +(float) unary;
-        } else if (unary instanceof Short) {
-            return +(short) unary;
-        } else if (unary instanceof Character) {
-            return +(char) unary;
-        } else if (unary instanceof Byte) {
-            return +(byte) unary;
-        }
-
-        throw new ClassCastException("Cannot apply [+] operation to type " + "[" + unary.getClass().getCanonicalName() + "].");
+        return switch (unary) {
+            case Double v -> +(double) unary;
+            case Long l -> +(long) unary;
+            case Integer i -> +(int) unary;
+            case Float v -> +(float) unary;
+            case Short i -> +(short) unary;
+            case Character c -> +(char) unary;
+            case Byte b -> +(byte) unary;
+            default -> throw new ClassCastException(
+                "Cannot apply [+] operation to type " + "[" + unary.getClass().getCanonicalName() + "]."
+            );
+        };
     }
 
     // multiplication/division/remainder/subtraction: applicable to all integer types
@@ -208,27 +195,21 @@ public class DefMath {
                     return ((Number) left).intValue() * ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number) left).doubleValue() * (char) right;
-                } else if (left instanceof Long) {
-                    return ((Number) left).longValue() * (char) right;
-                } else if (left instanceof Float) {
-                    return ((Number) left).floatValue() * (char) right;
-                } else {
-                    return ((Number) left).intValue() * (char) right;
-                }
+                return switch (left) {
+                    case Double v -> ((Number) left).doubleValue() * (char) right;
+                    case Long l -> ((Number) left).longValue() * (char) right;
+                    case Float v -> ((Number) left).floatValue() * (char) right;
+                    default -> ((Number) left).intValue() * (char) right;
+                };
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char) left * ((Number) right).doubleValue();
-                } else if (right instanceof Long) {
-                    return (char) left * ((Number) right).longValue();
-                } else if (right instanceof Float) {
-                    return (char) left * ((Number) right).floatValue();
-                } else {
-                    return (char) left * ((Number) right).intValue();
-                }
+                return switch (right) {
+                    case Double v -> (char) left * ((Number) right).doubleValue();
+                    case Long l -> (char) left * ((Number) right).longValue();
+                    case Float v -> (char) left * ((Number) right).floatValue();
+                    default -> (char) left * ((Number) right).intValue();
+                };
             } else if (right instanceof Character) {
                 return (char) left * (char) right;
             }
@@ -277,27 +258,21 @@ public class DefMath {
                     return ((Number) left).intValue() / ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number) left).doubleValue() / (char) right;
-                } else if (left instanceof Long) {
-                    return ((Number) left).longValue() / (char) right;
-                } else if (left instanceof Float) {
-                    return ((Number) left).floatValue() / (char) right;
-                } else {
-                    return ((Number) left).intValue() / (char) right;
-                }
+                return switch (left) {
+                    case Double v -> ((Number) left).doubleValue() / (char) right;
+                    case Long l -> ((Number) left).longValue() / (char) right;
+                    case Float v -> ((Number) left).floatValue() / (char) right;
+                    default -> ((Number) left).intValue() / (char) right;
+                };
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char) left / ((Number) right).doubleValue();
-                } else if (right instanceof Long) {
-                    return (char) left / ((Number) right).longValue();
-                } else if (right instanceof Float) {
-                    return (char) left / ((Number) right).floatValue();
-                } else {
-                    return (char) left / ((Number) right).intValue();
-                }
+                return switch (right) {
+                    case Double v -> (char) left / ((Number) right).doubleValue();
+                    case Long l -> (char) left / ((Number) right).longValue();
+                    case Float v -> (char) left / ((Number) right).floatValue();
+                    default -> (char) left / ((Number) right).intValue();
+                };
             } else if (right instanceof Character) {
                 return (char) left / (char) right;
             }
@@ -346,27 +321,21 @@ public class DefMath {
                     return ((Number) left).intValue() % ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number) left).doubleValue() % (char) right;
-                } else if (left instanceof Long) {
-                    return ((Number) left).longValue() % (char) right;
-                } else if (left instanceof Float) {
-                    return ((Number) left).floatValue() % (char) right;
-                } else {
-                    return ((Number) left).intValue() % (char) right;
-                }
+                return switch (left) {
+                    case Double v -> ((Number) left).doubleValue() % (char) right;
+                    case Long l -> ((Number) left).longValue() % (char) right;
+                    case Float v -> ((Number) left).floatValue() % (char) right;
+                    default -> ((Number) left).intValue() % (char) right;
+                };
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char) left % ((Number) right).doubleValue();
-                } else if (right instanceof Long) {
-                    return (char) left % ((Number) right).longValue();
-                } else if (right instanceof Float) {
-                    return (char) left % ((Number) right).floatValue();
-                } else {
-                    return (char) left % ((Number) right).intValue();
-                }
+                return switch (right) {
+                    case Double v -> (char) left % ((Number) right).doubleValue();
+                    case Long l -> (char) left % ((Number) right).longValue();
+                    case Float v -> (char) left % ((Number) right).floatValue();
+                    default -> (char) left % ((Number) right).intValue();
+                };
             } else if (right instanceof Character) {
                 return (char) left % (char) right;
             }
@@ -406,10 +375,10 @@ public class DefMath {
     }
 
     private static Object add(Object left, Object right) {
-        if (left instanceof String) {
-            return (String) left + right;
-        } else if (right instanceof String) {
-            return left + (String) right;
+        if (left instanceof String leftString) {
+            return leftString + right;
+        } else if (right instanceof String rightString) {
+            return left + rightString;
         } else if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
@@ -422,27 +391,21 @@ public class DefMath {
                     return ((Number) left).intValue() + ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number) left).doubleValue() + (char) right;
-                } else if (left instanceof Long) {
-                    return ((Number) left).longValue() + (char) right;
-                } else if (left instanceof Float) {
-                    return ((Number) left).floatValue() + (char) right;
-                } else {
-                    return ((Number) left).intValue() + (char) right;
-                }
+                return switch (left) {
+                    case Double v -> ((Number) left).doubleValue() + (char) right;
+                    case Long l -> ((Number) left).longValue() + (char) right;
+                    case Float v -> ((Number) left).floatValue() + (char) right;
+                    default -> ((Number) left).intValue() + (char) right;
+                };
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char) left + ((Number) right).doubleValue();
-                } else if (right instanceof Long) {
-                    return (char) left + ((Number) right).longValue();
-                } else if (right instanceof Float) {
-                    return (char) left + ((Number) right).floatValue();
-                } else {
-                    return (char) left + ((Number) right).intValue();
-                }
+                return switch (right) {
+                    case Double v -> (char) left + ((Number) right).doubleValue();
+                    case Long l -> (char) left + ((Number) right).longValue();
+                    case Float v -> (char) left + ((Number) right).floatValue();
+                    default -> (char) left + ((Number) right).intValue();
+                };
             } else if (right instanceof Character) {
                 return (char) left + (char) right;
             }
@@ -491,27 +454,21 @@ public class DefMath {
                     return ((Number) left).intValue() - ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number) left).doubleValue() - (char) right;
-                } else if (left instanceof Long) {
-                    return ((Number) left).longValue() - (char) right;
-                } else if (left instanceof Float) {
-                    return ((Number) left).floatValue() - (char) right;
-                } else {
-                    return ((Number) left).intValue() - (char) right;
-                }
+                return switch (left) {
+                    case Double v -> ((Number) left).doubleValue() - (char) right;
+                    case Long l -> ((Number) left).longValue() - (char) right;
+                    case Float v -> ((Number) left).floatValue() - (char) right;
+                    default -> ((Number) left).intValue() - (char) right;
+                };
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char) left - ((Number) right).doubleValue();
-                } else if (right instanceof Long) {
-                    return (char) left - ((Number) right).longValue();
-                } else if (right instanceof Float) {
-                    return (char) left - ((Number) right).floatValue();
-                } else {
-                    return (char) left - ((Number) right).intValue();
-                }
+                return switch (right) {
+                    case Double v -> (char) left - ((Number) right).doubleValue();
+                    case Long l -> (char) left - ((Number) right).longValue();
+                    case Float v -> (char) left - ((Number) right).floatValue();
+                    default -> (char) left - ((Number) right).intValue();
+                };
             } else if (right instanceof Character) {
                 return (char) left - (char) right;
             }
@@ -652,15 +609,12 @@ public class DefMath {
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char) left < ((Number) right).doubleValue();
-                } else if (right instanceof Long) {
-                    return (char) left < ((Number) right).longValue();
-                } else if (right instanceof Float) {
-                    return (char) left < ((Number) right).floatValue();
-                } else {
-                    return (char) left < ((Number) right).intValue();
-                }
+                return switch (right) {
+                    case Double v -> (char) left < ((Number) right).doubleValue();
+                    case Long l -> (char) left < ((Number) right).longValue();
+                    case Float v -> (char) left < ((Number) right).floatValue();
+                    default -> (char) left < ((Number) right).intValue();
+                };
             } else if (right instanceof Character) {
                 return (char) left < (char) right;
             }
@@ -709,27 +663,21 @@ public class DefMath {
                     return ((Number) left).intValue() <= ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number) left).doubleValue() <= (char) right;
-                } else if (left instanceof Long) {
-                    return ((Number) left).longValue() <= (char) right;
-                } else if (left instanceof Float) {
-                    return ((Number) left).floatValue() <= (char) right;
-                } else {
-                    return ((Number) left).intValue() <= (char) right;
-                }
+                return switch (left) {
+                    case Double v -> ((Number) left).doubleValue() <= (char) right;
+                    case Long l -> ((Number) left).longValue() <= (char) right;
+                    case Float v -> ((Number) left).floatValue() <= (char) right;
+                    default -> ((Number) left).intValue() <= (char) right;
+                };
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char) left <= ((Number) right).doubleValue();
-                } else if (right instanceof Long) {
-                    return (char) left <= ((Number) right).longValue();
-                } else if (right instanceof Float) {
-                    return (char) left <= ((Number) right).floatValue();
-                } else {
-                    return (char) left <= ((Number) right).intValue();
-                }
+                return switch (right) {
+                    case Double v -> (char) left <= ((Number) right).doubleValue();
+                    case Long l -> (char) left <= ((Number) right).longValue();
+                    case Float v -> (char) left <= ((Number) right).floatValue();
+                    default -> (char) left <= ((Number) right).intValue();
+                };
             } else if (right instanceof Character) {
                 return (char) left <= (char) right;
             }
@@ -778,27 +726,21 @@ public class DefMath {
                     return ((Number) left).intValue() > ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number) left).doubleValue() > (char) right;
-                } else if (left instanceof Long) {
-                    return ((Number) left).longValue() > (char) right;
-                } else if (left instanceof Float) {
-                    return ((Number) left).floatValue() > (char) right;
-                } else {
-                    return ((Number) left).intValue() > (char) right;
-                }
+                return switch (left) {
+                    case Double v -> ((Number) left).doubleValue() > (char) right;
+                    case Long l -> ((Number) left).longValue() > (char) right;
+                    case Float v -> ((Number) left).floatValue() > (char) right;
+                    default -> ((Number) left).intValue() > (char) right;
+                };
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char) left > ((Number) right).doubleValue();
-                } else if (right instanceof Long) {
-                    return (char) left > ((Number) right).longValue();
-                } else if (right instanceof Float) {
-                    return (char) left > ((Number) right).floatValue();
-                } else {
-                    return (char) left > ((Number) right).intValue();
-                }
+                return switch (right) {
+                    case Double v -> (char) left > ((Number) right).doubleValue();
+                    case Long l -> (char) left > ((Number) right).longValue();
+                    case Float v -> (char) left > ((Number) right).floatValue();
+                    default -> (char) left > ((Number) right).intValue();
+                };
             } else if (right instanceof Character) {
                 return (char) left > (char) right;
             }
@@ -847,27 +789,21 @@ public class DefMath {
                     return ((Number) left).intValue() >= ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double) {
-                    return ((Number) left).doubleValue() >= (char) right;
-                } else if (left instanceof Long) {
-                    return ((Number) left).longValue() >= (char) right;
-                } else if (left instanceof Float) {
-                    return ((Number) left).floatValue() >= (char) right;
-                } else {
-                    return ((Number) left).intValue() >= (char) right;
-                }
+                return switch (left) {
+                    case Double v -> ((Number) left).doubleValue() >= (char) right;
+                    case Long l -> ((Number) left).longValue() >= (char) right;
+                    case Float v -> ((Number) left).floatValue() >= (char) right;
+                    default -> ((Number) left).intValue() >= (char) right;
+                };
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double) {
-                    return (char) left >= ((Number) right).doubleValue();
-                } else if (right instanceof Long) {
-                    return (char) left >= ((Number) right).longValue();
-                } else if (right instanceof Float) {
-                    return (char) left >= ((Number) right).floatValue();
-                } else {
-                    return (char) left >= ((Number) right).intValue();
-                }
+                return switch (right) {
+                    case Double v -> (char) left >= ((Number) right).doubleValue();
+                    case Long l -> (char) left >= ((Number) right).longValue();
+                    case Float v -> (char) left >= ((Number) right).floatValue();
+                    default -> (char) left >= ((Number) right).intValue();
+                };
             } else if (right instanceof Character) {
                 return (char) left >= (char) right;
             }
@@ -1239,10 +1175,10 @@ public class DefMath {
 
     /** Slowly returns a Number for o. Just for supporting dynamicCast */
     static Number getNumber(Object o) {
-        if (o instanceof Number) {
-            return (Number) o;
-        } else if (o instanceof Character) {
-            return Integer.valueOf((char) o);
+        if (o instanceof Number number) {
+            return number;
+        } else if (o instanceof Character charValue) {
+            return Integer.valueOf(charValue);
         } else {
             throw new ClassCastException("Cannot convert [" + o.getClass() + "] to a Number");
         }
