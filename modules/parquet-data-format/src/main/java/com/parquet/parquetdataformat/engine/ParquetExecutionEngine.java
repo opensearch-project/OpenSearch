@@ -8,18 +8,23 @@ import com.parquet.parquetdataformat.writer.ParquetWriter;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
+import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
-import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.StreamSupport;
 
 import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DATA_FORMAT;
 
@@ -54,7 +59,10 @@ import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DAT
  */
 public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDataFormat> {
 
-    public static final String FILE_NAME_PREFIX = "_parquet_file_generation";
+    private static final Pattern FILE_PATTERN = Pattern.compile(".*_(\\d+)\\.parquet$", Pattern.CASE_INSENSITIVE);
+    private static final String FILE_NAME_PREFIX = "_parquet_file_generation";
+    private static final String FILE_NAME_EXT = ".parquet";
+
     private final Supplier<Schema> schema;
     private final List<WriterFileSet> filesWrittenAlready = new ArrayList<>();
     private final ShardPath shardPath;
@@ -66,13 +74,30 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     }
 
     @Override
+    public void loadWriterFiles(ShardPath shardPath) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(shardPath.getDataPath(), "*" + FILE_NAME_EXT)) {
+            StreamSupport.stream(stream.spliterator(), false)
+                .map(Path::getFileName)
+                .map(Path::toString)
+                .map(FILE_PATTERN::matcher)
+                .filter(Matcher::matches)
+                .map(m -> WriterFileSet.builder()
+                    .directory(shardPath.getDataPath())
+                    .writerGeneration(Long.parseLong(m.group(1)))
+                    .addFile(m.group(0))
+                    .build())
+                .forEach(filesWrittenAlready::add);
+        }
+    }
+
+    @Override
     public List<String> supportedFieldTypes() {
         return List.of();
     }
 
     @Override
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) throws IOException {
-        String fileName = Path.of(shardPath.getDataPath().toString(), FILE_NAME_PREFIX + "_" + writerGeneration + ".parquet").toString();
+        String fileName = Path.of(shardPath.getDataPath().toString(), FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT).toString();
         return new ParquetWriter(fileName, schema.get(), writerGeneration);
     }
 
@@ -85,7 +110,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
         RefreshResult refreshResult = new RefreshResult();
         filesWrittenAlready.addAll(refreshInput.getWriterFiles());
-        if(!refreshInput.getFilesToRemove().isEmpty()) {
+        if (!refreshInput.getFilesToRemove().isEmpty()) {
             filesWrittenAlready.removeAll(refreshInput.getFilesToRemove());
         }
         refreshResult.add(PARQUET_DATA_FORMAT, filesWrittenAlready);

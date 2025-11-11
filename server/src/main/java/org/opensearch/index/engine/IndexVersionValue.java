@@ -42,14 +42,14 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-final class IndexVersionValue extends VersionValue {
+public final class IndexVersionValue extends VersionValue {
 
     private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexVersionValue.class);
     private static final long TRANSLOG_LOC_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Translog.Location.class);
 
     private final Translog.Location translogLocation;
 
-    IndexVersionValue(Translog.Location translogLocation, long version, long seqNo, long term) {
+    public IndexVersionValue(Translog.Location translogLocation, long version, long seqNo, long term) {
         super(version, seqNo, term);
         this.translogLocation = translogLocation;
     }

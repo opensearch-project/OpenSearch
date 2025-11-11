@@ -111,6 +111,44 @@ public class WriterFileSet implements Serializable, Writeable {
     @Override
     public int hashCode() {
         return this.directory.hashCode() + this.files.hashCode();
+    }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private Path directory;
+        private Long writerGeneration;
+        private final Set<String> files = new HashSet<>();
+
+        public Builder directory(Path directory) {
+            this.directory = directory;
+            return this;
+        }
+
+        public Builder writerGeneration(long writerGeneration) {
+            this.writerGeneration = writerGeneration;
+            return this;
+        }
+
+        public Builder addFile(String file) {
+            this.files.add(file);
+            return this;
+        }
+
+        public WriterFileSet build() {
+            if (directory == null) {
+                throw new IllegalStateException("directory must be set");
+            }
+
+            if (writerGeneration == null) {
+                throw new IllegalStateException("writerGeneration must be set");
+            }
+
+            WriterFileSet fileSet = new WriterFileSet(directory, writerGeneration);
+            fileSet.files.addAll(this.files);
+            return fileSet;
+        }
     }
 }

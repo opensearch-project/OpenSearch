@@ -34,7 +34,8 @@ public class MergeScheduler {
     private volatile int maxMergeCount;
 
     public MergeScheduler(MergeHandler mergeHandler, CompositeEngine compositeEngine) {
-        this(mergeHandler, compositeEngine, Math.max(1, Runtime.getRuntime().availableProcessors() / 4));
+//        this(mergeHandler, compositeEngine, Math.max(1, Runtime.getRuntime().availableProcessors() / 4));
+        this(mergeHandler, compositeEngine, 2);
 
     }
 
@@ -69,7 +70,7 @@ public class MergeScheduler {
      * Triggers merges asynchronously in background threads.
      * This method returns immediately, allowing the calling thread to continue.
      */
-    public void triggerMerges() throws IOException {
+    public void triggerMerges() {
         if (isShutdown.get()) {
             logger.warn("MergeScheduler is shutdown, ignoring merge trigger");
             return;
@@ -82,7 +83,7 @@ public class MergeScheduler {
         int scheduled = 0;
         int availableToSchedule = getAvailableMergeSlots();
 
-        while(availableToSchedule >= scheduled && mergeHandler.hasPendingMerges()) {
+        while(mergeThreads.size() < maxConcurrentMerges && mergeHandler.hasPendingMerges()) {
             OneMerge oneMerge = mergeHandler.getNextMerge();
             if (oneMerge == null) {
                 return;
@@ -122,6 +123,7 @@ public class MergeScheduler {
         MergeThread thread = new MergeThread(oneMerge);
         mergeThreads.add(thread);
         thread.start();
+        System.out.println("Total merge threads : " + mergeThreads.size() + " Active merges : " + activeMerges.get());
     }
 
     /**
@@ -131,7 +133,7 @@ public class MergeScheduler {
         private final OneMerge oneMerge;
 
         MergeThread(OneMerge oneMerge) {
-            super("merge-scheduler-" + oneMerge.toString());
+            super("merge-scheduler-" + (mergeThreads.size()+1));
             this.oneMerge = oneMerge;
             setDaemon(true);
         }
@@ -160,6 +162,8 @@ public class MergeScheduler {
             } finally {
                 activeMerges.decrementAndGet();
                 mergeThreads.remove(this);
+                // triggering merge at the end
+                triggerMerges();
             }
         }
     }
