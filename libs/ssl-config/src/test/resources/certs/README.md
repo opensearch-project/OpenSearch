@@ -57,7 +57,7 @@ rm cert1/cert1.csr
 ```
 
 # Create "cert2" PEM (same as cert1, but with a password)
-
+export KEY_PW='6!6428DQXwPpi7@$ggeg/='
 ```bash
 openssl genpkey -algorithm RSA -out cert2/cert2.key -aes256 -pass pass:"$KEY_PW"
 openssl req -new \

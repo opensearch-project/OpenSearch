@@ -34,6 +34,8 @@ import java.util.Optional;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
+
 public class SecureSettingsHelpers {
     private static final String keyStoreType = FipsMode.CHECK.isFipsEnabled() ? "BCFKS" : "JKS";
     private static final String fileExtension = FipsMode.CHECK.isFipsEnabled() ? ".bcfks" : ".jks";
@@ -118,9 +120,10 @@ public class SecureSettingsHelpers {
                 throws SSLException {
                 // Choose a random protocol from among supported test defaults
                 // Default JDK provider
+                String protocol = randomFrom(List.of("TLSv1.3", "TLSv1.2", "TLSv1.1"));
                 SSLContext testContext;
                 try {
-                    testContext = SSLContext.getInstance("TLS", provider);
+                    testContext = SSLContext.getInstance(protocol, provider);
                     testContext.init(keyMngerFactory.getKeyManagers(), trustMngerFactory.getTrustManagers(), Randomness.createSecure());
                 } catch (NoSuchAlgorithmException | KeyManagementException | NoSuchProviderException e) {
                     throw new SSLException("Failed to build mock provider", e);

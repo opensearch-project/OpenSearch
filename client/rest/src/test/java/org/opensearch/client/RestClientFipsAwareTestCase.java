@@ -14,14 +14,13 @@ import java.security.SecureRandom;
 
 import static org.opensearch.client.RestClientTestCase.inFipsJvm;
 
-public interface RestClientFipsAwareTestCase {
+interface RestClientFipsAwareTestCase {
 
     default SSLContext getSslContext(boolean server) throws Exception {
-        String keyStoreType = inFipsJvm() ? "BCFKS" : "JKS";
-        String fileExtension = inFipsJvm() ? ".bcfks" : ".jks";
-        SecureRandom secureRandom = inFipsJvm() ? SecureRandom.getInstance("DEFAULT", "BCFIPS") : new SecureRandom();
-
-        return getSslContext(server, keyStoreType, secureRandom, fileExtension);
+        if (inFipsJvm()) {
+            return getSslContext(server, "BCFKS", SecureRandom.getInstance("DEFAULT", "BCFIPS"), ".bcfks");
+        }
+        return getSslContext(server, "JKS", new SecureRandom(), ".jks");
     }
 
     SSLContext getSslContext(boolean server, String keyStoreType, SecureRandom secureRandom, String fileExtension) throws Exception;

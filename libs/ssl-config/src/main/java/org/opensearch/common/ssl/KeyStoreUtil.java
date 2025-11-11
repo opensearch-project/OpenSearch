@@ -53,7 +53,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -75,16 +74,17 @@ final class KeyStoreUtil {
         }
     };
 
-    public static final Map<String, List<String>> TYPE_TO_EXTENSION_MAP = new HashMap<>();
+    public static final Map<String, List<String>> TYPE_TO_EXTENSION_MAP = Map.of(
+        "JKS",
+        List.of(".jks", ".ks"),
+        "PKCS12",
+        List.of(".p12", ".pkcs12", ".pfx"),
+        "BCFKS", // Bouncy Castle FIPS Keystore
+        List.of(".bcfks")
+    );
     public static final List<String> FIPS_COMPLIANT_KEYSTORE_TYPES = List.of("PKCS11", "BCFKS");
     public static final String STORE_PROVIDER = inFipsMode.get() ? "BCFIPS" : "SUN";
     public static final String STORE_TYPE = inFipsMode.get() ? "BCFKS" : KeyStore.getDefaultType();
-
-    static {
-        TYPE_TO_EXTENSION_MAP.put("JKS", List.of(".jks", ".ks"));
-        TYPE_TO_EXTENSION_MAP.put("PKCS12", List.of(".p12", ".pkcs12", ".pfx"));
-        TYPE_TO_EXTENSION_MAP.put("BCFKS", List.of(".bcfks")); // Bouncy Castle FIPS Keystore
-    }
 
     private KeyStoreUtil() {
         throw new IllegalStateException("Utility class should not be instantiated");

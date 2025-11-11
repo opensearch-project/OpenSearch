@@ -128,7 +128,7 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
         final Path cert = createTempFile("cert", ".crt");
         final Path key = createTempFile("cert", ".key");
 
-        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0]);
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "wrong-password".toCharArray());
 
         Files.copy(cert1, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key1, key, StandardCopyOption.REPLACE_EXISTING);
@@ -136,7 +136,7 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
 
         Files.copy(cert2, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key2, key, StandardCopyOption.REPLACE_EXISTING);
-        assertPasswordNotSet(keyConfig, key);
+        assertPasswordIsIncorrect(keyConfig, key);
 
         Files.copy(cert1, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key1, key, StandardCopyOption.REPLACE_EXISTING);
@@ -171,14 +171,6 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
         final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
         assertThat(exception.getMessage(), containsString("private key file"));
         assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
-        assertThat(exception, instanceOf(SslConfigException.class));
-    }
-
-    private void assertPasswordNotSet(PemKeyConfig keyConfig, Path key) {
-        final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
-        assertThat(exception.getMessage(), containsString("cannot read encrypted key"));
-        assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
-        assertThat(exception.getMessage(), containsString("without a password"));
         assertThat(exception, instanceOf(SslConfigException.class));
     }
 
