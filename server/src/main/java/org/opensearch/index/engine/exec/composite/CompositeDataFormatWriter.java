@@ -114,10 +114,6 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
         flushPending.set(Boolean.TRUE);
     }
 
-    public boolean hasFlushed() {
-        return hasFlushed.get() == Boolean.TRUE;
-    }
-
     public boolean isFlushPending() {
         return flushPending.get() == Boolean.TRUE;
     }
@@ -149,10 +145,6 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     @Override
     public void unlock() {
         lock.unlock();
-    }
-
-    boolean isHeldByCurrentThread() {
-        return lock.isHeldByCurrentThread();
     }
 
     @Override

@@ -1660,7 +1660,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
         verifyNotClosed();
-        getIndexer().translogManager().trimUnreferencedTranslogFiles();
+        currentCompositeEngineReference.get().translogManager().trimUnreferencedTranslogFiles();
     }
 
     /**

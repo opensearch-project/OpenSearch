@@ -42,36 +42,6 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     public CompositeIndexingExecutionEngine(
         MapperService mapperService,
         PluginsService pluginsService,
-        Any dataformat,
-        ShardPath shardPath,
-        long initialWriterGeneration
-    ) {
-        this.dataFormat = dataformat;
-        this.writerGeneration = new AtomicLong(initialWriterGeneration);
-        try {
-            for (DataFormat dataFormat : dataformat.getDataFormats()) {
-                DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class)
-                    .stream()
-                    .filter(curr -> curr.getDataFormat().equals(dataFormat))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("dataformat [" + dataFormat + "] is not registered."));
-                delegates.add(plugin.indexingEngine(mapperService, shardPath));
-            }
-        } catch (NullPointerException e) {
-            // my own testing
-            delegates.add(new TextEngine());
-        }
-        this.dataFormatWriterPool =
-            new CompositeDataFormatWriterPool(
-                () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
-                LinkedList::new,
-                Runtime.getRuntime().availableProcessors()
-            );
-    }
-
-    public CompositeIndexingExecutionEngine(
-        MapperService mapperService,
-        PluginsService pluginsService,
         ShardPath shardPath,
         long initialWriterGeneration
     ) {

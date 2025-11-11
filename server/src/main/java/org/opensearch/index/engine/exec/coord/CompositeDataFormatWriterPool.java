@@ -85,15 +85,26 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeDataForm
      *
      * @return Unmodifiable list of all CompositeDataFormatWriters locked by current thread.
      */
-    public synchronized List<CompositeDataFormatWriter> checkoutAll() {
+    public List<CompositeDataFormatWriter> checkoutAll() {
+        ensureOpen();
+        List<CompositeDataFormatWriter> lockedWriters = new ArrayList<>();
         List<CompositeDataFormatWriter> checkedOutWriters = new ArrayList<>();
         for (CompositeDataFormatWriter compositeDataFormatWriter : this) {
             compositeDataFormatWriter.lock();
-            if (isRegistered(compositeDataFormatWriter) && writers.remove(compositeDataFormatWriter)) {
-                availableWriters.remove(compositeDataFormatWriter);
-                checkedOutWriters.add(compositeDataFormatWriter);
-            } else {
-                compositeDataFormatWriter.unlock();
+            lockedWriters.add(compositeDataFormatWriter);
+        }
+        synchronized (this) {
+            for (CompositeDataFormatWriter compositeDataFormatWriter : lockedWriters) {
+                try {
+                    // Release this writer if it’s no longer managed by this pool; otherwise, check it out.
+                    if (isRegistered(compositeDataFormatWriter) && writers.remove(compositeDataFormatWriter)) {
+                        availableWriters.remove(compositeDataFormatWriter);
+                        compositeDataFormatWriter.setFlushPending();
+                        checkedOutWriters.add(compositeDataFormatWriter);
+                    }
+                } finally {
+                    compositeDataFormatWriter.unlock();
+                }
             }
         }
         return Collections.unmodifiableList(checkedOutWriters);
@@ -116,7 +127,7 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeDataForm
     }
 
     @Override
-    public Iterator<CompositeDataFormatWriter> iterator() {
+    public synchronized Iterator<CompositeDataFormatWriter> iterator() {
         return List.copyOf(writers).iterator();
     }
 

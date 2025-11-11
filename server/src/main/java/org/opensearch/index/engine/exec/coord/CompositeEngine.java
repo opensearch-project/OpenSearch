@@ -68,6 +68,7 @@ import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
@@ -231,7 +232,11 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
             TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
                 @Override
                 public void onAfterTranslogSync() {
-                    // revisitIndexDeletionPolicyOnTranslogSynced();
+                    try {
+                        translogManager.trimUnreferencedReaders();
+                    } catch (IOException ex) {
+                        throw new TranslogException(shardId, "Failed to trim unreferenced translog generations on translog synced", ex);
+                    }
                 }
 
                 @Override

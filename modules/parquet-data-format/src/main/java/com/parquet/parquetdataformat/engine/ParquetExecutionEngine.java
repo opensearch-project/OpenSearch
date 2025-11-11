@@ -60,8 +60,9 @@ import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DAT
 public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDataFormat> {
 
     private static final Pattern FILE_PATTERN = Pattern.compile(".*_(\\d+)\\.parquet$", Pattern.CASE_INSENSITIVE);
-    public static final String FILE_NAME_PREFIX = "_parquet_file_generation";
-    public static final String FILE_NAME_EXT = ".parquet";
+    private static final String FILE_NAME_PREFIX = "_parquet_file_generation";
+    private static final String FILE_NAME_EXT = ".parquet";
+
     private final Supplier<Schema> schema;
     private final List<WriterFileSet> filesWrittenAlready = new ArrayList<>();
     private final ShardPath shardPath;
