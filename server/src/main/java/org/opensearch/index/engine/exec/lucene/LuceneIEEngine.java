@@ -17,14 +17,15 @@ import org.opensearch.index.engine.exec.DocumentInput;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
+import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.Writer;
-import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.ParseContext;
+import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,10 +43,14 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
         return List.of();
     }
 
-
     @Override
     public Writer<? extends DocumentInput<?>> createWriter(long writerGeneration) throws IOException {
         return new LuceneWriter(internalEngine.indexWriter, writerGeneration);
+    }
+
+    @Override
+    public void loadWriterFiles(ShardPath shardPath) throws IOException {
+
     }
 
     @Override
@@ -63,7 +68,6 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
     public DataFormat getDataFormat() {
         return DataFormat.LUCENE;
     }
-
 
     public static class LuceneDocumentInput implements DocumentInput<ParseContext.Document> {
 

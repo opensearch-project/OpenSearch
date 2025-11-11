@@ -17,7 +17,7 @@ public final class FileInfos {
 
     private final Map<DataFormat, WriterFileSet> writerFilesMap;
 
-    public FileInfos() {
+    private FileInfos() {
         this.writerFilesMap = new HashMap<>();
     }
 
@@ -31,5 +31,29 @@ public final class FileInfos {
 
     public Optional<WriterFileSet> getWriterFileSet(DataFormat format) {
         return Optional.ofNullable(writerFilesMap.get(format));
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+        private final Map<DataFormat, WriterFileSet> writerFilesMap = new HashMap<>();
+
+        public Builder putWriterFileSet(DataFormat format, WriterFileSet writerFileSet) {
+            writerFilesMap.put(format, writerFileSet);
+            return this;
+        }
+
+        public Builder putAll(Map<DataFormat, WriterFileSet> map) {
+            writerFilesMap.putAll(map);
+            return this;
+        }
+
+        public FileInfos build() {
+            FileInfos fileInfos = new FileInfos();
+            writerFilesMap.forEach(fileInfos::putWriterFileSet);
+            return fileInfos;
+        }
     }
 }

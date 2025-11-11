@@ -8,31 +8,31 @@
 
 package org.opensearch.index.engine.exec.text;
 
-import java.nio.file.Path;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.DocumentInput;
 import org.opensearch.index.engine.exec.FileInfos;
-import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
+import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.Writer;
-import org.opensearch.index.engine.exec.Merger;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.RowIdMapping;
-import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.shard.ShardPath;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -60,6 +60,11 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
     @Override
     public DataFormat getDataFormat() {
         return DataFormat.TEXT;
+    }
+
+    @Override
+    public void loadWriterFiles(ShardPath shardPath) throws IOException {
+
     }
 
     @Override
@@ -158,11 +163,12 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
                 fw.write(sb.toString());
             }
             flushed.set(true);
-            FileInfos fileInfos = new FileInfos();
-            WriterFileSet writerFileSet = new WriterFileSet(currentFile.toPath().getParent(), writerGeneration);
-            writerFileSet.add(currentFile.getName());
-            fileInfos.putWriterFileSet(DataFormat.TEXT, writerFileSet);
-            return fileInfos;
+            WriterFileSet writerFileSet = WriterFileSet.builder()
+                .directory(currentFile.toPath().getParent())
+                .writerGeneration(writerGeneration)
+                .addFile(currentFile.getName())
+                .build();
+            return FileInfos.builder().putWriterFileSet(DataFormat.TEXT, writerFileSet).build();
         }
 
         @Override

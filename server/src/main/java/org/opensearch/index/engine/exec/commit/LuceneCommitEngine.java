@@ -8,31 +8,36 @@
 
 package org.opensearch.index.engine.exec.commit;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.Collection;
-import java.util.Map;
-
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.Store;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNAPSHOT_KEY;
 
 public class LuceneCommitEngine implements Committer {
 
     private final IndexWriter indexWriter;
     private final LuceneIndexDeletionPolicy indexDeletionPolicy;
+    private final Store store;
 
-    public LuceneCommitEngine(Path commitPath) throws IOException {
-        Directory directory = new NIOFSDirectory(commitPath);
+    public LuceneCommitEngine(Store store) throws IOException {
         indexDeletionPolicy = new LuceneIndexDeletionPolicy();
         IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
         indexWriterConfig.setIndexDeletionPolicy(indexDeletionPolicy);
-        this.indexWriter = new IndexWriter(directory, indexWriterConfig);
+        this.store = store;
+        this.indexWriter = new IndexWriter(store.directory(), indexWriterConfig);
     }
 
     @Override
@@ -45,39 +50,48 @@ public class LuceneCommitEngine implements Committer {
                 throw new RuntimeException(e);
             }
         });
-
-        Map<String, String> userData = null;
-        try {
-            userData = catalogSnapshot.toCommitUserData();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        indexWriter.setLiveCommitData(userData.entrySet());
-    }
-
-    public CatalogSnapshot readCatalogSnapshot() throws IOException {
-        if(indexWriter.getLiveCommitData().iterator().hasNext()) {
-            Map.Entry<String, String> entry = indexWriter.getLiveCommitData().iterator().next();
-            return CatalogSnapshot.fromCommitUserData(entry.getValue());
-        }
-        return null;
-    }
-    public IndexWriter getIndexWriter() {
-        return indexWriter;
     }
 
     @Override
-    public CommitPoint commit(CatalogSnapshot catalogSnapshot) {
+    public CommitPoint commit(Iterable<Map.Entry<String, String>> commitData, CatalogSnapshot catalogSnapshot) {
         addLuceneIndexes(catalogSnapshot);
+        indexWriter.setLiveCommitData(commitData);
         try {
             indexWriter.commit();
             IndexCommit indexCommit = indexDeletionPolicy.getLatestIndexCommit();
-            return CommitPoint.builder().commitFileName(indexCommit.getSegmentsFileName())
-                .fileNames(indexCommit.getFileNames()).commitData(indexCommit.getUserData())
+            return CommitPoint.builder()
+                .commitFileName(indexCommit.getSegmentsFileName())
+                .fileNames(indexCommit.getFileNames())
+                .commitData(indexCommit.getUserData())
                 .generation(indexCommit.getGeneration())
-                .directory(Path.of(indexCommit.getSegmentsFileName()).getParent()).build();
+                .directory(Path.of(indexCommit.getSegmentsFileName()).getParent())
+                .build();
         } catch (IOException e) {
             throw new RuntimeException("lucene commit engine failed", e);
         }
+    }
+
+    @Override
+    public Map<String, String> getLastCommittedData() throws IOException {
+        return store.readLastCommittedSegmentsInfo().getUserData();
+    }
+
+    @Override
+    public Optional<CatalogSnapshot> readLastCommittedCatalogSnapshot() throws IOException {
+        Map<String, String> lastCommittedData = getLastCommittedData();
+        if (lastCommittedData.containsKey(CATALOG_SNAPSHOT_KEY)) {
+            return Optional.of(CatalogSnapshot.deserializeFromString(lastCommittedData.get(CATALOG_SNAPSHOT_KEY)));
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public SequenceNumbers.CommitInfo loadSeqNoInfoFromLastCommit() throws IOException {
+        return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(getLastCommittedData().entrySet());
+    }
+
+    @Override
+    public void close() throws IOException {
+        this.indexWriter.close();
     }
 }

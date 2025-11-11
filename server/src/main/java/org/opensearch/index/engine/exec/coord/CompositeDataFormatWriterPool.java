@@ -116,7 +116,7 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeDataForm
     }
 
     @Override
-    public synchronized Iterator<CompositeDataFormatWriter> iterator() {
+    public Iterator<CompositeDataFormatWriter> iterator() {
         return List.copyOf(writers).iterator();
     }
 

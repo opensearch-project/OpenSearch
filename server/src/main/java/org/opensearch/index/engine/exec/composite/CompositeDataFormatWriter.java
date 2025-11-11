@@ -12,11 +12,11 @@ import org.apache.lucene.util.SetOnce;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.DocumentInput;
 import org.opensearch.index.engine.exec.FileInfos;
-import org.opensearch.index.engine.exec.RowIdGenerator;
-import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.FlushIn;
+import org.opensearch.index.engine.exec.RowIdGenerator;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.Writer;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
@@ -45,8 +45,7 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     private final RowIdGenerator rowIdGenerator;
     public static final String ROW_ID = "___row_id";
 
-    public CompositeDataFormatWriter(CompositeIndexingExecutionEngine engine,
-                                     long writerGeneration) {
+    public CompositeDataFormatWriter(CompositeIndexingExecutionEngine engine, long writerGeneration) {
         this.writers = new ArrayList<>();
         this.lock = new ReentrantLock();
         this.aborted = false;
@@ -71,15 +70,13 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
 
     @Override
     public FileInfos flush(FlushIn flushIn) throws IOException {
-        FileInfos fileInfos = new FileInfos();
+        FileInfos.Builder builder = FileInfos.builder();
         for (Map.Entry<DataFormat, Writer<? extends DocumentInput<?>>> writerPair : writers) {
-            Optional<WriterFileSet> fileMetadataOptional = writerPair.getValue().flush(flushIn)
-                .getWriterFileSet(writerPair.getKey());
-            fileMetadataOptional.ifPresent(
-                fileMetadata -> fileInfos.putWriterFileSet(writerPair.getKey(), fileMetadata));
+            Optional<WriterFileSet> writerFileSetOptional = writerPair.getValue().flush(flushIn).getWriterFileSet(writerPair.getKey());
+            writerFileSetOptional.ifPresent(fileMetadata -> builder.putWriterFileSet(writerPair.getKey(), fileMetadata));
         }
         hasFlushed.set(true);
-        return fileInfos;
+        return builder.build();
     }
 
     @Override
@@ -97,9 +94,12 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     @Override
     public CompositeDocumentInput newDocumentInput() {
 
-        CompositeDocumentInput compositeDocumentInput = new CompositeDocumentInput(
-            writers.stream().map(Map.Entry::getValue).map(Writer::newDocumentInput).collect(Collectors.toList()),
-            this, postWrite);
+        CompositeDocumentInput compositeDocumentInput =
+            new CompositeDocumentInput(
+                writers.stream().map(Map.Entry::getValue).map(Writer::newDocumentInput).collect(Collectors.toList()),
+                this,
+                postWrite
+            );
 
         compositeDocumentInput.addRowIdField(ROW_ID, rowIdGenerator.getAndIncrementRowId());
 
@@ -169,8 +169,7 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
         private long seqNo = -2L;
         private long primaryTerm = 0;
 
-        public CompositeDocumentInput(List<? extends DocumentInput<?>> inputs, CompositeDataFormatWriter writer,
-                                      Runnable onClose) {
+        public CompositeDocumentInput(List<? extends DocumentInput<?>> inputs, CompositeDataFormatWriter writer, Runnable onClose) {
             this.inputs = inputs;
             this.writer = writer;
             this.onClose = onClose;

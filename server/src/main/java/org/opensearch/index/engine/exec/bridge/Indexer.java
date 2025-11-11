@@ -20,6 +20,9 @@ import org.opensearch.index.translog.TranslogManager;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+
+import static org.opensearch.index.engine.Engine.HISTORY_UUID_KEY;
 
 @PublicApi(since = "1.0.0")
 public interface Indexer {
@@ -129,6 +132,17 @@ public interface Indexer {
         throws IOException;
 
     String getHistoryUUID();
+
+    /**
+     * Reads the current stored history ID from commit data.
+     */
+    default String loadHistoryUUID(Map<String, String> commitData) {
+        final String uuid = commitData.get(HISTORY_UUID_KEY);
+        if (uuid == null) {
+            throw new IllegalStateException("commit doesn't contain history uuid");
+        }
+        return uuid;
+    }
 
     /**
      * Whether we should treat any document failure as tragic error.
