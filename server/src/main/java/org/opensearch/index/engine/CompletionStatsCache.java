@@ -116,7 +116,7 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
                 }
             }
 
-            return new CompletionStats.Builder().sizeInBytes(sizeInBytes).fields(new FieldMemoryStats(completionFields)).build();
+            return new CompletionStats.Builder().sizeInBytes(sizeInBytes).fieldMemoryStats(new FieldMemoryStats(completionFields)).build();
         });
 
         boolean success = false;
@@ -153,7 +153,7 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
         } else {
             fieldMemoryStats = null;
         }
-        return new CompletionStats.Builder().sizeInBytes(fullCompletionStats.getSizeInBytes()).fields(fieldMemoryStats).build();
+        return new CompletionStats.Builder().sizeInBytes(fullCompletionStats.getSizeInBytes()).fieldMemoryStats(fieldMemoryStats).build();
     }
 
     @Override

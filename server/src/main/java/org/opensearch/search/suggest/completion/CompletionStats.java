@@ -114,7 +114,7 @@ public class CompletionStats implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder fields(FieldMemoryStats fields) {
+        public Builder fieldMemoryStats(FieldMemoryStats fields) {
             this.fields = fields;
             return this;
         }
