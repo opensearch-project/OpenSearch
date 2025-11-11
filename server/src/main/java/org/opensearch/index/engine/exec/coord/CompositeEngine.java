@@ -739,7 +739,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     public void triggerPossibleMerges() {
         try {
             mergeScheduler.triggerMerges();
-        } catch (IOException e) {
+        } catch (Exception e) {
             System.out.println("ERROR in MERGE : " + e.getMessage());
             e.printStackTrace();
         }
