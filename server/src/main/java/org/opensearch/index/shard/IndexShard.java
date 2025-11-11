@@ -3272,10 +3272,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void onSettingsChanged() {
-        Engine engineOrNull = getEngineOrNull();
-        if (engineOrNull != null) {
+//        Engine engineOrNull = getEngineOrNull();
+        Indexer engine = compositeEngine;
+        if (engine != null) {
             final boolean disableTranslogRetention = indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery;
-            engineOrNull.onSettingsChanged(
+            engine.onSettingsChanged(
                 disableTranslogRetention ? TimeValue.MINUS_ONE : indexSettings.getTranslogRetentionAge(),
                 disableTranslogRetention ? new ByteSizeValue(-1) : indexSettings.getTranslogRetentionSize(),
                 indexSettings.getSoftDeleteRetentionOperations()

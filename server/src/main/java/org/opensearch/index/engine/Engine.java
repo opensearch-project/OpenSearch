@@ -2046,9 +2046,9 @@ public abstract class Engine implements LifecycleAware, Closeable, Indexer, Chec
         }
     }
 
-    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
-
-    }
+//    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
+//
+//    }
 
     /**
      * Returns the timestamp of the last write in nanoseconds.
