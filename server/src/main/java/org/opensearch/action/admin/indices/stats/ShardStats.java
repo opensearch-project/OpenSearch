@@ -179,7 +179,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
 
     /**
      * Builder for the {@link ShardStats} class.
-     * Provides a fluent API for constructing a DocsStats object.
+     * Provides a fluent API for constructing a ShardStats object.
      */
     public static class Builder {
         private ShardRouting shardRouting = null;
