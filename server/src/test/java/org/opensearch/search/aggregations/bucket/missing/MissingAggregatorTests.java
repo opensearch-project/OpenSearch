@@ -54,7 +54,6 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
-import org.opensearch.index.query.ExistsQueryBuilder;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
 import org.opensearch.script.MockScriptEngine;
@@ -96,7 +95,6 @@ import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKET
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.anyString;
 
 public class MissingAggregatorTests extends AggregatorTestCase {
 
@@ -183,10 +181,10 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         Logger.getLogger("MissingAggregatorTests").info("Running testDeletedDocs with " + numDocs + " documents.");
 
         // The precompute cannot be used because of a deleted document.
-        // Also we do not test docs collected because deletes break document list 
+        // Also we do not test docs collected because deletes break document list
         // into more segments.
         testCase(newMatchAllQuery(), builder, writeIndexIndexed, internalMissing -> {
-            assertEquals(numDocs-1, internalMissing.getDocCount());
+            assertEquals(numDocs - 1, internalMissing.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
         }, List.of(aggFieldType, anotherFieldType), -1);
     }
