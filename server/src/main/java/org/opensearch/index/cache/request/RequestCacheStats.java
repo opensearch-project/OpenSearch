@@ -154,7 +154,6 @@ public class RequestCacheStats implements Writeable, ToXContentFragment {
         public RequestCacheStats build() {
             return new RequestCacheStats(this);
         }
-
     }
 
     @Override
