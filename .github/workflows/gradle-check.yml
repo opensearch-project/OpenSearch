@@ -61,7 +61,7 @@ jobs:
           echo "post_merge_action=false" >> $GITHUB_ENV
 
       # to get the PR data that can be used for post merge actions
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v8
         if: github.event_name == 'push'
         id: get_pr_data
         with:
