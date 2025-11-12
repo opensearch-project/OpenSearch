@@ -42,6 +42,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -53,6 +54,7 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
+import org.opensearch.index.query.ExistsQueryBuilder;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
 import org.opensearch.script.MockScriptEngine;
@@ -83,6 +85,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.logging.Logger;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
@@ -93,6 +96,7 @@ import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKET
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 
 public class MissingAggregatorTests extends AggregatorTestCase {
 
@@ -140,6 +144,51 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             assertEquals(0, internalMissing.getDocCount());
             assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
         }, singleton(fieldType), numDocs);
+    }
+
+    public void testDeletedDocs() throws IOException {
+        int numDocs = randomIntBetween(10, 200);
+
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
+        final MappedFieldType deletedFieldType = new NumberFieldMapper.NumberFieldType("deleted_field", NumberType.LONG);
+
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(aggFieldType.name());
+
+        // This will be the case where the field data written will be indexed.
+        CheckedConsumer<RandomIndexWriter, IOException> writeIndexIndexed = (writer -> {
+            boolean deleted = false;
+            for (int i = 0; i < numDocs; i++) {
+                final long randomLong = randomLong();
+                if (deleted == false) {
+                    writer.addDocument(
+                        Set.of(
+                            new SortedNumericDocValuesField(deletedFieldType.name(), randomLong),
+                            new StringField(deletedFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                    writer.deleteDocuments(new Term(deletedFieldType.name(), String.valueOf(randomLong)));
+                    deleted = true;
+                } else {
+                    writer.addDocument(
+                        Set.of(
+                            new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                            new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                }
+            }
+        });
+
+        Logger.getLogger("MissingAggregatorTests").info("Running testDeletedDocs with " + numDocs + " documents.");
+
+        // The precompute cannot be used because of a deleted document.
+        // Also we do not test docs collected because deletes break document list 
+        // into more segments.
+        testCase(newMatchAllQuery(), builder, writeIndexIndexed, internalMissing -> {
+            assertEquals(numDocs-1, internalMissing.getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+        }, List.of(aggFieldType, anotherFieldType), -1);
     }
 
     public void testMatchAllDocs() throws IOException {
