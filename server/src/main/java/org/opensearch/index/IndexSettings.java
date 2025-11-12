@@ -596,6 +596,13 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> INDEX_OPTIMIZED = Setting.boolSetting(
+        "index.optimized",
+        true,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     /**
      * Determines a balance between file-based and operations-based peer recoveries. The number of operations that will be used in an
      * operations-based peer recovery is limited to this proportion of the total number of documents in the shard (including deleted
@@ -916,6 +923,7 @@ public final class IndexSettings {
     private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
     private volatile boolean shouldCleanupUnreferencedFiles;
+    private volatile boolean indexOptimized;
     private volatile long mappingNestedFieldsLimit;
     private volatile long mappingNestedDocsLimit;
     private volatile long mappingTotalFieldsLimit;
@@ -1069,6 +1077,7 @@ public final class IndexSettings {
         this.remoteStoreSegmentPathPrefix = (rawPrefix != null && !rawPrefix.trim().isEmpty()) ? rawPrefix : null;
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.shouldCleanupUnreferencedFiles = INDEX_UNREFERENCED_FILE_CLEANUP.get(settings);
+        this.indexOptimized = INDEX_OPTIMIZED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
@@ -1242,6 +1251,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_UNREFERENCED_FILE_CLEANUP, this::setShouldCleanupUnreferencedFiles);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_OPTIMIZED, this::setIndexOptimized);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
@@ -2034,6 +2044,14 @@ public final class IndexSettings {
 
     private void setShouldCleanupUnreferencedFiles(boolean shouldCleanupUnreferencedFiles) {
         this.shouldCleanupUnreferencedFiles = shouldCleanupUnreferencedFiles;
+    }
+
+    public boolean isIndexOptimized() {
+        return indexOptimized;
+    }
+
+    private void setIndexOptimized(boolean indexOptimized) {
+        this.indexOptimized = indexOptimized;
     }
 
     public long getMappingNestedFieldsLimit() {
