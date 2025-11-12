@@ -754,6 +754,92 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertEquals(expected, transformedMap);
     }
 
+    public void testCaseInsensitive_ExcludeLeafUnderObject() {
+        Map<String, Object> doc = new HashMap<>();
+        Map<String, Object> book = new HashMap<>();
+        book.put("Title", "The Hobbit"); // mixed case
+        book.put("Author", "Tolkien");
+        doc.put("book", book);
+
+        // filter should be case insensitive: "book.title" should remove "Title"
+        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[0], new String[] { "book.title" });
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> outBook = (Map<String, Object>) filtered.get("book");
+        assertThat(filtered, hasKey("book"));
+        assertThat(outBook, hasKey("Author"));
+        assertThat(outBook, org.hamcrest.Matchers.not(hasKey("Title")));
+    }
+
+    public void testCaseInsensitive_WildcardAnyDepth_ArraysAndObjects() {
+        Map<String, Object> b1 = new HashMap<>();
+        b1.put("TITLE", "Dune"); // upper case
+        b1.put("YEAR", "1965");
+
+        Map<String, Object> b2 = new HashMap<>();
+        b2.put("title", "Foundation"); // lower case
+        b2.put("year", "1951");
+
+        Map<String, Object> shelf1 = new HashMap<>();
+        shelf1.put("book", b1);
+        Map<String, Object> shelf2 = new HashMap<>();
+        shelf2.put("book", b2);
+
+        Map<String, Object> doc = new HashMap<>();
+        doc.put("shelves", Arrays.asList(shelf1, shelf2));
+
+        // filter should be case insensitive: drop any *.title anywhere
+        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[0], new String[] { "*.title" });
+
+        @SuppressWarnings("unchecked")
+        List<?> shelves = (List<?>) filtered.get("shelves");
+        assertThat(shelves, hasSize(2));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> outBook1 = (Map<String, Object>) ((Map<String, Object>) shelves.get(0)).get("book");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> outBook2 = (Map<String, Object>) ((Map<String, Object>) shelves.get(1)).get("book");
+
+        assertThat(outBook1, org.hamcrest.Matchers.not(hasKey("TITLE")));
+        assertThat(outBook2, org.hamcrest.Matchers.not(hasKey("title")));
+        assertThat(outBook1, hasKey("YEAR"));
+        assertThat(outBook2, hasKey("year"));
+    }
+
+    public void testCaseInsensitive_IncludeExcludePrecedence() {
+        Map<String, Object> book = new HashMap<>();
+        book.put("Title", "Dune");
+        book.put("Genre", "Sci-Fi");
+        Map<String, Object> doc = new HashMap<>();
+        doc.put("book", book);
+
+        // filter should be case insensitive: includes book.*, but excludes book.title ⇒ exclude wins
+        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[] { "book.*" }, new String[] { "book.title" });
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> outBook = (Map<String, Object>) filtered.get("book");
+        assertThat(filtered, hasKey("book"));
+        assertThat(outBook, hasKey("Genre"));
+        assertThat(outBook, org.hamcrest.Matchers.not(hasKey("Title"))); // excluded despite include
+    }
+
+    public void testCaseInsensitive_MixedCaseInclude() {
+        Map<String, Object> obj = new HashMap<>();
+        obj.put("FieldOne", 1);
+        obj.put("fieldTwo", 2);
+        Map<String, Object> doc = new HashMap<>();
+        doc.put("MyObj", obj);
+
+        // filter should be case insensitive: mixed-case include should match
+        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[] { "myobj.fieldtwo" }, new String[0]);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> outObj = (Map<String, Object>) filtered.get("MyObj");
+        assertThat(filtered, hasKey("MyObj"));
+        assertThat(outObj, org.hamcrest.Matchers.not(hasKey("FieldOne")));
+        assertThat(outObj, hasKey("fieldTwo"));
+    }
+
     private static Map<String, Object> toMap(Builder test, XContentType xContentType, boolean humanReadable) throws IOException {
         ToXContentObject toXContent = (builder, params) -> test.apply(builder);
         return convertToMap(toXContent(toXContent, xContentType, humanReadable), true, xContentType).v2();

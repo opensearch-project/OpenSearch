@@ -51,6 +51,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -246,10 +247,8 @@ public class XContentMapValues {
      * Creates a simple HashSet-based filter for exact field name matching
      */
     private static Function<Map<String, ?>, Map<String, Object>> createSetBasedFilter(String[] includes, String[] excludes) {
-        Set<String> includeSet = (includes == null || includes.length == 0) ? null : new HashSet<>(Arrays.asList(includes));
-        Set<String> excludeSet = (excludes == null || excludes.length == 0)
-            ? Collections.emptySet()
-            : new HashSet<>(Arrays.asList(excludes));
+        Set<String> includeSet = (includes == null || includes.length == 0) ? null : toLowerCaseSet(includes);
+        Set<String> excludeSet = (excludes == null || excludes.length == 0) ? Collections.emptySet() : toLowerCaseSet(excludes);
 
         return (map) -> {
             Map<String, Object> filtered = new HashMap<>();
@@ -259,7 +258,8 @@ public class XContentMapValues {
                 if (dotPos > 0) {
                     key = key.substring(0, dotPos);
                 }
-                if ((includeSet == null || includeSet.contains(key)) && !excludeSet.contains(key)) {
+                String lowerKey = key.toLowerCase();
+                if ((includeSet == null || includeSet.contains(lowerKey)) && !excludeSet.contains(lowerKey)) {
                     filtered.put(entry.getKey(), entry.getValue());
                 }
             }
@@ -267,26 +267,36 @@ public class XContentMapValues {
         };
     }
 
+    private static Set<String> toLowerCaseSet(String[] fields) {
+        Set<String> set = new HashSet<>(fields.length);
+        for (String field : fields) {
+            set.add(field.toLowerCase(Locale.ROOT));
+        }
+        return set;
+    }
+
     /**
      * Creates an automaton-based filter for complex pattern matching
      */
     public static Function<Map<String, ?>, Map<String, Object>> createAutomatonFilter(String[] includes, String[] excludes) {
+        Set<String> includeSet = (includes == null || includes.length == 0) ? null : toLowerCaseSet(includes);
+        Set<String> excludeSet = (excludes == null || excludes.length == 0) ? Collections.emptySet() : toLowerCaseSet(excludes);
         CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
 
         CharacterRunAutomaton include;
-        if (includes == null || includes.length == 0) {
+        if (includeSet == null || includeSet.isEmpty()) {
             include = matchAllAutomaton;
         } else {
-            Automaton includeA = Regex.simpleMatchToAutomaton(includes);
+            Automaton includeA = Regex.simpleMatchToAutomaton(includeSet.toArray(new String[0]));
             includeA = makeMatchDotsInFieldNames(includeA);
             include = new CharacterRunAutomaton(includeA);
         }
 
         Automaton excludeA;
-        if (excludes == null || excludes.length == 0) {
+        if (excludeSet.isEmpty()) {
             excludeA = Automata.makeEmpty();
         } else {
-            excludeA = Regex.simpleMatchToAutomaton(excludes);
+            excludeA = Regex.simpleMatchToAutomaton(excludeSet.toArray(new String[0]));
             excludeA = makeMatchDotsInFieldNames(excludeA);
         }
         CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA);
@@ -328,13 +338,14 @@ public class XContentMapValues {
         Map<String, Object> filtered = new HashMap<>();
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             String key = entry.getKey();
+            String lcKey = key.toLowerCase(Locale.ROOT);
 
-            int includeState = step(includeAutomaton, key, initialIncludeState);
+            int includeState = step(includeAutomaton, lcKey, initialIncludeState);
             if (includeState == -1) {
                 continue;
             }
 
-            int excludeState = step(excludeAutomaton, key, initialExcludeState);
+            int excludeState = step(excludeAutomaton, lcKey, initialExcludeState);
             if (excludeState != -1 && excludeAutomaton.isAccept(excludeState)) {
                 continue;
             }
