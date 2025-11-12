@@ -787,6 +787,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public void validate(MappingLookup mappers) {
+        // Validate flat field compatibility when preserve_dots is enabled
+        validateFlatFieldCompatibility();
+        
         for (Mapper mapper : this.mappers.values()) {
             mapper.validate(mappers);
         }
@@ -815,8 +818,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (mergeWith.preserveDotsExplicit().explicit()) {
                 this.preserveDots = mergeWith.preserveDotsExplicit();
             }
-        } else if (isEnabled() != mergeWith.isEnabled()) {
-            throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
+        } else {
+            if (isEnabled() != mergeWith.isEnabled()) {
+                throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
+            }
+            // Validate preserve_dots immutability (except for MAPPING_RECOVERY)
+            if (reason != MergeReason.MAPPING_RECOVERY) {
+                validatePreserveDotsImmutability(mergeWith, reason);
+            }
         }
 
         for (Mapper mergeWithMapper : mergeWith) {
@@ -824,6 +833,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
             Mapper merged;
             if (mergeIntoMapper == null) {
+                // Validate that we're not adding nested objects when preserve_dots is enabled
+                if (reason != MergeReason.INDEX_TEMPLATE && reason != MergeReason.MAPPING_RECOVERY) {
+                    validateNestedObjectRejection(mergeWithMapper);
+                }
                 merged = mergeWithMapper;
             } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                 merged = objectMapper.merge(mergeWithMapper, reason);
@@ -844,6 +857,69 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
             }
             putMapper(merged);
+        }
+    }
+
+    /**
+     * Validates that preserve_dots parameter is not being modified after index creation.
+     * 
+     * @param mergeWith The ObjectMapper being merged
+     * @param reason The reason for the merge
+     * @throws MapperException if preserve_dots is being changed
+     */
+    private void validatePreserveDotsImmutability(ObjectMapper mergeWith, MergeReason reason) {
+        if (this.preserveDotsExplicit().explicit() && mergeWith.preserveDotsExplicit().explicit()) {
+            if (this.preserveDots() != mergeWith.preserveDots()) {
+                throw new MapperException(
+                    "Cannot update parameter [preserve_dots] from ["
+                        + this.preserveDots()
+                        + "] to ["
+                        + mergeWith.preserveDots()
+                        + "] for object mapping ["
+                        + name()
+                        + "]"
+                );
+            }
+        }
+    }
+
+    /**
+     * Validates that nested objects are not being added when preserve_dots is enabled.
+     * 
+     * @param newMapper The new mapper being added
+     * @throws MapperException if attempting to add nested object when preserve_dots=true
+     */
+    private void validateNestedObjectRejection(Mapper newMapper) {
+        if (this.preserveDots() && newMapper instanceof ObjectMapper) {
+            throw new MapperException(
+                "Cannot add nested object field ["
+                    + newMapper.name()
+                    + "] when preserve_dots is enabled for ["
+                    + name()
+                    + "]. Use flat field notation instead."
+            );
+        }
+    }
+
+    /**
+     * Validates that no nested object definitions exist when preserve_dots is enabled.
+     * This is called during index creation to ensure compatibility.
+     * 
+     * @throws MapperParsingException if nested objects are found when preserve_dots=true
+     */
+    private void validateFlatFieldCompatibility() {
+        if (this.preserveDots()) {
+            for (Mapper childMapper : this.mappers.values()) {
+                if (childMapper instanceof ObjectMapper) {
+                    throw new MapperParsingException(
+                        "Cannot define nested object ["
+                            + childMapper.name()
+                            + "] when preserve_dots is enabled for parent ["
+                            + name()
+                            + "]. All fields must be flat when preserve_dots=true."
+                    );
+                }
+            }
         }
     }
 
