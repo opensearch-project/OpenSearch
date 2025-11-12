@@ -889,15 +889,14 @@ public class IndicesService extends AbstractLifecycleComponent
         return new IndexShardStats(
             indexShard.shardId(),
             new ShardStats[] {
-                new ShardStats(
-                    indexShard.routingEntry(),
-                    indexShard.shardPath(),
-                    new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
-                    commitStats,
-                    seqNoStats,
-                    retentionLeaseStats,
-                    pollingIngestStats
-                ) }
+                new ShardStats.Builder().shardRouting(indexShard.routingEntry())
+                    .shardPath(indexShard.shardPath())
+                    .commonStats(new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags))
+                    .commitStats(commitStats)
+                    .seqNoStats(seqNoStats)
+                    .retentionLeaseStats(retentionLeaseStats)
+                    .pollingIngestStats(pollingIngestStats)
+                    .build() }
         );
     }
 
