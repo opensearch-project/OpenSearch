@@ -1,0 +1,4 @@
+[versions]
+opensearch = 1.3.21
+bundled_jdk_vendor = "adoptium"
+bundled_jdk = 11.0.29+7
