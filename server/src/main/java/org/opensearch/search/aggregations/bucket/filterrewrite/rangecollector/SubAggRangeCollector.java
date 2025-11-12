@@ -12,10 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.search.DocIdStreamHelper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.opensearch.search.aggregations.BitSetDocIdStream;
 import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.BFSCollector;
@@ -114,7 +113,7 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
             } else {
                 sub = collectableSubAggregators.getLeafCollector(leafCtx);
             }
-            sub.collect(new BitSetDocIdStream(bitSet, 0), bucketOrd);
+            sub.collect(DocIdStreamHelper.getDocIdStream(bitSet), bucketOrd);
             logger.trace("collected sub aggregation for bucket {}", bucketOrd);
         } catch (IOException e) {
             throw new RuntimeException(e);
