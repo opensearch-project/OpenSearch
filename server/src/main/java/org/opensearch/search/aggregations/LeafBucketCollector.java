@@ -145,6 +145,8 @@ public abstract class LeafBucketCollector implements LeafCollector {
      */
     @ExperimentalApi
     public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+        // Different aggregator implementations should override this method even if to just delegate to super for
+        // helping the performance: when the super call inlines, calls to #collect(int, long) become monomorphic.
         stream.forEach((doc) -> collect(doc, owningBucketOrd));
     }
 
