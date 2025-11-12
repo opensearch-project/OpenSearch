@@ -6,10 +6,12 @@
  * compatible open source license.
  */
 
+use std::fs;
 use std::sync::Arc;
 
-use arrow::datatypes::{Field, Fields, Schema};
+use arrow::datatypes::{DataType, Field, Fields, Schema};
 use arrow_schema::SchemaRef;
+use datafusion::physical_plan::projection::{new_projections_for_columns, ProjectionExpr};
 use datafusion::{
     common::tree_node::{Transformed, TreeNode, TreeNodeRecursion},
     config::ConfigOptions,
@@ -19,16 +21,23 @@ use datafusion::{
     },
     error::DataFusionError,
     logical_expr::Operator,
-    physical_expr::{expressions::{BinaryExpr, Column}, PhysicalExpr},
+    parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder,
+    physical_expr::{
+        expressions::{BinaryExpr, Column},
+        PhysicalExpr,
+    },
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{projection::{ProjectionExec, ProjectionExpr}, ExecutionPlan},
+    physical_plan::{filter::FilterExec, projection::ProjectionExec, ExecutionPlan},
 };
 use datafusion_datasource::TableSchema;
+use itertools::Itertools;
 
 #[derive(Debug)]
-pub struct ProjectRowIdOptimizer;
+pub struct AbsoluteRowIdOptimizer;
+pub const ROW_ID_FIELD_NAME: &'static str = "___row_id";
+pub const ROW_BASE_FIELD_NAME: &'static str = "row_base";
 
-impl ProjectRowIdOptimizer {
+impl AbsoluteRowIdOptimizer {
     /// Helper to build new schema and projection info with added `row_base` column.
     fn build_updated_file_source_schema(
         &self,
@@ -36,7 +45,8 @@ impl ProjectRowIdOptimizer {
         datasource_exec_schema: SchemaRef,
     ) -> (SchemaRef, Vec<usize>) {
         // Clone projection and add new field index
-        let file_source_schema = datasource.file_schema();
+        let mut projected_schema = datasource.projected_schema().clone();
+        let file_source_schema = datasource.file_schema().clone();
 
         let mut new_projections = vec![];
 
@@ -50,28 +60,18 @@ impl ProjectRowIdOptimizer {
         //         fields.push(Arc::new(Field::new(field.name(), field.data_type().clone(), field.is_nullable())));
         //     }
         // }
-        if !new_projections.contains(&file_source_schema.index_of("___row_id").unwrap()) {
-        // if !projections.contains(&file_source_schema.index_of("___row_id").unwrap()) {
-            new_projections.push(file_source_schema.index_of("___row_id").unwrap());
 
-            // let field  = file_source_schema.field_with_name(&*"___row_id").expect("Field ___row_id not found in file_source_schema");
-            // fields.push(Arc::new(Field::new("___row_id", field.data_type().clone(), field.is_nullable())));
+        if !projected_schema.index_of(ROW_ID_FIELD_NAME).is_ok() {
+            new_projections.push(file_source_schema.index_of(ROW_ID_FIELD_NAME).unwrap());
         }
+
         new_projections.push(file_source_schema.fields.len());
-        // fields.push(Arc::new(Field::new("row_base", file_source_schema.field_with_name("___row_id").unwrap().data_type().clone(), true)));
+        // fields.push(Arc::new(Field::new("row_base", file_source_schema.field_with_name(ROW_ID_FIELD_NAME).unwrap().data_type().clone(), true)));
 
         // Add row_base field to schema
 
         let mut new_fields = file_source_schema.fields().clone().to_vec();
-        new_fields.push(Arc::new(Field::new(
-            "row_base",
-            file_source_schema
-                .field_with_name("___row_id")
-                .unwrap()
-                .data_type()
-                .clone(),
-            true,
-        )));
+        new_fields.push(Arc::new(Field::new(ROW_BASE_FIELD_NAME, file_source_schema.field_with_name(ROW_ID_FIELD_NAME).unwrap().data_type().clone(), true)));
 
         let new_schema = Arc::new(Schema {
             metadata: file_source_schema.metadata().clone(),
@@ -82,31 +82,23 @@ impl ProjectRowIdOptimizer {
     }
 
     /// Creates a projection expression that adds `row_base` to `___row_id`.
-    fn build_projection_exprs(
-        &self,
-        new_schema: &SchemaRef,
-    ) -> Result<Vec<(Arc<dyn PhysicalExpr>, String)>, DataFusionError> {
-        let row_id_idx = new_schema
-            .index_of("___row_id")
-            .expect("Field ___row_id missing");
-        let row_base_idx = new_schema
-            .index_of("row_base")
-            .expect("Field row_base missing");
-
+    fn build_projection_exprs(&self, new_schema: &SchemaRef) -> Result<Vec<(Arc<dyn PhysicalExpr>, String)>, DataFusionError> {
+        let row_id_idx = new_schema.index_of(ROW_ID_FIELD_NAME).expect("Field ___row_id missing");
+        let row_base_idx = new_schema.index_of(ROW_BASE_FIELD_NAME).expect("Field row_base missing");
         let sum_expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(
-            Arc::new(Column::new("___row_id", row_id_idx)),
+            Arc::new(Column::new(ROW_ID_FIELD_NAME, row_id_idx)),
             Operator::Plus,
-            Arc::new(Column::new("row_base", row_base_idx)),
+            Arc::new(Column::new(ROW_BASE_FIELD_NAME, row_base_idx)),
         ));
 
         let mut projection_exprs: Vec<(Arc<dyn PhysicalExpr>, String)> = Vec::new();
 
         let mut has_row_id = false;
         for field_name in new_schema.fields().to_vec() {
-            if field_name.name() == "___row_id" {
+            if field_name.name() == ROW_ID_FIELD_NAME {
                 projection_exprs.push((sum_expr.clone(), field_name.name().clone()));
                 has_row_id = true;
-            } else if (field_name.name() != "row_base") {
+            } else if(field_name.name() != ROW_BASE_FIELD_NAME) {
                 // Match the column by name from new_schema
                 let idx = new_schema
                     .index_of(&*field_name.name().clone())
@@ -118,7 +110,7 @@ impl ProjectRowIdOptimizer {
             }
         }
         if !has_row_id {
-            projection_exprs.push((sum_expr.clone(), "___row_id".parse().unwrap()));
+            projection_exprs.push((sum_expr.clone(), ROW_ID_FIELD_NAME.parse().unwrap()));
         }
         Ok(projection_exprs)
     }
@@ -145,7 +137,7 @@ impl ProjectRowIdOptimizer {
     }
 }
 
-impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
+impl PhysicalOptimizerRule for AbsoluteRowIdOptimizer {
     fn optimize(
         &self,
         plan: Arc<dyn ExecutionPlan>,
@@ -159,35 +151,17 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
                     .as_any()
                     .downcast_ref::<FileScanConfig>()
                     .expect("DataSource not found");
-                let schema = datasource.file_schema();
-                schema
-                    .field_with_name("___row_id")
-                    .expect("Field ___row_id missing");
-                let projection = self
-                    .create_datasource_projection(datasource, datasource_exec.schema())
-                    .expect("Failed to create ProjectionExec from datasource");
-                return Ok(Transformed::new(
-                    Arc::new(projection),
-                    true,
-                    TreeNodeRecursion::Continue,
-                ));
+                let schema = datasource.file_schema().clone();
+                schema.field_with_name(ROW_ID_FIELD_NAME).expect("Field ___row_id missing");
+                let projection = self.create_datasource_projection(datasource, datasource_exec.schema()).expect("Failed to create ProjectionExec from datasource");
+                return Ok(Transformed::new(Arc::new(projection), true, TreeNodeRecursion::Continue));
+
             } else if let Some(projection_exec) = node.as_any().downcast_ref::<ProjectionExec>() {
-                if !projection_exec
-                    .schema()
-                    .field_with_name("___row_id")
-                    .is_ok()
-                {
+                if !projection_exec.schema().field_with_name(ROW_ID_FIELD_NAME).is_ok() {
+
                     let mut projection_exprs = projection_exec.expr().to_vec();
-                    if (projection_exec
-                        .input()
-                        .schema()
-                        .index_of("___row_id")
-                        .is_ok())
-                    {
-                      if projection_exec.input().schema().index_of("___row_id").is_ok() {
-                        let row_id_col: Arc<dyn PhysicalExpr> = Arc::new(Column::new("___row_id", projection_exec.input().schema().index_of("___row_id").unwrap()));
-                        projection_exprs.push(ProjectionExpr::new(row_id_col, "___row_id".to_string()));
-                    }
+                    if(projection_exec.input().schema().index_of(ROW_ID_FIELD_NAME).is_ok()) {
+                        projection_exprs.push(ProjectionExpr::new(Arc::new(Column::new(ROW_ID_FIELD_NAME, projection_exec.input().schema().index_of(ROW_ID_FIELD_NAME).unwrap())), ROW_ID_FIELD_NAME.to_string()));
                     }
 
                     let projection =

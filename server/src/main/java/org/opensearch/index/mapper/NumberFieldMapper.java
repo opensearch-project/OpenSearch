@@ -224,6 +224,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         case BYTE, SHORT, INTEGER, LONG -> val;
                         case UNSIGNED_LONG -> Numbers.toUnsignedBigInteger(val);
                     };
+                } else if (value instanceof Short) {
+                    Short val = (Short) value;
+
+                    return switch (type) {
+                        case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(val);
+                        case FLOAT -> val.floatValue();
+                        case DOUBLE -> val.doubleValue();
+                        case BYTE, SHORT -> val;
+                        case INTEGER, LONG -> val.longValue();
+                        case UNSIGNED_LONG -> Numbers.toUnsignedBigInteger(val);
+                    };
                 }
                 Long val = (Long) value;
                 if (val == null) {

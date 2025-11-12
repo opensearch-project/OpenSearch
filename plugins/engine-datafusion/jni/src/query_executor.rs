@@ -7,7 +7,7 @@
  */
 
 use std::sync::Arc;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use jni::sys::jlong;
 use datafusion::{
     common::DataFusionError,
@@ -34,22 +34,32 @@ use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use datafusion_substrait::substrait::proto::{Plan, extensions::simple_extension_declaration::MappingType};
 use object_store::ObjectMeta;
 use prost::Message;
-use arrow_schema::DataType;
+use arrow_schema::{DataType, Field, SchemaRef};
+use chrono::TimeZone;
+use datafusion::common::ScalarValue;
+use datafusion::logical_expr::Operator;
+use datafusion::optimizer::AnalyzerRule;
+use datafusion::physical_expr::expressions::BinaryExpr;
+use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_plan::projection::ProjectionExec;
+use datafusion_expr::{LogicalPlan, Projection};
 use log::error;
-
+use object_store::path::Path;
 use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
 use crate::partial_agg_optimizer::PartialAggregationOptimizer;
 use crate::executor::DedicatedExecutor;
 use crate::cross_rt_stream::CrossRtStream;
 use crate::CustomFileMeta;
 use crate::DataFusionRuntime;
-use crate::row_id_optimizer::ProjectRowIdOptimizer;
+use crate::project_row_id_analyzer::ProjectRowIdAnalyzer;
+use crate::absolute_row_id_optimizer::{AbsoluteRowIdOptimizer, ROW_BASE_FIELD_NAME, ROW_ID_FIELD_NAME};
 
 pub async fn execute_query_with_cross_rt_stream(
     table_path: ListingTableUrl,
     files_meta: Arc<Vec<CustomFileMeta>>,
     table_name: String,
     plan_bytes_vec: Vec<u8>,
+    is_aggregation_query: bool,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
 ) -> Result<jlong, DataFusionError> {
@@ -86,24 +96,26 @@ pub async fn execute_query_with_cross_rt_stream(
     config.options_mut().execution.target_partitions = 1;
     config.options_mut().execution.batch_size = 1024;
 
-    let state = datafusion::execution::SessionStateBuilder::new()
-        .with_config(config)
+    let mut state_builder = datafusion::execution::SessionStateBuilder::new()
+        .with_config(config.clone())
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
-        
-        //.with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer)) // TODO : uncomment this after fix
-        .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer))
-                .build();
+        .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer));
 
-    let ctx = SessionContext::new_with_state(state);
+    if(!is_aggregation_query) {
+        state_builder = state_builder.with_physical_optimizer_rule(Arc::new(AbsoluteRowIdOptimizer)); // Uses row_base from partition cols to evaluate ___row_id + row_base as ___row_id
+    }
+
+    let ctx = SessionContext::new_with_state(state_builder.build());
 
     // Register table
     let file_format = ParquetFormat::new();
     let listing_options = ListingOptions::new(Arc::new(file_format))
         .with_file_extension(".parquet")
         .with_files_metadata(files_meta)
+        .with_session_config_options(&config)
         .with_collect_stat(true)
-        .with_table_partition_cols(vec![("row_base".to_string(), DataType::Int64)]);
+        .with_table_partition_cols(vec![(ROW_BASE_FIELD_NAME.to_string(), DataType::Int64)]);
 
     let resolved_schema = match listing_options
         .infer_schema(&ctx.state(), &table_path)
@@ -152,7 +164,7 @@ pub async fn execute_query_with_cross_rt_stream(
         }
     }
 
-    let logical_plan = match from_substrait_plan(&ctx.state(), &modified_plan).await {
+    let mut logical_plan = match from_substrait_plan(&ctx.state(), &modified_plan).await {
         Ok(plan) => plan,
         Err(e) => {
             error!("Failed to convert Substrait plan: {}", e);
@@ -160,13 +172,25 @@ pub async fn execute_query_with_cross_rt_stream(
         }
     };
 
-    let dataframe = match ctx.execute_logical_plan(logical_plan).await {
+    if !is_aggregation_query {
+        logical_plan = ProjectRowIdAnalyzer.analyze(logical_plan, ctx.state().config_options())?; // Only keeps ___row_id in projections
+        logical_plan = LogicalPlan::Projection(Projection::try_new(
+            vec![col(ROW_ID_FIELD_NAME.to_string())],
+            Arc::new(logical_plan),
+        ).expect("Failed to create top level projection with ___row_id"));
+    }
+
+    let mut dataframe = match ctx.execute_logical_plan(logical_plan).await {
         Ok(df) => df,
         Err(e) => {
             error!("Failed to execute logical plan: {}", e);
             return Err(e);
         }
     };
+
+    // println!("Explain show");
+    // let clone_df = dataframe.clone().explain(false, true);
+    // clone_df?.show().await?;
 
     let df_stream = match dataframe.execute_stream().await {
         Ok(stream) => stream,
@@ -197,7 +221,8 @@ pub async fn execute_fetch_phase(
     table_path: ListingTableUrl,
     files_metadata: Arc<Vec<CustomFileMeta>>,
     row_ids: Vec<jlong>,
-    projections: Vec<String>,
+    include_fields: Vec<String>,
+    exclude_fields: Vec<String>,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
 ) -> Result<jlong, DataFusionError> {
@@ -222,22 +247,45 @@ pub async fn execute_fetch_phase(
 
         )
         .build()?;
-    let ctx = SessionContext::new_with_config_rt(SessionConfig::new(), Arc::new(runtime_env));
+
+    let mut config = SessionConfig::new();
+    config.options_mut().execution.parquet.pushdown_filters = true;
+    config.options_mut().execution.target_partitions = 1;
+
+    let state = datafusion::execution::SessionStateBuilder::new()
+        .with_config(config)
+        .with_runtime_env(Arc::from(runtime_env))
+        .with_default_features()
+        // .with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer))
+        .build();
+
+    let ctx = SessionContext::new_with_state(state);
 
     let file_format = ParquetFormat::new();
     let listing_options = ListingOptions::new(Arc::new(file_format)).with_file_extension(".parquet").with_collect_stat(true);
 
     let parquet_schema = listing_options.infer_schema(&ctx.state(), &table_path).await?;
+    let projections = create_projections(include_fields, exclude_fields, parquet_schema.clone());
 
     let partitioned_files: Vec<PartitionedFile> = files_metadata
         .iter()
         .zip(access_plans.iter())
         .map(|(meta, access_plan)| {
-            PartitionedFile::new(
-                meta.object_meta().location.to_string(),
-                meta.object_meta.size,
-            )
-            .with_extensions(Arc::new(access_plan.clone()))
+            PartitionedFile {
+                object_meta:  ObjectMeta {
+                    location: Path::from(meta.object_meta().location.to_string()),
+                    last_modified: chrono::Utc.timestamp_nanos(0),
+                    size: meta.object_meta.size,
+                    e_tag: None,
+                    version: None,
+                },
+                partition_values: vec![ScalarValue::Int64(Some(*meta.row_base))],
+                range: None,
+                statistics: None,
+                extensions: None,
+                metadata_size_hint: None,
+            }
+                .with_extensions(Arc::new(access_plan.clone()))
         })
         .collect();
 
@@ -253,21 +301,100 @@ pub async fn execute_fetch_phase(
         );
     }
 
+    if(!projections.contains(&ROW_ID_FIELD_NAME.to_string())) {
+        projection_index.push(parquet_schema.index_of(ROW_ID_FIELD_NAME).unwrap());
+    }
+    projection_index.push(parquet_schema.fields.len());
+
     let file_scan_config = FileScanConfigBuilder::new(
         ObjectStoreUrl::local_filesystem(),
         parquet_schema.clone(),
         file_source,
     )
-    .with_projection(Option::from(projection_index.clone()))
+    .with_table_partition_cols(vec![Field::new(ROW_BASE_FIELD_NAME, DataType::Int64, false)])
+    .with_projection_indices(Some(projection_index.clone()))
     .with_file_group(file_group)
     .build();
 
-    let parquet_exec = DataSourceExec::from_data_source(file_scan_config);
-    let optimized_plan: Arc<dyn ExecutionPlan> = parquet_exec.clone();
+    let parquet_exec = DataSourceExec::from_data_source(file_scan_config.clone());
+
+    let projection_exprs = build_projection_exprs(file_scan_config.projected_schema())
+        .expect("Failed to build projection expressions");
+
+    let projection_exec = Arc::new(ProjectionExec::try_new(projection_exprs, parquet_exec)
+        .expect("Failed to create ProjectionExec"));
+    let optimized_plan: Arc<dyn ExecutionPlan> = projection_exec.clone();
     let task_ctx = Arc::new(TaskContext::default());
     let stream = optimized_plan.execute(0, task_ctx)?;
 
     Ok(get_cross_rt_stream(cpu_executor, stream))
+}
+
+pub fn create_projections(
+    include_fields: Vec<String>,
+    exclude_fields: Vec<String>,
+    schema: SchemaRef,
+) -> Vec<String> {
+
+    // Get all field names from schema
+    let all_fields: Vec<String> =
+        schema.fields().to_vec().iter().map(|f| f.name().to_string()).filter(|f| f.eq(ROW_ID_FIELD_NAME) || !f.starts_with("_")).collect(); //exclude metadata fields
+
+    match (include_fields.is_empty(), exclude_fields.is_empty()) {
+
+        // includes empty, excludes empty → all fields
+        (true, true) => all_fields.clone(),
+
+        // includes non-empty → include only these fields
+        (false, _) => include_fields
+            .into_iter()
+            .filter(|f| schema.field_with_name(f).is_ok())     // keep valid fields
+            .collect(),
+
+        // includes empty, excludes non-empty → remove excludes
+        (true, false) => {
+            let exclude_set: HashSet<String> =
+                exclude_fields.into_iter().collect();
+
+            all_fields
+                .into_iter()
+                .filter(|f| !exclude_set.contains(f))
+                .collect()
+        }
+    }
+}
+
+fn build_projection_exprs(new_schema: SchemaRef) -> std::result::Result<Vec<(Arc<dyn PhysicalExpr>, String)>, DataFusionError> {
+    let row_id_idx = new_schema.index_of(ROW_ID_FIELD_NAME).expect("Field ___row_id missing");
+    let row_base_idx = new_schema.index_of(ROW_BASE_FIELD_NAME).expect("Field ___row_id missing");
+    let sum_expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(
+        Arc::new(datafusion::physical_expr::expressions::Column::new(ROW_ID_FIELD_NAME, row_id_idx)),
+        Operator::Plus,
+        Arc::new(datafusion::physical_expr::expressions::Column::new(ROW_BASE_FIELD_NAME, row_base_idx)),
+    ));
+
+    let mut projection_exprs: Vec<(Arc<dyn PhysicalExpr>, String)> = Vec::new();
+
+    let mut has_row_id = false;
+    for field_name in new_schema.fields().to_vec() {
+        if field_name.name() == ROW_ID_FIELD_NAME {
+            projection_exprs.push((sum_expr.clone(), field_name.name().clone()));
+            has_row_id = true;
+        } else if(field_name.name() != ROW_BASE_FIELD_NAME) {
+            // Match the column by name from new_schema
+            let idx = new_schema
+                .index_of(&*field_name.name().clone())
+                .unwrap_or_else(|_| panic!("Field {field_name} missing in schema"));
+            projection_exprs.push((
+                Arc::new(datafusion::physical_expr::expressions::Column::new(&*field_name.name(), idx)),
+                field_name.name().clone(),
+            ));
+        }
+    }
+    if !has_row_id {
+        projection_exprs.push((sum_expr.clone(), ROW_ID_FIELD_NAME.parse().unwrap()));
+    }
+    Ok(projection_exprs)
 }
 
 async fn create_access_plans(

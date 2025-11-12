@@ -8,7 +8,6 @@
 
 package org.opensearch.datafusion.search;
 
-import java.util.Iterator;
 import java.util.List;
 
 public class DatafusionQuery {
@@ -19,17 +18,21 @@ public class DatafusionQuery {
     private final List<SearchExecutor> searchExecutors;
     private Boolean isFetchPhase;
     private List<Long> queryPhaseRowIds;
-    private List<String> projections;
+    private List<String> includeFields;
+    private List<String> excludeFields;
+    private boolean isAggregationQuery;
 
-    public DatafusionQuery(String indexName, byte[] substraitBytes, List<SearchExecutor> searchExecutors) {
+    public DatafusionQuery(String indexName, byte[] substraitBytes, List<SearchExecutor> searchExecutors, boolean isAggregationQuery) {
         this.indexName = indexName;
         this.substraitBytes = substraitBytes;
         this.searchExecutors = searchExecutors;
         this.isFetchPhase = false;
+        this.isAggregationQuery = isAggregationQuery;
     }
 
-    public void setProjections(List<String> projections) {
-        this.projections = projections;
+    public void setSource(List<String> includeFields, List<String> excludeFields) {
+        this.includeFields = includeFields;
+        this.excludeFields = excludeFields;
     }
 
     public void setFetchPhaseContext(List<Long> queryPhaseRowIds) {
@@ -41,12 +44,24 @@ public class DatafusionQuery {
         return this.isFetchPhase;
     }
 
+    public boolean isAggregationQuery() {
+        return isAggregationQuery;
+    }
+
+    public void setAggregationQuery(boolean aggregationQuery) {
+        isAggregationQuery = aggregationQuery;
+    }
+
     public List<Long> getQueryPhaseRowIds() {
         return this.queryPhaseRowIds;
     }
 
-    public List<String> getProjections() {
-        return this.projections;
+    public List<String> getIncludeFields() {
+        return this.includeFields;
+    }
+
+    public List<String> getExcludeFields() {
+        return this.excludeFields;
     }
 
     public byte[] getSubstraitBytes() {

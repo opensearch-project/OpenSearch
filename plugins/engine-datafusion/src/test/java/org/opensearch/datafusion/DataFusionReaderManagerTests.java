@@ -357,7 +357,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
             throw new RuntimeException(e);
         }
 
-        DatafusionQuery datafusionQuery = new DatafusionQuery("index-7", protoContent, new java.util.ArrayList<>());
+        DatafusionQuery datafusionQuery = new DatafusionQuery("index-7", protoContent, new java.util.ArrayList<>(), true);
         Map<String, Long> expectedResults = new HashMap<>();
         expectedResults.put("min", 2L);
         expectedResults.put("max", 4L);

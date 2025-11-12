@@ -10,7 +10,6 @@ package org.opensearch.datafusion.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.datafusion.ErrorUtil;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.index.engine.EngineSearcher;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
@@ -45,9 +44,10 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
                 .stream()
                 .mapToLong(Long::longValue)
                 .toArray();
-            String[] projections = Objects.isNull(datafusionQuery.getProjections()) ? new String[]{} : datafusionQuery.getProjections().toArray(String[]::new);
+            String[] includeFields = Objects.isNull(datafusionQuery.getIncludeFields()) ? new String[]{} : datafusionQuery.getIncludeFields().toArray(String[]::new);
+            String[] excludeFields = Objects.isNull(datafusionQuery.getExcludeFields()) ? new String[]{} : datafusionQuery.getExcludeFields().toArray(String[]::new);
 
-            return NativeBridge.executeFetchPhase(reader.getReaderPtr(), row_ids, projections, runtimePtr);
+            return NativeBridge.executeFetchPhase(reader.getReaderPtr(), row_ids, includeFields, excludeFields, runtimePtr);
         }
         throw new RuntimeException("Can be only called for fetch phase");
     }
@@ -55,7 +55,7 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
     @Override
     public CompletableFuture<Long> searchAsync(DatafusionQuery datafusionQuery, Long runtimePtr) {
         CompletableFuture<Long> result = new CompletableFuture<>();
-        NativeBridge.executeQueryPhaseAsync(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), runtimePtr, new ActionListener<Long>() {
+        NativeBridge.executeQueryPhaseAsync(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), datafusionQuery.isAggregationQuery(), runtimePtr, new ActionListener<Long>() {
             @Override
             public void onResponse(Long streamPointer) {
                 if (streamPointer == 0) {
