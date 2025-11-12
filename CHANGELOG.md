@@ -94,6 +94,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.api.grpc:proto-google-iam-v1` from 1.55.0 to 1.57.0 ([#19872](https://github.com/opensearch-project/OpenSearch/pull/19872))
 - Bump `org.apache.commons:commons-text` from 1.13.1 to 1.14.0 ([#19871](https://github.com/opensearch-project/OpenSearch/pull/19871))
 - Exclude group com.microsoft.sqlserver from hadoop-minicluster ([#19889](https://github.com/opensearch-project/OpenSearch/pull/19889))
+- Bump `netty` to 4.2.4 ([#19178](https://github.com/opensearch-project/OpenSearch/pull/19178))
 - Bump `actions/github-script` from 7 to 8 ([#19946](https://github.com/opensearch-project/OpenSearch/pull/19946))
 - Bump `com.google.api:gax-httpjson` from 2.69.0 to 2.72.1 ([#19943](https://github.com/opensearch-project/OpenSearch/pull/19943))
 - Update Hadoop to 3.4.2 and enable security (Kerberos) integration tests under JDK-24 and above  ([#19952](https://github.com/opensearch-project/OpenSearch/pull/19952))
