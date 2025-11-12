@@ -134,6 +134,9 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
+        if(request.hasContentOrSourceParam()){
+            searchRequest.setOriginalRequestBody(request.contentOrSourceParam().v2());
+        }
         /*
          * We have to pull out the call to `source().size(size)` because
          * _update_by_query and _delete_by_query uses this same parsing

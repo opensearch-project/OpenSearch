@@ -42,6 +42,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -107,6 +109,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private Boolean requestCache;
 
     private Boolean allowPartialSearchResults;
+
+    // Added for issue #19816
+    private BytesReference originalRequestBody;
 
     private Scroll scroll;
 
@@ -249,6 +254,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         preference = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
+        this.originalRequestBody = in.readOptionalBytesReference();
         if (in.getVersion().before(Version.V_2_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
@@ -291,6 +297,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalString(preference);
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
+        out.writeOptionalBytesReference(originalRequestBody);
         if (out.getVersion().before(Version.V_2_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
@@ -874,5 +881,31 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + ", phaseTook="
             + phaseTook
             + "}";
+    }
+
+    /**
+     * Returns the original raw request body as received from the REST layer, 
+     * before any parsing or modification is applied.
+     * <p>
+     * This field allows downstream components (e.g., Query Insights)
+     * to distinguish between user-provided JSON values and system defaults. 
+     * @return the raw request body as a {@link BytesReference}, or {@code null} if not set
+     */
+    public BytesReference getOriginalRequestBody(){
+        return originalRequestBody;
+    }
+
+    /**
+     * Sets the original raw request body as received from the REST layer.
+     * <p>
+     * This should be called before the {@link SearchSourceBuilder} is parsed,
+     * typically inside {@link org.opensearch.rest.action.search.RestSearchAction}.
+     * 
+     * @param originalRequestBody the raw request body as a {@link BytesReference}
+     * @return this {@link SearchRequest} instance
+     */
+    public SearchRequest setOriginalRequestBody(BytesReference originalRequestBody){
+        this.originalRequestBody = originalRequestBody;
+        return this;
     }
 }
