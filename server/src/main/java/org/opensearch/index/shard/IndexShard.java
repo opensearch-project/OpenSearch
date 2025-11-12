@@ -4020,7 +4020,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public CheckpointState getCheckpointState() {
-        return getEngine();
+        return getIndexingExecutionCoordinator();
     }
 
     public StatsHolder getStatsHolder() {
@@ -4041,7 +4041,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
 
     protected Indexer getIndexerOrNull() {
-        return getEngineOrNull();
+        return getIndexingExecutionCoordinator();
     }
 
     public CheckpointState getCheckpointStateOrNull() {
@@ -4245,8 +4245,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private SafeCommitInfo getSafeCommitInfo() {
-        final Engine engine = getEngineOrNull();
-        return engine == null ? SafeCommitInfo.EMPTY : getIndexer().getSafeCommitInfo();
+        final Indexer indexer = getIndexerOrNull();
+        return indexer == null ? SafeCommitInfo.EMPTY : getIndexer().getSafeCommitInfo();
     }
 
     class ShardEventListener implements Engine.EventListener {

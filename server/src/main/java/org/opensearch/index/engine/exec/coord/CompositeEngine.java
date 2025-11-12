@@ -207,27 +207,9 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
                 updateAutoIdTimestamp(Long.MAX_VALUE, true);
             }
 
-            // initialize committer and composite indexing execution engine
-            committerRef = new LuceneCommitEngine(store);
-            this.compositeEngineCommitter = committerRef;
-            final AtomicLong lastCommittedWriterGeneration = new AtomicLong(-1);
-            this.compositeEngineCommitter.readLastCommittedCatalogSnapshot().ifPresent(lastCommittedCatalogSnapshot -> {
-                this.catalogSnapshot = lastCommittedCatalogSnapshot;
-                this.catalogSnapshot.remapPaths(shardPath.getDataPath());
-                lastCommittedWriterGeneration.set(lastCommittedCatalogSnapshot.getLastWriterGeneration());
-            });
-            // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
-            this.engine = new CompositeIndexingExecutionEngine(
-                mapperService,
-                pluginsService,
-                shardPath,
-                lastCommittedWriterGeneration.incrementAndGet()
-            );
-            this.engine.loadWriterFiles(shardPath);
-
             // initialize local checkpoint tracker and translog manager
             this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
-            final Map<String, String> userData = this.compositeEngineCommitter.getLastCommittedData();
+            final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
             String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             final TranslogDeletionPolicy translogDeletionPolicy = getTranslogDeletionPolicy(engineConfig);
             TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
@@ -259,6 +241,24 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
                 new CompositeTranslogEventListener(Arrays.asList(internalTranslogEventListener, translogEventListener), shardId);
             translogManagerRef = createTranslogManager(translogUUID, translogDeletionPolicy, compositeTranslogEventListener);
             this.translogManager = translogManagerRef;
+
+            // initialize committer and composite indexing execution engine
+            committerRef = new LuceneCommitEngine(store, translogDeletionPolicy, translogManager::getLastSyncedGlobalCheckpoint);
+            this.compositeEngineCommitter = committerRef;
+            final AtomicLong lastCommittedWriterGeneration = new AtomicLong(-1);
+            this.compositeEngineCommitter.readLastCommittedCatalogSnapshot().ifPresent(lastCommittedCatalogSnapshot -> {
+                this.catalogSnapshot = lastCommittedCatalogSnapshot;
+                this.catalogSnapshot.remapPaths(shardPath.getDataPath());
+                lastCommittedWriterGeneration.set(lastCommittedCatalogSnapshot.getLastWriterGeneration());
+            });
+            // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
+            this.engine = new CompositeIndexingExecutionEngine(
+                mapperService,
+                pluginsService,
+                shardPath,
+                lastCommittedWriterGeneration.incrementAndGet()
+            );
+            this.engine.loadWriterFiles(shardPath);
 
             this.maxSeqNoOfUpdatesOrDeletes =
                 new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getMaxSeqNo()));
@@ -329,7 +329,8 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     ) throws IOException {
         final long maxSeqNo;
         final long localCheckpoint;
-        final SequenceNumbers.CommitInfo seqNoStats = this.compositeEngineCommitter.loadSeqNoInfoFromLastCommit();
+        final SequenceNumbers.CommitInfo seqNoStats =
+            SequenceNumbers.loadSeqNoInfoFromLuceneCommit(store.readLastCommittedSegmentsInfo().getUserData().entrySet());
         maxSeqNo = seqNoStats.maxSeqNo;
         localCheckpoint = seqNoStats.localCheckpoint;
         logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
@@ -594,7 +595,6 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
 
     @Override
     public long getMinRetainedSeqNo() {
-        // TODO - To be implemented
         return -1;
     }
 
@@ -900,7 +900,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
 
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
-        return null;
+        return compositeEngineCommitter.getSafeCommitInfo();
     }
 
     @Override
