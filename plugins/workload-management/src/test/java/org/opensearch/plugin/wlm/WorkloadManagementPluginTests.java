@@ -26,11 +26,15 @@ import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
+import org.opensearch.plugin.wlm.spi.AttributeExtractorExtension;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rule.RulePersistenceService;
+import org.opensearch.rule.attribute_extractor.AttributeExtractor;
+import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.script.ScriptService;
@@ -45,7 +49,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.opensearch.plugin.wlm.WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class WorkloadManagementPluginTests extends OpenSearchTestCase {
@@ -179,7 +188,34 @@ public class WorkloadManagementPluginTests extends OpenSearchTestCase {
             mockRepositoriesServiceSupplier
         );
 
-        assertEquals(1, components.size());
-        assertTrue(components.iterator().next() instanceof RefreshBasedSyncMechanism);
+        assertThat(components.stream().filter(c -> c instanceof RefreshBasedSyncMechanism).count(), equalTo(1L));
+    }
+
+    public void testSetAttributesWithMock() {
+        WorkloadManagementPlugin plugin = mock(WorkloadManagementPlugin.class);
+        Attribute attribute = mock(Attribute.class);
+        when(attribute.getName()).thenReturn(PRINCIPAL_ATTRIBUTE_NAME);
+        plugin.setAttributes(List.of(attribute));
+        verify(plugin, times(1)).setAttributes(List.of(attribute));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLoadExtensionsWithMock() {
+        WorkloadManagementPlugin plugin = spy(new WorkloadManagementPlugin());
+        ExtensiblePlugin.ExtensionLoader loader = mock(ExtensiblePlugin.ExtensionLoader.class);
+        AttributeExtractor<String> extractor = mock(AttributeExtractor.class);
+        Attribute attribute = mock(Attribute.class);
+        AttributeExtractorExtension extension = mock(AttributeExtractorExtension.class);
+
+        when(attribute.getName()).thenReturn("mock_attr");
+        when(extractor.getAttribute()).thenReturn(attribute);
+        when(extension.getAttributeExtractor()).thenReturn(extractor);
+        when(loader.loadExtensions(AttributeExtractorExtension.class)).thenReturn(List.of(extension));
+
+        plugin.loadExtensions(loader);
+
+        verify(loader, times(1)).loadExtensions(AttributeExtractorExtension.class);
+        verify(extension, times(1)).getAttributeExtractor();
+        verify(extractor, times(1)).getAttribute();
     }
 }

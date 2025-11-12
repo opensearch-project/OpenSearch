@@ -44,8 +44,7 @@ public class DateTimeUnitAdapter implements DateTimeUnitRounding {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (!(obj instanceof DateTimeUnitRounding)) return false;
-        DateTimeUnitRounding other = (DateTimeUnitRounding) obj;
+        if (!(obj instanceof DateTimeUnitRounding other)) return false;
         return Objects.equals(shortName(), other.shortName());
     }
 

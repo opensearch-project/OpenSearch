@@ -184,7 +184,7 @@ public class OpenSearchExceptionProtoUtils {
             if (values.size() == 1) {
                 return new AbstractMap.SimpleEntry<String, StringOrStringArray>(
                     key,
-                    StringOrStringArray.newBuilder().setStringValue(values.get(0)).build()
+                    StringOrStringArray.newBuilder().setString(values.get(0)).build()
                 );
             } else {
                 StringArray.Builder stringArrayBuilder = StringArray.newBuilder();

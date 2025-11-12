@@ -144,7 +144,7 @@ public class IndexNameExpressionResolver {
      * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
      * are encapsulated in the specified request and resolves data streams.
      */
-    public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
+    public ResolvedIndices.Local.Concrete concreteResolvedIndices(ClusterState state, IndicesRequest request) {
         Context context = new Context(
             state,
             request.indicesOptions(),
@@ -153,7 +153,15 @@ public class IndexNameExpressionResolver {
             request.includeDataStreams(),
             isSystemIndexAccessAllowed()
         );
-        return concreteIndices(context, request.indices());
+        return concreteResolvedIndices(context, request.indices());
+    }
+
+    /**
+     * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
+     * are encapsulated in the specified request and resolves data streams.
+     */
+    public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
+        return concreteResolvedIndices(state, request).concreteIndicesAsArray();
     }
 
     /**
@@ -199,12 +207,42 @@ public class IndexNameExpressionResolver {
 
         List<String> dataStreams = wildcardExpressionResolver.resolve(context, finalExpressions);
 
+        if (!context.resolutionErrors.isEmpty()) {
+            throw context.resolutionErrors.getFirst();
+        }
+
         return ((dataStreams == null) ? List.<String>of() : dataStreams).stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
             .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)
             .map(IndexAbstraction::getName)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Translates the provided index expression into actual concrete indices, properly deduplicated.
+     *
+     * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
+     * @param options           defines how the aliases or indices need to be resolved to concrete indices
+     * @param indexExpressions  expressions that can be resolved to alias or index names.
+     * @return the resolved concrete indices based on the cluster state, indices options and index expressions. Any errors
+     * encountered during the resolution will be not thrown immediately as an exception, but only when you try
+     * to access the concrete indices from the ResolvedIndices.Local.Concrete object. You can use the method
+     * names() to access the names of the requested indices in a way that is safe from thrown exceptions due to
+     * resolution errors.
+     */
+    public ResolvedIndices.Local.Concrete concreteResolvedIndices(ClusterState state, IndicesOptions options, String... indexExpressions) {
+        return concreteResolvedIndices(state, options, false, indexExpressions);
+    }
+
+    public ResolvedIndices.Local.Concrete concreteResolvedIndices(
+        ClusterState state,
+        IndicesOptions options,
+        boolean includeDataStreams,
+        String... indexExpressions
+    ) {
+        Context context = new Context(state, options, false, false, includeDataStreams, isSystemIndexAccessAllowed());
+        return concreteResolvedIndices(context, indexExpressions);
     }
 
     /**
@@ -225,8 +263,33 @@ public class IndexNameExpressionResolver {
     }
 
     public Index[] concreteIndices(ClusterState state, IndicesOptions options, boolean includeDataStreams, String... indexExpressions) {
-        Context context = new Context(state, options, false, false, includeDataStreams, isSystemIndexAccessAllowed());
-        return concreteIndices(context, indexExpressions);
+        return concreteResolvedIndices(state, options, includeDataStreams, indexExpressions).concreteIndicesAsArray();
+    }
+
+    /**
+     * Translates the provided index expression into actual concrete indices, properly deduplicated.
+     *
+     * @param state      the cluster state containing all the data to resolve to expressions to concrete indices
+     * @param startTime  The start of the request where concrete indices is being invoked for
+     * @param request    request containing expressions that can be resolved to alias, index, or data stream names.
+     * @return the resolved concrete indices based on the cluster state, indices options and index expressions. Any errors
+     * encountered during the resolution will be not thrown immediately as an exception, but only when you try
+     * to access the concrete indices from the ResolvedIndices.Local.Concrete object. You can use the method
+     * names() to access the names of the requested indices in a way that is safe from thrown exceptions due to
+     * resolution errors.
+     */
+    public ResolvedIndices.Local.Concrete concreteResolvedIndices(ClusterState state, IndicesRequest request, long startTime) {
+        Context context = new Context(
+            state,
+            request.indicesOptions(),
+            startTime,
+            false,
+            false,
+            request.includeDataStreams(),
+            false,
+            isSystemIndexAccessAllowed()
+        );
+        return concreteResolvedIndices(context, request.indices());
     }
 
     /**
@@ -242,34 +305,24 @@ public class IndexNameExpressionResolver {
      * indices options in the context don't allow such a case.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request, long startTime) {
-        Context context = new Context(
-            state,
-            request.indicesOptions(),
-            startTime,
-            false,
-            false,
-            request.includeDataStreams(),
-            false,
-            isSystemIndexAccessAllowed()
-        );
-        return concreteIndices(context, request.indices());
+        return concreteResolvedIndices(state, request, startTime).concreteIndicesAsArray();
     }
 
     String[] concreteIndexNames(Context context, String... indexExpressions) {
-        Index[] indexes = concreteIndices(context, indexExpressions);
-        String[] names = new String[indexes.length];
-        for (int i = 0; i < indexes.length; i++) {
-            names[i] = indexes[i].getName();
-        }
-        return names;
+        return concreteResolvedIndices(context, indexExpressions).namesOfConcreteIndicesAsArray();
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
+        return concreteResolvedIndices(context, indexExpressions).concreteIndicesAsArray();
+    }
+
+    ResolvedIndices.Local.Concrete concreteResolvedIndices(Context context, String... indexExpressions) {
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[] { Metadata.ALL };
         }
         Metadata metadata = context.getState().metadata();
         IndicesOptions options = context.getOptions();
+        context.resolutionErrors.clear();
         // If only one index is specified then whether we fail a request if an index is missing depends on the allow_no_indices
         // option. At some point we should change this, because there shouldn't be a reason why whether a single index
         // or multiple indices are specified yield different behaviour.
@@ -292,14 +345,18 @@ public class IndexNameExpressionResolver {
                     infe = new IndexNotFoundException((String) null);
                 }
                 infe.setResources("index_expression", indexExpressions);
-                throw infe;
+                return ResolvedIndices.Local.Concrete.empty()
+                    .withResolutionErrors(context.getResolutionErrors())
+                    .withResolutionErrors(infe);
             } else {
-                return Index.EMPTY_ARRAY;
+                return ResolvedIndices.Local.Concrete.empty().withResolutionErrors(context.getResolutionErrors());
             }
         }
 
         boolean excludedDataStreams = false;
         final Set<Index> concreteIndices = new HashSet<>(expressions.size());
+        Set<String> acceptedExpressions = new HashSet<>(expressions.size());
+
         for (String expression : expressions) {
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(expression);
             if (indexAbstraction == null) {
@@ -311,34 +368,38 @@ public class IndexNameExpressionResolver {
                         infe = new IndexNotFoundException(expression);
                     }
                     infe.setResources("index_expression", expression);
-                    throw infe;
-                } else {
-                    continue;
+                    context.addResolutionError(infe);
                 }
+                acceptedExpressions.add(expression);
+                continue;
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && context.getOptions().ignoreAliases()) {
                 if (failNoIndices) {
-                    throw aliasesNotSupportedException(expression);
-                } else {
-                    continue;
+                    context.addResolutionError(aliasesNotSupportedException(expression));
                 }
+                continue;
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.includeDataStreams() == false) {
                 excludedDataStreams = true;
                 continue;
             }
 
+            acceptedExpressions.add(expression);
+
             if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && context.isResolveToWriteIndex()) {
                 IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
                 if (writeIndex == null) {
-                    throw new IllegalArgumentException(
-                        "no write index is defined for alias ["
-                            + indexAbstraction.getName()
-                            + "]."
-                            + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
-                            + " indices without one being designated as a write index"
+                    context.addResolutionError(
+                        new IllegalArgumentException(
+                            "no write index is defined for alias ["
+                                + indexAbstraction.getName()
+                                + "]."
+                                + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
+                                + " indices without one being designated as a write index"
+                        )
                     );
-                }
-                if (addIndex(writeIndex, context)) {
-                    concreteIndices.add(writeIndex.getIndex());
+                } else {
+                    if (addIndex(writeIndex, context)) {
+                        concreteIndices.add(writeIndex.getIndex());
+                    }
                 }
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.isResolveToWriteIndex()) {
                 IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
@@ -352,19 +413,26 @@ public class IndexNameExpressionResolver {
                     for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
                         indexNames[i++] = indexMetadata.getIndex().getName();
                     }
-                    throw new IllegalArgumentException(
-                        indexAbstraction.getType().getDisplayName()
-                            + " ["
-                            + expression
-                            + "] has more than one index associated with it "
-                            + Arrays.toString(indexNames)
-                            + ", can't execute a single index op"
+                    context.addResolutionError(
+                        new IllegalArgumentException(
+                            indexAbstraction.getType().getDisplayName()
+                                + " ["
+                                + expression
+                                + "] has more than one index associated with it "
+                                + Arrays.toString(indexNames)
+                                + ", can't execute a single index op"
+                        )
                     );
+                    continue;
                 }
 
                 for (IndexMetadata index : indexAbstraction.getIndices()) {
-                    if (shouldTrackConcreteIndex(context, options, index)) {
-                        concreteIndices.add(index.getIndex());
+                    try {
+                        if (shouldTrackConcreteIndex(context, options, index)) {
+                            concreteIndices.add(index.getIndex());
+                        }
+                    } catch (IndexClosedException e) {
+                        context.addResolutionError(e);
                     }
                 }
             }
@@ -377,10 +445,10 @@ public class IndexNameExpressionResolver {
                 // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
                 infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
             }
-            throw infe;
+            context.addResolutionError(infe);
         }
         checkSystemIndexAccess(context, metadata, concreteIndices, indexExpressions);
-        return concreteIndices.toArray(new Index[0]);
+        return ResolvedIndices.Local.Concrete.of(concreteIndices, acceptedExpressions).withResolutionErrors(context.getResolutionErrors());
     }
 
     private void checkSystemIndexAccess(Context context, Metadata metadata, Set<Index> concreteIndices, String[] originalPatterns) {
@@ -549,6 +617,9 @@ public class IndexNameExpressionResolver {
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
+        if (!context.resolutionErrors.isEmpty()) {
+            throw context.resolutionErrors.getFirst();
+        }
         return Collections.unmodifiableSet(new HashSet<>(resolvedExpressions));
     }
 
@@ -642,6 +713,9 @@ public class IndexNameExpressionResolver {
         Context context = new Context(state, IndicesOptions.lenientExpandOpen(), false, false, true, isSystemIndexAccessAllowed());
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
+        }
+        if (!context.resolutionErrors.isEmpty()) {
+            throw context.resolutionErrors.getFirst();
         }
 
         // TODO: it appears that this can never be true?
@@ -816,6 +890,7 @@ public class IndexNameExpressionResolver {
         private final boolean includeDataStreams;
         private final boolean preserveDataStreams;
         private final boolean isSystemIndexAccessAllowed;
+        private final List<RuntimeException> resolutionErrors = new ArrayList<>();
 
         public Context(ClusterState state, IndicesOptions options, boolean isSystemIndexAccessAllowed) {
             this(state, options, System.currentTimeMillis(), isSystemIndexAccessAllowed);
@@ -929,6 +1004,36 @@ public class IndexNameExpressionResolver {
         public boolean isSystemIndexAccessAllowed() {
             return isSystemIndexAccessAllowed;
         }
+
+        /**
+         * Adds a new error encountered while resolving index resolution. If this method is used, index resolution
+         * will continue until it is completed. However, after completion The methods concreteIndices(),
+         * concreteIndexNames(), concreteWriteIndex(), etc. will howe will throw the first resolution error that was
+         * tracked with this method. The method concreteResolvedIndices() can be used to retrieve the resolution
+         * result without a thrown exception.
+         *
+         * @param resolutionError the encountered resolution error. Ideally this extends OpenSearchException.
+         */
+        public void addResolutionError(RuntimeException resolutionError) {
+            this.resolutionErrors.add(resolutionError);
+        }
+
+        /**
+         * Returns the currently encountered resolution errors.
+         * Note: This is on purpose package private. External resolvers should have no need to inspect the
+         * present resolution errors.
+         */
+        List<RuntimeException> getResolutionErrors() {
+            return this.resolutionErrors;
+        }
+
+        RuntimeException getFirstResolutionError() {
+            if (this.resolutionErrors.isEmpty()) {
+                return null;
+            } else {
+                return this.resolutionErrors.getFirst();
+            }
+        }
     }
 
     /**
@@ -996,11 +1101,6 @@ public class IndexNameExpressionResolver {
             if (result == null) {
                 return expressions;
             }
-            if (result.isEmpty() && !options.allowNoIndices()) {
-                IndexNotFoundException infe = new IndexNotFoundException((String) null);
-                infe.setResources("index_or_alias", expressions.toArray(new String[0]));
-                throw infe;
-            }
             return new ArrayList<>(result);
         }
 
@@ -1010,9 +1110,10 @@ public class IndexNameExpressionResolver {
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
                 if (Strings.isEmpty(expression)) {
-                    throw indexNotFoundException(expression);
+                    context.addResolutionError(indexNotFoundException(expression));
+                    continue;
                 }
-                validateAliasOrIndex(expression);
+                validateAliasOrIndex(context, expression);
                 if (aliasOrIndexExists(context, options, metadata, expression)) {
                     if (result != null) {
                         result.add(expression);
@@ -1031,16 +1132,26 @@ public class IndexNameExpressionResolver {
                     result = new HashSet<>(expressions.subList(0, i));
                 }
                 if (Regex.isSimpleMatchPattern(expression) == false) {
-                    // TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
+                    // The following code enforces the ignoreUnavailable rule for non-wildcard expressions.
+                    // This might seem to be non-intuitive, as we are in the class WildcardExpressionResolver which
+                    // should be responsible only for wildcard expressions. However - given the current architecture -
+                    // there is no good other place to perform this logic:
+                    // - We cannot perform it before the resolver chain, as we still might have expressions which we
+                    // just cannot understand. So, we have to wait for all other resolvers to complete.
+                    // - We cannot perform it efficiently after the resolver chain, as then the WildcardExpressionResolver
+                    // will have expanded wildcards to potentially many indices. If we did these checks then,
+                    // we would do many redundant checks, which would harm performance.
+                    // The only more or less sensible way out might be a new resolver between DateMathExpressioResolver
+                    // and WildcardExpressionResolver, which only checks the non-wildcard index names.
                     if (options.ignoreUnavailable() == false) {
                         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(expression);
                         if (indexAbstraction == null) {
-                            throw indexNotFoundException(expression);
+                            context.addResolutionError(indexNotFoundException(expression));
                         } else if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && options.ignoreAliases()) {
-                            throw aliasesNotSupportedException(expression);
+                            context.addResolutionError(aliasesNotSupportedException(expression));
                         } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
                             && context.includeDataStreams() == false) {
-                                throw indexNotFoundException(expression);
+                                context.addResolutionError(indexNotFoundException(expression));
                             }
                     }
                     if (add) {
@@ -1060,7 +1171,7 @@ public class IndexNameExpressionResolver {
                     result.removeAll(expand);
                 }
                 if (options.allowNoIndices() == false && matches.isEmpty()) {
-                    throw indexNotFoundException(expression);
+                    context.addResolutionError(indexNotFoundException(expression));
                 }
                 if (Regex.isSimpleMatchPattern(expression)) {
                     wildcardSeen = true;
@@ -1069,13 +1180,13 @@ public class IndexNameExpressionResolver {
             return result;
         }
 
-        private static void validateAliasOrIndex(String expression) {
+        private static void validateAliasOrIndex(Context context, String expression) {
             // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
             // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
             // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
             // if the expression can't be found.
             if (expression.charAt(0) == '_') {
-                throw new InvalidIndexNameException(expression, "must not start with '_'.");
+                context.addResolutionError(new InvalidIndexNameException(expression, "must not start with '_'."));
             }
         }
 

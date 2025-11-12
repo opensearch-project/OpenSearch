@@ -36,11 +36,11 @@ import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cloud.gce.GceInstancesService;
-import org.opensearch.cloud.gce.util.Access;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
@@ -159,7 +159,7 @@ public class GceDiscoverTests extends OpenSearchIntegTestCase {
             return new GceInstancesService() {
                 @Override
                 public Collection<Instance> instances() {
-                    return Access.doPrivileged(() -> {
+                    return AccessController.doPrivileged(() -> {
                         final List<Instance> instances = new ArrayList<>();
 
                         for (DiscoveryNode discoveryNode : nodes.values()) {

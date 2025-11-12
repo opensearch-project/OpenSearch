@@ -19,7 +19,7 @@ import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
  * This class provides methods to transform Protocol Buffer representations of term queries
  * into their corresponding OpenSearch TermQueryBuilder implementations for search operations.
  */
-public class TermQueryBuilderProtoUtils {
+class TermQueryBuilderProtoUtils {
 
     private TermQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -36,7 +36,7 @@ public class TermQueryBuilderProtoUtils {
      * @return A configured TermQueryBuilder instance
      * @throws IllegalArgumentException if the field value type is not supported, or if the term query field value is not recognized
      */
-    protected static TermQueryBuilder fromProto(TermQuery termQueryProto) {
+    static TermQueryBuilder fromProto(TermQuery termQueryProto) {
         String queryName = null;
         String fieldName = termQueryProto.getField();
         Object value = null;

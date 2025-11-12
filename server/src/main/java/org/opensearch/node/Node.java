@@ -161,6 +161,7 @@ import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.autoforcemerge.AutoForceMergeManager;
+import org.opensearch.index.autoforcemerge.AutoForceMergeMetrics;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
@@ -1208,7 +1209,14 @@ public class Node implements Closeable {
                 workloadGroupService
             );
 
-            this.autoForceMergeManager = new AutoForceMergeManager(threadPool, monitorService, indicesService, clusterService);
+            final AutoForceMergeMetrics autoForceMergeMetrics = new AutoForceMergeMetrics(metricsRegistry);
+            this.autoForceMergeManager = new AutoForceMergeManager(
+                threadPool,
+                monitorService,
+                indicesService,
+                clusterService,
+                autoForceMergeMetrics
+            );
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
                 .stream()
@@ -1587,6 +1595,11 @@ public class Node implements Closeable {
                 b.bind(PersistedClusterStateService.class).toInstance(lucenePersistedStateFactory);
                 b.bind(IndicesService.class).toInstance(indicesService);
                 b.bind(RemoteStoreStatsTrackerFactory.class).toInstance(remoteStoreStatsTrackerFactory);
+                if (fileCache != null) {
+                    b.bind(FileCache.class).toInstance(fileCache);
+                } else {
+                    b.bind(FileCache.class).toProvider(Providers.of(null));
+                }
                 b.bind(AliasValidator.class).toInstance(aliasValidator);
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                 b.bind(AwarenessReplicaBalance.class).toInstance(awarenessReplicaBalance);
@@ -1669,16 +1682,10 @@ public class Node implements Closeable {
                 b.bind(MergedSegmentWarmerFactory.class).toInstance(mergedSegmentWarmerFactory);
                 b.bind(MappingTransformerRegistry.class).toInstance(mappingTransformerRegistry);
                 b.bind(AutoForceMergeManager.class).toInstance(autoForceMergeManager);
-                if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)) {
-                    if (isRemoteDataAttributePresent(settings)) {
-                        b.bind(MergedSegmentPublisher.PublishAction.class)
-                            .to(RemoteStorePublishMergedSegmentAction.class)
-                            .asEagerSingleton();
-                    } else {
-                        b.bind(MergedSegmentPublisher.PublishAction.class).to(PublishMergedSegmentAction.class).asEagerSingleton();
-                    }
+                if (isRemoteDataAttributePresent(settings)) {
+                    b.bind(MergedSegmentPublisher.PublishAction.class).to(RemoteStorePublishMergedSegmentAction.class).asEagerSingleton();
                 } else {
-                    b.bind(MergedSegmentPublisher.PublishAction.class).toInstance((shard, checkpoint) -> {});
+                    b.bind(MergedSegmentPublisher.PublishAction.class).to(PublishMergedSegmentAction.class).asEagerSingleton();
                 }
                 b.bind(MergedSegmentPublisher.class).asEagerSingleton();
 

@@ -277,13 +277,13 @@ public class Segment implements Writeable {
         out.writeVInt(sort.getSort().length);
         for (SortField field : sort.getSort()) {
             out.writeString(field.getField());
-            if (field instanceof SortedSetSortField) {
+            if (field instanceof SortedSetSortField sortedSetSortField) {
                 out.writeByte((byte) 0);
                 out.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
-                out.writeBoolean(((SortedSetSortField) field).getSelector() == SortedSetSelector.Type.MAX);
+                out.writeBoolean(sortedSetSortField.getSelector() == SortedSetSelector.Type.MAX);
                 out.writeBoolean(field.getReverse());
-            } else if (field instanceof SortedNumericSortField) {
-                switch (((SortedNumericSortField) field).getNumericType()) {
+            } else if (field instanceof SortedNumericSortField sortedNumericSortField) {
+                switch (sortedNumericSortField.getNumericType()) {
                     case INT:
                         out.writeByte((byte) 1);
                         break;
@@ -300,7 +300,7 @@ public class Segment implements Writeable {
                         throw new IOException("invalid index sort field:" + field);
                 }
                 out.writeGenericValue(field.getMissingValue());
-                out.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);
+                out.writeBoolean(sortedNumericSortField.getSelector() == SortedNumericSelector.Type.MAX);
                 out.writeBoolean(field.getReverse());
             } else {
                 throw new IOException("invalid index sort field:" + field);

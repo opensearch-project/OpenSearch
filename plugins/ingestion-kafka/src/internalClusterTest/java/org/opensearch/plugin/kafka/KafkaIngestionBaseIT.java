@@ -222,4 +222,17 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
             .setSettings(Settings.builder().put("index.blocks.write", isWriteBlockEnabled))
             .get();
     }
+
+    /**
+     * Gets the periodic flush count for the specified index from the specified node.
+     *
+     * @param nodeName the name of the node to query
+     * @param indexName the name of the index
+     * @return the periodic flush count
+     */
+    protected long getPeriodicFlushCount(String nodeName, String indexName) {
+        return client(nodeName).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0].getStats()
+            .getFlush()
+            .getPeriodic();
+    }
 }

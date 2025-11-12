@@ -9,6 +9,7 @@
 package org.opensearch.bootstrap;
 
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -35,16 +36,21 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        if (Arrays.stream(Security.getProviders()).noneMatch(provider -> SUN_JCE.equals(provider.getName()))) {
-            var sunJceClass = Class.forName("com.sun.crypto.provider.SunJCE");
-            var originalSunProvider = (Provider) sunJceClass.getConstructor().newInstance();
-            Security.addProvider(originalSunProvider);
+        addSunJceProvider();
+    }
+
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        if (!inFipsJvm()) {
+            addSunJceProvider();
         }
+        super.tearDown();
     }
 
     @AfterClass
     // restore the same state as before running the tests.
-    public static void removeSunJCE() {
+    public static void afterClass() throws Exception {
         if (inFipsJvm()) {
             SecurityProviderManager.removeNonCompliantFipsProviders();
         }
@@ -144,6 +150,14 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
         assertTrue(SUN_JCE + " is installed", SecurityProviderManager.getPosition(SUN_JCE) > 0);
         SecurityProviderManager.removeNonCompliantFipsProviders();
         assertTrue(SUN_JCE + " is uninstalled", SecurityProviderManager.getPosition(SUN_JCE) < 0);
+    }
+
+    private static void addSunJceProvider() throws Exception {
+        if (Arrays.stream(Security.getProviders()).noneMatch(provider -> SUN_JCE.equals(provider.getName()))) {
+            var sunJceClass = Class.forName("com.sun.crypto.provider.SunJCE");
+            var originalSunProvider = (Provider) sunJceClass.getConstructor().newInstance();
+            Security.addProvider(originalSunProvider);
+        }
     }
 
 }

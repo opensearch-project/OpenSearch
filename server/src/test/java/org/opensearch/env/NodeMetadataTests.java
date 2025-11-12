@@ -39,6 +39,7 @@ import org.opensearch.test.VersionUtils;
 
 import java.nio.file.Path;
 
+import static org.opensearch.Version.MASK;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -118,6 +119,6 @@ public class NodeMetadataTests extends OpenSearchTestCase {
     }
 
     public static Version tooOldVersion() {
-        return Version.fromId(between(1, Version.CURRENT.minimumIndexCompatibilityVersion().id - 1));
+        return Version.fromId(between(MASK, Version.CURRENT.minimumIndexCompatibilityVersion().id - 1));
     }
 }

@@ -568,7 +568,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
         PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
             .getPollingIngestStats();
-        assertThat(stats.getConsumerStats().totalDuplicateMessageSkippedCount(), is(0L));
+        assertThat(stats.getConsumerStats().totalPolledCount(), is(3L));
+        assertThat(stats.getConsumerStats().totalPollerMessageFailureCount(), is(0L));
     }
 
     public void testConsumerResetByTimestamp() throws Exception {
@@ -625,10 +626,12 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         resumeResponse = resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.TIMESTAMP, "102");
         assertTrue(resumeResponse.isAcknowledged());
         assertTrue(resumeResponse.isShardsAcknowledged());
+
+        waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
         waitForState(() -> {
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
-            return stats.getConsumerStats().totalDuplicateMessageSkippedCount() == 3;
+            return stats.getConsumerStats().totalPolledCount() == 3;
         });
     }
 
@@ -694,10 +697,10 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
         assertHitCount(client().prepareSearch(indexName).get(), 4);
 
-        // after index is restored, it should only poll remaining 2 messages
+        // after index is restored, it should resume ingestion from batchStartPointer available in the latest commit
         PollingIngestStats stats2 = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
             .getPollingIngestStats();
-        assertEquals(2, stats2.getConsumerStats().totalPolledCount());
+        assertEquals(3, stats2.getConsumerStats().totalPolledCount());
         assertEquals(0, stats2.getMessageProcessorStats().totalVersionConflictsCount());
     }
 
@@ -809,5 +812,101 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         GetSettingsResponse settingsResponse = client(node).admin().indices().prepareGetSettings(indexName).get();
         String remoteStoreEnabled = settingsResponse.getIndexToSettings().get(indexName).get("index.remote_store.enabled");
         assertEquals("Remote store should be enabled", "true", remoteStoreEnabled);
+    }
+
+    public void testBatchStartPointerOnReplicaPromotion() throws Exception {
+        // Step 1: Publish 10 messages
+        for (int i = 1; i <= 10; i++) {
+            produceDataWithExternalVersion(String.valueOf(i), 1, "name" + i, "25", defaultMessageTimestamp, "index");
+        }
+
+        // Step 2: Start nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Step 3: Create index with 1 replica
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureYellowAndNoInitializingShards(indexName);
+
+        // Step 4: Add second node and verify green status
+        final String nodeB = internalCluster().startDataOnlyNode();
+        ensureGreen(indexName);
+
+        // Step 5: Verify nodeA has the primary shard
+        assertTrue(nodeA.equals(primaryNodeName(indexName)));
+        assertTrue(nodeB.equals(replicaNodeName(indexName)));
+        verifyRemoteStoreEnabled(nodeA);
+        verifyRemoteStoreEnabled(nodeB);
+
+        // Step 6: Wait for 10 messages to be searchable on both nodes
+        waitForSearchableDocs(10, Arrays.asList(nodeA, nodeB));
+
+        // Step 7: Flush to persist data
+        flush(indexName);
+
+        // Step 8: Bring down nodeA (primary) and wait for nodeB to become primary
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+        ensureYellowAndNoInitializingShards(indexName);
+        assertTrue(nodeB.equals(primaryNodeName(indexName)));
+
+        // Step 9: Publish 1 new message
+        produceDataWithExternalVersion("11", 1, "name11", "25", defaultMessageTimestamp, "index");
+
+        // Step 10: Wait for 11 messages to be visible on nodeB
+        waitForSearchableDocs(11, Arrays.asList(nodeB));
+
+        // Step 11: Validate version conflict count is exactly 1
+        PollingIngestStats finalStats = client(nodeB).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(finalStats);
+
+        assertEquals(1L, finalStats.getMessageProcessorStats().totalVersionConflictsCount());
+        assertEquals(2L, finalStats.getMessageProcessorStats().totalProcessedCount());
+    }
+
+    public void testPeriodicFlush() throws Exception {
+        // Publish 10 messages
+        for (int i = 1; i <= 10; i++) {
+            produceData(String.valueOf(i), "name" + i, "25");
+        }
+
+        // Start nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Create index with 5 second periodic flush interval
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("index.periodic_flush_interval", "5s")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+        verifyRemoteStoreEnabled(nodeA);
+
+        waitForSearchableDocs(10, Arrays.asList(nodeA));
+        waitForState(() -> getPeriodicFlushCount(nodeA, indexName) >= 1);
     }
 }

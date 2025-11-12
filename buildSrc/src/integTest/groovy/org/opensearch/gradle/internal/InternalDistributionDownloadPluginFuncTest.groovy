@@ -29,6 +29,7 @@
 
 package org.opensearch.gradle.internal
 
+import org.opensearch.gradle.Architecture
 import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.GradleRunner
@@ -59,7 +60,8 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
     def "resolves current version from local build"() {
         given:
         internalBuild()
-        localDistroSetup()
+        def archive = archiveTask()
+        localDistroSetup(archive)
         def distroVersion = VersionProperties.getOpenSearch()
         buildFile << """
             apply plugin: 'opensearch.internal-distribution-download'
@@ -82,7 +84,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
 
         then:
-        result.task(":distribution:archives:linux-tar:buildExpanded").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:archives:${archive}:buildExpanded").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
         assertExtractedDistroIsCreated("build/distro", 'current-marker.txt')
     }
@@ -122,6 +124,8 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         internalBuild()
         bwcMinorProjectSetup()
         buildFile << """
+            import org.opensearch.gradle.JavaPackageType
+
             apply plugin: 'opensearch.internal-distribution-download'
 
             opensearch_distributions {
@@ -130,7 +134,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                   type = "archive"
                   platform = "linux"
                   architecture = Architecture.current();
-                  bundledJdk = false
+                  bundledJdk = JavaPackageType.NONE
               }
             }
             tasks.register("createExtractedTestDistro") {
@@ -148,30 +152,31 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         settingsFile << """
         include ':distribution:bwc:minor'
         """
+        def archive = archiveTask()
         def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "bwc", "minor")
         new File(bwcSubProjectFolder, 'bwc-marker.txt') << "bwc=minor"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             apply plugin:'base'
 
             // packed distro
-            configurations.create("linux-tar")
+            configurations.create("${archive}")
             tasks.register("buildBwcTask", Tar) {
                 from('bwc-marker.txt')
                 archiveExtension = "tar.gz"
                 compression = Compression.GZIP
             }
             artifacts {
-                it.add("linux-tar", buildBwcTask)
+                it.add("${archive}", buildBwcTask)
             }
 
             // expanded distro
-            configurations.create("expanded-linux-tar")
+            configurations.create("expanded-${archive}")
             def expandedTask = tasks.register("buildBwcExpandedTask", Copy) {
                 from('bwc-marker.txt')
                 into('build/install/opensearch-distro')
             }
             artifacts {
-                it.add("expanded-linux-tar", file('build/install')) {
+                it.add("expanded-${archive}", file('build/install')) {
                     builtBy expandedTask
                     type = 'directory'
                 }
@@ -179,11 +184,15 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         """
     }
 
-    private void localDistroSetup() {
+    private String archiveTask() {
+        return Architecture.current() == Architecture.X64 ? "linux-tar" : "linux-${Architecture.current().name().toLowerCase()}-tar"; 
+    }
+
+    private void localDistroSetup(def archive) {
         settingsFile << """
-        include ":distribution:archives:linux-tar"
+        include ":distribution:archives:${archive}"
         """
-        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", "linux-tar")
+        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", "${archive}")
         new File(bwcSubProjectFolder, 'current-marker.txt') << "current"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             import org.gradle.api.internal.artifacts.ArtifactAttributes;

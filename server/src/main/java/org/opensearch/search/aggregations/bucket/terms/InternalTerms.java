@@ -106,9 +106,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
         long bucketOrd;
 
-        protected long docCount;
+        long docCount;
         protected long docCountError;
-        protected InternalAggregations aggregations;
+        InternalAggregations aggregations;
         protected final boolean showDocCountError;
         protected final DocValueFormat format;
 

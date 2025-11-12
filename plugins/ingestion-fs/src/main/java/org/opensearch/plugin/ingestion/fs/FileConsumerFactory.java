@@ -8,9 +8,8 @@
 
 package org.opensearch.plugin.ingestion.fs;
 
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
-
-import java.util.Map;
 
 /**
  * Factory for creating file-based ingestion consumers.
@@ -25,8 +24,8 @@ public class FileConsumerFactory implements IngestionConsumerFactory<FilePartiti
     public FileConsumerFactory() {}
 
     @Override
-    public void initialize(Map<String, Object> params) {
-        this.config = new FileSourceConfig(params);
+    public void initialize(IngestionSource ingestionSource) {
+        this.config = new FileSourceConfig(ingestionSource.params());
     }
 
     @Override

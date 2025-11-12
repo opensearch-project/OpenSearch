@@ -264,6 +264,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
                 if (node.evictable()) {
                     // if it becomes evictable, we should add it to eviction list
                     lru.put(node.key, node);
+                    evict(); // If cache usage is already overflowing trigger evictions
                 }
 
                 if (node.refCount == 0) {

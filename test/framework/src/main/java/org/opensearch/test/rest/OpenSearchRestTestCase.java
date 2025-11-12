@@ -722,30 +722,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         client().performRequest(refreshRequest);
     }
 
-    private static void deleteAllSLMPolicies() throws IOException {
-        Map<String, Object> policies;
-
-        try {
-            Response response = adminClient().performRequest(new Request("GET", "/_slm/policy"));
-            policies = entityAsMap(response);
-        } catch (ResponseException e) {
-            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()
-                || RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
-                // If bad request returned, SLM is not enabled.
-                return;
-            }
-            throw e;
-        }
-
-        if (policies == null || policies.isEmpty()) {
-            return;
-        }
-
-        for (String policyName : policies.keySet()) {
-            adminClient().performRequest(new Request("DELETE", "/_slm/policy/" + policyName));
-        }
-    }
-
     /**
      * Logs a message if there are still running tasks. The reasoning is that any tasks still running are state the is trying to bleed into
      * other tests.

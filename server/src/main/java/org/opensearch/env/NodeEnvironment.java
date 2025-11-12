@@ -677,18 +677,6 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
-    private void deleteIndexFileCacheDirectory(Index index) {
-        final Path indexCachePath = fileCacheNodePath().fileCachePath.resolve(index.getUUID());
-        logger.trace("deleting index {} file cache directory, path: [{}]", index, indexCachePath);
-        if (Files.exists(indexCachePath)) {
-            try {
-                IOUtils.rm(indexCachePath);
-            } catch (IOException e) {
-                logger.error(() -> new ParameterizedMessage("Failed to delete cache path for index {}", index), e);
-            }
-        }
-    }
-
     /**
      * Tries to lock all local shards for the given index. If any of the shard locks can't be acquired
      * a {@link ShardLockObtainFailedException} is thrown and all previously acquired locks are released.

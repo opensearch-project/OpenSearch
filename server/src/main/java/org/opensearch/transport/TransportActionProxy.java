@@ -216,8 +216,8 @@ public final class TransportActionProxy {
      * Unwraps a proxy request and returns the original request
      */
     public static TransportRequest unwrapRequest(TransportRequest request) {
-        if (request instanceof ProxyRequest) {
-            return ((ProxyRequest) request).wrapped;
+        if (request instanceof ProxyRequest proxyRequest) {
+            return proxyRequest.wrapped;
         }
         return request;
     }

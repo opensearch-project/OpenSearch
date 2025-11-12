@@ -13,6 +13,8 @@ import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.BeforeClass;
 
+import java.util.HashMap;
+
 import static org.opensearch.rule.autotagging.AutoTaggingRegistry.MAX_FEATURE_TYPE_NAME_LENGTH;
 import static org.opensearch.rule.autotagging.RuleTests.INVALID_FEATURE;
 import static org.opensearch.rule.utils.RuleTestUtils.FEATURE_TYPE_NAME;
@@ -38,10 +40,22 @@ public class AutoTaggingRegistryTests extends OpenSearchTestCase {
 
     public void testIllegalStateExceptionException() {
         assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(null));
+
         FeatureType featureType = mock(FeatureType.class);
         when(featureType.getName()).thenReturn(FEATURE_TYPE_NAME);
+        when(featureType.getOrderedAttributes()).thenReturn(null);
+        when(featureType.getFeatureValueValidator()).thenReturn(new FeatureValueValidator() {
+            @Override
+            public void validate(String featureValue) {}
+        });
         assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(featureType));
+
         when(featureType.getName()).thenReturn(randomAlphaOfLength(MAX_FEATURE_TYPE_NAME_LENGTH + 1));
+        assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(featureType));
+
+        when(featureType.getName()).thenReturn(FEATURE_TYPE_NAME);
+        when(featureType.getOrderedAttributes()).thenReturn(new HashMap<>());
+        when(featureType.getFeatureValueValidator()).thenReturn(null);
         assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(featureType));
     }
 }

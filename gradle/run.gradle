@@ -28,6 +28,7 @@
  * under the License.
  */
 import org.opensearch.gradle.testclusters.RunTask
+import org.opensearch.gradle.VersionProperties
 
 apply plugin: 'opensearch.testclusters'
 
@@ -41,8 +42,45 @@ testClusters {
     if (numNodes > 1) numberOfNodes = numNodes
     if (findProperty("installedPlugins")) {
       installedPlugins = Eval.me(installedPlugins)
+
+      def resolveMavenPlugin = { coords ->
+        // Add default groupId if not fully qualified (less than 2 colons)
+        String[] parts = coords.split(':')
+        if (parts.length == 2 && parts[0].contains('.')) {
+          throw new IllegalArgumentException("version is required if groupdId is specified '${coords}' Use format: groupId:artifactId:version")
+        }
+        String fullCoords = parts.length < 3 ? 'org.opensearch.plugin:' + coords : coords
+        def config = project.configurations.detachedConfiguration(
+          project.dependencies.create(fullCoords)
+        )
+        config.resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+        plugin(project.layout.file(project.provider { config.singleFile }))
+      }
+
       for (String p : installedPlugins) {
-        plugin('plugins:'.concat(p))
+        // check if its a local plugin first
+        if (project.findProject(':plugins:' + p) != null) {
+          plugin('plugins:' + p)
+        } else {
+          // attempt to fetch it from maven
+          project.repositories.mavenLocal()
+          project.repositories {
+            maven {
+              name = 'OpenSearch Snapshots'
+              url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+            }
+          }
+          if (p.contains(':')) {
+            // Maven coordinates with version specified
+            String coords = p.contains('@') ? p : (p + '@zip')
+            resolveMavenPlugin(coords)
+          } else {
+            // Not found locally, try Maven with current OS version + 0
+            String version = VersionProperties.getOpenSearch().replace('-SNAPSHOT', '.0-SNAPSHOT')
+            String coords = p + ':' + version + '@zip'
+            resolveMavenPlugin(coords)
+          }
+        }
         if (p.equals("arrow-flight-rpc")) {
           // Add system properties for Netty configuration
           systemProperty 'io.netty.allocator.numDirectArenas', '1'

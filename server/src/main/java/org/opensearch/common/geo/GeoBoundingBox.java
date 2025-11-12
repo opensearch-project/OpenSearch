@@ -47,6 +47,7 @@ import org.opensearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -213,12 +214,12 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
                         Geometry geometry = WKT_PARSER.fromWKT(parser.text());
                         if (ShapeType.ENVELOPE.equals(geometry.type()) == false) {
                             throw new OpenSearchParseException(
-                                "failed to parse WKT bounding box. [" + geometry.type() + "] found. expected [" + ShapeType.ENVELOPE + "]"
+                                String.format(Locale.ROOT, GeoUtils.WKT_BOUNDING_BOX_TYPE_ERROR, geometry.type(), ShapeType.ENVELOPE)
                             );
                         }
                         envelope = (Rectangle) geometry;
                     } catch (ParseException | IllegalArgumentException e) {
-                        throw new OpenSearchParseException("failed to parse WKT bounding box", e);
+                        throw new OpenSearchParseException(GeoUtils.WKT_BOUNDING_BOX_PARSE_ERROR, e);
                     }
                 } else if (TOP_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     top = parser.doubleValue();

@@ -39,9 +39,7 @@ public class ProtoActionsProtoUtils {
 
         QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(request.getQ());
         queryBuilder.defaultField(request.hasDf() ? request.getDf() : null);
-        queryBuilder.analyzer(request.hasAnalyzer() ? request.getAnalyzer() : null);
         queryBuilder.analyzeWildcard(request.hasAnalyzeWildcard() ? request.getAnalyzeWildcard() : false);
-        queryBuilder.lenient(request.hasLenient() ? request.getLenient() : null);
         if (request.hasDefaultOperator()) {
             queryBuilder.defaultOperator(OperatorProtoUtils.fromEnum(request.getDefaultOperator()));
         }

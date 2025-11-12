@@ -60,6 +60,7 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
@@ -75,6 +76,7 @@ import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfoTests;
 import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.junit.Assert;
@@ -96,7 +98,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.opensearch.common.util.FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG;
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -155,10 +156,23 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    @TestLogging(reason = "Getting trace logs from MergedSegmentWarmer", value = "org.opensearch.index.engine.MergedSegmentWarmer:TRACE")
     public void testMergedSegmentReplication() throws Exception {
         // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 1 replica shard.
-        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
+        final RecoverySettings recoverySettings = new RecoverySettings(
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (
+            ReplicationGroup shards = createGroup(
+                1,
+                getIndexSettings(),
+                indexMapping,
+                new NRTReplicationEngineFactory(),
+                recoverySettings,
+                MergedSegmentPublisher.EMPTY
+            )
+        ) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
             final IndexShard replicaShard = shards.getReplicas().get(0);
@@ -185,10 +199,67 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    public void testMergedSegmentReplicationWithException() throws Exception {
+        // Test that the pre-copy merged segment exception will not cause primary shard to fail
+        MergedSegmentPublisher mergedSegmentPublisherWithException = new MergedSegmentPublisher((indexShard, checkpoint) -> {
+            throw new RuntimeException("mock exception");
+        });
+        final RecoverySettings recoverySettings = new RecoverySettings(
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (
+            ReplicationGroup shards = createGroup(
+                1,
+                getIndexSettings(),
+                indexMapping,
+                new NRTReplicationEngineFactory(),
+                recoverySettings,
+                mergedSegmentPublisherWithException
+            )
+        ) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+
+            // index and replicate segments to replica.
+            int numDocs = randomIntBetween(10, 20);
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+            replicateSegments(primaryShard, List.of(replicaShard));
+            shards.assertAllEqual(2 * numDocs);
+
+            primaryShard.forceMerge(new ForceMergeRequest("test").maxNumSegments(1));
+            replicateMergedSegments(primaryShard, List.of(replicaShard));
+            primaryShard.refresh("test");
+            assertEquals(1, primaryShard.segments(false).size());
+            // After the pre-copy merged segment is completed, the merged segment is not visible in the replica, and the number of segments
+            // in the replica shard is still 2.
+            assertEquals(2, replicaShard.segments(false).size());
+        }
+    }
+
     public void testMergedSegmentReplicationWithZeroReplica() throws Exception {
         // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 0 replica shard.
-        try (ReplicationGroup shards = createGroup(0, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
+        final RecoverySettings recoverySettings = new RecoverySettings(
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (
+            ReplicationGroup shards = createGroup(
+                0,
+                getIndexSettings(),
+                indexMapping,
+                new NRTReplicationEngineFactory(),
+                recoverySettings,
+                MergedSegmentPublisher.EMPTY
+            )
+        ) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
 
@@ -208,9 +279,21 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     public void testCleanupRedundantPendingMergeSegment() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
+        final RecoverySettings recoverySettings = new RecoverySettings(
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (
+            ReplicationGroup shards = createGroup(
+                1,
+                getIndexSettings(),
+                indexMapping,
+                new NRTReplicationEngineFactory(),
+                recoverySettings,
+                MergedSegmentPublisher.EMPTY
+            )
+        ) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
             final IndexShard replicaShard = shards.getReplicas().get(0);

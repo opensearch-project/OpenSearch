@@ -185,8 +185,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public void topDocs(TopDocsAndMaxScore topDocs, DocValueFormat[] sortValueFormats) {
         setTopDocs(topDocs);
-        if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
-            int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
+        if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc fieldDoc) {
+            int numFields = fieldDoc.fields.length;
             if (numFields != sortValueFormats.length) {
                 throw new IllegalArgumentException(
                     "The number of sort fields does not match: " + numFields + " != " + sortValueFormats.length

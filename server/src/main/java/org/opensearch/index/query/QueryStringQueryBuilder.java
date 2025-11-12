@@ -972,8 +972,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
         // save the BoostQuery wrapped structure if present
         List<Float> boosts = new ArrayList<>();
-        while (query instanceof BoostQuery) {
-            BoostQuery boostQuery = (BoostQuery) query;
+        while (query instanceof BoostQuery boostQuery) {
             boosts.add(boostQuery.getBoost());
             query = boostQuery.getQuery();
         }

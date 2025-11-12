@@ -135,6 +135,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     private static SortBuilder<?> fieldOrScoreSort(String fieldName) {
         if (fieldName.equals(ScoreSortBuilder.NAME)) {
             return new ScoreSortBuilder();
+        } else if (fieldName.equals(ShardDocSortBuilder.NAME)) { // ShardDocSortBuilder is a special "field" sort
+            return new ShardDocSortBuilder();
         } else {
             return new FieldSortBuilder(fieldName);
         }

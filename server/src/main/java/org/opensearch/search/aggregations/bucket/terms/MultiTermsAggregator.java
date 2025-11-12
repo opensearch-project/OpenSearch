@@ -23,8 +23,13 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -33,12 +38,17 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -50,32 +60,38 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 import static org.opensearch.search.aggregations.bucket.terms.TermsAggregator.descendsFromNestedAggregator;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * An aggregator that aggregate with multi_terms.
  *
  * @opensearch.internal
  */
-public class MultiTermsAggregator extends DeferableBucketAggregator {
+public class MultiTermsAggregator extends DeferableBucketAggregator implements StarTreePreComputeCollector {
 
     private final BytesKeyedBucketOrds bucketOrds;
     private final MultiTermsValuesSource multiTermsValue;
     private final boolean showTermDocCountError;
     private final List<DocValueFormat> formats;
+    private final List<String> fields;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final BucketOrder order;
     private final Comparator<InternalMultiTerms.Bucket> partiallyBuiltBucketComparator;
     private final SubAggCollectionMode collectMode;
     private final Set<Aggregator> aggsUsedForSorting = new HashSet<>();
+    private final BytesStreamOutput starTreeScratch = new BytesStreamOutput();
 
     public MultiTermsAggregator(
         String name,
         AggregatorFactories factories,
         boolean showTermDocCountError,
+        List<ValuesSource> rawValuesSources,
         List<InternalValuesSource> internalValuesSources,
+        List<String> fields,
         List<DocValueFormat> formats,
         BucketOrder order,
         SubAggCollectionMode collectMode,
@@ -87,7 +103,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
     ) throws IOException {
         super(name, factories, context, parent, metadata);
         this.bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
-        this.multiTermsValue = new MultiTermsValuesSource(internalValuesSources);
+        this.multiTermsValue = new MultiTermsValuesSource(rawValuesSources, internalValuesSources);
         this.showTermDocCountError = showTermDocCountError;
         this.formats = formats;
         this.bucketCountThresholds = bucketCountThresholds;
@@ -104,12 +120,12 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
         } else {
             this.collectMode = collectMode;
         }
+        this.fields = fields;
         // Don't defer any child agg if we are dependent on it for pruning results
         if (order instanceof InternalOrder.Aggregation) {
             AggregationPath path = ((InternalOrder.Aggregation) order).path();
             aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
-        } else if (order instanceof InternalOrder.CompoundOrder) {
-            InternalOrder.CompoundOrder compoundOrder = (InternalOrder.CompoundOrder) order;
+        } else if (order instanceof InternalOrder.CompoundOrder compoundOrder) {
             for (BucketOrder orderElement : compoundOrder.orderElements()) {
                 if (orderElement instanceof InternalOrder.Aggregation) {
                     AggregationPath path = ((InternalOrder.Aggregation) orderElement).path();
@@ -224,6 +240,142 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
                 collector.apply(doc, owningBucketOrd);
             }
         };
+    }
+
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
+        if (supportedStarTree != null) {
+            preComputeWithStarTree(ctx, supportedStarTree);
+            return true;
+        }
+        return false;
+    }
+
+    private void preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
+        StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+    }
+
+    /**
+     * Creates a {@link StarTreeBucketCollector} for pre-aggregating with a star-tree index.
+     * This collector generates the cartesian product of dimension values within a single star-tree entry
+     * to form the composite keys for the multi-terms aggregation.
+     */
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parent
+    ) throws IOException {
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        assert starTreeValues != null;
+        SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
+
+        // Get an iterator for each field (dimension) in the multi-terms aggregation.
+        final List<StarTreeValuesIterator> dimensionIterators = new ArrayList<>();
+        // We also need a way to convert the raw long values from the iterators into the correct TermValue type.
+        final List<Function<Long, TermValue<?>>> termValueBuilders = new ArrayList<>();
+
+        for (int i = 0; i < fields.size(); i++) {
+            String fieldName = fields.get(i);
+            dimensionIterators.add(starTreeValues.getDimensionValuesIterator(fieldName));
+            ValuesSource vs = multiTermsValue.rawValueSources.get(i);
+
+            if (vs instanceof ValuesSource.Bytes.WithOrdinals vsBytes) {
+                termValueBuilders.add(ord -> {
+                    try {
+                        return TermValue.of(vsBytes.globalOrdinalsValues(ctx).lookupOrd(ord));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                });
+            } else if (vs instanceof ValuesSource.Numeric numericSource) {
+                if (numericSource.isFloatingPoint()) {
+                    NumberFieldMapper.NumberFieldType numberFieldType = ((NumberFieldMapper.NumberFieldType) context.mapperService()
+                        .fieldType(fieldName));
+                    termValueBuilders.add(val -> TermValue.of(numberFieldType.toDoubleValue(val)));
+                } else {
+                    termValueBuilders.add(TermValue::of);
+                }
+            } else {
+                throw new IllegalStateException("Unsupported ValuesSource type for star-tree: " + vs.getClass().getName());
+            }
+
+        }
+
+        return new StarTreeBucketCollector(
+            starTreeValues,
+            parent == null ? StarTreeQueryHelper.getStarTreeResult(starTreeValues, context, getDimensionFilters()) : null
+        ) {
+            @Override
+            public void setSubCollectors() throws IOException {
+                for (Aggregator aggregator : subAggregators) {
+                    this.subCollectors.add(
+                        ((StarTreePreComputeCollector) aggregator.unwrapAggregator()).getStarTreeBucketCollector(ctx, starTree, this)
+                    );
+                }
+            }
+
+            @Override
+            public void collectStarTreeEntry(int starTreeEntry, long owningBucketOrd) throws IOException {
+                if (docCountsIterator.advanceExact(starTreeEntry) == false) {
+                    return; // No documents in this star-tree entry.
+                }
+                long docCountMetric = docCountsIterator.nextValue();
+
+                List<List<TermValue<?>>> collectedValues = new ArrayList<>();
+                for (int i = 0; i < dimensionIterators.size(); i++) {
+                    StarTreeValuesIterator dimIterator = dimensionIterators.get(i);
+                    if (!dimIterator.advanceExact(starTreeEntry)) {
+                        // If any dimension is missing for this entry, the cartesian product is empty.
+                        return;
+                    }
+
+                    List<TermValue<?>> valuesForDim = new ArrayList<>();
+                    Function<Long, TermValue<?>> builder = termValueBuilders.get(i);
+                    for (int j = 0; j < dimIterator.entryValueCount(); j++) {
+                        valuesForDim.add(builder.apply(dimIterator.value()));
+                    }
+                    collectedValues.add(valuesForDim);
+                }
+
+                starTreeScratch.seek(0);
+                starTreeScratch.writeVInt(dimensionIterators.size());
+                generateAndCollectFromStarTree(collectedValues, 0, owningBucketOrd, starTreeEntry, docCountMetric);
+            }
+
+            private void generateAndCollectFromStarTree(
+                List<List<TermValue<?>>> collectedValues,
+                int index,
+                long owningBucketOrd,
+                int starTreeEntry,
+                long docCountMetric
+            ) throws IOException {
+                if (index == collectedValues.size()) {
+                    // A full composite key is in the buffer, add it to bucketOrds.
+                    long bucketOrd = bucketOrds.add(owningBucketOrd, starTreeScratch.bytes().toBytesRef());
+                    collectStarTreeBucket(this, docCountMetric, bucketOrd, starTreeEntry);
+                    return;
+                }
+
+                long position = starTreeScratch.position();
+                List<TermValue<?>> values = collectedValues.get(index);
+                for (TermValue<?> value : values) {
+                    value.writeTo(starTreeScratch);
+                    generateAndCollectFromStarTree(collectedValues, index + 1, owningBucketOrd, starTreeEntry, docCountMetric);
+                    starTreeScratch.seek(position);
+                }
+            }
+        };
+    }
+
+    @Override
+    public List<DimensionFilter> getDimensionFilters() {
+        return StarTreeQueryHelper.collectDimensionFilters(
+            fields.stream().map(a -> (DimensionFilter) new MatchAllFilter(a)).toList(),
+            subAggregators
+        );
     }
 
     @Override
@@ -347,10 +499,12 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
      * @opensearch.internal
      */
     static class MultiTermsValuesSource implements Releasable {
+        private final List<ValuesSource> rawValueSources;
         private final List<InternalValuesSource> valuesSources;
         private final BytesStreamOutput scratch = new BytesStreamOutput();
 
-        public MultiTermsValuesSource(List<InternalValuesSource> valuesSources) {
+        public MultiTermsValuesSource(List<ValuesSource> rawValueSources, List<InternalValuesSource> valuesSources) {
+            this.rawValueSources = rawValueSources;
             this.valuesSources = valuesSources;
         }
 
@@ -416,8 +570,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
                     int numIterations = values.size();
                     // For each loop is not done to reduce the allocations done for Iterator objects
                     // once for every field in every doc.
-                    for (int i = 0; i < numIterations; i++) {
-                        TermValue<?> value = values.get(i);
+                    for (TermValue<?> value : values) {
                         value.writeTo(scratch); // encode the value
                         generateAndCollectCompositeKeys(collectedValues, index + 1, owningBucketOrd, doc); // dfs
                         scratch.seek(position); // backtrack

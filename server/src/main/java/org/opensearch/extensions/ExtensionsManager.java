@@ -392,13 +392,13 @@ public class ExtensionsManager {
             public void onFailure(Exception e) {
                 logger.warn("Error registering extension: " + extensionNode.getId(), e);
                 extensionIdMap.remove(extensionNode.getId());
-                if (e.getCause() instanceof ConnectTransportException) {
+                if (e.getCause() instanceof ConnectTransportException connectTransportException) {
                     logger.info("No response from extension to request.", e);
-                    throw (ConnectTransportException) e.getCause();
-                } else if (e.getCause() instanceof RuntimeException) {
-                    throw (RuntimeException) e.getCause();
-                } else if (e.getCause() instanceof Error) {
-                    throw (Error) e.getCause();
+                    throw connectTransportException;
+                } else if (e.getCause() instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                } else if (e.getCause() instanceof Error error) {
+                    throw error;
                 } else {
                     throw new RuntimeException(e.getCause());
                 }

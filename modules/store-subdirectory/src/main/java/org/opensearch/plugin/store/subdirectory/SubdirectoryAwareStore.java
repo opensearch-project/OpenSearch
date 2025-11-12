@@ -26,10 +26,15 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -54,8 +59,6 @@ public class SubdirectoryAwareStore extends Store {
 
     private static final Logger logger = LogManager.getLogger(SubdirectoryAwareStore.class);
 
-    private final Directory directory;
-
     /**
      * Constructor for SubdirectoryAwareStore.
      *
@@ -74,13 +77,38 @@ public class SubdirectoryAwareStore extends Store {
         OnClose onClose,
         ShardPath shardPath
     ) {
-        super(shardId, indexSettings, directory, shardLock, onClose, shardPath);
-        this.directory = new SubdirectoryAwareDirectory(super.directory(), shardPath);
+        super(shardId, indexSettings, new SubdirectoryAwareDirectory(directory, shardPath), shardLock, onClose, shardPath);
     }
 
-    @Override
-    public Directory directory() {
-        return this.directory;
+    /**
+     * Constructor for SubdirectoryAwareStore.
+     *
+     * @param shardId the shard ID
+     * @param indexSettings the index settings
+     * @param directory the directory to use for the store
+     * @param shardLock the shard lock
+     * @param onClose the on close callback
+     * @param shardPath the shard path
+     * @param directoryFactory the directory factory
+     */
+    public SubdirectoryAwareStore(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        ShardPath shardPath,
+        IndexStorePlugin.DirectoryFactory directoryFactory
+    ) {
+        super(
+            shardId,
+            indexSettings,
+            new SubdirectoryAwareDirectory(directory, shardPath),
+            shardLock,
+            onClose,
+            shardPath,
+            directoryFactory
+        );
     }
 
     @Override
@@ -89,7 +117,7 @@ public class SubdirectoryAwareStore extends Store {
 
         // Load regular segment files metadata
         final SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(commit);
-        MetadataSnapshot.LoadedMetadata regularMetadata = MetadataSnapshot.loadMetadata(segmentCommitInfos, directory, logger);
+        MetadataSnapshot.LoadedMetadata regularMetadata = MetadataSnapshot.loadMetadata(segmentCommitInfos, super.directory(), logger);
         Map<String, StoreFileMetadata> builder = new HashMap<>(regularMetadata.fileMetadata);
         Map<String, String> commitUserDataBuilder = new HashMap<>(regularMetadata.userData);
         totalNumDocs += regularMetadata.numDocs;
@@ -254,17 +282,30 @@ public class SubdirectoryAwareStore extends Store {
 
         private void addSubdirectoryFiles(Set<String> allFiles) throws IOException {
             Path dataPath = shardPath.getDataPath();
-
-            // Walk through all subdirectories and add files
-            Files.walk(dataPath).filter(Files::isRegularFile).forEach(file -> {
-                Path relativePath = dataPath.relativize(file);
-                // Only add files that are in subdirectories (have a parent directory)
-                if (relativePath.getParent() != null) {
-                    String relativePathStr = relativePath.toString();
-                    // Exclude index dir (handled in super.listAll()), translog dir, and _state dir
-                    if (EXCLUDED_SUBDIRECTORIES.stream().noneMatch(relativePathStr::startsWith)) {
-                        allFiles.add(relativePathStr);
+            Files.walkFileTree(dataPath, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (attrs.isRegularFile()) {
+                        Path relativePath = dataPath.relativize(file);
+                        // Only add files that are in subdirectories (have a parent directory)
+                        if (relativePath.getParent() != null) {
+                            String relativePathStr = relativePath.toString();
+                            // Exclude index dir (handled in super.listAll()), translog dir, and _state dir
+                            if (EXCLUDED_SUBDIRECTORIES.stream().noneMatch(relativePathStr::startsWith)) {
+                                allFiles.add(relativePathStr);
+                            }
+                        }
                     }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException e) throws IOException {
+                    if (e instanceof NoSuchFileException) {
+                        logger.debug("Skipping inaccessible file during size estimation: {}", file);
+                        return FileVisitResult.CONTINUE;
+                    }
+                    throw e;
                 }
             });
         }

@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.pollingingest;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -52,13 +53,20 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         long totalPollerMessageFailureCount = in.readLong();
         long totalPollerMessageDroppedCount = in.readLong();
         long totalDuplicateMessageSkippedCount = in.readLong();
+
+        long pointerBasedLag = 0;
+        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
+            pointerBasedLag = in.readLong();
+        }
+
         this.consumerStats = new ConsumerStats(
             totalPolledCount,
             lagInMillis,
             totalConsumerErrorCount,
             totalPollerMessageFailureCount,
             totalPollerMessageDroppedCount,
-            totalDuplicateMessageSkippedCount
+            totalDuplicateMessageSkippedCount,
+            pointerBasedLag
         );
     }
 
@@ -76,6 +84,10 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         out.writeLong(consumerStats.totalPollerMessageFailureCount);
         out.writeLong(consumerStats.totalPollerMessageDroppedCount);
         out.writeLong(consumerStats.totalDuplicateMessageSkippedCount);
+
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+            out.writeLong(consumerStats.pointerBasedLag);
+        }
     }
 
     @Override
@@ -96,6 +108,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         builder.field("total_poller_message_dropped_count", consumerStats.totalPollerMessageDroppedCount);
         builder.field("total_duplicate_message_skipped_count", consumerStats.totalDuplicateMessageSkippedCount);
         builder.field("lag_in_millis", consumerStats.lagInMillis);
+        builder.field("pointer_based_lag", consumerStats.pointerBasedLag);
         builder.endObject();
         builder.endObject();
         return builder;
@@ -131,11 +144,13 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Stats for consumer (poller)
+     * Stats for consumer (poller).
+     *
+     * totalDuplicateMessageSkippedCount has been deprecated as of version 3.4  and will be removed in a future version.
      */
     @ExperimentalApi
     public record ConsumerStats(long totalPolledCount, long lagInMillis, long totalConsumerErrorCount, long totalPollerMessageFailureCount,
-        long totalPollerMessageDroppedCount, long totalDuplicateMessageSkippedCount) {
+        long totalPollerMessageDroppedCount, long totalDuplicateMessageSkippedCount, long pointerBasedLag) {
     }
 
     /**
@@ -155,6 +170,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         private long totalPollerMessageFailureCount;
         private long totalPollerMessageDroppedCount;
         private long totalDuplicateMessageSkippedCount;
+        private long pointerBasedLag;
 
         public Builder() {}
 
@@ -213,8 +229,17 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             return this;
         }
 
+        /**
+         * @deprecated As of 3.4, this field is no longer used and will be removed in a future version.
+         */
+        @Deprecated(since = "3.4", forRemoval = true)
         public Builder setTotalDuplicateMessageSkippedCount(long totalDuplicateMessageSkippedCount) {
             this.totalDuplicateMessageSkippedCount = totalDuplicateMessageSkippedCount;
+            return this;
+        }
+
+        public Builder setPointerBasedLag(long pointerBasedLag) {
+            this.pointerBasedLag = pointerBasedLag;
             return this;
         }
 
@@ -233,7 +258,8 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
                 totalConsumerErrorCount,
                 totalPollerMessageFailureCount,
                 totalPollerMessageDroppedCount,
-                totalDuplicateMessageSkippedCount
+                totalDuplicateMessageSkippedCount,
+                pointerBasedLag
             );
             return new PollingIngestStats(messageProcessorStats, consumerStats);
         }

@@ -73,8 +73,10 @@ import org.opensearch.plugin.wlm.rule.WorkloadGroupRuleRoutingService;
 import org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
+import org.opensearch.plugin.wlm.spi.AttributeExtractorExtension;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.DiscoveryPlugin;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -114,6 +116,7 @@ import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.joda.time.Instant;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -121,6 +124,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -132,13 +136,14 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.opensearch.plugin.wlm.WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.threadpool.ThreadPool.Names.SAME;
 
 public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    private static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.SECONDS);
+    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     final static String PUT = "PUT";
 
     public WlmAutoTaggingIT(Settings nodeSettings) {
@@ -184,6 +189,12 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         }
     }
 
+    @After
+    public void clearWlmModeSetting() {
+        Settings.Builder builder = Settings.builder().putNull(WorkloadManagementSettings.WLM_MODE_SETTING.getKey());
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
+    }
+
     public void testExactIndexMatchTriggersTagging() throws Exception {
         String workloadGroupId = "wlm_auto_tag_single";
         String ruleId = "wlm_auto_tag_test_rule";
@@ -216,9 +227,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             int completionsAfter = getCompletions(workloadGroupId);
             assertTrue("Expected completions to increase", completionsAfter > completionsBefore);
         });
-
-        // Step 7: Clean up
-        clearWlmModeSetting();
     }
 
     public void testWildcardBasedAttributesAreTagged() throws Exception {
@@ -243,8 +251,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             int completionsAfter = getCompletions(workloadGroupId);
             assertTrue("Expected completions to increase", completionsAfter > completionsBefore);
         });
-
-        clearWlmModeSetting();
     }
 
     public void testMultipleRulesDoNotInterfereWithEachOther() throws Exception {
@@ -281,8 +287,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             assertTrue("Expected completions for group 1 not to increase", post1 == pre1);
             assertTrue("Expected completions for group 2 not to increase", post2 == pre2);
         });
-
-        clearWlmModeSetting();
     }
 
     public void testTaggingTriggeredAfterRuleUpdate() throws Exception {
@@ -296,9 +300,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
         FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
         createRule(ruleId, "initial non-matching rule", "random", featureType, workloadGroupId);
-
-        // Wait for rule to be available
-        Thread.sleep(5500);
 
         indexDocument(indexName);
         int preUpdateCompletions = getCompletions(workloadGroupId);
@@ -320,8 +321,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             int postUpdateCompletions = getCompletions(workloadGroupId);
             assertTrue("Expected completions to increase after rule update", postUpdateCompletions > preUpdateCompletions);
         });
-
-        clearWlmModeSetting();
     }
 
     public void testRuleWithNonexistentWorkloadGroupId() throws Exception {
@@ -346,8 +345,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             "Expected validation message for nonexistent group",
             String.valueOf(cause.getMessage()).contains("nonexistent_group is not a valid workload group id")
         );
-
-        clearWlmModeSetting();
     }
 
     public void testCreateRuleWithTooManyIndexPatterns() throws Exception {
@@ -374,8 +371,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             "Expected validation error about too many values",
             exception.getMessage().contains("Each attribute can only have a maximum of 10 values.")
         );
-
-        clearWlmModeSetting();
     }
 
     public void testCreateRuleWithEmptyIndexPatterns() throws Exception {
@@ -402,8 +397,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             "Expected validation error about empty index pattern",
             exception.getMessage().contains("is invalid (empty or exceeds 100 characters)")
         );
-
-        clearWlmModeSetting();
     }
 
     public void testCreateRuleWithLongIndexPatternValue() throws Exception {
@@ -428,8 +421,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             "Expected validation error about max length",
             exception.getMessage().contains("is invalid (empty or exceeds 100 characters)")
         );
-
-        clearWlmModeSetting();
     }
 
     public void testDeleteRuleForNonexistentId() throws Exception {
@@ -446,16 +437,9 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         Exception exception = assertThrows(Exception.class, () -> client().execute(DeleteRuleAction.INSTANCE, request).get());
 
         assertTrue("Expected error message for nonexistent rule ID", exception.getMessage().contains("no such index"));
-
-        clearWlmModeSetting();
     }
 
     // Helper functions
-    public void clearWlmModeSetting() {
-        Settings.Builder builder = Settings.builder().putNull(WorkloadManagementSettings.WLM_MODE_SETTING.getKey());
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
-    }
-
     private void createRule(String ruleId, String ruleName, String indexPattern, FeatureType featureType, String workloadGroupId)
         throws Exception {
         Rule rule = new Rule(
@@ -553,7 +537,13 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
     public void updateWorkloadGroupInClusterState(String method, WorkloadGroup workloadGroup) throws InterruptedException {
         ExceptionCatchingListener listener = new ExceptionCatchingListener();
         client().execute(TestClusterUpdateTransportAction.ACTION, new TestClusterUpdateRequest(workloadGroup, method), listener);
-        assertTrue(listener.getLatch().await(TIMEOUT.getSeconds(), TimeUnit.SECONDS));
+        // wait for transport action to complete
+        boolean completed = listener.getLatch().await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        assertTrue("cluster-state update did not complete in time", completed);
+
+        if (listener.getException() != null) {
+            throw new AssertionError("cluster-state update failed", listener.getException());
+        }
         assertEquals(0, listener.getLatch().getCount());
     }
 
@@ -716,6 +706,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             ActionPlugin,
             SystemIndexPlugin,
             DiscoveryPlugin,
+            ExtensiblePlugin,
             RuleFrameworkExtension {
 
         /**
@@ -728,8 +719,10 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         public static final int MAX_RULES_PER_PAGE = 50;
         static FeatureType featureType;
         static RulePersistenceService rulePersistenceService;
+        private static final Map<Attribute, Integer> orderedAttributes = new HashMap<>();
         static RuleRoutingService ruleRoutingService;
         private AutoTaggingActionFilter autoTaggingActionFilter;
+        private final Map<Attribute, AttributeExtractorExtension> attributeExtractorExtensions = new HashMap<>();
 
         /**
          * Default constructor.
@@ -751,13 +744,16 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier
         ) {
-            featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService));
+            featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService), new HashMap<>());
             RuleEntityParser parser = new XContentRuleParser(featureType);
             AttributeValueStoreFactory attributeValueStoreFactory = new AttributeValueStoreFactory(
                 featureType,
                 DefaultAttributeValueStore::new
             );
-            InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(attributeValueStoreFactory);
+            InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
+                attributeValueStoreFactory,
+                featureType.getOrderedAttributes()
+            );
             rulePersistenceService = new IndexStoredRulePersistenceService(
                 INDEX_NAME,
                 client,
@@ -781,8 +777,14 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
                 wlmClusterSettingValuesProvider
             );
 
-            autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
-            return List.of(refreshMechanism);
+            autoTaggingActionFilter = new AutoTaggingActionFilter(
+                ruleProcessingService,
+                threadPool,
+                attributeExtractorExtensions,
+                wlmClusterSettingValuesProvider,
+                featureType
+            );
+            return List.of(refreshMechanism, rulePersistenceService, featureType);
         }
 
         @Override
@@ -861,6 +863,21 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         @Override
         public Supplier<FeatureType> getFeatureTypeSupplier() {
             return () -> featureType;
+        }
+
+        @Override
+        public void setAttributes(List<Attribute> attributes) {
+            for (Attribute attribute : attributes) {
+                if (attribute.getName().equals(PRINCIPAL_ATTRIBUTE_NAME)) {
+                    orderedAttributes.put(attribute, 1);
+                }
+            }
+        }
+
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            for (AttributeExtractorExtension ext : loader.loadExtensions(AttributeExtractorExtension.class)) {
+                attributeExtractorExtensions.put(ext.getAttributeExtractor().getAttribute(), ext);
+            }
         }
     }
 }

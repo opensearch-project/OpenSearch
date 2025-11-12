@@ -80,6 +80,7 @@ import static org.opensearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING;
+import static org.opensearch.search.SearchService.SEARCH_MAX_QUERY_STRING_LENGTH;
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
@@ -765,6 +766,34 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().putNull(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()))
         );
+    }
+
+    public void testMaxQueryStringLength() throws Exception {
+        try {
+            String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
+            assertAcked(prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON));
+            ensureGreen("test");
+
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(SEARCH_MAX_QUERY_STRING_LENGTH.getKey(), 10))
+            );
+
+            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+                client().prepareSearch("test").setQuery(queryStringQuery("foo OR foo OR foo OR foo")).get();
+            });
+
+            assertThat(e.getDetailedMessage(), containsString("Query string length exceeds max allowed length 10"));
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(SEARCH_MAX_QUERY_STRING_LENGTH.getKey()))
+            );
+        }
     }
 
     private void assertHits(SearchHits hits, String... ids) {

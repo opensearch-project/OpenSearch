@@ -113,6 +113,17 @@ public final class DefBootstrap {
     public static final int OPERATOR_EXPLICIT_CAST = 1 << 2;
 
     /**
+     * ClassValue.getFromHashMap will wrap checked exceptions with Errors. To get
+     * around that we wrap any checked exceptions with this RuntimeException and
+     * unwrap them later.
+     */
+    static final class WrappedCheckedException extends RuntimeException {
+        private WrappedCheckedException(Exception cause) {
+            super(cause);
+        }
+    }
+
+    /**
      * CallSite that implements the polymorphic inlining cache (PIC).
      */
     static final class PIC extends MutableCallSite {
@@ -204,7 +215,10 @@ public final class DefBootstrap {
                     try {
                         return lookup(flavor, name, receiverType).asType(type);
                     } catch (Throwable t) {
-                        Def.rethrow(t);
+                        switch (t) {
+                            case Exception e -> throw new WrappedCheckedException(e);
+                            default -> Def.rethrow(t);
+                        }
                         throw new AssertionError();
                     }
                 }

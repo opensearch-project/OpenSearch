@@ -40,7 +40,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DisiPriorityQueue;
 import org.apache.lucene.search.DisiWrapper;
@@ -89,24 +88,24 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     private static final Logger logger = LogManager.getLogger(CardinalityAggregator.class);
 
-    private final CardinalityAggregatorFactory.ExecutionMode executionMode;
-    private final int precision;
-    private final ValuesSource valuesSource;
+    final CardinalityAggregatorFactory.ExecutionMode executionMode;
+    final int precision;
+    final ValuesSource valuesSource;
 
     private final ValuesSourceConfig valuesSourceConfig;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
     @Nullable
-    private HyperLogLogPlusPlus counts;
+    HyperLogLogPlusPlus counts;
 
-    private Collector collector;
+    Collector collector;
 
-    private int emptyCollectorsUsed;
-    private int numericCollectorsUsed;
-    private int ordinalsCollectorsUsed;
-    private int ordinalsCollectorsOverheadTooHigh;
-    private int stringHashingCollectorsUsed;
-    private int dynamicPrunedSegments;
+    int emptyCollectorsUsed;
+    int numericCollectorsUsed;
+    int ordinalsCollectorsUsed;
+    int ordinalsCollectorsOverheadTooHigh;
+    int stringHashingCollectorsUsed;
+    int dynamicPrunedSegments;
 
     public CardinalityAggregator(
         String name,
@@ -227,12 +226,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private boolean tryScoreWithPruningCollector(LeafReaderContext ctx, Collector pruningCollector) throws IOException {
         try {
             Weight weight = context.query().rewrite(context.searcher()).createWeight(context.searcher(), ScoreMode.TOP_DOCS, 1f);
-            BulkScorer scorer = weight.bulkScorer(ctx);
+            Scorer scorer = weight.scorer(ctx);
             if (scorer == null) {
                 return false;
             }
-            Bits liveDocs = ctx.reader().getLiveDocs();
-            scorer.score(pruningCollector, liveDocs, 0, DocIdSetIterator.NO_MORE_DOCS);
+            pruningCollector.setScorer(scorer);
+            DocIdSetIterator iterator = scorer.iterator();
+            bulkCollect(ctx.reader().getLiveDocs(), iterator, pruningCollector);
+
             pruningCollector.postCollect();
             Releasables.close(pruningCollector);
         } catch (Exception e) {
@@ -245,6 +246,26 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             );
         }
         return true;
+    }
+
+    private void bulkCollect(Bits acceptDocs, DocIdSetIterator iterator, Collector pruningCollector) throws IOException {
+        DocIdSetIterator competitiveIterator = pruningCollector.competitiveIterator();
+
+        int doc = iterator.nextDoc();
+        while (doc < DocIdSetIterator.NO_MORE_DOCS) {
+            assert competitiveIterator.docID() <= doc; // invariant
+            if (competitiveIterator.docID() < doc) {
+                int competitiveNext = competitiveIterator.advance(doc);
+                if (competitiveNext != doc) {
+                    doc = iterator.advance(competitiveNext);
+                    continue;
+                }
+            }
+            if ((acceptDocs == null || acceptDocs.get(doc))) {
+                pruningCollector.collect(doc);
+            }
+            doc = iterator.nextDoc();
+        }
     }
 
     private Collector getNoOpCollector() {
@@ -328,7 +349,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    private abstract static class Collector extends LeafBucketCollector implements Releasable {
+    abstract static class Collector extends LeafBucketCollector implements Releasable {
 
         public abstract void postCollect() throws IOException;
 
@@ -467,7 +488,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    private static class EmptyCollector extends Collector {
+    static class EmptyCollector extends Collector {
 
         @Override
         public void collect(int doc, long bucketOrd) {

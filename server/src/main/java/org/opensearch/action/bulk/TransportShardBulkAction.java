@@ -47,6 +47,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationOperation;
@@ -62,6 +63,7 @@ import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -85,6 +87,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.LookupMapLockAcquisitionException;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.MapperException;
@@ -123,7 +126,9 @@ import java.util.function.LongSupplier;
  *
  * @opensearch.internal
  */
-public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
+public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse>
+    implements
+        TransportIndicesResolvingAction<BulkShardRequest> {
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
@@ -216,6 +221,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } catch (RuntimeException e) {
             listener.onFailure(e);
         }
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(BulkShardRequest request) {
+        return ResolvedIndices.of(request.index());
     }
 
     /**
@@ -718,7 +728,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             && context.getRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
             context.resetForExecutionForRetry();
             return;
-        }
+        } else if (isFailed
+            && context.getPrimary() != null
+            && context.getPrimary().indexSettings() != null
+            && context.getPrimary().indexSettings().isContextAwareEnabled()
+            && isLookupMapLockAcquisitionException(executionResult.getFailure().getCause())
+            && context.getRetryCounter() < context.getPrimary().indexSettings().getMaxRetryOnLookupMapAcquisitionException()) {
+                context.resetForExecutionForRetry();
+                return;
+            }
         final BulkItemResponse response;
         if (isUpdate) {
             response = processUpdateResponse((UpdateRequest) docWriteRequest, context.getConcreteIndex(), executionResult, updateResult);
@@ -745,6 +763,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static boolean isConflictException(final Exception e) {
         return ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException;
+    }
+
+    private static boolean isLookupMapLockAcquisitionException(final Exception e) {
+        return ExceptionsHelper.unwrapCause(e) instanceof LookupMapLockAcquisitionException;
     }
 
     /**

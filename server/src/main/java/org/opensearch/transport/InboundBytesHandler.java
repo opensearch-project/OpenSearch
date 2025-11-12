@@ -77,8 +77,8 @@ class InboundBytesHandler {
                     forwardFragments(channel, fragments, messageHandler);
                 } finally {
                     for (Object fragment : fragments) {
-                        if (fragment instanceof ReleasableBytesReference) {
-                            ((ReleasableBytesReference) fragment).close();
+                        if (fragment instanceof ReleasableBytesReference releasableBytesReference) {
+                            releasableBytesReference.close();
                         }
                     }
                     fragments.clear();
@@ -124,9 +124,9 @@ class InboundBytesHandler {
     private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments, BiConsumer<TcpChannel, InboundMessage> messageHandler)
         throws IOException {
         for (Object fragment : fragments) {
-            if (fragment instanceof Header) {
+            if (fragment instanceof Header header) {
                 assert aggregator.isAggregating() == false;
-                aggregator.headerReceived((Header) fragment);
+                aggregator.headerReceived(header);
             } else if (fragment == InboundDecoder.PING) {
                 assert aggregator.isAggregating() == false;
                 messageHandler.accept(channel, InboundMessage.PING);

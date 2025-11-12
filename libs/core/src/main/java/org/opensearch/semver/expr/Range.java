@@ -23,7 +23,7 @@ public class Range implements Expression {
 
     public Range() {
         this.lowerBound = Version.fromString("0.0.0");  // Minimum version
-        this.upperBound = Version.fromString("999.999.999"); // Maximum version
+        this.upperBound = Version.fromString("99.99.99"); // Maximum version
         this.includeLower = true;  // Default to inclusive bounds
         this.includeUpper = true;
     }

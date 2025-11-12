@@ -100,7 +100,7 @@ public class SemverRangeTests extends OpenSearchTestCase {
         ex = expectThrows(IllegalArgumentException.class, () -> SemverRange.fromString("$1.2"));
         assertTrue(ex.getMessage().contains("the version needs to contain major, minor, and revision, and optionally the build"));
 
-        expectThrows(NumberFormatException.class, () -> SemverRange.fromString("$1.2.3"));
+        expectThrows(IllegalArgumentException.class, () -> SemverRange.fromString("$1.2.3"));
 
         assertThrows(IllegalArgumentException.class, () -> SemverRange.fromString("[2.3.0]"));
         assertThrows(IllegalArgumentException.class, () -> SemverRange.fromString("[2.3.0,]"));
@@ -254,7 +254,7 @@ public class SemverRangeTests extends OpenSearchTestCase {
         assertTrue("Should include upper bound", range.isSatisfiedBy("3.0.0"));
 
         // Test just outside boundaries
-        assertFalse("Should exclude version before lower bound", range.isSatisfiedBy("1.9.999"));
+        assertFalse("Should exclude version before lower bound", range.isSatisfiedBy("1.9.99"));
         assertFalse("Should exclude version after upper bound", range.isSatisfiedBy("3.0.1"));
     }
 

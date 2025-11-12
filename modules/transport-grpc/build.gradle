@@ -24,11 +24,8 @@ dependencies {
   api project('spi')
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
-  runtimeOnly "com.google.guava:failureaccess:1.0.2"
-
-  compileOnly "com.github.spotbugs:spotbugs-annotations:${versions.spotbugs_annotations}"
-  compileOnly "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
-
+  implementation "com.google.errorprone:error_prone_annotations:2.24.1"
+  implementation "com.google.guava:failureaccess:1.0.2"
   implementation "io.grpc:grpc-api:${versions.grpc}"
   implementation "io.grpc:grpc-core:${versions.grpc}"
   implementation "io.grpc:grpc-netty-shaded:${versions.grpc}"
@@ -174,6 +171,9 @@ thirdPartyAudit {
     'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
     'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
     'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
     'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
     'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'

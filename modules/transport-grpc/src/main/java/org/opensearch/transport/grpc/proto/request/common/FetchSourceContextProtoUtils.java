@@ -45,8 +45,8 @@ public class FetchSourceContextProtoUtils {
         // Set up source context if source parameters are provided
         if (request.hasXSource()) {
             switch (request.getXSource().getSourceConfigParamCase()) {
-                case BOOL_VALUE:
-                    fetchSource = request.getXSource().getBoolValue();
+                case BOOL:
+                    fetchSource = request.getXSource().getBool();
                     break;
                 case STRING_ARRAY:
                     sourceIncludes = request.getXSource().getStringArray().getStringArrayList().toArray(new String[0]);
@@ -84,8 +84,8 @@ public class FetchSourceContextProtoUtils {
         if (request.hasXSource()) {
             SourceConfigParam source = request.getXSource();
 
-            if (source.hasBoolValue()) {
-                fetchSource = source.getBoolValue();
+            if (source.hasBool()) {
+                fetchSource = source.getBool();
             } else {
                 sourceIncludes = source.getStringArray().getStringArrayList().toArray(new String[0]);
             }

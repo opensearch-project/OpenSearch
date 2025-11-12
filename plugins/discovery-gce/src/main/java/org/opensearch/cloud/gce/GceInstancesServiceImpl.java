@@ -50,12 +50,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.opensearch.cloud.gce.util.Access;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.discovery.gce.RetryHttpInitializerWrapper;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -92,7 +92,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             try {
                 // hack around code messiness in GCE code
                 // TODO: get this fixed
-                InstanceList instanceList = Access.doPrivilegedIOException(() -> {
+                InstanceList instanceList = AccessController.doPrivilegedChecked(() -> {
                     Compute.Instances.List list = client().instances().list(project, zoneId);
                     return list.execute();
                 });
@@ -100,7 +100,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
                 return instanceList.isEmpty() || instanceList.getItems() == null
                     ? Collections.<Instance>emptyList()
                     : instanceList.getItems();
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
                 logger.debug("Full exception:", e);
                 // assist type inference
@@ -170,7 +170,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
     String getAppEngineValueFromMetadataServer(String serviceURL) throws GeneralSecurityException, IOException {
         String metadata = GceMetadataService.GCE_HOST.get(settings);
-        GenericUrl url = Access.doPrivileged(() -> new GenericUrl(metadata + serviceURL));
+        GenericUrl url = AccessController.doPrivileged(() -> new GenericUrl(metadata + serviceURL));
 
         HttpTransport httpTransport = getGceHttpTransport();
         HttpRequestFactory requestFactory = httpTransport.createRequestFactory();
@@ -178,7 +178,12 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             .setConnectTimeout(500)
             .setReadTimeout(500)
             .setHeaders(new HttpHeaders().set("Metadata-Flavor", "Google"));
-        HttpResponse response = Access.doPrivilegedIOException(() -> request.execute());
+        HttpResponse response;
+        try {
+            response = AccessController.doPrivilegedChecked(request::execute);
+        } catch (Exception e) {
+            throw (IOException) e;
+        }
         return headerContainsMetadataFlavor(response) ? response.parseAsString() : null;
     }
 
@@ -224,7 +229,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
             // hack around code messiness in GCE code
             // TODO: get this fixed
-            Access.doPrivilegedIOException(credential::refreshToken);
+            AccessController.doPrivilegedChecked(credential::refreshToken);
 
             logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
             if (credential.getExpiresInSeconds() != null) {

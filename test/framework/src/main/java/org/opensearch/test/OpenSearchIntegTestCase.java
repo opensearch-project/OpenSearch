@@ -479,10 +479,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         setRandomIndexTranslogSettings(random, builder);
 
         if (random.nextBoolean()) {
-            builder.put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), false);
-        }
-
-        if (random.nextBoolean()) {
             builder.put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), random.nextBoolean());
         }
 
@@ -505,20 +501,22 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return builder;
     }
 
-    private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
+    protected Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(
                 TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
                 (random.nextBoolean() ? random.nextDouble() : random.nextBoolean()).toString()
             );
         }
-        switch (random.nextInt(4)) {
-            case 3:
-                final int maxThreadCount = RandomNumbers.randomIntBetween(random, 1, 4);
-                final int maxMergeCount = RandomNumbers.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
-                builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
-                builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount);
-                break;
+        int value = random.nextInt(4);
+        if (value == 3) {
+            final int maxThreadCount = RandomNumbers.randomIntBetween(random, 1, 4);
+            final int maxMergeCount = RandomNumbers.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
+            builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
+            builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount);
+        }
+        if (value % 2 == 1) {
+            builder.put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), false);
         }
 
         return builder;

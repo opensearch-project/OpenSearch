@@ -401,8 +401,8 @@ public class RemoteDirectory extends Directory {
         try {
             contentLength = indexInput.length();
             boolean remoteIntegrityEnabled = false;
-            if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
-                remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) getBlobContainer()).remoteIntegrityCheckSupported();
+            if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer asyncContainer) {
+                remoteIntegrityEnabled = asyncContainer.remoteIntegrityCheckSupported();
             }
             lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
             RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;

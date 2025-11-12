@@ -47,6 +47,7 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.ClusterState;
@@ -859,6 +860,115 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);
         // The cache should be empty as the timed-out query was invalidated
         assertEquals(0, requestCacheStats.getMemorySizeInBytes());
+    }
+
+    public void testKeywordFieldUseSimilarityCacheability() throws Exception {
+        testKeywordFieldParameterCacheabilityCase("use_similarity");
+    }
+
+    public void testKeywordFieldSplitWhitespaceCacheability() throws Exception {
+        testKeywordFieldParameterCacheabilityCase("split_queries_on_whitespace");
+    }
+
+    private void testKeywordFieldParameterCacheabilityCase(String paramName) throws Exception {
+        // When keyword fields have non-default values for "use_similarity" or "split_queries_on_whitespace",
+        // queries on those fields shouldn't be cacheable. Default value is false for both parameters.
+        String node = internalCluster().startNode(
+            Settings.builder().put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(50))
+        );
+        Client client = client(node);
+        String index = "index";
+        String field1 = "field1";
+        String field2 = "field2";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(index)
+                .setMapping(field1, "type=keyword," + paramName + "=false", field2, "type=keyword," + paramName + "=true")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        // Disable index refreshing to avoid cache being invalidated mid-test
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(-1))
+                )
+                .get()
+        );
+
+        indexRandom(true, client.prepareIndex(index).setSource(field1, "foo", field2, "foo"));
+        indexRandom(true, client.prepareIndex(index).setSource(field1, "foo2", field2, "foo2"));
+        ensureSearchable(index);
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        forceMerge(client, index);
+
+        // Show this behavior works for a nested query where the termQuery built by KeywordFieldMapper is not the outermost query
+        SearchResponse resp = client.prepareSearch(index)
+            .setRequestCache(true)
+            .setQuery(
+                QueryBuilders.boolQuery().should(QueryBuilders.termQuery(field1, "foo")).should(QueryBuilders.termQuery(field1, "foo2"))
+            )
+            .get();
+        assertSearchResponse(resp);
+        // This query should be cached
+        RequestCacheStats stats = getNodeCacheStats(client);
+        assertEquals(1, stats.getMissCount());
+        long cacheSize = stats.getMemorySizeInBytes();
+        assertTrue(cacheSize > 0);
+
+        // The same query but involving field2 at all should not be cacheable even if setRequestCache is true:
+        // no extra misses and no extra values in cache
+        assertQueryCausesCacheState(
+            client,
+            index,
+            QueryBuilders.boolQuery().should(QueryBuilders.termQuery(field1, "foo")).should(QueryBuilders.termQuery(field2, "foo2")),
+            0,
+            1,
+            cacheSize
+        );
+
+        // Now change the parameter value to true for field1, and check the same query again does NOT come from the cache (hits == 0)
+        // and also shouldn't add any extra entries to the cache
+        PutMappingRequest mappingRequest = new PutMappingRequest().indices(index).source(field1, "type=keyword," + paramName + "=true");
+        client.admin().indices().putMapping(mappingRequest).actionGet();
+        assertQueryCausesCacheState(
+            client,
+            index,
+            QueryBuilders.boolQuery().should(QueryBuilders.termQuery(field1, "foo")).should(QueryBuilders.termQuery(field1, "foo2")),
+            0,
+            1,
+            cacheSize
+        );
+
+        // Now test all query building methods on field1 and ensure none are cacheable
+
+        assertQueryCausesCacheState(client, index, QueryBuilders.termsQuery(field1, "foo", "foo2"), 0, 1, cacheSize);
+
+        assertQueryCausesCacheState(client, index, QueryBuilders.prefixQuery(field1, "fo"), 0, 1, cacheSize);
+
+        assertQueryCausesCacheState(client, index, QueryBuilders.regexpQuery(field1, "f*o"), 0, 1, cacheSize);
+
+        assertQueryCausesCacheState(client, index, QueryBuilders.rangeQuery(field1).gte("f").lte("g"), 0, 1, cacheSize);
+
+        assertQueryCausesCacheState(client, index, QueryBuilders.fuzzyQuery(field1, "foe"), 0, 1, cacheSize);
+
+        assertQueryCausesCacheState(client, index, QueryBuilders.wildcardQuery(field1, "f*"), 0, 1, cacheSize);
+    }
+
+    private void assertQueryCausesCacheState(
+        Client client,
+        String index,
+        QueryBuilder builder,
+        long expectedHits,
+        long expectedMisses,
+        long expectedMemory
+    ) {
+        SearchResponse resp = client.prepareSearch(index).setRequestCache(true).setQuery(builder).get();
+        assertSearchResponse(resp);
+        RequestCacheStats stats = getNodeCacheStats(client);
+        assertEquals(expectedHits, stats.getHitCount());
+        assertEquals(expectedMisses, stats.getMissCount());
+        assertEquals(expectedMemory, stats.getMemorySizeInBytes());
     }
 
     private Path[] shardDirectory(String server, Index index, int shard) {

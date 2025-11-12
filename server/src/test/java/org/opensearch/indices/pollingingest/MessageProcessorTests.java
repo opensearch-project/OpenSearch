@@ -224,7 +224,9 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         MessageProcessorRunnable messageProcessorRunnable = new MessageProcessorRunnable(
             new ArrayBlockingQueue<>(5),
             processor,
-            errorStrategy
+            errorStrategy,
+            "test_index",
+            0
         );
         messageProcessorRunnable.getBlockingQueue().put(new ShardUpdateMessage(null, null, null, 0));
 
@@ -248,7 +250,9 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         MessageProcessorRunnable messageProcessorRunnable = new MessageProcessorRunnable(
             new ArrayBlockingQueue<>(5),
             processor,
-            errorStrategy
+            errorStrategy,
+            "test_index",
+            0
         );
         messageProcessorRunnable.getBlockingQueue()
             .put(new ShardUpdateMessage(mock(IngestionShardPointer.class), null, Collections.emptyMap(), 0));

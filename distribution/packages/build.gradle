@@ -63,7 +63,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "com.netflix.nebula.ospackage-base" version "12.1.0"
+  id "com.netflix.nebula.ospackage-base" version "12.1.1"
 }
 
 void addProcessFilesTask(String type, boolean jdk) {
@@ -450,6 +450,7 @@ subprojects {
   artifacts {
     'default' buildDist
   }
+  tasks.named("assemble").configure { dependsOn(parent.tasks.named(buildTask)) }
 
   if (dpkgExists() || rpmExists()) {
 

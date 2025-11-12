@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.kafka;
 
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.opensearch.core.util.ConfigurationUtils;
 
 import java.util.HashMap;
@@ -19,27 +20,39 @@ import java.util.Map;
 public class KafkaSourceConfig {
     private final String PROP_TOPIC = "topic";
     private final String PROP_BOOTSTRAP_SERVERS = "bootstrap_servers";
-    private final String PROP_AUTO_OFFSET_RESET = "auto.offset.reset";
 
     private final String topic;
     private final String bootstrapServers;
     private final String autoOffsetResetConfig;
+    private final int maxPollRecords;
 
     private final Map<String, Object> consumerConfigsMap;
 
     /**
      * Extracts and look for required and optional kafka consumer configurations.
+     * @param maxPollSize the maximum batch size to read in a single poll
      * @param params the configuration parameters
      */
-    public KafkaSourceConfig(Map<String, Object> params) {
+    public KafkaSourceConfig(int maxPollSize, Map<String, Object> params) {
+        this.consumerConfigsMap = new HashMap<>(params);
         this.topic = ConfigurationUtils.readStringProperty(params, PROP_TOPIC);
         this.bootstrapServers = ConfigurationUtils.readStringProperty(params, PROP_BOOTSTRAP_SERVERS);
-        this.autoOffsetResetConfig = ConfigurationUtils.readOptionalStringProperty(params, PROP_AUTO_OFFSET_RESET);
-        this.consumerConfigsMap = new HashMap<>(params);
 
-        // remove above configurations
+        // 'auto.offset.reset' is handled differently for Kafka sources, with the default set to none.
+        // This ensures out-of-bounds offsets throw an error, unless the user explicitly sets different value.
+        this.autoOffsetResetConfig = ConfigurationUtils.readStringProperty(params, ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "none");
+
+        // OpenSearch supports 'maxPollSize' setting for consumers. If user did not provide a 'max.poll.records' setting,
+        // maxPollSize will be used instead.
+        this.maxPollRecords = ConfigurationUtils.readIntProperty(params, ConsumerConfig.MAX_POLL_RECORDS_CONFIG, maxPollSize);
+
+        // remove metadata configurations
         consumerConfigsMap.remove(PROP_TOPIC);
         consumerConfigsMap.remove(PROP_BOOTSTRAP_SERVERS);
+
+        // add or overwrite required configurations with defaults if not present
+        consumerConfigsMap.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetResetConfig);
+        consumerConfigsMap.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, maxPollRecords);
     }
 
     /**

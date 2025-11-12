@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -71,4 +72,19 @@ public class RemoteStoreCustomMetadataResolver {
             && blobStoreRepository.blobStore().isBlobMetadataEnabled();
     }
 
+    public boolean isRemoteStoreRepoServerSideEncryptionEnabled() {
+        BlobStoreRepository segmentRepository, translogRepository;
+        try {
+            segmentRepository = (BlobStoreRepository) repositoriesServiceSupplier.get()
+                .repository(RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings));
+            translogRepository = (BlobStoreRepository) repositoriesServiceSupplier.get()
+                .repository(RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings));
+        } catch (RepositoryMissingException ex) {
+            throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", ex);
+        }
+        return Version.V_3_4_0.compareTo(minNodeVersionSupplier.get()) <= 0
+            && remoteStoreSettings.isClusterServerSideEncryptionEnabled()
+            && segmentRepository.isSeverSideEncryptionEnabled()
+            && translogRepository.isSeverSideEncryptionEnabled();
+    }
 }

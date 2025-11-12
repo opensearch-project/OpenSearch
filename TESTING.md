@@ -80,13 +80,16 @@ To run OpenSearch in debug mode,
 
 This will instruct all JVMs (including any that run cli tools such as creating the keyring or adding users) to suspend and initiate a debug connection on port incrementing from `5005`. As such, the IDE needs to be instructed to listen for connections on this port. Since we might run multiple JVMs as part of configuring and starting the cluster, it's recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting needs to be configured with a greater value (ie 10 or more).
 
+Alternately, you can configure your OpenSearch JVM to listen as a debug server on port `5005`, and attach a debugger IDE once opensearch JVM is up and running. Use `./gradlew run --debug-server-jvm` for this debugging setup.
+
 ### Other useful arguments
 
 -   In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
 -   In order to disable assertions add: `-Dtests.asserts=false`
 -   In order to use a custom data directory: `--data-dir=/tmp/foo`
 -   In order to preserve data in between executions: `--preserve-data`
--   In order to remotely attach a debugger to the process: `--debug-jvm`
+-   In order to start opensearch as a debug server and remotely attach a debugger client (like an IDE debugger): `--debug-server-jvm`
+-   In order to start and attach opensearch process to an existing debug server: `--debug-jvm`
 -   In order to set a different keystore password: `--keystore-password yourpassword`
 -   In order to set an OpenSearch setting, provide a setting with the following prefix: `-Dtests.opensearch.`
 -   In order to enable stack trace of the MockSpanData during testing, add: `-Dtests.telemetry.span.stack_traces=true` (Storing stack traces alongside span data can be useful for comprehensive debugging and performance optimization during testing, as it provides insights into the exact code paths and execution sequences, facilitating efficient issue identification and resolution. Note: Enabling this might lead to OOM issues while running ITs)

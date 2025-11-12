@@ -8,9 +8,8 @@
 
 package org.opensearch.plugin.kafka;
 
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
-
-import java.util.Map;
 
 /**
  * Factory for creating Kafka consumers
@@ -28,8 +27,8 @@ public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaParti
     public KafkaConsumerFactory() {}
 
     @Override
-    public void initialize(Map<String, Object> params) {
-        config = new KafkaSourceConfig(params);
+    public void initialize(IngestionSource ingestionSource) {
+        config = new KafkaSourceConfig((int) ingestionSource.getMaxPollSize(), ingestionSource.params());
     }
 
     @Override

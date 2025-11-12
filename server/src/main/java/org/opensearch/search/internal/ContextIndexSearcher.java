@@ -88,6 +88,7 @@ import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.streaming.FlushMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -201,8 +202,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        if (original instanceof ApproximateScoreQuery) {
-            ((ApproximateScoreQuery) original).setContext(searchContext);
+        if (original instanceof ApproximateScoreQuery approximateScoreQuery) {
+            approximateScoreQuery.setContext(searchContext);
         }
         if (profiler != null) {
             profiler.startRewriteTime();
@@ -341,8 +342,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final LeafCollector leafCollector;
         try {
             cancellable.checkCancelled();
-            if (weight instanceof ProfileWeight) {
-                ((ProfileWeight) weight).associateCollectorToLeaves(ctx, collector);
+            if (weight instanceof ProfileWeight profileWeight) {
+                profileWeight.associateCollectorToLeaves(ctx, collector);
             }
             weight = wrapWeight(weight);
             // See please https://github.com/apache/lucene/pull/964
@@ -395,7 +396,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
 
-        if (searchContext.isStreamSearch()) {
+        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
             logger.debug(
                 "Stream intermediate aggregation for segment [{}], shard [{}]",
                 ctx.ord,
@@ -500,9 +501,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private static BitSet getSparseBitSetOrNull(Bits liveDocs) {
         if (liveDocs instanceof SparseFixedBitSet) {
             return (BitSet) liveDocs;
-        } else if (liveDocs instanceof CombinedBitSet
+        } else if (liveDocs instanceof CombinedBitSet combinedBitSet
             // if the underlying role bitset is sparse
-            && ((CombinedBitSet) liveDocs).getFirst() instanceof SparseFixedBitSet) {
+            && combinedBitSet.getFirst() instanceof SparseFixedBitSet) {
                 return (BitSet) liveDocs;
             } else {
                 return null;

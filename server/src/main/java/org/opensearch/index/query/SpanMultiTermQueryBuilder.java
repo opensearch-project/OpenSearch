@@ -111,13 +111,13 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
-                    if (query instanceof MultiTermQueryBuilder == false) {
+                    if (!(query instanceof MultiTermQueryBuilder multiTermQuery)) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
                             "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query"
                         );
                     }
-                    subQuery = (MultiTermQueryBuilder) query;
+                    subQuery = multiTermQuery;
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_multi] query does not support [" + currentFieldName + "]");
                 }
@@ -147,10 +147,9 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         // We do the rewrite in toQuery to not have to deal with the case when a multi-term builder rewrites to a non-multi-term
         // builder.
         QueryBuilder multiTermQueryBuilder = Rewriteable.rewrite(this.multiTermQueryBuilder, context);
-        if (multiTermQueryBuilder instanceof MatchNoneQueryBuilder) {
+        if (multiTermQueryBuilder instanceof MatchNoneQueryBuilder matchNoneQuery) {
             return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), "Inner query rewrote to match_none");
-        } else if (multiTermQueryBuilder instanceof PrefixQueryBuilder) {
-            PrefixQueryBuilder prefixBuilder = (PrefixQueryBuilder) multiTermQueryBuilder;
+        } else if (multiTermQueryBuilder instanceof PrefixQueryBuilder prefixBuilder) {
             MappedFieldType fieldType = context.fieldMapper(prefixBuilder.fieldName());
             if (fieldType == null) {
                 throw new IllegalStateException("Rewrite first");
@@ -162,8 +161,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                     null,
                     LoggingDeprecationHandler.INSTANCE
                 );
-                if (rewriteMethod instanceof TopTermsRewrite) {
-                    TopTermsRewrite<?> innerRewrite = (TopTermsRewrite<?>) rewriteMethod;
+                if (rewriteMethod instanceof TopTermsRewrite<?> innerRewrite) {
                     spanRewriteMethod = new SpanMultiTermQueryWrapper.TopTermsSpanBooleanQueryRewrite(innerRewrite.getSize());
                 } else {
                     spanRewriteMethod = new SpanBooleanQueryRewriteWithMaxClause();
@@ -175,10 +173,9 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         } else {
             Query subQuery = multiTermQueryBuilder.toQuery(context);
             while (true) {
-                if (subQuery instanceof ConstantScoreQuery) {
-                    subQuery = ((ConstantScoreQuery) subQuery).getQuery();
-                } else if (subQuery instanceof BoostQuery) {
-                    BoostQuery boostQuery = (BoostQuery) subQuery;
+                if (subQuery instanceof ConstantScoreQuery constantScoreQuery) {
+                    subQuery = constantScoreQuery.getQuery();
+                } else if (subQuery instanceof BoostQuery boostQuery) {
                     subQuery = boostQuery.getQuery();
                 } else {
                     break;

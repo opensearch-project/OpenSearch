@@ -32,6 +32,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -41,6 +42,7 @@ import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -107,7 +109,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+    public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext, Set<RestHeaderDefinition> headersToCopy) {
         return AuthcRestHandler::new;
     }
 

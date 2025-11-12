@@ -97,39 +97,41 @@ public class CustomFieldQuery extends FieldQuery {
 
     @Override
     protected void flatten(Query sourceQuery, IndexSearcher searcher, Collection<Query> flatQueries, float boost) throws IOException {
-        if (sourceQuery instanceof BoostQuery) {
-            BoostQuery bq = (BoostQuery) sourceQuery;
+        if (sourceQuery instanceof BoostQuery bq) {
             sourceQuery = bq.getQuery();
             boost *= bq.getBoost();
             flatten(sourceQuery, searcher, flatQueries, boost);
-        } else if (sourceQuery instanceof SpanTermQuery) {
-            super.flatten(new TermQuery(((SpanTermQuery) sourceQuery).getTerm()), searcher, flatQueries, boost);
-        } else if (sourceQuery instanceof ConstantScoreQuery) {
-            flatten(((ConstantScoreQuery) sourceQuery).getQuery(), searcher, flatQueries, boost);
-        } else if (sourceQuery instanceof FunctionScoreQuery) {
-            flatten(((FunctionScoreQuery) sourceQuery).getSubQuery(), searcher, flatQueries, boost);
+        } else if (sourceQuery instanceof SpanTermQuery spanTermQuery) {
+            super.flatten(new TermQuery(spanTermQuery.getTerm()), searcher, flatQueries, boost);
+        } else if (sourceQuery instanceof ConstantScoreQuery constantScoreQuery) {
+            flatten(constantScoreQuery.getQuery(), searcher, flatQueries, boost);
+        } else if (sourceQuery instanceof FunctionScoreQuery functionScoreQuery) {
+            flatten(functionScoreQuery.getSubQuery(), searcher, flatQueries, boost);
         } else if (sourceQuery instanceof MultiPhrasePrefixQuery) {
             flatten(sourceQuery.rewrite(searcher), searcher, flatQueries, boost);
-        } else if (sourceQuery instanceof MultiPhraseQuery) {
-            MultiPhraseQuery q = ((MultiPhraseQuery) sourceQuery);
-            convertMultiPhraseQuery(0, new int[q.getTermArrays().length], q, q.getTermArrays(), q.getPositions(), searcher, flatQueries);
-        } else if (sourceQuery instanceof BlendedTermQuery) {
-            final BlendedTermQuery blendedTermQuery = (BlendedTermQuery) sourceQuery;
+        } else if (sourceQuery instanceof MultiPhraseQuery multiPhraseQuery) {
+            convertMultiPhraseQuery(
+                0,
+                new int[multiPhraseQuery.getTermArrays().length],
+                multiPhraseQuery,
+                multiPhraseQuery.getTermArrays(),
+                multiPhraseQuery.getPositions(),
+                searcher,
+                flatQueries
+            );
+        } else if (sourceQuery instanceof BlendedTermQuery blendedTermQuery) {
             flatten(blendedTermQuery.rewrite(searcher), searcher, flatQueries, boost);
-        } else if (sourceQuery instanceof org.apache.lucene.queries.function.FunctionScoreQuery) {
-            org.apache.lucene.queries.function.FunctionScoreQuery funcScoreQuery =
-                (org.apache.lucene.queries.function.FunctionScoreQuery) sourceQuery;
+        } else if (sourceQuery instanceof org.apache.lucene.queries.function.FunctionScoreQuery funcScoreQuery) {
             // flatten query with query boost
             flatten(funcScoreQuery.getWrappedQuery(), searcher, flatQueries, boost);
-        } else if (sourceQuery instanceof SynonymQuery) {
+        } else if (sourceQuery instanceof SynonymQuery synQuery) {
             // SynonymQuery should be handled by the parent class directly.
             // This statement should be removed when https://issues.apache.org/jira/browse/LUCENE-7484 is merged.
-            SynonymQuery synQuery = (SynonymQuery) sourceQuery;
             for (Term term : synQuery.getTerms()) {
                 flatten(new TermQuery(term), searcher, flatQueries, boost);
             }
-        } else if (sourceQuery instanceof OpenSearchToParentBlockJoinQuery) {
-            Query childQuery = ((OpenSearchToParentBlockJoinQuery) sourceQuery).getChildQuery();
+        } else if (sourceQuery instanceof OpenSearchToParentBlockJoinQuery parentBlockJoinQuery) {
+            Query childQuery = parentBlockJoinQuery.getChildQuery();
             if (childQuery != null) {
                 flatten(childQuery, searcher, flatQueries, boost);
             }

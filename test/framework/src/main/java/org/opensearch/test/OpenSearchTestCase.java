@@ -33,6 +33,7 @@ package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -51,7 +52,6 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
@@ -198,13 +198,9 @@ import reactor.core.scheduler.Schedulers;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base testcase for randomized unit testing with OpenSearch
@@ -212,6 +208,7 @@ import static org.hamcrest.Matchers.startsWith;
 @Listeners({ ReproduceInfoPrinter.class, LoggingListener.class })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
@@ -247,9 +244,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
     private HeaderWarningAppender headerWarningAppender;
-
-    final static String NO_ROOT_LOGGER_WARN_MESSAGE =
-        "No Root logger was configured, creating default ERROR-level Root logger with Console appender";
 
     /**
      * Define LockFeatureFlag annotation for unit tests.
@@ -309,20 +303,12 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
 
     static {
-
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps();
 
-        LoggerContext.getContext(true).getConfiguration().getRootLogger().setAdditive(false);
         String leakLoggerName = "io.netty.util.ResourceLeakDetector";
         Logger leakLogger = LogManager.getLogger(leakLoggerName);
-        Appender leakAppender = new AbstractAppender(
-            leakLoggerName,
-            null,
-            PatternLayout.newBuilder().withPattern("%m").build(),
-            true,
-            Property.EMPTY_ARRAY
-        ) {
+        Appender leakAppender = new AbstractAppender(leakLoggerName, null, PatternLayout.newBuilder().withPattern("%m").build()) {
             @Override
             public void append(LogEvent event) {
                 String message = event.getMessage().getFormattedMessage();
@@ -685,7 +671,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     private static final List<StatusData> statusData = new ArrayList<>();
     static {
         // ensure that the status logger is set to the warn level so we do not miss any warnings with our Log4j usage
-        StatusLogger.getLogger().getFallbackListener().setLevel(Level.WARN);
+        StatusLogger.getLogger().setLevel(Level.WARN);
         // Log4j will write out status messages indicating problems with the Log4j usage to the status logger; we hook into this logger and
         // assert that no such messages were written out as these would indicate a problem with our logging configuration
         StatusLogger.getLogger().registerListener(new StatusConsoleListener(Level.WARN) {
@@ -738,12 +724,9 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
                 };
 
                 assertThat(
+                    statusData.stream().map(statusToString::apply).collect(Collectors.joining("\r\n")),
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
-                    anyOf(
-                        emptyCollectionOf(String.class),
-                        contains(startsWith(NO_ROOT_LOGGER_WARN_MESSAGE)),
-                        contains(startsWith(NO_ROOT_LOGGER_WARN_MESSAGE), startsWith(NO_ROOT_LOGGER_WARN_MESSAGE))
-                    )
+                    empty()
                 );
             } finally {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM

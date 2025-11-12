@@ -47,8 +47,8 @@ public class ActiveShardCountProtoUtils {
                     default:
                         return ActiveShardCount.DEFAULT;
                 }
-            case INT32_VALUE:
-                return ActiveShardCount.from(waitForActiveShards.getInt32Value());
+            case INT32:
+                return ActiveShardCount.from(waitForActiveShards.getInt32());
             case WAITFORACTIVESHARDS_NOT_SET:
             default:
                 return ActiveShardCount.DEFAULT;

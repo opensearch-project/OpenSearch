@@ -62,7 +62,6 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
     public List<ReadResult<FileOffset, FileMessage>> readNext(FileOffset offset, boolean includeStart, long maxMessages, int timeoutMillis)
         throws TimeoutException {
         long startLine = includeStart ? offset.getLine() : offset.getLine() + 1;
-        lastReadLine = startLine;
         return readFromFile(startLine, maxMessages);
     }
 
@@ -91,6 +90,7 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
             }
 
             while (currentLineInReader < startLine && reader.readLine() != null) {
+                lastReadLine = currentLineInReader;
                 currentLineInReader++;
             }
 
@@ -153,6 +153,22 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
     @Override
     public int getShardId() {
         return shardId;
+    }
+
+    @Override
+    public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
+        if (!shardFile.exists()) {
+            return 0;
+        }
+
+        FileOffset latestOffset = (FileOffset) latestPointer();
+        if (lastReadLine < 0) {
+            // Haven't read anything yet, use the expected start pointer
+            long startLine = ((FileOffset) expectedStartPointer).getLine();
+            return Math.max(0, latestOffset.getLine() - startLine);
+        }
+        // return lag as number of remaining lines from lastReadLineNumber
+        return latestOffset.getLine() - lastReadLine - 1;
     }
 
     @Override

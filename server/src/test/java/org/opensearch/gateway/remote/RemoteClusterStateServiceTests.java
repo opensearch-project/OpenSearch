@@ -1344,8 +1344,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ClusterState previousClusterState = generateClusterStateWithAllAttributes().build();
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().build();
         BlobContainer container = mockBlobStoreObjects();
-        Exception mockException = new IOException("mock exception");
-        when(container.readBlob(anyString())).thenThrow(mockException);
+        String exceptionMsg = "mock exception";
+        when(container.readBlob(anyString())).thenAnswer(inv -> { throw new IOException(exceptionMsg); });
         remoteClusterStateService.start();
         RemoteStateTransferException exception = expectThrows(
             RemoteStateTransferException.class,
@@ -1371,7 +1371,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         );
         assertEquals("Exception during reading cluster state from remote", exception.getMessage());
         assertTrue(exception.getSuppressed().length > 0);
-        assertEquals(mockException, exception.getSuppressed()[0].getCause());
+        assertEquals(exceptionMsg, exception.getSuppressed()[0].getCause().getMessage());
     }
 
     public void testReadClusterStateInParallel_UnexpectedResult() throws IOException {
@@ -3917,30 +3917,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         mockBlobContainerOrderedList.toArray(mockBlobContainerOrderedArray);
         when(blobStore.blobContainer(ArgumentMatchers.any())).thenReturn(uuidBlobContainer, mockBlobContainerOrderedArray);
         when(blobStoreRepository.getCompressor()).thenReturn(compressor);
-    }
-
-    private ClusterMetadataManifest generateV1ClusterMetadataManifest(
-        String clusterUUID,
-        String previousClusterUUID,
-        String stateUUID,
-        List<UploadedIndexMetadata> uploadedIndexMetadata,
-        String globalMetadataFileName,
-        Boolean isUUIDCommitted
-    ) {
-        return ClusterMetadataManifest.builder()
-            .indices(uploadedIndexMetadata)
-            .clusterTerm(1L)
-            .stateVersion(1L)
-            .stateUUID(stateUUID)
-            .clusterUUID(clusterUUID)
-            .nodeId("nodeA")
-            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
-            .previousClusterUUID(previousClusterUUID)
-            .committed(true)
-            .clusterUUIDCommitted(isUUIDCommitted)
-            .globalMetadataFileName(globalMetadataFileName)
-            .codecVersion(CODEC_V1)
-            .build();
     }
 
     private ClusterMetadataManifest generateClusterMetadataManifest(

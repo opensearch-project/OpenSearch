@@ -44,6 +44,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
+import static org.opensearch.search.pipeline.SearchPipelineService.ALL;
+import static org.opensearch.search.pipeline.SearchPipelineService.ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -712,9 +714,9 @@ public abstract class SearchPipelineTestCase extends OpenSearchTestCase {
         return SearchSourceBuilder.searchSource().size(10);
     }
 
-    void enabledAllSystemGeneratedFactories(SearchPipelineService service) throws Exception {
+    void enabledAllSystemGeneratedFactories(SearchPipelineService service) {
         service.getClusterService()
             .getClusterSettings()
-            .applySettings(Settings.builder().putList("cluster.search.enabled_system_generated_factories", "*").build());
+            .applySettings(Settings.builder().putList(ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING.getKey(), ALL).build());
     }
 }

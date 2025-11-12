@@ -42,13 +42,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class DocsStatsTests extends OpenSearchTestCase {
 
     public void testCalculateAverageDocSize() throws Exception {
-        DocsStats stats = new DocsStats(10, 2, 120);
+        DocsStats stats = new DocsStats.Builder().count(10).deleted(2).totalSizeInBytes(120).build();
         assertThat(stats.getAverageSizeInBytes(), equalTo(10L));
 
-        stats.add(new DocsStats(0, 0, 0));
+        stats.add(new DocsStats.Builder().count(0).deleted(0).totalSizeInBytes(0).build());
         assertThat(stats.getAverageSizeInBytes(), equalTo(10L));
 
-        stats.add(new DocsStats(8, 30, 480));
+        stats.add(new DocsStats.Builder().count(8).deleted(30).totalSizeInBytes(480).build());
         assertThat(stats.getCount(), equalTo(18L));
         assertThat(stats.getDeleted(), equalTo(32L));
         assertThat(stats.getTotalSizeInBytes(), equalTo(600L));
@@ -56,25 +56,28 @@ public class DocsStatsTests extends OpenSearchTestCase {
     }
 
     public void testUninitialisedShards() {
-        DocsStats stats = new DocsStats(0, 0, -1);
+        DocsStats stats = new DocsStats.Builder().count(0).deleted(0).totalSizeInBytes(-1).build();
         assertThat(stats.getTotalSizeInBytes(), equalTo(-1L));
         assertThat(stats.getAverageSizeInBytes(), equalTo(0L));
-        stats.add(new DocsStats(0, 0, -1));
+        stats.add(new DocsStats.Builder().count(0).deleted(0).totalSizeInBytes(-1).build());
         assertThat(stats.getTotalSizeInBytes(), equalTo(-1L));
         assertThat(stats.getAverageSizeInBytes(), equalTo(0L));
-        stats.add(new DocsStats(1, 0, 10));
+        stats.add(new DocsStats.Builder().count(1).deleted(0).totalSizeInBytes(10).build());
         assertThat(stats.getTotalSizeInBytes(), equalTo(10L));
         assertThat(stats.getAverageSizeInBytes(), equalTo(10L));
-        stats.add(new DocsStats(0, 0, -1));
+        stats.add(new DocsStats.Builder().count(0).deleted(0).totalSizeInBytes(-1).build());
         assertThat(stats.getTotalSizeInBytes(), equalTo(10L));
         assertThat(stats.getAverageSizeInBytes(), equalTo(10L));
-        stats.add(new DocsStats(1, 0, 20));
+        stats.add(new DocsStats.Builder().count(1).deleted(0).totalSizeInBytes(20).build());
         assertThat(stats.getTotalSizeInBytes(), equalTo(30L));
         assertThat(stats.getAverageSizeInBytes(), equalTo(15L));
     }
 
     public void testSerialize() throws Exception {
-        DocsStats originalStats = new DocsStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        DocsStats originalStats = new DocsStats.Builder().count(randomNonNegativeLong())
+            .deleted(randomNonNegativeLong())
+            .totalSizeInBytes(randomNonNegativeLong())
+            .build();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalStats.writeTo(out);
             BytesReference bytes = out.bytes();

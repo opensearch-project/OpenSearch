@@ -79,26 +79,25 @@ public class RemoteTranslogStatsTests extends OpenSearchTestCase {
     }
 
     private static RemoteTranslogTransferTracker.Stats getRandomTransferTrackerStats() {
-        return new RemoteTranslogTransferTracker.Stats(
-            new ShardId("test-idx", "test-idx", randomIntBetween(1, 10)),
-            0L,
-            randomLongBetween(100, 500),
-            randomLongBetween(50, 100),
-            randomLongBetween(100, 200),
-            randomLongBetween(10000, 50000),
-            randomLongBetween(5000, 10000),
-            randomLongBetween(10000, 20000),
-            0L,
-            0D,
-            0D,
-            0D,
-            0L,
-            0L,
-            0L,
-            0L,
-            0D,
-            0D,
-            0D
-        );
+        return new RemoteTranslogTransferTracker.Stats.Builder().shardId(new ShardId("test-idx", "test-idx", randomIntBetween(1, 10)))
+            .lastSuccessfulUploadTimestamp(0L)
+            .totalUploadsStarted(randomLongBetween(100, 500))
+            .totalUploadsSucceeded(randomLongBetween(50, 100))
+            .totalUploadsFailed(randomLongBetween(100, 200))
+            .uploadBytesStarted(randomLongBetween(10000, 50000))
+            .uploadBytesSucceeded(randomLongBetween(5000, 10000))
+            .uploadBytesFailed(randomLongBetween(10000, 20000))
+            .totalUploadTimeInMillis(0L)
+            .uploadBytesMovingAverage(0D)
+            .uploadBytesPerSecMovingAverage(0D)
+            .uploadTimeMovingAverage(0D)
+            .lastSuccessfulDownloadTimestamp(0L)
+            .totalDownloadsSucceeded(0L)
+            .downloadBytesSucceeded(0L)
+            .totalDownloadTimeInMillis(0L)
+            .downloadBytesMovingAverage(0D)
+            .downloadBytesPerSecMovingAverage(0D)
+            .downloadTimeMovingAverage(0D)
+            .build();
     }
 }

@@ -12,17 +12,27 @@ import org.opensearch.protobufs.FieldCollapse;
 import org.opensearch.protobufs.InnerHits;
 import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
 
 public class CollapseBuilderProtoUtilsTests extends OpenSearchTestCase {
+
+    private QueryBuilderProtoConverterRegistry registry;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        registry = new QueryBuilderProtoConverterRegistryImpl();
+    }
 
     public void testFromProtoWithBasicField() throws IOException {
         // Create a protobuf FieldCollapse with just a field name
         FieldCollapse fieldCollapse = FieldCollapse.newBuilder().setField("user_id").build();
 
         // Call the method under test
-        CollapseBuilder collapseBuilder = CollapseBuilderProtoUtils.fromProto(fieldCollapse);
+        CollapseBuilder collapseBuilder = CollapseBuilderProtoUtils.fromProto(fieldCollapse, registry);
 
         // Verify the result
         assertNotNull("CollapseBuilder should not be null", collapseBuilder);
@@ -36,7 +46,7 @@ public class CollapseBuilderProtoUtilsTests extends OpenSearchTestCase {
         FieldCollapse fieldCollapse = FieldCollapse.newBuilder().setField("user_id").setMaxConcurrentGroupSearches(10).build();
 
         // Call the method under test
-        CollapseBuilder collapseBuilder = CollapseBuilderProtoUtils.fromProto(fieldCollapse);
+        CollapseBuilder collapseBuilder = CollapseBuilderProtoUtils.fromProto(fieldCollapse, registry);
 
         // Verify the result
         assertNotNull("CollapseBuilder should not be null", collapseBuilder);
@@ -53,7 +63,7 @@ public class CollapseBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        CollapseBuilder collapseBuilder = CollapseBuilderProtoUtils.fromProto(fieldCollapse);
+        CollapseBuilder collapseBuilder = CollapseBuilderProtoUtils.fromProto(fieldCollapse, registry);
 
         // Verify the result
         assertNotNull("CollapseBuilder should not be null", collapseBuilder);
@@ -72,15 +82,17 @@ public class CollapseBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        CollapseBuilder collapseBuilder = CollapseBuilderProtoUtils.fromProto(fieldCollapse);
+        CollapseBuilder collapseBuilder = CollapseBuilderProtoUtils.fromProto(fieldCollapse, registry);
 
         // Verify the result
         assertNotNull("CollapseBuilder should not be null", collapseBuilder);
         assertEquals("Field name should match", "user_id", collapseBuilder.getField());
         assertNotNull("InnerHits should not be null", collapseBuilder.getInnerHits());
-        // The last inner hit in the list should be used
-        assertEquals("InnerHits name should match the last inner hit", "second_inner_hit", collapseBuilder.getInnerHits().get(0).getName());
-        assertEquals("InnerHits size should match the last inner hit", 10, collapseBuilder.getInnerHits().get(0).getSize());
+        assertEquals("InnerHits size should match", 2, collapseBuilder.getInnerHits().size());
+        assertEquals("InnerHits name should match", "first_inner_hit", collapseBuilder.getInnerHits().get(0).getName());
+        assertEquals("InnerHits size should match", 5, collapseBuilder.getInnerHits().get(0).getSize());
+        assertEquals("InnerHits name should match", "second_inner_hit", collapseBuilder.getInnerHits().get(1).getName());
+        assertEquals("InnerHits size should match", 10, collapseBuilder.getInnerHits().get(1).getSize());
     }
 
     public void testFromProtoWithAllFields() throws IOException {
@@ -92,7 +104,7 @@ public class CollapseBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        CollapseBuilder collapseBuilder = CollapseBuilderProtoUtils.fromProto(fieldCollapse);
+        CollapseBuilder collapseBuilder = CollapseBuilderProtoUtils.fromProto(fieldCollapse, registry);
 
         // Verify the result
         assertNotNull("CollapseBuilder should not be null", collapseBuilder);

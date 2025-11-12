@@ -103,6 +103,7 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -130,6 +131,9 @@ import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
 import static org.opensearch.search.SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED;
 import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
+import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT;
+import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO;
+import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT;
 
 /**
  * The main search context used during search phase
@@ -219,8 +223,9 @@ final class DefaultSearchContext extends SearchContext {
     private final int bucketSelectionStrategyFactor;
     private final boolean keywordIndexOrDocValuesEnabled;
 
-    private final boolean isStreamSearch;
+    private boolean isStreamSearch;
     private StreamSearchChannelListener listener;
+    private final SetOnce<FlushMode> cachedFlushMode = new SetOnce<>();
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -1276,5 +1281,34 @@ final class DefaultSearchContext extends SearchContext {
 
     public boolean isStreamSearch() {
         return isStreamSearch;
+    }
+
+    /**
+     * Disables streaming for this search context.
+     * Used when streaming cost analysis determines traditional processing is more efficient.
+     */
+    @Override
+    public FlushMode getFlushMode() {
+        return cachedFlushMode.get();
+    }
+
+    @Override
+    public boolean setFlushModeIfAbsent(FlushMode flushMode) {
+        return cachedFlushMode.trySet(flushMode);
+    }
+
+    @Override
+    public long getStreamingMaxEstimatedBucketCount() {
+        return clusterService.getClusterSettings().get(STREAMING_MAX_ESTIMATED_BUCKET_COUNT);
+    }
+
+    @Override
+    public double getStreamingMinCardinalityRatio() {
+        return clusterService.getClusterSettings().get(STREAMING_MIN_CARDINALITY_RATIO);
+    }
+
+    @Override
+    public long getStreamingMinEstimatedBucketCount() {
+        return clusterService.getClusterSettings().get(STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
     }
 }
