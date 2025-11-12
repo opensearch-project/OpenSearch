@@ -379,7 +379,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
                 plan
             },
             Err(e) => {
-                println!("SUBSTRAIT Rust: Failed to convert Substrait plan: {}", e);
+                let error_msg = format!("Failed to convert Substrait plan: {}", e);
+                println!("SUBSTRAIT Rust: {}", error_msg);
+                let _ = env.throw_new("java/lang/RuntimeException", error_msg);
                 return 0;
             }
         };
@@ -623,12 +625,15 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
     // Ideally the executor will give this
 
 
-
     runtime_ptr.block_on(async {
 
-        let parquet_schema = listing_options
-            .infer_schema(&ctx.state(), &table_path.clone())
-            .await.unwrap();
+        let parquet_schema = match listing_options.infer_schema(&ctx.state(), &table_path.clone()).await {
+            Ok(schema) => schema,
+            Err(e) => {
+                let _ = env.throw_new("java/lang/RuntimeException", format!("Failed to infer schema during fetch: {}", e));
+                return 0;
+            }
+        };
 
         // let total_groups = files_metadata[0].row_group_row_counts.len();
         // let mut access_plan = ParquetAccessPlan::new_all(total_groups);
@@ -651,7 +656,13 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
         //     .collect();
 
 
-        let access_plans = access_plans.await.unwrap();
+        let access_plans = match access_plans.await {
+            Ok(plans) => plans,
+            Err(e) => {
+                let _ = env.throw_new("java/lang/RuntimeException", format!("Failed to create access plans during fetch: {}", e));
+                return 0;
+            }
+        };
 
         let partitioned_files: Vec<PartitionedFile> = files_metadata
             .iter()
@@ -693,7 +704,13 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
 
         let task_ctx = Arc::new(TaskContext::default());
 
-        let stream = optimized_plan.execute(0, task_ctx).unwrap();
+        let stream = match optimized_plan.execute(0, task_ctx) {
+            Ok(s) => s,
+            Err(e) => {
+                let _ = env.throw_new("java/lang/RuntimeException", format!("Failed to execute plan during fetch: {}", e));
+                return 0;
+            }
+        };
 
         let stream_ptr = Box::into_raw(Box::new(stream)) as jlong;
 
