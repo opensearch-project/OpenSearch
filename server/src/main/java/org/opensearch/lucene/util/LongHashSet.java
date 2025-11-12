@@ -109,8 +109,7 @@ public final class LongHashSet implements Accountable {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj != null && obj instanceof LongHashSet) {
-            LongHashSet that = (LongHashSet) obj;
+        if (obj != null && obj instanceof LongHashSet that) {
             return size == that.size
                 && minValue == that.minValue
                 && maxValue == that.maxValue
