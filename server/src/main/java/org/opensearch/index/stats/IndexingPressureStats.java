@@ -39,7 +39,6 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.shard.DocsStats;
 
 import java.io.IOException;
 
@@ -136,8 +135,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Builder for the {@link DocsStats} class.
-     * Provides a fluent API for constructing a DocsStats object.
+     * Builder for the {@link IndexingPressureStats} class.
+     * Provides a fluent API for constructing a IndexingPressureStats object.
      */
     public static class Builder {
         private long totalCombinedCoordinatingAndPrimaryBytes = 0;
