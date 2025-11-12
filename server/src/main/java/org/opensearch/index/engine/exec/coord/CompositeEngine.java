@@ -855,25 +855,26 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
                         translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
                         final CatalogSnapshot catalogSnapshotToFlush = catalogSnapshot;
-                        final String serializedCatalogSnapshot = catalogSnapshotToFlush.serializeToString();
-                        final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
-                        final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
-                        compositeEngineCommitter.commit(
-                            () -> {
-                                final Map<String, String> commitData = new HashMap<>(7);
-                                commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
-                                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
-                                commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
-                                commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
-                                commitData.put(HISTORY_UUID_KEY, historyUUID);
-                                commitData.put(CATALOG_SNAPSHOT_KEY, serializedCatalogSnapshot);
-                                commitData.put(LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(lastWriterGeneration));
-                                return commitData.entrySet().iterator();
-                            }, catalogSnapshotToFlush
-                        );
-                        logger.trace("finished commit for flush");
-
-                        translogManager.trimUnreferencedReaders();
+                        if (catalogSnapshotToFlush != null) {
+                            final String serializedCatalogSnapshot = catalogSnapshotToFlush.serializeToString();
+                            final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
+                            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+                            compositeEngineCommitter.commit(
+                                () -> {
+                                    final Map<String, String> commitData = new HashMap<>(7);
+                                    commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
+                                    commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
+                                    commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
+                                    commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                                    commitData.put(HISTORY_UUID_KEY, historyUUID);
+                                    commitData.put(CATALOG_SNAPSHOT_KEY, serializedCatalogSnapshot);
+                                    commitData.put(LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(lastWriterGeneration));
+                                    return commitData.entrySet().iterator();
+                                }, catalogSnapshotToFlush
+                            );
+                            logger.trace("finished commit for flush");
+                            translogManager.trimUnreferencedReaders();
+                        }
                     } catch (AlreadyClosedException e) {
                         // TODO - failOnTragicEvent(e);
                         throw e;

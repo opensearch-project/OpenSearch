@@ -2685,7 +2685,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         index.routing()
                     ),
                     index.id(),
-                    null
+                    currentCompositeEngineReference.get()::documentInput
                 );
                 break;
             case DELETE:
@@ -4016,7 +4016,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
 
     public Indexer getIndexer() {
-        return getEngine();
+        return getIndexingExecutionCoordinator();
     }
 
     public CheckpointState getCheckpointState() {
@@ -4839,14 +4839,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void sync() throws IOException {
         verifyNotClosed();
-        getEngine().translogManager().syncTranslog();
+        getIndexer().translogManager().syncTranslog();
     }
 
     /**
      * Checks if the underlying storage sync is required.
      */
     public boolean isSyncNeeded() {
-        return getEngine().translogManager().isTranslogSyncNeeded();
+        return getIndexer().translogManager().isTranslogSyncNeeded();
     }
 
     /**
