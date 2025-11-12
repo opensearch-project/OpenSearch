@@ -2334,6 +2334,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
+                getIndexingExecutionCoordinator().close();
                 try {
                     if (engine != null && flushEngine) {
                         engine.flushAndClose();
@@ -3117,6 +3118,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public long getNativeBytesUsed() {
+        return getIndexingExecutionCoordinator().getNativeBytesUsed();
+    }
+
     public void addShardFailureCallback(Consumer<ShardFailure> onShardFailure) {
         this.shardEventListener.delegates.add(onShardFailure);
     }
@@ -3452,7 +3457,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void writeIndexingBuffer() {
         try {
-            getIndexer().writeIndexingBuffer();
+            getIndexingExecutionCoordinator().writeIndexingBuffer();
         } catch (Exception e) {
             handleRefreshException(e);
         }
