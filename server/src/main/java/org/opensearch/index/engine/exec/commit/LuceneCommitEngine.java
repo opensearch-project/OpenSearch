@@ -8,34 +8,42 @@
 
 package org.opensearch.index.engine.exec.commit;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.index.engine.CombinedDeletionPolicy;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.LongSupplier;
 
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNAPSHOT_KEY;
 
 public class LuceneCommitEngine implements Committer {
 
+    private final Logger logger;
     private final IndexWriter indexWriter;
-    private final LuceneIndexDeletionPolicy indexDeletionPolicy;
+    private final CombinedDeletionPolicy combinedDeletionPolicy;
     private final Store store;
 
-    public LuceneCommitEngine(Store store) throws IOException {
-        indexDeletionPolicy = new LuceneIndexDeletionPolicy();
+    public LuceneCommitEngine(Store store, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier)
+        throws IOException {
+        this.logger = Loggers.getLogger(LuceneCommitEngine.class, store.shardId());
+        this.combinedDeletionPolicy = new CombinedDeletionPolicy(logger, translogDeletionPolicy, null, globalCheckpointSupplier);
         IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
-        indexWriterConfig.setIndexDeletionPolicy(indexDeletionPolicy);
+        indexWriterConfig.setIndexDeletionPolicy(combinedDeletionPolicy);
         this.store = store;
         this.indexWriter = new IndexWriter(store.directory(), indexWriterConfig);
     }
@@ -58,7 +66,7 @@ public class LuceneCommitEngine implements Committer {
         indexWriter.setLiveCommitData(commitData);
         try {
             indexWriter.commit();
-            IndexCommit indexCommit = indexDeletionPolicy.getLatestIndexCommit();
+            IndexCommit indexCommit = combinedDeletionPolicy.getLastCommit();
             return CommitPoint.builder()
                 .commitFileName(indexCommit.getSegmentsFileName())
                 .fileNames(indexCommit.getFileNames())
@@ -86,8 +94,8 @@ public class LuceneCommitEngine implements Committer {
     }
 
     @Override
-    public SequenceNumbers.CommitInfo loadSeqNoInfoFromLastCommit() throws IOException {
-        return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(getLastCommittedData().entrySet());
+    public SafeCommitInfo getSafeCommitInfo() {
+        return this.combinedDeletionPolicy.getSafeCommitInfo();
     }
 
     @Override

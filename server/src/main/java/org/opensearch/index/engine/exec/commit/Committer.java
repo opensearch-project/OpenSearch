@@ -8,8 +8,8 @@
 
 package org.opensearch.index.engine.exec.commit;
 
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
-import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -26,5 +26,5 @@ public interface Committer extends Closeable {
 
     Optional<CatalogSnapshot> readLastCommittedCatalogSnapshot() throws IOException;
 
-    SequenceNumbers.CommitInfo loadSeqNoInfoFromLastCommit() throws IOException;
+    SafeCommitInfo getSafeCommitInfo();
 }

@@ -2685,7 +2685,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         index.routing()
                     ),
                     index.id(),
-                    null
+                    currentCompositeEngineReference.get()::documentInput
                 );
                 break;
             case DELETE:
@@ -4016,11 +4016,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
 
     public Indexer getIndexer() {
-        return getEngine();
+        return getIndexingExecutionCoordinator();
     }
 
     public CheckpointState getCheckpointState() {
-        return getEngine();
+        return getIndexingExecutionCoordinator();
     }
 
     public StatsHolder getStatsHolder() {
@@ -4041,7 +4041,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
 
     protected Indexer getIndexerOrNull() {
-        return getEngineOrNull();
+        return getIndexingExecutionCoordinator();
     }
 
     public CheckpointState getCheckpointStateOrNull() {
@@ -4245,8 +4245,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private SafeCommitInfo getSafeCommitInfo() {
-        final Engine engine = getEngineOrNull();
-        return engine == null ? SafeCommitInfo.EMPTY : getIndexer().getSafeCommitInfo();
+        final Indexer indexer = getIndexerOrNull();
+        return indexer == null ? SafeCommitInfo.EMPTY : getIndexer().getSafeCommitInfo();
     }
 
     class ShardEventListener implements Engine.EventListener {
@@ -4839,14 +4839,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void sync() throws IOException {
         verifyNotClosed();
-        getEngine().translogManager().syncTranslog();
+        getIndexer().translogManager().syncTranslog();
     }
 
     /**
      * Checks if the underlying storage sync is required.
      */
     public boolean isSyncNeeded() {
-        return getEngine().translogManager().isTranslogSyncNeeded();
+        return getIndexer().translogManager().isTranslogSyncNeeded();
     }
 
     /**
