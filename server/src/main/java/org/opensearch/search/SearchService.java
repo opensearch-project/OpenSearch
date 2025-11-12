@@ -861,8 +861,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.queryResult().size(context.size());
             if (substraitQuery != null) {
                 // setDFResults in context
-                Map<String, Object[]> result = searchExecEngine.executeQueryPhase(context);
-                context.setDFResults(result);
+                searchExecEngine.executeQueryPhase(context);
             }
             return executeQueryPhase(
                 context,

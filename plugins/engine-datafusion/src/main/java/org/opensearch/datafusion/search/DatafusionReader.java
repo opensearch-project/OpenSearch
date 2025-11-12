@@ -16,6 +16,8 @@ import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 /**
  * DataFusion reader for JNI operations.
  */
