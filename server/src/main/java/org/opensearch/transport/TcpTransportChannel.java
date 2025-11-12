@@ -89,9 +89,9 @@ public class TcpTransportChannel extends BaseTcpTransportChannel {
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            if (response instanceof QuerySearchResult && ((QuerySearchResult) response).getShardSearchRequest() != null) {
+            if (response instanceof QuerySearchResult querySearchResult && querySearchResult.getShardSearchRequest() != null) {
                 // update outbound network time with current time before sending response over network
-                ((QuerySearchResult) response).getShardSearchRequest().setOutboundNetworkTime(System.currentTimeMillis());
+                querySearchResult.getShardSearchRequest().setOutboundNetworkTime(System.currentTimeMillis());
             }
             outboundHandler.sendResponse(version, features, getChannel(), requestId, action, response, compressResponse, isHandshake);
         } finally {

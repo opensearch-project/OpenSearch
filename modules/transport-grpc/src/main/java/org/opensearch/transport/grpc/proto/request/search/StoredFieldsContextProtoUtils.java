@@ -46,7 +46,7 @@ public class StoredFieldsContextProtoUtils {
      * @param request the Protocol Buffer SearchRequest
      * @return a StoredFieldsContext
      */
-    protected static StoredFieldsContext fromProtoRequest(org.opensearch.protobufs.SearchRequest request) {
+    protected static StoredFieldsContext fromProtoRequest(org.opensearch.protobufs.SearchRequestBody request) {
         if (request.getStoredFieldsCount() > 0) {
             return StoredFieldsContext.fromList(request.getStoredFieldsList());
         }

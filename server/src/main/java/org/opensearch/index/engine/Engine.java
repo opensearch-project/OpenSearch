@@ -88,6 +88,7 @@ import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
@@ -151,7 +152,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final CounterMetric totalUnreferencedFileCleanUpsPerformed = new CounterMetric();
-    private final CountDownLatch closedLatch = new CountDownLatch(1);
+    protected final CountDownLatch closedLatch = new CountDownLatch(1);
     protected final EventListener eventListener;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -216,13 +217,17 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return new MergeStats();
     }
 
+    public MergedSegmentTransferTracker getMergedSegmentTransferTracker() {
+        return engineConfig.getMergedSegmentTransferTracker();
+    }
+
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
 
     /**
      * Reads the current stored history ID from commit data.
      */
-    String loadHistoryUUID(Map<String, String> commitData) {
+    protected String loadHistoryUUID(Map<String, String> commitData) {
         final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
@@ -270,7 +275,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
             }
         }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+        return new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(sizeInBytes).build();
     }
 
     /**
@@ -681,11 +686,11 @@ public abstract class Engine implements LifecycleAware, Closeable {
     @PublicApi(since = "1.0.0")
     public static class NoOpResult extends Result {
 
-        NoOpResult(long term, long seqNo) {
+        public NoOpResult(long term, long seqNo) {
             super(Operation.TYPE.NO_OP, 0, term, seqNo);
         }
 
-        NoOpResult(long term, long seqNo, Exception failure) {
+        public NoOpResult(long term, long seqNo, Exception failure) {
             super(Operation.TYPE.NO_OP, failure, 0, term, seqNo);
         }
 
@@ -1471,8 +1476,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
 
         public DirectoryReader getDirectoryReader() {
-            if (getIndexReader() instanceof DirectoryReader) {
-                return (DirectoryReader) getIndexReader();
+            if (getIndexReader() instanceof DirectoryReader directoryReader) {
+                return directoryReader;
             }
             throw new IllegalStateException("Can't use " + getIndexReader().getClass() + " as a directory reader");
         }
@@ -1554,7 +1559,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
             }
 
-            boolean isFromTranslog() {
+            public boolean isFromTranslog() {
                 return this == LOCAL_TRANSLOG_RECOVERY || this == LOCAL_RESET;
             }
         }
@@ -2110,7 +2115,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         awaitPendingClose();
     }
 
-    private void awaitPendingClose() {
+    protected void awaitPendingClose() {
         try {
             closedLatch.await();
         } catch (InterruptedException e) {

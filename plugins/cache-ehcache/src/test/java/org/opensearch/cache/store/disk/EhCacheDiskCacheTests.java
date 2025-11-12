@@ -1264,35 +1264,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    private EhcacheDiskCache.Builder<String, String> createDummyBuilder(String storagePath) throws IOException {
-        Settings settings = Settings.builder().build();
-        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
-        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
-        try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            if (storagePath == null || storagePath.isBlank()) {
-                storagePath = env.nodePaths()[0].path.toString() + "/request_cache";
-            }
-            return (EhcacheDiskCache.Builder<String, String>) new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias(
-                "ehcacheTest"
-            )
-                .setIsEventListenerModeSync(true)
-                .setStoragePath(storagePath)
-                .setKeyType(String.class)
-                .setValueType(String.class)
-                .setKeySerializer(new StringSerializer())
-                .setDiskCacheAlias("test1")
-                .setValueSerializer(new StringSerializer())
-                .setDimensionNames(List.of(dimensionName))
-                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
-                .setSettings(settings)
-                .setExpireAfterAccess(TimeValue.MAX_VALUE)
-                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setRemovalListener(removalListener)
-                .setWeigher(weigher)
-                .setStatsTrackingEnabled(false);
-        }
-    }
-
     private List<String> getRandomDimensions(List<String> dimensionNames) {
         Random rand = Randomness.get();
         int bound = 3;

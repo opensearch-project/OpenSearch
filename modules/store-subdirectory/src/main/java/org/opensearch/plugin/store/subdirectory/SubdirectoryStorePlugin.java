@@ -81,5 +81,31 @@ public class SubdirectoryStorePlugin extends Plugin implements IndexStorePlugin 
         ) {
             return new SubdirectoryAwareStore(shardId, indexSettings, directory, shardLock, onClose, shardPath);
         }
+
+        /**
+         * Creates a new {@link SubdirectoryAwareStore} instance.
+         *
+         * @param shardId the shard identifier
+         * @param indexSettings the index settings
+         * @param directory the underlying Lucene directory
+         * @param shardLock the shard lock
+         * @param onClose callback to execute when the store is closed
+         * @param shardPath the path information for the shard
+         * @param directoryFactory the directory factory to create child level directory.
+         *                         Used for Context Aware Segments enabled indices.
+         * @return a new SubdirectoryAwareStore instance
+         */
+        @Override
+        public Store newStore(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            Directory directory,
+            ShardLock shardLock,
+            Store.OnClose onClose,
+            ShardPath shardPath,
+            DirectoryFactory directoryFactory
+        ) {
+            return new SubdirectoryAwareStore(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory);
+        }
     }
 }

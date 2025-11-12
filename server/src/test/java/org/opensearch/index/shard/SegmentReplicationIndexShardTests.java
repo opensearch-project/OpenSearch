@@ -98,7 +98,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.opensearch.common.util.FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG;
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -157,7 +156,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     @TestLogging(reason = "Getting trace logs from MergedSegmentWarmer", value = "org.opensearch.index.engine.MergedSegmentWarmer:TRACE")
     public void testMergedSegmentReplication() throws Exception {
         // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 1 replica shard.
@@ -201,7 +199,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     public void testMergedSegmentReplicationWithException() throws Exception {
         // Test that the pre-copy merged segment exception will not cause primary shard to fail
         MergedSegmentPublisher mergedSegmentPublisherWithException = new MergedSegmentPublisher((indexShard, checkpoint) -> {
@@ -247,7 +244,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     public void testMergedSegmentReplicationWithZeroReplica() throws Exception {
         // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 0 replica shard.
         final RecoverySettings recoverySettings = new RecoverySettings(
@@ -283,7 +279,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     public void testCleanupRedundantPendingMergeSegment() throws Exception {
         final RecoverySettings recoverySettings = new RecoverySettings(
             Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
