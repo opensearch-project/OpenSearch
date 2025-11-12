@@ -567,6 +567,66 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         });
     }
 
+    public void testAllActiveOffsetBasedLag() throws Exception {
+        // Create all-active pull-based index
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.pointer_based_lag_update_interval", "3s")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+        // no messages published, expect 0 lag
+        assertTrue(validateOffsetBasedLagForPrimaryAndReplica(0));
+
+        // pause ingestion
+        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
+        assertTrue(pauseResponse.isAcknowledged());
+        assertTrue(pauseResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 2
+                && ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
+        });
+
+        // produce 10 messages in paused state and validate lag
+        for (int i = 0; i < 10; i++) {
+            produceData(Integer.toString(i), "name" + i, "30");
+        }
+        waitForState(() -> validateOffsetBasedLagForPrimaryAndReplica(10));
+
+        // resume ingestion
+        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
+        assertTrue(resumeResponse.isAcknowledged());
+        assertTrue(resumeResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 2
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(
+                        state -> state.isPollerPaused() == false
+                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
+                    );
+        });
+        waitForSearchableDocs(10, List.of(nodeA, nodeB));
+        waitForState(() -> validateOffsetBasedLagForPrimaryAndReplica(0));
+    }
+
     // returns PollingIngestStats for single primary and single replica
     private Map<String, PollingIngestStats> getPollingIngestStatsForPrimaryAndReplica(String indexName) {
         IndexStats indexStats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName);
@@ -582,5 +642,142 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         }
 
         return shardTypeToStats;
+    }
+
+    private boolean validateOffsetBasedLagForPrimaryAndReplica(long expectedLag) {
+        boolean valid = true;
+        Map<String, PollingIngestStats> shardTypeToStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
+        valid &= shardTypeToStats.get("primary") != null
+            && shardTypeToStats.get("primary").getConsumerStats().pointerBasedLag() == expectedLag;
+        valid &= shardTypeToStats.get("replica") != null
+            && shardTypeToStats.get("replica").getConsumerStats().pointerBasedLag() == expectedLag;
+        return valid;
+    }
+
+    public void testAllActiveIngestionBatchStartPointerOnReplicaPromotion() throws Exception {
+        // Step 1: Publish 10 messages
+        for (int i = 1; i <= 10; i++) {
+            produceDataWithExternalVersion(String.valueOf(i), 1, "name" + i, "25", defaultMessageTimestamp, "index");
+        }
+
+        // Step 2: Start nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Step 3: Create all-active index
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        // Step 4: Wait for 10 messages to be searchable on nodeA
+        waitForSearchableDocs(10, Arrays.asList(nodeA));
+
+        // Step 5: Flush to persist data
+        flush(indexName);
+
+        // Step 6: Add second node
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        // Step 7: Relocate shard from nodeA to nodeB
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(indexName, 0, nodeA, nodeB)).get();
+        ensureGreen(indexName);
+        assertTrue(nodeB.equals(primaryNodeName(indexName)));
+
+        // Step 8: Publish 1 new message
+        produceDataWithExternalVersion("11", 1, "name11", "25", defaultMessageTimestamp, "index");
+
+        // Step 9: Wait for 11 messages to be visible on nodeB
+        waitForSearchableDocs(11, Arrays.asList(nodeB));
+
+        // Step 10: Flush to persist data
+        flush(indexName);
+
+        // Step 11: Validate processed messages and version conflict count on nodeB
+        PollingIngestStats nodeBStats = client(nodeB).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(nodeBStats);
+        assertEquals(2L, nodeBStats.getMessageProcessorStats().totalProcessedCount());
+        assertEquals(1L, nodeBStats.getMessageProcessorStats().totalVersionConflictsCount());
+
+        // Step 12: Add third node
+        final String nodeC = internalCluster().startDataOnlyNode();
+
+        // Step 13: Bring down nodeA so the new replica will be allocated to nodeC
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+
+        // Step 14: Add a replica (will be allocated to nodeC since only nodeB and nodeC are available)
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            .get();
+        ensureGreen(indexName);
+
+        // Step 15: Wait for 11 messages to be searchable on nodeC (replica)
+        waitForSearchableDocs(11, Arrays.asList(nodeC));
+
+        // Step 16: Bring down nodeB (primary) and wait for nodeC to become primary
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeB));
+        ensureYellowAndNoInitializingShards(indexName);
+        assertTrue(nodeC.equals(primaryNodeName(indexName)));
+
+        // Step 17: Publish 1 more message
+        produceDataWithExternalVersion("12", 1, "name12", "25", defaultMessageTimestamp, "index");
+
+        // Step 18: Wait for 12 messages to be visible on nodeC
+        waitForSearchableDocs(12, Arrays.asList(nodeC));
+
+        // Step 19: Validate processed messages and version conflict count on nodeC
+        PollingIngestStats nodeCStats = client(nodeC).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(nodeCStats);
+
+        assertEquals(2L, nodeCStats.getMessageProcessorStats().totalProcessedCount());
+        assertEquals(1L, nodeCStats.getMessageProcessorStats().totalVersionConflictsCount());
+    }
+
+    public void testAllActiveIngestionPeriodicFlush() throws Exception {
+        // Publish 10 messages
+        for (int i = 1; i <= 10; i++) {
+            produceData(String.valueOf(i), "name" + i, "25");
+        }
+
+        // Start nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Create all-active index with 5 second periodic flush interval
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.all_active", true)
+                .put("index.periodic_flush_interval", "5s")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        waitForSearchableDocs(10, Arrays.asList(nodeA));
+        waitForState(() -> getPeriodicFlushCount(nodeA, indexName) >= 1);
+
     }
 }

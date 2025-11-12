@@ -86,7 +86,7 @@ public class RestShardsActionTests extends OpenSearchTestCase {
                 .resolve(shardRouting.shardId().getIndex().getUUID())
                 .resolve(String.valueOf(shardRouting.shardId().id()));
             CommonStats commonStats = new CommonStats();
-            commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
+            commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
             ShardStats shardStats = new ShardStats(
                 shardRouting,
                 new ShardPath(false, path, path, shardRouting.shardId()),

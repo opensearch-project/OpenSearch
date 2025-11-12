@@ -55,7 +55,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.25.0" apply false
+  id "com.diffplug.spotless" version "8.0.0" apply false
   id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
@@ -70,6 +70,11 @@ apply from: 'gradle/local-distribution.gradle'
 apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
+
+// Apply FIPS configuration to all projects
+allprojects {
+  apply from: "$rootDir/gradle/fips.gradle"
+}
 
 // common maven publishing configuration
 allprojects {
@@ -119,10 +124,11 @@ subprojects {
         }
         maven {
           name = 'Snapshots'
-          url = 'https://central.sonatype.com/repository/maven-snapshots/'
-          credentials {
-            username = System.getenv("SONATYPE_USERNAME")
-            password = System.getenv("SONATYPE_PASSWORD")
+          url = System.getenv("MAVEN_SNAPSHOTS_S3_REPO")
+          credentials(AwsCredentials) {
+            accessKey = System.getenv("AWS_ACCESS_KEY_ID")
+            secretKey = System.getenv("AWS_SECRET_ACCESS_KEY")
+            sessionToken = System.getenv("AWS_SESSION_TOKEN")
           }
         }
       }
@@ -265,7 +271,6 @@ allprojects {
       memoryMaximumSize = project.property('options.forkOptions.memoryMaximumSize')
     }
 
-    // See please https://bugs.openjdk.java.net/browse/JDK-8209058
     compile.options.compilerArgs << '-Werror'
     compile.options.compilerArgs << '-Xlint:auxiliaryclass'
     compile.options.compilerArgs << '-Xlint:cast'
@@ -418,8 +423,12 @@ gradle.projectsEvaluated {
           dependsOn(project(':libs:agent-sm:agent').prepareAgent)
           jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
         }
-        if (BuildParams.inFipsJvm) {
-          task.jvmArgs += ["-Dorg.bouncycastle.fips.approved_only=true"]
+        if (BuildParams.isInFipsJvm()) {
+          def fipsSecurityFile = project.rootProject.file('distribution/src/config/fips_java.security')
+          task.jvmArgs += [
+              "-Dorg.bouncycastle.fips.approved_only=true",
+              "-Djava.security.properties=${fipsSecurityFile}"
+          ]
         }
       }
     }
@@ -689,14 +698,6 @@ allprojects {
   def checkPart2 = tasks.register('checkPart2')
   plugins.withId('lifecycle-base') {
     checkPart1.configure { dependsOn 'check' }
-  }
-
-  plugins.withId('opensearch.testclusters') {
-    testClusters.configureEach {
-      if (BuildParams.inFipsJvm) {
-        keystorePassword 'notarealpasswordphrase'
-      }
-    }
   }
 }
 

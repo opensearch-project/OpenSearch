@@ -10,6 +10,7 @@ package org.opensearch.index.store.remote.directory;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.LockFactory;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
@@ -55,6 +56,11 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
         this.remoteStoreFileCache = remoteStoreFileCache;
+    }
+
+    @Override
+    public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+        return null;
     }
 
     @Override

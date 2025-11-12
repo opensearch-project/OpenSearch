@@ -46,6 +46,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.RestClient;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.junit.Assert;
 
@@ -53,16 +54,12 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Integration test that runs against an HA-Enabled HDFS instance
  */
-@SuppressWarnings("removal")
 public class HaHdfsFailoverTestSuiteIT extends OpenSearchRestTestCase {
 
     public void testHAFailoverWithRepository() throws Exception {
@@ -76,9 +73,7 @@ public class HaHdfsFailoverTestSuiteIT extends OpenSearchRestTestCase {
         String nn2Port = "10002";
         if (ports.length() > 0) {
             final Path path = PathUtils.get(ports);
-            final List<String> lines = AccessController.doPrivileged((PrivilegedExceptionAction<List<String>>) () -> {
-                return Files.readAllLines(path);
-            });
+            final List<String> lines = AccessController.doPrivilegedChecked(() -> Files.readAllLines(path));
             nn1Port = lines.get(0);
             nn2Port = lines.get(1);
         }
@@ -94,7 +89,7 @@ public class HaHdfsFailoverTestSuiteIT extends OpenSearchRestTestCase {
             "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider"
         );
 
-        AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+        AccessController.doPrivilegedChecked(() -> {
             if (securityEnabled) {
                 // ensure that keytab exists
                 Path kt = PathUtils.get(kerberosKeytabLocation);
@@ -287,20 +282,20 @@ public class HaHdfsFailoverTestSuiteIT extends OpenSearchRestTestCase {
      */
     private void failoverHDFS(String from, String to, Configuration configuration) throws IOException {
         logger.info("Swapping active namenodes: [{}] to standby and [{}] to active", from, to);
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                CloseableHAAdmin haAdmin = new CloseableHAAdmin();
-                haAdmin.setConf(configuration);
+        AccessController.doPrivileged(() -> {
+            CloseableHAAdmin haAdmin = new CloseableHAAdmin();
+            haAdmin.setConf(configuration);
+            try {
                 try {
                     haAdmin.transitionToStandby(from);
                     haAdmin.transitionToActive(to);
-                } finally {
-                    haAdmin.close();
+                } catch (Exception e) {
+                    throw new RuntimeException("Unable to perform namenode failover", e);
                 }
-                return null;
-            });
-        } catch (PrivilegedActionException pae) {
-            throw new IOException("Unable to perform namenode failover", pae);
-        }
+            } finally {
+                haAdmin.close();
+            }
+            return null;
+        });
     }
 }

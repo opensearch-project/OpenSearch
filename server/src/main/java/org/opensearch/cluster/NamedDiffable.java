@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.VersionedNamedWriteable;
 
 /**
@@ -39,4 +40,9 @@ import org.opensearch.core.common.io.stream.VersionedNamedWriteable;
  *
  * @opensearch.internal
  */
-public interface NamedDiffable<T> extends Diffable<T>, VersionedNamedWriteable {}
+public interface NamedDiffable<T> extends Diffable<T>, VersionedNamedWriteable {
+    @Override
+    default Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
+    }
+}

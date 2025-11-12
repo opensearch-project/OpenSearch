@@ -32,7 +32,6 @@
 package org.opensearch.script;
 
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
@@ -383,11 +382,6 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
     @Override
     public String getWriteableName() {
         return TYPE;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

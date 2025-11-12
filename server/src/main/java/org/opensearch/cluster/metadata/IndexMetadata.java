@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.action.support.ActiveShardCount;
@@ -51,8 +50,8 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.Assertions;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -93,6 +92,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
@@ -668,8 +668,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         -1,
         -1,
         Property.IndexScope,
-        Property.PrivateIndex,
-        Property.UnmodifiableOnRestore
+        Property.Final
     );
 
     /**
@@ -908,6 +907,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Defines the pointer-based lag update interval for pull-based ingestion.
+     * This controls how frequently the lag between the latest available message and the last consumed message is calculated.
+     * Setting this to 0 disables pointer-based lag calculation entirely.
+     */
+    public static final String SETTING_INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL =
+        "index.ingestion_source.pointer_based_lag_update_interval";
+    public static final Setting<TimeValue> INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING = Setting.positiveTimeSetting(
+        SETTING_INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL,
+        new TimeValue(10, TimeUnit.SECONDS),
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * Defines if all-active pull-based ingestion is enabled. In this mode, replicas will directly consume from the
      * streaming source and process the updates. In the default document replication mode, this setting must be enabled.
      * This mode is currently not supported with segment replication.
@@ -992,6 +1005,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
     public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
     public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
+    public static final String REMOTE_STORE_SSE_ENABLED_INDEX_KEY = "sse_enabled_index";
     public static final String CONTEXT_KEY = "context";
     public static final String INGESTION_SOURCE_KEY = "ingestion_source";
     public static final String INGESTION_STATUS_KEY = "ingestion_status";
@@ -1046,6 +1060,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final int indexTotalShardsPerNodeLimit;
     private final int indexTotalPrimaryShardsPerNodeLimit;
+    private final int indexTotalRemoteCapableShardsPerNodeLimit;
+    private final int indexTotalRemoteCapablePrimaryShardsPerNodeLimit;
     private final boolean isAppendOnlyIndex;
 
     private final Context context;
@@ -1080,6 +1096,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final boolean isSystem,
         final int indexTotalShardsPerNodeLimit,
         final int indexTotalPrimaryShardsPerNodeLimit,
+        final int indexTotalRemoteCapableShardsPerNodeLimit,
+        final int indexTotalRemoteCapablePrimaryShardsPerNodeLimit,
         boolean isAppendOnlyIndex,
         final Context context,
         final IngestionStatus ingestionStatus
@@ -1120,6 +1138,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
         this.indexTotalShardsPerNodeLimit = indexTotalShardsPerNodeLimit;
         this.indexTotalPrimaryShardsPerNodeLimit = indexTotalPrimaryShardsPerNodeLimit;
+        this.indexTotalRemoteCapableShardsPerNodeLimit = indexTotalRemoteCapableShardsPerNodeLimit;
+        this.indexTotalRemoteCapablePrimaryShardsPerNodeLimit = indexTotalRemoteCapablePrimaryShardsPerNodeLimit;
         this.isAppendOnlyIndex = isAppendOnlyIndex;
         this.context = context;
         this.ingestionStatus = ingestionStatus;
@@ -1204,6 +1224,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int numProcessorThreads = INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING.get(settings);
             final int blockingQueueSize = INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING.get(settings);
             final boolean allActiveIngestionEnabled = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings);
+            final TimeValue pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.get(settings);
 
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
@@ -1213,6 +1234,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setNumProcessorThreads(numProcessorThreads)
                 .setBlockingQueueSize(blockingQueueSize)
                 .setAllActiveIngestion(allActiveIngestionEnabled)
+                .setPointerBasedLagUpdateInterval(pointerBasedLagUpdateInterval)
                 .build();
         }
         return null;
@@ -1334,8 +1356,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return this.indexTotalShardsPerNodeLimit;
     }
 
+    public int getIndexTotalRemoteCapableShardsPerNodeLimit() {
+        return this.indexTotalRemoteCapableShardsPerNodeLimit;
+    }
+
     public int getIndexTotalPrimaryShardsPerNodeLimit() {
         return this.indexTotalPrimaryShardsPerNodeLimit;
+    }
+
+    public int getIndexTotalRemoteCapablePrimaryShardsPerNodeLimit() {
+        return this.indexTotalRemoteCapablePrimaryShardsPerNodeLimit;
     }
 
     public boolean isAppendOnlyIndex() {
@@ -2175,6 +2205,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int indexTotalPrimaryShardsPerNodeLimit = ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(
                 settings
             );
+            final int indexTotalRemoteCapableShardsPerNodeLimit =
+                ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING.get(settings);
+            final int indexTotalRemoteCapablePrimaryShardsPerNodeLimit =
+                ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.get(settings);
             final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings);
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
@@ -2212,6 +2246,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 isSystem,
                 indexTotalShardsPerNodeLimit,
                 indexTotalPrimaryShardsPerNodeLimit,
+                indexTotalRemoteCapableShardsPerNodeLimit,
+                indexTotalRemoteCapablePrimaryShardsPerNodeLimit,
                 isAppendOnlyIndex,
                 context,
                 ingestionStatus
@@ -2404,10 +2440,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             }
                         }
                     } else if ("warmers".equals(currentFieldName)) {
-                        // TODO: do this in 6.0:
-                        // throw new IllegalArgumentException("Warmers are not supported anymore - are you upgrading from 1.x?");
-                        // ignore: warmers have been removed in 5.0 and are
-                        // simply ignored when upgrading from 2.x
+                        // TODO: This was removed in 2015. We should throw an exception in OpenSearch 4.0.
+                        // throw new IllegalArgumentException("Warmers are not supported anymore");
                         assert Version.CURRENT.major <= 5;
                         parser.skipChildren();
                     } else if (CONTEXT_KEY.equals(currentFieldName)) {
@@ -2470,18 +2504,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 }
             }
 
-            final Version indexCreatedVersion = indexCreated(builder.settings);
-            // Reference:
-            // https://github.com/opensearch-project/OpenSearch/blob/4dde0f2a3b445b2fc61dab29c5a2178967f4a3e3/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1620-L1628
-            if (Assertions.ENABLED && indexCreatedVersion.onOrAfter(LegacyESVersion.V_6_5_0)) {
-                assert mappingVersion : "mapping version should be present for indices";
-                assert settingsVersion : "settings version should be present for indices";
-            }
-            // Reference:
-            // https://github.com/opensearch-project/OpenSearch/blob/2e4b27b243d8bd2c515f66cf86c6d1d6a601307f/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1824
-            if (Assertions.ENABLED && indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_2_0)) {
-                assert aliasesVersion : "aliases version should be present for indices";
-            }
+            assert mappingVersion : "mapping version should be present for indices";
+            assert settingsVersion : "settings version should be present for indices";
+            assert aliasesVersion : "aliases version should be present for indices";
             return builder.build();
         }
     }

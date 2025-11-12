@@ -28,8 +28,6 @@
  * under the License.
  */
 
-import org.opensearch.gradle.info.BuildParams
-
 apply plugin: 'opensearch.publish'
 
 dependencies {
@@ -52,6 +50,6 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 tasks.test {
-  jvmArgs += ["--add-opens", "java.base/java.nio.channels=ALL-UNNAMED"]
-  jvmArgs += ["--add-opens", "java.base/java.net=ALL-UNNAMED"]
+    jvmArgs += ["--add-opens", "java.base/java.nio.channels=ALL-UNNAMED"]
+    jvmArgs += ["--add-opens", "java.base/java.net=ALL-UNNAMED"]
 }

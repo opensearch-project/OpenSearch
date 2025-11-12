@@ -117,6 +117,11 @@ public class FakeIngestionSource {
         }
 
         @Override
+        public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
+            return 0;
+        }
+
+        @Override
         public void close() throws IOException {
 
         }
