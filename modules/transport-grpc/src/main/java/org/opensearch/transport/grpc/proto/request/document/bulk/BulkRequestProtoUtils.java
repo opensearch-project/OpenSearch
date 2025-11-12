@@ -9,7 +9,6 @@
 package org.opensearch.transport.grpc.proto.request.document.bulk;
 
 import org.opensearch.action.bulk.BulkShardRequest;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.document.RestBulkAction;
@@ -37,11 +36,16 @@ public class BulkRequestProtoUtils {
      * Similar to {@link RestBulkAction#prepareRequest(RestRequest, NodeClient)}
      * Please ensure to keep both implementations consistent.
      *
+     * Note: Unlike REST API, gRPC does not enforce the allowExplicitIndex security setting.
+     * In REST, this setting provides network-level security by allowing proxies to filter
+     * requests based on URL paths. In gRPC, both default_index and x_index are in the
+     * request body, making this check ineffective for network-level security.
+     * For gRPC security, use mTLS, gRPC interceptors, or service mesh policies instead.
+     *
      * @param request the request to execute
-     * @param settings node settings for security and configuration
      * @return a future of the bulk action that was executed
      */
-    public static org.opensearch.action.bulk.BulkRequest prepareRequest(BulkRequest request, Settings settings) {
+    public static org.opensearch.action.bulk.BulkRequest prepareRequest(BulkRequest request) {
         org.opensearch.action.bulk.BulkRequest bulkRequest = Requests.bulkRequest();
 
         String defaultIndex = request.hasIndex() ? request.getIndex() : null;
@@ -62,9 +66,6 @@ public class BulkRequestProtoUtils {
 
         bulkRequest.setRefreshPolicy(RefreshProtoUtils.getRefreshPolicy(request.getRefresh()));
 
-        // Read the allowExplicitIndex setting (matches REST BulkAction line 74)
-        boolean allowExplicitIndex = RestBulkAction.MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
-
         // Note: batch_size is deprecated in OS 3.x. Add batch_size parameter when backporting to OS 2.x
         /*
         if (request.hasBatchSize()){
@@ -80,8 +81,7 @@ public class BulkRequestProtoUtils {
                 defaultRouting,
                 defaultFetchSourceContext,
                 defaultPipeline,
-                defaultRequireAlias,
-                allowExplicitIndex
+                defaultRequireAlias
             )
         );
 

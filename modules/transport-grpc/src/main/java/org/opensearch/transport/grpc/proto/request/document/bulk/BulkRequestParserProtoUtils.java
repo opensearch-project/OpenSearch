@@ -107,7 +107,6 @@ public class BulkRequestParserProtoUtils {
      * @param defaultFetchSourceContext
      * @param defaultPipeline
      * @param defaultRequireAlias
-     * @param allowExplicitIndex whether explicit index specification is allowed (security setting)
      * @return
      */
     public static DocWriteRequest<?>[] getDocWriteRequests(
@@ -116,8 +115,7 @@ public class BulkRequestParserProtoUtils {
         String defaultRouting,
         FetchSourceContext defaultFetchSourceContext,
         String defaultPipeline,
-        Boolean defaultRequireAlias,
-        boolean allowExplicitIndex
+        Boolean defaultRequireAlias
     ) {
         List<BulkRequestBody> bulkRequestBodyList = request.getBulkRequestBodyList();
         DocWriteRequest<?>[] docWriteRequests = new DocWriteRequest<?>[bulkRequestBodyList.size()];
@@ -155,9 +153,7 @@ public class BulkRequestParserProtoUtils {
                         pipeline,
                         ifSeqNo,
                         ifPrimaryTerm,
-                        requireAlias,
-                        defaultIndex,
-                        allowExplicitIndex
+                        requireAlias
                     );
                     break;
                 case INDEX:
@@ -173,13 +169,11 @@ public class BulkRequestParserProtoUtils {
                         pipeline,
                         ifSeqNo,
                         ifPrimaryTerm,
-                        requireAlias,
-                        defaultIndex,
-                        allowExplicitIndex
+                        requireAlias
                     );
                     break;
                 case UPDATE:
-                    // Extract the doc field from UpdateAction (matches REST API structure)
+                    // Extract the doc field from UpdateAction
                     // Use ByteString directly to avoid unnecessary byte array allocation
                     ByteString updateDocBytes = ByteString.EMPTY;
                     if (bulkRequestBodyEntry.hasUpdateAction() && bulkRequestBodyEntry.getUpdateAction().hasDoc()) {
@@ -201,9 +195,7 @@ public class BulkRequestParserProtoUtils {
                         pipeline,
                         ifSeqNo,
                         ifPrimaryTerm,
-                        requireAlias,
-                        defaultIndex,
-                        allowExplicitIndex
+                        requireAlias
                     );
                     break;
                 case DELETE:
@@ -215,9 +207,7 @@ public class BulkRequestParserProtoUtils {
                         version,
                         versionType,
                         ifSeqNo,
-                        ifPrimaryTerm,
-                        defaultIndex,
-                        allowExplicitIndex
+                        ifPrimaryTerm
                     );
                     break;
                 case OPERATIONCONTAINER_NOT_SET:
@@ -246,8 +236,6 @@ public class BulkRequestParserProtoUtils {
      * @param ifSeqNo The default sequence number for optimistic concurrency control
      * @param ifPrimaryTerm The default primary term for optimistic concurrency control
      * @param requireAlias Whether the index must be an alias
-     * @param defaultIndex The default index from the request URL (for security check)
-     * @param allowExplicitIndex Whether explicit index specification is allowed
      * @return The constructed IndexRequest
      */
     public static IndexRequest buildCreateRequest(
@@ -261,15 +249,9 @@ public class BulkRequestParserProtoUtils {
         String pipeline,
         long ifSeqNo,
         long ifPrimaryTerm,
-        boolean requireAlias,
-        String defaultIndex,
-        boolean allowExplicitIndex
+        boolean requireAlias
     ) {
-        // Check explicit index (matches REST BulkRequestParser line 218-221)
         if (createOperation.hasXIndex()) {
-            if (!allowExplicitIndex && defaultIndex != null) {
-                throw new IllegalArgumentException("explicit index in bulk is not allowed");
-            }
             index = createOperation.getXIndex();
         }
 
@@ -307,8 +289,6 @@ public class BulkRequestParserProtoUtils {
      * @param ifSeqNo The default sequence number for optimistic concurrency control
      * @param ifPrimaryTerm The default primary term for optimistic concurrency control
      * @param requireAlias Whether the index must be an alias
-     * @param defaultIndex The default index from the request URL (for security check)
-     * @param allowExplicitIndex Whether explicit index specification is allowed
      * @return The constructed IndexRequest
      */
     public static IndexRequest buildIndexRequest(
@@ -323,17 +303,11 @@ public class BulkRequestParserProtoUtils {
         String pipeline,
         long ifSeqNo,
         long ifPrimaryTerm,
-        boolean requireAlias,
-        String defaultIndex,
-        boolean allowExplicitIndex
+        boolean requireAlias
     ) {
         opType = indexOperation.hasOpType() ? indexOperation.getOpType() : opType;
 
-        // Check explicit index (matches REST BulkRequestParser line 218-221)
         if (indexOperation.hasXIndex()) {
-            if (!allowExplicitIndex && defaultIndex != null) {
-                throw new IllegalArgumentException("explicit index in bulk is not allowed");
-            }
             index = indexOperation.getXIndex();
         }
 
@@ -390,8 +364,6 @@ public class BulkRequestParserProtoUtils {
      * @param ifSeqNo The default sequence number for optimistic concurrency control
      * @param ifPrimaryTerm The default primary term for optimistic concurrency control
      * @param requireAlias Whether the index must be an alias
-     * @param defaultIndex The default index from the request URL (for security check)
-     * @param allowExplicitIndex Whether explicit index specification is allowed
      * @return The constructed UpdateRequest
      */
     public static UpdateRequest buildUpdateRequest(
@@ -406,15 +378,9 @@ public class BulkRequestParserProtoUtils {
         String pipeline,
         long ifSeqNo,
         long ifPrimaryTerm,
-        boolean requireAlias,
-        String defaultIndex,
-        boolean allowExplicitIndex
+        boolean requireAlias
     ) {
-        // Check explicit index (matches REST BulkRequestParser line 218-221)
         if (updateOperation.hasXIndex()) {
-            if (!allowExplicitIndex && defaultIndex != null) {
-                throw new IllegalArgumentException("explicit index in bulk is not allowed");
-            }
             index = updateOperation.getXIndex();
         }
 
@@ -550,8 +516,6 @@ public class BulkRequestParserProtoUtils {
      * @param versionType The default version type
      * @param ifSeqNo The default sequence number for optimistic concurrency control
      * @param ifPrimaryTerm The default primary term for optimistic concurrency control
-     * @param defaultIndex The default index from the request URL (for security check)
-     * @param allowExplicitIndex Whether explicit index specification is allowed
      * @return The constructed DeleteRequest
      */
     public static DeleteRequest buildDeleteRequest(
@@ -562,15 +526,9 @@ public class BulkRequestParserProtoUtils {
         long version,
         VersionType versionType,
         long ifSeqNo,
-        long ifPrimaryTerm,
-        String defaultIndex,
-        boolean allowExplicitIndex
+        long ifPrimaryTerm
     ) {
-        // Check explicit index (matches REST BulkRequestParser line 218-221)
         if (deleteOperation.hasXIndex()) {
-            if (!allowExplicitIndex && defaultIndex != null) {
-                throw new IllegalArgumentException("explicit index in bulk is not allowed");
-            }
             index = deleteOperation.getXIndex();
         }
 

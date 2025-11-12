@@ -11,7 +11,6 @@ package org.opensearch.transport.grpc.services;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
 import org.opensearch.protobufs.DeleteOperation;
@@ -44,7 +43,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = createBulkRequestWithIndexOperation();
 
         // Convert to OpenSearch BulkRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
 
         // Verify the converted request
         assertEquals("Should have 1 request", 1, bulkRequest.numberOfActions());
@@ -65,7 +64,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = createBulkRequestWithCreateOperation();
 
         // Convert to OpenSearch BulkRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
 
         // Verify the converted request
         assertEquals("Should have 1 request", 1, bulkRequest.numberOfActions());
@@ -82,7 +81,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = createBulkRequestWithDeleteOperation();
 
         // Convert to OpenSearch BulkRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
 
         // Verify the converted request
         assertEquals("Should have 1 request", 1, bulkRequest.numberOfActions());
@@ -98,7 +97,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = createBulkRequestWithUpdateOperation();
 
         // Convert to OpenSearch BulkRequest
-        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request, Settings.EMPTY);
+        org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
 
         // Verify the converted request
         assertEquals("Should have 1 request", 1, bulkRequest.numberOfActions());

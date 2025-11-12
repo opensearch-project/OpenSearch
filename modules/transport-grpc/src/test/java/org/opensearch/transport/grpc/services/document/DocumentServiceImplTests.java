@@ -9,7 +9,6 @@
 package org.opensearch.transport.grpc.services.document;
 
 import com.google.protobuf.ByteString;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
 import org.opensearch.protobufs.IndexOperation;
@@ -41,7 +40,7 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
-        service = new DocumentServiceImpl(client, Settings.EMPTY);
+        service = new DocumentServiceImpl(client);
     }
 
     public void testBulkSuccess() throws IOException {
