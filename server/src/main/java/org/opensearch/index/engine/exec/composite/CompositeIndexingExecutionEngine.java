@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
