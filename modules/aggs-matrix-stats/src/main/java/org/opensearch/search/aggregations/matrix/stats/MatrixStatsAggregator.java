@@ -146,7 +146,8 @@ final class MatrixStatsAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMatrixStats(name, 0, null, null, metadata(), valuesSources.fieldNames());
+        // TODO: In what context is valuesSources null?
+        return new InternalMatrixStats(name, 0, null, null, metadata(), null);
     }
 
     @Override

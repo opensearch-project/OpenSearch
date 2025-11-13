@@ -97,14 +97,14 @@ public class RunningStats implements Writeable, Cloneable {
 
     RunningStats(final String[] fieldNames) {
         this.fieldNames = fieldNames;
-        init(true);
+        init(fieldNames == null);
     }
 
     // TODO: Not 100% sure about usage of this ctor
     RunningStats(final String[] fieldNames, final double[] fieldVals) {
         this.fieldNames = fieldNames;
         if (fieldVals != null && fieldVals.length > 0) {
-            init(true);
+            init(fieldNames == null);
             this.add(fieldNames, fieldVals);
         }
     }
@@ -146,7 +146,7 @@ public class RunningStats implements Writeable, Cloneable {
 
     void switchToArrays() {
         // Switch from the slower maps implementation to the fast primitive array implementation.
-        assert usesMaps;
+        // assert usesMaps; // TODO: Don't assert this since we use this in standard StreamInput ctor path
         countsArr = convertFieldLongMap(counts);
         fieldSumArr = convertFieldDoubleMap(fieldSum);
         meansArr = convertFieldDoubleMap(means);

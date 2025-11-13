@@ -146,10 +146,12 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         int numShards = randomIntBetween(1, 20);
         int valuesPerShard = (int) Math.floor(numValues / numShards);
 
+        String[] fieldNames = new String[] { "a", "b" };
+
         List<Double> aValues = new ArrayList<>();
         List<Double> bValues = new ArrayList<>();
 
-        RunningStats runningStats = new RunningStats(fields);
+        RunningStats runningStats = new RunningStats(fieldNames);
         List<InternalAggregation> shardResults = new ArrayList<>();
 
         int valuePerShardCounter = 0;
@@ -159,10 +161,10 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             double valueB = randomDouble();
             bValues.add(valueB);
 
-            runningStats.add(new String[] { "a", "b" }, new double[] { valueA, valueB });
+            runningStats.add(fieldNames, new double[] { valueA, valueB });
             if (++valuePerShardCounter == valuesPerShard) {
                 shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap(), runningStats.fieldNames));
-                runningStats = new RunningStats(fields);
+                runningStats = new RunningStats(fieldNames);
                 valuePerShardCounter = 0;
             }
         }
