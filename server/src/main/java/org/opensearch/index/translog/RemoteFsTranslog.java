@@ -752,8 +752,8 @@ public class RemoteFsTranslog extends Translog {
 
         @Override
         public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException {
-            if (ex instanceof IOException) {
-                throw (IOException) ex;
+            if (ex instanceof IOException ioException) {
+                throw ioException;
             } else {
                 throw (RuntimeException) ex;
             }

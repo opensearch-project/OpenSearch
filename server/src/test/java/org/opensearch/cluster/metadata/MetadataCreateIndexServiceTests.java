@@ -3024,4 +3024,172 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
     }
 
+    public void testCreateIndexWithCustomCreationDate() {
+        // Test creating an index with a custom creation_date in the past
+        long customCreationDate = System.currentTimeMillis() - TimeValue.timeValueDays(30).millis();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(IndexMetadata.SETTING_CREATION_DATE, customCreationDate);
+        request.settings(requestSettings.build());
+
+        Settings aggregatedSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertEquals(Long.toString(customCreationDate), aggregatedSettings.get(IndexMetadata.SETTING_CREATION_DATE));
+    }
+
+    public void testCreateIndexWithCustomCreationDateInFuture() {
+        // Test creating an index with a custom creation_date in the future
+        long futureCreationDate = System.currentTimeMillis() + TimeValue.timeValueDays(30).millis();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(IndexMetadata.SETTING_CREATION_DATE, futureCreationDate);
+        request.settings(requestSettings.build());
+
+        Settings aggregatedSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertEquals(Long.toString(futureCreationDate), aggregatedSettings.get(IndexMetadata.SETTING_CREATION_DATE));
+    }
+
+    public void testCreateIndexWithoutCustomCreationDate() {
+        // Test that default behavior still works when creation_date is not provided
+        long beforeCreation = System.currentTimeMillis();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+
+        Settings aggregatedSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        long afterCreation = System.currentTimeMillis();
+        long actualCreationDate = Long.parseLong(aggregatedSettings.get(IndexMetadata.SETTING_CREATION_DATE));
+
+        // Verify the creation date is set to current time (within reasonable bounds)
+        assertTrue("Creation date should be >= beforeCreation", actualCreationDate >= beforeCreation);
+        assertTrue("Creation date should be <= afterCreation", actualCreationDate <= afterCreation);
+    }
+
+    public void testCreateIndexWithNegativeCreationDate() {
+        // Test creating an index with a negative timestamp (dates before epoch)
+        long negativeCreationDate = -1000000000L; // Some time before 1970
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(IndexMetadata.SETTING_CREATION_DATE, negativeCreationDate);
+        request.settings(requestSettings.build());
+
+        Settings aggregatedSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertEquals(Long.toString(negativeCreationDate), aggregatedSettings.get(IndexMetadata.SETTING_CREATION_DATE));
+    }
+
+    public void testCreateIndexWithZeroCreationDate() {
+        // Test creating an index with creation_date set to 0 (epoch time)
+        long epochCreationDate = 0L;
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(IndexMetadata.SETTING_CREATION_DATE, epochCreationDate);
+        request.settings(requestSettings.build());
+
+        Settings aggregatedSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertEquals(Long.toString(epochCreationDate), aggregatedSettings.get(IndexMetadata.SETTING_CREATION_DATE));
+    }
+
+    public void testCustomCreationDatePreservedInIndexMetadata() {
+        // Test that custom creation_date is properly stored in IndexMetadata
+        long customCreationDate = System.currentTimeMillis() - TimeValue.timeValueDays(7).millis();
+
+        Settings indexSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_CREATION_DATE, customCreationDate)
+            .build();
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(indexSettings).build();
+
+        assertEquals(customCreationDate, indexMetadata.getCreationDate());
+    }
+
+    public void testCustomCreationDateWithTemplates() {
+        // Test that custom creation_date from request takes precedence over template
+        long templateCreationDate = System.currentTimeMillis() - TimeValue.timeValueDays(60).millis();
+        long requestCreationDate = System.currentTimeMillis() - TimeValue.timeValueDays(30).millis();
+
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, templateCreationDate));
+        });
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(IndexMetadata.SETTING_CREATION_DATE, requestCreationDate);
+        request.settings(requestSettings.build());
+
+        Settings aggregatedSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            templateMetadata.settings(),
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        // Request setting should take precedence over template
+        assertEquals(Long.toString(requestCreationDate), aggregatedSettings.get(IndexMetadata.SETTING_CREATION_DATE));
+    }
+
 }

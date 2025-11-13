@@ -8,7 +8,6 @@
 
 package org.opensearch.arrow.flight.chaos;
 
-import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -65,20 +64,6 @@ public class ChaosScenario {
                 // simulateClientFailover();
                 break;
         }
-    }
-
-    private static void simulateUnresponsiveness() throws StreamException {
-        try {
-            Thread.sleep(timeoutDelayMs);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        throw new StreamException(StreamErrorCode.TIMED_OUT, "Client unresponsive");
-    }
-
-    private static void simulateClientNodeDeath() throws StreamException {
-        // Simulate node death followed by recovery
-        throw new StreamException(StreamErrorCode.UNAVAILABLE, "Client node death - connection lost");
     }
 
     private static void simulateLongRunningOperation() throws StreamException {

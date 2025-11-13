@@ -346,10 +346,9 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
 
     @Override
     public void onTaskCompleted(Task task) {
-        if (!(task instanceof WorkloadGroupTask) || !((WorkloadGroupTask) task).isWorkloadGroupSet()) {
+        if (!(task instanceof WorkloadGroupTask workloadGroupTask) || !workloadGroupTask.isWorkloadGroupSet()) {
             return;
         }
-        final WorkloadGroupTask workloadGroupTask = (WorkloadGroupTask) task;
         String workloadGroupId = workloadGroupTask.getWorkloadGroupId();
 
         // set the default workloadGroupId if not existing in the active workload groups
