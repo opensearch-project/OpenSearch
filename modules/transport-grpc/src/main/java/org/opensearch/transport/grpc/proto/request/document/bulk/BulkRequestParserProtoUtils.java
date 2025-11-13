@@ -9,6 +9,7 @@
 package org.opensearch.transport.grpc.proto.request.document.bulk;
 
 import com.google.protobuf.ByteString;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BulkRequestParser;
 import org.opensearch.action.delete.DeleteRequest;
@@ -16,6 +17,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -32,10 +34,12 @@ import org.opensearch.protobufs.UpdateAction;
 import org.opensearch.protobufs.UpdateOperation;
 import org.opensearch.protobufs.WriteOperation;
 import org.opensearch.script.Script;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 import org.opensearch.transport.grpc.proto.response.document.common.VersionTypeProtoUtils;
+import org.opensearch.transport.grpc.proto.response.search.SearchHitProtoUtils;
 
 import java.util.List;
 import java.util.Objects;
@@ -84,17 +88,60 @@ public class BulkRequestParserProtoUtils {
     }
 
     /**
-     * Detects the media type from the byte content, with fallback to JSON if detection fails.
+     * Converts a protobuf ByteString to OpenSearch BytesReference with zero-copy optimization.
+     *
+     * This method uses asReadOnlyByteBuffer() to get a view of the ByteString's internal data
+     * without copying. The ByteBuffer is then converted to a BytesRef which wraps the underlying
+     * byte array. This approach matches the pattern used in
+     * {@link SearchHitProtoUtils#processSource(SearchHit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder)}.
+     *
+     * @param byteString The protobuf ByteString to convert
+     * @return A BytesReference wrapping the ByteString data without copying
+     */
+    private static BytesReference byteStringToBytesReference(ByteString byteString) {
+        if (byteString == null || byteString.isEmpty()) {
+            return BytesArray.EMPTY;
+        }
+
+        // Use asReadOnlyByteBuffer() to get a zero-copy view of the ByteString's internal data
+        // Then extract the backing array and wrap it in BytesArray
+        java.nio.ByteBuffer buffer = byteString.asReadOnlyByteBuffer();
+
+        if (buffer.hasArray()) {
+            // Fast path: ByteBuffer is backed by an array
+            byte[] array = buffer.array();
+            int offset = buffer.arrayOffset() + buffer.position();
+            int length = buffer.remaining();
+
+            if (offset == 0 && length == array.length) {
+                // No offset, can use the array directly
+                return new BytesArray(array);
+            } else {
+                // Has offset or partial array
+                return new BytesArray(array, offset, length);
+            }
+        } else {
+            // Fallback: ByteBuffer is not array-backed (rare case)
+            // Must copy in this case
+            byte[] bytes = new byte[buffer.remaining()];
+            buffer.get(bytes);
+            return new BytesArray(bytes);
+        }
+    }
+
+    /**
+     * Detects the media type from BytesReference content, with fallback to JSON if detection fails.
      * This enables support for JSON, SMILE, and CBOR formats in gRPC bulk requests.
      *
-     * @param document The document content as bytes
+     * @param document The document content as BytesReference
      * @return The detected MediaType, or JSON if detection fails or document is empty
      */
-    static MediaType detectMediaType(byte[] document) {
-        if (document == null || document.length == 0) {
+    static MediaType detectMediaType(BytesReference document) {
+        if (document == null || document.length() == 0) {
             return MediaTypeRegistry.JSON;
         }
-        MediaType detectedType = MediaTypeRegistry.mediaTypeFromBytes(document, 0, document.length);
+        BytesRef bytesRef = document.toBytesRef();
+        MediaType detectedType = MediaTypeRegistry.mediaTypeFromBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         return detectedType != null ? detectedType : MediaTypeRegistry.JSON;
     }
 
@@ -144,7 +191,7 @@ public class BulkRequestParserProtoUtils {
                 case CREATE:
                     docWriteRequest = buildCreateRequest(
                         operationContainer.getCreate(),
-                        bulkRequestBodyEntry.getObject().toByteArray(),
+                        bulkRequestBodyEntry.getObject(),
                         index,
                         id,
                         routing,
@@ -159,7 +206,7 @@ public class BulkRequestParserProtoUtils {
                 case INDEX:
                     docWriteRequest = buildIndexRequest(
                         operationContainer.getIndex(),
-                        bulkRequestBodyEntry.getObject().toByteArray(),
+                        bulkRequestBodyEntry.getObject(),
                         opType,
                         index,
                         id,
@@ -226,7 +273,7 @@ public class BulkRequestParserProtoUtils {
      * Builds an IndexRequest with create flag set to true from a CreateOperation protobuf message.
      *
      * @param createOperation The create operation protobuf message
-     * @param document The document content as bytes
+     * @param documentBytes The document content as ByteString (zero-copy reference)
      * @param index The default index name
      * @param id The default document ID
      * @param routing The default routing value
@@ -240,7 +287,7 @@ public class BulkRequestParserProtoUtils {
      */
     public static IndexRequest buildCreateRequest(
         WriteOperation createOperation,
-        byte[] document,
+        ByteString documentBytes,
         String index,
         String id,
         String routing,
@@ -260,7 +307,8 @@ public class BulkRequestParserProtoUtils {
         pipeline = createOperation.hasPipeline() ? createOperation.getPipeline() : pipeline;
         requireAlias = createOperation.hasRequireAlias() ? createOperation.getRequireAlias() : requireAlias;
 
-        MediaType mediaType = detectMediaType(document);
+        BytesReference documentRef = byteStringToBytesReference(documentBytes);
+        MediaType mediaType = detectMediaType(documentRef);
         IndexRequest indexRequest = new IndexRequest(index).id(id)
             .routing(routing)
             .version(version)
@@ -269,7 +317,7 @@ public class BulkRequestParserProtoUtils {
             .setPipeline(pipeline)
             .setIfSeqNo(ifSeqNo)
             .setIfPrimaryTerm(ifPrimaryTerm)
-            .source(document, mediaType)
+            .source(documentRef, mediaType)
             .setRequireAlias(requireAlias);
         return indexRequest;
     }
@@ -278,7 +326,7 @@ public class BulkRequestParserProtoUtils {
      * Builds an IndexRequest from an IndexOperation protobuf message.
      *
      * @param indexOperation The index operation protobuf message
-     * @param document The document content as bytes
+     * @param documentBytes The document content as ByteString (zero-copy reference)
      * @param opType The default operation type
      * @param index The default index name
      * @param id The default document ID
@@ -293,7 +341,7 @@ public class BulkRequestParserProtoUtils {
      */
     public static IndexRequest buildIndexRequest(
         IndexOperation indexOperation,
-        byte[] document,
+        ByteString documentBytes,
         OpType opType,
         String index,
         String id,
@@ -322,7 +370,8 @@ public class BulkRequestParserProtoUtils {
         ifPrimaryTerm = indexOperation.hasIfPrimaryTerm() ? indexOperation.getIfPrimaryTerm() : ifPrimaryTerm;
         requireAlias = indexOperation.hasRequireAlias() ? indexOperation.getRequireAlias() : requireAlias;
 
-        MediaType mediaType = detectMediaType(document);
+        BytesReference documentRef = byteStringToBytesReference(documentBytes);
+        MediaType mediaType = detectMediaType(documentRef);
         IndexRequest indexRequest;
         if (opType == null) {
             indexRequest = new IndexRequest(index).id(id)
@@ -332,7 +381,7 @@ public class BulkRequestParserProtoUtils {
                 .setPipeline(pipeline)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm)
-                .source(document, mediaType)
+                .source(documentRef, mediaType)
                 .setRequireAlias(requireAlias);
         } else {
             indexRequest = new IndexRequest(index).id(id)
@@ -343,7 +392,7 @@ public class BulkRequestParserProtoUtils {
                 .setPipeline(pipeline)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm)
-                .source(document, mediaType)
+                .source(documentRef, mediaType)
                 .setRequireAlias(requireAlias);
         }
         return indexRequest;
@@ -456,9 +505,10 @@ public class BulkRequestParserProtoUtils {
             // 3. upsert
             if (updateAction.hasUpsert()) {
                 ByteString upsertBytes = updateAction.getUpsert();
-                byte[] upsertArray = upsertBytes.toByteArray();
-                MediaType upsertMediaType = detectMediaType(upsertArray);
-                updateRequest.upsert(upsertArray, upsertMediaType);
+                BytesReference upsertRef = byteStringToBytesReference(upsertBytes);
+                MediaType upsertMediaType = detectMediaType(upsertRef);
+                BytesRef bytesRef = upsertRef.toBytesRef();
+                updateRequest.upsert(bytesRef.bytes, bytesRef.offset, bytesRef.length, upsertMediaType);
             }
         }
 
@@ -471,9 +521,10 @@ public class BulkRequestParserProtoUtils {
         // - If script!=null && doc!=null → validation error
         // - If script==null && doc==null → validation error
         if (documentBytes != null && !documentBytes.isEmpty()) {
-            byte[] docArray = documentBytes.toByteArray();
-            MediaType mediaType = detectMediaType(docArray);
-            updateRequest.doc(docArray, mediaType);
+            BytesReference docRef = byteStringToBytesReference(documentBytes);
+            MediaType mediaType = detectMediaType(docRef);
+            BytesRef bytesRef = docRef.toBytesRef();
+            updateRequest.doc(bytesRef.bytes, bytesRef.offset, bytesRef.length, mediaType);
         }
 
         if (bulkRequestBody.hasUpdateAction()) {
