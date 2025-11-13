@@ -14,6 +14,8 @@ use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::arrow_writer::ArrowWriter;
 
+use crate::{rust_log_info, rust_log_error};
+
 // Constants
 const READER_BATCH_SIZE: usize = 8192;
 const WRITER_BATCH_SIZE: usize = 8192;
@@ -269,11 +271,11 @@ fn catch_unwind<F: FnOnce() -> Result<(), Box<dyn Error>>>(
 
 // Logging functions
 fn log_info(message: &str) {
-    println!("[INFO] {}", message);
+    rust_log_info!("{}", message);
 }
 
 fn log_error(message: &str) {
-    eprintln!("[ERROR] {}", message);
+    rust_log_error!("{}", message);
 }
 
 // Close function
