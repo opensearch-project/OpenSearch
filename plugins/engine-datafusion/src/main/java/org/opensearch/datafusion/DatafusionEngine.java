@@ -29,6 +29,8 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.datafusion.search.*;
+import org.opensearch.datafusion.search.cache.CacheManager;
+import org.opensearch.datafusion.search.cache.CacheUtils;
 import org.opensearch.index.engine.*;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
@@ -47,6 +49,7 @@ import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.search.query.GenericQueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhaseExecutor;
 import org.opensearch.vectorized.execution.search.DataFormat;
+import org.opensearch.search.query.GenericQueryPhaseSearcher;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -68,12 +71,20 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     private DataFormat dataFormat;
     private DatafusionReaderManager datafusionReaderManager;
     private DataFusionService datafusionService;
+    private CacheManager cacheManager;
 
     public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService, ShardPath shardPath) throws IOException {
         this.dataFormat = dataFormat;
 
         this.datafusionReaderManager = new DatafusionReaderManager(shardPath.getDataPath().toString(), formatCatalogSnapshot, dataFormat.getName());
         this.datafusionService = dataFusionService;
+        this.cacheManager = datafusionService.getCacheManager();
+        if(this.cacheManager!=null) {
+            datafusionReaderManager.setOnFilesAdded(files -> {
+                // Handle new files added during refresh
+                cacheManager.addFilesToCacheManager(files);
+            });
+        }
     }
 
     @Override
@@ -109,7 +120,9 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             searcher = new DatafusionSearcherSupplier(null) {
                 @Override
                 protected DatafusionSearcher acquireSearcherInternal(String source) {
-                    return new DatafusionSearcher(source, reader, () -> {});
+                    return new DatafusionSearcher(source, reader, datafusionService.getTokioRuntimePointer(),
+                        datafusionService.getRuntimePointer(), () -> {});
+
                 }
 
                 @Override
@@ -122,6 +135,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 }
             };
         } catch (Exception ex) {
+            logger.error("Failed to acquire searcher {}", ex.toString(), ex);
             // TODO
         }
         return searcher;
@@ -144,9 +158,14 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             DatafusionSearcherSupplier searcherSupplier = releasable = (DatafusionSearcherSupplier) acquireSearcherSupplier(wrapper, scope);
             DatafusionSearcher searcher = searcherSupplier.acquireSearcher(source);
             releasable = null;
+            logger.info("Memory consumed by Mcache {} and Acache {}",cacheManager.getMemoryConsumed(CacheUtils.CacheType.METADATA),
+                cacheManager.getTotalMemoryConsumed());
+
             return new DatafusionSearcher(
                 source,
                 searcher.getReader(),
+                datafusionService.getTokioRuntimePointer(),
+                datafusionService.getRuntimePointer(),
                 () -> Releasables.close(searcher, searcherSupplier)
             );
         } finally {

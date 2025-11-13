@@ -485,7 +485,7 @@ pub struct ListingOptions {
     ///       single element.
     pub file_sort_order: Vec<Vec<SortExpr>>,
 
-    pub files_metadata: Arc<Vec<FileMetadata>>,
+    pub files_metadata: Arc<Vec<FileMetadata>>
 }
 
 impl ListingOptions {
@@ -538,7 +538,7 @@ impl ListingOptions {
         self
     }
 
-    pub fn with_files_metadata(mut self, files_metadata: Arc<Vec<FileMetadata>>) -> Self {
+    pub fn with_files_metadata(mut self, files_metadata: Arc<Vec<FileMeta>>) -> Self {
         self.files_metadata = files_metadata.clone();
         self
     }
@@ -1120,6 +1120,8 @@ impl ListingTable {
         // First pass: calculate cumulative row bases
         let mut cumulative_row_base = 0;
         let mut file_row_bases: HashMap<String, i32> = HashMap::new();
+
+        println!("Options: {:?}",self.options.files_metadata);
 
         // Process files in order to calculate cumulative row bases
         for group in &file_groups {

@@ -8,6 +8,11 @@
 
 package org.opensearch.datafusion;
 
+import java.util.Arrays;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -26,6 +31,7 @@ import org.opensearch.datafusion.search.DatafusionContext;
 import org.opensearch.datafusion.search.DatafusionQuery;
 import org.opensearch.datafusion.search.DatafusionReaderManager;
 import org.opensearch.datafusion.search.DatafusionSearcher;
+import org.opensearch.datafusion.search.cache.CacheSettings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.shard.ShardPath;
@@ -47,12 +53,15 @@ import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_ENABLED;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_SIZE_LIMIT;
 
 import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION;
 
@@ -181,5 +190,15 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
             return Collections.emptyList();
         }
         return List.of(new ActionHandler<>(NodesDataFusionInfoAction.INSTANCE, TransportNodesDataFusionInfoAction.class));
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Stream.of(
+                CacheSettings.CACHE_SETTINGS,
+                CacheSettings.CACHE_ENABLED)
+            .flatMap(x -> x.stream())
+            .collect(Collectors.toList());
+
     }
 }

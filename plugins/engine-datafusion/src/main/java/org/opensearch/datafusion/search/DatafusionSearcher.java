@@ -24,11 +24,15 @@ import java.util.Objects;
 public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, RecordBatchStream> {
     private final String source;
     private DatafusionReader reader;
+    private Long tokioRuntimePtr;
+    private Long globalRuntimeEnvId;
     private Closeable closeable;
 
-    public DatafusionSearcher(String source, DatafusionReader reader, Closeable close) {
+    public DatafusionSearcher(String source, DatafusionReader reader, Long tokioRuntimePtr, Long globalRuntimeEnvId, Closeable close) {
         this.source = source;
         this.reader = reader;
+        this.tokioRuntimePtr = tokioRuntimePtr;
+        this.globalRuntimeEnvId = globalRuntimeEnvId;
         this.closeable = close;
     }
 
@@ -52,8 +56,10 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
             String[] projections = Objects.isNull(datafusionQuery.getProjections()) ? new String[]{} : datafusionQuery.getProjections().toArray(String[]::new);
 
             return NativeBridge.executeFetchPhase(reader.getReaderPtr(), row_ids, projections, runtimePtr);
+            return NativeBridge.executeFetchPhase(reader.getReaderPtr(), row_ids, projections, contextPtr, globalRuntimeEnvId);
         }
         return NativeBridge.executeQueryPhase(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), runtimePtr);
+        return NativeBridge.executeQueryPhase(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), contextPtr, globalRuntimeEnvId);
     }
 
     public DatafusionReader getReader() {

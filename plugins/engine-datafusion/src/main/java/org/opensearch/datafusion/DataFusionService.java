@@ -206,4 +206,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         version.append("]}");
         return version.toString();
     }
+
+    public CacheManager getCacheManager() {
+        return cacheManager;
+    }
 }

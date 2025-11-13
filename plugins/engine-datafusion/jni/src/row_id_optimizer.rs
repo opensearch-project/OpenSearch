@@ -26,8 +26,9 @@ use datafusion::{
         expressions::{BinaryExpr, Column},
         PhysicalExpr,
     },
+    physical_expr::{PhysicalExpr, expressions::{BinaryExpr, Column}},
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{filter::FilterExec, projection::ProjectionExec, ExecutionPlan},
+    physical_plan::{ExecutionPlan, filter::FilterExec, projection::{ProjectionExec, ProjectionExpr}},
 };
 
 #[derive(Debug)]

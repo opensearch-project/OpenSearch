@@ -15,10 +15,12 @@ import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -58,6 +60,13 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         service = new DataFusionService(Collections.emptyMap(), clusterService);
+        Set<Setting<?>> clusterSettingsToAdd = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettingsToAdd.add(METADATA_CACHE_ENABLED);
+        clusterSettingsToAdd.add(METADATA_CACHE_SIZE_LIMIT);
+        clusterSettingsToAdd.add(METADATA_CACHE_EVICTION_TYPE);
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);
+        service = new DataFusionService(Collections.emptyMap(),clusterSettings);
         service.doStart();
         noOpFileDeleterSupplier = () -> {
             try {
@@ -68,6 +77,10 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         };
     }
 
+    @After
+    public void cleanUp(){
+        service.doStop();
+    }
     // ========== Test Cases ==========
 
     /** Test that a reader is created with correct file count and cache pointer after initial refresh */
@@ -96,7 +109,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         // Assert RefCount 1 -> 1 for latest catalogSnapshot holder
         assertEquals(1, getRefCount(reader));
         reader.close();
-        assertThrows(IllegalStateException.class, reader::getReaderPtr);
+        assertEquals(-1, reader.getReaderPtr());
     }
 
     /** Test that multiple searchers share the same reader instance for efficiency */

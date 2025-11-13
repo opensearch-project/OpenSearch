@@ -19,6 +19,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
@@ -63,8 +65,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_ENABLED;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
+import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_SIZE_LIMIT;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -92,6 +98,15 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
 
         when(mockEnvironment.settings()).thenReturn(mockSettings);
         service = new DataFusionService(Map.of(), clusterService);
+        Set<Setting<?>> clusterSettingsToAdd = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettingsToAdd.add(METADATA_CACHE_ENABLED);
+        clusterSettingsToAdd.add(METADATA_CACHE_SIZE_LIMIT);
+        clusterSettingsToAdd.add(METADATA_CACHE_EVICTION_TYPE);
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);
+
+        service = new DataFusionService(Collections.emptyMap(), clusterSettings);
+        //service = new DataFusionService(Map.of());
         service.doStart();
     }
 

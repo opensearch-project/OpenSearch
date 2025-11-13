@@ -2,12 +2,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use crate::FileMetadata;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use datafusion::arrow::array::RecordBatch;
-use datafusion::error::DataFusionError;
-use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use jni::objects::{JObject, JObjectArray, JString};
 use jni::sys::jlong;
 use jni::JNIEnv;
@@ -15,6 +12,12 @@ use object_store::{path::Path as ObjectPath, ObjectMeta};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
+use datafusion::error::DataFusionError;
+use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use crate::FileMeta;
+use std::sync::Arc;
+use datafusion::datasource::physical_plan::parquet::CachedParquetMetaData;
+use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 
 /// Set error message from a result using a Consumer<String> Java callback
 pub fn set_error_message_batch<Err: Error>(
@@ -28,6 +31,7 @@ pub fn set_error_message_batch<Err: Error>(
         let res: Result<(), Err> = Result::Ok(());
         set_error_message(env, callback, res);
     }
+
 }
 
 pub fn set_error_message<Err: Error>(env: &mut JNIEnv, callback: JObject, result: Result<(), Err>) {
@@ -165,7 +169,7 @@ pub fn throw_exception(env: &mut JNIEnv, message: &str) {
 pub fn create_file_metadata_from_filenames(
     base_path: &str,
     filenames: Vec<String>,
-) -> Result<Vec<FileMetadata>, DataFusionError> {
+) -> Result<Vec<FileMeta>, DataFusionError> {
     let mut row_base: i64 = 0;
     filenames
         .into_iter()
@@ -204,7 +208,7 @@ pub fn create_file_metadata_from_filenames(
                 .map(|t| DateTime::<Utc>::from(t))
                 .unwrap_or_else(|_| Utc::now());
 
-            let file_meta = FileMetadata::new(
+            let file_meta = FileMeta::new(
                 row_group_row_counts.clone(),
                 row_base,
                 ObjectMeta {
@@ -221,3 +225,40 @@ pub fn create_file_metadata_from_filenames(
         })
         .collect()
 }
+
+pub fn create_object_meta_from_file(file_path: &str) -> ObjectMeta {
+    let file_size = fs::metadata(&file_path).map(|m| m.len()).unwrap_or(0);
+    let modified = fs::metadata(&file_path)
+        .and_then(|m| m.modified())
+        .map(|t| DateTime::<Utc>::from(t))
+        .unwrap_or_else(|_| Utc::now());
+
+    ObjectMeta {
+        location: ObjectPath::from(file_path),
+        last_modified: modified,
+        size: file_size,
+        e_tag: None,
+        version: None,
+    }
+}
+
+pub async fn construct_file_metadata(
+    store: &dyn ObjectStore,
+    object_meta: &ObjectMeta,
+    data_format: &str,
+) -> Result<Arc<dyn FileMetadata>, Box<dyn std::error::Error>> {
+    match data_format.to_lowercase().as_str() {
+        "parquet" => {
+            let df_metadata = DFParquetMetadata::new(
+                store,
+                object_meta
+            );
+
+            let parquet_metadata = df_metadata.fetch_metadata().await?;
+            let par = CachedParquetMetaData::new(parquet_metadata);
+            Ok(Arc::new(par))
+        },
+        _ => Err(format!("Unsupported data format: {}", data_format).into())
+    }
+}
+
