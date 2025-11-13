@@ -57,8 +57,12 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
+    protected String getPassword() {
+        return randomFrom("", "keystorepassword");
+    }
+
     public void testNotMatchingPasswords() throws Exception {
-        String password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
+        String password = getPassword();
         terminal.addSecretInput(password);
         terminal.addSecretInput("notthekeystorepasswordyouarelookingfor");
         UserException e = expectThrows(UserException.class, () -> execute(randomFrom("-p", "--password")));
@@ -67,14 +71,13 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testDefaultNotPromptForPassword() throws Exception {
-        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         execute();
         Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testPosix() throws Exception {
-        String password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
+        String password = getPassword();
         terminal.addSecretInput(password);
         terminal.addSecretInput(password);
         execute(randomFrom("-p", "--password"));
@@ -83,7 +86,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testNotPosix() throws Exception {
-        String password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
+        String password = getPassword();
         terminal.addSecretInput(password);
         terminal.addSecretInput(password);
         env = setupEnv(false, fileSystems);
@@ -93,7 +96,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testOverwrite() throws Exception {
-        String password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
+        String password = getPassword();
 
         Path keystoreFile = KeyStoreWrapper.keystorePath(env.configDir());
         byte[] content = "not a keystore".getBytes(StandardCharsets.UTF_8);

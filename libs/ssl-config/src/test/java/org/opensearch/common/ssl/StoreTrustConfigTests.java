@@ -53,16 +53,13 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class StoreTrustConfigTests extends OpenSearchTestCase {
 
-    private static final char[] P12_PASS = "p12-pass".toCharArray();
-    private static final char[] JKS_PASS = "jks-pass".toCharArray();
-    private static final char[] BCFKS_PASS = "bcfks-pass".toCharArray();
-    private static final String PKCS12 = "PKCS12";
-    private static final String JKS = "JKS";
-    private static final String BCFKS = "BCFKS";
-    private static final String DEFAULT_ALGORITHM = TrustManagerFactory.getDefaultAlgorithm();
+    protected static final char[] P12_PASS = "p12-pass".toCharArray();
+    protected static final char[] JKS_PASS = "jks-pass".toCharArray();
+    protected static final String PKCS12 = "PKCS12";
+    protected static final String JKS = "JKS";
+    protected static final String DEFAULT_ALGORITHM = TrustManagerFactory.getDefaultAlgorithm();
 
     public void testBuildTrustConfigFromP12() throws Exception {
-        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = getDataPath("/certs/ca1/ca.p12");
         final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, P12_PASS, PKCS12, DEFAULT_ALGORITHM);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
@@ -70,23 +67,13 @@ public class StoreTrustConfigTests extends OpenSearchTestCase {
     }
 
     public void testBuildTrustConfigFromJks() throws Exception {
-        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = getDataPath("/certs/ca-all/ca.jks");
         final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, JKS_PASS, JKS, DEFAULT_ALGORITHM);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertCertificateChain(trustConfig, "CN=Test CA 1", "CN=Test CA 2", "CN=Test CA 3");
     }
 
-    public void testBuildTrustConfigFromBcfks() throws Exception {
-        assumeTrue("BCFKS only available with BCFIPS provider", inFipsJvm());
-        final Path ks = getDataPath("/certs/ca-all/ca.bcfks");
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, BCFKS_PASS, BCFKS, DEFAULT_ALGORITHM);
-        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
-        assertCertificateChain(trustConfig, "CN=Test CA 1", "CN=Test CA 2", "CN=Test CA 3");
-    }
-
     public void testBadKeyStoreFormatFails() throws Exception {
-        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = createTempFile("ca", ".p12");
         Files.write(ks, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
         final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, new char[0], randomFrom(PKCS12), DEFAULT_ALGORITHM);
@@ -102,28 +89,13 @@ public class StoreTrustConfigTests extends OpenSearchTestCase {
     }
 
     public void testIncorrectPasswordFailsForP12WithMeaningfulMessage() throws Exception {
-        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = getDataPath("/certs/ca1/ca.p12");
         final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, new char[0], PKCS12, DEFAULT_ALGORITHM);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertPasswordIsIncorrect(trustConfig, ks);
     }
 
-    public void testIncorrectPasswordFailsForBcfksWithMeaningfulMessage() throws Exception {
-        assumeTrue("BCFKS only available with BCFIPS provider", inFipsJvm());
-        final Path ks = getDataPath("/certs/cert-all/certs.bcfks");
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(
-            ks,
-            randomAlphaOfLengthBetween(6, 8).toCharArray(),
-            BCFKS,
-            DEFAULT_ALGORITHM
-        );
-        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
-        assertCannotCreatePasswordManager(trustConfig, ks);
-    }
-
     public void testMissingTrustEntriesFailsForJksKeystoreWithMeaningfulMessage() throws Exception {
-        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = getDataPath("/certs/cert-all/certs.jks");
         final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, JKS_PASS, JKS, DEFAULT_ALGORITHM);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
@@ -131,23 +103,13 @@ public class StoreTrustConfigTests extends OpenSearchTestCase {
     }
 
     public void testMissingTrustEntriesFailsForP12KeystoreWithMeaningfulMessage() throws Exception {
-        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = getDataPath("/certs/cert-all/certs.p12");
         final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, P12_PASS, PKCS12, DEFAULT_ALGORITHM);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertMissingCertificateEntries(trustConfig, ks);
     }
 
-    public void testMissingTrustEntriesFailsForBcfksKeystoreWithMeaningfulMessage() throws Exception {
-        assumeTrue("BCFKS only available with BCFIPS provider", inFipsJvm());
-        final Path ks = getDataPath("/certs/cert-all/certs.bcfks");
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, BCFKS_PASS, BCFKS, DEFAULT_ALGORITHM);
-        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
-        assertNoCertificateEntries(trustConfig, ks);
-    }
-
     public void testTrustConfigReloadsKeysStoreContentsForP12Keystore() throws Exception {
-        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks1 = getDataPath("/certs/ca1/ca.p12");
         final Path ksAll = getDataPath("/certs/ca-all/ca.p12");
 
@@ -168,29 +130,7 @@ public class StoreTrustConfigTests extends OpenSearchTestCase {
         assertCertificateChain(trustConfig, "CN=Test CA 1", "CN=Test CA 2", "CN=Test CA 3");
     }
 
-    public void testTrustConfigReloadsKeysStoreContentsForBcfksKeystore() throws Exception {
-        assumeTrue("BCFKS only available with BCFIPS provider", inFipsJvm());
-        final Path ks1 = getDataPath("/certs/ca1/ca.bcfks");
-        final Path ksAll = getDataPath("/certs/ca-all/ca.bcfks");
-
-        final Path ks = createTempFile("ca", ".bcfks");
-
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, BCFKS_PASS, BCFKS, DEFAULT_ALGORITHM);
-
-        Files.copy(ks1, ks, StandardCopyOption.REPLACE_EXISTING);
-        assertCertificateChain(trustConfig, "CN=Test CA 1");
-
-        Files.delete(ks);
-        assertFileNotFound(trustConfig, ks);
-
-        Files.write(ks, randomByteArrayOfLength(128), StandardOpenOption.CREATE);
-        assertInvalidFileFormat(trustConfig, ks);
-
-        Files.copy(ksAll, ks, StandardCopyOption.REPLACE_EXISTING);
-        assertCertificateChain(trustConfig, "CN=Test CA 1", "CN=Test CA 2", "CN=Test CA 3");
-    }
-
-    private void assertCertificateChain(StoreTrustConfig trustConfig, String... caNames) {
+    protected void assertCertificateChain(StoreTrustConfig trustConfig, String... caNames) {
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         final X509Certificate[] issuers = trustManager.getAcceptedIssuers();
         final Set<String> issuerNames = Stream.of(issuers)
@@ -201,14 +141,14 @@ public class StoreTrustConfigTests extends OpenSearchTestCase {
         assertThat(issuerNames, Matchers.containsInAnyOrder(caNames));
     }
 
-    private void assertInvalidFileFormat(StoreTrustConfig trustConfig, Path file) {
+    protected void assertInvalidFileFormat(StoreTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
         assertThat(exception.getMessage(), Matchers.containsString("cannot read"));
         assertThat(exception.getMessage(), Matchers.containsString("keystore"));
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
     }
 
-    private void assertFileNotFound(StoreTrustConfig trustConfig, Path file) {
+    protected void assertFileNotFound(StoreTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
         assertThat(exception.getMessage(), Matchers.containsString("file does not exist"));
         assertThat(exception.getMessage(), Matchers.containsString("keystore"));
@@ -216,32 +156,29 @@ public class StoreTrustConfigTests extends OpenSearchTestCase {
         assertThat(exception.getCause(), nullValue());
     }
 
-    private void assertPasswordIsIncorrect(StoreTrustConfig trustConfig, Path key) {
+    protected void assertPasswordIsIncorrect(StoreTrustConfig trustConfig, Path key) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
         assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
         assertThat(exception.getMessage(), containsString("keystore password was incorrect"));
     }
 
-    private void assertCannotCreatePasswordManager(StoreTrustConfig trustConfig, Path key) {
+    protected void assertCannotCreatePasswordManager(StoreTrustConfig trustConfig, Path key) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
         assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
         assertThat(exception.getMessage(), containsString("incorrect password or corrupt file"));
     }
 
-    private void assertNoCertificateEntries(StoreTrustConfig trustConfig, Path file) {
+    protected void assertNoCertificateEntries(StoreTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
         assertThat(exception.getMessage(), Matchers.containsString("does not contain any trusted certificate entries"));
         assertThat(exception.getMessage(), Matchers.containsString("truststore"));
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
     }
 
-    private void assertMissingCertificateEntries(StoreTrustConfig trustConfig, Path key) {
+    protected void assertMissingCertificateEntries(StoreTrustConfig trustConfig, Path key) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
         assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
-        assertThat(
-            exception.getMessage(),
-            containsString(inFipsJvm() ? "keystore password was incorrect" : "does not contain any trusted certificate entries")
-        );
+        assertThat(exception.getMessage(), containsString("does not contain any trusted certificate entries"));
     }
 
 }

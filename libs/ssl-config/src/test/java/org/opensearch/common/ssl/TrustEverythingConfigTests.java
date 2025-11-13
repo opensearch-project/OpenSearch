@@ -10,8 +10,6 @@ package org.opensearch.common.ssl;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class TrustEverythingConfigTests extends OpenSearchTestCase {
 
     public void testGetDependentFiles() {
@@ -19,12 +17,7 @@ public class TrustEverythingConfigTests extends OpenSearchTestCase {
     }
 
     public void testCreateTrustManager() {
-        if (inFipsJvm()) {
-            Exception e = assertThrows(IllegalStateException.class, TrustEverythingConfig.TRUST_EVERYTHING::createTrustManager);
-            assertThat(e.getMessage(), containsString("not permitted in FIPS mode"));
-        } else {
-            var trustManager = TrustEverythingConfig.TRUST_EVERYTHING.createTrustManager();
-            assertNotNull(trustManager);
-        }
+        var trustManager = TrustEverythingConfig.TRUST_EVERYTHING.createTrustManager();
+        assertNotNull(trustManager);
     }
 }

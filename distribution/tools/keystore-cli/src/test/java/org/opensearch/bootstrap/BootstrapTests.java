@@ -55,8 +55,8 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BootstrapTests extends OpenSearchTestCase {
-    Environment env;
-    List<FileSystem> fileSystems = new ArrayList<>();
+    protected Environment env;
+    protected List<FileSystem> fileSystems = new ArrayList<>();
 
     private static final int MAX_PASSPHRASE_LENGTH = 10;
 
@@ -71,7 +71,6 @@ public class BootstrapTests extends OpenSearchTestCase {
     }
 
     public void testLoadSecureSettings() throws Exception {
-        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         final Path configPath = env.configDir();
         final SecureString seed;
         try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {

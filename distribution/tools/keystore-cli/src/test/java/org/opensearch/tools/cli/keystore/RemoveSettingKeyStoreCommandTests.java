@@ -117,7 +117,6 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testRemoveFromUnprotectedKeystore() throws Exception {
-        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         String password = "";
         createKeystore(password, "foo", "bar");
         // will not be prompted for a password

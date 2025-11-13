@@ -29,10 +29,10 @@ import static org.opensearch.tools.cli.fips.truststore.ConfigureSystemTrustStore
 
 public class TrustStoreServiceTests extends OpenSearchTestCase {
 
-    private static Path sharedTempDir;
+    protected static Path sharedTempDir;
 
-    private CommandLine.Model.CommandSpec spec;
-    private StringWriter outputCapture;
+    protected CommandLine.Model.CommandSpec spec;
+    protected StringWriter outputCapture;
 
     @ClassRule
     public static TemporaryFolder tempFolder = new TemporaryFolder();
@@ -113,23 +113,6 @@ public class TrustStoreServiceTests extends OpenSearchTestCase {
         }
     }
 
-    public void testExecuteInteractiveSelectionNonInteractiveMode() {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-
-        // given
-        var options = new CommonOptions();
-        options.nonInteractive = true;
-        var userInteraction = createUserInteractionService("password123\npassword123\n");
-        var service = new TrustStoreService(userInteraction);
-
-        // when
-        var result = service.executeInteractiveSelection(spec, options, sharedTempDir);
-
-        // then
-        assertTrue(outputCapture.toString().contains("Non-interactive mode: Using generated trust store (default)"));
-        assertNotNull(result);
-    }
-
     public void testExecuteInteractiveSelectionUserSelectsGenerate() {
         // given
         var options = new CommonOptions();
@@ -167,7 +150,7 @@ public class TrustStoreServiceTests extends OpenSearchTestCase {
      * Creates a test UserInteractionService with simulated user input.
      * Uses the same pattern as UserInteractionServiceTests.
      */
-    private UserInteractionService createUserInteractionService(String input) {
+    protected UserInteractionService createUserInteractionService(String input) {
         // Cache scanner outside anonymous class to maintain stream position across multiple getScanner() calls
         var scanner = new Scanner(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8);
         return new UserInteractionService() {

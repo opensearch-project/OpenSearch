@@ -73,7 +73,6 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
     }
 
     public void testBuildKeyConfigFromPkcs1PemFilesWithPassword() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
         final Path cert = getDataPath("/certs/cert2/cert2-pkcs1.crt");
         final Path key = getDataPath("/certs/cert2/cert2-pkcs1.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray());

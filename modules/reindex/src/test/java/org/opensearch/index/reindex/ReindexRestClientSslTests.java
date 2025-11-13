@@ -175,21 +175,10 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
             .put("reindex.ssl.supported_protocols", "TLSv1.2")
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
-
-        if (inFipsJvm()) {
-            try {
-                new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
-                fail("expected IllegalStateException");
-            } catch (Exception e) {
-                assertThat(e, Matchers.instanceOf(IllegalStateException.class));
-                assertThat(e.getMessage(), Matchers.containsString("The use of TrustEverythingConfig is not permitted in FIPS mode"));
-            }
-        } else {
-            final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
-            try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
-                final Response response = client.performRequest(new Request("GET", "/"));
-                assertThat(response.getStatusLine().getStatusCode(), Matchers.is(200));
-            }
+        final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
+        try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
+            final Response response = client.performRequest(new Request("GET", "/"));
+            assertThat(response.getStatusLine().getStatusCode(), Matchers.is(200));
         }
     }
 
