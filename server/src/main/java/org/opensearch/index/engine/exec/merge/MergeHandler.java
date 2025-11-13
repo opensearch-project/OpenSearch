@@ -72,6 +72,20 @@ public abstract class MergeHandler {
     }
 
     public synchronized void registerMerge(OneMerge merge) {
+        try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = compositeEngine.acquireSnapshot()) {
+            Set<FileMetadata> catalogFiles = new HashSet<>();
+            for (CatalogSnapshot.Segment segment : catalogSnapshotReleasableRef.getRef().getSegments()) {
+                catalogFiles.addAll(segment.getSearchableFiles(compositeDataFormat.getPrimaryDataFormat().name()));
+            }
+
+            for (FileMetadata mergeFile : merge.getFilesToMerge()) {
+                if (!catalogFiles.contains(mergeFile)) {
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         System.out.println("Registering Merge : " + merge);
         mergingSegments.add(merge);
         for(FileMetadata fileMetadata : merge.getFilesToMerge()) {
@@ -92,15 +106,20 @@ public abstract class MergeHandler {
     }
 
     public synchronized void onMergeFinished(OneMerge oneMerge) {
+        removeFiles(oneMerge);
+        updatePendingMerges();
+    }
+
+    public synchronized void onMergeFailure(OneMerge oneMerge) {
+        removeFiles(oneMerge);
+        System.out.println("Merge FAILED for oneMerge: " + oneMerge);
+    }
+
+    private synchronized void removeFiles(OneMerge oneMerge) {
         mergingSegments.remove(oneMerge);
         for(FileMetadata fileMetadata : oneMerge.getFilesToMerge()) {
             mergingFileNames.remove(fileMetadata.directory()+"/"+fileMetadata.file());
         }
-    }
-
-    public synchronized void onMergeFailure(OneMerge oneMerge) {
-        onMergeFinished(oneMerge); // Removing failed merge from merging segment so next merge can pick this files
-        System.out.println("Merge FAILED for oneMerge: " + oneMerge);
     }
 
     public MergeResult doMerge(OneMerge oneMerge) {

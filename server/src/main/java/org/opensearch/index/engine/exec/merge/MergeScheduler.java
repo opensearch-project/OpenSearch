@@ -8,7 +8,6 @@
 
 package org.opensearch.index.engine.exec.merge;
 
-import org.apache.lucene.index.MergePolicy;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.apache.logging.log4j.LogManager;
@@ -78,23 +77,7 @@ public class MergeScheduler {
 
         mergeHandler.updatePendingMerges();
 
-
-        // Submit merges up to available capacity
-        int scheduled = 0;
-        int availableToSchedule = getAvailableMergeSlots();
-
-        while(mergeThreads.size() < maxConcurrentMerges && mergeHandler.hasPendingMerges()) {
-            OneMerge oneMerge = mergeHandler.getNextMerge();
-            if (oneMerge == null) {
-                return;
-            }
-            try {
-                submitMergeTask(oneMerge);
-                scheduled++;
-            } catch (Exception e) {
-                mergeHandler.onMergeFailure(oneMerge);
-            }
-        }
+        executeMerge();
     }
 
     public void forceMerge(int maxNumSegment) throws IOException {
@@ -104,6 +87,21 @@ public class MergeScheduler {
         for(OneMerge oneMerge : oneMerges) {
             MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
             this.compositeEngine.applyMergeChanges(mergeResult, oneMerge);
+        }
+    }
+
+    private void executeMerge() {
+        // Submit merges up to available capacity
+        while(mergeThreads.size() < maxConcurrentMerges && mergeHandler.hasPendingMerges()) {
+            OneMerge oneMerge = mergeHandler.getNextMerge();
+            if (oneMerge == null) {
+                return;
+            }
+            try {
+                submitMergeTask(oneMerge);
+            } catch (Exception e) {
+                mergeHandler.onMergeFailure(oneMerge);
+            }
         }
     }
 
@@ -163,7 +161,7 @@ public class MergeScheduler {
                 activeMerges.decrementAndGet();
                 mergeThreads.remove(this);
                 // triggering merge at the end
-                triggerMerges();
+                executeMerge();
             }
         }
     }
