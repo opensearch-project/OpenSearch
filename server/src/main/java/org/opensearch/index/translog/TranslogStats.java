@@ -193,26 +193,41 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         public Builder() {}
 
         public Builder numberOfOperations(int operations) {
+            if (operations < 0) {
+                throw new IllegalArgumentException("numberOfOperations must be >= 0");
+            }
             this.numberOfOperations = operations;
             return this;
         }
 
         public Builder translogSizeInBytes(long size) {
+            if (size < 0) {
+                throw new IllegalArgumentException("translogSizeInBytes must be >= 0");
+            }
             this.translogSizeInBytes = size;
             return this;
         }
 
         public Builder uncommittedOperations(int operations) {
+            if (operations < 0) {
+                throw new IllegalArgumentException("uncommittedOperations must be >= 0");
+            }
             this.uncommittedOperations = operations;
             return this;
         }
 
         public Builder uncommittedSizeInBytes(long bytes) {
+            if (bytes < 0) {
+                throw new IllegalArgumentException("uncommittedSizeInBytes must be >= 0");
+            }
             this.uncommittedSizeInBytes = bytes;
             return this;
         }
 
         public Builder earliestLastModifiedAge(long age) {
+            if (age < 0) {
+                throw new IllegalArgumentException("earliestLastModifiedAge must be >= 0");
+            }
             this.earliestLastModifiedAge = age;
             return this;
         }
@@ -222,21 +237,6 @@ public class TranslogStats implements Writeable, ToXContentFragment {
          * @return A new TranslogStats instance.
          */
         public TranslogStats build() {
-            if (numberOfOperations < 0) {
-                throw new IllegalArgumentException("numberOfOperations must be >= 0");
-            }
-            if (translogSizeInBytes < 0) {
-                throw new IllegalArgumentException("translogSizeInBytes must be >= 0");
-            }
-            if (uncommittedOperations < 0) {
-                throw new IllegalArgumentException("uncommittedOperations must be >= 0");
-            }
-            if (uncommittedSizeInBytes < 0) {
-                throw new IllegalArgumentException("uncommittedSizeInBytes must be >= 0");
-            }
-            if (earliestLastModifiedAge < 0) {
-                throw new IllegalArgumentException("earliestLastModifiedAge must be >= 0");
-            }
             return new TranslogStats(this);
         }
     }
