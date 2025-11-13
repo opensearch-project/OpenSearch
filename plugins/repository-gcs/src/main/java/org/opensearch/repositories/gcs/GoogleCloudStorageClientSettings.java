@@ -327,8 +327,8 @@ public class GoogleCloudStorageClientSettings {
                     return credentials;
                 });
             }
-        } catch (final Exception e) {
-            throw new UncheckedIOException((IOException) e);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

@@ -13,6 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.secure_sm.AccessController;
 
+import java.io.IOException;
+
 /**
  * This class facilitates to fetch Application Default Credentials
  * see <a href="https://cloud.google.com/docs/authentication/application-default-credentials">How Application Default Credentials works</a>
@@ -24,7 +26,7 @@ public class GoogleApplicationDefaultCredentials {
         GoogleCredentials credentials = null;
         try {
             credentials = AccessController.doPrivilegedChecked(() -> GoogleCredentials.getApplicationDefault());
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("Failed to retrieve \"Application Default Credentials\"", e);
         }
         return credentials;

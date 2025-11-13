@@ -209,12 +209,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     boolean blobExists(String blobName) throws IOException {
         final BlobId blobId = BlobId.of(bucketName, blobName);
-        final Blob blob;
-        try {
-            blob = AccessController.doPrivilegedChecked(() -> client().get(blobId));
-        } catch (Exception e) {
-            throw (IOException) e;
-        }
+        final Blob blob = AccessController.doPrivilegedChecked(() -> client().get(blobId));
         return blob != null;
     }
 
@@ -257,7 +252,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     /**
      * Writes a blob in the specific bucket
-     *  @param inputStream content of the blob to be written
+     * @param inputStream content of the blob to be written
      * @param blobSize    expected size of the blob to be written
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
@@ -308,8 +303,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     public int write(final ByteBuffer src) throws IOException {
                         try {
                             return AccessController.doPrivilegedChecked(() -> writeChannel.write(src));
-                        } catch (final Exception e) {
-                            IOException ioe = (IOException) e;
+                        } catch (final IOException ioe) {
                             final StorageException storageException = (StorageException) ExceptionsHelper.unwrap(
                                 ioe,
                                 StorageException.class
@@ -337,8 +331,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 // operation is billed.
                 stats.trackPutOperation();
                 return;
-            } catch (final Exception e) {
-                StorageException se = (StorageException) e;
+            } catch (final StorageException se) {
                 final int errorCode = se.getCode();
                 if (errorCode == HTTP_GONE) {
                     logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
@@ -383,8 +376,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // can trigger multiple underlying http requests but only one
             // operation is billed.
             stats.trackPostOperation();
-        } catch (final Exception e) {
-            StorageException se = (StorageException) e;
+        } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
             }
@@ -398,28 +390,24 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param pathStr Name of path to delete
      */
     DeleteResult deleteDirectory(String pathStr) throws IOException {
-        try {
-            return AccessController.doPrivilegedChecked(() -> {
-                DeleteResult deleteResult = DeleteResult.ZERO;
-                Page<Blob> page = client().list(bucketName, BlobListOption.prefix(pathStr));
-                do {
-                    final Collection<String> blobsToDelete = new ArrayList<>();
-                    final AtomicLong blobsDeleted = new AtomicLong(0L);
-                    final AtomicLong bytesDeleted = new AtomicLong(0L);
-                    page.getValues().forEach(b -> {
-                        blobsToDelete.add(b.getName());
-                        blobsDeleted.incrementAndGet();
-                        bytesDeleted.addAndGet(b.getSize());
-                    });
-                    deleteBlobsIgnoringIfNotExists(blobsToDelete);
-                    deleteResult = deleteResult.add(blobsDeleted.get(), bytesDeleted.get());
-                    page = page.getNextPage();
-                } while (page != null);
-                return deleteResult;
-            });
-        } catch (Exception e) {
-            throw (IOException) e;
-        }
+        return AccessController.doPrivilegedChecked(() -> {
+            DeleteResult deleteResult = DeleteResult.ZERO;
+            Page<Blob> page = client().list(bucketName, BlobListOption.prefix(pathStr));
+            do {
+                final Collection<String> blobsToDelete = new ArrayList<>();
+                final AtomicLong blobsDeleted = new AtomicLong(0L);
+                final AtomicLong bytesDeleted = new AtomicLong(0L);
+                page.getValues().forEach(b -> {
+                    blobsToDelete.add(b.getName());
+                    blobsDeleted.incrementAndGet();
+                    bytesDeleted.addAndGet(b.getSize());
+                });
+                deleteBlobsIgnoringIfNotExists(blobsToDelete);
+                deleteResult = deleteResult.add(blobsDeleted.get(), bytesDeleted.get());
+                page = page.getNextPage();
+            } while (page != null);
+            return deleteResult;
+        });
     }
 
     /**
