@@ -55,7 +55,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.25.0" apply false
+  id "com.diffplug.spotless" version "8.0.0" apply false
   id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
@@ -271,10 +271,7 @@ allprojects {
       memoryMaximumSize = project.property('options.forkOptions.memoryMaximumSize')
     }
 
-    // See please https://bugs.openjdk.java.net/browse/JDK-8209058
-    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_11) {
-      compile.options.compilerArgs << '-Werror'
-    }
+    compile.options.compilerArgs << '-Werror'
     compile.options.compilerArgs << '-Xlint:auxiliaryclass'
     compile.options.compilerArgs << '-Xlint:cast'
     compile.options.compilerArgs << '-Xlint:classfile'

@@ -56,7 +56,16 @@ public class RestThreadPoolActionRowTests extends OpenSearchTestCase {
         final int parallelism = 7;
 
         ThreadPool.Info fjInfo = new ThreadPool.Info(poolName, ThreadPool.ThreadPoolType.FORK_JOIN, parallelism, parallelism, null, null);
-        ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats(poolName, 0, 0, 0, 0, 0, 0, -1, parallelism);
+        ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats.Builder().name(poolName)
+            .threads(0)
+            .queue(0)
+            .active(0)
+            .rejected(0)
+            .largest(0)
+            .completed(0)
+            .waitTimeNanos(-1)
+            .parallelism(parallelism)
+            .build();
 
         Table table = action.getTableWithHeader(new FakeRestRequest.Builder(xContentRegistry()).build());
         action.writeRow(table, nodeName, nodeId, eid, pid, host, ip, port, poolName, fjInfo, dummyStats);
@@ -93,7 +102,16 @@ public class RestThreadPoolActionRowTests extends OpenSearchTestCase {
         final String poolName = "generic";
 
         ThreadPool.Info scalingInfo = new ThreadPool.Info(poolName, ThreadPool.ThreadPoolType.SCALING, 1, 4, null, null);
-        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats(poolName, 3, 2, 1, 5L, 3, 10L, 111L, -1);
+        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats.Builder().name(poolName)
+            .threads(3)
+            .queue(2)
+            .active(1)
+            .rejected(5L)
+            .largest(3)
+            .completed(10L)
+            .waitTimeNanos(111L)
+            .parallelism(-1)
+            .build();
 
         Table table = action.getTableWithHeader(new FakeRestRequest.Builder(xContentRegistry()).build());
         action.writeRow(table, nodeName, nodeId, eid, pid, host, ip, port, poolName, scalingInfo, stats);
@@ -120,7 +138,17 @@ public class RestThreadPoolActionRowTests extends OpenSearchTestCase {
         final String poolName = "fj_zero";
         final int parallelism = 0;
         ThreadPool.Info fjInfo = new ThreadPool.Info(poolName, ThreadPool.ThreadPoolType.FORK_JOIN, parallelism, parallelism, null, null);
-        ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats(poolName, 0, 0, 0, 0, 0, 0, -1, parallelism);
+        ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats.Builder().name(poolName)
+            .threads(0)
+            .queue(0)
+            .active(0)
+            .rejected(0)
+            .largest(0)
+            .completed(0)
+            .waitTimeNanos(-1)
+            .parallelism(parallelism)
+            .build();
+
         Table table = action.getTableWithHeader(new FakeRestRequest.Builder(xContentRegistry()).build());
         action.writeRow(table, "n", "id", "eid", 1L, "h", "ip", 9300, poolName, fjInfo, dummyStats);
         assertEquals(parallelism, table.getRows().get(0).get(indexOf(table).get("parallelism")).value);
@@ -130,7 +158,16 @@ public class RestThreadPoolActionRowTests extends OpenSearchTestCase {
         final String poolName = "fj_negative";
         final int parallelism = -5;
         ThreadPool.Info fjInfo = new ThreadPool.Info(poolName, ThreadPool.ThreadPoolType.FORK_JOIN, parallelism, parallelism, null, null);
-        ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats(poolName, 0, 0, 0, 0, 0, 0, -1, parallelism);
+        ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats.Builder().name(poolName)
+            .threads(0)
+            .queue(0)
+            .active(0)
+            .rejected(0)
+            .largest(0)
+            .completed(0)
+            .waitTimeNanos(-1)
+            .parallelism(parallelism)
+            .build();
 
         Table table = action.getTableWithHeader(new FakeRestRequest.Builder(xContentRegistry()).build());
         action.writeRow(table, "n", "id", "eid", 1L, "h", "ip", 9300, poolName, fjInfo, dummyStats);
@@ -141,7 +178,16 @@ public class RestThreadPoolActionRowTests extends OpenSearchTestCase {
         final String poolName = "fj_nullinfo";
         final int parallelism = 3;
         ThreadPool.Info fjInfo = null; // null info
-        ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats(poolName, 0, 0, 0, 0, 0, 0, -1, parallelism);
+        ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats.Builder().name(poolName)
+            .threads(0)
+            .queue(0)
+            .active(0)
+            .rejected(0)
+            .largest(0)
+            .completed(0)
+            .waitTimeNanos(-1)
+            .parallelism(parallelism)
+            .build();
 
         Table table = action.getTableWithHeader(new FakeRestRequest.Builder(xContentRegistry()).build());
         action.writeRow(table, "n", "id", "eid", 1L, "h", "ip", 9300, poolName, fjInfo, dummyStats);
@@ -177,7 +223,16 @@ public class RestThreadPoolActionRowTests extends OpenSearchTestCase {
                 null,
                 null
             );
-            ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats(poolNames[i], 0, 0, 0, 0, 0, 0, -1, parallelisms[i]);
+            ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats.Builder().name(poolNames[i])
+                .threads(0)
+                .queue(0)
+                .active(0)
+                .rejected(0)
+                .largest(0)
+                .completed(0)
+                .waitTimeNanos(-1)
+                .parallelism(parallelisms[i])
+                .build();
             action.writeRow(table, "n" + i, "id" + i, "eid" + i, 1L, "h" + i, "ip" + i, 9300 + i, poolNames[i], fjInfo, dummyStats);
         }
         assertEquals(2, table.getRows().size());
@@ -190,7 +245,16 @@ public class RestThreadPoolActionRowTests extends OpenSearchTestCase {
         final String poolName = "fj_large";
         final int parallelism = Integer.MAX_VALUE;
         ThreadPool.Info fjInfo = new ThreadPool.Info(poolName, ThreadPool.ThreadPoolType.FORK_JOIN, parallelism, parallelism, null, null);
-        ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats(poolName, 0, 0, 0, 0, 0, 0, -1, parallelism);
+        ThreadPoolStats.Stats dummyStats = new ThreadPoolStats.Stats.Builder().name(poolName)
+            .threads(0)
+            .queue(0)
+            .active(0)
+            .rejected(0)
+            .largest(0)
+            .completed(0)
+            .waitTimeNanos(-1)
+            .parallelism(parallelism)
+            .build();
 
         Table table = action.getTableWithHeader(new FakeRestRequest.Builder(xContentRegistry()).build());
         action.writeRow(table, "n", "id", "eid", 1L, "h", "ip", 9300, poolName, fjInfo, dummyStats);
@@ -322,7 +386,16 @@ public class RestThreadPoolActionRowTests extends OpenSearchTestCase {
         when(nodesInfoResponse.getNodesMap()).thenReturn(nodeInfoMap);
 
         // 5. ThreadPoolStats.Stats for ForkJoin
-        ThreadPoolStats.Stats fjStats = new ThreadPoolStats.Stats(poolName, 0, 0, 0, 0, 0, 0, -1, parallelism);
+        ThreadPoolStats.Stats fjStats = new ThreadPoolStats.Stats.Builder().name(poolName)
+            .threads(0)
+            .queue(0)
+            .active(0)
+            .rejected(0)
+            .largest(0)
+            .completed(0)
+            .waitTimeNanos(-1)
+            .parallelism(parallelism)
+            .build();
         ThreadPoolStats threadPoolStats = new ThreadPoolStats(new ArrayList<>(List.of(fjStats)));
         NodeStats nodeStats = mock(NodeStats.class);
         when(nodeStats.getThreadPool()).thenReturn(threadPoolStats);

@@ -74,6 +74,7 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.LookupMapLockAcquisitionException;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
@@ -108,6 +109,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.common.util.FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG;
+import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -1218,6 +1221,72 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         latch.await();
     }
 
+    @LockFeatureFlag(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG)
+    public void testRetriesWithLookupMapLockAcquisitionException() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true).build();
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
+        UpdateRequest writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
+
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+
+        Exception err = new LookupMapLockAcquisitionException(shardId, "Unable to obtain lock on the current Lookup map", null);
+        Engine.IndexResult lookupMapExceptionResult = new Engine.IndexResult(err, 0);
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(
+            new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
+        );
+        Translog.Location resultLocation = new Translog.Location(42, 42, 42);
+        Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenAnswer(ir -> {
+            if (randomBoolean()) {
+                return lookupMapExceptionResult;
+            } else {
+                return success;
+            }
+        });
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.mapperService()).thenReturn(mock(MapperService.class));
+
+        UpdateHelper updateHelper = mock(UpdateHelper.class);
+        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+            new UpdateHelper.Result(
+                updateResponse,
+                randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
+                Collections.singletonMap("field", "value"),
+                Requests.INDEX_CONTENT_TYPE
+            )
+        );
+
+        BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            updateHelper,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+                assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation));
+                BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
+                assertThat(primaryResponse.getItemId(), equalTo(0));
+                assertThat(primaryResponse.getId(), equalTo("id"));
+                assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
+                DocWriteResponse response = primaryResponse.getResponse();
+                assertThat(response.status(), equalTo(RestStatus.CREATED));
+                assertThat(response.getSeqNo(), equalTo(13L));
+            }), latch),
+            threadPool,
+            Names.WRITE
+        );
+        latch.await();
+    }
+
     public void testUpdateWithRetryOnConflict() throws IOException, InterruptedException {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
 
@@ -1291,6 +1360,81 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 any(IndexShard.class),
                 any(LongSupplier.class)
             );
+        });
+    }
+
+    @LockFeatureFlag(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG)
+    public void testRetriesWithLookupMapLockAcquisitionExceptionWithMaxRetry() throws IOException, InterruptedException {
+        int retryCount = randomIntBetween(6, 10);
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_MAX_RETRY_ON_LOOKUP_MAP_LOCK_ACQUISITION_EXCEPTION.getKey(), retryCount)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
+
+        int nItems = randomIntBetween(2, 5);
+        List<BulkItemRequest> items = new ArrayList<>(nItems);
+        for (int i = 0; i < nItems; i++) {
+            UpdateRequest updateRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
+            items.add(new BulkItemRequest(i, updateRequest));
+        }
+
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+
+        Exception err = new LookupMapLockAcquisitionException(shardId, "Unable to obtain lock on the current Lookup map", null);
+        Engine.IndexResult lookupMapExceptionResult = new Engine.IndexResult(err, 0);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenAnswer(
+            ir -> lookupMapExceptionResult
+        );
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.mapperService()).thenReturn(mock(MapperService.class));
+
+        UpdateHelper updateHelper = mock(UpdateHelper.class);
+        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+            new UpdateHelper.Result(
+                updateResponse,
+                randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
+                Collections.singletonMap("field", "value"),
+                Requests.INDEX_CONTENT_TYPE
+            )
+        );
+
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items.toArray(BulkItemRequest[]::new));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        Runnable runnable = () -> TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            updateHelper,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+                assertEquals(nItems, result.replicaRequest().items().length);
+                for (BulkItemRequest item : result.replicaRequest().items()) {
+                    assertEquals(LookupMapLockAcquisitionException.class, item.getPrimaryResponse().getFailure().getCause().getClass());
+                }
+            }), latch),
+            threadPool,
+            Names.WRITE
+        );
+
+        // execute the runnable on a separate thread so that the infinite loop can be detected
+        new Thread(runnable).start();
+
+        // timeout the request in 10 seconds if there is an infinite loop
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+
+        items.forEach(item -> {
+            assertEquals(item.getPrimaryResponse().getFailure().getCause().getClass(), LookupMapLockAcquisitionException.class);
+
+            // this assertion is based on the assumption that all bulk item requests are updates and are hence calling
+            // UpdateRequest::prepareRequest
+            UpdateRequest updateRequest = (UpdateRequest) item.request();
+            verify(updateHelper, times(retryCount + 1)).prepare(eq(updateRequest), any(IndexShard.class), any(LongSupplier.class));
         });
     }
 
