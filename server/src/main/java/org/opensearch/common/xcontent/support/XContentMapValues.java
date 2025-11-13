@@ -258,8 +258,8 @@ public class XContentMapValues {
                 if (dotPos > 0) {
                     key = key.substring(0, dotPos);
                 }
-                String lowerKey = key.toLowerCase();
-                if ((includeSet == null || includeSet.contains(lowerKey)) && !excludeSet.contains(lowerKey)) {
+                String lcKey = key.toLowerCase(Locale.ROOT);
+                if ((includeSet == null || includeSet.contains(lcKey)) && !excludeSet.contains(lcKey)) {
                     filtered.put(entry.getKey(), entry.getValue());
                 }
             }
