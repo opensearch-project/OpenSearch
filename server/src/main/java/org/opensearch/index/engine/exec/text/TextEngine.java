@@ -63,7 +63,7 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
     }
 
     @Override
-    public void loadWriterFiles(ShardPath shardPath) throws IOException {
+    public void loadWriterFiles() {
 
     }
 

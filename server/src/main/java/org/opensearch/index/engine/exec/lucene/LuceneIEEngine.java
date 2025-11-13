@@ -49,7 +49,7 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
     }
 
     @Override
-    public void loadWriterFiles(ShardPath shardPath) throws IOException {
+    public void loadWriterFiles() {
 
     }
 

@@ -87,6 +87,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -103,7 +104,7 @@ import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNA
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY;
 
 @ExperimentalApi
-public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState, IndexingThrottler, Closeable {
+public class CompositeEngine implements LifecycleAware, Closeable, Indexer, CheckpointState, IndexingThrottler {
 
     private static final Consumer<ReferenceManager.RefreshListener> PRE_REFRESH_LISTENER_CONSUMER = refreshListener -> {
         try {
@@ -148,10 +149,12 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     protected final String historyUUID;
 
     private final LocalCheckpointTracker localCheckpointTracker;
+    private final ReentrantLock failEngineLock = new ReentrantLock();
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     private final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     private final Lock flushLock = new ReentrantLock();
+    private final CountDownLatch closedLatch = new CountDownLatch(1);
 
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
@@ -181,8 +184,6 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes;
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
-
-    private final AtomicLong inFlightDocCount = new AtomicLong();
     private final IndexingStrategyPlanner indexingStrategyPlanner;
 
     public CompositeEngine(
@@ -258,7 +259,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
                 shardPath,
                 lastCommittedWriterGeneration.incrementAndGet()
             );
-            this.engine.loadWriterFiles(shardPath);
+            this.engine.loadWriterFiles();
 
             this.maxSeqNoOfUpdatesOrDeletes =
                 new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getMaxSeqNo()));
@@ -561,9 +562,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     }
 
     private void releaseInFlightDocs(int numDocs) {
-        assert numDocs >= 0 : numDocs;
-        final long newValue = inFlightDocCount.addAndGet(-numDocs);
-        assert newValue >= 0 : "inFlightDocCount must not be negative [" + newValue + "]";
+
     }
 
     /**
@@ -933,8 +932,79 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
         return historyUUID;
     }
 
+    /**
+     * Flush the engine (committing segments to disk and truncating the
+     * translog) and close it.
+     */
+    @Override
+    public void flushAndClose() throws IOException {
+        if (isClosed.get() == false) {
+            logger.trace("flushAndClose now acquire writeLock");
+            try (ReleasableLock lock = writeLock.acquire()) {
+                logger.trace("flushAndClose now acquired writeLock");
+                try {
+                    logger.debug("flushing shard on close - this might take some time to sync files to disk");
+                    try {
+                        // TODO we might force a flush in the future since we have the write lock already even though recoveries
+                        // are running.
+                        flush(false, true);
+                    } catch (AlreadyClosedException ex) {
+                        logger.debug("engine already closed - skipping flushAndClose");
+                    }
+                } finally {
+                    close(); // double close is not a problem
+                }
+            }
+        }
+        awaitPendingClose();
+    }
+
     @Override
     public void close() throws IOException {
-        engine.close();
+        if (isClosed.get() == false) { // don't acquire the write lock if we are already closed
+            logger.debug("close now acquiring writeLock");
+            try (ReleasableLock lock = writeLock.acquire()) {
+                logger.debug("close acquired writeLock");
+                closeNoLock("api", closedLatch);
+            }
+        }
+        awaitPendingClose();
+    }
+
+    private void awaitPendingClose() {
+        try {
+            closedLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Closes the engine without acquiring the write lock. This should only be
+     * called while the write lock is hold or in a disaster condition ie. if the engine
+     * is failed.
+     */
+    private void closeNoLock(String reason, CountDownLatch closedLatch) {
+        if (isClosed.compareAndSet(false, true)) {
+            assert rwl.isWriteLockedByCurrentThread()
+                || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
+            try {
+                this.versionMap.clear();
+                try {
+                    IOUtils.close(engine, translogManager);
+                } catch (Exception e) {
+                    logger.warn("Failed to close translog", e);
+                }
+            } catch (Exception e) {
+                logger.warn("failed to close translog manager", e);
+            } finally {
+                try {
+                    store.decRef();
+                    logger.debug("engine closed [{}]", reason);
+                } finally {
+                    closedLatch.countDown();
+                }
+            }
+        }
     }
 }

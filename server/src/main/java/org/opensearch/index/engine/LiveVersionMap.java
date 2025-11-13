@@ -442,7 +442,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     /**
      * Called when this index is closed.
      */
-    synchronized void clear() {
+    public synchronized void clear() {
         maps = new Maps();
         tombstones.clear();
         // NOTE: we can't zero this here, because a refresh thread could be calling InternalEngine.pruneDeletedTombstones at the same time,

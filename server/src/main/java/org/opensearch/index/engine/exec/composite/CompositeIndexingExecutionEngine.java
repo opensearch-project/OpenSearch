@@ -79,9 +79,9 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     @Override
-    public void loadWriterFiles(ShardPath shardPath) throws IOException {
+    public void loadWriterFiles() throws IOException {
         for (IndexingExecutionEngine<?> delegate : delegates) {
-            delegate.loadWriterFiles(shardPath);
+            delegate.loadWriterFiles();
         }
     }
 
