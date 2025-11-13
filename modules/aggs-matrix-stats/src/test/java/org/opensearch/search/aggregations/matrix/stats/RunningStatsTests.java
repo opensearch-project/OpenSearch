@@ -85,7 +85,7 @@ public class RunningStatsTests extends BaseMatrixStatsTestCase {
         assertFalse(deserialized.usesMaps());
         assertArrayEquals(fieldNames, deserialized.fieldNames);
         assertEquals(stats.docCount, deserialized.docCount);
-        assertArrayEquals(stats.countsArr, deserialized.countsArr); // TODO: java.lang.AssertionError: actual array was null ??
+        assertArrayEquals(stats.countsArr, deserialized.countsArr);
         assertArrayEquals(stats.fieldSumArr, deserialized.fieldSumArr, 0d);
         assertArrayEquals(stats.meansArr, deserialized.meansArr, 0d);
         assertArrayEquals(stats.variancesArr, deserialized.variancesArr, 0d);
@@ -136,30 +136,6 @@ public class RunningStatsTests extends BaseMatrixStatsTestCase {
         populateRandomStats(fieldNames, arrayStats, mapStats);
 
         // Check equality for each field using MatrixStatsResults wrapper
-        /*MatrixStatsResults arrayResults = new MatrixStatsResults(arrayStats);
-        MatrixStatsResults mapResults = new MatrixStatsResults(mapStats);
-
-        assertEquals(arrayResults.getDocCount(), mapResults.getDocCount());
-        final double delta = 1e-9;
-        for (String field : fieldNames) {
-            assertEquals(arrayResults.getFieldCount(field), mapResults.getFieldCount(field));
-            assertEquals(arrayResults.getMean(field), mapResults.getMean(field), delta);
-            assertEquals(arrayResults.getVariance(field), mapResults.getVariance(field), delta);
-            assertEquals(arrayResults.getSkewness(field), mapResults.getSkewness(field), delta);
-            assertEquals(arrayResults.getKurtosis(field), mapResults.getKurtosis(field), delta);
-        }
-        for (String fieldX : fieldNames) {
-            for (String fieldY : fieldNames) {
-                assertEquals(arrayResults.getCovariance(fieldX, fieldY), mapResults.getCovariance(fieldX, fieldY), delta);
-                double corrArrays = arrayResults.getCorrelation(fieldX, fieldY);
-                double corrMaps = mapResults.getCorrelation(fieldX, fieldY);
-                if (Double.isNaN(corrMaps) || Double.isNaN(corrArrays)) {
-                    assertTrue(Double.isNaN(corrMaps) && Double.isNaN(corrArrays));
-                } else {
-                    assertEquals(corrArrays, corrMaps, delta);
-                }
-            }
-        }*/
         checkEqualityWithMatrixStatsResults(fieldNames, arrayStats, mapStats);
     }
 

@@ -160,13 +160,13 @@ public class RunningStats implements Writeable, Cloneable {
     @SuppressWarnings("unchecked")
     public RunningStats(StreamInput in) throws IOException {
         docCount = (Long) in.readGenericValue();
-        fieldSum = convertIfNeeded((Map<String, Double>) in.readGenericValue());
-        counts = convertIfNeeded((Map<String, Long>) in.readGenericValue());
-        means = convertIfNeeded((Map<String, Double>) in.readGenericValue());
-        variances = convertIfNeeded((Map<String, Double>) in.readGenericValue());
-        skewness = convertIfNeeded((Map<String, Double>) in.readGenericValue());
-        kurtosis = convertIfNeeded((Map<String, Double>) in.readGenericValue());
-        covariances = convertIfNeeded((Map<String, Map<String, Double>>) in.readGenericValue());
+        fieldSum = (Map<String, Double>) in.readGenericValue();
+        counts = (Map<String, Long>) in.readGenericValue();
+        means = (Map<String, Double>) in.readGenericValue();
+        variances = (Map<String, Double>) in.readGenericValue();
+        skewness = (Map<String, Double>) in.readGenericValue();
+        kurtosis = (Map<String, Double>) in.readGenericValue();
+        covariances = (Map<String, Map<String, Double>>) in.readGenericValue();
 
         if (in.getVersion().onOrAfter(ARRAY_IMPL_VERSION)) {
             this.usesMaps = in.readBoolean();
@@ -177,16 +177,6 @@ public class RunningStats implements Writeable, Cloneable {
         } else {
             this.usesMaps = true;
             this.fieldNames = null;
-        }
-    }
-
-    // Convert Map to HashMap if it isn't
-    // TODO: Prob dont need?
-    private static <K, V> HashMap<K, V> convertIfNeeded(Map<K, V> map) {
-        if (map instanceof HashMap) {
-            return (HashMap<K, V>) map;
-        } else {
-            return new HashMap<>(map);
         }
     }
 
