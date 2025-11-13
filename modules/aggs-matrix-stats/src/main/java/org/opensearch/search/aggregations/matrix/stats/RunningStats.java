@@ -52,13 +52,14 @@ import java.util.Objects;
  * http://prod.sandia.gov/techlib/access-control.cgi/2008/086212.pdf
  *
  * Map-based implementation is left here for backwards compatibility purposes. It's much faster to use
- * primitive arrays, as the keys of the map are constant (they're just the fields of the aggreagtion).
- * However, when combining with RunningStats from previous versions, we don't have the sorted list of field names,
- * so we must revert to using maps. This should only happen in mixed clusters.
+ * primitive arrays, as the keys of the map are constant (they're just the fields of the aggregation).
+ * However, when deserializing RunningStats from previous versions, we don't have the sorted list of field names,
+ * so we must revert to using maps. The same goes for any RunningStats that merges with these deserialized instances.
+ * This should only happen in mixed clusters.
  */
 public class RunningStats implements Writeable, Cloneable {
     /** Whether it uses the slow maps impl or not. If this is true, the Maps containing data are guaranteed to be non-null,
-     * and if it's false the arrays are guaranteed to be non-null.
+     * and if it's false the arrays are guaranteed to be non-null after ctor returns.
      */
     private boolean usesMaps = false;
 
@@ -79,7 +80,6 @@ public class RunningStats implements Writeable, Cloneable {
     final String[] fieldNames;
 
     // Old map-based values
-    // TODO: Any reason it enforced HashMap before? Guessing no
     /** per field sum of observations */
     protected Map<String, Double> fieldSum;
     /** counts */
@@ -100,7 +100,6 @@ public class RunningStats implements Writeable, Cloneable {
         init(fieldNames == null);
     }
 
-    // TODO: Not 100% sure about usage of this ctor
     RunningStats(final String[] fieldNames, final double[] fieldVals) {
         this.fieldNames = fieldNames;
         if (fieldVals != null && fieldVals.length > 0) {
@@ -133,7 +132,7 @@ public class RunningStats implements Writeable, Cloneable {
 
     void switchToMaps() {
         // Switch from the fast primitive array implementation to the slower maps implementation.
-        assert !usesMaps;
+        if (usesMaps) return;
         counts = convertLongArrayToMap(countsArr);
         fieldSum = convertDoubleArrayToMap(fieldSumArr);
         means = convertDoubleArrayToMap(meansArr);
@@ -146,7 +145,7 @@ public class RunningStats implements Writeable, Cloneable {
 
     void switchToArrays() {
         // Switch from the slower maps implementation to the fast primitive array implementation.
-        // assert usesMaps; // TODO: Don't assert this since we use this in standard StreamInput ctor path
+        if (fieldNames == null) throw new IllegalArgumentException("Cannot convert to array impl if fieldNames is null");
         countsArr = convertFieldLongMap(counts);
         fieldSumArr = convertFieldDoubleMap(fieldSum);
         meansArr = convertFieldDoubleMap(means);
@@ -200,7 +199,6 @@ public class RunningStats implements Writeable, Cloneable {
         return result;
     }
 
-    // TODO: Any good way to combine these?
     long[] convertFieldLongMap(Map<String, Long> serializedMap) {
         assert serializedMap.keySet().equals(new HashSet<>(Arrays.asList(fieldNames)));
         long[] result = new long[fieldNames.length];
