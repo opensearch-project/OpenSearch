@@ -702,7 +702,9 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         refreshListeners.forEach(POST_REFRESH_LISTENER_CONSUMER);
 
         // trigger merges
-        triggerPossibleMerges();
+        if(!source.equals("merge")) {
+            triggerPossibleMerges();
+        }
     }
 
     public void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
