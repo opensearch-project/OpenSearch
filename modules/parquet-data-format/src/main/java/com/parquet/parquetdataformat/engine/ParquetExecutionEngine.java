@@ -85,7 +85,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     }
 
     @Override
-    public void loadWriterFiles(ShardPath shardPath) throws IOException {
+    public void loadWriterFiles() throws IOException {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(shardPath.getDataPath(), "*" + FILE_NAME_EXT)) {
             StreamSupport.stream(stream.spliterator(), false)
                 .map(Path::getFileName)

@@ -2333,16 +2333,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     changeState(IndexShardState.CLOSED, reason);
                 }
             } finally {
+                final CompositeEngine compositeEngine = this.currentCompositeEngineReference.getAndSet(null);
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 getIndexingExecutionCoordinator().close();
                 try {
                     if (engine != null && flushEngine) {
                         engine.flushAndClose();
                     }
+                    if (compositeEngine != null && flushEngine) {
+                        compositeEngine.flushAndClose();
+                    }
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions, refreshTask);
+                    IOUtils.close(engine, compositeEngine, globalCheckpointListeners, refreshListeners, pendingReplicationActions, refreshTask);
 
                     if (deleted && engine != null && isPrimaryMode()) {
                         // Translog Clean up

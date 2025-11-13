@@ -27,7 +27,7 @@ public interface IndexingExecutionEngine<T extends DataFormat> extends Closeable
 
     DataFormat getDataFormat();
 
-    void loadWriterFiles(ShardPath shardPath) throws IOException;
+    void loadWriterFiles() throws IOException;
 
     default long getNativeBytesUsed() {
         return 0;
