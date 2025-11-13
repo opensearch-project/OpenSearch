@@ -141,12 +141,12 @@ final class MatrixStatsAggregator extends MetricsAggregator {
         if (valuesSources == null || bucket >= stats.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMatrixStats(name, stats.size(), stats.get(bucket), null, metadata());
+        return new InternalMatrixStats(name, stats.size(), stats.get(bucket), null, metadata(), valuesSources.fieldNames());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMatrixStats(name, 0, null, null, metadata());
+        return new InternalMatrixStats(name, 0, null, null, metadata(), valuesSources.fieldNames());
     }
 
     @Override

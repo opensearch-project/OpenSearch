@@ -65,11 +65,11 @@ public class RunningStatsTests extends BaseMatrixStatsTestCase {
     }
 
     private RunningStats createRunningStats(List<Double> fieldAObs, List<Double> fieldBObs) {
-        RunningStats stats = new RunningStats();
         // create a document with two numeric fields
         final String[] fieldNames = new String[2];
         fieldNames[0] = fieldAKey;
         fieldNames[1] = fieldBKey;
+        RunningStats stats = new RunningStats(fieldNames);
         final double[] fieldVals = new double[2];
 
         // running stats computation

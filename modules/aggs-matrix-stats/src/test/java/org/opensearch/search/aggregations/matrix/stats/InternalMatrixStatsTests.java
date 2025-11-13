@@ -93,10 +93,10 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             values[i] = randomDouble();
         }
 
-        RunningStats runningStats = new RunningStats();
+        RunningStats runningStats = new RunningStats(fields);
         runningStats.add(fields, values);
         MatrixStatsResults matrixStatsResults = hasMatrixStatsResults ? new MatrixStatsResults(runningStats) : null;
-        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, metadata);
+        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, metadata, runningStats.fieldNames);
     }
 
     @Override
@@ -117,7 +117,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
                 for (int i = 0; i < fields.length; i++) {
                     values[i] = randomDouble() * 200;
                 }
-                runningStats = new RunningStats();
+                runningStats = new RunningStats(fields);
                 runningStats.add(fields, values);
                 break;
             case 2:
@@ -137,7 +137,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
                 metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
         }
-        return new InternalMatrixStats(name, docCount, runningStats, matrixStatsResults, metadata);
+        return new InternalMatrixStats(name, docCount, runningStats, matrixStatsResults, metadata, runningStats.fieldNames);
     }
 
     @Override
@@ -149,7 +149,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         List<Double> aValues = new ArrayList<>();
         List<Double> bValues = new ArrayList<>();
 
-        RunningStats runningStats = new RunningStats();
+        RunningStats runningStats = new RunningStats(fields);
         List<InternalAggregation> shardResults = new ArrayList<>();
 
         int valuePerShardCounter = 0;
@@ -161,14 +161,14 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
 
             runningStats.add(new String[] { "a", "b" }, new double[] { valueA, valueB });
             if (++valuePerShardCounter == valuesPerShard) {
-                shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap()));
-                runningStats = new RunningStats();
+                shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap(), runningStats.fieldNames));
+                runningStats = new RunningStats(fields);
                 valuePerShardCounter = 0;
             }
         }
 
         if (valuePerShardCounter != 0) {
-            shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap()));
+            shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap(), runningStats.fieldNames));
         }
         MultiPassStats multiPassStats = new MultiPassStats("a", "b");
         multiPassStats.computeStats(aValues, bValues);

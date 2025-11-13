@@ -36,6 +36,7 @@ import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -85,6 +86,7 @@ public abstract class ArrayValuesSource<VS extends ValuesSource> {
     private ArrayValuesSource(Map<String, ?> valuesSources, MultiValueMode multiValueMode) {
         if (valuesSources != null) {
             this.names = valuesSources.keySet().toArray(new String[0]);
+            Arrays.sort(this.names);
         }
         this.multiValueMode = multiValueMode;
     }
@@ -97,6 +99,9 @@ public abstract class ArrayValuesSource<VS extends ValuesSource> {
         return needsScores;
     }
 
+    /**
+     * Returns the field names for this values source. Guaranteed to be in sorted order.
+     */
     public String[] fieldNames() {
         return this.names;
     }
