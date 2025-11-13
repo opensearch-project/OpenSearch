@@ -429,7 +429,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                 totalBytesUsed += shardBytesUsed;
             }
 
-            logger.info(
+            logger.debug(
                 "total indexing heap bytes used [{}] vs {} [{}], total native bytes used [{}] vs native buffer [{}], currently writing bytes [{}]",
                 new ByteSizeValue(totalBytesUsed),
                 INDEX_BUFFER_SIZE_SETTING.getKey(),
@@ -486,7 +486,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     }
                 }
 
-                logger.info(
+                logger.debug(
                     "now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], "
                         + "total native bytes used [{}] vs native buffer [{}], currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
                     new ByteSizeValue(totalBytesUsed),

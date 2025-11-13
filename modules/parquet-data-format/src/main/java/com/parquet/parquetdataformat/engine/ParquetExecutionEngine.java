@@ -138,8 +138,8 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
         long vsrMemory = arrowBufferPool.getTotalAllocatedBytes();
         String shardDataPath = shardPath.getDataPath().toString();
         long filteredArrowWriterMemory = RustBridge.getFilteredNativeBytesUsed(shardDataPath);
-        logger.info("Native memory used by VSR Buffer Pool: {}", vsrMemory);
-        logger.info("Native memory used by ArrowWriters in shard path {}: {}", shardDataPath, filteredArrowWriterMemory);
+        logger.debug("Native memory used by VSR Buffer Pool: {}", vsrMemory);
+        logger.debug("Native memory used by ArrowWriters in shard path {}: {}", shardDataPath, filteredArrowWriterMemory);
         return vsrMemory + filteredArrowWriterMemory;
     }
 
