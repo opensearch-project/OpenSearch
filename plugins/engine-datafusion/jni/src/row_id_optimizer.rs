@@ -23,7 +23,7 @@ use datafusion::{
     parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder,
     physical_expr::{expressions::{BinaryExpr, Column}, PhysicalExpr},
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{filter::FilterExec, projection::ProjectionExec, ExecutionPlan},
+    physical_plan::{filter::FilterExec, projection::{ProjectionExec,ProjectionExpr}, ExecutionPlan},
 };
 use datafusion::physical_plan::projection::new_projections_for_columns;
 
@@ -149,8 +149,9 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
                 if !projection_exec.schema().field_with_name("___row_id").is_ok() {
 
                     let mut projection_exprs = projection_exec.expr().to_vec();
-                    if(projection_exec.input().schema().index_of("___row_id").is_ok()) {
-                        projection_exprs.push((Arc::new(Column::new("___row_id", projection_exec.input().schema().index_of("___row_id").unwrap())), "___row_id".to_string()));
+                    if projection_exec.input().schema().index_of("___row_id").is_ok() {
+                        let row_id_col: Arc<dyn PhysicalExpr> = Arc::new(Column::new("___row_id", projection_exec.input().schema().index_of("___row_id").unwrap()));
+                        projection_exprs.push(ProjectionExpr::new(row_id_col, "___row_id".to_string()));
                     }
 
                     let projection = ProjectionExec::try_new(projection_exprs, projection_exec.input().clone()).expect("Failed to create projection exec");

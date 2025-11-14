@@ -14,7 +14,7 @@ use std::error::Error;
 use std::fs;
 use datafusion::error::DataFusionError;
 use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use crate::FileMetadata;
+use crate::CustomFileMeta;
 
 /// Set error message from a result using a Consumer<String> Java callback
 pub fn set_error_message_batch<Err: Error>(env: &mut JNIEnv, callback: JObject, result: Result<Vec<RecordBatch>, Err>) {
@@ -160,7 +160,7 @@ pub fn throw_exception(env: &mut JNIEnv, message: &str) {
     let _ = env.throw_new("java/lang/RuntimeException", message);
 }
 
-pub fn create_file_metadata_from_filenames(base_path: &str, filenames: Vec<String>) -> Result<Vec<FileMetadata>, DataFusionError> {
+pub fn create_file_metadata_from_filenames(base_path: &str, filenames: Vec<String>) -> Result<Vec<CustomFileMeta>, DataFusionError> {
     let mut row_base: i64 =0;
     filenames.into_iter().map(|filename| {
         let filename = filename.as_str();
@@ -192,7 +192,7 @@ pub fn create_file_metadata_from_filenames(base_path: &str, filenames: Vec<Strin
             .map(|t| DateTime::<Utc>::from(t))
             .unwrap_or_else(|_| Utc::now());
 
-        let file_meta = FileMetadata::new(
+        let file_meta = CustomFileMeta::new(
             row_group_row_counts.clone(),
             row_base,
             ObjectMeta {

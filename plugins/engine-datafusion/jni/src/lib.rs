@@ -220,11 +220,11 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeDa
 
 pub struct ShardView {
     table_path: ListingTableUrl,
-    files_metadata: Arc<Vec<FileMetadata>>
+    files_metadata: Arc<Vec<CustomFileMeta>>
 }
 
 impl ShardView {
-    pub fn new(table_path: ListingTableUrl, files_metadata: Vec<FileMetadata>) -> Self {
+    pub fn new(table_path: ListingTableUrl, files_metadata: Vec<CustomFileMeta>) -> Self {
         let files_metadata = Arc::new(files_metadata);
         ShardView {
             table_path,
@@ -236,24 +236,24 @@ impl ShardView {
         self.table_path.clone()
     }
 
-    pub fn files_metadata(&self) -> Arc<Vec<FileMetadata>> {
+    pub fn files_metadata(&self) -> Arc<Vec<CustomFileMeta>> {
         self.files_metadata.clone()
     }
 }
 
 #[derive(Debug, Clone)]
-struct FileMetadata {
+struct CustomFileMeta {
     row_group_row_counts: Arc<Vec<i64>>,
     row_base: Arc<i64>,
     object_meta: Arc<ObjectMeta>,
 }
 
-impl FileMetadata {
+impl CustomFileMeta {
     pub fn new(row_group_row_counts: Vec<i64>, row_base: i64, object_meta: ObjectMeta) -> Self {
         let row_group_row_counts = Arc::new(row_group_row_counts);
         let row_base = Arc::new(row_base);
         let object_meta = Arc::new(object_meta);
-        FileMetadata {
+        CustomFileMeta {
             row_group_row_counts,
             row_base,
             object_meta
@@ -720,7 +720,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
 
 async fn create_access_plans(
     row_ids: Vec<jlong>,
-    files_metadata: Arc<Vec<FileMetadata>>,
+    files_metadata: Arc<Vec<CustomFileMeta>>,
 ) -> Result<Vec<ParquetAccessPlan>, DataFusionError> {
     let mut access_plans = Vec::new();
 

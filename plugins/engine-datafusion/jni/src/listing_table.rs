@@ -53,7 +53,7 @@ use datafusion::execution::{
 use datafusion_expr::{
     dml::InsertOp, Expr, SortExpr, TableProviderFilterPushDown, TableType,
 };
-use datafusion::physical_expr::schema_rewriter::PhysicalExprAdapterFactory;
+use datafusion::physical_expr_adapter::schema_rewriter::PhysicalExprAdapterFactory;
 use datafusion::physical_expr_common::sort_expr::LexOrdering;
 use datafusion::physical_plan::{empty::EmptyExec, ExecutionPlan, Statistics};
 use futures::{future, stream, Stream, StreamExt, TryStreamExt};
@@ -64,7 +64,7 @@ use std::fs::File;
 use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use futures::future::err;
 use regex::Regex;
-use crate::FileMetadata;
+use crate::CustomFileMeta;
 
 /// Indicates the source of the schema for a [`ListingTable`]
 // PartialEq required for assert_eq! in tests
@@ -490,7 +490,7 @@ pub struct ListingOptions {
     ///       single element.
     pub file_sort_order: Vec<Vec<SortExpr>>,
 
-    pub files_metadata: Arc<Vec<FileMetadata>>
+    pub files_metadata: Arc<Vec<CustomFileMeta>>
 }
 
 impl ListingOptions {
@@ -543,7 +543,7 @@ impl ListingOptions {
         self
     }
 
-    pub fn with_files_metadata(mut self, files_metadata: Arc<Vec<FileMetadata>>) -> Self {
+    pub fn with_files_metadata(mut self, files_metadata: Arc<Vec<CustomFileMeta>>) -> Self {
         self.files_metadata = files_metadata.clone();
         self
     }

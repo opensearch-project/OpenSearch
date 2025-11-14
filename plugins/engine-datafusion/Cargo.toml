@@ -6,21 +6,21 @@ members = [
 
 [workspace.dependencies]
 # DataFusion dependencies
-datafusion = "49.0.0"
-datafusion-expr = "49.0.0"
-datafusion-datasource = "49.0.0"
-arrow-json = "55.2"
-arrow = { version = "55.2", features = ["ffi", "ipc_compression"] }
+datafusion = "50.0.0"
+datafusion-expr = "50.0.0"
+datafusion-datasource = "50.0.0"
+arrow-json = "56.2"
+arrow = { version = "56.2", features = ["ffi", "ipc_compression"] }
 #arrow = "55.2.0"
-arrow-array = "55.2.0"
-arrow-schema = "55.2.0"
-arrow-buffer = "55.2.0"
+arrow-array = "56.2.0"
+arrow-schema = "56.2.0"
+arrow-buffer = "56.2.0"
 
 # JNI dependencies
 jni = "0.21"
 
 # Substrait support
-datafusion-substrait = "49.0.0"
+datafusion-substrait = "50.0.0"
 prost = "0.13"
 
 

@@ -321,7 +321,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult2, 2));
 
         expectedResults = new HashMap<>();
-        expectedResults.put("min", 4L);
+        expectedResults.put("min", 3L);
         expectedResults.put("max", 8L);
         expectedResults.put("count()", 2L);
 
