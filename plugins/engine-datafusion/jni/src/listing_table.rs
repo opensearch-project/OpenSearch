@@ -25,20 +25,32 @@
 
 //! The table implementation.
 
+use crate::FileMetadata;
+use arrow::datatypes::{DataType, Field, SchemaBuilder, SchemaRef};
+use arrow_schema::Schema;
+use async_trait::async_trait;
+use datafusion::catalog::{Session, TableProvider};
+use datafusion::common::{
+    config_datafusion_err, config_err, internal_err, plan_err, project_schema, stats::Precision,
+    Constraints, DataFusionError, Result, ScalarValue, SchemaExt,
+};
 use datafusion::datasource::listing::{
     helpers::{expr_applicable_for_cols, pruned_partition_list},
     ListingTableUrl, PartitionedFile,
 };
+use datafusion::execution::{
+    cache::{cache_manager::FileStatisticsCache, cache_unit::DefaultFileStatisticsCache},
+    config::SessionConfig,
+};
+use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use datafusion::physical_expr::schema_rewriter::PhysicalExprAdapterFactory;
+use datafusion::physical_expr_common::sort_expr::LexOrdering;
+use datafusion::physical_plan::{empty::EmptyExec, ExecutionPlan, Statistics};
 use datafusion::{
     datasource::file_format::{file_compression_type::FileCompressionType, FileFormat},
     datasource::{create_ordering, physical_plan::FileSinkConfig},
     execution::context::SessionState,
 };
-use arrow::datatypes::{DataType, Field, SchemaBuilder, SchemaRef};
-use arrow_schema::Schema;
-use async_trait::async_trait;
-use datafusion::catalog::{Session, TableProvider};
-use datafusion::common::{config_datafusion_err, config_err, internal_err, plan_err, project_schema, stats::Precision, Constraints, DataFusionError, Result, ScalarValue, SchemaExt};
 use datafusion_datasource::{
     compute_all_files_statistics,
     file::FileSource,
@@ -46,25 +58,14 @@ use datafusion_datasource::{
     file_scan_config::{FileScanConfig, FileScanConfigBuilder},
     schema_adapter::{DefaultSchemaAdapterFactory, SchemaAdapter, SchemaAdapterFactory},
 };
-use datafusion::execution::{
-    cache::{cache_manager::FileStatisticsCache, cache_unit::DefaultFileStatisticsCache},
-    config::SessionConfig,
-};
-use datafusion_expr::{
-    dml::InsertOp, Expr, SortExpr, TableProviderFilterPushDown, TableType,
-};
-use datafusion::physical_expr::schema_rewriter::PhysicalExprAdapterFactory;
-use datafusion::physical_expr_common::sort_expr::LexOrdering;
-use datafusion::physical_plan::{empty::EmptyExec, ExecutionPlan, Statistics};
+use datafusion_expr::{dml::InsertOp, Expr, SortExpr, TableProviderFilterPushDown, TableType};
+use futures::future::err;
 use futures::{future, stream, Stream, StreamExt, TryStreamExt};
 use itertools::Itertools;
 use object_store::ObjectStore;
-use std::{any::Any, collections::HashMap, str::FromStr, sync::Arc};
-use std::fs::File;
-use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use futures::future::err;
 use regex::Regex;
-use crate::FileMetadata;
+use std::fs::File;
+use std::{any::Any, collections::HashMap, str::FromStr, sync::Arc};
 
 /// Indicates the source of the schema for a [`ListingTable`]
 // PartialEq required for assert_eq! in tests
@@ -221,15 +222,13 @@ impl ListingTableConfig {
     ///
     /// For example a path ending with blah.test.csv.gz returns `("csv", Some("gz"))`
     /// For example a path ending with blah.test.csv returns `("csv", None)`
-    fn infer_file_extension_and_compression_type(
-        path: &str,
-    ) -> Result<(String, Option<String>)> {
+    fn infer_file_extension_and_compression_type(path: &str) -> Result<(String, Option<String>)> {
         let mut exts = path.rsplit('.');
 
         let splitted = exts.next().unwrap_or("");
 
-        let file_compression_type = FileCompressionType::from_str(splitted)
-            .unwrap_or(FileCompressionType::UNCOMPRESSED);
+        let file_compression_type =
+            FileCompressionType::from_str(splitted).unwrap_or(FileCompressionType::UNCOMPRESSED);
 
         if file_compression_type.is_compressed() {
             let splitted2 = exts.next().unwrap_or("");
@@ -260,14 +259,11 @@ impl ListingTableConfig {
             .ok_or_else(|| DataFusionError::Internal("No files for table".into()))??;
 
         let (file_extension, maybe_compression_type) =
-            ListingTableConfig::infer_file_extension_and_compression_type(
-                file.location.as_ref(),
-            )?;
+            ListingTableConfig::infer_file_extension_and_compression_type(file.location.as_ref())?;
 
         let mut format_options = HashMap::new();
         if let Some(ref compression_type) = maybe_compression_type {
-            format_options
-                .insert("format.compression".to_string(), compression_type.clone());
+            format_options.insert("format.compression".to_string(), compression_type.clone());
         }
         let state = state.as_any().downcast_ref::<SessionState>().unwrap();
         let file_format = state
@@ -277,12 +273,11 @@ impl ListingTableConfig {
             ))?
             .create(state, &format_options)?;
 
-        let listing_file_extension =
-            if let Some(compression_type) = maybe_compression_type {
-                format!("{}.{}", &file_extension, &compression_type)
-            } else {
-                file_extension
-            };
+        let listing_file_extension = if let Some(compression_type) = maybe_compression_type {
+            format!("{}.{}", &file_extension, &compression_type)
+        } else {
+            file_extension
+        };
 
         let listing_options = ListingOptions::new(file_format)
             .with_file_extension(listing_file_extension)
@@ -490,7 +485,7 @@ pub struct ListingOptions {
     ///       single element.
     pub file_sort_order: Vec<Vec<SortExpr>>,
 
-    pub files_metadata: Arc<Vec<FileMetadata>>
+    pub files_metadata: Arc<Vec<FileMetadata>>,
 }
 
 impl ListingOptions {
@@ -508,7 +503,7 @@ impl ListingOptions {
             collect_stat: false,
             target_partitions: 1,
             file_sort_order: vec![],
-            files_metadata: Arc::new(vec![])
+            files_metadata: Arc::new(vec![]),
         }
     }
 
@@ -973,9 +968,9 @@ impl ListingTable {
             .file_schema
             .ok_or_else(|| DataFusionError::Internal("No schema provided.".into()))?;
 
-        let options = config.options.ok_or_else(|| {
-            DataFusionError::Internal("No ListingOptions provided".into())
-        })?;
+        let options = config
+            .options
+            .ok_or_else(|| DataFusionError::Internal("No ListingOptions provided".into()))?;
 
         // Add the partition columns to the file schema
         let mut builder = SchemaBuilder::from(file_schema.as_ref().to_owned());
@@ -1013,10 +1008,7 @@ impl ListingTable {
     }
 
     /// Assign column defaults
-    pub fn with_column_defaults(
-        mut self,
-        column_defaults: HashMap<String, Expr>,
-    ) -> Self {
+    pub fn with_column_defaults(mut self, column_defaults: HashMap<String, Expr>) -> Self {
         self.column_defaults = column_defaults;
         self
     }
@@ -1098,9 +1090,7 @@ impl ListingTable {
     fn create_schema_adapter(&self) -> Box<dyn SchemaAdapter> {
         let table_schema = self.schema();
         match &self.schema_adapter_factory {
-            Some(factory) => {
-                factory.create_with_projected_schema(Arc::clone(&table_schema))
-            }
+            Some(factory) => factory.create_with_projected_schema(Arc::clone(&table_schema)),
             None => DefaultSchemaAdapterFactory::from_schema(Arc::clone(&table_schema)),
         }
     }
@@ -1123,7 +1113,10 @@ impl ListingTable {
         create_ordering(&self.table_schema, &self.options.file_sort_order)
     }
 
-    fn add_path_preserving_metadata(&self, file_groups: Vec<FileGroup>) -> Result<Vec<FileGroup>, DataFusionError> {
+    fn add_path_preserving_metadata(
+        &self,
+        file_groups: Vec<FileGroup>,
+    ) -> Result<Vec<FileGroup>, DataFusionError> {
         // First pass: calculate cumulative row bases
         let mut cumulative_row_base = 0;
         let mut file_row_bases: HashMap<String, i32> = HashMap::new();
@@ -1132,8 +1125,11 @@ impl ListingTable {
         for group in &file_groups {
             for file in group.files() {
                 let location = file.object_meta.location.to_string();
-                let row_count = self.options.files_metadata.iter()
-                    .find(|meta| { location.contains(meta.object_meta.location.as_ref()) })
+                let row_count = self
+                    .options
+                    .files_metadata
+                    .iter()
+                    .find(|meta| location.contains(meta.object_meta.location.as_ref()))
                     .map(|meta| meta.row_group_row_counts().iter().sum::<i64>() as i32)
                     // .unwrap_or_default();
                     .expect(format!("Fail to get row count for file {}", location).as_str());
@@ -1144,9 +1140,18 @@ impl ListingTable {
                 cumulative_row_base += row_count;
             }
         }
-        let row_id_field_datatype = self.file_schema.field_with_name("___row_id").expect("Field ___row_id not found").data_type();
-        if !(row_id_field_datatype.equals_datatype(&DataType::Int32) || row_id_field_datatype.equals_datatype(&DataType::Int64)) {
-            return Err(DataFusionError::Internal(format!("___row_id field must be Int32 or Int64, but found {:?}", row_id_field_datatype)))
+        let row_id_field_datatype = self
+            .file_schema
+            .field_with_name("___row_id")
+            .expect("Field ___row_id not found")
+            .data_type();
+        if !(row_id_field_datatype.equals_datatype(&DataType::Int32)
+            || row_id_field_datatype.equals_datatype(&DataType::Int64))
+        {
+            return Err(DataFusionError::Internal(format!(
+                "___row_id field must be Int32 or Int64, but found {:?}",
+                row_id_field_datatype
+            )));
         }
 
         // Second pass: create new file groups with calculated row_bases
@@ -1179,8 +1184,9 @@ impl ListingTable {
                     })
                     .collect();
 
-                FileGroup::new(new_files)
-                    .with_statistics(Arc::new(group.statistics_mut().cloned().unwrap_or_default()))
+                FileGroup::new(new_files).with_statistics(Arc::new(
+                    group.statistics_mut().cloned().unwrap_or_default(),
+                ))
             })
             .collect())
     }
@@ -1188,12 +1194,8 @@ impl ListingTable {
 
 // Expressions can be used for parttion pruning if they can be evaluated using
 // only the partiton columns and there are partition columns.
-fn can_be_evaluted_for_partition_pruning(
-    partition_column_names: &[&str],
-    expr: &Expr,
-) -> bool {
-    !partition_column_names.is_empty()
-        && expr_applicable_for_cols(partition_column_names, expr)
+fn can_be_evaluted_for_partition_pruning(partition_column_names: &[&str], expr: &Expr) -> bool {
+    !partition_column_names.is_empty() && expr_applicable_for_cols(partition_column_names, expr)
 }
 
 #[async_trait]
@@ -1213,8 +1215,6 @@ impl TableProvider for ListingTable {
     fn table_type(&self) -> TableType {
         TableType::Base
     }
-
-
 
     async fn scan(
         &self,
@@ -1260,7 +1260,9 @@ impl TableProvider for ListingTable {
             return Ok(Arc::new(EmptyExec::new(projected_schema)));
         }
 
-        partitioned_file_lists = self.add_path_preserving_metadata(partitioned_file_lists).expect("Unable to update Metadata for partitioned files");
+        partitioned_file_lists = self
+            .add_path_preserving_metadata(partitioned_file_lists)
+            .expect("Unable to update Metadata for partitioned files");
 
         let output_ordering = self.try_create_output_ordering()?;
         match state
@@ -1290,8 +1292,7 @@ impl TableProvider for ListingTable {
             None => {} // no ordering required
         };
 
-        let Some(object_store_url) =
-            self.table_paths.first().map(ListingTableUrl::object_store)
+        let Some(object_store_url) = self.table_paths.first().map(ListingTableUrl::object_store)
         else {
             return Ok(Arc::new(EmptyExec::new(Arc::new(Schema::empty()))));
         };
@@ -1308,15 +1309,15 @@ impl TableProvider for ListingTable {
                     Arc::clone(&self.file_schema),
                     file_source,
                 )
-                    .with_file_groups(partitioned_file_lists)
-                    .with_constraints(self.constraints.clone())
-                    .with_statistics(statistics)
-                    .with_projection(projection.cloned())
-                    .with_limit(limit)
-                    .with_output_ordering(output_ordering)
-                    .with_table_partition_cols(table_partition_cols)
-                    .with_expr_adapter(self.expr_adapter_factory.clone())
-                    .build(),
+                .with_file_groups(partitioned_file_lists)
+                .with_constraints(self.constraints.clone())
+                .with_statistics(statistics)
+                .with_projection(projection.cloned())
+                .with_limit(limit)
+                .with_output_ordering(output_ordering)
+                .with_table_partition_cols(table_partition_cols)
+                .with_expr_adapter(self.expr_adapter_factory.clone())
+                .build(),
             )
             .await
     }
@@ -1334,8 +1335,7 @@ impl TableProvider for ListingTable {
         filters
             .iter()
             .map(|filter| {
-                if can_be_evaluted_for_partition_pruning(&partition_column_names, filter)
-                {
+                if can_be_evaluted_for_partition_pruning(&partition_column_names, filter) {
                     // if filter can be handled by partition pruning, it is exact
                     return Ok(TableProviderFilterPushDown::Exact);
                 }
@@ -1378,11 +1378,10 @@ impl TableProvider for ListingTable {
             &self.options.file_extension,
             &self.options.table_partition_cols,
         )
-            .await?;
+        .await?;
 
         let file_group = file_list_stream.try_collect::<Vec<_>>().await?.into();
-        let keep_partition_by_columns =
-            state.config_options().execution.keep_partition_by_columns;
+        let keep_partition_by_columns = state.config_options().execution.keep_partition_by_columns;
 
         // Sink related option, apart from format
         let config = FileSinkConfig {
@@ -1428,7 +1427,7 @@ impl ListingTable {
             return Ok((vec![], Statistics::new_unknown(&self.file_schema)));
         };
         // list files (with partitions)
-        let table_partition_cols:  Vec<(String, DataType)> = vec![]; // Passing empty partition cols as current partition cols are not mapped to directory path
+        let table_partition_cols: Vec<(String, DataType)> = vec![]; // Passing empty partition cols as current partition cols are not mapped to directory path
         let file_list = future::try_join_all(self.table_paths.iter().map(|table_path| {
             pruned_partition_list(
                 ctx,
@@ -1439,9 +1438,8 @@ impl ListingTable {
                 &table_partition_cols,
             )
         }))
-            .await?;
-        let meta_fetch_concurrency =
-            ctx.config_options().execution.meta_fetch_concurrency;
+        .await?;
+        let meta_fetch_concurrency = ctx.config_options().execution.meta_fetch_concurrency;
         let file_list = stream::iter(file_list).flatten_unordered(meta_fetch_concurrency);
         // collect the statistics if required by the config
         let files = file_list
@@ -1471,8 +1469,7 @@ impl ListingTable {
         let schema_adapter = self.create_schema_adapter();
         let (schema_mapper, _) = schema_adapter.map_schema(self.file_schema.as_ref())?;
 
-        stats.column_statistics =
-            schema_mapper.map_column_statistics(&stats.column_statistics)?;
+        stats.column_statistics = schema_mapper.map_column_statistics(&stats.column_statistics)?;
         file_groups.iter_mut().try_for_each(|file_group| {
             if let Some(stat) = file_group.statistics_mut() {
                 stat.column_statistics =
@@ -1597,4 +1594,3 @@ async fn get_files_with_limit(
     let inexact_stats = all_files.next().await.is_some();
     Ok((file_group, inexact_stats))
 }
-

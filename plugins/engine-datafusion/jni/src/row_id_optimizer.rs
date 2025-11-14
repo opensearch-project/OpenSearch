@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use arrow::datatypes::{DataType, Field, Fields, Schema};
 use arrow_schema::SchemaRef;
+use datafusion::physical_plan::projection::new_projections_for_columns;
 use datafusion::{
     common::tree_node::{Transformed, TreeNode, TreeNodeRecursion},
     config::ConfigOptions,
@@ -21,22 +22,23 @@ use datafusion::{
     error::DataFusionError,
     logical_expr::Operator,
     parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder,
-    physical_expr::{expressions::{BinaryExpr, Column}, PhysicalExpr},
+    physical_expr::{
+        expressions::{BinaryExpr, Column},
+        PhysicalExpr,
+    },
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::{filter::FilterExec, projection::ProjectionExec, ExecutionPlan},
 };
-use datafusion::physical_plan::projection::new_projections_for_columns;
 
 #[derive(Debug)]
 pub struct ProjectRowIdOptimizer;
 
 impl ProjectRowIdOptimizer {
-
     /// Helper to build new schema and projection info with added `row_base` column.
     fn build_updated_file_source_schema(
         &self,
         datasource: &FileScanConfig,
-        datasource_exec_schema: SchemaRef
+        datasource_exec_schema: SchemaRef,
     ) -> (SchemaRef, Vec<usize>) {
         // Clone projection and add new field index
         let mut projections = datasource.projection.clone().unwrap_or_default();
@@ -67,7 +69,15 @@ impl ProjectRowIdOptimizer {
         // Add row_base field to schema
 
         let mut new_fields = file_source_schema.fields().clone().to_vec();
-        new_fields.push(Arc::new(Field::new("row_base", file_source_schema.field_with_name("___row_id").unwrap().data_type().clone(), true)));
+        new_fields.push(Arc::new(Field::new(
+            "row_base",
+            file_source_schema
+                .field_with_name("___row_id")
+                .unwrap()
+                .data_type()
+                .clone(),
+            true,
+        )));
 
         let new_schema = Arc::new(Schema {
             metadata: file_source_schema.metadata().clone(),
@@ -78,9 +88,16 @@ impl ProjectRowIdOptimizer {
     }
 
     /// Creates a projection expression that adds `row_base` to `___row_id`.
-    fn build_projection_exprs(&self, new_schema: &SchemaRef) -> Result<Vec<(Arc<dyn PhysicalExpr>, String)>, DataFusionError> {
-        let row_id_idx = new_schema.index_of("___row_id").expect("Field ___row_id missing");
-        let row_base_idx = new_schema.index_of("row_base").expect("Field row_base missing");
+    fn build_projection_exprs(
+        &self,
+        new_schema: &SchemaRef,
+    ) -> Result<Vec<(Arc<dyn PhysicalExpr>, String)>, DataFusionError> {
+        let row_id_idx = new_schema
+            .index_of("___row_id")
+            .expect("Field ___row_id missing");
+        let row_base_idx = new_schema
+            .index_of("row_base")
+            .expect("Field row_base missing");
 
         let sum_expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(
             Arc::new(Column::new("___row_id", row_id_idx)),
@@ -92,15 +109,18 @@ impl ProjectRowIdOptimizer {
 
         let mut has_row_id = false;
         for field_name in new_schema.fields().to_vec() {
-
             if field_name.name() == "___row_id" {
                 projection_exprs.push((sum_expr.clone(), field_name.name().clone()));
                 has_row_id = true;
-            } else if(field_name.name() != "row_base") {
+            } else if (field_name.name() != "row_base") {
                 // Match the column by name from new_schema
-                let idx = new_schema.index_of(&*field_name.name().clone())
+                let idx = new_schema
+                    .index_of(&*field_name.name().clone())
                     .unwrap_or_else(|_| panic!("Field {field_name} missing in schema"));
-                projection_exprs.push((Arc::new(Column::new(&*field_name.name(), idx)), field_name.name().clone()));
+                projection_exprs.push((
+                    Arc::new(Column::new(&*field_name.name(), idx)),
+                    field_name.name().clone(),
+                ));
             }
         }
         if !has_row_id {
@@ -109,15 +129,22 @@ impl ProjectRowIdOptimizer {
         Ok(projection_exprs)
     }
 
-    fn create_datasource_projection(&self, datasource: &FileScanConfig, data_source_exec_schema: SchemaRef) -> Result<ProjectionExec, DataFusionError> {
-        let (new_schema, new_projections) = self.build_updated_file_source_schema(datasource, data_source_exec_schema.clone());
+    fn create_datasource_projection(
+        &self,
+        datasource: &FileScanConfig,
+        data_source_exec_schema: SchemaRef,
+    ) -> Result<ProjectionExec, DataFusionError> {
+        let (new_schema, new_projections) =
+            self.build_updated_file_source_schema(datasource, data_source_exec_schema.clone());
         let file_scan_config = FileScanConfigBuilder::from(datasource.clone())
             .with_source(datasource.file_source.with_schema(new_schema.clone()))
             .with_projection(Some(new_projections))
             .build();
 
         let new_datasource = DataSourceExec::from_data_source(file_scan_config);
-        let projection_exprs = self.build_projection_exprs(&new_datasource.schema()).expect("Failed to build projection expressions");
+        let projection_exprs = self
+            .build_projection_exprs(&new_datasource.schema())
+            .expect("Failed to build projection expressions");
 
         Ok(ProjectionExec::try_new(projection_exprs, new_datasource)
             .expect("Failed to create ProjectionExec"))
@@ -130,10 +157,8 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
         plan: Arc<dyn ExecutionPlan>,
         _config: &ConfigOptions,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-
         let rewritten = plan.transform_up(|node| {
             if let Some(datasource_exec) = node.as_any().downcast_ref::<DataSourceExec>() {
-
                 let datasource = datasource_exec
                     .data_source()
                     .as_ref()
@@ -141,20 +166,51 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
                     .downcast_ref::<FileScanConfig>()
                     .expect("DataSource not found");
                 let schema = datasource.file_schema.clone();
-                schema.field_with_name("___row_id").expect("Field ___row_id missing");
-                let projection = self.create_datasource_projection(datasource, datasource_exec.schema()).expect("Failed to create ProjectionExec from datasource");
-                return Ok(Transformed::new(Arc::new(projection), true, TreeNodeRecursion::Continue));
-
+                schema
+                    .field_with_name("___row_id")
+                    .expect("Field ___row_id missing");
+                let projection = self
+                    .create_datasource_projection(datasource, datasource_exec.schema())
+                    .expect("Failed to create ProjectionExec from datasource");
+                return Ok(Transformed::new(
+                    Arc::new(projection),
+                    true,
+                    TreeNodeRecursion::Continue,
+                ));
             } else if let Some(projection_exec) = node.as_any().downcast_ref::<ProjectionExec>() {
-                if !projection_exec.schema().field_with_name("___row_id").is_ok() {
-
+                if !projection_exec
+                    .schema()
+                    .field_with_name("___row_id")
+                    .is_ok()
+                {
                     let mut projection_exprs = projection_exec.expr().to_vec();
-                    if(projection_exec.input().schema().index_of("___row_id").is_ok()) {
-                        projection_exprs.push((Arc::new(Column::new("___row_id", projection_exec.input().schema().index_of("___row_id").unwrap())), "___row_id".to_string()));
+                    if (projection_exec
+                        .input()
+                        .schema()
+                        .index_of("___row_id")
+                        .is_ok())
+                    {
+                        projection_exprs.push((
+                            Arc::new(Column::new(
+                                "___row_id",
+                                projection_exec
+                                    .input()
+                                    .schema()
+                                    .index_of("___row_id")
+                                    .unwrap(),
+                            )),
+                            "___row_id".to_string(),
+                        ));
                     }
 
-                    let projection = ProjectionExec::try_new(projection_exprs, projection_exec.input().clone()).expect("Failed to create projection exec");
-                    return Ok(Transformed::new(Arc::new(projection.clone()), true, TreeNodeRecursion::Continue));
+                    let projection =
+                        ProjectionExec::try_new(projection_exprs, projection_exec.input().clone())
+                            .expect("Failed to create projection exec");
+                    return Ok(Transformed::new(
+                        Arc::new(projection.clone()),
+                        true,
+                        TreeNodeRecursion::Continue,
+                    ));
                 }
             }
 
