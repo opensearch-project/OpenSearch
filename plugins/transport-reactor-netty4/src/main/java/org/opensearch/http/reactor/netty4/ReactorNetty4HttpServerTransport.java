@@ -51,6 +51,7 @@ import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.quic.QuicSslContextBuilder;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.netty.handler.ssl.ApplicationProtocolNames;
 import io.netty.handler.ssl.ClientAuth;
@@ -64,11 +65,13 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.HttpProtocol;
+import reactor.netty.http.internal.Http3;
 import reactor.netty.http.server.HttpServer;
 import reactor.netty.http.server.HttpServerRequest;
 import reactor.netty.http.server.HttpServerResponse;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_CONNECT_TIMEOUT;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -314,30 +317,50 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
             final KeyManagerFactory keyManagerFactory = parameters.flatMap(SecureHttpTransportParameters::keyManagerFactory)
                 .orElseThrow(() -> new OpenSearchException("The KeyManagerFactory instance is not provided"));
 
-            final SslContextBuilder sslContextBuilder = SslContextBuilder.forServer(keyManagerFactory);
-            parameters.flatMap(SecureHttpTransportParameters::trustManagerFactory).ifPresent(sslContextBuilder::trustManager);
-            parameters.map(SecureHttpTransportParameters::cipherSuites)
-                .ifPresent(ciphers -> sslContextBuilder.ciphers(ciphers, SupportedCipherSuiteFilter.INSTANCE));
-            parameters.flatMap(SecureHttpTransportParameters::clientAuth)
-                .ifPresent(clientAuth -> sslContextBuilder.clientAuth(ClientAuth.valueOf(clientAuth)));
+            if (Http3.isHttp3Available() && SETTING_HTTP_HTTP3_ENABLED.get(settings).booleanValue() == true) {
+                final QuicSslContextBuilder sslContextBuilder = QuicSslContextBuilder.forServer(keyManagerFactory, null);
 
-            final SslContext sslContext = sslContextBuilder.protocols(
-                parameters.map(SecureHttpTransportParameters::protocols).orElseGet(() -> Arrays.asList(SslUtils.DEFAULT_SSL_PROTOCOLS))
-            )
-                .applicationProtocolConfig(
-                    new ApplicationProtocolConfig(
-                        ApplicationProtocolConfig.Protocol.ALPN,
-                        // NO_ADVERTISE is currently the only mode supported by both OpenSsl and JDK providers.
-                        ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                        // ACCEPT is currently the only mode supported by both OpenSsl and JDK providers.
-                        ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
-                        ApplicationProtocolNames.HTTP_2,
-                        ApplicationProtocolNames.HTTP_1_1
-                    )
+                parameters.flatMap(SecureHttpTransportParameters::trustManagerFactory).ifPresent(sslContextBuilder::trustManager);
+                parameters.flatMap(SecureHttpTransportParameters::clientAuth)
+                    .ifPresent(clientAuth -> sslContextBuilder.clientAuth(ClientAuth.valueOf(clientAuth)));
+
+                final SslContext sslContext = sslContextBuilder.applicationProtocols(
+                    io.netty.handler.codec.http3.Http3.supportedApplicationProtocols()
+                ).build();
+
+                configured = configured.http3Settings(
+                    spec -> spec.idleTimeout(Duration.ofSeconds(5))
+                        .maxData(SETTING_HTTP_MAX_CHUNK_SIZE.get(settings).getBytes())
+                        .maxStreamDataBidirectionalLocal(1000000)
+                        .maxStreamDataBidirectionalRemote(1000000)
+                        .maxStreamsBidirectional(100)
+                ).secure(spec -> spec.sslContext(sslContext)).protocol(HttpProtocol.HTTP3);
+            } else {
+                final SslContextBuilder sslContextBuilder = SslContextBuilder.forServer(keyManagerFactory);
+                parameters.flatMap(SecureHttpTransportParameters::trustManagerFactory).ifPresent(sslContextBuilder::trustManager);
+                parameters.map(SecureHttpTransportParameters::cipherSuites)
+                    .ifPresent(ciphers -> sslContextBuilder.ciphers(ciphers, SupportedCipherSuiteFilter.INSTANCE));
+                parameters.flatMap(SecureHttpTransportParameters::clientAuth)
+                    .ifPresent(clientAuth -> sslContextBuilder.clientAuth(ClientAuth.valueOf(clientAuth)));
+
+                final SslContext sslContext = sslContextBuilder.protocols(
+                    parameters.map(SecureHttpTransportParameters::protocols).orElseGet(() -> Arrays.asList(SslUtils.DEFAULT_SSL_PROTOCOLS))
                 )
-                .build();
+                    .applicationProtocolConfig(
+                        new ApplicationProtocolConfig(
+                            ApplicationProtocolConfig.Protocol.ALPN,
+                            // NO_ADVERTISE is currently the only mode supported by both OpenSsl and JDK providers.
+                            ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                            // ACCEPT is currently the only mode supported by both OpenSsl and JDK providers.
+                            ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                            ApplicationProtocolNames.HTTP_2,
+                            ApplicationProtocolNames.HTTP_1_1
+                        )
+                    )
+                    .build();
 
-            configured = configured.secure(spec -> spec.sslContext(sslContext)).protocol(HttpProtocol.HTTP11, HttpProtocol.H2);
+                configured = configured.secure(spec -> spec.sslContext(sslContext)).protocol(HttpProtocol.HTTP11, HttpProtocol.H2);
+            }
         } else {
             configured = configured.protocol(HttpProtocol.HTTP11, HttpProtocol.H2C);
         }

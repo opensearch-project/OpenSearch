@@ -89,6 +89,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http2.Http2SecurityUtil;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.pkitesting.CertificateBuilder.Algorithm;
 
 import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
@@ -117,7 +118,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         var keyManagerFactory = KeyManagerFactory.getInstance("PKIX");
-        keyManagerFactory.init(KeyStoreUtils.createServerKeyStore(), KEYSTORE_PASSWORD);
+        keyManagerFactory.init(KeyStoreUtils.createServerKeyStore(Algorithm.ecp384), KEYSTORE_PASSWORD);
 
         secureHttpTransportSettingsProvider = new SecureHttpTransportSettingsProvider() {
             @Override
@@ -256,7 +257,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
@@ -359,7 +360,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 final String url = "/" + randomAlphaOfLength(maxInitialLineLength);
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
@@ -406,7 +407,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
 
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
@@ -446,9 +447,13 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
 
         };
 
+        final Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED.getKey(), randomBoolean())
+            .build();
+
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
-                Settings.EMPTY,
+                settings,
                 networkService,
                 bigArrays,
                 threadPool,
@@ -463,7 +468,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
                 request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
                 long numOfHugeAllocations = getHugeAllocationCount();
@@ -535,7 +540,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             // Test pre-flight request
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/");
                 request.headers().add(CorsHandler.ORIGIN, "test-cors.org");
                 request.headers().add(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, "POST");
@@ -552,7 +557,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             }
 
             // Test short-circuited request
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
                 request.headers().add(CorsHandler.ORIGIN, "google.com");
 
@@ -638,6 +643,8 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
     }
 
     private Settings.Builder createBuilderWithPort() {
-        return Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange());
+        return Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange())
+            .put(HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED.getKey(), randomBoolean());
     }
 }
