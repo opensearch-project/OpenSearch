@@ -95,8 +95,8 @@ public class TraceableRestChannel implements RestChannel {
     }
 
     @Override
-    public boolean detailedErrorStackTraceRequested() {
-        return delegate.detailedErrorStackTraceRequested();
+    public boolean detailedErrorStackTraceEnabled() {
+        return delegate.detailedErrorStackTraceEnabled();
     }
 
     @Override

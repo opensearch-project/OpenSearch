@@ -192,7 +192,7 @@ public abstract class AbstractRestChannel implements RestChannel {
         return detailedErrorsEnabled;
     }
 
-    public boolean detailedErrorStackTraceRequested() {
+    public boolean detailedErrorStackTraceEnabled() {
         return detailedErrorStackTraceRequested;
     }
 }

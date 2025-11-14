@@ -73,7 +73,7 @@ public class RestToXContentListener<Response extends ToXContentObject> extends R
     protected ToXContent.Params getRequestParams() {
         ToXContent.Params params = channel.request();
         // We add detailed stack traces if the request indicates so
-        if (channel.detailedErrorStackTraceRequested()) {
+        if (channel.detailedErrorStackTraceEnabled()) {
             return new ToXContent.DelegatingMapParams(Map.of(OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
         return params;
