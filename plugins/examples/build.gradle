@@ -22,7 +22,7 @@ gradle.projectsEvaluated {
     // Disable example project testing with FIPS JVM
     tasks.withType(Test) {
       onlyIf {
-        BuildParams.inFipsJvm == false
+        BuildParams.isInFipsJvm() == false
       }
     }
   }

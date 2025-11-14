@@ -37,6 +37,11 @@ public class FeatureFlags {
     public static final String REMOTE_STORE_MIGRATION_EXPERIMENTAL = FEATURE_FLAG_PREFIX + "remote_store.migration.enabled";
 
     /**
+     * Gates the visibility of the context aware segments.
+     */
+    public static final String CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG = FEATURE_FLAG_PREFIX + "context_aware.migration.enabled";
+
+    /**
      * Gates the functionality of extensions.
      * Once the feature is ready for production release, this feature flag can be removed.
      */
@@ -63,14 +68,14 @@ public class FeatureFlags {
      */
     public static final String BACKGROUND_TASK_EXECUTION_EXPERIMENTAL = FEATURE_FLAG_PREFIX + "task.background.enabled";
 
-    /**
-     * Gates the functionality of merged segment warmer in local/remote segment replication.
-     * Once the feature is ready for release, this feature flag can be removed.
-     */
-    public static final String MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG = "opensearch.experimental.feature.merged_segment_warmer.enabled";
-
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
+        false,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG,
         false,
         Property.NodeScope
     );
@@ -87,12 +92,6 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> WRITABLE_WARM_INDEX_SETTING = Setting.boolSetting(
         WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG,
-        false,
-        Property.NodeScope
-    );
-
-    public static final Setting<Boolean> MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING = Setting.boolSetting(
-        MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG,
         false,
         Property.NodeScope
     );
@@ -145,7 +144,7 @@ public class FeatureFlags {
                 put(TERM_VERSION_PRECOMMIT_ENABLE_SETTING, TERM_VERSION_PRECOMMIT_ENABLE_SETTING.getDefault(Settings.EMPTY));
                 put(ARROW_STREAMS_SETTING, ARROW_STREAMS_SETTING.getDefault(Settings.EMPTY));
                 put(STREAM_TRANSPORT_SETTING, STREAM_TRANSPORT_SETTING.getDefault(Settings.EMPTY));
-                put(MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING, MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
+                put(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING, CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
             }
         };
 
