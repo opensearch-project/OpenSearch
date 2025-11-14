@@ -8,8 +8,17 @@
 
 package org.opensearch.datafusion.core;
 
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
+
 import org.opensearch.datafusion.jni.NativeBridge;
+import org.opensearch.datafusion.jni.handle.MemoryPoolHandle;
 import org.opensearch.datafusion.jni.handle.RuntimeHandle;
+import org.opensearch.datafusion.jni.handle.TokioRunTimeHandle;
+
+import static org.opensearch.datafusion.jni.NativeBridge.closeMemoryPool;
+import static org.opensearch.datafusion.jni.NativeBridge.closeTokioRunTime;
+import static org.opensearch.datafusion.jni.NativeBridge.createMemoryPool;
 
 /**
  * Global runtime environment for DataFusion operations.
@@ -19,14 +28,24 @@ import org.opensearch.datafusion.jni.handle.RuntimeHandle;
 public final class GlobalRuntimeEnv implements AutoCloseable {
 
     private final RuntimeHandle runTimeHandle;
-    private final long tokioRuntimePtr;
+    private final MemoryPoolHandle memoryPoolHandle;
+    private final TokioRunTimeHandle tokioRunTimeHandle;
+
+
+    public static final Setting<Long> MEMORY_POOL_CONFIGURATION_DATAFUSION = Setting.longSetting(
+        "datafusion.search.memory_pool",
+        2_000_000_000,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     /**
      * Creates a new global runtime environment.
      */
-    public GlobalRuntimeEnv() {
+    public GlobalRuntimeEnv(ClusterService clusterService) {
+        this.memoryPoolHandle = new MemoryPoolHandle(clusterService.getClusterSettings().get(MEMORY_POOL_CONFIGURATION_DATAFUSION));
+        this.tokioRunTimeHandle = new TokioRunTimeHandle();
         this.runTimeHandle = new RuntimeHandle();
-        this.tokioRuntimePtr = NativeBridge.createTokioRuntime();
     }
 
     /**
@@ -42,11 +61,17 @@ public final class GlobalRuntimeEnv implements AutoCloseable {
      * @return the Tokio runtime pointer
      */
     public long getTokioRuntimePtr() {
-        return tokioRuntimePtr;
+        return tokioRunTimeHandle.getPointer();
+    }
+
+    public long getMemoryPoolPtr() {
+        return memoryPoolHandle.getPointer();
     }
 
     @Override
     public void close() {
+        memoryPoolHandle.close();
+        tokioRunTimeHandle.close();
         runTimeHandle.close();
     }
 }

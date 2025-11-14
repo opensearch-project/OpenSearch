@@ -51,9 +51,14 @@ import org.opensearch.vectorized.execution.search.DataFormat;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static org.opensearch.datafusion.jni.NativeBridge.printMemoryPoolAllocation;
 
 public class DatafusionEngine extends SearchExecEngine<DatafusionContext, DatafusionSearcher,
     DatafusionReaderManager, DatafusionQuery> {
@@ -173,7 +178,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
-            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer());
+            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer(), datafusionService.getMemoryPoolPtr());
             allocator = new RootAllocator(Long.MAX_VALUE);
             stream = new RecordBatchStream(streamPointer, datafusionService.getTokioRuntimePointer() , allocator);
 
@@ -213,6 +218,12 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
                 logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
             }
+            logger.info("Memory Pool Allocation Post Query ShardID:{}", context.getQueryShardContext().getShardId());
+            printMemoryPoolAllocation(datafusionService.getMemoryPoolPtr());
+//            logger.info("Final Results:");
+//            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+//                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+//            }
 
         } catch (Exception exception) {
             logger.error("Failed to execute Substrait query plan", exception);
@@ -257,7 +268,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         projections.add(CompositeDataFormatWriter.ROW_ID);
         context.getDatafusionQuery().setProjections(projections);
         DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
-        long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer()); // update to handle fetchPhase query
+        long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer(), datafusionService.getMemoryPoolPtr()); // update to handle fetchPhase query
         RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
         RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getTokioRuntimePointer() , allocator);
 

@@ -41,7 +41,7 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
     public void search(DatafusionQuery datafusionQuery, List<SearchResultsCollector<RecordBatchStream>> collectors) throws IOException {
         // TODO : call search here to native
         // TODO : change RunTimePtr
-        long nativeStreamPtr = NativeBridge.executeQueryPhase(reader.getReaderPtr(), datafusionQuery.toString(), datafusionQuery.getSubstraitBytes(), 0);
+        long nativeStreamPtr = NativeBridge.executeQueryPhase(reader.getReaderPtr(), datafusionQuery.toString(), datafusionQuery.getSubstraitBytes(), 0, 0);
         RecordBatchStream stream = new DefaultRecordBatchStream(nativeStreamPtr);
         while(stream.hasNext()) {
             for(SearchResultsCollector<RecordBatchStream> collector : collectors) {
@@ -51,7 +51,7 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
     }
 
     @Override
-    public long search(DatafusionQuery datafusionQuery, Long contextPtr) {
+    public long search(DatafusionQuery datafusionQuery, Long contextPtr, Long memoryPoolPtr) {
         if (datafusionQuery.isFetchPhase()) {
             long[] row_ids = datafusionQuery.getQueryPhaseRowIds()
                 .stream()
@@ -61,7 +61,7 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
 
             return NativeBridge.executeFetchPhase(reader.getReaderPtr(), row_ids, projections, contextPtr);
         }
-        return NativeBridge.executeQueryPhase(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), contextPtr);
+        return NativeBridge.executeQueryPhase(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), contextPtr, memoryPoolPtr);
     }
 
     public DatafusionReader getReader() {

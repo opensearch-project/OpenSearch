@@ -62,6 +62,7 @@ async-trait = { workspace = true }
 itertools = { workspace = true }
 rstest = { workspace = true }
 regex = { workspace = true }
+parking_lot = "0.12.5"
 
 [build-dependencies]
 cbindgen = "0.27"
@@ -73,7 +74,7 @@ lto = true
 codegen-units = 1
 panic = "abort"
 incremental = true
-debug = true
+debug = "full"
 strip = false
 
 [profile.dev]
@@ -81,5 +82,5 @@ opt-level = 1          # Some optimization for reasonable performance
 lto = false           # Disable LTO for faster builds
 codegen-units = 16    # More parallel compilation
 incremental = true    # Enable incremental compilation
-debug = true
+debug = "full"
 strip = false

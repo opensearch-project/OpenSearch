@@ -81,9 +81,7 @@ public final class NativeLibraryLoader {
                 throw new IOException("Native library not found: " + resourcePath);
             }
             Path tempFile = Files.createTempFile(libraryName, PlatformHelper.getNativeExtension());
-            tempFile.toFile().deleteOnExit();
             Files.copy(is, tempFile, StandardCopyOption.REPLACE_EXISTING);
-            // Register deletion hook on JVM shutdown
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 try {
                     Files.deleteIfExists(tempFile);
@@ -91,8 +89,6 @@ public final class NativeLibraryLoader {
             }));
             System.load(tempFile.toAbsolutePath().toString());
             loaded = true;
-        } catch (IOException e) {
-            throw e;
         }
     }
 }

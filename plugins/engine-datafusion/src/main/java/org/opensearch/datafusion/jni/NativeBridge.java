@@ -26,13 +26,14 @@ public final class NativeBridge {
     public static native long createGlobalRuntime();
     public static native long createTokioRuntime();
     public static native void closeGlobalRuntime(long ptr);
+    public static native void closeTokioRunTime(long ptr);
 
     // Session management
     public static native long createSessionContext(long runtimeId);
     public static native void closeSessionContext(long contextId);
 
     // Query execution
-    public static native long executeQueryPhase(long cachePtr, String tableName, byte[] plan, long runtimePtr);
+    public static native long executeQueryPhase(long cachePtr, String tableName, byte[] plan, long runtimePtr, long memoryPoolPtr);
     public static native long executeFetchPhase(long cachePtr, long[] rowIds, String[] projections, long runtimePtr);
 
     // Stream operations
@@ -43,6 +44,12 @@ public final class NativeBridge {
     // Reader management
     public static native long createDatafusionReader(String path, String[] files);
     public static native void closeDatafusionReader(long ptr);
+
+    // Memory pool management
+    public static native long createMemoryPool(long limit);
+    public static native void closeMemoryPool(long ptr);
+    public static native void printMemoryPoolAllocation(long ptr);
+
 
     // Other methods
     public static native String getVersionInfo();

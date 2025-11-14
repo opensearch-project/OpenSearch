@@ -21,8 +21,8 @@ use datafusion::{
     execution::cache::CacheAccessor,
     execution::context::SessionContext,
     execution::runtime_env::{RuntimeEnv, RuntimeEnvBuilder},
-    execution::TaskContext,
-    logical_expr::LogicalPlan,
+    execution::TaskContext
+    ,
     parquet::arrow::arrow_reader::RowSelector,
     physical_plan::{ExecutionPlan, SendableRecordBatchStream},
     prelude::SessionConfig,
@@ -30,20 +30,23 @@ use datafusion::{
     DATAFUSION_VERSION,
 };
 use jni::objects::{JByteArray, JClass, JObject};
-use jni::objects::{JLongArray, JValue};
+use jni::objects::JLongArray;
 use jni::sys::{jbyteArray, jlong, jstring};
 use jni::JNIEnv;
 use std::collections::{BTreeSet, HashMap};
+use std::default::Default;
 use std::future::Future;
 use std::ptr::addr_of_mut;
 use std::sync::Arc;
 use std::time::Instant;
 
 mod listing_table;
+mod memory;
 mod row_id_optimizer;
 mod util;
 
 use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
+use crate::memory::{CustomMemoryPool, Monitor, MonitoredMemoryPool};
 use crate::row_id_optimizer::ProjectRowIdOptimizer;
 use crate::util::{
     create_file_metadata_from_filenames, parse_string_arr, set_object_result_error,
@@ -51,25 +54,27 @@ use crate::util::{
 };
 use arrow_schema::DataType;
 use datafusion::catalog::TableProvider;
+use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 use datafusion_datasource::file_groups::FileGroup;
 use datafusion_datasource::file_scan_config::FileScanConfigBuilder;
 use datafusion_datasource::source::DataSourceExec;
 use datafusion_datasource::PartitionedFile;
 use datafusion_expr::registry::FunctionRegistry;
-use datafusion_substrait::extensions::Extensions;
 use datafusion_substrait::logical_plan::consumer::{
-    from_substrait_plan, from_substrait_plan_with_consumer, DefaultSubstraitConsumer,
+    from_substrait_plan,
     SubstraitConsumer,
 };
-use datafusion_substrait::substrait::proto::{
-    Expression, ExtensionLeafRel, ExtensionMultiRel, ExtensionSingleRel, Plan, PlanRel, ProjectRel,
-};
+use datafusion_substrait::substrait::proto::Plan;
 use futures::TryStreamExt;
 use jni::objects::{JObjectArray, JString};
 use object_store::ObjectMeta;
 use prost::Message;
 use std::io::Write;
+use std::num::NonZeroUsize;
+use std::result;
 use tokio::runtime::Runtime;
+
+pub type Result<T, E = DataFusionError> = result::Result<T, E>;
 
 // NativeBridge JNI implementations
 
@@ -83,7 +88,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         Err(_) => 0,
     }
 }
-
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createTokioRuntime(
     _env: JNIEnv,
@@ -93,6 +97,15 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createTok
         Ok(rt) => Box::into_raw(Box::new(rt)) as jlong,
         Err(_) => 0,
     }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeTokioRuntime(
+    _env: JNIEnv,
+    _class: JClass,
+    runtime_ptr: jlong
+) {
+    let _ = unsafe { Box::from_raw(runtime_ptr as *mut Runtime) };
 }
 
 #[no_mangle]
@@ -157,6 +170,51 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_registerC
 ) -> jni::sys::jint {
     // Legacy method - not implemented
     0
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createMemoryPool(
+    _env: JNIEnv,
+    _class: JClass,
+    limit: jlong,
+) -> jlong {
+    println!(
+        "[RUST]: Creating tracking memory pool with limit: {}",
+        limit
+    );
+    let monitor = Arc::new(Monitor::default());
+    let memory_pool = CustomMemoryPool::new(Arc::new(MonitoredMemoryPool::new(
+        Arc::new(TrackConsumersPool::new(
+            GreedyMemoryPool::new(limit as usize),
+            NonZeroUsize::new(5).unwrap(),
+        )),
+        monitor.clone(),
+    )));
+
+    Box::into_raw(Box::new(memory_pool)) as jlong
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeMemoryPool(
+    _env: JNIEnv,
+    _class: JClass,
+    memory_pool_ptr: jlong,
+) {
+    let _ = unsafe { Box::from_raw(memory_pool_ptr as *mut CustomMemoryPool) };
+    println!("[RUST]: Destroyed memory pool");
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_printMemoryPoolAllocation(
+    _env: JNIEnv,
+    _class: JClass,
+    memory_pool_ptr: jlong,
+) {
+    let memory_pool = unsafe { &*(memory_pool_ptr as *const CustomMemoryPool) };
+    println!(
+        "[RUST]: Printing: Allocation monitor stats: {:?}",
+        memory_pool
+    );
 }
 
 #[no_mangle]
@@ -289,7 +347,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     table_name: JString,
     substrait_bytes: jbyteArray,
     tokio_runtime_env_ptr: jlong,
-    // callback: JObject,
+    memory_pool_ptr: jlong,
 ) -> jlong {
     let overall = Instant::now();
     let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
@@ -298,6 +356,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         .get_string(&table_name)
         .expect("Couldn't get java string!")
         .into();
+    let memory_pool = unsafe { &*(memory_pool_ptr as *const CustomMemoryPool) };
 
     let table_path = shard_view.table_path();
     let files_metadata = shard_view.files_metadata();
@@ -308,8 +367,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             .collect(),
     );
 
-    println!("Table path: {}", table_path);
-    println!("Files: {:?}", object_meta);
+
 
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
     list_file_cache.put(table_path.prefix(), object_meta);
@@ -318,6 +376,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache.clone())),
         )
+        .with_memory_pool(memory_pool.get_memory_pool())
         .build()
         .unwrap();
 
@@ -355,10 +414,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
 
         // Create a new TableProvider
         let provider = Arc::new(ListingTable::try_new(config).unwrap());
-        let shard_id = table_path
-            .prefix()
-            .filename()
-            .expect("error in fetching Path");
         ctx.register_table(table_name.clone(), provider)
             .expect("Failed to attach the Table");
     });
@@ -426,14 +481,13 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             }
         };
         let stream_ptr = Box::into_raw(Box::new(stream)) as jlong;
-        // println!("The memory used currently right now: {:?}", jemalloc_stats::refresh_allocated());
+
         let duration1 = overall.elapsed();
         println!(
             "Rust: Overall query setup time in milliseconds: {}",
             duration1.as_millis()
         );
 
-        // set_projections(env, projections, callback);
         stream_ptr
     })
 }

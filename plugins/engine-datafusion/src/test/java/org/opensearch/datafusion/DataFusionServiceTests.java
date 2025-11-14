@@ -15,6 +15,7 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -81,13 +82,16 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
     @Mock
     private Environment mockEnvironment;
 
+    @Mock
+    private ClusterService clusterService;
+
     @Before
     public void setup() {
         MockitoAnnotations.openMocks(this);
         Settings mockSettings = Settings.builder().put("path.data", "/tmp/test-data").build();
 
         when(mockEnvironment.settings()).thenReturn(mockSettings);
-        service = new DataFusionService(Map.of());
+        service = new DataFusionService(Map.of(), clusterService);
         service.doStart();
     }
 
@@ -135,7 +139,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
                 throw new RuntimeException(e);
             }
 
-            long streamPointer = datafusionSearcher.search(new DatafusionQuery(index.getName(), protoContent, new ArrayList<>()), service.getTokioRuntimePointer());
+            long streamPointer = datafusionSearcher.search(new DatafusionQuery(index.getName(), protoContent, new ArrayList<>()), service.getTokioRuntimePointer(), service.getMemoryPoolPtr());
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getTokioRuntimePointer() , allocator);
 
@@ -195,7 +199,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
             }
 
             DatafusionQuery query = new DatafusionQuery(index.getName(), protoContent, new ArrayList<>());
-            long streamPointer = datafusionSearcher.search(query, service.getTokioRuntimePointer());
+            long streamPointer = datafusionSearcher.search(query, service.getTokioRuntimePointer(), service.getMemoryPoolPtr());
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getTokioRuntimePointer() , allocator);
 
@@ -219,7 +223,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
             List<String> projections = List.of("message");
             query.setProjections(projections);
             query.setFetchPhaseContext(row_ids_res);
-            long fetchPhaseStreamPointer = datafusionSearcher.search(query, service.getTokioRuntimePointer());
+            long fetchPhaseStreamPointer = datafusionSearcher.search(query, service.getTokioRuntimePointer(), service.getMemoryPoolPtr());
 
             RecordBatchStream fetchPhaseStream = new RecordBatchStream(fetchPhaseStreamPointer, service.getTokioRuntimePointer() , allocator);
             int total_fetch_results = 0;

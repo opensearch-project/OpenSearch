@@ -223,8 +223,8 @@ tasks.register('copyNativeLib', Copy) {
     def arch = System.getProperty('os.arch').toLowerCase()
 
     def osDir = os.contains('win') ? 'windows' : os.contains('mac') ? 'macos' : 'linux'
-    def archDir = arch.contains('aarch64') || arch.contains('arm64') ? 'aarch64' :
-      arch.contains('64') ? 'x86_64' : 'x86'
+    def archDir = arch.contains('aarch64') || arch.contains('arm64') ? 'arm64' :
+      arch.contains('amd64') || arch.contains('x86_64') ? 'x64' : 'x86'
 
     file.path = "${osDir}-${archDir}/${file.name}"
   }
