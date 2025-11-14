@@ -216,7 +216,7 @@ public class XContentMapValues {
      * then {@code a.b} will be kept in the filtered map.
      */
     public static Map<String, Object> filter(Map<String, ?> map, String[] includes, String[] excludes) {
-        return filter(includes, excludes, false).apply(map);
+        return filter(includes, excludes, true).apply(map);
     }
 
     /**

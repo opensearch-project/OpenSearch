@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -762,13 +763,13 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         doc.put("book", book);
 
         // filter should be case insensitive: "book.title" should remove "Title"
-        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[0], new String[] { "book.title" });
+        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[0], new String[] { "book.title" }, false);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> outBook = (Map<String, Object>) filtered.get("book");
         assertThat(filtered, hasKey("book"));
         assertThat(outBook, hasKey("Author"));
-        assertThat(outBook, org.hamcrest.Matchers.not(hasKey("Title")));
+        assertThat(outBook, not(hasKey("Title")));
     }
 
     public void testCaseInsensitive_WildcardAnyDepth_ArraysAndObjects() {
@@ -789,7 +790,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         doc.put("shelves", Arrays.asList(shelf1, shelf2));
 
         // filter should be case insensitive: drop any *.title anywhere
-        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[0], new String[] { "*.title" });
+        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[0], new String[] { "*.title" }, false);
 
         @SuppressWarnings("unchecked")
         List<?> shelves = (List<?>) filtered.get("shelves");
@@ -800,8 +801,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> outBook2 = (Map<String, Object>) ((Map<String, Object>) shelves.get(1)).get("book");
 
-        assertThat(outBook1, org.hamcrest.Matchers.not(hasKey("TITLE")));
-        assertThat(outBook2, org.hamcrest.Matchers.not(hasKey("title")));
+        assertThat(outBook1, not(hasKey("TITLE")));
+        assertThat(outBook2, not(hasKey("title")));
         assertThat(outBook1, hasKey("YEAR"));
         assertThat(outBook2, hasKey("year"));
     }
@@ -814,13 +815,13 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         doc.put("book", book);
 
         // filter should be case insensitive: includes book.*, but excludes book.title ⇒ exclude wins
-        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[] { "book.*" }, new String[] { "book.title" });
+        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[] { "book.*" }, new String[] { "book.title" }, false);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> outBook = (Map<String, Object>) filtered.get("book");
         assertThat(filtered, hasKey("book"));
         assertThat(outBook, hasKey("Genre"));
-        assertThat(outBook, org.hamcrest.Matchers.not(hasKey("Title"))); // excluded despite include
+        assertThat(outBook, not(hasKey("Title"))); // excluded despite include
     }
 
     public void testCaseInsensitive_MixedCaseInclude() {
@@ -831,12 +832,12 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         doc.put("MyObj", obj);
 
         // filter should be case insensitive: mixed-case include should match
-        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[] { "myobj.fieldtwo" }, new String[0]);
+        Map<String, Object> filtered = XContentMapValues.filter(doc, new String[] { "myobj.fieldtwo" }, new String[0], false);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> outObj = (Map<String, Object>) filtered.get("MyObj");
         assertThat(filtered, hasKey("MyObj"));
-        assertThat(outObj, org.hamcrest.Matchers.not(hasKey("FieldOne")));
+        assertThat(outObj, not(hasKey("FieldOne")));
         assertThat(outObj, hasKey("fieldTwo"));
     }
 
