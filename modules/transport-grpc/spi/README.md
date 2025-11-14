@@ -334,7 +334,9 @@ The k-NN query's `filter` field is a `QueryContainer` protobuf type that can con
 
 ### Overview
 
-Intercept incoming gRPC requests for authentication, authorization, logging, metrics, rate limiting,etc
+Intercept incoming gRPC requests for authentication, authorization, logging, metrics, rate limiting, etc. Interceptors have access to OpenSearch's `ThreadContext` to store and retrieve request-scoped data.
+
+**Context Preservation:** The transport-grpc module automatically preserves ThreadContext across async boundaries. Any data set by interceptors will be available in the gRPC service implementation, even when execution switches to different threads.
 
 ### Basic Usage
 
@@ -342,7 +344,7 @@ Intercept incoming gRPC requests for authentication, authorization, logging, met
 ```java
 public class SampleInterceptorProvider implements GrpcInterceptorProvider {
     @Override
-    public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
+    public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors(ThreadContext threadContext) {
         return Arrays.asList(
             // First interceptor (order = 5, runs first)
             new GrpcInterceptorProvider.OrderedGrpcInterceptor() {
@@ -353,6 +355,7 @@ public class SampleInterceptorProvider implements GrpcInterceptorProvider {
                 public ServerInterceptor getInterceptor() {
                     return (call, headers, next) -> {
                         String methodName = call.getMethodDescriptor().getFullMethodName();
+                        threadContext.putTransient("grpc.method", methodName);
                         System.out.println("First interceptor - Method: " + methodName);
                         return next.startCall(call, headers);
                     };

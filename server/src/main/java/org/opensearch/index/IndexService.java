@@ -728,7 +728,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         // Do nothing for shard lock on remote store
                     }
                 };
-                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, remoteStoreLock, Store.OnClose.EMPTY, path);
+                remoteStore = new Store(
+                    shardId,
+                    this.indexSettings,
+                    remoteDirectory,
+                    remoteStoreLock,
+                    Store.OnClose.EMPTY,
+                    path,
+                    directoryFactory
+                );
             } else {
                 // Disallow shards with remote store based settings to be created on non-remote store enabled nodes
                 // Even though we have `RemoteStoreMigrationAllocationDecider` in place to prevent something like this from happening at the
@@ -763,7 +771,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directory,
                 lock,
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
-                path
+                path,
+                directoryFactory
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(

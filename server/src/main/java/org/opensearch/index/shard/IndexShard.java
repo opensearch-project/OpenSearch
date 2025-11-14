@@ -387,6 +387,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Supplier<TimeValue> refreshInterval;
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
+    private volatile AsyncShardFlushTask periodicFlushTask;
     private final ClusterApplierService clusterApplierService;
     private final MergedSegmentPublisher mergedSegmentPublisher;
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
@@ -1512,7 +1513,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public FlushStats flushStats() {
-        return new FlushStats(flushMetric.count(), periodicFlushMetric.count(), TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()));
+        return new FlushStats.Builder().total(flushMetric.count())
+            .periodic(periodicFlushMetric.count())
+            .totalTimeInMillis(TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()))
+            .build();
     }
 
     public DocsStats docStats() {
@@ -2332,7 +2336,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions, refreshTask);
+                    IOUtils.close(
+                        engine,
+                        globalCheckpointListeners,
+                        refreshListeners,
+                        pendingReplicationActions,
+                        refreshTask,
+                        periodicFlushTask
+                    );
 
                     if (deleted && engine != null && isPrimaryMode()) {
                         // Translog Clean up
@@ -2932,6 +2943,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void onNewEngine(Engine newEngine) {
         assert Thread.holdsLock(engineMutex);
         refreshListeners.setCurrentRefreshLocationSupplier(newEngine.translogManager()::getTranslogLastWriteLocation);
+
+        // Start periodic flush task for this shard
+        startPeriodicFlushTask();
     }
 
     /**
@@ -4967,10 +4981,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
      * a new set of segments.
      */
+    // TODO: Should we disable this as data will never get in sync if we use search idle for context aware segments.
     public final boolean isSearchIdleSupported() {
-        // If the index is remote store backed, then search idle is not supported. This is to ensure that async refresh
+        // If the index is remote store backed, then search idle is not supported. This is to ensure that async
+        // refresh. If the index is context aware enabled, search idle is not supported. This will ensure periodic sync
+        // between child and parent IndexWriter.
         // task continues to upload to remote store periodically.
-        if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode()) {
+        if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode() || indexSettings.isContextAwareEnabled()) {
             return false;
         }
         return indexSettings.isSegRepEnabledOrRemoteNode() == false || indexSettings.getNumberOfReplicas() == 0;
@@ -5791,6 +5808,68 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Visible for testing
     public AsyncShardRefreshTask getRefreshTask() {
         return refreshTask;
+    }
+
+    public void startPeriodicFlushTask() {
+        TimeValue interval = indexSettings.getPeriodicFlushInterval();
+        // Only start the async flush task if interval is >0 and task is not already running
+        if (interval.millis() > 0 && periodicFlushTask == null) {
+            periodicFlushTask = new AsyncShardFlushTask(this, interval);
+            logger.info("Started periodic flush task for shard [{}] with interval [{}]", shardId, interval);
+        }
+    }
+
+    // Visible for testing
+    AsyncShardFlushTask getPeriodicFlushTask() {
+        return periodicFlushTask;
+    }
+
+    /**
+     * Async shard flush task to call flush at a regular interval.
+     * This is particularly useful for pull-based ingestion index without translog to ensure offsets are regularly committed.
+     */
+    final class AsyncShardFlushTask extends AbstractAsyncTask {
+
+        private final IndexShard indexShard;
+        private final Logger logger;
+
+        public AsyncShardFlushTask(IndexShard indexShard, TimeValue interval) {
+            super(indexShard.logger, indexShard.threadPool, interval, true);
+            this.logger = indexShard.logger;
+            this.indexShard = indexShard;
+            rescheduleIfNecessary();
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            // Only schedule for open shards with a valid interval
+            return indexShard.state != IndexShardState.CLOSED
+                && indexShard.indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN
+                && getInterval().millis() > 0;
+        }
+
+        @Override
+        protected void runInternal() {
+            // Only execute if no other flush/roll is running to prevent concurrent flushes
+            if (indexShard.flushOrRollRunning.compareAndSet(false, true)) {
+                try {
+                    indexShard.flush(new FlushRequest());
+                    indexShard.periodicFlushMetric.inc();
+                } finally {
+                    indexShard.flushOrRollRunning.set(false);
+                }
+            }
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.FLUSH;
+        }
+
+        @Override
+        public String toString() {
+            return "shard_periodic_flush";
+        }
     }
 
 }

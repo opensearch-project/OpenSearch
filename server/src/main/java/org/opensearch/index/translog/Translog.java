@@ -937,13 +937,12 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
             long uncommittedGen = getMinGenerationForSeqNo(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1).translogFileGeneration;
-            return new TranslogStats(
-                totalOperations(),
-                sizeInBytes(),
-                totalOperationsByMinGen(uncommittedGen),
-                sizeInBytesByMinGen(uncommittedGen),
-                earliestLastModifiedAge()
-            );
+            return new TranslogStats.Builder().numberOfOperations(totalOperations())
+                .translogSizeInBytes(sizeInBytes())
+                .uncommittedOperations(totalOperationsByMinGen(uncommittedGen))
+                .uncommittedSizeInBytes(sizeInBytesByMinGen(uncommittedGen))
+                .earliestLastModifiedAge(earliestLastModifiedAge())
+                .build();
         }
     }
 

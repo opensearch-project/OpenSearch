@@ -1079,27 +1079,26 @@ public class NodeStatsTests extends OpenSearchTestCase {
     }
 
     private static RemoteTranslogTransferTracker.Stats getRandomRemoteTranslogTransferTrackerStats() {
-        return new RemoteTranslogTransferTracker.Stats(
-            new ShardId("test-idx", "test-idx", randomIntBetween(1, 10)),
-            0L,
-            randomLongBetween(100, 500),
-            randomLongBetween(50, 100),
-            randomLongBetween(100, 200),
-            randomLongBetween(10000, 50000),
-            randomLongBetween(5000, 10000),
-            randomLongBetween(10000, 20000),
-            0L,
-            0D,
-            0D,
-            0D,
-            0L,
-            0L,
-            0L,
-            0L,
-            0D,
-            0D,
-            0D
-        );
+        return new RemoteTranslogTransferTracker.Stats.Builder().shardId(new ShardId("test-idx", "test-idx", randomIntBetween(1, 10)))
+            .lastSuccessfulUploadTimestamp(0L)
+            .totalUploadsStarted(randomLongBetween(100, 500))
+            .totalUploadsSucceeded(randomLongBetween(50, 100))
+            .totalUploadsFailed(randomLongBetween(100, 200))
+            .uploadBytesStarted(randomLongBetween(10000, 50000))
+            .uploadBytesSucceeded(randomLongBetween(5000, 10000))
+            .uploadBytesFailed(randomLongBetween(10000, 20000))
+            .totalUploadTimeInMillis(0L)
+            .uploadBytesMovingAverage(0D)
+            .uploadBytesPerSecMovingAverage(0D)
+            .uploadTimeMovingAverage(0D)
+            .lastSuccessfulDownloadTimestamp(0L)
+            .totalDownloadsSucceeded(0L)
+            .downloadBytesSucceeded(0L)
+            .totalDownloadTimeInMillis(0L)
+            .downloadBytesMovingAverage(0D)
+            .downloadBytesPerSecMovingAverage(0D)
+            .downloadTimeMovingAverage(0D)
+            .build();
     }
 
     private OperationStats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
@@ -1373,15 +1372,20 @@ public class NodeStatsTests extends OpenSearchTestCase {
             .build();
         commonStats.indexing = new IndexingStats();
         commonStats.completion = new CompletionStats();
-        commonStats.flush = new FlushStats(randomLongBetween(0, 100), randomLongBetween(0, 100), randomLongBetween(0, 100));
-        commonStats.fieldData = new FieldDataStats(randomLongBetween(0, 100), randomLongBetween(0, 100), null);
-        commonStats.queryCache = new QueryCacheStats(
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100),
-            randomLongBetween(0, 100)
-        );
+        commonStats.flush = new FlushStats.Builder().total(randomLongBetween(0, 100))
+            .periodic(randomLongBetween(0, 100))
+            .totalTimeInMillis(randomLongBetween(0, 100))
+            .build();
+        commonStats.fieldData = new FieldDataStats.Builder().memorySize(randomLongBetween(0, 100))
+            .evictions(randomLongBetween(0, 100))
+            .fieldMemoryStats(null)
+            .build();
+        commonStats.queryCache = new QueryCacheStats.Builder().ramBytesUsed(randomLongBetween(0, 100))
+            .hitCount(randomLongBetween(0, 100))
+            .missCount(randomLongBetween(0, 100))
+            .cacheCount(randomLongBetween(0, 100))
+            .cacheSize(randomLongBetween(0, 100))
+            .build();
         commonStats.segments = new SegmentsStats();
 
         return commonStats;
