@@ -125,28 +125,6 @@ public abstract class LeafBucketCollector implements LeafCollector {
         collect(doc, 0);
     }
 
-    /**
-     * Bulk-collect doc IDs within owningBucketOrd.
-     *
-     * <p>Note: The provided {@link DocIdStream} may be reused across calls and should be consumed
-     * immediately.
-     *
-     * <p>Note: The provided {@link DocIdStream} typically holds all the docIds for the corresponding
-     * owningBucketOrd. This method may be called multiple times per segment (but once per owningBucketOrd).
-     *
-     * <p>While the {@link DocIdStream} for each owningBucketOrd is sorted by docIds, it is NOT GUARANTEED
-     * that doc IDs arrive in order across invocations for different owningBucketOrd.
-     *
-     * <p>It is NOT LEGAL for callers to mix calls to {@link #collect(DocIdStream, long)} and {@link
-     * #collect(int, long)}.
-     *
-     * <p>The default implementation calls {@code stream.forEach(doc -> collect(doc, owningBucketOrd))}.
-     */
-    @ExperimentalApi
-    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-        stream.forEach(doc -> collect(doc, owningBucketOrd));
-    }
-
     public void collect(int[] docIds, long owningBucketOrd) throws IOException {
         for (int doc : docIds) {
             collect(doc, owningBucketOrd);

@@ -62,6 +62,7 @@ import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.HistogramSkiplistLeafCollector;
+import org.opensearch.search.aggregations.bucket.filterrewrite.BFSCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
@@ -91,7 +92,7 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  *
  * @opensearch.internal
  */
-class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator, StarTreePreComputeCollector {
+class DateHistogramAggregator extends BucketsAggregator implements BFSCollector, SizedBucketAggregator, StarTreePreComputeCollector {
     private static final Logger logger = LogManager.getLogger(DateHistogramAggregator.class);
 
     private final ValuesSource.Numeric valuesSource;
@@ -113,6 +114,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
     private final String fieldName;
     private final boolean fieldIndexSort;
+    private boolean bfsMode = false;
 
     // Collector usage tracking fields
     private int noOpCollectorsUsed;
@@ -218,6 +220,17 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     }
 
     @Override
+    public LeafBucketCollector getBFSLeafCollector(LeafReaderContext ctx) throws IOException {
+        try {
+            // FIXME: this isn't the cleanest method, but using it until skiplist can handle unsorted parent bucket ord
+            this.bfsMode = true;
+            return getLeafCollector(ctx);
+        } finally {
+            this.bfsMode = false;
+        }
+    }
+
+    @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             noOpCollectorsUsed++;
@@ -233,12 +246,13 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         if (skipper != null && singleton != null) {
             // TODO: add hard bounds support
-            // TODO: SkipListLeafCollector should be used if the getLeafCollector invocation is from
-            // filterRewriteOptimizationContext when parent != null. Removing the check to collect
-            // performance numbers for now
+            // SkipListLeafCollector should be used if the getLeafCollector invocation is from
+            // filterRewriteOptimizationContext when parent != null
             if (hardBounds == null) {
-                skipListCollectorsUsed++;
-                return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, sub, this);
+                if (parent == null || bfsMode) {
+                    skipListCollectorsUsed++;
+                    return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, sub, this);
+                }
             }
         }
 

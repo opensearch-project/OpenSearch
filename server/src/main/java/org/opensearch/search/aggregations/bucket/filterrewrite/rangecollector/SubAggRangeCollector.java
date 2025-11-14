@@ -15,9 +15,9 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocIdStreamHelper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.opensearch.search.aggregations.BitSetDocIdStream;
 import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.bucket.filterrewrite.BFSCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.filterrewrite.Ranges;
 
@@ -106,7 +106,12 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
         // trigger the sub agg collection for this range
         try {
             // build a new leaf collector for each bucket
-            LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(leafCtx);
+            LeafBucketCollector sub = null;
+            if (collectableSubAggregators instanceof BFSCollector bfsCollector) {
+                sub = bfsCollector.getBFSLeafCollector(leafCtx);
+            } else {
+                sub = collectableSubAggregators.getLeafCollector(leafCtx);
+            }
             sub.collect(DocIdStreamHelper.getDocIdStream(bitSet), bucketOrd);
             logger.trace("collected sub aggregation for bucket {}", bucketOrd);
         } catch (IOException e) {
