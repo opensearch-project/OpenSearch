@@ -54,8 +54,7 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
         this.collectableSubAggregators = subAggCollectorParam.collectableSubAggregators();
         this.leafCtx = subAggCollectorParam.leafCtx();
         this.liveDocs = leafCtx.reader().getLiveDocs();
-        int numDocs = leafCtx.reader().maxDoc();
-        bitSet = new FixedBitSet(numDocs);
+        bitSet = new FixedBitSet(leafCtx.reader().maxDoc());
     }
 
     @Override

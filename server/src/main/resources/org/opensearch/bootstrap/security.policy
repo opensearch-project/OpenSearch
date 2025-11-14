@@ -250,6 +250,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory.max", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.current", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/system.slice/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/init.scope/-", "read";
 
   // needed by RestClientBuilder
   permission java.io.FilePermission "${java.home}/lib/security/cacerts", "read";

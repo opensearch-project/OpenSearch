@@ -267,6 +267,11 @@ class DateHistogramAggregator extends BucketsAggregator implements BFSCollector,
                         collectValue(sub, doc, owningBucketOrd, preparedRounding.round(value));
                     }
                 }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
             };
         }
 
@@ -289,6 +294,11 @@ class DateHistogramAggregator extends BucketsAggregator implements BFSCollector,
                         previousRounded = rounded;
                     }
                 }
+            }
+
+            @Override
+            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                super.collect(stream, owningBucketOrd);
             }
         };
     }
