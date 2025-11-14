@@ -126,7 +126,6 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        logger.info("get leaf collector profiling");
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
         timer.start();
         try {

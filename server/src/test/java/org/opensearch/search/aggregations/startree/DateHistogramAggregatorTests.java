@@ -211,6 +211,132 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         directory.close();
     }
 
+    public void testStarTreeDateHistogramProfiling() throws IOException {
+        Directory directory = newDirectory();
+        IndexWriterConfig conf = newIndexWriterConfig(null);
+        conf.setCodec(getCodec());
+        conf.setMergePolicy(newLogMergePolicy());
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
+
+        Random random = RandomizedTest.getRandom();
+        int totalDocs = 100;
+        final String STATUS = "status";
+        final String SIZE = "size";
+        int val;
+        long date;
+
+        List<Document> docs = new ArrayList<>();
+        // Index 100 random documents
+        for (int i = 0; i < totalDocs; i++) {
+            Document doc = new Document();
+            if (random.nextBoolean()) {
+                val = random.nextInt(10); // Random int between 0 and 9 for status
+                doc.add(new SortedNumericDocValuesField(STATUS, val));
+            }
+            if (random.nextBoolean()) {
+                val = random.nextInt(100); // Random int between 0 and 99 for size
+                doc.add(new SortedNumericDocValuesField(SIZE, val));
+            }
+            date = random.nextInt(180) * 24 * 60 * 60 * 1000L; // Random date within 180 days
+            doc.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, date));
+            doc.add(new LongPoint(TIMESTAMP_FIELD, date));
+            iw.addDocument(doc);
+            docs.add(doc);
+        }
+
+        if (randomBoolean()) {
+            iw.forceMerge(1);
+        }
+        iw.close();
+
+        DirectoryReader ir = DirectoryReader.open(directory);
+        initValuesSourceRegistry();
+        LeafReaderContext context = ir.leaves().get(0);
+
+        SegmentReader reader = Lucene.segmentReader(context.reader());
+        IndexSearcher indexSearcher = newSearcher(reader, false, false);
+        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+
+        List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
+        CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
+
+        ValuesSourceAggregationBuilder[] agggBuilders = {
+            sum("_name").field(FIELD_NAME),
+            max("_name").field(FIELD_NAME),
+            min("_name").field(FIELD_NAME),
+            count("_name").field(FIELD_NAME),
+            avg("_name").field(FIELD_NAME) };
+
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = new LinkedHashMap<>();
+        supportedDimensions.put(
+            new NumericDimension(STATUS),
+            new NumberFieldMapper.NumberFieldType(STATUS, NumberFieldMapper.NumberType.INTEGER)
+        );
+        supportedDimensions.put(
+            new NumericDimension(SIZE),
+            new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.INTEGER)
+        );
+        supportedDimensions.put(
+            new DateDimension(
+                TIMESTAMP_FIELD,
+                List.of(
+                    new DateTimeUnitAdapter(Rounding.DateTimeUnit.MONTH_OF_YEAR),
+                    new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)
+                ),
+                DateFieldMapper.Resolution.MILLISECONDS
+            ),
+            new DateFieldMapper.DateFieldType(TIMESTAMP_FIELD)
+        );
+
+        for (ValuesSourceAggregationBuilder aggregationBuilder : agggBuilders) {
+            Query query = new MatchAllDocsQuery();
+            QueryBuilder queryBuilder = null;
+
+            DateHistogramAggregationBuilder dateHistogramAggregationBuilder = dateHistogram("by_day").field(TIMESTAMP_FIELD)
+                .calendarInterval(DateHistogramInterval.DAY)
+                .subAggregation(aggregationBuilder);
+            testCaseProfiling(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
+
+            dateHistogramAggregationBuilder = dateHistogram("by_month").field(TIMESTAMP_FIELD)
+                .calendarInterval(DateHistogramInterval.MONTH)
+                .subAggregation(aggregationBuilder);
+            testCaseProfiling(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
+
+            // year not present in star-tree, but should be able to compute using @timestamp_day dimension
+            dateHistogramAggregationBuilder = dateHistogram("by_year").field(TIMESTAMP_FIELD)
+                .calendarInterval(DateHistogramInterval.YEAR)
+                .subAggregation(aggregationBuilder);
+            testCaseProfiling(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
+
+            // Numeric-terms query with date histogram
+            for (int cases = 0; cases < 100; cases++) {
+                String queryField;
+                long queryValue;
+                if (randomBoolean()) {
+                    queryField = STATUS;
+                    queryValue = random.nextInt(10);
+                } else {
+                    queryField = SIZE;
+                    queryValue = random.nextInt(20) - 15;
+                }
+                dateHistogramAggregationBuilder = dateHistogram("by_month").field(TIMESTAMP_FIELD)
+                    .calendarInterval(DateHistogramInterval.MONTH)
+                    .subAggregation(aggregationBuilder);
+                query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
+                queryBuilder = new TermQueryBuilder(queryField, queryValue);
+                testCaseProfiling(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
+
+                // year not present in star-tree, but should be able to compute using @timestamp_day dimension
+                dateHistogramAggregationBuilder = dateHistogram("by_year").field(TIMESTAMP_FIELD)
+                    .calendarInterval(DateHistogramInterval.YEAR)
+                    .subAggregation(aggregationBuilder);
+                testCaseProfiling(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
+            }
+        }
+        ir.close();
+        directory.close();
+    }
+
     private void testCase(
         IndexSearcher indexSearcher,
         Query query,
@@ -248,6 +374,54 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             DEFAULT_MAX_BUCKETS,
             false,
             null,
+            false,
+            TIMESTAMP_FIELD_TYPE,
+            NUMBER_FIELD_TYPE
+        );
+
+        assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());
+        assertEquals(defaultAggregation.getBuckets(), starTreeAggregation.getBuckets());
+    }
+
+    private void testCaseProfiling(
+        IndexSearcher indexSearcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        DateHistogramAggregationBuilder dateHistogramAggregationBuilder,
+        CompositeIndexFieldInfo starTree,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions
+    ) throws IOException {
+        InternalDateHistogram starTreeAggregation = searchAndReduceStarTreeProfiling(
+            createIndexSettings(),
+            indexSearcher,
+            query,
+            queryBuilder,
+            dateHistogramAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            null,
+            DEFAULT_MAX_BUCKETS,
+            false,
+            null,
+            true,
+            false,
+            TIMESTAMP_FIELD_TYPE,
+            NUMBER_FIELD_TYPE
+        );
+
+        InternalDateHistogram defaultAggregation = searchAndReduceStarTreeProfiling(
+            createIndexSettings(),
+            indexSearcher,
+            query,
+            queryBuilder,
+            dateHistogramAggregationBuilder,
+            null,
+            null,
+            null,
+            DEFAULT_MAX_BUCKETS,
+            false,
+            null,
+            false,
             false,
             TIMESTAMP_FIELD_TYPE,
             NUMBER_FIELD_TYPE
