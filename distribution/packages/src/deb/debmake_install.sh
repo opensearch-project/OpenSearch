@@ -24,6 +24,7 @@ product_dir="/usr/share/${name}"
 config_dir="/etc/${name}"
 pid_dir="/run/${name}"
 service_dir="/usr/lib/systemd/system"
+certs_dir=${config_dir}/certs
 
 buildroot="${curdir}/debian/${name}"
 
@@ -31,6 +32,7 @@ buildroot="${curdir}/debian/${name}"
 mkdir -p "${buildroot}"
 mkdir -p "${buildroot}${pid_dir}"
 mkdir -p "${buildroot}${product_dir}/plugins"
+mkdir -p "${buildroot}${certs_dir}"
 
 # Install directories/files
 cp -a "${curdir}"/etc "${curdir}"/usr "${curdir}"/var "${buildroot}"/
@@ -70,6 +72,7 @@ fi
 
 # Files that need other permissions
 chmod -c 440 "${buildroot}${product_dir}/VERSION.json"
+chmod -c 500 "${buildroot}${certs_dir}"
 if [ -d "${buildroot}${product_dir}/plugins/opensearch-security" ]; then
 	chmod -c 0740 "${buildroot}${product_dir}"/plugins/opensearch-security/tools/*.sh
 fi

@@ -24,6 +24,7 @@
 # User Define Variables
 %define product_dir %{_datadir}/%{name}
 %define config_dir %{_sysconfdir}/%{name}
+%define certs_dir %{config_dir}/certs
 %define data_dir %{_sharedstatedir}/%{name}
 %define log_dir %{_localstatedir}/log/%{name}
 %define pid_dir %{_localstatedir}/run/%{name}
@@ -66,6 +67,9 @@ cd %{_topdir} && pwd
 # Create necessary directories
 mkdir -p %{buildroot}%{pid_dir}
 mkdir -p %{buildroot}%{product_dir}/plugins
+
+# Create empty certs directory
+mkdir -p %{buildroot}%{certs_dir}
 
 # Install directories/files
 cp -a etc usr var %{buildroot}
@@ -233,12 +237,11 @@ else
             echo " sudo /etc/init.d/%{name} start"
         fi
     fi
-    if ! [ -d %{config_dir}/certs ] && [ -f %{product_dir}/plugins/opensearch-security/tools/install-demo-certificates.sh ]; then
-        echo "### Installing %{name} demo certificates in %{config_dir}"
-        echo " If you are using a custom certificates path, ignore this message"
-        echo " See demo certs creation log in %{log_dir}/install_demo_certificates.log"
+    if [ "$GENERATE_CERTS" = "true" ] && [ -f %{product_dir}/plugins/opensearch-security/tools/install-demo-certificates.sh ]; then
+        echo "### Installing %{name} demo certificates in %{certs_dir}"
+        echo " See demo certs creation log at ${log_dir}/install_demo_certificates.log"
         bash %{product_dir}/plugins/opensearch-security/tools/install-demo-certificates.sh > %{log_dir}/install_demo_certificates.log 2>&1
-        yes | /usr/share/%{name}/jdk/bin/keytool -trustcacerts -keystore /usr/share/%{name}/jdk/lib/security/cacerts -importcert -alias wazuh-root-ca -file %{config_dir}/certs/root-ca.pem > /dev/null 2>&1
+        yes | /usr/share/%{name}/jdk/bin/keytool -trustcacerts -keystore /usr/share/%{name}/jdk/lib/security/cacerts -importcert -alias wazuh-root-ca -file %{certs_dir}/root-ca.pem > /dev/null 2>&1
     fi
 fi
 exit 0
@@ -301,6 +304,9 @@ exit 0
 
 # Preserve service state flag across upgrade
 %ghost %attr(440, %{name}, %{name}) %{config_dir}/.was_active
+
+# Certificates files permissions
+%attr(500, %{name}, %{name}) %{certs_dir}
 
 %changelog
 * Thu Dec 18 2025 support <info@wazuh.com> - 5.0.0
