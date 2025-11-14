@@ -12,7 +12,9 @@ import org.opensearch.index.shard.ShardPath;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public interface IndexingExecutionEngine<T extends DataFormat> extends Closeable {
 
@@ -32,4 +34,6 @@ public interface IndexingExecutionEngine<T extends DataFormat> extends Closeable
     default long getNativeBytesUsed() {
         return 0;
     }
+
+    void deleteFiles(Map<String,Collection<String>> filesToDelete) throws IOException;
 }

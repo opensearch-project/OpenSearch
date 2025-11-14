@@ -28,7 +28,9 @@ import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.LuceneDataFormat> {
 
@@ -50,6 +52,11 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
 
     @Override
     public void loadWriterFiles() {
+
+    }
+
+    @Override
+    public void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
 
     }
 
