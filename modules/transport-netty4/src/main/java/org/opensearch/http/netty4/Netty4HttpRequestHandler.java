@@ -33,6 +33,7 @@
 package org.opensearch.http.netty4;
 
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpPipelinedRequest;
 
 import io.netty.channel.ChannelHandler;
@@ -42,9 +43,9 @@ import io.netty.channel.SimpleChannelInboundHandler;
 @ChannelHandler.Sharable
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
-    private final Netty4HttpServerTransport serverTransport;
+    private final AbstractHttpServerTransport serverTransport;
 
-    Netty4HttpRequestHandler(Netty4HttpServerTransport serverTransport) {
+    Netty4HttpRequestHandler(AbstractHttpServerTransport serverTransport) {
         this.serverTransport = serverTransport;
     }
 
