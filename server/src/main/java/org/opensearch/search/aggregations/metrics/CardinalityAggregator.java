@@ -44,6 +44,7 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DisiPriorityQueue;
 import org.apache.lucene.search.DisiWrapper;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
@@ -591,6 +592,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     bits.set((int) ord);
                 }
             }
+        }
+
+        @Override
+        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+            super.collect(stream, owningBucketOrd);
         }
 
         @Override
