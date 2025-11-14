@@ -12,7 +12,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.SegmentInfoFormat;
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -30,7 +30,7 @@ public class CriteriaBasedCodec extends FilterCodec {
     private static final String PLACEHOLDER_BUCKET_FOR_PARENT_WRITER = "-2";
 
     public CriteriaBasedCodec() {
-        super("CriteriaBasedCodec", new Lucene103Codec());
+        super("CriteriaBasedCodec", new Lucene104Codec());
         bucket = null;
     }
 
