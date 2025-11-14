@@ -594,11 +594,12 @@ final class DocumentParser {
         String currentFieldName = parser.currentName();
         if (token.isValue()) {
             throw new MapperParsingException(
-                "object mapping for ["
-                    + mapper.name()
-                    + "] tried to parse field ["
+                "Document structure incompatibility: Field ["
                     + currentFieldName
-                    + "] as object, but found a concrete value"
+                    + "] in object ["
+                    + mapper.name()
+                    + "] is defined as an object with preserve_dots=true, but received a concrete value. "
+                    + "Expected format: an object containing flat dotted field names (e.g., {\"field.name\": \"value\"})."
             );
         }
 
@@ -637,8 +638,11 @@ final class DocumentParser {
                             parseObjectOrNested(context, om);
                         } else {
                             throw new MapperParsingException(
-                                "Cannot parse field [" + currentFieldName + "] with mapper type [" 
-                                + fieldMapper.getClass().getSimpleName() + "]"
+                                "Document structure incompatibility: Cannot parse field ["
+                                    + currentFieldName
+                                    + "] with mapper type ["
+                                    + fieldMapper.getClass().getSimpleName()
+                                    + "]. Expected a field mapper or object mapper."
                             );
                         }
                     } else {
@@ -710,11 +714,11 @@ final class DocumentParser {
                     }
                 } else if (token == null) {
                     throw new MapperParsingException(
-                        "object mapping for ["
-                            + mapper.name()
-                            + "] tried to parse field ["
+                        "Document structure incompatibility: Unexpected end of document while parsing field ["
                             + currentFieldName
-                            + "] as object, but got EOF, has a concrete value been provided to it?"
+                            + "] in object ["
+                            + mapper.name()
+                            + "]. Expected format: an object containing flat dotted field names with their values."
                     );
                 }
                 token = parser.nextToken();
