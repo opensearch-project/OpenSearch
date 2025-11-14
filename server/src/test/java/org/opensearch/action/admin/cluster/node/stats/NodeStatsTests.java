@@ -755,34 +755,32 @@ public class NodeStatsTests extends OpenSearchTestCase {
             for (int i = 0; i < numDeviceStats; i++) {
                 FsInfo.DeviceStats previousDeviceStats = randomBoolean()
                     ? null
-                    : new FsInfo.DeviceStats(
-                        randomInt(),
-                        randomInt(),
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        null
-                    );
-                deviceStatsArray[i] = new FsInfo.DeviceStats(
-                    randomInt(),
-                    randomInt(),
-                    randomAlphaOfLengthBetween(3, 10),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    previousDeviceStats
-                );
+                    : new FsInfo.DeviceStats.Builder().majorDeviceNumber(randomInt())
+                        .minorDeviceNumber(randomInt())
+                        .deviceName(randomAlphaOfLengthBetween(3, 10))
+                        .currentReadsCompleted(randomNonNegativeLong())
+                        .currentSectorsRead(randomNonNegativeLong())
+                        .currentWritesCompleted(randomNonNegativeLong())
+                        .currentSectorsWritten(randomNonNegativeLong())
+                        .currentReadTime(randomNonNegativeLong())
+                        .currentWriteTime(randomNonNegativeLong())
+                        .currentQueueSize(randomNonNegativeLong())
+                        .currentIOTime(randomNonNegativeLong())
+                        .previousDeviceStats(null)
+                        .build();
+                deviceStatsArray[i] = new FsInfo.DeviceStats.Builder().majorDeviceNumber(randomInt())
+                    .minorDeviceNumber(randomInt())
+                    .deviceName(randomAlphaOfLengthBetween(3, 10))
+                    .currentReadsCompleted(randomNonNegativeLong())
+                    .currentSectorsRead(randomNonNegativeLong())
+                    .currentWritesCompleted(randomNonNegativeLong())
+                    .currentSectorsWritten(randomNonNegativeLong())
+                    .currentReadTime(randomNonNegativeLong())
+                    .currentWriteTime(randomNonNegativeLong())
+                    .currentQueueSize(randomNonNegativeLong())
+                    .currentIOTime(randomNonNegativeLong())
+                    .previousDeviceStats(previousDeviceStats)
+                    .build();
             }
             FsInfo.IoStats ioStats = new FsInfo.IoStats(deviceStatsArray);
             int numPaths = randomIntBetween(0, 10);

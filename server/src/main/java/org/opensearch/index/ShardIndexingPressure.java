@@ -428,7 +428,7 @@ public class ShardIndexingPressure extends IndexingPressure {
     }
 
     ShardIndexingPressureStats topStats() {
-       return new ShardIndexingPressureStats.Builder().shardIndexingPressureStore(Collections.emptyMap())
+        return new ShardIndexingPressureStats.Builder().shardIndexingPressureStore(Collections.emptyMap())
             .totalNodeLimitsBreachedRejections(memoryManager.getTotalNodeLimitsBreachedRejections())
             .totalLastSuccessfulRequestLimitsBreachedRejections(memoryManager.getTotalLastSuccessfulRequestLimitsBreachedRejections())
             .totalThroughputDegradationLimitsBreachedRejections(memoryManager.getTotalThroughputDegradationLimitsBreachedRejections())
