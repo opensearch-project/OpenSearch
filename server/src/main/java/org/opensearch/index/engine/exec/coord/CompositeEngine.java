@@ -16,7 +16,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
-import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
@@ -188,6 +187,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
     private final IndexingStrategyPlanner indexingStrategyPlanner;
     private final IndexFileDeleter indexFileDeleter;
+    private final Map<Long, CatalogSnapshot> catalogSnapshotMap;
 
     public CompositeEngine(
         EngineConfig engineConfig,
@@ -203,6 +203,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         this.store = engineConfig.getStore();
         Committer committerRef = null;
         TranslogManager translogManagerRef = null;
+        catalogSnapshotMap = new HashMap<>();
         try {
             this.engineConfig = engineConfig;
             this.store.incRef();
@@ -254,6 +255,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 this.catalogSnapshot = lastCommittedCatalogSnapshot;
                 this.catalogSnapshot.remapPaths(shardPath.getDataPath());
                 lastCommittedWriterGeneration.set(lastCommittedCatalogSnapshot.getLastWriterGeneration());
+                catalogSnapshotMap.put(catalogSnapshot.getId(), catalogSnapshot);
             });
             // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
             this.engine = new CompositeIndexingExecutionEngine(
@@ -265,6 +267,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             //Initialize IndexFileDeleter before loadWriterFiles to ensure stale files are cleaned up before loading
             this.indexFileDeleter = new IndexFileDeleter(this.engine, catalogSnapshot, shardPath);
             CatalogSnapshot.setIndexFileDeleter(this.indexFileDeleter);
+            CatalogSnapshot.setCatalogSnapshotMap(this.catalogSnapshotMap);
             System.out.println("IndexFile Deleter after initialising : " + indexFileDeleter);
             this.engine.loadWriterFiles();
 
@@ -692,6 +695,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 }
             }
             newCatSnap = new CatalogSnapshot(refreshResult, id + 1L);
+            catalogSnapshotMap.put(newCatSnap.getId(), newCatSnap);
             System.out.println("CATALOG SNAPSHOT: " + newCatSnap);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
@@ -758,11 +762,12 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     // this now becomes equivalent of the reader
     // Each search side specific impl can decide on how to init specific reader instances using this pit snapshot provided by writers
     public ReleasableRef<CatalogSnapshot> acquireSnapshot() {
-        catalogSnapshot.incRef(); // this should be package-private
-        return new ReleasableRef<CatalogSnapshot>(catalogSnapshot) {
+        final CatalogSnapshot snapshot = catalogSnapshot;
+        snapshot.incRef();
+        return new ReleasableRef<>(snapshot) {
             @Override
-            public void close() throws Exception {
-                catalogSnapshot.decRef(); // this should be package-private
+            public void close() {
+                snapshot.decRef();
             }
         };
     }
@@ -866,8 +871,11 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                     try {
                         translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
+                        // Increment refCount of catalogSnapshotToFlush to prevent deletion of files that will be in the latest commit
+                        catalogSnapshot.incRef();
                         final CatalogSnapshot catalogSnapshotToFlush = catalogSnapshot;
                         final Optional<CatalogSnapshot> previousCatalogSnapshot = compositeEngineCommitter.readLastCommittedCatalogSnapshot();
+                        long previousCatalogSnapshotId = previousCatalogSnapshot.map(CatalogSnapshot::getId).orElse(-1L);
                         // Increment refCount of catalogSnapshotToFlush to prevent deletion of files that will be in the latest commit
                         catalogSnapshotToFlush.incRef();
                         if (catalogSnapshotToFlush != null) {
@@ -888,7 +896,11 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                                 }, catalogSnapshotToFlush
                             );
                             // Once commit is successful, decRef the CatalogSnapshot of the older commit
-                            previousCatalogSnapshot.ifPresent(AbstractRefCounted::decRef);
+                            if (previousCatalogSnapshotId != -1) {
+                                CatalogSnapshot prevCatSnap = catalogSnapshotMap.get(previousCatalogSnapshotId);
+                                if (prevCatSnap != null)
+                                    prevCatSnap.decRef();
+                            }
                             logger.trace("finished commit for flush");
                             translogManager.trimUnreferencedReaders();
                         }

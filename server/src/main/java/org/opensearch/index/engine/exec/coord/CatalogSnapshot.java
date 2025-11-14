@@ -40,6 +40,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
     private long lastWriterGeneration;
     private final Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles;
     private static IndexFileDeleter indexFileDeleter;
+    private static Map<Long, CatalogSnapshot> catalogSnapshotMap;
 
     public CatalogSnapshot(RefreshResult refreshResult, long id) {
         super("catalog_snapshot");
@@ -56,6 +57,10 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     public static void setIndexFileDeleter(IndexFileDeleter deleter) {
         indexFileDeleter = deleter;
+    }
+
+    public static void setCatalogSnapshotMap(Map<Long, CatalogSnapshot> map) {
+        catalogSnapshotMap = map;
     }
 
     private CatalogSnapshot(long id, Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles) {
@@ -147,6 +152,8 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
         if (indexFileDeleter != null) {
             indexFileDeleter.removeFileReferences(this);
         }
+        // Remove entry from catalogSnapshotMap
+        catalogSnapshotMap.remove(this.id);
     }
 
     public long getId() {

@@ -126,4 +126,9 @@ public class IndexFileDeleter {
     public String toString() {
         return "IndexFileDeleter{fileRefCounts=" + fileRefCounts + "}";
     }
+
+    // Used only for testing
+    public Map<String, Map<String, AtomicInteger>> getFileRefCounts() {
+        return Map.copyOf(fileRefCounts);
+    }
 }
