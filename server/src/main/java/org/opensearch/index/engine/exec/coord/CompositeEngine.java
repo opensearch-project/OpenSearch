@@ -92,6 +92,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -186,7 +187,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
     private final IndexingStrategyPlanner indexingStrategyPlanner;
-    private final IndexFileDeleter indexFileDeleter;
+    private final AtomicReference<IndexFileDeleter> indexFileDeleter;
     private final Map<Long, CatalogSnapshot> catalogSnapshotMap;
 
     public CompositeEngine(
@@ -203,6 +204,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         this.store = engineConfig.getStore();
         Committer committerRef = null;
         TranslogManager translogManagerRef = null;
+        indexFileDeleter = new AtomicReference<>(null);
         catalogSnapshotMap = new HashMap<>();
         try {
             this.engineConfig = engineConfig;
@@ -253,6 +255,9 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             final AtomicLong lastCommittedWriterGeneration = new AtomicLong(-1);
             this.compositeEngineCommitter.readLastCommittedCatalogSnapshot().ifPresent(lastCommittedCatalogSnapshot -> {
                 this.catalogSnapshot = lastCommittedCatalogSnapshot;
+                // Since the catalog snapshot is created from last commit, deleter and map are not available, so we explicitly set them
+                catalogSnapshot.setIndexFileDeleterSupplier(indexFileDeleter::get);
+                catalogSnapshot.setCatalogSnapshotMap(catalogSnapshotMap);
                 this.catalogSnapshot.remapPaths(shardPath.getDataPath());
                 lastCommittedWriterGeneration.set(lastCommittedCatalogSnapshot.getLastWriterGeneration());
                 catalogSnapshotMap.put(catalogSnapshot.getId(), catalogSnapshot);
@@ -265,9 +270,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 lastCommittedWriterGeneration.incrementAndGet()
             );
             //Initialize IndexFileDeleter before loadWriterFiles to ensure stale files are cleaned up before loading
-            this.indexFileDeleter = new IndexFileDeleter(this.engine, catalogSnapshot, shardPath);
-            CatalogSnapshot.setIndexFileDeleter(this.indexFileDeleter);
-            CatalogSnapshot.setCatalogSnapshotMap(this.catalogSnapshotMap);
+            indexFileDeleter.set(new IndexFileDeleter(this.engine, catalogSnapshot, shardPath));
             System.out.println("IndexFile Deleter after initialising : " + indexFileDeleter);
             this.engine.loadWriterFiles();
 
@@ -694,7 +697,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                     return;
                 }
             }
-            newCatSnap = new CatalogSnapshot(refreshResult, id + 1L);
+            newCatSnap = new CatalogSnapshot(refreshResult, id + 1L, catalogSnapshotMap, indexFileDeleter::get);
             catalogSnapshotMap.put(newCatSnap.getId(), newCatSnap);
             System.out.println("CATALOG SNAPSHOT: " + newCatSnap);
         } catch (IOException ex) {
@@ -871,14 +874,13 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                     try {
                         translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
-                        // Increment refCount of catalogSnapshotToFlush to prevent deletion of files that will be in the latest commit
-                        catalogSnapshot.incRef();
                         final CatalogSnapshot catalogSnapshotToFlush = catalogSnapshot;
                         final Optional<CatalogSnapshot> previousCatalogSnapshot = compositeEngineCommitter.readLastCommittedCatalogSnapshot();
                         long previousCatalogSnapshotId = previousCatalogSnapshot.map(CatalogSnapshot::getId).orElse(-1L);
-                        // Increment refCount of catalogSnapshotToFlush to prevent deletion of files that will be in the latest commit
-                        catalogSnapshotToFlush.incRef();
                         if (catalogSnapshotToFlush != null) {
+                            System.out.println("FLUSH called, current snapshot to commit : " + catalogSnapshotToFlush.getId() + ", previous commited snapshot : " + previousCatalogSnapshotId);
+                            // Increment refCount of catalogSnapshotToFlush to prevent deletion of files that will be in the latest commit
+                            catalogSnapshotToFlush.incRef();
                             final String serializedCatalogSnapshot = catalogSnapshotToFlush.serializeToString();
                             final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
                             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();

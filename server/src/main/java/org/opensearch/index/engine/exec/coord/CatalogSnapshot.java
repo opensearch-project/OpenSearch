@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 @ExperimentalApi
 public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
@@ -39,11 +40,11 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
     private final long id;
     private long lastWriterGeneration;
     private final Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles;
-    private static IndexFileDeleter indexFileDeleter;
-    private static Map<Long, CatalogSnapshot> catalogSnapshotMap;
+    private Supplier<IndexFileDeleter> indexFileDeleterSupplier;
+    private Map<Long, CatalogSnapshot> catalogSnapshotMap;
 
-    public CatalogSnapshot(RefreshResult refreshResult, long id) {
-        super("catalog_snapshot");
+    public CatalogSnapshot(RefreshResult refreshResult, long id, Map<Long, CatalogSnapshot> catalogSnapshotMap, Supplier<IndexFileDeleter> indexFileDeleterSupplier) {
+        super("catalog_snapshot_" + id);
         this.id = id;
         this.dfGroupedSearchableFiles = new HashMap<>();
         this.lastWriterGeneration = -1;
@@ -51,16 +52,10 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
             dfGroupedSearchableFiles.put(dataFormat.name(), writerFiles);
             writerFiles.stream().mapToLong(WriterFileSet::getWriterGeneration).max().ifPresent(value -> this.lastWriterGeneration = value);
         });
+        this.catalogSnapshotMap = catalogSnapshotMap;
+        this.indexFileDeleterSupplier = indexFileDeleterSupplier;
         // Whenever a new CatalogSnapshot is created add its files to the IndexFileDeleter
-        indexFileDeleter.addFileReferences(this);
-    }
-
-    public static void setIndexFileDeleter(IndexFileDeleter deleter) {
-        indexFileDeleter = deleter;
-    }
-
-    public static void setCatalogSnapshotMap(Map<Long, CatalogSnapshot> map) {
-        catalogSnapshotMap = map;
+        indexFileDeleterSupplier.get().addFileReferences(this);
     }
 
     private CatalogSnapshot(long id, Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles) {
@@ -149,9 +144,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
     @Override
     protected void closeInternal() {
         // Notify to FileDeleter to remove references of files referenced in this CatalogSnapshot
-        if (indexFileDeleter != null) {
-            indexFileDeleter.removeFileReferences(this);
-        }
+        indexFileDeleterSupplier.get().removeFileReferences(this);
         // Remove entry from catalogSnapshotMap
         catalogSnapshotMap.remove(this.id);
     }
@@ -166,6 +159,15 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     public Set<String> getDataFormats() {
         return dfGroupedSearchableFiles.keySet();
+    }
+
+    // used only when catalog snapshot is created from last commited segment and hence the object is not initialized with the deleter and map
+    public void setIndexFileDeleterSupplier(Supplier<IndexFileDeleter> supplier) {
+        this.indexFileDeleterSupplier = supplier;
+    }
+
+    public void setCatalogSnapshotMap(Map<Long, CatalogSnapshot> catalogSnapshotMap) {
+        this.catalogSnapshotMap = catalogSnapshotMap;
     }
 
     @Override

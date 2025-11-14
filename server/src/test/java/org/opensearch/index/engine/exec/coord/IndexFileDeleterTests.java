@@ -70,8 +70,6 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         
         catalogSnapshot = null;
         indexFileDeleter = new IndexFileDeleter(mockEngine, null, shardPath);
-        CatalogSnapshot.setIndexFileDeleter(indexFileDeleter);
-        CatalogSnapshot.setCatalogSnapshotMap(catalogSnapshotMap);
     }
 
     public void testMultipleDataFormats() {
@@ -170,7 +168,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
 
         // Create new snapshot
         long id = catalogSnapshotId.incrementAndGet();
-        catalogSnapshot = new CatalogSnapshot(refreshResult, id);
+        catalogSnapshot = new CatalogSnapshot(refreshResult, id, catalogSnapshotMap, () -> indexFileDeleter);
         catalogSnapshotMap.put(id, catalogSnapshot);
 
         // Release previous snapshot if exists
