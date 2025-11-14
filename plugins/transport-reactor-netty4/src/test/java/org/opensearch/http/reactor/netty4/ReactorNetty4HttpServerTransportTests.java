@@ -202,7 +202,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
@@ -307,7 +307,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 final String url = "/" + randomAlphaOfLength(maxInitialLineLength);
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
@@ -353,7 +353,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
 
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
@@ -368,6 +368,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testLargeCompressedResponse() throws InterruptedException {
+        final Settings settings = createSettings();
         final String responseString = randomAlphaOfLength(4 * 1024 * 1024);
         final String url = "/thing/";
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
@@ -395,21 +396,21 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
 
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
-                Settings.EMPTY,
+                settings,
                 networkService,
                 bigArrays,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY),
+                new SharedGroupFactory(settings),
                 NoopTracer.INSTANCE
             )
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
                 request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
                 long numOfHugeAllocations = getHugeAllocationCount();
@@ -475,7 +476,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
                 new SharedGroupFactory(Settings.EMPTY),
                 NoopTracer.INSTANCE
             );
-            ReactorHttpClient client = ReactorHttpClient.create()
+            ReactorHttpClient client = ReactorHttpClient.create(Settings.EMPTY)
         ) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
@@ -538,7 +539,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             // Test pre-flight request
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/");
                 request.headers().add(CorsHandler.ORIGIN, "test-cors.org");
                 request.headers().add(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, "POST");
@@ -555,7 +556,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             }
 
             // Test short-circuited request
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
                 request.headers().add(CorsHandler.ORIGIN, "google.com");
 

@@ -396,6 +396,7 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testLargeCompressedResponse() throws InterruptedException {
+        final Settings settings = createSettings();
         final String responseString = randomAlphaOfLength(4 * 1024 * 1024);
         final String url = "/thing";
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
@@ -423,14 +424,14 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
 
         try (
             SecureNetty4HttpServerTransport transport = new SecureNetty4HttpServerTransport(
-                Settings.EMPTY,
+                settings,
                 networkService,
                 bigArrays,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY),
+                new SharedGroupFactory(settings),
                 secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )

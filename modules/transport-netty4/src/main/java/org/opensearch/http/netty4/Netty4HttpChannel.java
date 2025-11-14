@@ -69,12 +69,20 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @Override
     public InetSocketAddress getLocalAddress() {
-        return (InetSocketAddress) channel.localAddress();
+        if (channel.localAddress() instanceof InetSocketAddress isa) {
+            return isa;
+        } else {
+            return null; /* SocketAddress */
+        }
     }
 
     @Override
     public InetSocketAddress getRemoteAddress() {
-        return (InetSocketAddress) channel.remoteAddress();
+        if (channel.remoteAddress() instanceof InetSocketAddress isa) {
+            return isa;
+        } else {
+            return null; /* SocketAddress */
+        }
     }
 
     @Override

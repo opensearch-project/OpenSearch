@@ -6,30 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.http.netty4;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -39,7 +15,6 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -52,41 +27,39 @@ import org.opensearch.http.CorsHandler;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.http.NullDispatcher;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
+import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.KeyStoreUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NettyAllocator;
 import org.opensearch.transport.SharedGroupFactory;
+import org.opensearch.transport.netty4.ssl.SslUtils;
 import org.junit.After;
 import org.junit.Before;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
-import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
-import io.netty.buffer.PoolArenaMetric;
-import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.buffer.PooledByteBufAllocatorMetric;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandlerAdapter;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.TooLongFrameException;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -97,25 +70,31 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http2.Http2SecurityUtil;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.pkitesting.CertificateBuilder.Algorithm;
 
 import static org.opensearch.core.rest.RestStatus.BAD_REQUEST;
 import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.opensearch.test.KeyStoreUtils.KEYSTORE_PASSWORD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Tests for the {@link Netty4HttpServerTransport} class.
+ * Tests for the {@link Netty4Http3ServerTransport} class.
  */
-public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
+public class Netty4Http3ServerTransportTests extends OpenSearchTestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
     private ClusterSettings clusterSettings;
+    private SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
 
     @Before
     public void setup() throws Exception {
@@ -123,6 +102,60 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("PKIX");
+        keyManagerFactory.init(KeyStoreUtils.createServerKeyStore(Algorithm.ecp384), KEYSTORE_PASSWORD);
+
+        secureHttpTransportSettingsProvider = new SecureHttpTransportSettingsProvider() {
+            @Override
+            public Optional<SecureHttpTransportParameters> parameters(Settings settings) {
+                return Optional.of(new SecureHttpTransportParameters() {
+                    @Override
+                    public Optional<KeyManagerFactory> keyManagerFactory() {
+                        return Optional.of(keyManagerFactory);
+                    }
+
+                    @Override
+                    public Optional<String> sslProvider() {
+                        return Optional.empty();
+                    }
+
+                    @Override
+                    public Optional<String> clientAuth() {
+                        return Optional.empty();
+                    }
+
+                    @Override
+                    public Collection<String> protocols() {
+                        return Arrays.asList(SslUtils.DEFAULT_SSL_PROTOCOLS);
+                    }
+
+                    @Override
+                    public Collection<String> cipherSuites() {
+                        return Http2SecurityUtil.CIPHERS;
+                    }
+
+                    @Override
+                    public Optional<TrustManagerFactory> trustManagerFactory() {
+                        return Optional.of(InsecureTrustManagerFactory.INSTANCE);
+                    }
+                });
+            }
+
+            @Override
+            public Optional<TransportExceptionHandler> buildHttpServerExceptionHandler(Settings settings, HttpServerTransport transport) {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
+                final SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
+                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                    .build()
+                    .newEngine(NettyAllocator.getAllocator());
+                return Optional.of(engine);
+            }
+        };
     }
 
     @After
@@ -137,7 +170,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test that {@link Netty4HttpServerTransport} supports the "Expect: 100-continue" HTTP header
+     * Test that {@link Netty4Http3ServerTransportTests} supports the "Expect: 100-continue" HTTP header
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectContinueHeader() throws InterruptedException {
@@ -147,7 +180,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test that {@link Netty4HttpServerTransport} responds to a
+     * Test that {@link Netty4Http3ServerTransportTests} responds to a
      * 100-continue expectation with too large a content-length
      * with a 413 status.
      * @throws InterruptedException if the client communication with the server is interrupted
@@ -161,7 +194,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test that {@link Netty4HttpServerTransport} responds to an unsupported expectation with a 417 status.
+     * Test that {@link Netty4Http3ServerTransportTests} responds to an unsupported expectation with a 417 status.
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectUnsupportedExpectation() throws InterruptedException {
@@ -175,6 +208,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
         final int contentLength,
         final HttpResponseStatus expectedStatus
     ) throws InterruptedException {
+
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
@@ -191,7 +225,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
             }
         };
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Netty4Http3ServerTransport transport = new Netty4Http3ServerTransport(
                 settings,
                 networkService,
                 bigArrays,
@@ -200,12 +234,13 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
+                secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try (Netty4HttpClient client = Netty4HttpClient.http()) {
+            try (Netty4HttpClient client = Netty4HttpClient.http3()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
@@ -241,7 +276,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     public void testBindUnavailableAddress() {
         Settings initialSettings = createSettings();
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Netty4Http3ServerTransport transport = new Netty4Http3ServerTransport(
                 initialSettings,
                 networkService,
                 bigArrays,
@@ -249,7 +284,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 new NullDispatcher(),
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY),
+                new SharedGroupFactory(initialSettings),
+                secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
         ) {
@@ -260,7 +296,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 .put("network.host", remoteAddress.getAddress())
                 .build();
             try (
-                Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(
+                Netty4Http3ServerTransport otherTransport = new Netty4Http3ServerTransport(
                     settings,
                     networkService,
                     bigArrays,
@@ -269,6 +305,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                     new NullDispatcher(),
                     clusterSettings,
                     new SharedGroupFactory(settings),
+                    secureHttpTransportSettingsProvider,
                     NoopTracer.INSTANCE
                 )
             ) {
@@ -313,7 +350,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
         }
 
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Netty4Http3ServerTransport transport = new Netty4Http3ServerTransport(
                 settings,
                 networkService,
                 bigArrays,
@@ -322,14 +359,15 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
+                secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (Netty4HttpClient client = Netty4HttpClient.http()) {
-                final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
+            try (Netty4HttpClient client = Netty4HttpClient.http3()) {
+                final String url = "/" + randomAlphaOfLength(maxInitialLineLength);
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
@@ -377,7 +415,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
         };
 
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Netty4Http3ServerTransport transport = new Netty4Http3ServerTransport(
                 settings,
                 networkService,
                 bigArrays,
@@ -386,22 +424,18 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
+                secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (Netty4HttpClient client = Netty4HttpClient.http()) {
+            try (Netty4HttpClient client = Netty4HttpClient.http3()) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
-                // ZSTD is not supported at the moment by NettyAllocator (needs direct buffers),
-                // and Brotly is not on classpath.
-                final String contentEncoding = randomFrom("deflate", "gzip", "snappy", "br", "zstd");
-                request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, contentEncoding);
-                long numOfHugeAllocations = getHugeAllocationCount();
+                request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {
-                    assertThat(getHugeAllocationCount(), equalTo(numOfHugeAllocations));
                     assertThat(response.status(), equalTo(HttpResponseStatus.OK));
                     byte[] bytes = new byte[response.content().readableBytes()];
                     response.content().readBytes(bytes);
@@ -411,18 +445,6 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 }
             }
         }
-    }
-
-    private long getHugeAllocationCount() {
-        long numOfHugAllocations = 0;
-        ByteBufAllocator allocator = NettyAllocator.getAllocator();
-        assert allocator instanceof NettyAllocator.NoDirectBuffers;
-        ByteBufAllocator delegate = ((NettyAllocator.NoDirectBuffers) allocator).getDelegate();
-        if (delegate instanceof PooledByteBufAllocator) {
-            PooledByteBufAllocatorMetric metric = ((PooledByteBufAllocator) delegate).metric();
-            numOfHugAllocations = metric.heapArenas().stream().mapToLong(PoolArenaMetric::numHugeAllocations).sum();
-        }
-        return numOfHugAllocations;
     }
 
     public void testCorsRequest() throws InterruptedException {
@@ -450,7 +472,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
             .build();
 
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Netty4Http3ServerTransport transport = new Netty4Http3ServerTransport(
                 settings,
                 networkService,
                 bigArrays,
@@ -459,6 +481,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 new SharedGroupFactory(settings),
+                secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
         ) {
@@ -466,7 +489,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             // Test pre-flight request
-            try (Netty4HttpClient client = Netty4HttpClient.http()) {
+            try (Netty4HttpClient client = Netty4HttpClient.http3()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/");
                 request.headers().add(CorsHandler.ORIGIN, "test-cors.org");
                 request.headers().add(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, "POST");
@@ -483,7 +506,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
             }
 
             // Test short-circuited request
-            try (Netty4HttpClient client = Netty4HttpClient.http()) {
+            try (Netty4HttpClient client = Netty4HttpClient.http3()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
                 request.headers().add(CorsHandler.ORIGIN, "google.com");
 
@@ -494,72 +517,6 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                     response.release();
                 }
             }
-        }
-    }
-
-    public void testReadTimeout() throws Exception {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
-                throw new AssertionError("Should not have received a dispatched request");
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
-                throw new AssertionError("Should not have received a dispatched request");
-            }
-
-        };
-
-        Settings settings = createBuilderWithPort().put(
-            HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(),
-            new TimeValue(randomIntBetween(100, 300))
-        ).build();
-
-        NioEventLoopGroup group = new NioEventLoopGroup();
-        try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
-                settings,
-                networkService,
-                bigArrays,
-                threadPool,
-                xContentRegistry(),
-                dispatcher,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(settings),
-                NoopTracer.INSTANCE
-            )
-        ) {
-            transport.start();
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-
-            CountDownLatch channelClosedLatch = new CountDownLatch(1);
-
-            Bootstrap clientBootstrap = new Bootstrap().option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
-                .channel(NioSocketChannel.class)
-                .handler(new ChannelInitializer<SocketChannel>() {
-
-                    @Override
-                    protected void initChannel(SocketChannel ch) {
-                        ch.pipeline().addLast(new ChannelHandlerAdapter() {
-                        });
-
-                    }
-                })
-                .group(group);
-            ChannelFuture connect = clientBootstrap.connect(remoteAddress.address());
-            connect.channel().closeFuture().addListener(future -> channelClosedLatch.countDown());
-
-            assertTrue("Channel should be closed due to read timeout", channelClosedLatch.await(1, TimeUnit.MINUTES));
-
-        } finally {
-            group.shutdownGracefully().await();
         }
     }
 
