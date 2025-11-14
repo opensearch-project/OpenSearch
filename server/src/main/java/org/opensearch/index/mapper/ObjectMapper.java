@@ -59,6 +59,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Field mapper for object field types
@@ -572,6 +573,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         }
                     }
 
+                    // Validate parquet data format compatibility
+                    validateParquetDataFormatCompatibility(type, fieldName);
+
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
@@ -606,7 +610,40 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 parserContext.indexVersionCreated(),
                 "DocType mapping definition has unsupported parameters: "
             );
+        }
 
+        /**
+         * Validates whether the specified field type is compatible with Parquet data format.
+         *
+         * @param fieldType the field type to validate
+         * @param fieldName the name of the field being validated
+         * @throws MapperParsingException if the field type is not compatible with Parquet format
+         */
+        private static void validateParquetDataFormatCompatibility(String fieldType, String fieldName) {
+            if (!isParquetCompatibleType(fieldType)) {
+                throw new MapperParsingException(
+                    String.format("Field type '%s' for field '%s' is not compatible with Parquet data format. " +
+                            "Allowed types for Parquet: %s",
+                        fieldType, fieldName, getAllowedParquetTypes())
+                );
+            }
+        }
+
+        /**
+         * Checks if the given field type is compatible with Parquet data format.
+         */
+        private static boolean isParquetCompatibleType(String fieldType) {
+            return getAllowedParquetTypes().contains(fieldType);
+        }
+
+        /**
+         * Returns the set of field types that are allowed for Parquet data format.
+         */
+        private static Set<String> getAllowedParquetTypes() {
+            return Set.of(
+                "long", "integer", "short", "byte", "double", "float", "half_float", "unsigned_long", "scaled_float", "token_count",
+                "boolean", "date", "date_nanos", "keyword", "text", "binary", "ip"
+            );
         }
 
     }
