@@ -326,6 +326,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testLargeCompressedResponse() throws InterruptedException {
+        final Settings settings = createSettings();
         final String responseString = randomAlphaOfLength(4 * 1024 * 1024);
         final String url = "/thing";
         final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
@@ -340,14 +341,14 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
         ).build();
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
-                Settings.EMPTY,
+                settings,
                 networkService,
                 bigArrays,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY),
+                new SharedGroupFactory(settings),
                 NoopTracer.INSTANCE
             )
         ) {

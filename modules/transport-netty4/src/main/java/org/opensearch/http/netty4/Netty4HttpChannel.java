@@ -40,7 +40,9 @@ import org.opensearch.http.HttpResponse;
 import org.opensearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.Optional;
+import java.util.function.Function;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
@@ -69,12 +71,20 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @Override
     public InetSocketAddress getLocalAddress() {
-        return (InetSocketAddress) channel.localAddress();
+        if (channel.localAddress() instanceof InetSocketAddress isa) {
+            return isa;
+        } else {
+            return getAddressFromParent(channel, Channel::localAddress);
+        }
     }
 
     @Override
     public InetSocketAddress getRemoteAddress() {
-        return (InetSocketAddress) channel.remoteAddress();
+        if (channel.remoteAddress() instanceof InetSocketAddress isa) {
+            return isa;
+        } else {
+            return getAddressFromParent(channel, Channel::remoteAddress);
+        }
     }
 
     @Override
@@ -123,5 +133,23 @@ public class Netty4HttpChannel implements HttpChannel {
     @Override
     public String toString() {
         return "Netty4HttpChannel{" + "localAddress=" + getLocalAddress() + ", remoteAddress=" + getRemoteAddress() + '}';
+    }
+
+    /**
+     * Attempts to extract the {@link InetSocketAddress} from parent channel, since
+     * some channels, like QuicXxxChannel, do not expose {@link InetSocketAddress} but
+     * {@link SocketAddress} only
+     */
+    private InetSocketAddress getAddressFromParent(Channel channel, Function<Channel, SocketAddress> socketAddressSupplier) {
+        final Channel parent = channel.parent();
+        if (parent != null) {
+            if (socketAddressSupplier.apply(parent) instanceof InetSocketAddress isa) {
+                return isa;
+            } else {
+                return getAddressFromParent(parent, socketAddressSupplier);
+            }
+        } else {
+            return null;
+        }
     }
 }
