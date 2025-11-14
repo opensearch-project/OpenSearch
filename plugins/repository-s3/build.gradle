@@ -99,6 +99,8 @@ dependencies {
   api "io.netty:netty-codec:${versions.netty}"
   api "io.netty:netty-codec-http:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-codec-base:${versions.netty}"
+  api "io.netty:netty-codec-compression:${versions.netty}"
   api "io.netty:netty-common:${versions.netty}"
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
@@ -437,6 +439,7 @@ tasks.named("check").configure { dependsOn(s3ThirdPartyTest) }
 thirdPartyAudit {
   ignoreMissingClasses(
     // classes are missing
+    'javax.activation.DataHandler',
     'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
@@ -467,9 +470,6 @@ thirdPartyAudit {
     'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
-
-    'com.google.protobuf.nano.CodedOutputByteBufferNano',
-    'com.google.protobuf.nano.MessageNano',
 
     'com.ning.compress.BufferRecycler',
     'com.ning.compress.lzf.ChunkDecoder',
@@ -514,29 +514,6 @@ thirdPartyAudit {
     'org.conscrypt.Conscrypt',
     'org.conscrypt.HandshakeListener',
 
-    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
-    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
-    'org.eclipse.jetty.alpn.ALPN',
-
-    // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
-    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
-    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
-    'org.eclipse.jetty.npn.NextProtoNego',
-
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteInput (netty)
-    'org.jboss.marshalling.ByteInput',
-
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteOutput (netty)
-    'org.jboss.marshalling.ByteOutput',
-
-    // from io.netty.handler.codec.marshalling.CompatibleMarshallingEncoder (netty)
-    'org.jboss.marshalling.Marshaller',
-
-    // from io.netty.handler.codec.marshalling.ContextBoundUnmarshallerProvider (netty)
-    'org.jboss.marshalling.MarshallerFactory',
-    'org.jboss.marshalling.MarshallingConfiguration',
-    'org.jboss.marshalling.Unmarshaller',
-
     'org.slf4j.ext.EventData',
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
@@ -548,7 +525,11 @@ thirdPartyAudit {
     'software.amazon.awssdk.arns.ArnResource',
     'software.amazon.eventstream.HeaderValue',
     'software.amazon.eventstream.Message',
-    'software.amazon.eventstream.MessageDecoder'
+    'software.amazon.eventstream.MessageDecoder',
+
+    'io.netty.pkitesting.CertificateBuilder',
+    'io.netty.pkitesting.CertificateBuilder$Algorithm',
+    'io.netty.pkitesting.X509Bundle'
   )
 
   ignoreViolations (
@@ -556,8 +537,7 @@ thirdPartyAudit {
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
     'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$4',
-    'io.netty.util.internal.PlatformDependent0$6',
+    'io.netty.util.internal.PlatformDependent0$5',
 
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
@@ -576,114 +556,17 @@ thirdPartyAudit {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+    'io.netty.buffer.AbstractAllocatorEvent',
+    'io.netty.buffer.AbstractBufferEvent',
+    'io.netty.buffer.AbstractChunkEvent',
+    'io.netty.buffer.AdaptivePoolingAllocator$AdaptiveByteBuf',
+    'io.netty.buffer.AdaptivePoolingAllocator$Chunk',
+    'io.netty.buffer.AllocateBufferEvent',
+    'io.netty.buffer.AllocateChunkEvent',
+    'io.netty.buffer.FreeBufferEvent',
+    'io.netty.buffer.FreeChunkEvent',
+    'io.netty.buffer.PooledByteBufAllocator',
+    'io.netty.buffer.ReallocateBufferEvent',
+    'io.netty.buffer.ReturnChunkEvent'
   )
-}
-
-// jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
-if (BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.ignoreJarHellWithJDK(
-    'javax.xml.bind.Binder',
-    'javax.xml.bind.ContextFinder$1',
-    'javax.xml.bind.ContextFinder',
-    'javax.xml.bind.DataBindingException',
-    'javax.xml.bind.DatatypeConverter',
-    'javax.xml.bind.DatatypeConverterImpl$CalendarFormatter',
-    'javax.xml.bind.DatatypeConverterImpl',
-    'javax.xml.bind.DatatypeConverterInterface',
-    'javax.xml.bind.Element',
-    'javax.xml.bind.GetPropertyAction',
-    'javax.xml.bind.JAXB$Cache',
-    'javax.xml.bind.JAXB',
-    'javax.xml.bind.JAXBContext',
-    'javax.xml.bind.JAXBElement$GlobalScope',
-    'javax.xml.bind.JAXBElement',
-    'javax.xml.bind.JAXBException',
-    'javax.xml.bind.JAXBIntrospector',
-    'javax.xml.bind.JAXBPermission',
-    'javax.xml.bind.MarshalException',
-    'javax.xml.bind.Marshaller$Listener',
-    'javax.xml.bind.Marshaller',
-    'javax.xml.bind.Messages',
-    'javax.xml.bind.NotIdentifiableEvent',
-    'javax.xml.bind.ParseConversionEvent',
-    'javax.xml.bind.PrintConversionEvent',
-    'javax.xml.bind.PropertyException',
-    'javax.xml.bind.SchemaOutputResolver',
-    'javax.xml.bind.TypeConstraintException',
-    'javax.xml.bind.UnmarshalException',
-    'javax.xml.bind.Unmarshaller$Listener',
-    'javax.xml.bind.Unmarshaller',
-    'javax.xml.bind.UnmarshallerHandler',
-    'javax.xml.bind.ValidationEvent',
-    'javax.xml.bind.ValidationEventHandler',
-    'javax.xml.bind.ValidationEventLocator',
-    'javax.xml.bind.ValidationException',
-    'javax.xml.bind.Validator',
-    'javax.xml.bind.WhiteSpaceProcessor',
-    'javax.xml.bind.annotation.DomHandler',
-    'javax.xml.bind.annotation.W3CDomHandler',
-    'javax.xml.bind.annotation.XmlAccessOrder',
-    'javax.xml.bind.annotation.XmlAccessType',
-    'javax.xml.bind.annotation.XmlAccessorOrder',
-    'javax.xml.bind.annotation.XmlAccessorType',
-    'javax.xml.bind.annotation.XmlAnyAttribute',
-    'javax.xml.bind.annotation.XmlAnyElement',
-    'javax.xml.bind.annotation.XmlAttachmentRef',
-    'javax.xml.bind.annotation.XmlAttribute',
-    'javax.xml.bind.annotation.XmlElement$DEFAULT',
-    'javax.xml.bind.annotation.XmlElement',
-    'javax.xml.bind.annotation.XmlElementDecl$GLOBAL',
-    'javax.xml.bind.annotation.XmlElementDecl',
-    'javax.xml.bind.annotation.XmlElementRef$DEFAULT',
-    'javax.xml.bind.annotation.XmlElementRef',
-    'javax.xml.bind.annotation.XmlElementRefs',
-    'javax.xml.bind.annotation.XmlElementWrapper',
-    'javax.xml.bind.annotation.XmlElements',
-    'javax.xml.bind.annotation.XmlEnum',
-    'javax.xml.bind.annotation.XmlEnumValue',
-    'javax.xml.bind.annotation.XmlID',
-    'javax.xml.bind.annotation.XmlIDREF',
-    'javax.xml.bind.annotation.XmlInlineBinaryData',
-    'javax.xml.bind.annotation.XmlList',
-    'javax.xml.bind.annotation.XmlMimeType',
-    'javax.xml.bind.annotation.XmlMixed',
-    'javax.xml.bind.annotation.XmlNs',
-    'javax.xml.bind.annotation.XmlNsForm',
-    'javax.xml.bind.annotation.XmlRegistry',
-    'javax.xml.bind.annotation.XmlRootElement',
-    'javax.xml.bind.annotation.XmlSchema',
-    'javax.xml.bind.annotation.XmlSchemaType$DEFAULT',
-    'javax.xml.bind.annotation.XmlSchemaType',
-    'javax.xml.bind.annotation.XmlSchemaTypes',
-    'javax.xml.bind.annotation.XmlSeeAlso',
-    'javax.xml.bind.annotation.XmlTransient',
-    'javax.xml.bind.annotation.XmlType$DEFAULT',
-    'javax.xml.bind.annotation.XmlType',
-    'javax.xml.bind.annotation.XmlValue',
-    'javax.xml.bind.annotation.adapters.CollapsedStringAdapter',
-    'javax.xml.bind.annotation.adapters.HexBinaryAdapter',
-    'javax.xml.bind.annotation.adapters.NormalizedStringAdapter',
-    'javax.xml.bind.annotation.adapters.XmlAdapter',
-    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter$DEFAULT',
-    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter',
-    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapters',
-    'javax.xml.bind.attachment.AttachmentMarshaller',
-    'javax.xml.bind.attachment.AttachmentUnmarshaller',
-    'javax.xml.bind.helpers.AbstractMarshallerImpl',
-    'javax.xml.bind.helpers.AbstractUnmarshallerImpl',
-    'javax.xml.bind.helpers.DefaultValidationEventHandler',
-    'javax.xml.bind.helpers.Messages',
-    'javax.xml.bind.helpers.NotIdentifiableEventImpl',
-    'javax.xml.bind.helpers.ParseConversionEventImpl',
-    'javax.xml.bind.helpers.PrintConversionEventImpl',
-    'javax.xml.bind.helpers.ValidationEventImpl',
-    'javax.xml.bind.helpers.ValidationEventLocatorImpl',
-    'javax.xml.bind.util.JAXBResult',
-    'javax.xml.bind.util.JAXBSource$1',
-    'javax.xml.bind.util.JAXBSource',
-    'javax.xml.bind.util.Messages',
-    'javax.xml.bind.util.ValidationEventCollector'
-  )
-} else {
-  thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
 }

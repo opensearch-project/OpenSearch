@@ -14,7 +14,6 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
 import org.opensearch.protobufs.FieldValue;
-import org.opensearch.protobufs.FloatMap;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.MatchAllQuery;
 import org.opensearch.protobufs.ObjectMap;
@@ -357,9 +356,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         boostMap.put("index1", 1.0f);
         boostMap.put("index2", 2.0f);
 
-        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .addIndicesBoost(FloatMap.newBuilder().putAllFloatMap(boostMap).build())
-            .build();
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().putAllIndicesBoost(boostMap).build();
 
         // Create a SearchSourceBuilder to populate
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
@@ -582,6 +579,130 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("Script should not be null", scriptField.script());
         assertEquals("Script source should match", "doc['field'].value * 2", scriptField.script().getIdOrCode());
         assertFalse("IgnoreFailure should be false by default", scriptField.ignoreFailure());
+    }
+
+    public void testParseProtoWithHighlight() throws IOException {
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .setHighlight(org.opensearch.protobufs.Highlight.newBuilder().addPreTags("<em>").addPostTags("</em>").build())
+            .build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        assertNotNull("Highlight should not be null", searchSourceBuilder.highlighter());
+    }
+
+    public void testParseProtoWithCollapse() throws IOException {
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .setCollapse(org.opensearch.protobufs.FieldCollapse.newBuilder().setField("category").build())
+            .build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        assertNotNull("Collapse should not be null", searchSourceBuilder.collapse());
+        assertEquals("Collapse field should match", "category", searchSourceBuilder.collapse().getField());
+    }
+
+    public void testParseProtoWithStoredFields() throws IOException {
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().addStoredFields("field1").addStoredFields("field2").build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        assertNotNull("StoredFields should not be null", searchSourceBuilder.storedFields());
+    }
+
+    public void testParseProtoWithXSource() throws IOException {
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .setXSource(org.opensearch.protobufs.SourceConfig.newBuilder().build())
+            .build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        assertNotNull("FetchSourceContext should not be null", searchSourceBuilder.fetchSource());
+    }
+
+    public void testParseProtoWithSort() throws IOException {
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .addSort(
+                org.opensearch.protobufs.SortCombinations.newBuilder()
+                    .setFieldWithOrder(
+                        org.opensearch.protobufs.FieldSortMap.newBuilder()
+                            .putFieldSortMap(
+                                "timestamp",
+                                org.opensearch.protobufs.FieldSort.newBuilder()
+                                    .setOrder(org.opensearch.protobufs.SortOrder.SORT_ORDER_DESC)
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        assertNotNull("Sorts should not be null", searchSourceBuilder.sorts());
+        assertEquals("Should have 1 sort", 1, searchSourceBuilder.sorts().size());
+    }
+
+    public void testParseProtoWithSuggest() throws IOException {
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .setSuggest(org.opensearch.protobufs.Suggester.newBuilder().setText("opensearch").build())
+            .build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        assertNotNull("SuggestBuilder should not be null", searchSourceBuilder.suggest());
+    }
+
+    public void testParseProtoWithXSourceIncludes() throws IOException {
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .setXSource(
+                org.opensearch.protobufs.SourceConfig.newBuilder()
+                    .setFilter(org.opensearch.protobufs.SourceFilter.newBuilder().addIncludes("field1").addIncludes("field2").build())
+                    .build()
+            )
+            .build();
+
+        // Create a SearchSourceBuilder to populate
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        // Call the method under test
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        // Verify the result
+        assertNotNull("FetchSourceContext should not be null", searchSourceBuilder.fetchSource());
+    }
+
+    public void testParseProtoWithXSourceExcludes() throws IOException {
+        // Create a protobuf SearchRequestBody with xSource excludes
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .setXSource(
+                org.opensearch.protobufs.SourceConfig.newBuilder()
+                    .setFilter(org.opensearch.protobufs.SourceFilter.newBuilder().addExcludes("secret_field").build())
+                    .build()
+            )
+            .build();
+
+        // Create a SearchSourceBuilder to populate
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        // Call the method under test
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        // Verify the result
+        assertNotNull("FetchSourceContext should not be null", searchSourceBuilder.fetchSource());
     }
 
 }

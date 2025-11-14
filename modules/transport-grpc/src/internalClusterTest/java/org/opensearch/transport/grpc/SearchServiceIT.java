@@ -43,7 +43,7 @@ public class SearchServiceIT extends GrpcTransportBaseIT {
 
             SearchRequest searchRequest = SearchRequest.newBuilder()
                 .addIndex(indexName)
-                .setRequestBody(requestBody)
+                .setSearchRequestBody(requestBody)
                 .setQ("field1:value1")
                 .build();
 

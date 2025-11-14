@@ -35,6 +35,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
@@ -179,6 +180,11 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
                     }
                 }
                 maxes.set(bucket, max);
+            }
+
+            @Override
+            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                super.collect(stream, owningBucketOrd);
             }
         };
     }

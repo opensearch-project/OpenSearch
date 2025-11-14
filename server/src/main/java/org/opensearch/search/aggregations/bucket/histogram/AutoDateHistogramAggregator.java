@@ -36,6 +36,7 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Rounding;
@@ -290,6 +291,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 iteratingCollector.collect(doc, owningBucketOrd);
             }
+
+            @Override
+            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                super.collect(stream, owningBucketOrd);
+            }
         };
     }
 
@@ -435,6 +441,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                         collectValue(doc, rounded);
                         previousRounded = rounded;
                     }
+                }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
                 }
 
                 private void collectValue(int doc, long rounded) throws IOException {
@@ -684,6 +695,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                         roundingIdx = collectValue(owningBucketOrd, roundingIdx, doc, rounded);
                         previousRounded = rounded;
                     }
+                }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
                 }
 
                 private int collectValue(long owningBucketOrd, int roundingIdx, int doc, long rounded) throws IOException {

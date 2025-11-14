@@ -541,7 +541,18 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 continue;
             }
             if (holder.info.type == ThreadPoolType.FORK_JOIN) {
-                stats.add(new ThreadPoolStats.Stats(name, 0, 0, 0, 0, 0, 0, -1, holder.info.getMax()));
+                stats.add(
+                    new ThreadPoolStats.Stats.Builder().name(name)
+                        .threads(0)
+                        .queue(0)
+                        .active(0)
+                        .rejected(0)
+                        .largest(0)
+                        .completed(0)
+                        .waitTimeNanos(-1)
+                        .parallelism(holder.info.getMax())
+                        .build()
+                );
                 continue;
             }
             int threads = -1;
@@ -553,8 +564,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             long waitTimeNanos = -1;
             int parallelism = -1;
 
-            if (holder.executor() instanceof OpenSearchThreadPoolExecutor) {
-                OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) holder.executor();
+            if (holder.executor() instanceof OpenSearchThreadPoolExecutor threadPoolExecutor) {
                 threads = threadPoolExecutor.getPoolSize();
                 queue = threadPoolExecutor.getQueue().size();
                 active = threadPoolExecutor.getActiveCount();
@@ -563,8 +573,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 waitTimeNanos = threadPoolExecutor.getPoolWaitTimeNanos();
 
                 RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
-                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
-                    rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
+                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler xRejectedExecutionHandler) {
+                    rejected = xRejectedExecutionHandler.rejected();
                 }
             }
             stats.add(

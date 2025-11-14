@@ -32,6 +32,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
@@ -140,6 +141,11 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
                     mins.set(bucket, min);
                     maxes.set(bucket, max);
                 }
+            }
+
+            @Override
+            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                super.collect(stream, owningBucketOrd);
             }
         };
     }

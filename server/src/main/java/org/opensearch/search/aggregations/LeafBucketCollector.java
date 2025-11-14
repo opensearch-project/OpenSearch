@@ -154,6 +154,31 @@ public abstract class LeafBucketCollector implements LeafCollector {
     }
 
     @Override
+    public void collect(DocIdStream stream) throws IOException {
+        collect(stream, 0);
+    }
+
+    /**
+     * Bulk-collect doc IDs within {@code owningBucketOrd}.
+     *
+     * <p>Note: The provided {@link DocIdStream} may be reused across calls and should be consumed immediately.
+     *
+     * <p>Note: The provided DocIdStream typically only holds a small subset of query matches. This method may be called multiple times per segment.
+     * Like collect(int), it is guaranteed that doc IDs get collected in order, ie. doc IDs are collected in order within a DocIdStream, and if
+     * called twice, all doc IDs from the second DocIdStream will be greater than all doc IDs from the first DocIdStream.
+     *
+     * <p>It is legal for callers to mix calls to {@link #collect(DocIdStream, long)} and {@link #collect(int, long)}.
+     *
+     * <p>The default implementation calls {@code stream.forEach(doc -> collect(doc, owningBucketOrd))}.
+     */
+    @ExperimentalApi
+    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+        // Different aggregator implementations should override this method even if to just delegate to super for
+        // helping the performance: when the super call inlines, calls to #collect(int, long) become monomorphic.
+        stream.forEach((doc) -> collect(doc, owningBucketOrd));
+    }
+
+    @Override
     public void setScorer(Scorable scorer) throws IOException {
         // no-op by default
     }

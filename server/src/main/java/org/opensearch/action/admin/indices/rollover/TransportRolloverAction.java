@@ -304,7 +304,10 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         }
         final long numDocs = docsStats == null ? 0 : docsStats.getCount();
         final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
-        final Condition.Stats stats = new Condition.Stats(numDocs, metadata.getCreationDate(), new ByteSizeValue(indexSize));
+        final Condition.Stats stats = new Condition.Stats.Builder().numDocs(numDocs)
+            .indexCreated(metadata.getCreationDate())
+            .indexSize(new ByteSizeValue(indexSize))
+            .build();
         return conditions.stream()
             .map(condition -> condition.evaluate(stats))
             .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));

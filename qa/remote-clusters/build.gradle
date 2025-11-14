@@ -72,10 +72,11 @@ tasks.named("preProcessFixture").configure {
 
 dockerCompose {
   tcpPortsToIgnoreWhenWaiting = [9600, 9601]
-  useComposeFiles = ['docker-compose.yml']
-  if (BuildParams.inFipsJvm) {
-    environment.put("KEYSTORE_PASSWORD", "notarealpasswordphrase")
+  def composeFiles = ['docker-compose.yml']
+  if (BuildParams.isInFipsJvm()) {
+    composeFiles.add('docker-compose.fips.yml')
   }
+  useComposeFiles = composeFiles
 }
 
 def createAndSetWritable(Object... locations) {

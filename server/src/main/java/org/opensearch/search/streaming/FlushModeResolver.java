@@ -120,8 +120,8 @@ public final class FlushModeResolver {
             return StreamingCostMetrics.nonStreamable();
         }
         StreamingCostMetrics nodeMetrics;
-        if (collector instanceof Streamable) {
-            nodeMetrics = ((Streamable) collector).getStreamingCostMetrics();
+        if (collector instanceof Streamable streamable) {
+            nodeMetrics = streamable.getStreamingCostMetrics();
             if (!nodeMetrics.isStreamable()) {
                 return StreamingCostMetrics.nonStreamable();
             }
