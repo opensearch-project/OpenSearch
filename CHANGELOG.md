@@ -81,5 +81,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Reduce risk of GITHUB_TOKEN exposure [(#960)](https://github.com/wazuh/wazuh-indexer/pull/960)
 - Use latest Amazon Linux 2023 Docker image [(#1182)](https://github.com/wazuh/wazuh-indexer/pull/1182)
 - Update CodeQL configuration [(#1220)](https://github.com/wazuh/wazuh-indexer/pull/1220)
+- Potential fix for code scanning alerts: Workflow does not contain permissions [(#1234)](https://github.com/wazuh/wazuh-indexer/pull/1234)
 
 [Unreleased 5.0.0]: https://github.com/wazuh/wazuh-indexer/compare/4.14.1...5.0.0

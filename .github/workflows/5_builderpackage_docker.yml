@@ -84,6 +84,8 @@ jobs:
     secrets: inherit
 
   build-and-push-docker-image:
+    permissions:
+      contents: read
     needs: [call-build-workflow]
     runs-on: ubuntu-24.04
     env:

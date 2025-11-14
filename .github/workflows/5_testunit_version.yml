@@ -1,4 +1,6 @@
 name: (5.x) Check version file
+permissions:
+  contents: read
 
 on:
   push:
