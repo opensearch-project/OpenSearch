@@ -105,6 +105,7 @@ import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
+import org.opensearch.tasks.TaskAwareBigArrays;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -1074,6 +1075,10 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void setTask(SearchShardTask task) {
         this.task = task;
+
+        if (bigArrays instanceof TaskAwareBigArrays) {
+            ((TaskAwareBigArrays) bigArrays).setTask(task);
+        }
     }
 
     @Override
