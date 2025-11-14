@@ -13,6 +13,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.datafusion.search.DatafusionReaderManager;
+import org.opensearch.datafusion.search.DatafusionSearcher;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.execution.search.spi.DataFormatCodec;
@@ -97,12 +99,12 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
      * Creates a shard specific read engine
      */
     @Override
-    public SearchExecEngine<?, ?, ?> createEngine(
+    public SearchExecEngine<DatafusionSearcher, DatafusionReaderManager> createEngine(
         DataFormat dataFormat,
         Collection<FileMetadata> formatCatalogSnapshot,
         ShardPath shardPath
     ) throws IOException {
-        return null;
+        return new DatafusionEngine(dataFormat, formatCatalogSnapshot, datafusionService, shardPath);
     }
 
 }

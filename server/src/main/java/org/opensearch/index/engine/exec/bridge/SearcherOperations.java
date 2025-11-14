@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.bridge;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.exec.read.CatalogSnapshotAwareRefreshListener;
@@ -22,6 +23,7 @@ import java.util.function.Function;
  * @param <S> Searcher
  * @param <R> Reader
  */
+@ExperimentalApi
 public interface SearcherOperations<S extends EngineSearcher, R> {
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.

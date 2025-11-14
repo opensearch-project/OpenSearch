@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.read;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.manage.CatalogSnapshot;
 
 import java.io.IOException;
@@ -15,6 +16,7 @@ import java.io.IOException;
 /**
  * Base Listener interface for refresh lifecycle of catalog snapshot
  */
+@ExperimentalApi
 public interface CatalogSnapshotAwareRefreshListener {
     /**
      * Called before refresh operation.

@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.manage;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.index.engine.exec.engine.FileMetadata;
 import org.opensearch.index.engine.exec.engine.RefreshResult;
@@ -30,6 +31,7 @@ import java.util.Objects;
  * The id associated to a CatalogSnapshot should always be higher than the previous instance as more data is indexed.
  *
  */
+@ExperimentalApi
 public class CatalogSnapshot extends AbstractRefCounted {
 
     private Map<String, Collection<FileMetadata>> dfGroupedSearchableFiles = new HashMap<>();
@@ -79,6 +81,7 @@ public class CatalogSnapshot extends AbstractRefCounted {
         return "CatalogSnapshot{" + "dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + ", id=" + id + '}';
     }
 
+    @ExperimentalApi
     public static class Segment implements Comparable<Segment> {
         private final long generation;
         private final Map<String, Collection<FileMetadata>> dfGroupedSearchableFiles;

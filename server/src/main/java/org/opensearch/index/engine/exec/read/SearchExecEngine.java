@@ -21,17 +21,14 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Generic read engine interface that provides searcher operations and query phase execution
- * @param <C> Context type for query execution
- * @param <S> Searcher type that extends EngineSearcher
- * @param <R> Reference manager type
+ * The Search execution engine interface
+ * @param <Q> The engine searcher {@link EngineSearcher}
+ * @param <R> The engine reader manager {@link EngineReaderManager}
  */
 @ExperimentalApi
-public abstract class SearchExecEngine<C extends SearchContext, S extends EngineSearcher<?>, R> implements SearcherOperations<S, R> {
-    /**
-     * Create a search context for this engine
-     */
-    public abstract C createContext(
+public interface SearchExecEngine<Q extends EngineSearcher, R> {
+
+    SearchContext createContext(
         ReaderContext readerContext,
         ShardSearchRequest request,
         SearchShardTarget searchShardTarget,
@@ -39,10 +36,7 @@ public abstract class SearchExecEngine<C extends SearchContext, S extends Engine
         BigArrays bigArrays
     ) throws IOException;
 
-    /**
-     * execute query
-     * TODO : Result type
-     * @return query results
-     */
-    public abstract Map<String, Object[]> execute(C context) throws IOException;
+    Map<String, Object[]> execute(SearchContext context) throws IOException;
+
+    SearcherOperations<Q, R> getSearcherOperations();
 }

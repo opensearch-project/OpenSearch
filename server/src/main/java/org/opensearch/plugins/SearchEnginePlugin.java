@@ -59,6 +59,6 @@ public interface SearchEnginePlugin extends SearchPlugin {
     /**
      * Creates a shard specific read engine
      */
-    SearchExecEngine<?, ?, ?> createEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, ShardPath shardPath)
+    SearchExecEngine createEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, ShardPath shardPath)
         throws IOException;
 }
