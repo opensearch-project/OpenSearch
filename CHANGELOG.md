@@ -56,6 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update GitHub Actions versions in main branch [(#1131)](https://github.com/wazuh/wazuh-indexer/pull/1131)
 - Refactor GH workflow to build packages to use a single branch input [(#1145)](https://github.com/wazuh/wazuh-indexer/pull/1145) [(#1169)](https://github.com/wazuh/wazuh-indexer/pull/1169)
 - Enhance maintenance workflows [(#1192)](https://github.com/wazuh/wazuh-indexer/pull/1192)
+- Change transport.port to http.port in indexer-security-init [(#1233)](https://github.com/wazuh/wazuh-indexer/pull/1233)
 
 ### Deprecated
 -

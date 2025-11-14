@@ -87,7 +87,7 @@ getNetworkHost() {
 # -----------------------------------------------------------------------------
 getPort() {
 
-    PORT=$(grep -hr 'transport.tcp.port' "${CONFIG_FILE}" 2>&1)
+    PORT=$(grep -hr 'http.port' "${CONFIG_FILE}" 2>&1)
     if [ "${PORT}" ]; then
         PORT=$(echo "${PORT}" | cut -d' ' -f2 | cut -d'-' -f1)
     else
