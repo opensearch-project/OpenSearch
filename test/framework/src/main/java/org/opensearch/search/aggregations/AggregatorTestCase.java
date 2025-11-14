@@ -419,7 +419,15 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         MultiBucketConsumer bucketConsumer,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return createSearchContext(shouldProfile, indexSearcher, indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
+        return createSearchContext(
+            shouldProfile,
+            indexSearcher,
+            indexSettings,
+            query,
+            bucketConsumer,
+            new NoneCircuitBreakerService(),
+            fieldTypes
+        );
     }
 
     protected SearchContext createSearchContextWithStarTreeContext(
@@ -1087,7 +1095,10 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             searchContext = createSearchContext(true, searcher, indexSettings, query, bucketConsumer, fieldTypes);
         }
 
-        CountingAggregator countingAggregator = new CountingAggregator(new AtomicInteger(), new ProfilingAggregator(createAggregator(builder, searchContext), searchContext.getProfilers().getAggregationProfiler()));
+        CountingAggregator countingAggregator = new CountingAggregator(
+            new AtomicInteger(),
+            new ProfilingAggregator(createAggregator(builder, searchContext), searchContext.getProfilers().getAggregationProfiler())
+        );
 
         countingAggregator.preCollection();
         searcher.search(query, countingAggregator);
