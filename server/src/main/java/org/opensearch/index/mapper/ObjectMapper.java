@@ -876,7 +876,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
      * 
      * @param mergeWith The ObjectMapper being merged
      * @param reason The reason for the merge
-     * @throws MapperException if preserve_dots is being changed (Requirement 3.4)
+     * @throws MapperException if preserve_dots is being changed
      */
     private void validatePreserveDotsImmutability(ObjectMapper mergeWith, MergeReason reason) {
         if (this.preserveDotsExplicit().explicit() && mergeWith.preserveDotsExplicit().explicit()) {
@@ -899,7 +899,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
      * Provides clear indication of flat vs nested conflict with field name.
      * 
      * @param newMapper The new mapper being added
-     * @throws MapperException if attempting to add nested object when preserve_dots=true (Requirement 3.1)
+     * @throws MapperException if attempting to add nested object when preserve_dots=true
      */
     private void validateNestedObjectRejection(Mapper newMapper) {
         if (this.preserveDots() && newMapper instanceof ObjectMapper) {
@@ -919,7 +919,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
      * This is called during index creation to ensure compatibility.
      * Provides clear indication of flat vs nested conflict with field name.
      * 
-     * @throws MapperParsingException if nested objects are found when preserve_dots=true (Requirement 3.1)
+     * @throws MapperParsingException if nested objects are found when preserve_dots=true
      */
     private void validateFlatFieldCompatibility() {
         if (this.preserveDots()) {
