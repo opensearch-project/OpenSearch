@@ -585,7 +585,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
 
             /**
              * Creates a {@link DeviceStats} object from the builder's current state.
-             * @return A new DocsStats instance.
+             * @return A new DeviceStats instance.
              */
             public DeviceStats build() {
                 return new DeviceStats(this);

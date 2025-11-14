@@ -797,14 +797,13 @@ public class NodeStatsTests extends OpenSearchTestCase {
             fsInfo = new FsInfo(randomNonNegativeLong(), ioStats, paths);
         }
         TransportStats transportStats = frequently()
-            ? new TransportStats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong()
-            )
+            ? new TransportStats.Builder().serverOpen(randomNonNegativeLong())
+                .totalOutboundConnections(randomNonNegativeLong())
+                .rxCount(randomNonNegativeLong())
+                .rxSize(randomNonNegativeLong())
+                .txCount(randomNonNegativeLong())
+                .txSize(randomNonNegativeLong())
+                .build()
             : null;
         HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
         AllCircuitBreakerStats allCircuitBreakerStats = null;
