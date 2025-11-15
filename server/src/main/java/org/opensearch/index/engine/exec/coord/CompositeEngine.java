@@ -9,7 +9,7 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
@@ -950,6 +950,22 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                     closedLatch.countDown();
                 }
             }
+        }
+    }
+
+    /**
+     * Acquires the most recent safe index commit snapshot from the currently running engine.
+     * All index files referenced by this commit won't be freed until the commit/snapshot is closed.
+     * This method is required for replica recovery operations.
+     */
+    public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
+        ensureOpen();
+        if (compositeEngineCommitter instanceof LuceneCommitEngine) {
+            LuceneCommitEngine luceneCommitEngine = (LuceneCommitEngine) compositeEngineCommitter;
+            // Delegate to the LuceneCommitEngine's acquireSafeIndexCommit method
+            return luceneCommitEngine.acquireSafeIndexCommit();
+        } else {
+            throw new EngineException(shardId, "CompositeEngine committer is not a LuceneCommitEngine");
         }
     }
 }
