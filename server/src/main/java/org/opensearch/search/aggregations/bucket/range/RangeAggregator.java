@@ -359,6 +359,11 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
                 super.collect(stream, owningBucketOrd);
             }
 
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                super.collectRange(min, max);
+            }
+
             private int collect(int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
                 MatchedRange range = new MatchedRange(ranges, lowBound, value, maxTo);
                 for (int i = range.startLo; i <= range.endHi; ++i) {
