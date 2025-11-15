@@ -1951,7 +1951,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
-            return getEngine().acquireSafeIndexCommit();
+            return getIndexingExecutionCoordinator().acquireSafeIndexCommit();
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
