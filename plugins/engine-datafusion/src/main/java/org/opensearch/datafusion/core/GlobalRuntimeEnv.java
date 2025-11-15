@@ -8,8 +8,6 @@
 
 package org.opensearch.datafusion.core;
 
-import org.opensearch.datafusion.jni.async.AsyncExecutor;
-import org.opensearch.datafusion.jni.async.AsyncQueryExecutor;
 import org.opensearch.datafusion.jni.NativeBridge;
 
 import java.lang.ref.Cleaner;
@@ -24,8 +22,6 @@ public final class GlobalRuntimeEnv implements AutoCloseable {
 
     private final long ptr;
     private final long tokioRuntimePtr;
-    private final AsyncExecutor asyncExecutor;
-    private final AsyncQueryExecutor asyncQueryExecutor;
     private final Cleaner.Cleanable cleanable;
 
     /**
@@ -34,9 +30,7 @@ public final class GlobalRuntimeEnv implements AutoCloseable {
     public GlobalRuntimeEnv() {
         this.ptr = NativeBridge.createGlobalRuntime();
         this.tokioRuntimePtr = NativeBridge.createTokioRuntime();
-        this.asyncExecutor = new AsyncExecutor(tokioRuntimePtr);
-        this.asyncQueryExecutor = new AsyncQueryExecutor(asyncExecutor);
-        this.cleanable = CLEANER.register(this, new CleanupAction(ptr, tokioRuntimePtr, asyncExecutor));
+        this.cleanable = CLEANER.register(this, new CleanupAction(ptr, tokioRuntimePtr));
     }
 
     /**
@@ -55,22 +49,6 @@ public final class GlobalRuntimeEnv implements AutoCloseable {
         return tokioRuntimePtr;
     }
 
-    /**
-     * Gets the async executor for non-blocking operations.
-     * @return the async executor
-     */
-    public AsyncExecutor getAsyncExecutor() {
-        return asyncExecutor;
-    }
-
-    /**
-     * Gets the async query executor for non-blocking query operations.
-     * @return the async query executor
-     */
-    public AsyncQueryExecutor getAsyncQueryExecutor() {
-        return asyncQueryExecutor;
-    }
-
     @Override
     public void close() {
         cleanable.clean();
@@ -79,17 +57,14 @@ public final class GlobalRuntimeEnv implements AutoCloseable {
     private static final class CleanupAction implements Runnable {
         private final long ptr;
         private final long tokioPtr;
-        private final AsyncExecutor asyncExecutor;
 
-        CleanupAction(long ptr, long tokioPtr, AsyncExecutor asyncExecutor) {
+        CleanupAction(long ptr, long tokioPtr) {
             this.ptr = ptr;
             this.tokioPtr = tokioPtr;
-            this.asyncExecutor = asyncExecutor;
         }
 
         @Override
         public void run() {
-            asyncExecutor.close();
             if (ptr != 0) {
                 NativeBridge.closeGlobalRuntime(ptr);
             }
