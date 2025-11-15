@@ -273,6 +273,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
                 super.collect(stream, owningBucketOrd);
             }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                super.collectRange(min, max);
+            }
         };
     }
 
@@ -423,6 +428,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 @Override
                 public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
                     super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
                 }
 
                 private void collectValue(int doc, long rounded) throws IOException {
@@ -677,6 +687,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 @Override
                 public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
                     super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
                 }
 
                 private int collectValue(long owningBucketOrd, int roundingIdx, int doc, long rounded) throws IOException {

@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
@@ -128,6 +129,27 @@ public abstract class LeafBucketCollector implements LeafCollector {
     @Override
     public void collect(DocIdStream stream) throws IOException {
         collect(stream, 0);
+    }
+
+    /**
+     * Collect a range of doc IDs, between {@code min} inclusive and {@code max} exclusive. {@code
+     * max} is guaranteed to be greater than {@code min}.
+     *
+     * <p>Extending this method is typically useful to take advantage of pre-aggregated data exposed
+     * in a {@link DocValuesSkipper}.
+     *
+     * <p>The default implementation calls {@link #collect(DocIdStream)} on a {@link DocIdStream} that
+     * matches the given range.
+     *
+     * @see #collect(int,long)
+     */
+    @Override
+    public void collectRange(int min, int max) throws IOException {
+        // Different aggregator implementations should override this method even if to just delegate to super for
+        // helping the performance: when the super call inlines, calls to #collect(int, long) become monomorphic.
+        for (int docId = min; docId < max; docId++) {
+            collect(docId, 0);
+        }
     }
 
     /**
