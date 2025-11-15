@@ -13,6 +13,8 @@ use datafusion::common::DataFusionError;
 
 pub type Result<T, E = DataFusionError> = result::Result<T, E>;
 
+
+/// Wrapper around MonitoredMemoryPool providing access to memory monitoring capabilities.
 #[derive(Debug)]
 pub struct CustomMemoryPool {
     memory_pool: Arc<MonitoredMemoryPool>
@@ -32,6 +34,7 @@ impl CustomMemoryPool {
     }
 }
 
+/// Tracks current and peak memory usage atomically.
 #[derive(Debug, Default)]
 pub(crate) struct Monitor {
     pub(crate) value: AtomicUsize,
@@ -57,6 +60,7 @@ impl Monitor {
     }
 }
 
+/// MemoryPool implementation that wraps another pool and tracks memory usage via Monitor.
 #[derive(Debug)]
 pub(crate) struct MonitoredMemoryPool {
     inner: Arc<dyn MemoryPool>,
