@@ -295,7 +295,7 @@ public class Netty4HttpRequest implements HttpRequest {
 
         @Override
         public List<String> get(Object key) {
-            return key instanceof String string ? httpHeaders.getAll(string) : null;
+            return key instanceof String keyString ? httpHeaders.getAll(keyString) : null;
         }
 
         @Override

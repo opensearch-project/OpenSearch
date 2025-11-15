@@ -34,20 +34,11 @@ public class StructProtoUtils {
         Value.Builder valueBuilder = Value.newBuilder();
 
         switch (javaObject) {
-            case null ->
-                // Null
-                valueBuilder.setNullValue(NullValue.NULL_VALUE);
-            case Number number ->
-                // Number - use doubleValue() to handle all numeric types
-                valueBuilder.setNumberValue(number.doubleValue());
-            case String string ->
-                // String
-                valueBuilder.setStringValue(string);
-            case Boolean bool ->
-                // Boolean
-                valueBuilder.setBoolValue(bool);
+            case null -> valueBuilder.setNullValue(NullValue.NULL_VALUE);
+            case Number number -> valueBuilder.setNumberValue(number.doubleValue());
+            case String string -> valueBuilder.setStringValue(string);
+            case Boolean bool -> valueBuilder.setBoolValue(bool);
             case List<?> list -> {
-                // List
                 ListValue.Builder listBuilder = ListValue.newBuilder();
                 for (Object listEntry : list) {
                     listBuilder.addValues(toProto(listEntry));
@@ -55,8 +46,6 @@ public class StructProtoUtils {
                 valueBuilder.setListValue(listBuilder.build());
             }
             case Map<?, ?> map -> {
-                // Map
-
                 Struct.Builder structBuilder = Struct.newBuilder();
 
                 @SuppressWarnings("unchecked")
