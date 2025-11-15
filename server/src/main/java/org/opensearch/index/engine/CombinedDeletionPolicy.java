@@ -176,7 +176,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      *
      * @param acquiringSafeCommit captures the most recent safe commit point if true; otherwise captures the most recent commit point.
      */
-    synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
+    public synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
         assert safeCommit != null : "Safe commit is not initialized yet";
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
@@ -189,7 +189,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      *
      * @return true if the snapshotting commit can be clean up.
      */
-    synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
+    public synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
         final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).delegate;
         assert snapshottedCommits.containsKey(releasingCommit) : "Release non-snapshotted commit;"
             + "snapshotted commits ["

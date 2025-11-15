@@ -96,6 +96,7 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are
             // broken. We have to clean up this shard entirely, remove all files and bubble it up.
+            // ToDo: Need to update this lucene specific code
             try {
                 try {
                     store.removeCorruptionMarker();
@@ -133,7 +134,7 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
 
     /**
      * Deserializes CatalogSnapshot from byte array.
-     * 
+     *
      * @param infoBytes the serialized CatalogSnapshot bytes
      * @return deserialized CatalogSnapshot
      * @throws IOException if deserialization fails
