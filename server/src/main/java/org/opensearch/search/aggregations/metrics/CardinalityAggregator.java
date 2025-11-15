@@ -598,6 +598,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
             super.collect(stream, owningBucketOrd);
         }
+        
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            super.collectRange(min, max);
+        }
 
         @Override
         public void postCollect() throws IOException {
