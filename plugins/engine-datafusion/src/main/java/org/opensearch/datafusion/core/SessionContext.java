@@ -8,35 +8,35 @@
 
 package org.opensearch.datafusion.core;
 
+import org.opensearch.datafusion.jni.NativeBridge;
+import org.opensearch.datafusion.jni.handle.SessionHandle;
+
 /**
- * Session context for datafusion
+ * Session context for DataFusion operations.
  */
-public class SessionContext implements AutoCloseable {
+public final class SessionContext implements AutoCloseable {
 
-    // ptr to context in df
-    private final long ptr;
-
-    /**
-     * Create a new DataFusion session context
-     * @return context ID for subsequent operations
-     */
-    static native long createContext();
+    private final SessionHandle handle;
 
     /**
-     * Close and cleanup a DataFusion context
-     * @param contextId the context ID to close
+     * Creates a new session context with the given runtime.
+     * @param runtimeId the runtime environment ID
      */
-    public static native void closeContext(long contextId);
+    public SessionContext(long runtimeId) {
+        long ptr = NativeBridge.createSessionContext(runtimeId);
+        this.handle = new SessionHandle(ptr);
+    }
 
     /**
-     * Creates a new session context.
+     * Gets the native pointer to the session context.
+     * @return the native pointer
      */
-    public SessionContext() {
-        this.ptr = createContext();
+    public long getPointer() {
+        return handle.getPointer();
     }
 
     @Override
-    public void close() throws Exception {
-        closeContext(this.ptr);
+    public void close() {
+        handle.close();
     }
 }

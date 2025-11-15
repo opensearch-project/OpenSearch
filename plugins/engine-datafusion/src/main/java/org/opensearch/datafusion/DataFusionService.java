@@ -14,6 +14,7 @@ import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.datafusion.core.GlobalRuntimeEnv;
+import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
@@ -40,7 +41,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.dataSourceRegistry = new DataSourceRegistry(dataSourceCodecs);
 
         // to verify jni
-        String version = DataFusionQueryJNI.getVersionInfo();
+        String version = NativeBridge.getVersionInfo();
         this.globalRuntimeEnv = new GlobalRuntimeEnv();
     }
 

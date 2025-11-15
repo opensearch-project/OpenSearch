@@ -17,7 +17,7 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.opensearch.datafusion.core.SessionContext;
+import org.opensearch.datafusion.jni.NativeBridge;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -131,9 +131,15 @@ public class RecordBatchStream {
         }
     }
 
-    private static native void next(long runtime, long pointer, ObjectResultCallback callback);
+    private static void next(long runtime, long pointer, ObjectResultCallback callback) {
+        NativeBridge.streamNext(runtime, pointer, callback);
+    }
 
-    private static native void getSchema(long pointer, ObjectResultCallback callback);
+    private static void getSchema(long pointer, ObjectResultCallback callback) {
+        NativeBridge.streamGetSchema(pointer, callback);
+    }
 
-    private static native void closeStream(long pointer);
+    private static void closeStream(long pointer) {
+        NativeBridge.streamClose(pointer);
+    }
 }

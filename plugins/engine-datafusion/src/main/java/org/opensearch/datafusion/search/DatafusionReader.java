@@ -8,7 +8,7 @@
 
 package org.opensearch.datafusion.search;
 
-import org.opensearch.datafusion.DataFusionQueryJNI;
+import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.Closeable;
@@ -17,7 +17,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.opensearch.datafusion.DataFusionQueryJNI.closeDatafusionReader;
+import static org.opensearch.datafusion.jni.NativeBridge.closeDatafusionReader;
 
 /**
  * DataFusion reader for JNI operations.
@@ -55,7 +55,7 @@ public class DatafusionReader implements Closeable {
         System.out.println("File names: " + Arrays.toString(fileNames));
         System.out.println("Directory path: " + directoryPath);
 
-        this.cachePtr = DataFusionQueryJNI.createDatafusionReader(directoryPath, fileNames);
+        this.cachePtr = NativeBridge.createDatafusionReader(directoryPath, fileNames);
     }
 
     /**

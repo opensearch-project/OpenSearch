@@ -8,25 +8,35 @@
 
 package org.opensearch.datafusion.core;
 
-import static org.opensearch.datafusion.DataFusionQueryJNI.closeGlobalRuntime;
-import static org.opensearch.datafusion.DataFusionQueryJNI.createGlobalRuntime;
-import static org.opensearch.datafusion.DataFusionQueryJNI.createTokioRuntime;
+import org.opensearch.datafusion.jni.async.AsyncExecutor;
+import org.opensearch.datafusion.jni.async.AsyncQueryExecutor;
+import org.opensearch.datafusion.jni.NativeBridge;
+
+import java.lang.ref.Cleaner;
 
 /**
  * Global runtime environment for DataFusion operations.
- * Manages the lifecycle of the native DataFusion runtime.
+ * Manages the lifecycle of the native DataFusion runtime with automatic cleanup.
  */
-public class GlobalRuntimeEnv implements AutoCloseable {
-    // ptr to runtime environment in df
+public final class GlobalRuntimeEnv implements AutoCloseable {
+
+    private static final Cleaner CLEANER = Cleaner.create();
+
     private final long ptr;
-    private final long tokio_runtime_ptr;
+    private final long tokioRuntimePtr;
+    private final AsyncExecutor asyncExecutor;
+    private final AsyncQueryExecutor asyncQueryExecutor;
+    private final Cleaner.Cleanable cleanable;
 
     /**
      * Creates a new global runtime environment.
      */
     public GlobalRuntimeEnv() {
-        this.ptr = createGlobalRuntime();
-        this.tokio_runtime_ptr = createTokioRuntime();
+        this.ptr = NativeBridge.createGlobalRuntime();
+        this.tokioRuntimePtr = NativeBridge.createTokioRuntime();
+        this.asyncExecutor = new AsyncExecutor(tokioRuntimePtr);
+        this.asyncQueryExecutor = new AsyncQueryExecutor(asyncExecutor);
+        this.cleanable = CLEANER.register(this, new CleanupAction(ptr, tokioRuntimePtr, asyncExecutor));
     }
 
     /**
@@ -37,12 +47,52 @@ public class GlobalRuntimeEnv implements AutoCloseable {
         return ptr;
     }
 
+    /**
+     * Gets the Tokio runtime pointer.
+     * @return the Tokio runtime pointer
+     */
     public long getTokioRuntimePtr() {
-        return tokio_runtime_ptr;
+        return tokioRuntimePtr;
+    }
+
+    /**
+     * Gets the async executor for non-blocking operations.
+     * @return the async executor
+     */
+    public AsyncExecutor getAsyncExecutor() {
+        return asyncExecutor;
+    }
+
+    /**
+     * Gets the async query executor for non-blocking query operations.
+     * @return the async query executor
+     */
+    public AsyncQueryExecutor getAsyncQueryExecutor() {
+        return asyncQueryExecutor;
     }
 
     @Override
     public void close() {
-        closeGlobalRuntime(this.ptr);
+        cleanable.clean();
+    }
+
+    private static final class CleanupAction implements Runnable {
+        private final long ptr;
+        private final long tokioPtr;
+        private final AsyncExecutor asyncExecutor;
+
+        CleanupAction(long ptr, long tokioPtr, AsyncExecutor asyncExecutor) {
+            this.ptr = ptr;
+            this.tokioPtr = tokioPtr;
+            this.asyncExecutor = asyncExecutor;
+        }
+
+        @Override
+        public void run() {
+            asyncExecutor.close();
+            if (ptr != 0) {
+                NativeBridge.closeGlobalRuntime(ptr);
+            }
+        }
     }
 }
