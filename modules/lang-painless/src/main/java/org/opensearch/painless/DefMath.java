@@ -184,21 +184,21 @@ public class DefMath {
 
     private static Object mul(Object left, Object right) {
         if (left instanceof Number leftNum) {
-            if (right instanceof Number r) {
+            if (right instanceof Number rightNum) {
                 if (left instanceof Double || right instanceof Double) {
-                    return leftNum.doubleValue() * r.doubleValue();
+                    return leftNum.doubleValue() * rightNum.doubleValue();
                 } else if (left instanceof Float || right instanceof Float) {
-                    return leftNum.floatValue() * r.floatValue();
+                    return leftNum.floatValue() * rightNum.floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
-                    return leftNum.longValue() * r.longValue();
+                    return leftNum.longValue() * rightNum.longValue();
                 } else {
-                    return leftNum.intValue() * r.intValue();
+                    return leftNum.intValue() * rightNum.intValue();
                 }
             } else if (right instanceof Character rightChar) {
                 return switch (left) {
                     case Double v -> v * rightChar;
                     case Long l -> l * rightChar;
-                    case Float v -> v * rightChar;
+                    case Float f -> f * rightChar;
                     default -> leftNum.intValue() * rightChar;
                 };
             }
@@ -207,7 +207,7 @@ public class DefMath {
                 return switch (right) {
                     case Double v -> leftChar * v;
                     case Long l -> leftChar * l;
-                    case Float v -> leftChar * v;
+                    case Float f -> leftChar * f;
                     default -> leftChar * rightNum.intValue();
                 };
             } else if (right instanceof Character rightChar) {
