@@ -77,11 +77,11 @@ public class DefMath {
 
     private static Object not(Object unary) {
         return switch (unary) {
-            case Long longValue -> ~longValue;
-            case Integer intValue -> ~intValue;
-            case Short shortValue -> ~shortValue;
-            case Character charValue -> ~charValue;
-            case Byte byteValue -> ~byteValue;
+            case Long l -> ~l;
+            case Integer i -> ~i;
+            case Short s -> ~s;
+            case Character c -> ~c;
+            case Byte b -> ~b;
             default -> throw new ClassCastException(
                 "Cannot apply [~] operation to type " + "[" + unary.getClass().getCanonicalName() + "]."
             );
@@ -197,7 +197,7 @@ public class DefMath {
             } else if (right instanceof Character rightChar) {
                 return switch (left) {
                     case Double v -> v * rightChar;
-                    case Long lo -> lo * rightChar;
+                    case Long l -> l * rightChar;
                     case Float v -> v * rightChar;
                     default -> leftNum.intValue() * rightChar;
                 };
