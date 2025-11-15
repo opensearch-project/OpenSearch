@@ -115,8 +115,8 @@ public class DefMath {
             case Double v -> -v;
             case Long l -> -l;
             case Integer i -> -i;
-            case Float v -> -v;
-            case Short i -> -i;
+            case Float f -> -f;
+            case Short s -> -s;
             case Character c -> -c;
             case Byte b -> -b;
             default -> throw new ClassCastException(
@@ -151,7 +151,7 @@ public class DefMath {
             case Long l -> +l;
             case Integer i -> +i;
             case Float v -> +v;
-            case Short i -> +i;
+            case Short s -> +s;
             case Character c -> +c;
             case Byte b -> +b;
             default -> throw new ClassCastException(
@@ -261,7 +261,7 @@ public class DefMath {
                 return switch (left) {
                     case Double v -> v / rightChar;
                     case Long l -> l / rightChar;
-                    case Float v -> v / rightChar;
+                    case Float f -> f / rightChar;
                     default -> leftNum.intValue() / rightChar;
                 };
             }
@@ -270,7 +270,7 @@ public class DefMath {
                 return switch (right) {
                     case Double v -> leftChar / v;
                     case Long l -> leftChar / l;
-                    case Float v -> leftChar / v;
+                    case Float f -> leftChar / f;
                     default -> leftChar / rightNum.intValue();
                 };
             } else if (right instanceof Character rightChar) {
@@ -324,7 +324,7 @@ public class DefMath {
                 return switch (left) {
                     case Double v -> v % rightChar;
                     case Long l -> l % rightChar;
-                    case Float v -> v % rightChar;
+                    case Float f -> f % rightChar;
                     default -> leftNum.intValue() % rightChar;
                 };
             }
@@ -333,7 +333,7 @@ public class DefMath {
                 return switch (right) {
                     case Double v -> leftChar % v;
                     case Long l -> leftChar % l;
-                    case Float v -> leftChar % v;
+                    case Float f -> leftChar % f;
                     default -> leftChar % rightNum.intValue();
                 };
             } else if (right instanceof Character rightChar) {
@@ -394,7 +394,7 @@ public class DefMath {
                 return switch (left) {
                     case Double v -> v + rightChar;
                     case Long l -> l + rightChar;
-                    case Float v -> v + rightChar;
+                    case Float f -> f + rightChar;
                     default -> leftNum.intValue() + rightChar;
                 };
             }
@@ -403,7 +403,7 @@ public class DefMath {
                 return switch (right) {
                     case Double v -> leftChar + v;
                     case Long l -> leftChar + l;
-                    case Float v -> leftChar + v;
+                    case Float f -> leftChar + f;
                     default -> leftChar + rightNum.intValue();
                 };
             } else if (right instanceof Character rightChar) {
@@ -457,7 +457,7 @@ public class DefMath {
                 return switch (left) {
                     case Double v -> v - rightChar;
                     case Long l -> l - rightChar;
-                    case Float v -> v - rightChar;
+                    case Float f -> f - rightChar;
                     default -> leftNum.intValue() - rightChar;
                 };
             }
@@ -466,7 +466,7 @@ public class DefMath {
                 return switch (right) {
                     case Double v -> leftChar - v;
                     case Long l -> leftChar - l;
-                    case Float v -> leftChar - v;
+                    case Float f -> leftChar - f;
                     default -> leftChar - rightNum.intValue();
                 };
             } else if (right instanceof Character rightChar) {
@@ -600,7 +600,7 @@ public class DefMath {
                 return switch (left) {
                     case Double v -> v < rightChar;
                     case Long l -> l < rightChar;
-                    case Float v -> v < rightChar;
+                    case Float f -> f < rightChar;
                     default -> leftNum.intValue() < rightChar;
                 };
             }
@@ -609,7 +609,7 @@ public class DefMath {
                 return switch (right) {
                     case Double v -> leftChar < v;
                     case Long l -> leftChar < l;
-                    case Float v -> leftChar < v;
+                    case Float f -> leftChar < f;
                     default -> leftChar < rightNum.intValue();
                 };
             } else if (right instanceof Character rightChar) {
@@ -663,7 +663,7 @@ public class DefMath {
                 return switch (left) {
                     case Double v -> v <= rightChar;
                     case Long l -> l <= rightChar;
-                    case Float v -> v <= rightChar;
+                    case Float f -> f <= rightChar;
                     default -> leftNum.intValue() <= rightChar;
                 };
             }
@@ -672,7 +672,7 @@ public class DefMath {
                 return switch (right) {
                     case Double v -> leftChar <= v;
                     case Long l -> leftChar <= l;
-                    case Float v -> leftChar <= v;
+                    case Float f -> leftChar <= f;
                     default -> leftChar <= rightNum.intValue();
                 };
             } else if (right instanceof Character rightChar) {
@@ -726,7 +726,7 @@ public class DefMath {
                 return switch (left) {
                     case Double v -> v > rightChar;
                     case Long l -> l > rightChar;
-                    case Float v -> v > rightChar;
+                    case Float f -> f > rightChar;
                     default -> leftNum.intValue() > rightChar;
                 };
             }
@@ -735,7 +735,7 @@ public class DefMath {
                 return switch (right) {
                     case Double v -> leftChar > v;
                     case Long l -> leftChar > l;
-                    case Float v -> leftChar > v;
+                    case Float f -> leftChar > f;
                     default -> leftChar > rightNum.intValue();
                 };
             } else if (right instanceof Character rightChar) {
@@ -789,7 +789,7 @@ public class DefMath {
                 return switch (left) {
                     case Double v -> v >= rightChar;
                     case Long l -> l >= rightChar;
-                    case Float v -> v >= rightChar;
+                    case Float f -> f >= rightChar;
                     default -> leftNum.intValue() >= rightChar;
                 };
             }
@@ -798,7 +798,7 @@ public class DefMath {
                 return switch (right) {
                     case Double v -> leftChar >= v;
                     case Long l -> leftChar >= l;
-                    case Float v -> leftChar >= v;
+                    case Float f -> leftChar >= f;
                     default -> leftChar >= rightNum.intValue();
                 };
             } else if (right instanceof Character rightChar) {
