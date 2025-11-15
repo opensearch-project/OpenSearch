@@ -1,7 +1,10 @@
 package com.parquet.parquetdataformat.writer;
 
+import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.vsr.VSRManager;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
@@ -33,15 +36,18 @@ import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DAT
  * to the {@link VSRManager}.
  */
 public class ParquetWriter implements Writer<ParquetDocumentInput> {
+
+    private static final Logger logger = LogManager.getLogger(ParquetWriter.class);
+
     private final String file;
     private final Schema schema;
     private final VSRManager vsrManager;
     private final long writerGeneration;
 
-    public ParquetWriter(String file, Schema schema, long writerGeneration) {
+    public ParquetWriter(String file, Schema schema, long writerGeneration, ArrowBufferPool arrowBufferPool) {
         this.file = file;
         this.schema = schema;
-        this.vsrManager = new VSRManager(file, schema);
+        this.vsrManager = new VSRManager(file, schema, arrowBufferPool);
         this.writerGeneration = writerGeneration;
     }
 
@@ -78,6 +84,12 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
 
     @Override
     public ParquetDocumentInput newDocumentInput() {
+        try {
+            vsrManager.maybeRotateActiveVSR();
+        } catch (IOException e) {
+            logger.error("Failed to handle VSR rotation: {}", e.getMessage(), e);
+        }
+
         // Get a new ManagedVSR from VSRManager for this document input
         return new ParquetDocumentInput(vsrManager.getActiveManagedVSR());
     }

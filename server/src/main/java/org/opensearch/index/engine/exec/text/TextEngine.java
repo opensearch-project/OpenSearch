@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -63,7 +64,12 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
     }
 
     @Override
-    public void loadWriterFiles(ShardPath shardPath) throws IOException {
+    public void loadWriterFiles() {
+
+    }
+
+    @Override
+    public void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
 
     }
 
@@ -73,6 +79,11 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
         RefreshResult refreshResult = new RefreshResult();
         refreshResult.add(DataFormat.TEXT, openFiles);
         return refreshResult;
+    }
+
+    @Override
+    public void close() throws IOException {
+
     }
 
     public static class TextInput implements DocumentInput<String> {

@@ -133,6 +133,8 @@ public interface Indexer {
 
     String getHistoryUUID();
 
+    void flushAndClose() throws IOException;
+
     /**
      * Reads the current stored history ID from commit data.
      */

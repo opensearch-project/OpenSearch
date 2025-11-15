@@ -89,9 +89,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -105,7 +108,7 @@ import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNA
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY;
 
 @ExperimentalApi
-public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState, IndexingThrottler {
+public class CompositeEngine implements LifecycleAware, Closeable, Indexer, CheckpointState, IndexingThrottler {
 
     private static final Consumer<ReferenceManager.RefreshListener> PRE_REFRESH_LISTENER_CONSUMER = refreshListener -> {
         try {
@@ -150,10 +153,12 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     protected final String historyUUID;
 
     private final LocalCheckpointTracker localCheckpointTracker;
+    private final ReentrantLock failEngineLock = new ReentrantLock();
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     private final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     private final Lock flushLock = new ReentrantLock();
+    private final CountDownLatch closedLatch = new CountDownLatch(1);
 
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
@@ -183,9 +188,9 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes;
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
-
-    private final AtomicLong inFlightDocCount = new AtomicLong();
     private final IndexingStrategyPlanner indexingStrategyPlanner;
+    private final AtomicReference<IndexFileDeleter> indexFileDeleter;
+    private final Map<Long, CatalogSnapshot> catalogSnapshotMap;
 
     public CompositeEngine(
         EngineConfig engineConfig,
@@ -201,6 +206,8 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
         this.store = engineConfig.getStore();
         Committer committerRef = null;
         TranslogManager translogManagerRef = null;
+        indexFileDeleter = new AtomicReference<>(null);
+        catalogSnapshotMap = new HashMap<>();
         try {
             this.engineConfig = engineConfig;
             this.store.incRef();
@@ -209,27 +216,9 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
                 updateAutoIdTimestamp(Long.MAX_VALUE, true);
             }
 
-            // initialize committer and composite indexing execution engine
-            committerRef = new LuceneCommitEngine(store);
-            this.compositeEngineCommitter = committerRef;
-            final AtomicLong lastCommittedWriterGeneration = new AtomicLong(-1);
-            this.compositeEngineCommitter.readLastCommittedCatalogSnapshot().ifPresent(lastCommittedCatalogSnapshot -> {
-                this.catalogSnapshot = lastCommittedCatalogSnapshot;
-                this.catalogSnapshot.remapPaths(shardPath.getDataPath());
-                lastCommittedWriterGeneration.set(lastCommittedCatalogSnapshot.getLastWriterGeneration());
-            });
-            // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
-            this.engine = new CompositeIndexingExecutionEngine(
-                mapperService,
-                pluginsService,
-                shardPath,
-                lastCommittedWriterGeneration.incrementAndGet()
-            );
-            this.engine.loadWriterFiles(shardPath);
-
             // initialize local checkpoint tracker and translog manager
             this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
-            final Map<String, String> userData = this.compositeEngineCommitter.getLastCommittedData();
+            final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
             String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             final TranslogDeletionPolicy translogDeletionPolicy = getTranslogDeletionPolicy(engineConfig);
             TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
@@ -261,6 +250,31 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
                 new CompositeTranslogEventListener(Arrays.asList(internalTranslogEventListener, translogEventListener), shardId);
             translogManagerRef = createTranslogManager(translogUUID, translogDeletionPolicy, compositeTranslogEventListener);
             this.translogManager = translogManagerRef;
+
+            // initialize committer and composite indexing execution engine
+            committerRef = new LuceneCommitEngine(store, translogDeletionPolicy, translogManager::getLastSyncedGlobalCheckpoint);
+            this.compositeEngineCommitter = committerRef;
+            final AtomicLong lastCommittedWriterGeneration = new AtomicLong(-1);
+            this.compositeEngineCommitter.readLastCommittedCatalogSnapshot().ifPresent(lastCommittedCatalogSnapshot -> {
+                this.catalogSnapshot = lastCommittedCatalogSnapshot;
+                // Since the catalog snapshot is created from last commit, deleter and map are not available, so we explicitly set them
+                catalogSnapshot.setIndexFileDeleterSupplier(indexFileDeleter::get);
+                catalogSnapshot.setCatalogSnapshotMap(catalogSnapshotMap);
+                this.catalogSnapshot.remapPaths(shardPath.getDataPath());
+                lastCommittedWriterGeneration.set(lastCommittedCatalogSnapshot.getLastWriterGeneration());
+                catalogSnapshotMap.put(catalogSnapshot.getId(), catalogSnapshot);
+            });
+            // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
+            this.engine = new CompositeIndexingExecutionEngine(
+                mapperService,
+                pluginsService,
+                shardPath,
+                lastCommittedWriterGeneration.incrementAndGet()
+            );
+            //Initialize IndexFileDeleter before loadWriterFiles to ensure stale files are cleaned up before loading
+            indexFileDeleter.set(new IndexFileDeleter(this.engine, catalogSnapshot, shardPath));
+            System.out.println("IndexFile Deleter after initialising : " + indexFileDeleter);
+            this.engine.loadWriterFiles();
 
             this.maxSeqNoOfUpdatesOrDeletes =
                 new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getMaxSeqNo()));
@@ -331,7 +345,8 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     ) throws IOException {
         final long maxSeqNo;
         final long localCheckpoint;
-        final SequenceNumbers.CommitInfo seqNoStats = this.compositeEngineCommitter.loadSeqNoInfoFromLastCommit();
+        final SequenceNumbers.CommitInfo seqNoStats =
+            SequenceNumbers.loadSeqNoInfoFromLuceneCommit(store.readLastCommittedSegmentsInfo().getUserData().entrySet());
         maxSeqNo = seqNoStats.maxSeqNo;
         localCheckpoint = seqNoStats.localCheckpoint;
         logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
@@ -599,9 +614,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     }
 
     private void releaseInFlightDocs(int numDocs) {
-        assert numDocs >= 0 : numDocs;
-        final long newValue = inFlightDocCount.addAndGet(-numDocs);
-        assert newValue >= 0 : "inFlightDocCount must not be negative [" + newValue + "]";
+
     }
 
     /**
@@ -633,7 +646,6 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
 
     @Override
     public long getMinRetainedSeqNo() {
-        // TODO - To be implemented
         return -1;
     }
 
@@ -703,7 +715,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     }
 
     public synchronized void refresh(String source) throws EngineException {
-        refresh(source, Collections.EMPTY_MAP);
+        refresh(source, Collections.emptyMap());
     }
 
     public synchronized void refresh(String source, Map<DataFormat, RefreshInput> refreshInputs) throws EngineException {
@@ -727,13 +739,12 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
                     return;
                 }
             }
-            newCatSnap = new CatalogSnapshot(refreshResult, id + 1L, version + 1L);
+            newCatSnap = new CatalogSnapshot(refreshResult, id + 1L, version + 1L, catalogSnapshotMap, indexFileDeleter::get);
+            catalogSnapshotMap.put(newCatSnap.getId(), newCatSnap);
             System.out.println("CATALOG SNAPSHOT: " + newCatSnap);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
-
-        newCatSnap.incRef();
         if (catalogSnapshot != null) {
             catalogSnapshot.decRef();
         }
@@ -744,8 +755,12 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
         ));
         refreshListeners.forEach(POST_REFRESH_LISTENER_CONSUMER);
 
+        System.out.println("IndexFile Deleter after REFRESH : " + indexFileDeleter);
+
         // trigger merges
-        triggerPossibleMerges();
+        if(!source.equals("merge")) {
+            triggerPossibleMerges();
+        }
     }
 
     public void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
@@ -808,11 +823,12 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     // this now becomes equivalent of the reader
     // Each search side specific impl can decide on how to init specific reader instances using this pit snapshot provided by writers
     public ReleasableRef<CatalogSnapshot> acquireSnapshot() {
-        catalogSnapshot.incRef(); // this should be package-private
-        return new ReleasableRef<CatalogSnapshot>(catalogSnapshot) {
+        final CatalogSnapshot snapshot = catalogSnapshot;
+        snapshot.incRef();
+        return new ReleasableRef<>(snapshot) {
             @Override
-            public void close() throws Exception {
-                catalogSnapshot.decRef(); // this should be package-private
+            public void close() {
+                snapshot.decRef();
             }
         };
     }
@@ -829,6 +845,10 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
         public T getRef() {
             return t;
         }
+    }
+
+    public long getNativeBytesUsed() {
+        return engine.getNativeBytesUsed();
     }
 
     @Override
@@ -880,7 +900,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
-
+        refresh("write indexing buffer");
     }
 
     @Override
@@ -913,25 +933,37 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
                         translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
                         final CatalogSnapshot catalogSnapshotToFlush = catalogSnapshot;
-                        final String serializedCatalogSnapshot = catalogSnapshotToFlush.serializeToString();
-                        final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
-                        final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
-                        compositeEngineCommitter.commit(
-                            () -> {
-                                final Map<String, String> commitData = new HashMap<>(7);
-                                commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
-                                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
-                                commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
-                                commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
-                                commitData.put(HISTORY_UUID_KEY, historyUUID);
-                                commitData.put(CATALOG_SNAPSHOT_KEY, serializedCatalogSnapshot);
-                                commitData.put(LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(lastWriterGeneration));
-                                return commitData.entrySet().iterator();
-                            }, catalogSnapshotToFlush
-                        );
-                        logger.trace("finished commit for flush");
-
-                        translogManager.trimUnreferencedReaders();
+                        final Optional<CatalogSnapshot> previousCatalogSnapshot = compositeEngineCommitter.readLastCommittedCatalogSnapshot();
+                        long previousCatalogSnapshotId = previousCatalogSnapshot.map(CatalogSnapshot::getId).orElse(-1L);
+                        if (catalogSnapshotToFlush != null) {
+                            System.out.println("FLUSH called, current snapshot to commit : " + catalogSnapshotToFlush.getId() + ", previous commited snapshot : " + previousCatalogSnapshotId);
+                            // Increment refCount of catalogSnapshotToFlush to prevent deletion of files that will be in the latest commit
+                            catalogSnapshotToFlush.incRef();
+                            final String serializedCatalogSnapshot = catalogSnapshotToFlush.serializeToString();
+                            final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
+                            final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+                            compositeEngineCommitter.commit(
+                                () -> {
+                                    final Map<String, String> commitData = new HashMap<>(7);
+                                    commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
+                                    commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
+                                    commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
+                                    commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                                    commitData.put(HISTORY_UUID_KEY, historyUUID);
+                                    commitData.put(CATALOG_SNAPSHOT_KEY, serializedCatalogSnapshot);
+                                    commitData.put(LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(lastWriterGeneration));
+                                    return commitData.entrySet().iterator();
+                                }, catalogSnapshotToFlush
+                            );
+                            // Once commit is successful, decRef the CatalogSnapshot of the older commit
+                            if (previousCatalogSnapshotId != -1) {
+                                CatalogSnapshot prevCatSnap = catalogSnapshotMap.get(previousCatalogSnapshotId);
+                                if (prevCatSnap != null)
+                                    prevCatSnap.decRef();
+                            }
+                            logger.trace("finished commit for flush");
+                            translogManager.trimUnreferencedReaders();
+                        }
                     } catch (AlreadyClosedException e) {
                         // TODO - failOnTragicEvent(e);
                         throw e;
@@ -957,7 +989,7 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
 
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
-        return null;
+        return compositeEngineCommitter.getSafeCommitInfo();
     }
 
     @Override
@@ -984,5 +1016,81 @@ public class CompositeEngine implements LifecycleAware, Indexer, CheckpointState
     @Override
     public String getHistoryUUID() {
         return historyUUID;
+    }
+
+    /**
+     * Flush the engine (committing segments to disk and truncating the
+     * translog) and close it.
+     */
+    @Override
+    public void flushAndClose() throws IOException {
+        if (isClosed.get() == false) {
+            logger.trace("flushAndClose now acquire writeLock");
+            try (ReleasableLock lock = writeLock.acquire()) {
+                logger.trace("flushAndClose now acquired writeLock");
+                try {
+                    logger.debug("flushing shard on close - this might take some time to sync files to disk");
+                    try {
+                        // TODO we might force a flush in the future since we have the write lock already even though recoveries
+                        // are running.
+                        flush(false, true);
+                    } catch (AlreadyClosedException ex) {
+                        logger.debug("engine already closed - skipping flushAndClose");
+                    }
+                } finally {
+                    close(); // double close is not a problem
+                }
+            }
+        }
+        awaitPendingClose();
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (isClosed.get() == false) { // don't acquire the write lock if we are already closed
+            logger.debug("close now acquiring writeLock");
+            try (ReleasableLock lock = writeLock.acquire()) {
+                logger.debug("close acquired writeLock");
+                closeNoLock("api", closedLatch);
+            }
+        }
+        awaitPendingClose();
+    }
+
+    private void awaitPendingClose() {
+        try {
+            closedLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Closes the engine without acquiring the write lock. This should only be
+     * called while the write lock is hold or in a disaster condition ie. if the engine
+     * is failed.
+     */
+    private void closeNoLock(String reason, CountDownLatch closedLatch) {
+        if (isClosed.compareAndSet(false, true)) {
+            assert rwl.isWriteLockedByCurrentThread()
+                || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
+            try {
+                this.versionMap.clear();
+                try {
+                    IOUtils.close(engine, translogManager);
+                } catch (Exception e) {
+                    logger.warn("Failed to close translog", e);
+                }
+            } catch (Exception e) {
+                logger.warn("failed to close translog manager", e);
+            } finally {
+                try {
+                    store.decRef();
+                    logger.debug("engine closed [{}]", reason);
+                } finally {
+                    closedLatch.countDown();
+                }
+            }
+        }
     }
 }

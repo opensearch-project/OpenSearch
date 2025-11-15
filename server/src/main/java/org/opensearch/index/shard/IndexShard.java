@@ -2465,15 +2465,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     changeState(IndexShardState.CLOSED, reason);
                 }
             } finally {
+                final CompositeEngine compositeEngine = this.currentCompositeEngineReference.getAndSet(null);
                 final Engine engine = this.currentEngineReference.getAndSet(null);
+                getIndexingExecutionCoordinator().close();
                 try {
                     if (engine != null && flushEngine) {
                         engine.flushAndClose();
                     }
+                    if (compositeEngine != null && flushEngine) {
+                        compositeEngine.flushAndClose();
+                    }
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions, refreshTask);
+                    IOUtils.close(engine, compositeEngine, globalCheckpointListeners, refreshListeners, pendingReplicationActions, refreshTask);
 
                     if (deleted && engine != null && isPrimaryMode()) {
                         // Translog Clean up
@@ -2817,7 +2822,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         index.routing()
                     ),
                     index.id(),
-                    null
+                    currentCompositeEngineReference.get()::documentInput
                 );
                 break;
             case DELETE:
@@ -3037,6 +3042,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
             currentCompositeEngineReference.set(compositeEngine);
+            completeCompositeEngineInitialization();
 
             if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                 // set initial replication checkpoints into tracker.
@@ -3247,6 +3253,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (AlreadyClosedException ex) {
             return 0;
         }
+    }
+
+    public long getNativeBytesUsed() {
+        return getIndexingExecutionCoordinator().getNativeBytesUsed();
     }
 
     public void addShardFailureCallback(Consumer<ShardFailure> onShardFailure) {
@@ -3584,7 +3594,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void writeIndexingBuffer() {
         try {
-            getIndexer().writeIndexingBuffer();
+            getIndexingExecutionCoordinator().writeIndexingBuffer();
         } catch (Exception e) {
             handleRefreshException(e);
         }
@@ -4148,11 +4158,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
 
     public Indexer getIndexer() {
-        return getEngine();
+        return getIndexingExecutionCoordinator();
     }
 
     public CheckpointState getCheckpointState() {
-        return getEngine();
+        return getIndexingExecutionCoordinator();
     }
 
     public StatsHolder getStatsHolder() {
@@ -4173,7 +4183,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
 
     protected Indexer getIndexerOrNull() {
-        return getEngineOrNull();
+        return getIndexingExecutionCoordinator();
     }
 
     public CheckpointState getCheckpointStateOrNull() {
@@ -4377,8 +4387,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private SafeCommitInfo getSafeCommitInfo() {
-        final Engine engine = getEngineOrNull();
-        return engine == null ? SafeCommitInfo.EMPTY : getIndexer().getSafeCommitInfo();
+        final Indexer indexer = getIndexerOrNull();
+        return indexer == null ? SafeCommitInfo.EMPTY : getIndexer().getSafeCommitInfo();
     }
 
     class ShardEventListener implements Engine.EventListener {
@@ -4971,14 +4981,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void sync() throws IOException {
         verifyNotClosed();
-        getEngine().translogManager().syncTranslog();
+        getIndexer().translogManager().syncTranslog();
     }
 
     /**
      * Checks if the underlying storage sync is required.
      */
     public boolean isSyncNeeded() {
-        return getEngine().translogManager().isTranslogSyncNeeded();
+        return getIndexer().translogManager().isTranslogSyncNeeded();
     }
 
     /**

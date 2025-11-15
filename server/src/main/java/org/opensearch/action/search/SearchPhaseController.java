@@ -32,6 +32,8 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -90,6 +92,7 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 public final class SearchPhaseController {
+    private static final Logger LOGGER = LogManager.getLogger(SearchPhaseController.class);
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -530,6 +533,9 @@ public final class SearchPhaseController {
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
+        if (aggregations != null) {
+            LOGGER.info("Final reduced aggregations: {}", aggregations.asMap());
+        }
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();

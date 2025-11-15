@@ -10,10 +10,13 @@ package org.opensearch.index.engine.exec;
 
 import org.opensearch.index.shard.ShardPath;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
-public interface IndexingExecutionEngine<T extends DataFormat> {
+public interface IndexingExecutionEngine<T extends DataFormat> extends Closeable {
 
     List<String> supportedFieldTypes();
 
@@ -26,5 +29,11 @@ public interface IndexingExecutionEngine<T extends DataFormat> {
 
     DataFormat getDataFormat();
 
-    void loadWriterFiles(ShardPath shardPath) throws IOException;
+    void loadWriterFiles() throws IOException;
+
+    default long getNativeBytesUsed() {
+        return 0;
+    }
+
+    void deleteFiles(Map<String,Collection<String>> filesToDelete) throws IOException;
 }

@@ -86,6 +86,7 @@ public class RustBridge {
     public static native void write(String file, long arrayAddress, long schemaAddress) throws IOException;
     public static native void closeWriter(String file) throws IOException;
     public static native void flushToDisk(String file) throws IOException;
+    public static native long getFilteredNativeBytesUsed(String pathPrefix);
 
     // State and metrics methods handled on Rust side
     public static native boolean writerExists(String file);

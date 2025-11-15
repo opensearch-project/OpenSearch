@@ -38,6 +38,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 @ExperimentalApi
 public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
@@ -49,10 +51,12 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
     private Map<String, String> userData;
     private long lastWriterGeneration;
     private final Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles;
+    private Supplier<IndexFileDeleter> indexFileDeleterSupplier;
+    private Map<Long, CatalogSnapshot> catalogSnapshotMap;
 
     // Todo: @Kamal, update version increment logic properly
-    public CatalogSnapshot(RefreshResult refreshResult, long id, long version) {
-        super("catalog_snapshot");
+    public CatalogSnapshot(RefreshResult refreshResult, long id, long version, Map<Long, CatalogSnapshot> catalogSnapshotMap, Supplier<IndexFileDeleter> indexFileDeleterSupplier) {
+        super("catalog_snapshot_" + id);
         this.id = id;
         this.version = version;
         this.userData = new HashMap<>();
@@ -65,6 +69,10 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
             dfGroupedSearchableFiles.put(dataFormat.name(), writerFiles);
             writerFiles.stream().mapToLong(WriterFileSet::getWriterGeneration).max().ifPresent(value -> this.lastWriterGeneration = value);
         });
+        this.catalogSnapshotMap = catalogSnapshotMap;
+        this.indexFileDeleterSupplier = indexFileDeleterSupplier;
+        // Whenever a new CatalogSnapshot is created add its files to the IndexFileDeleter
+        indexFileDeleterSupplier.get().addFileReferences(this);
     }
 
     private CatalogSnapshot(long id, Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles) {
@@ -76,6 +84,17 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
     public CatalogSnapshot(StreamInput in) throws IOException {
         super("catalog_snapshot");
         this.id = in.readLong();
+        this.version = in.readLong();
+
+        // Read userData map
+        int userDataSize = in.readVInt();
+        this.userData = new HashMap<>();
+        for (int i = 0; i < userDataSize; i++) {
+            String key = in.readString();
+            String value = in.readString();
+            userData.put(key, value);
+        }
+
         this.lastWriterGeneration = in.readLong();
         this.dfGroupedSearchableFiles = new HashMap<>();
 
@@ -113,6 +132,19 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
+        out.writeLong(version);
+
+        // Write userData map
+        if (userData == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(userData.size());
+            for (Map.Entry<String, String> entry : userData.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeString(entry.getValue());
+            }
+        }
+
         out.writeLong(lastWriterGeneration);
         out.writeVInt(dfGroupedSearchableFiles.size());
         for (Map.Entry<String, Collection<WriterFileSet>> entry : dfGroupedSearchableFiles.entrySet()) {
@@ -216,111 +248,16 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     @Override
     protected void closeInternal() {
-        // notify to file deleter, search, etc
+        // Notify to FileDeleter to remove references of files referenced in this CatalogSnapshot
+        indexFileDeleterSupplier.get().removeFileReferences(this);
+        // Remove entry from catalogSnapshotMap
+        catalogSnapshotMap.remove(this.id);
     }
 
     public long getId() {
         return id;
     }
 
-    /**
-     * Writes this CatalogSnapshot to an OutputStream using standard Java serialization.
-     * This method serializes the catalog snapshot data without relying on Lucene-specific APIs.
-     *
-     * @param outputStream the OutputStream to write to
-     * @throws IOException if an I/O error occurs during writing
-     */
-    public void writeTo(OutputStream outputStream) throws IOException {
-        DataOutputStream dataOut = new DataOutputStream(outputStream);
-
-        // Write basic metadata
-        dataOut.writeLong(id);
-        dataOut.writeLong(version);
-
-        // Write userData map
-        dataOut.writeInt(userData.size());
-        for (Map.Entry<String, String> entry : userData.entrySet()) {
-            dataOut.writeUTF(entry.getKey());
-            dataOut.writeUTF(entry.getValue());
-        }
-
-        // Write dfGroupedSearchableFiles map
-        dataOut.writeInt(dfGroupedSearchableFiles.size());
-        for (Map.Entry<String, Collection<WriterFileSet>> entry : dfGroupedSearchableFiles.entrySet()) {
-            dataOut.writeUTF(entry.getKey()); // data format name
-
-            Collection<WriterFileSet> writerFileSets = entry.getValue();
-            dataOut.writeInt(writerFileSets.size());
-
-            // Serialize each WriterFileSet using ObjectOutputStream
-            for (WriterFileSet writerFileSet : writerFileSets) {
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                ObjectOutputStream oos = new ObjectOutputStream(baos);
-                oos.writeObject(writerFileSet);
-                oos.flush();
-
-                byte[] serializedWriterFileSet = baos.toByteArray();
-                dataOut.writeInt(serializedWriterFileSet.length);
-                dataOut.write(serializedWriterFileSet);
-            }
-        }
-
-        dataOut.flush();
-    }
-
-    /**
-     * Reads a CatalogSnapshot from an InputStream using standard Java deserialization.
-     * This method deserializes catalog snapshot data without relying on Lucene-specific APIs.
-     *
-     * @param inputStream the InputStream to read from
-     * @return a new CatalogSnapshot instance
-     * @throws IOException if an I/O error occurs during reading
-     * @throws ClassNotFoundException if a class cannot be found during deserialization
-     */
-    public static CatalogSnapshot readFrom(InputStream inputStream) throws IOException, ClassNotFoundException {
-        DataInputStream dataIn = new DataInputStream(inputStream);
-
-        // Read basic metadata
-        long id = dataIn.readLong();
-        long version = dataIn.readLong();
-
-        // Create CatalogSnapshot instance
-        CatalogSnapshot catalog = new CatalogSnapshot(null, id, version);
-
-        // Read userData map
-        int userDataSize = dataIn.readInt();
-        Map<String, String> userData = new HashMap<>();
-        for (int i = 0; i < userDataSize; i++) {
-            String key = dataIn.readUTF();
-            String value = dataIn.readUTF();
-            userData.put(key, value);
-        }
-        catalog.userData = userData;
-
-        // Read dfGroupedSearchableFiles map
-        int dfGroupedSize = dataIn.readInt();
-        for (int i = 0; i < dfGroupedSize; i++) {
-            String dataFormat = dataIn.readUTF();
-
-            int writerFileSetsSize = dataIn.readInt();
-            Collection<WriterFileSet> writerFileSets = new ArrayList<>();
-
-            for (int j = 0; j < writerFileSetsSize; j++) {
-                int serializedSize = dataIn.readInt();
-                byte[] serializedData = new byte[serializedSize];
-                dataIn.readFully(serializedData);
-
-                ByteArrayInputStream bais = new ByteArrayInputStream(serializedData);
-                ObjectInputStream ois = new ObjectInputStream(bais);
-                WriterFileSet writerFileSet = (WriterFileSet) ois.readObject();
-                writerFileSets.add(writerFileSet);
-            }
-
-            catalog.dfGroupedSearchableFiles.put(dataFormat, writerFileSets);
-        }
-
-        return catalog;
-    }
 
     /**
      * Creates a clone of this CatalogSnapshot with the same content but independent lifecycle.
@@ -330,7 +267,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
      * @return a new CatalogSnapshot instance with the same data
      */
     public CatalogSnapshot clone() {
-        CatalogSnapshot cloned = new CatalogSnapshot(null, this.id, this.version);
+        CatalogSnapshot cloned = new CatalogSnapshot(new RefreshResult(), this.id, this.version, this.catalogSnapshotMap, this.indexFileDeleterSupplier);
         cloned.userData = new HashMap<>(this.userData);
 
         for (Map.Entry<String, Collection<WriterFileSet>> entry : this.dfGroupedSearchableFiles.entrySet()) {
@@ -355,6 +292,19 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     public long getLastWriterGeneration() {
         return lastWriterGeneration;
+    }
+
+    public Set<String> getDataFormats() {
+        return dfGroupedSearchableFiles.keySet();
+    }
+
+    // used only when catalog snapshot is created from last commited segment and hence the object is not initialized with the deleter and map
+    public void setIndexFileDeleterSupplier(Supplier<IndexFileDeleter> supplier) {
+        this.indexFileDeleterSupplier = supplier;
+    }
+
+    public void setCatalogSnapshotMap(Map<Long, CatalogSnapshot> catalogSnapshotMap) {
+        this.catalogSnapshotMap = catalogSnapshotMap;
     }
 
     @Override

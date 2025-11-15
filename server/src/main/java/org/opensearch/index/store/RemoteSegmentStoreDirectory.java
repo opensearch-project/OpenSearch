@@ -637,11 +637,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                         }
                     }
 
-                    // Serialize CatalogSnapshot using standard Java APIs
-                    // ToDo: We need to update this with some opensource library which can optimize space
-                    ByteArrayOutputStream catalogOutputStream = new ByteArrayOutputStream();
-                    catalogSnapshot.writeTo(catalogOutputStream);
-                    byte[] catalogSnapshotByteArray = catalogOutputStream.toByteArray();
+                    // Serialize CatalogSnapshot using StreamOutput
+                    byte[] catalogSnapshotByteArray;
+                    try (org.opensearch.common.io.stream.BytesStreamOutput streamOutput = 
+                             new org.opensearch.common.io.stream.BytesStreamOutput()) {
+                        catalogSnapshot.writeTo(streamOutput);
+                        catalogSnapshotByteArray = streamOutput.bytes().toBytesRef().bytes;
+                    }
 
                     metadataStreamWrapper.writeStream(indexOutput, new RemoteSegmentMetadata(
                         RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),

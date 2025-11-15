@@ -112,13 +112,13 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
-import org.opensearch.index.translog.InternalTranslogManager;
+import org.opensearch.index.translog.NoOpTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
-import org.opensearch.index.translog.TranslogOperationHelper;
+import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -146,6 +146,8 @@ import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
 
 /**
  * The default internal engine (can be overridden by plugins)
@@ -392,20 +394,14 @@ public class InternalEngine extends Engine {
         TranslogDeletionPolicy translogDeletionPolicy,
         CompositeTranslogEventListener translogEventListener
     ) throws IOException {
-        return new InternalTranslogManager(
-            engineConfig.getTranslogConfig(),
-            engineConfig.getPrimaryTermSupplier(),
-            engineConfig.getGlobalCheckpointSupplier(),
-            translogDeletionPolicy,
+        return new NoOpTranslogManager(
             shardId,
             readLock,
-            this::getLocalCheckpointTracker,
-            translogUUID,
-            translogEventListener,
             this::ensureOpen,
-            engineConfig.getTranslogFactory(),
-            engineConfig.getStartedPrimarySupplier(),
-            TranslogOperationHelper.create(engineConfig)
+            new TranslogStats(),
+            EMPTY_TRANSLOG_SNAPSHOT,
+            translogUUID,
+            true
         );
     }
 
