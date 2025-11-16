@@ -598,8 +598,8 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
-    public static final Setting<Boolean> INDEX_OPTIMIZED = Setting.boolSetting(
-        "index.optimized",
+    public static final Setting<Boolean> INDEX_ENGINE_LEGO = Setting.boolSetting(
+        "index.engine.lego",
         true,
         Property.IndexScope,
         Property.Dynamic
@@ -906,7 +906,7 @@ public final class IndexSettings {
     private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
     private volatile boolean shouldCleanupUnreferencedFiles;
-    private volatile boolean indexOptimized;
+    private volatile boolean indexEngineLego;
     private volatile long mappingNestedFieldsLimit;
     private volatile long mappingNestedDocsLimit;
     private volatile long mappingTotalFieldsLimit;
@@ -1058,7 +1058,7 @@ public final class IndexSettings {
         this.remoteStoreSegmentPathPrefix = (rawPrefix != null && !rawPrefix.trim().isEmpty()) ? rawPrefix : null;
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.shouldCleanupUnreferencedFiles = INDEX_UNREFERENCED_FILE_CLEANUP.get(settings);
-        this.indexOptimized = INDEX_OPTIMIZED.get(settings);
+        this.indexEngineLego = INDEX_ENGINE_LEGO.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
@@ -1229,7 +1229,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_UNREFERENCED_FILE_CLEANUP, this::setShouldCleanupUnreferencedFiles);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_OPTIMIZED, this::setIndexOptimized);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_ENGINE_LEGO, this::setIndexEngineLego);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
@@ -2028,12 +2028,12 @@ public final class IndexSettings {
         this.shouldCleanupUnreferencedFiles = shouldCleanupUnreferencedFiles;
     }
 
-    public boolean isIndexOptimized() {
-        return indexOptimized;
+    public boolean getIndexEngineLego() {
+        return indexEngineLego;
     }
 
-    private void setIndexOptimized(boolean indexOptimized) {
-        this.indexOptimized = indexOptimized;
+    private void setIndexEngineLego(boolean indexEngineLego) {
+        this.indexEngineLego = indexEngineLego;
     }
 
     public long getMappingNestedFieldsLimit() {
