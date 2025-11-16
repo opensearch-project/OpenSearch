@@ -824,7 +824,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
         ScriptStats scriptStats = frequently()
-            ? new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+            ? new ScriptStats.Builder().compilations(randomNonNegativeLong())
+                .cacheEvictions(randomNonNegativeLong())
+                .compilationLimitTriggered(randomNonNegativeLong())
+                .build()
             : null;
         ClusterStateStats stateStats = new ClusterStateStats();
         RemotePersistenceStats remoteStateStats = new RemotePersistenceStats();
