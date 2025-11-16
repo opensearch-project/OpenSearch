@@ -906,7 +906,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     nodeStats.put(nodeId, stats);
                 }
             }
-            adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
+            adaptiveSelectionStats = new AdaptiveSelectionStats.Builder().clientOutgoingConnections(nodeConnections)
+                .nodeComputedStats(nodeStats)
+                .build();
         }
         NodesResourceUsageStats nodesResourceUsageStats = null;
         if (frequently()) {
