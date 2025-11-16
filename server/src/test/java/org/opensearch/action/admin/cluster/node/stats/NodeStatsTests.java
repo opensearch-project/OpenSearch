@@ -644,23 +644,24 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             long memTotal = randomNonNegativeLong();
             long swapTotal = randomNonNegativeLong();
-            osStats = new OsStats(
-                System.currentTimeMillis(),
-                new OsStats.Cpu(randomShort(), loadAverages),
-                new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)),
-                new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
-                new OsStats.Cgroup(
-                    randomAlphaOfLength(8),
-                    randomNonNegativeLong(),
-                    randomAlphaOfLength(8),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-                    randomAlphaOfLength(8),
-                    Long.toString(randomNonNegativeLong()),
-                    Long.toString(randomNonNegativeLong())
+            osStats = new OsStats.Builder().timestamp(System.currentTimeMillis())
+                .cpu(new OsStats.Cpu(randomShort(), loadAverages))
+                .mem(new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)))
+                .swap(new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)))
+                .cgroup(
+                    new OsStats.Cgroup(
+                        randomAlphaOfLength(8),
+                        randomNonNegativeLong(),
+                        randomAlphaOfLength(8),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+                        randomAlphaOfLength(8),
+                        Long.toString(randomNonNegativeLong()),
+                        Long.toString(randomNonNegativeLong())
+                    )
                 )
-            );
+                .build();
         }
         ProcessStats processStats = frequently()
             ? new ProcessStats(
