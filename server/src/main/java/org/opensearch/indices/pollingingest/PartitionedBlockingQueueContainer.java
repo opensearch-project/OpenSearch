@@ -139,6 +139,16 @@ public class PartitionedBlockingQueueContainer {
     }
 
     /**
+     * Clear data in all blocking queues across all partitions.
+     */
+    public void clearAllQueues() {
+        for (BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> queue : partitionToQueueMap.values()) {
+            queue.clear();
+        }
+        logger.debug("Cleared all blocking queues across {} partitions", numPartitions);
+    }
+
+    /**
      * Returns aggregated message processor metrics from all processor threads.
      */
     public MessageProcessorRunnable.MessageProcessorMetrics getMessageProcessorMetrics() {

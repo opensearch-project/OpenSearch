@@ -566,4 +566,108 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         verify(mockConsumerFactory, times(2)).createShardConsumer(anyString(), anyInt());
         assertNotNull(poller.getConsumer());
     }
+
+    public void testConsumerReinitializationAfterProcessingMessages() throws Exception {
+        // Initially publish 2 messages, and later publish 3rd message after consumer reinitialization
+        messages.clear();
+        messages.add("{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
+        messages.add("{\"_id\":\"2\",\"_source\":{\"name\":\"alice\", \"age\": 21}}".getBytes(StandardCharsets.UTF_8));
+
+        FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
+
+        CountDownLatch initialLatch = new CountDownLatch(2);
+        doAnswer(invocation -> {
+            initialLatch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
+
+        poller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            consumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper()
+        );
+
+        // Start and wait for 2 messages to be processed
+        poller.start();
+        initialLatch.await();
+        verify(processor, times(2)).process(any(), any());
+
+        // Request consumer reinitialization
+        CountDownLatch reinitLatch = new CountDownLatch(2);  // Expect 2 more messages: message 2 (reprocessed) and message 3 (new)
+        doAnswer(invocation -> {
+            reinitLatch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
+
+        poller.requestConsumerReinitialization();
+
+        // Add a 3rd message
+        messages.add("{\"_id\":\"3\",\"_source\":{\"name\":\"charlie\", \"age\": 30}}".getBytes(StandardCharsets.UTF_8));
+
+        // Wait for reprocessing of message 2 and processing of message 3
+        reinitLatch.await();
+
+        // Expect total 4 messages, as 2nd message is processed twice due to consumer reinitialization
+        verify(processor, times(4)).process(any(), any());
+    }
+
+    public void testConsumerReinitializationWithNoInitialMessages() throws Exception {
+        // Start with no messages
+        messages.clear();
+
+        FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
+
+        poller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            consumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper()
+        );
+
+        // Start poller
+        poller.start();
+        Thread.sleep(sleepTime);
+
+        // Verify no messages processed
+        verify(processor, never()).process(any(), any());
+
+        // Request consumer reinitialization
+        poller.requestConsumerReinitialization();
+
+        // Add a message
+        messages.add("{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
+
+        // Wait for the message to be processed
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
+
+        latch.await();
+
+        // Verify 1 message was processed
+        verify(processor, times(1)).process(any(), any());
+    }
 }

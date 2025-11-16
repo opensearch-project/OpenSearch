@@ -76,6 +76,12 @@ public interface StreamPoller extends Closeable, ClusterStateListener {
     IngestionShardConsumer getConsumer();
 
     /**
+     * Requests the poller to reinitialize the consumer.
+     * This is called when ingestion source params are dynamically updated.
+     */
+    void requestConsumerReinitialization();
+
+    /**
      * A state to indicate the current state of the poller
      */
     enum State {

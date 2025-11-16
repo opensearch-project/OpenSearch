@@ -49,6 +49,9 @@ public class DefaultStreamPoller implements StreamPoller {
     // indicates if a local or global cluster write block is in effect
     private volatile boolean isWriteBlockEnabled;
 
+    // flag to indicate if consumer needs to be reinitialized
+    private volatile boolean reinitializeConsumer;
+
     private volatile long lastPolledMessageTimestamp = 0;
     private volatile long cachedPointerBasedLag = 0;
     private volatile long lastPointerBasedLagUpdateTime = 0;
@@ -188,7 +191,8 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         logger.info("Starting poller for shard {}", shardId);
 
-        IngestionShardPointer failedShardPointer = null;
+        // Force the consumer to start reading from this pointer. This is used in case of failures, or during reinitialization.
+        IngestionShardPointer forcedShardPointer = null;
         while (true) {
             try {
                 if (closed) {
@@ -196,16 +200,25 @@ public class DefaultStreamPoller implements StreamPoller {
                     break;
                 }
 
-                // Initialize consumer if not already initialized
-                if (this.consumer == null) {
-                    initializeConsumer(CONSUMER_INIT_RETRY_INTERVAL_MS);
+                // Initialize consumer if not already initialized or if reinitialization is requested
+                if (this.consumer == null || reinitializeConsumer) {
+                    handleConsumerInitialization(CONSUMER_INIT_RETRY_INTERVAL_MS);
+
+                    // If consumer reinitialization is requested, update the new consumer's start offset to the latest batch start pointer.
+                    // First clear the blocking queue partitions, and then retrieve the latest batch start pointer. This
+                    // will ensure we resume from the earliest offset possible without too much duplicate processing.
+                    if (reinitializeConsumer && includeBatchStartPointer == false) {
+                        blockingQueueContainer.clearAllQueues();
+                        forcedShardPointer = getBatchStartPointer();
+                    }
+                    reinitializeConsumer = false;
                     continue;
                 }
 
                 // reset the consumer offset
                 handleResetState();
 
-                // Update lag periodically
+                // Update lag periodically. Lag is updated even if the poller is paused.
                 updatePointerBasedLagIfNeeded();
 
                 if (paused || isWriteBlockEnabled) {
@@ -224,9 +237,9 @@ public class DefaultStreamPoller implements StreamPoller {
                 if (includeBatchStartPointer) {
                     results = consumer.readNext(initialBatchStartPointer, true, maxPollSize, pollTimeout);
                     includeBatchStartPointer = false;
-                } else if (failedShardPointer != null) {
-                    results = consumer.readNext(failedShardPointer, true, maxPollSize, pollTimeout);
-                    failedShardPointer = null;
+                } else if (forcedShardPointer != null) {
+                    results = consumer.readNext(forcedShardPointer, true, maxPollSize, pollTimeout);
+                    forcedShardPointer = null;
                 } else {
                     results = consumer.readNext(maxPollSize, pollTimeout);
                 }
@@ -239,7 +252,9 @@ public class DefaultStreamPoller implements StreamPoller {
                 }
 
                 state = State.PROCESSING;
-                failedShardPointer = processRecords(results);
+                // processRecords returns failed shard pointers. Update forcedShardPointer to the failed pointer to retry on next iteration
+                // in case of failures
+                forcedShardPointer = processRecords(results);
             } catch (Exception e) {
                 // Pause ingestion when an error is encountered while polling the streaming source.
                 // Currently we do not have a good way to skip past the failing messages.
@@ -320,6 +335,7 @@ public class DefaultStreamPoller implements StreamPoller {
         closed = true;
         if (!started) {
             logger.info("consumer thread not started");
+            closeConsumer();
             return;
         }
         long startTime = System.currentTimeMillis(); // Record the start time
@@ -338,6 +354,7 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         consumerThread.shutdown();
         blockingQueueContainer.close();
+        closeConsumer();
         logger.info("closed the poller of shard {}", shardId);
     }
 
@@ -459,6 +476,21 @@ public class DefaultStreamPoller implements StreamPoller {
         return consumer;
     }
 
+    /**
+     * Mark the poller's consumer for reinitialization. A new consumer will be initialized and start consuming from the
+     * latest batchStartPointer.
+     */
+    @Override
+    public void requestConsumerReinitialization() {
+        if (closed) {
+            logger.warn("Cannot reinitialize consumer for closed poller of shard {}", shardId);
+            return;
+        }
+
+        logger.info("Configuration parameters updated for index {} shard {}, requesting consumer reinitialization", indexName, shardId);
+        reinitializeConsumer = true;
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
@@ -507,6 +539,20 @@ public class DefaultStreamPoller implements StreamPoller {
     }
 
     /**
+     * Handles consumer initialization and reinitialization logic.
+     * If reinitializing, closes the existing consumer before creating a new one.
+     *
+     * @param sleepDurationOnError duration to sleep if initialization fails
+     */
+    private void handleConsumerInitialization(int sleepDurationOnError) {
+        if (reinitializeConsumer) {
+            logger.info("Reinitializing consumer for index {} shard {} due to configuration changes", indexName, shardId);
+            closeConsumer();
+        }
+        initializeConsumer(sleepDurationOnError);
+    }
+
+    /**
      * Initializes the consumer using the provided consumerFactory. If an error is encountered during initialization,
      * the poller thread sleeps for the provided duration before retrying/proceeding with the polling loop.
      */
@@ -521,6 +567,21 @@ public class DefaultStreamPoller implements StreamPoller {
                 Thread.sleep(sleepDurationOnError);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    /**
+     * Closes the consumer gracefully. This should be called when reinitializing or shutting down the poller.
+     */
+    private void closeConsumer() {
+        if (this.consumer != null) {
+            try {
+                logger.info("Closing consumer for shard {}", shardId);
+                this.consumer.close();
+                this.consumer = null;
+            } catch (Exception e) {
+                logger.warn("Error closing consumer for shard {}: {}", shardId, e.getMessage());
             }
         }
     }
