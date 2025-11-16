@@ -6,20 +6,20 @@
  * compatible open source license.
  */
 
-package org.opensearch.datafusion.jni;
+package com.parquet.parquetdataformat.bridge;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.vectorized.execution.jni.NativeLoaderException;
 import org.opensearch.vectorized.execution.jni.PlatformHelper;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Optional;
 
 /**
  * Handles loading of the native JNI library.
@@ -55,29 +55,29 @@ public final class NativeLibraryLoader {
         try {
             loadFromResources(DEFAULT_PATH, libraryName);
             return;
-        }  catch (UnsatisfiedLinkError ignored) {
+        }  catch (UnsatisfiedLinkError | IOException ignored) {
             logger.warn("Failed to load library '" + libraryName + "' from default path");
         }
 
         // Try platform-specific directory
         try {
             String platformDir = PlatformHelper.getPlatformDirectory();
-            String currentDir = System.getProperty("user.dir");
+            String currentDir = Optional.of(System.getProperty("user.dir")).orElse("/");
             String path = Paths.get(currentDir, "native", platformDir,
                 PlatformHelper.getPlatformLibraryName(libraryName)).toString();
             loadFromResources(path, libraryName);
-        } catch (UnsatisfiedLinkError e) {
-            throw new UnsatisfiedLinkError(
-                "Failed to load library '" + libraryName + "' from all attempted locations");
+        } catch (UnsatisfiedLinkError | IOException e) {
+            throw new NativeLoaderException(
+                "Failed to load library '" + libraryName + "' from all attempted locations", e);
         }
     }
 
-    private static void loadFromResources(String providedPath, String libraryName) {
+    private static void loadFromResources(String providedPath, String libraryName) throws IOException {
         String libName = System.mapLibraryName(libraryName);
         String resourcePath = Paths.get("/", providedPath, libName).toString();
         try (InputStream is = NativeLibraryLoader.class.getResourceAsStream(resourcePath)) {
             if (is == null) {
-                throw new FileNotFoundException("Native library not found: " + resourcePath);
+                throw new IOException("Native library not found: " + resourcePath);
             }
             Path tempFile = Files.createTempFile(libraryName, PlatformHelper.getNativeExtension());
             tempFile.toFile().deleteOnExit();
@@ -91,7 +91,7 @@ public final class NativeLibraryLoader {
             System.load(tempFile.toAbsolutePath().toString());
             loaded = true;
         } catch (IOException e) {
-            throw new NativeLoaderException("Failed to load native library from resources", e);
+            throw e;
         }
     }
 }

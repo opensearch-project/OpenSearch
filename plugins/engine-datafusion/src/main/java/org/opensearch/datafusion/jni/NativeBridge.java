@@ -17,7 +17,7 @@ import org.opensearch.datafusion.ObjectResultCallback;
 public final class NativeBridge {
 
     static {
-        NativeLibraryLoader.load();
+        NativeLibraryLoader.load("opensearch_datafusion_jni");
     }
 
     private NativeBridge() {}

@@ -9,28 +9,24 @@
 package org.opensearch.datafusion.core;
 
 import org.opensearch.datafusion.jni.NativeBridge;
-
-import java.lang.ref.Cleaner;
+import org.opensearch.datafusion.jni.handle.RuntimeHandle;
 
 /**
  * Global runtime environment for DataFusion operations.
  * Manages the lifecycle of the native DataFusion runtime with automatic cleanup.
+ * TODO Revisit Tokio runtime
  */
 public final class GlobalRuntimeEnv implements AutoCloseable {
 
-    private static final Cleaner CLEANER = Cleaner.create();
-
-    private final long ptr;
+    private final RuntimeHandle runTimeHandle;
     private final long tokioRuntimePtr;
-    private final Cleaner.Cleanable cleanable;
 
     /**
      * Creates a new global runtime environment.
      */
     public GlobalRuntimeEnv() {
-        this.ptr = NativeBridge.createGlobalRuntime();
+        this.runTimeHandle = new RuntimeHandle();
         this.tokioRuntimePtr = NativeBridge.createTokioRuntime();
-        this.cleanable = CLEANER.register(this, new CleanupAction(ptr, tokioRuntimePtr));
     }
 
     /**
@@ -38,7 +34,7 @@ public final class GlobalRuntimeEnv implements AutoCloseable {
      * @return the native pointer
      */
     public long getPointer() {
-        return ptr;
+        return runTimeHandle.getPointer();
     }
 
     /**
@@ -51,23 +47,6 @@ public final class GlobalRuntimeEnv implements AutoCloseable {
 
     @Override
     public void close() {
-        cleanable.clean();
-    }
-
-    private static final class CleanupAction implements Runnable {
-        private final long ptr;
-        private final long tokioPtr;
-
-        CleanupAction(long ptr, long tokioPtr) {
-            this.ptr = ptr;
-            this.tokioPtr = tokioPtr;
-        }
-
-        @Override
-        public void run() {
-            if (ptr != 0) {
-                NativeBridge.closeGlobalRuntime(ptr);
-            }
-        }
+        runTimeHandle.close();
     }
 }

@@ -11,10 +11,8 @@
  *
  * <p>This package provides:
  * <ul>
- *   <li>Type-safe native handle wrappers ({@link org.opensearch.datafusion.jni.handle.NativeHandle})</li>
+ *   <li>Type-safe native handle wrappers ({@link org.opensearch.vectorized.execution.jni.NativeHandle})</li>
  *   <li>Centralized native method declarations ({@link org.opensearch.datafusion.jni.NativeBridge})</li>
- *   <li>Native library loading ({@link org.opensearch.datafusion.jni.NativeLibraryLoader})</li>
- *   <li>JNI exception handling ({@link org.opensearch.datafusion.jni.NativeException})</li>
  * </ul>
  *
  */

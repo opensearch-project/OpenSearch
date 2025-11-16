@@ -9,16 +9,25 @@
 package org.opensearch.datafusion.jni.handle;
 
 import org.opensearch.datafusion.jni.NativeBridge;
+import org.opensearch.vectorized.execution.jni.NativeHandle;
 
 /**
- * Type-safe handle for native session context.
+ * Session context for DataFusion operations.
  */
 public final class SessionHandle extends NativeHandle {
 
-    public SessionHandle(long ptr) {
-        super(ptr);
+    /**
+     * Creates a new session context with the given runtime.
+     * @param runtimeId the runtime environment ID
+     */
+    public SessionHandle(long runtimeId) {
+        super(NativeBridge.createSessionContext(runtimeId));
     }
 
+
+    /**
+     * Closes the session context and releases any associated resources.
+     */
     @Override
     protected void doClose() {
         NativeBridge.closeSessionContext(ptr);
