@@ -61,11 +61,12 @@ public abstract class NativeHandle implements AutoCloseable {
     @Override
     public final void close() {
         if (!closed) {
-            if (ptr == NULL_POINTER) {
-                throw new IllegalStateException("Null native pointer");
+            synchronized (this) {
+                if (!closed) {
+                    closed = true;
+                    cleanable.clean();  // Triggers cleanup immediately
+                }
             }
-            closed = true;
-            cleanable.clean();
         }
     }
 
@@ -91,9 +92,7 @@ public abstract class NativeHandle implements AutoCloseable {
 
         @Override
         public void run() {
-            if (ptr != NULL_POINTER) {
-                doClose.run();
-            }
+            doClose.run();
         }
     }
 }
