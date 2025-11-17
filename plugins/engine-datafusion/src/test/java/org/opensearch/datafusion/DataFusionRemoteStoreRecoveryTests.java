@@ -76,10 +76,14 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         ensureStableCluster(2);
         logger.info("--> TEST: Cluster setup completed successfully");
 
-        // Step 2: Create index with DataFusion settings
-        logger.info("--> TEST: Creating index '{}' with settings: {}", INDEX_NAME, indexSettings());
+        // Step 2: Create index with DataFusion settings and explicit mappings
+        String mappings = "{ \"properties\": { \"name\": { \"type\": \"text\" }, \"value\": { \"type\": \"long\" }, \"category\": { \"type\": \"keyword\" } } }";
+        logger.info("--> TEST: Creating index '{}' with settings: {} and mappings: {}", INDEX_NAME, indexSettings(), mappings);
         try {
-            assertAcked(client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings()).get());
+            assertAcked(client().admin().indices().prepareCreate(INDEX_NAME)
+                .setSettings(indexSettings())
+                .setMapping(mappings)
+                .get());
             logger.info("--> TEST: Index '{}' created successfully", INDEX_NAME);
         } catch (Exception e) {
             logger.error("--> TEST: Failed to create index '{}'", INDEX_NAME, e);

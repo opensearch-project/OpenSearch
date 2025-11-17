@@ -22,7 +22,13 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class DataFusionRemoteStoreSimpleTests extends OpenSearchSingleNodeTestCase {
@@ -38,21 +44,26 @@ public class DataFusionRemoteStoreSimpleTests extends OpenSearchSingleNodeTestCa
     @Override
     protected Settings nodeSettings() {
         Path repositoryPath = createTempDir();
+        
+        // Build remote store settings manually since remoteStoreClusterSettings is not available in SingleNodeTestCase
+        String segmentRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            REPOSITORY_NAME
+        );
+        String segmentRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            REPOSITORY_NAME
+        );
+        
         return Settings.builder()
             .put(super.nodeSettings())
-            .put(remoteStoreClusterSettings(REPOSITORY_NAME, repositoryPath))
-            .build();
-    }
-
-    @Override
-    public Settings indexSettings() {
-        return Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s")
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)
+            .put(segmentRepoTypeAttributeKey, "fs")
+            .put(segmentRepoSettingsAttributeKeyPrefix + "location", repositoryPath)
+            .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)
+            .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)
             .build();
     }
 
@@ -62,11 +73,21 @@ public class DataFusionRemoteStoreSimpleTests extends OpenSearchSingleNodeTestCa
         return false;
     }
 
+    protected Settings getIndexSettings() {
+        return Settings.builder()
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+    }
+
     public void testBasicDataFusionWithRemoteStore() throws Exception {
         logger.info("--> TEST: Creating index with remote store and DataFusion");
         
         // Create index 
-        assertAcked(client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings()).get());
+        assertAcked(client().admin().indices().prepareCreate(INDEX_NAME).setSettings(getIndexSettings()).get());
         ensureGreen(INDEX_NAME);
         logger.info("--> TEST: Index created and is green");
 
