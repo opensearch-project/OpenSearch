@@ -73,7 +73,7 @@ public abstract class AggregatorBase extends Aggregator {
     private Map<String, Aggregator> subAggregatorbyName;
     private final CircuitBreakerService breakerService;
     private long requestBytesUsed;
-    private boolean precomputePath = false;
+    boolean precomputePath = false;
 
     /**
      * Constructs a new Aggregator.
