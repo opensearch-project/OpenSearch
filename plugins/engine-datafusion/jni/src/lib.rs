@@ -78,34 +78,40 @@ pub type Result<T, E = DataFusionError> = result::Result<T, E>;
 
 // NativeBridge JNI implementations
 
+struct DataFusionRuntime {
+    runtime_env: RuntimeEnv,
+    tokio_runtime: Runtime,
+    monitor: Arc<Monitor>,
+}
+
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlobalRuntime(
     _env: JNIEnv,
     _class: JClass,
+    memory_pool_limit: jlong
 ) -> jlong {
-    match RuntimeEnvBuilder::default().build() {
-        Ok(runtime_env) => Box::into_raw(Box::new(runtime_env)) as jlong,
-        Err(_) => 0,
-    }
-}
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createTokioRuntime(
-    _env: JNIEnv,
-    _class: JClass,
-) -> jlong {
-    match Runtime::new() {
-        Ok(rt) => Box::into_raw(Box::new(rt)) as jlong,
-        Err(_) => 0,
-    }
-}
+    let monitor = Arc::new(Monitor::default());
+    let memory_pool = Arc::new(MonitoredMemoryPool::new(
+        Arc::new(TrackConsumersPool::new(
+            GreedyMemoryPool::new(memory_pool_limit as usize),
+            NonZeroUsize::new(5).unwrap(),
+        )),
+        monitor.clone(),
+    ));
 
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeTokioRuntime(
-    _env: JNIEnv,
-    _class: JClass,
-    runtime_ptr: jlong
-) {
-    let _ = unsafe { Box::from_raw(runtime_ptr as *mut Runtime) };
+    let runtime_env = RuntimeEnvBuilder::default()
+        .with_memory_pool(memory_pool)
+        .build().unwrap();
+
+    let tokio_runtime = Runtime::new().expect("Failed to create Tokio runtime");
+
+    let runtime = DataFusionRuntime {
+        runtime_env,
+        tokio_runtime,
+        monitor,
+    };
+
+    Box::into_raw(Box::new(runtime)) as jlong
 }
 
 #[no_mangle]
@@ -115,7 +121,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeGlob
     ptr: jlong,
 ) {
     if ptr != 0 {
-        let _ = unsafe { Box::from_raw(ptr as *mut RuntimeEnv) };
+        let _ = unsafe { Box::from_raw(ptr as *mut DataFusionRuntime) };
     }
 }
 
@@ -172,48 +178,17 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_registerC
     0
 }
 
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createMemoryPool(
-    _env: JNIEnv,
-    _class: JClass,
-    limit: jlong,
-) -> jlong {
-    println!(
-        "[RUST]: Creating tracking memory pool with limit: {}",
-        limit
-    );
-    let monitor = Arc::new(Monitor::default());
-    let memory_pool = CustomMemoryPool::new(Arc::new(MonitoredMemoryPool::new(
-        Arc::new(TrackConsumersPool::new(
-            GreedyMemoryPool::new(limit as usize),
-            NonZeroUsize::new(5).unwrap(),
-        )),
-        monitor.clone(),
-    )));
-
-    Box::into_raw(Box::new(memory_pool)) as jlong
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeMemoryPool(
-    _env: JNIEnv,
-    _class: JClass,
-    memory_pool_ptr: jlong,
-) {
-    let _ = unsafe { Box::from_raw(memory_pool_ptr as *mut CustomMemoryPool) };
-    println!("[RUST]: Destroyed memory pool");
-}
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_printMemoryPoolAllocation(
     _env: JNIEnv,
     _class: JClass,
-    memory_pool_ptr: jlong,
+    runtime_env_ptr: jlong,
 ) {
-    let memory_pool = unsafe { &*(memory_pool_ptr as *const CustomMemoryPool) };
+    let runtime = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
     println!(
-        "[RUST]: Printing: Allocation monitor stats: {:?}",
-        memory_pool
+        "[RUST]: Memory pool stats - Current: {:?}",
+        runtime.monitor.clone()
     );
 }
 
@@ -346,17 +321,17 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     shard_view_ptr: jlong,
     table_name: JString,
     substrait_bytes: jbyteArray,
-    tokio_runtime_env_ptr: jlong,
-    memory_pool_ptr: jlong,
+    runtime_ptr: jlong
 ) -> jlong {
     let overall = Instant::now();
     let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
-    let runtime_ptr = unsafe { &*(tokio_runtime_env_ptr as *const Runtime) };
+    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
     let table_name: String = env
         .get_string(&table_name)
         .expect("Couldn't get java string!")
         .into();
-    let memory_pool = unsafe { &*(memory_pool_ptr as *const CustomMemoryPool) };
+
+    let runtimeEnv = &runtime.runtime_env;
 
     let table_path = shard_view.table_path();
     let files_metadata = shard_view.files_metadata();
@@ -372,11 +347,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
     list_file_cache.put(table_path.prefix(), object_meta);
 
-    let runtime_env = RuntimeEnvBuilder::new()
+    let runtime_env = RuntimeEnvBuilder::from_runtime_env(runtimeEnv)
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache.clone())),
         )
-        .with_memory_pool(memory_pool.get_memory_pool())
         .build()
         .unwrap();
 
@@ -402,7 +376,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         .with_table_partition_cols(vec![("row_base".to_string(), DataType::Int64)]);
 
     // Ideally the executor will give this
-    runtime_ptr.block_on(async {
+    runtime.tokio_runtime.block_on(async {
         let resolved_schema = listing_options
             .infer_schema(&ctx.state(), &table_path.clone())
             .await
@@ -441,8 +415,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         }
     };
 
-    //let runtime = unsafe { &mut *(runtime_ptr as *mut Runtime) };
-    runtime_ptr.block_on(async {
+    runtime.tokio_runtime.block_on(async {
         let logical_plan = match from_substrait_plan(&ctx.state(), &substrait_plan).await {
             Ok(plan) => {
                 // println!("SUBSTRAIT Rust: LogicalPlan: {:?}", plan);
@@ -576,10 +549,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
     stream: jlong,
     callback: JObject,
 ) {
-    let runtime = unsafe { &mut *(runtime_ptr as *mut Runtime) };
+    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
 
     let stream = unsafe { &mut *(stream as *mut SendableRecordBatchStream) };
-    runtime.block_on(async {
+    runtime.tokio_runtime.block_on(async {
         //let fetch_start = std::time::Instant::now();
         let next = stream.try_next().await;
         //let fetch_time = fetch_start.elapsed();
@@ -638,11 +611,11 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     shard_view_ptr: jlong,
     values: JLongArray,
     projections: JObjectArray,
-    tokio_runtime_env_ptr: jlong,
+    runtime_ptr: jlong,
     callback: JObject,
 ) -> jlong {
     let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
-    let runtime_ptr = unsafe { &*(tokio_runtime_env_ptr as *const Runtime) };
+    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
 
     let table_path = shard_view.table_path();
     let files_metadata = shard_view.files_metadata();
@@ -686,7 +659,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     }
 
     // Safety checks
-    if tokio_runtime_env_ptr == 0 {
+    if runtime_ptr == 0 {
         let error = DataFusionError::Execution("Null runtime pointer".to_string());
         set_object_result_error(&mut env, callback, &error);
         return 0;
@@ -720,7 +693,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
 
     // Ideally the executor will give this
 
-    runtime_ptr.block_on(async {
+    runtime.tokio_runtime.block_on(async {
         let parquet_schema = match listing_options
             .infer_schema(&ctx.state(), &table_path.clone())
             .await

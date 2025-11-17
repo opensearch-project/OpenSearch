@@ -39,19 +39,11 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
 
     @Override
     public void search(DatafusionQuery datafusionQuery, List<SearchResultsCollector<RecordBatchStream>> collectors) throws IOException {
-        // TODO : call search here to native
-        // TODO : change RunTimePtr
-        long nativeStreamPtr = NativeBridge.executeQueryPhase(reader.getReaderPtr(), datafusionQuery.toString(), datafusionQuery.getSubstraitBytes(), 0, 0);
-        RecordBatchStream stream = new DefaultRecordBatchStream(nativeStreamPtr);
-        while(stream.hasNext()) {
-            for(SearchResultsCollector<RecordBatchStream> collector : collectors) {
-                collector.collect(stream);
-            }
-        }
+        throw new UnsupportedOperationException("Use search(DatafusionQuery, Long, Long) instead");
     }
 
     @Override
-    public long search(DatafusionQuery datafusionQuery, Long contextPtr, Long memoryPoolPtr) {
+    public long search(DatafusionQuery datafusionQuery, Long runtimePtr) {
         if (datafusionQuery.isFetchPhase()) {
             long[] row_ids = datafusionQuery.getQueryPhaseRowIds()
                 .stream()
@@ -59,9 +51,9 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
                 .toArray();
             String[] projections = Objects.isNull(datafusionQuery.getProjections()) ? new String[]{} : datafusionQuery.getProjections().toArray(String[]::new);
 
-            return NativeBridge.executeFetchPhase(reader.getReaderPtr(), row_ids, projections, contextPtr);
+            return NativeBridge.executeFetchPhase(reader.getReaderPtr(), row_ids, projections, runtimePtr);
         }
-        return NativeBridge.executeQueryPhase(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), contextPtr, memoryPoolPtr);
+        return NativeBridge.executeQueryPhase(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), runtimePtr);
     }
 
     public DatafusionReader getReader() {

@@ -54,7 +54,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         MockitoAnnotations.openMocks(this);
 
         clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(org.opensearch.datafusion.core.GlobalRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION));
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         service = new DataFusionService(Collections.emptyMap(), clusterService);

@@ -178,9 +178,9 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
-            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer(), datafusionService.getMemoryPoolPtr());
+            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
             allocator = new RootAllocator(Long.MAX_VALUE);
-            stream = new RecordBatchStream(streamPointer, datafusionService.getTokioRuntimePointer() , allocator);
+            stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
 
             // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
             // Is the possible? need to check
@@ -219,7 +219,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
             }
             logger.info("Memory Pool Allocation Post Query ShardID:{}", context.getQueryShardContext().getShardId());
-            printMemoryPoolAllocation(datafusionService.getMemoryPoolPtr());
+            printMemoryPoolAllocation(datafusionService.getRuntimePointer());
 //            logger.info("Final Results:");
 //            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
 //                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
@@ -268,9 +268,9 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         projections.add(CompositeDataFormatWriter.ROW_ID);
         context.getDatafusionQuery().setProjections(projections);
         DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
-        long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getTokioRuntimePointer(), datafusionService.getMemoryPoolPtr()); // update to handle fetchPhase query
+        long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
         RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getTokioRuntimePointer() , allocator);
+        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
 
         Map<Long, Integer> rowIdToIndex = new HashMap<>();
         for (int idx = 0; idx < rowIds.size(); idx++) {

@@ -54,7 +54,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.opensearch.datafusion.core.GlobalRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION;
+import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION;
+
 
 /**
  * Main plugin class for OpenSearch DataFusion integration.

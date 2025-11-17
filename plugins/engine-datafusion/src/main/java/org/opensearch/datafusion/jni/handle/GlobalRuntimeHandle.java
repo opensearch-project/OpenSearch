@@ -11,13 +11,20 @@ package org.opensearch.datafusion.jni.handle;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.vectorized.execution.jni.NativeHandle;
 
-public class TokioRunTimeHandle extends NativeHandle {
-    public TokioRunTimeHandle() {
-        super(NativeBridge.createTokioRuntime());
+/**
+ * Type-safe handle for native runtime environment.
+ */
+public final class GlobalRuntimeHandle extends NativeHandle {
+
+    public GlobalRuntimeHandle(long memoryLimit) {
+        super(NativeBridge.createGlobalRuntime(memoryLimit));
     }
 
+    /**
+     * Closes the runtime environment and releases any associated resources.
+     */
     @Override
     protected void doClose() {
-        NativeBridge.closeTokioRunTime(ptr);
+        NativeBridge.closeGlobalRuntime(ptr);
     }
 }

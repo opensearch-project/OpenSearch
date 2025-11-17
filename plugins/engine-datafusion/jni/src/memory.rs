@@ -62,7 +62,7 @@ impl Monitor {
 
 /// MemoryPool implementation that wraps another pool and tracks memory usage via Monitor.
 #[derive(Debug)]
-pub(crate) struct MonitoredMemoryPool {
+pub struct MonitoredMemoryPool {
     inner: Arc<dyn MemoryPool>,
     monitor: Arc<Monitor>,
 }
