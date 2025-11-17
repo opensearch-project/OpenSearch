@@ -1,0 +1,97 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.datafusion.jni;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.vectorized.execution.jni.NativeLoaderException;
+import org.opensearch.vectorized.execution.jni.PlatformHelper;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+
+/**
+ * Handles loading of the native JNI library.
+ * TODO move to common lib once we switch to passing absolute lib paths
+ */
+public final class NativeLibraryLoader {
+
+    private static volatile boolean loaded = false;
+
+    private static final String DEFAULT_PATH = "native";
+
+    private static final Logger logger = LogManager.getLogger(NativeLibraryLoader.class);
+
+    NativeLibraryLoader() {}
+
+    /**
+     * Load the native library by name.
+     * Supports loading from resources and platform-specific directories.
+     *
+     * @throws UnsatisfiedLinkError if the library cannot be loaded
+     */
+    public static synchronized void load(String libraryName) {
+        if (loaded) return;
+        try {
+            System.loadLibrary(libraryName);
+            loaded = true;
+            return;
+        } catch (UnsatisfiedLinkError ignored) {
+            logger.warn("Failed to load library '" + libraryName + "' from system path");
+        }
+
+        //Look-up with default path
+        try {
+            loadFromResources(DEFAULT_PATH, libraryName);
+            return;
+        }  catch (UnsatisfiedLinkError ignored) {
+            logger.warn("Failed to load library '" + libraryName + "' from default path");
+        }
+
+        // Try platform-specific directory
+        try {
+            String platformDir = PlatformHelper.getPlatformDirectory();
+            String currentDir = System.getProperty("user.dir");
+            String path = Paths.get(currentDir, "native", platformDir,
+                PlatformHelper.getPlatformLibraryName(libraryName)).toString();
+            loadFromResources(path, libraryName);
+        } catch (UnsatisfiedLinkError e) {
+            throw new UnsatisfiedLinkError(
+                "Failed to load library '" + libraryName + "' from all attempted locations");
+        }
+    }
+
+    private static void loadFromResources(String providedPath, String libraryName) {
+        String libName = System.mapLibraryName(libraryName);
+        String resourcePath = Paths.get("/", providedPath, libName).toString();
+        try (InputStream is = NativeLibraryLoader.class.getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                throw new FileNotFoundException("Native library not found: " + resourcePath);
+            }
+            Path tempFile = Files.createTempFile(libraryName, PlatformHelper.getNativeExtension());
+            tempFile.toFile().deleteOnExit();
+            Files.copy(is, tempFile, StandardCopyOption.REPLACE_EXISTING);
+            // Register deletion hook on JVM shutdown
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException ignored) {}
+            }));
+            System.load(tempFile.toAbsolutePath().toString());
+            loaded = true;
+        } catch (IOException e) {
+            throw new NativeLoaderException("Failed to load native library from resources", e);
+        }
+    }
+}

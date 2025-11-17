@@ -78,13 +78,13 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         assertEquals(2,getRefCount(reader));
 
         assertEquals(2, reader.files.stream().toList().get(0).getFiles().size());
-        assertNotEquals(-1, reader.cachePtr);
+        assertNotEquals(-1, reader.readerHandle);
 
         searcher.close();
         // Assert RefCount 1 -> 1 for latest catalogSnapshot holder
         assertEquals(1, getRefCount(reader));
         reader.close();
-        assertEquals(-1, reader.getCachePtr());
+        assertEquals(-1, reader.getReaderPtr());
     }
 
     /** Test that multiple searchers share the same reader instance for efficiency */
@@ -113,7 +113,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         assertEquals(1, getRefCount(reader));
         reader.decRef();
         assertEquals(0,getRefCount(reader));
-        assertEquals(-1, reader.getCachePtr());
+        assertEquals(-1, reader.getReaderPtr());
     }
 
     /** Test that reader stays alive when only some searchers are closed (reference counting) */
@@ -136,12 +136,12 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         // Close first searcher - reader should stay alive
         searcher1.close();
         assertEquals(2,getRefCount(reader));
-        assertNotEquals(-1, reader.cachePtr);
+        assertNotEquals(-1, reader.readerHandle);
 
         // Close second searcher - reader should not be closed
         searcher2.close();
         assertEquals(1,getRefCount(reader));
-        assertNotEquals(-1, reader.cachePtr);
+        assertNotEquals(-1, reader.readerHandle);
     }
 
     /** Test that refresh creates a new reader with updated file list */
@@ -206,7 +206,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
 
         searcher.close();
         reader.decRef();
-        assertEquals(-1, reader.cachePtr);
+        assertEquals(-1, reader.readerHandle);
 
         // Calling decRef on closed reader should throw
         assertThrows(IllegalStateException.class, reader::decRef);
@@ -272,9 +272,9 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
             assertEquals(1, getRefCount(readerR1));
             // 1 for SearcherS2 and 1 for CatalogSnapshot
             assertEquals(2, getRefCount(readerR2));
-            assertNotEquals(-1, readerR1.cachePtr);
+            assertNotEquals(-1, readerR1.readerHandle);
             datafusionSearcher1v2.close();
-            assertEquals(-1, readerR1v2.cachePtr);
+            assertEquals(-1, readerR1v2.readerHandle);
 
             assertThrows(IllegalStateException.class, () -> readerR1.decRef());
             datafusionSearcherS2.close();
@@ -346,7 +346,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         assertEquals(1, reader2.files.stream().toList().getFirst().getFiles().size());
 
         searcher1.close();
-        assertEquals(-1,reader1.cachePtr);
+        assertEquals(-1,reader1.readerHandle);
         searcher2.close();
     }
 

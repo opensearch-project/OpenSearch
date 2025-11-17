@@ -8,7 +8,7 @@
 
 package org.opensearch.datafusion.search;
 
-import org.opensearch.datafusion.DataFusionQueryJNI;
+import org.opensearch.datafusion.jni.handle.ReaderHandle;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.Closeable;
@@ -16,9 +16,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.opensearch.datafusion.DataFusionQueryJNI.closeDatafusionReader;
-
 /**
  * DataFusion reader for JNI operations.
  */
@@ -34,7 +31,10 @@ public class DatafusionReader implements Closeable {
     /**
      * The cache pointer.
      */
-    public long cachePtr;
+    public ReaderHandle readerHandle;
+    /**
+     * The reference count.
+     */
     private AtomicInteger refCount = new AtomicInteger(1);
 
     /**
@@ -54,16 +54,15 @@ public class DatafusionReader implements Closeable {
         }
         System.out.println("File names: " + Arrays.toString(fileNames));
         System.out.println("Directory path: " + directoryPath);
-
-        this.cachePtr = DataFusionQueryJNI.createDatafusionReader(directoryPath, fileNames);
+        this.readerHandle = new ReaderHandle(directoryPath, fileNames);
     }
 
     /**
      * Gets the cache pointer.
      * @return the cache pointer
      */
-    public long getCachePtr() {
-        return cachePtr;
+    public long getReaderPtr() {
+        return readerHandle.getPointer();
     }
 
     /**
@@ -91,10 +90,6 @@ public class DatafusionReader implements Closeable {
 
     @Override
     public void close() throws IOException {
-        if(cachePtr == -1L) {
-            throw new IllegalStateException("Listing table has been already closed");
-        }
-        closeDatafusionReader(cachePtr);
-        this.cachePtr = -1;
+        readerHandle.close();
     }
 }

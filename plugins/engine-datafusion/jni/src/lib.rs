@@ -71,31 +71,69 @@ use prost::Message;
 use std::io::Write;
 use tokio::runtime::Runtime;
 
-/// Create a new DataFusion session context
+// NativeBridge JNI implementations
+
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createContext(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlobalRuntime(
     _env: JNIEnv,
     _class: JClass,
 ) -> jlong {
-    let config = SessionConfig::new().with_repartition_aggregations(true);
-    let context = SessionContext::new_with_config(config);
-    let ctx = Box::into_raw(Box::new(context)) as jlong;
-    ctx
+    match RuntimeEnvBuilder::default().build() {
+        Ok(runtime_env) => Box::into_raw(Box::new(runtime_env)) as jlong,
+        Err(_) => 0,
+    }
 }
 
-/// Close and cleanup a DataFusion context
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeContext(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createTokioRuntime(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jlong {
+    match Runtime::new() {
+        Ok(rt) => Box::into_raw(Box::new(rt)) as jlong,
+        Err(_) => 0,
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeGlobalRuntime(
+    _env: JNIEnv,
+    _class: JClass,
+    ptr: jlong,
+) {
+    if ptr != 0 {
+        let _ = unsafe { Box::from_raw(ptr as *mut RuntimeEnv) };
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createSessionContext(
+    _env: JNIEnv,
+    _class: JClass,
+    runtime_id: jlong,
+) -> jlong {
+    if runtime_id == 0 {
+        return 0;
+    }
+    let runtime_env = unsafe { &*(runtime_id as *const RuntimeEnv) };
+    let config = SessionConfig::new().with_repartition_aggregations(true);
+    let context = SessionContext::new_with_config_rt(config, Arc::new(runtime_env.clone()));
+    Box::into_raw(Box::new(context)) as jlong
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeSessionContext(
     _env: JNIEnv,
     _class: JClass,
     context_id: jlong,
 ) {
-    let _ = unsafe { Box::from_raw(context_id as *mut SessionContext) };
+    if context_id != 0 {
+        let _ = unsafe { Box::from_raw(context_id as *mut SessionContext) };
+    }
 }
 
-/// Get version information
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_getVersionInfo(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_getVersionInfo(
     env: JNIEnv,
     _class: JClass,
 ) -> jstring {
@@ -108,78 +146,21 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_getVers
         .as_raw()
 }
 
-/// Get version information (legacy method name)
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_getVersion(
-    env: JNIEnv,
-    _class: JClass,
-) -> jstring {
-    env.new_string(DATAFUSION_VERSION)
-        .expect("Couldn't create Java string")
-        .as_raw()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createTokioRuntime(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_registerCsvDirectory(
     _env: JNIEnv,
     _class: JClass,
-) -> jlong {
-    let rt = Runtime::new().unwrap();
-    let ctx = Box::into_raw(Box::new(rt)) as jlong;
-    ctx
+    _context_id: jlong,
+    _table_name: JString,
+    _directory_path: JString,
+    _file_names: JObjectArray,
+) -> jni::sys::jint {
+    // Legacy method - not implemented
+    0
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createGlobalRuntime(
-    _env: JNIEnv,
-    _class: JClass,
-) -> jlong {
-    let runtime_env = RuntimeEnvBuilder::default().build().unwrap();
-    /**
-    // We can copy global runtime to local runtime - file statistics cache, and most of the things
-    // will be shared across session contexts. But list files cache will be specific to session
-    // context
-
-    let fsCache = runtimeEnv.clone().cache_manager.get_file_statistic_cache().unwrap();
-    let localCacheManagerConfig = CacheManagerConfig::default().with_files_statistics_cache(Option::from(fsCache));
-    let localCacheManager = CacheManager::try_new(&localCacheManagerConfig);
-    let localRuntimeEnv = RuntimeEnvBuilder::new()
-        .with_cache_manager(localCacheManagerConfig)
-        .with_disk_manager(DiskManagerConfig::new_existing(runtimeEnv.disk_manager))
-        .with_memory_pool(runtimeEnv.memory_pool)
-        .with_object_store_registry(runtimeEnv.object_store_registry)
-        .build();
-    let config = SessionConfig::new().with_repartition_aggregations(true);
-    let context = SessionContext::new_with_config(config);
-    **/
-    let ctx = Box::into_raw(Box::new(runtime_env)) as jlong;
-    ctx
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createSessionContext(
-    _env: JNIEnv,
-    _class: JClass,
-    runtime_id: jlong,
-) -> jlong {
-    let runtimeEnv = unsafe { &mut *(runtime_id as *mut RuntimeEnv) };
-    let config = SessionConfig::new().with_repartition_aggregations(true);
-    let context = SessionContext::new_with_config_rt(config, Arc::new(runtimeEnv.clone()));
-    let ctx = Box::into_raw(Box::new(context)) as jlong;
-    ctx
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeSessionContext(
-    _env: JNIEnv,
-    _class: JClass,
-    context_id: jlong,
-) {
-    let _ = unsafe { Box::from_raw(context_id as *mut SessionContext) };
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createDatafusionReader(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createDatafusionReader(
     mut env: JNIEnv,
     _class: JClass,
     table_path: JString,
@@ -235,12 +216,14 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createD
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeDatafusionReader(
-    mut env: JNIEnv,
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeDatafusionReader(
+    _env: JNIEnv,
     _class: JClass,
     ptr: jlong,
 ) {
-    let _ = unsafe { Box::from_raw(ptr as *mut ShardView) };
+    if ptr != 0 {
+        let _ = unsafe { Box::from_raw(ptr as *mut ShardView) };
+    }
 }
 
 pub struct ShardView {
@@ -299,7 +282,7 @@ impl FileMetadata {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_executeQueryPhase(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQueryPhase(
     mut env: JNIEnv,
     _class: JClass,
     shard_view_ptr: jlong,
@@ -457,7 +440,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
 
 // If we need to create session context separately
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_nativeCreateSessionContext(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_nativeCreateSessionContext(
     mut env: JNIEnv,
     _class: JClass,
     runtime_ptr: jlong,
@@ -532,7 +515,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_nativeC
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_RecordBatchStream_next(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNext(
     mut env: JNIEnv,
     _class: JClass,
     runtime_ptr: jlong,
@@ -574,7 +557,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_RecordBatchStream_next(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_RecordBatchStream_getSchema(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamGetSchema(
     mut env: JNIEnv,
     _class: JClass,
     stream: jlong,
@@ -595,7 +578,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_RecordBatchStream_getSchem
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_executeFetchPhase(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFetchPhase(
     mut env: JNIEnv,
     _class: JClass,
     shard_view_ptr: jlong,
@@ -905,19 +888,12 @@ async fn create_access_plans(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_RecordBatchStream_closeStream(
-    mut env: JNIEnv,
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamClose(
+    _env: JNIEnv,
     _class: JClass,
     stream: jlong,
 ) {
-    let _ = unsafe { Box::from_raw(stream as *mut SendableRecordBatchStream) };
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeGlobalRuntime(
-    _env: JNIEnv,
-    _class: JClass,
-    runtime: jlong,
-) {
-    let _ = unsafe { Box::from_raw(runtime as *mut RuntimeEnv) };
+    if stream != 0 {
+        let _ = unsafe { Box::from_raw(stream as *mut SendableRecordBatchStream) };
+    }
 }
