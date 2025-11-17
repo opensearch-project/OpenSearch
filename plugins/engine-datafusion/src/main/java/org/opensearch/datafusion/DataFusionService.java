@@ -10,10 +10,11 @@ package org.opensearch.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
-import org.opensearch.datafusion.core.GlobalRuntimeEnv;
+import org.opensearch.datafusion.core.DataFusionRuntimeEnv;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
@@ -32,17 +33,18 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final ConcurrentMapLong<DataSourceCodec> sessionEngines = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
     private final DataSourceRegistry dataSourceRegistry;
-    private final GlobalRuntimeEnv globalRuntimeEnv;
+    private final DataFusionRuntimeEnv runtimeEnv;
+
 
     /**
      * Creates a new DataFusion service instance.
      */
-    public DataFusionService(Map<DataFormat, DataSourceCodec> dataSourceCodecs) {
+    public DataFusionService(Map<DataFormat, DataSourceCodec> dataSourceCodecs, ClusterService clusterService) {
         this.dataSourceRegistry = new DataSourceRegistry(dataSourceCodecs);
 
         // to verify jni
         String version = NativeBridge.getVersionInfo();
-        this.globalRuntimeEnv = new GlobalRuntimeEnv();
+        this.runtimeEnv = new DataFusionRuntimeEnv(clusterService);
     }
 
     @Override
@@ -80,7 +82,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
             }
         }
         sessionEngines.clear();
-        globalRuntimeEnv.close();
+        runtimeEnv.close();
         logger.info("DataFusion service stopped");
     }
 
@@ -110,7 +112,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
             engine.getClass().getSimpleName()
         );
 
-        return engine.registerDirectory(directoryPath, fileNames, globalRuntimeEnv.getPointer());
+        return engine.registerDirectory(directoryPath, fileNames, runtimeEnv.getPointer());
     }
 
     /**
@@ -119,7 +121,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
      * @return session context ID
      */
     public CompletableFuture<Long> createSessionContext() {
-        long runtimeEnvironmentId = globalRuntimeEnv.getPointer();
+        long runtimeEnvironmentId = runtimeEnv.getPointer();
         DataSourceCodec codec = dataSourceRegistry.getDefaultEngine();
         if (codec == null) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Runtime environment not found: " + runtimeEnvironmentId));
@@ -163,11 +165,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
     }
 
     public long getRuntimePointer() {
-        return globalRuntimeEnv.getPointer();
-    }
-
-    public long getTokioRuntimePointer() {
-        return globalRuntimeEnv.getTokioRuntimePtr();
+        return runtimeEnv.getPointer();
     }
 
     /**

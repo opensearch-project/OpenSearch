@@ -8,6 +8,8 @@
 
 package org.opensearch.datafusion;
 
+import org.mockito.Mock;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -24,10 +26,13 @@ public class TestDataFusionServiceTests extends OpenSearchTestCase {
 
     private DataFusionService service;
 
+    @Mock
+    private ClusterService clusterService;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        service = new DataFusionService(Collections.emptyMap());
+        service = new DataFusionService(Collections.emptyMap(), clusterService);
         service.doStart();
     }
 

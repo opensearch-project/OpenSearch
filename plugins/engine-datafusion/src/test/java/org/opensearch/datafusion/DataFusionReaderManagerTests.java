@@ -19,6 +19,8 @@ import org.junit.Before;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
@@ -33,6 +35,8 @@ import org.opensearch.search.aggregations.SearchResultsCollector;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.vectorized.execution.search.DataFormat;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.opensearch.index.engine.Engine.SearcherScope.INTERNAL;
 
 public class DataFusionReaderManagerTests extends OpenSearchTestCase {
@@ -42,10 +46,18 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
     @Mock
     private Environment mockEnvironment;
 
+    @Mock
+    private ClusterService clusterService;
+
     @Before
     public void setup() {
         MockitoAnnotations.openMocks(this);
-        service = new DataFusionService(Collections.emptyMap());
+
+        clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION));
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        service = new DataFusionService(Collections.emptyMap(), clusterService);
         service.doStart();
         noOpFileDeleterSupplier = () -> {
             try {
@@ -84,7 +96,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         // Assert RefCount 1 -> 1 for latest catalogSnapshot holder
         assertEquals(1, getRefCount(reader));
         reader.close();
-        assertEquals(-1, reader.getReaderPtr());
+        assertThrows(IllegalStateException.class, reader::getReaderPtr);
     }
 
     /** Test that multiple searchers share the same reader instance for efficiency */
@@ -113,7 +125,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         assertEquals(1, getRefCount(reader));
         reader.decRef();
         assertEquals(0,getRefCount(reader));
-        assertEquals(-1, reader.getReaderPtr());
+        assertThrows(IllegalStateException.class, reader::getReaderPtr);
     }
 
     /** Test that reader stays alive when only some searchers are closed (reference counting) */
@@ -206,7 +218,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
 
         searcher.close();
         reader.decRef();
-        assertEquals(-1, reader.readerHandle);
+        assertThrows(IllegalStateException.class, reader::getReaderPtr);
 
         // Calling decRef on closed reader should throw
         assertThrows(IllegalStateException.class, reader::decRef);
@@ -274,7 +286,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
             assertEquals(2, getRefCount(readerR2));
             assertNotEquals(-1, readerR1.readerHandle);
             datafusionSearcher1v2.close();
-            assertEquals(-1, readerR1v2.readerHandle);
+            assertThrows(IllegalStateException.class, readerR1v2::getReaderPtr);
 
             assertThrows(IllegalStateException.class, () -> readerR1.decRef());
             datafusionSearcherS2.close();
@@ -346,7 +358,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         assertEquals(1, reader2.files.stream().toList().getFirst().getFiles().size());
 
         searcher1.close();
-        assertEquals(-1,reader1.readerHandle);
+        assertThrows(IllegalStateException.class, reader1::getReaderPtr);
         searcher2.close();
     }
 
@@ -419,10 +431,10 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
 
     private void verifySearchResults(DatafusionSearcher searcher, DatafusionQuery datafusionQuery, Map<String, Long> expectedResults) throws IOException {
         Map<String, Object[]> finalRes = new HashMap<>();
-        Long streamPointer = searcher.search(datafusionQuery, service.getTokioRuntimePointer());
+        Long streamPointer = searcher.search(datafusionQuery, service.getRuntimePointer());
 
         RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-        RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getTokioRuntimePointer(), allocator);
+        RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer(), allocator);
 
         SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
             @Override

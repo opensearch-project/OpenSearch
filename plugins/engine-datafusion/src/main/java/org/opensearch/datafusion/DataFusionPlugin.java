@@ -11,8 +11,10 @@ package org.opensearch.datafusion;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -45,11 +47,15 @@ import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION;
+
 
 /**
  * Main plugin class for OpenSearch DataFusion integration.
@@ -103,7 +109,7 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         if (!isDataFusionEnabled) {
             return Collections.emptyList();
         }
-        dataFusionService = new DataFusionService(dataSourceCodecs);
+        dataFusionService = new DataFusionService(dataSourceCodecs, clusterService);
 
         for(DataFormat format : this.getSupportedFormats()) {
             dataSourceCodecs.get(format);
@@ -154,6 +160,15 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
             return Collections.emptyList();
         }
         return List.of(new DataFusionAction());
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> settingList = new ArrayList<>();
+
+        settingList.add(MEMORY_POOL_CONFIGURATION_DATAFUSION);
+
+        return settingList;
     }
 
     /**

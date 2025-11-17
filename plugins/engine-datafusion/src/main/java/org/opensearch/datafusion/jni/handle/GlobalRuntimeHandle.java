@@ -14,10 +14,10 @@ import org.opensearch.vectorized.execution.jni.NativeHandle;
 /**
  * Type-safe handle for native runtime environment.
  */
-public final class RuntimeHandle extends NativeHandle {
+public final class GlobalRuntimeHandle extends NativeHandle {
 
-    public RuntimeHandle() {
-        super(NativeBridge.createGlobalRuntime());
+    public GlobalRuntimeHandle(long memoryLimit) {
+        super(NativeBridge.createGlobalRuntime(memoryLimit));
     }
 
     /**
