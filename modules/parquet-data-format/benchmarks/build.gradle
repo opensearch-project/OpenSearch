@@ -91,3 +91,8 @@ run.jvmArgs += [
 run.environment += [
   'RUST_BACKTRACE': 'full'
 ]
+
+ext {
+  // Do not fail on `javadoc` warning
+  failOnJavadocWarning = false
+}

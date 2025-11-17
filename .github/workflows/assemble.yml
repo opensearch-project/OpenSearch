@@ -5,6 +5,8 @@ jobs:
   assemble:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ${{ matrix.os }}
+    env:
+      RUSTFLAGS: "-A unused_variables -A unused_mut"
     strategy:
       matrix:
         java: [ 21, 24 ]
@@ -16,6 +18,19 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: temurin
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install Protocol Buffers
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+      - name: Install Protocol Buffers
+        if: runner.os == 'macOS'
+        run: brew install protobuf
+      - name: Install Protocol Buffers
+        if: runner.os == 'Windows'
+        run: choco install protoc
       - name: Setup docker (missing on MacOS)
         id: setup_docker
         if: runner.os == 'macos'
@@ -33,7 +48,7 @@ jobs:
         shell: bash
         if: runner.os != 'macos'
         run: |
-          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE 
+          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE
       - name: Run Gradle (assemble)
         if: runner.os == 'macos' && steps.setup_docker.outcome == 'success'
         run: |
