@@ -1,18 +1,10 @@
 use std::sync::{Arc, Mutex};
-use std::any::Any;
 use jni::JNIEnv;
-use jni::sys::jlong;
-use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 
 use datafusion::execution::cache::cache_manager::{FileMetadataCache};
 use datafusion::execution::cache::cache_unit::{DefaultFilesMetadataCache};
 use datafusion::execution::cache::CacheAccessor;
 use object_store::ObjectMeta;
-use tokio::runtime::Runtime;
-use downcast_rs::{Downcast, impl_downcast};
-
-use crate::util::{create_object_meta_from_file,construct_file_metadata};
-use crate::custom_cache_manager::CustomCacheManager;
 
 pub const ALL_CACHE_TYPES: &[&str] = &[CACHE_TYPE_METADATA, CACHE_TYPE_STATS];
 

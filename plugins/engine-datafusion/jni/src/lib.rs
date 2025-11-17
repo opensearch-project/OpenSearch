@@ -27,7 +27,6 @@ use datafusion::{
     common::DataFusionError,
     datasource::file_format::csv::CsvFormat,
     datasource::file_format::parquet::ParquetFormat,
-    datasource::listing::ListingTableUrl,
     datasource::object_store::ObjectStoreUrl,
     datasource::physical_plan::parquet::{ParquetAccessPlan, RowGroupAccess},
     datasource::physical_plan::ParquetSource,
@@ -348,11 +347,11 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_destroy
 
 pub struct ShardView {
     table_path: ListingTableUrl,
-    files_metadata: Arc<Vec<FileMeta>>,
+    files_metadata: Arc<Vec<CustomFileMeta>>,
 }
 
 impl ShardView {
-    pub fn new(table_path: ListingTableUrl, files_metadata: Vec<FileMeta>) -> Self {
+    pub fn new(table_path: ListingTableUrl, files_metadata: Vec<CustomFileMeta>) -> Self {
         let files_metadata = Arc::new(files_metadata);
         ShardView {
             table_path,
@@ -364,24 +363,24 @@ impl ShardView {
         self.table_path.clone()
     }
 
-    pub fn files_metadata(&self) -> Arc<Vec<FileMeta>> {
+    pub fn files_metadata(&self) -> Arc<Vec<CustomFileMeta>> {
         self.files_metadata.clone()
     }
 }
 
 #[derive(Debug, Clone)]
-struct FileMeta {
+struct CustomFileMeta {
     row_group_row_counts: Arc<Vec<i64>>,
     row_base: Arc<i64>,
     object_meta: Arc<ObjectMeta>,
 }
 
-impl FileMeta {
+impl CustomFileMeta {
     pub fn new(row_group_row_counts: Vec<i64>, row_base: i64, object_meta: ObjectMeta) -> Self {
         let row_group_row_counts = Arc::new(row_group_row_counts);
         let row_base = Arc::new(row_base);
         let object_meta = Arc::new(object_meta);
-        FileMeta {
+        CustomFileMeta {
             row_group_row_counts,
             row_base,
             object_meta,
@@ -467,8 +466,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     runtime.tokio_runtime.block_on(async {
         let resolved_schema = listing_options
             .infer_schema(&ctx.state(), &table_path.clone())
-            .await
-            .unwrap();
+            .await.unwrap();
 
         let config = ListingTableConfig::new(table_path.clone())
             .with_listing_options(listing_options)
@@ -896,7 +894,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
 
 async fn create_access_plans(
     row_ids: Vec<jlong>,
-    files_metadata: Arc<Vec<FileMeta>>,
+    files_metadata: Arc<Vec<CustomFileMeta>>,
 ) -> Result<Vec<ParquetAccessPlan>, DataFusionError> {
     let mut access_plans = Vec::new();
 
