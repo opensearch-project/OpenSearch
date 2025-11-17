@@ -73,6 +73,7 @@ public abstract class AggregatorBase extends Aggregator {
     private Map<String, Aggregator> subAggregatorbyName;
     private final CircuitBreakerService breakerService;
     private long requestBytesUsed;
+    private boolean precomputePath = false;
 
     /**
      * Constructs a new Aggregator.
@@ -202,8 +203,13 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        if (tryPrecomputeAggregationForLeaf(ctx)) {
-            throw new CollectionTerminatedException();
+        try {
+            precomputePath = true;
+            if (tryPrecomputeAggregationForLeaf(ctx)) {
+                throw new CollectionTerminatedException();
+            }
+        } finally {
+            precomputePath = false;
         }
         preGetSubLeafCollectors(ctx);
         final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
@@ -234,6 +240,27 @@ public abstract class AggregatorBase extends Aggregator {
      */
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         return false;
+    }
+
+    /**
+     * Returns true if currently in precompute path
+     * @return
+     */
+    protected boolean isTryPrecomputePath() {
+        if (precomputePath) {
+            return true;
+        }
+        Aggregator current = parent;
+        do {
+            if (current instanceof AggregatorBase base) {
+                if (base.precomputePath) {
+                    return true;
+                }
+            }
+            current = current.parent();
+        } while (current != null);
+
+        return precomputePath;
     }
 
     @Override
