@@ -1981,8 +1981,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     bigArrays,
                     scriptService,
                     multiBucketConsumerService.create(),
-                    pipelineTree,
-                    multiBucketConsumerService.getBreaker()
+                    pipelineTree
                 );
             }
         };

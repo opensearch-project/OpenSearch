@@ -160,8 +160,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             null,
             null,
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY,
-            breaker
+            PipelineAggregator.PipelineTree.EMPTY
         );
         List<InternalHistogram.Bucket> reducedBuckets = histogram1.reduceBuckets(List.of(histogram1, histogram2), reduceContext);
         expectThrows(

@@ -734,3 +734,49 @@ setup:
   - match: { error.type: "search_phase_execution_exception" }
   - match: { error.caused_by.type: "too_many_buckets_exception"}
   - match: { status: 503 }
+
+---
+"histogram without extended bounds":
+  - skip:
+      version: " - 3.3.99"
+      reason:  fix currently only in 3.4
+
+  - do:
+      indices.create:
+        index: test_sparse
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+            refresh_interval: -1
+          mappings:
+            properties:
+              value:
+                type: double
+
+  - do:
+      bulk:
+        index: test_sparse
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"value": 1}'
+          - '{"index": {}}'
+          - '{"value": 100000}'
+
+  - do:
+      catch: /too_many_buckets_exception/
+      search:
+        index: test_sparse
+        body:
+          size: 0
+          aggs:
+            value_hist:
+              histogram:
+                field: value
+                interval: 1
+                min_doc_count: 0
+
+  - match: { error.type: "search_phase_execution_exception" }
+  - match: { error.caused_by.type: "too_many_buckets_exception"}
+  - match: { status: 503 }

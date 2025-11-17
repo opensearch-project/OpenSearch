@@ -387,29 +387,38 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     }
 
     private int estimateTotalBucketCount(List<Bucket> list) {
-        int bucketCount = 0;
-        if (emptyBucketInfo != null && !list.isEmpty()) {
-            double min = min(emptyBucketInfo.minBound, list.getFirst().key);
-            double max = max(emptyBucketInfo.maxBound, list.getLast().key);
-
-            int i = 0;
-            double key = min;
-            while (key < max && i++ < 10) {
-                bucketCount++;
-                key = nextKey(key);
-            }
-
-            if (bucketCount < 10) {
-                return bucketCount;
-            }
-
-            long estimatedBuckets = Math.round(Math.floor((max - min) / emptyBucketInfo.interval));
-            if (estimatedBuckets > Integer.MAX_VALUE) {
-                return Integer.MAX_VALUE;
-            }
-            return (int) estimatedBuckets;
+        if (emptyBucketInfo == null || list.isEmpty()) {
+            return list.size();
         }
-        return list.size();
+
+        double min;
+        double max;
+
+        // Determine the range: either from extended_bounds or from natural data range
+        if (Double.isFinite(emptyBucketInfo.minBound) && Double.isFinite(emptyBucketInfo.maxBound)) {
+            min = min(emptyBucketInfo.minBound, list.getFirst().key);
+            max = max(emptyBucketInfo.maxBound, list.getLast().key);
+        } else {
+            // No extended_bounds: use natural data range (first to last bucket)
+            min = list.getFirst().key;
+            max = list.getLast().key;
+        }
+
+        int i = 0;
+        double key = min;
+        while (key < max && i++ < 10) {
+            key = nextKey(key);
+        }
+
+        if (i < 10) {
+            return i;
+        }
+
+        long estimatedBuckets = Math.round(Math.floor((max - min) / emptyBucketInfo.interval));
+        if (estimatedBuckets > Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) estimatedBuckets;
     }
 
     void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {

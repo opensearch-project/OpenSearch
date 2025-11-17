@@ -399,30 +399,40 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     }
 
     private int estimateTotalBucketCount(List<Bucket> list) {
-        LongBounds bounds = emptyBucketInfo.bounds;
-        int bucketCount = 0;
-        if (bounds != null && bounds.getMin() != null && bounds.getMax() != null && !list.isEmpty()) {
-            long min = min(bounds.getMin() + offset, list.getFirst().key);
-            long max = max(bounds.getMax() + offset, list.getLast().key);
-            long intervalWidth = 0;
-            int i = 0;
-            long key = min;
-            while (key < max && i++ < 10) {
-                bucketCount++;
-                long nextKey = nextKey(key).longValue();
-                intervalWidth = max(intervalWidth, nextKey - key);
-                key = nextKey;
-            }
-            if (bucketCount < 10) {
-                return bucketCount;
-            }
-            long estimatedBuckets = Math.round(Math.ceil((double) (max - min) / intervalWidth));
-            if (estimatedBuckets > Integer.MAX_VALUE) {
-                return Integer.MAX_VALUE;
-            }
-            return (int) estimatedBuckets;
+        if (list.isEmpty()) {
+            return 0;
         }
-        return list.size();
+
+        LongBounds bounds = emptyBucketInfo.bounds;
+        long min;
+        long max;
+
+        if (bounds != null && bounds.getMin() != null && bounds.getMax() != null) {
+            min = min(bounds.getMin() + offset, list.getFirst().key);
+            max = max(bounds.getMax() + offset, list.getLast().key);
+        } else {
+            min = list.getFirst().key;
+            max = list.getLast().key;
+        }
+
+        long intervalWidth = 0;
+        int i = 0;
+        long key = min;
+        while (key < max && i++ < 10) {
+            long nextKey = nextKey(key).longValue();
+            intervalWidth = max(intervalWidth, nextKey - key);
+            key = nextKey;
+        }
+
+        if (i < 10) {
+            return i;
+        }
+
+        long estimatedBuckets = Math.round(Math.ceil((double) (max - min) / intervalWidth));
+        if (estimatedBuckets > Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) estimatedBuckets;
     }
 
     void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {

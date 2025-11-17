@@ -98,7 +98,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         private final PipelineTree pipelineTreeRoot;
 
         private boolean isSliceLevel;
-        private final CircuitBreaker breaker;
         /**
          * Supplies the pipelines when the result of the reduce is serialized
          * to node versions that need pipeline aggregators to be serialized
@@ -114,30 +113,13 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             ScriptService scriptService,
             Supplier<PipelineTree> pipelineTreeForBwcSerialization
         ) {
-            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization, null);
+            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization);
         }
 
         /**
          * Build a {@linkplain ReduceContext} to perform the final reduction.
          * @param pipelineTreeRoot The root of tree of pipeline aggregations for this request
          */
-        public static ReduceContext forFinalReduction(
-            BigArrays bigArrays,
-            ScriptService scriptService,
-            IntConsumer multiBucketConsumer,
-            PipelineTree pipelineTreeRoot,
-            CircuitBreaker breaker
-        ) {
-            return new ReduceContext(
-                bigArrays,
-                scriptService,
-                multiBucketConsumer,
-                requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"),
-                () -> pipelineTreeRoot,
-                breaker
-            );
-        }
-
         public static ReduceContext forFinalReduction(
             BigArrays bigArrays,
             ScriptService scriptService,
@@ -149,8 +131,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
                 scriptService,
                 multiBucketConsumer,
                 requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"),
-                () -> pipelineTreeRoot,
-                null
+                () -> pipelineTreeRoot
             );
         }
 
@@ -159,8 +140,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             ScriptService scriptService,
             IntConsumer multiBucketConsumer,
             PipelineTree pipelineTreeRoot,
-            Supplier<PipelineTree> pipelineTreeForBwcSerialization,
-            CircuitBreaker breaker
+            Supplier<PipelineTree> pipelineTreeForBwcSerialization
         ) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
@@ -168,7 +148,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             this.pipelineTreeRoot = pipelineTreeRoot;
             this.pipelineTreeForBwcSerialization = pipelineTreeForBwcSerialization;
             this.isSliceLevel = false;
-            this.breaker = breaker;
         }
 
         /**
@@ -233,7 +212,11 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         }
 
         public CircuitBreaker getBreaker() {
-            return breaker;
+            // Extract breaker from MultiBucketConsumer if available
+            if (multiBucketConsumer instanceof MultiBucketConsumerService.MultiBucketConsumer) {
+                return ((MultiBucketConsumerService.MultiBucketConsumer) multiBucketConsumer).getBreaker();
+            }
+            return null;
         }
     }
 
