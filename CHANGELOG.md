@@ -104,6 +104,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `actions/github-script` from 7 to 8 ([#19946](https://github.com/opensearch-project/OpenSearch/pull/19946))
 - Bump `com.google.api:gax-httpjson` from 2.69.0 to 2.72.1 ([#19943](https://github.com/opensearch-project/OpenSearch/pull/19943))
 - Update Hadoop to 3.4.2 and enable security (Kerberos) integration tests under JDK-24 and above  ([#19952](https://github.com/opensearch-project/OpenSearch/pull/19952))
+- Bump `com.squareup.okio:okio` from 3.16.0 to 3.16.3 ([#20025](https://github.com/opensearch-project/OpenSearch/pull/20025))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
