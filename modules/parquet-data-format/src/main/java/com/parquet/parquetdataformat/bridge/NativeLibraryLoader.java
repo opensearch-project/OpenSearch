@@ -73,8 +73,9 @@ public final class NativeLibraryLoader {
     }
 
     private static void loadFromResources(String providedPath, String libraryName) throws IOException {
-        String libName = System.mapLibraryName(libraryName);
-        String resourcePath = Paths.get("/", providedPath, libName).toString();
+        String platformDir = PlatformHelper.getPlatformDirectory();
+        String libName = PlatformHelper.getPlatformLibraryName(libraryName);
+        String resourcePath = Paths.get("/", providedPath, platformDir, libName).toString();
         try (InputStream is = NativeLibraryLoader.class.getResourceAsStream(resourcePath)) {
             if (is == null) {
                 throw new IOException("Native library not found: " + resourcePath);

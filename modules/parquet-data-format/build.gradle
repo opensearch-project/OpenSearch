@@ -212,8 +212,8 @@ tasks.register('copyNativeLib', Copy) {
   dependsOn buildRust
   from "src/main/rust/target/release"
   into "src/main/resources/native"
-  include "**/libparquet_dataformat_jni.*"
-  include "**/parquet_dataformat_jni.dll"
+  include "libparquet_dataformat_jni.*"
+  include "parquet_dataformat_jni.dll"
 
   // Set strategy to avoid errors on duplicate files
   duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -226,7 +226,7 @@ tasks.register('copyNativeLib', Copy) {
     def archDir = arch.contains('aarch64') || arch.contains('arm64') ? 'aarch64' :
       arch.contains('64') ? 'x86_64' : 'x86'
 
-    file.path = "${osDir}/${archDir}/${file.name}"
+    file.path = "${osDir}-${archDir}/${file.name}"
   }
 
   doLast {
