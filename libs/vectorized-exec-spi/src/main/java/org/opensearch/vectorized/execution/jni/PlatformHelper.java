@@ -87,7 +87,7 @@ public class PlatformHelper {
      */
     public static String getArchName() {
         if (OS_ARCH.contains("amd64") || OS_ARCH.contains("x86_64")) {
-            return "x64";
+            return "x86_64";
         } else if (OS_ARCH.contains("x86")) {
             return "x86";
         } else if (OS_ARCH.contains("aarch64") || OS_ARCH.contains("arm64")) {
