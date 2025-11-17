@@ -15,7 +15,7 @@ use std::error::Error;
 use std::fs;
 use datafusion::error::DataFusionError;
 use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use crate::FileMeta;
+use crate::CustomFileMeta;
 use std::sync::Arc;
 use datafusion::datasource::physical_plan::parquet::CachedParquetMetaData;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
@@ -167,10 +167,10 @@ pub fn throw_exception(env: &mut JNIEnv, message: &str) {
     let _ = env.throw_new("java/lang/RuntimeException", message);
 }
 
-pub fn create_file_metadata_from_filenames(
+pub fn create_file_meta_from_filenames(
     base_path: &str,
     filenames: Vec<String>,
-) -> Result<Vec<FileMeta>, DataFusionError> {
+) -> Result<Vec<CustomFileMeta>, DataFusionError> {
     let mut row_base: i64 = 0;
     filenames
         .into_iter()
@@ -209,7 +209,7 @@ pub fn create_file_metadata_from_filenames(
                 .map(|t| DateTime::<Utc>::from(t))
                 .unwrap_or_else(|_| Utc::now());
 
-            let file_meta = FileMeta::new(
+            let file_meta = CustomFileMeta::new(
                 row_group_row_counts.clone(),
                 row_base,
                 ObjectMeta {
@@ -248,7 +248,7 @@ pub fn create_object_meta_from_file(file_path: &str) -> Result<Vec<ObjectMeta>, 
     Ok(vec![object_meta])
 }
 
-pub fn create_file_meta_from_file(file_path: &str) -> Result<Vec<FileMeta>, DataFusionError> {
+pub fn create_file_meta_from_file(file_path: &str) -> Result<Vec<CustomFileMeta>, DataFusionError> {
     let file_size = fs::metadata(&file_path).map(|m| m.len()).unwrap_or(0);
     let modified = fs::metadata(&file_path)
         .and_then(|m| m.modified())
@@ -275,7 +275,7 @@ pub fn create_file_meta_from_file(file_path: &str) -> Result<Vec<FileMeta>, Data
         version: None,
     };
 
-    let file_meta = FileMeta::new(
+    let file_meta = CustomFileMeta::new(
         row_group_row_counts,
         0, // row_base starts at 0 for a single file
         object_meta

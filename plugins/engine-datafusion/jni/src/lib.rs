@@ -5,8 +5,23 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-use arrow_array::ffi::FFI_ArrowArray;
+use std::ptr::addr_of_mut;
+use datafusion_datasource::PartitionedFile;
+use datafusion_datasource::file_groups::FileGroup;
+use datafusion_datasource::file_scan_config::FileScanConfigBuilder;
+use datafusion_datasource::source::DataSourceExec;
+use datafusion_expr::expr_rewriter::unalias;
+use jni::objects::{JByteArray, JClass, JObject};
+use std::collections::{BTreeSet, HashMap};
+use std::future::Future;
+use downcast_rs::Downcast;
+use jni::objects::{JLongArray, JValue};
+use jni::sys::{jbyteArray, jlong, jstring};
+use jni::JNIEnv;
+use std::sync::{Arc, Mutex};
 use arrow_array::{Array, StructArray};
+use arrow_array::ffi::FFI_ArrowArray;
+use arrow_schema::DataType;
 use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::{
     common::DataFusionError,
@@ -29,25 +44,18 @@ use datafusion::{
     prelude::*,
     DATAFUSION_VERSION,
 };
-use jni::objects::{JByteArray, JClass, JObject};
-use jni::objects::JLongArray;
-use jni::sys::{jbyteArray, jlong, jstring};
-use jni::JNIEnv;
-use std::collections::{BTreeSet, HashMap};
 use std::default::Default;
-use std::future::Future;
-use std::ptr::addr_of_mut;
-use std::sync::Arc;
 use std::time::Instant;
 
-mod listing_table;
-mod memory;
+mod util;
 mod row_id_optimizer;
+mod listing_table;
 mod cache;
 mod custom_cache_manager;
 
 use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
 use crate::memory::{CustomMemoryPool, Monitor, MonitoredMemoryPool};
+
 use crate::row_id_optimizer::ProjectRowIdOptimizer;
 use crate::util::{
     create_file_metadata_from_filenames, parse_string_arr, set_object_result_error,
@@ -67,6 +75,9 @@ use datafusion_substrait::logical_plan::consumer::{
     SubstraitConsumer,
 };
 use datafusion_substrait::substrait::proto::Plan;
+use crate::util::{ create_file_meta_from_filenames, parse_string_arr, set_object_result_error, set_object_result_ok};
+use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
+use datafusion_substrait::substrait::proto::Plan;
 use futures::TryStreamExt;
 use jni::objects::{JObjectArray, JString};
 use object_store::ObjectMeta;
@@ -85,7 +96,7 @@ pub type Result<T, E = DataFusionError> = result::Result<T, E>;
 
 // NativeBridge JNI implementations
 use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
-use crate::cache::{ MutexFileMetadataCache};
+use crate::cache::MutexFileMetadataCache;
 use crate::util::{construct_file_metadata, create_object_meta_from_file};
 
 struct DataFusionRuntime {
@@ -165,6 +176,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeSess
     }
 }
 
+/// Get version information
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_getVersionInfo(
     env: JNIEnv,
@@ -179,6 +191,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_getVersio
         .as_raw()
 }
 
+/// Get version information (legacy method name)
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_registerCsvDirectory(
     _env: JNIEnv,
@@ -196,16 +209,22 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_registerC
 pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createGlobalRuntime(
     mut env: JNIEnv,
     _class: JClass,
-    cache_config_ptr: jlong,
+    cache_manager_ptr: jlong,
 ) -> jlong {
-    // Get the Arc<Mutex<CacheManagerConfig>> and clone the inner config
-    let config_arc = unsafe { &*(cache_config_ptr as *const Arc<Mutex<CacheManagerConfig>>) };
-    let cache_manager_config = config_arc.lock().unwrap().clone();
+    let runtime_env = if cache_manager_ptr == 0 {
+        RuntimeEnvBuilder::default()
+            .build()
+            .unwrap()
+    } else {
+        // Get the CustomCacheManager and build CacheManagerConfig from it
+        let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+        let cache_manager_config = manager.build_cache_manager_config();
 
-    let runtime_env = RuntimeEnvBuilder::default()
-        .with_cache_manager(cache_manager_config)
-        .build()
-        .unwrap();
+        RuntimeEnvBuilder::default()
+            .with_cache_manager(cache_manager_config)
+            .build()
+            .unwrap()
+    };
 
     Box::into_raw(Box::new(runtime_env)) as jlong
 }
@@ -328,18 +347,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_destroy
     tokio_runtime_ptr: jlong
 )  {
     let _ = unsafe { Box::from_raw(tokio_runtime_ptr as *mut Runtime) };
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_destroyMetadataCache(
-    mut env: JNIEnv,
-    _class: JClass,
-    metadata_cache_ptr: jlong
-)  {
-    // The pointer is actually Arc<MutexFileMetadataCache>, not DefaultFilesMetadataCache
-    if metadata_cache_ptr != 0 && metadata_cache_ptr != -1 {
-        let _ = unsafe { Box::from_raw(metadata_cache_ptr as *mut Arc<MutexFileMetadataCache>) };
-    }
 }
 
 pub struct ShardView {
@@ -1032,7 +1039,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_destroy
 }
 
 /// Generic cache creation method that handles all cache types
-/// This is the new unified approach for creating caches
+/// This creates a cache and stores it in CustomCacheManager
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createCache(
     mut env: JNIEnv,
@@ -1382,7 +1389,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheMa
         }
     };
 
-    match custom_cache_manager::clear_cache_by_type(&cache_type) {
+    match manager.clear_cache_type(&cache_type) {
         Ok(_) => {
             println!("[CACHE INFO] Cache Type: {} cleared", cache_type);
         }
