@@ -1,3 +1,7 @@
+setup:
+  - skip:
+      version: " - 3.3.99"
+      reason: "Error trace support was added in 3.4"
 ---
 "Returns a detailed error stack trace when requested":
 
