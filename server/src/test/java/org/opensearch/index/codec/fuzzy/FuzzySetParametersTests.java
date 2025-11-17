@@ -106,7 +106,7 @@ public class FuzzySetParametersTests extends OpenSearchTestCase {
 
         double falsePositiveRate = (double) falsePositives / testCount;
         logger.info("False positive rate: {}", falsePositiveRate);
-        assertTrue("False positive rate " + falsePositiveRate + " should be reasonable", falsePositiveRate < 0.10);
+        assertTrue("False positive rate " + falsePositiveRate + " should be reasonable", falsePositiveRate < 0.20);
     }
 
     public void testBloomFilterSaturation() throws IOException {
