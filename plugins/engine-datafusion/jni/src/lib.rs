@@ -1296,54 +1296,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheMa
     }
 }
 
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheManagerGetItemByCacheType(
-    mut env: JNIEnv,
-    _class: JClass,
-    cache_manager_ptr: jlong,
-    cache_type: JString,
-    file_path: JString,
-) -> bool {
-    if cache_manager_ptr == 0 {
-        let _ = env.throw_new("java/lang/DataFusionException", "Cache manager pointer is null");
-        return false;
-    }
-
-    let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
-
-    let cache_type: String = match env.get_string(&cache_type) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            let msg = format!("Failed to convert cache type string: {}", e);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            return false;
-        }
-    };
-
-    let file_path: String = match env.get_string(&file_path) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            let msg = format!("Failed to convert file path string: {}", e);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            return false;
-        }
-    };
-
-    match cache_type.as_str() {
-        cache::CACHE_TYPE_METADATA => {
-            manager.contains_file(&file_path)
-        }
-        _ => {
-            let msg = format!("Unknown cache type: {}", cache_type);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            false
-        }
-    }
-}
-
 /// Get total memory consumed by all caches
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheManagerGetTotalMemoryConsumed(
@@ -1394,6 +1346,56 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheMa
         Err(e) => {
             eprintln!("[CACHE ERROR] {}", e);
             let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &e);
+        }
+    }
+}
+
+
+// Method added for Testing purposes only
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheManagerGetItemByCacheType(
+    mut env: JNIEnv,
+    _class: JClass,
+    cache_manager_ptr: jlong,
+    cache_type: JString,
+    file_path: JString,
+) -> bool {
+    if cache_manager_ptr == 0 {
+        let _ = env.throw_new("java/lang/DataFusionException", "Cache manager pointer is null");
+        return false;
+    }
+
+    let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+
+    let cache_type: String = match env.get_string(&cache_type) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            let msg = format!("Failed to convert cache type string: {}", e);
+            eprintln!("[CACHE ERROR] {}", msg);
+            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
+            return false;
+        }
+    };
+
+    let file_path: String = match env.get_string(&file_path) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            let msg = format!("Failed to convert file path string: {}", e);
+            eprintln!("[CACHE ERROR] {}", msg);
+            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
+            return false;
+        }
+    };
+
+    match cache_type.as_str() {
+        cache::CACHE_TYPE_METADATA => {
+            manager.contains_file(&file_path)
+        }
+        _ => {
+            let msg = format!("Unknown cache type: {}", cache_type);
+            eprintln!("[CACHE ERROR] {}", msg);
+            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
+            false
         }
     }
 }

@@ -32,7 +32,7 @@ fn log_cache_error(operation: &str, error: &str) {
     eprintln!("[CACHE ERROR] {} operation failed: {}", operation, error);
 }
 
-// Note: MutexFileMetadataCache wrapper has been removed as DefaultFilesMetadataCache 
+// Note: MutexFileMetadataCache wrapper has been removed as DefaultFilesMetadataCache
 // is already thread-safe with its own internal Mutex.
 // The double-locking was causing race conditions and crashes.
 
@@ -50,19 +50,19 @@ impl MutexFileMetadataCache {
             inner: Mutex::new(cache),
         }
     }
-    
+
     pub fn clear(&self) {
         if let Ok(mut cache) = self.inner.lock() {
             cache.clear();
         }
     }
-    
+
     pub fn update_cache_limit(&self, new_limit: usize) {
         if let Ok(mut cache) = self.inner.lock() {
             cache.update_cache_limit(new_limit);
         }
     }
-    
+
     pub fn cache_limit(&self) -> usize {
         if let Ok(cache) = self.inner.lock() {
             cache.cache_limit()
@@ -192,6 +192,3 @@ impl FileMetadataCache for MutexFileMetadataCache {
         }
     }
 }
-
-// Note: create_cache function has been removed. Cache creation is now handled through CacheManagerConfig only.
-// metadata_cache_put, metadata_cache_remove, and metadata_cache_get functions have been moved to CustomCacheManager as internal methods
