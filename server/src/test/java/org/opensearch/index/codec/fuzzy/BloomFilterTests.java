@@ -13,7 +13,11 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,7 +25,7 @@ public class BloomFilterTests extends OpenSearchTestCase {
 
     public void testBloomFilterSerializationDeserialization() throws IOException {
         int elementCount = randomIntBetween(1, 100);
-        long maxDocs = elementCount * 10L;
+        long maxDocs = elementCount * 10L; // Keeping this high so that it ensures some bits are not set.
         BloomFilter filter = new BloomFilter(maxDocs, getFpp(), () -> idIterator(elementCount));
         byte[] buffer = new byte[(int) maxDocs * 5];
         ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);

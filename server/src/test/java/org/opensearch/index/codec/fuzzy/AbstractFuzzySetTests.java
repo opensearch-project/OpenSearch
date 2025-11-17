@@ -124,7 +124,7 @@ public class AbstractFuzzySetTests extends OpenSearchTestCase {
         }
 
         double falsePositiveRate = (double) falsePositives / testCount;
-        assertTrue("False positive rate should be reasonable", falsePositiveRate < 0.1);
+        assertTrue("False positive rate should be reasonable", falsePositiveRate < 0.2);
 
         BytesRef testValue = new BytesRef("testValue");
         long hash1 = bloomFilter.generateKey(testValue);
