@@ -167,7 +167,7 @@ public class CollectionUtils {
             case Map<?, ?> map -> () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
             case Iterable<?> iterable when value instanceof Path == false -> iterable;
             case Object[] objects -> Arrays.asList(objects);
-            default -> null;
+            case null, default -> null;
         };
     }
 
