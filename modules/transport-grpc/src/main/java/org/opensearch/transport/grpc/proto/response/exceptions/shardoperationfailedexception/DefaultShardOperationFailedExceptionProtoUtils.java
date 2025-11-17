@@ -41,7 +41,11 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
         ShardFailure.Builder shardFailureBuilder = ShardFailure.newBuilder();
 
         switch (exception) {
-            case AddIndexBlockResponse.AddBlockShardResult.Failure addBlockFailure -> innerToProto(shardFailureBuilder, addBlockFailure, params);
+            case AddIndexBlockResponse.AddBlockShardResult.Failure addBlockFailure -> innerToProto(
+                shardFailureBuilder,
+                addBlockFailure,
+                params
+            );
             case IndicesShardStoresResponse.Failure indicesShardStoresFailure -> innerToProto(
                 shardFailureBuilder,
                 indicesShardStoresFailure,
