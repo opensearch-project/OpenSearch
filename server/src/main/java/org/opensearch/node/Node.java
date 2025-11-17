@@ -630,7 +630,7 @@ public class Node implements Closeable {
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(repositoriesServiceReference::get, threadPool);
-            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService);
+            localNodeFactory = new RemoteStoreVerifyingLocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService);
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
@@ -1292,7 +1292,7 @@ public class Node implements Closeable {
                         streamTransport,
                         threadPool,
                         networkModule.getTransportInterceptor(),
-                        new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService, true),
+                        new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService),
                         settingsModule.getClusterSettings(),
                         transportService.getTaskManager(),
                         transportService.getRemoteClusterService(),
@@ -2320,27 +2320,19 @@ public class Node implements Closeable {
         return networkModule.getAuxServerTransportList();
     }
 
+    /**
+     * Base factory for creating DiscoveryNode instances during node initialization.
+     */
     private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {
         private final SetOnce<DiscoveryNode> localNode = new SetOnce<>();
         private final String persistentNodeId;
-        private final Settings settings;
-        private final RemoteStoreNodeService remoteStoreNodeService;
-        private final boolean useStreamTransport;
+        protected final Settings settings;
+        protected final RemoteStoreNodeService remoteStoreNodeService;
 
         private LocalNodeFactory(Settings settings, String persistentNodeId, RemoteStoreNodeService remoteStoreNodeService) {
-            this(settings, persistentNodeId, remoteStoreNodeService, false);
-        }
-
-        private LocalNodeFactory(
-            Settings settings,
-            String persistentNodeId,
-            RemoteStoreNodeService remoteStoreNodeService,
-            boolean useStreamTransport
-        ) {
             this.persistentNodeId = persistentNodeId;
             this.settings = settings;
             this.remoteStoreNodeService = remoteStoreNodeService;
-            this.useStreamTransport = useStreamTransport;
         }
 
         @Override
@@ -2350,11 +2342,6 @@ public class Node implements Closeable {
                 boundTransportAddress.publishAddress(),
                 persistentNodeId
             );
-
-            if (!useStreamTransport && isRemoteStoreAttributePresent(settings)) {
-                remoteStoreNodeService.createAndVerifyRepositories(discoveryNode);
-            }
-
             localNode.set(discoveryNode);
             return localNode.get();
         }
@@ -2362,6 +2349,31 @@ public class Node implements Closeable {
         DiscoveryNode getNode() {
             assert localNode.get() != null;
             return localNode.get();
+        }
+    }
+
+    /**
+     * Extended factory that verifies remote store repositories during node creation.
+     */
+    private static class RemoteStoreVerifyingLocalNodeFactory extends LocalNodeFactory {
+
+        private RemoteStoreVerifyingLocalNodeFactory(
+            Settings settings,
+            String persistentNodeId,
+            RemoteStoreNodeService remoteStoreNodeService
+        ) {
+            super(settings, persistentNodeId, remoteStoreNodeService);
+        }
+
+        @Override
+        public DiscoveryNode apply(BoundTransportAddress boundTransportAddress) {
+            final DiscoveryNode discoveryNode = super.apply(boundTransportAddress);
+
+            if (isRemoteStoreAttributePresent(settings)) {
+                remoteStoreNodeService.createAndVerifyRepositories(discoveryNode);
+            }
+
+            return discoveryNode;
         }
     }
 
