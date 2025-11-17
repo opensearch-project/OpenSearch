@@ -13,11 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.datafusion.jni.NativeBridge;
 
-import static org.opensearch.datafusion.DataFusionQueryJNI.cacheManagerUpdateSizeLimitForCacheType;
-import static org.opensearch.datafusion.DataFusionQueryJNI.createCache;
-import static org.opensearch.datafusion.DataFusionQueryJNI.createCustomCacheManager;
-// initCacheManagerConfig import removed - using CustomCacheManager directly
 import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_ENABLED;
 import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
 import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_SIZE_LIMIT;
@@ -94,13 +91,9 @@ public final class CacheUtils {
      * Creates and configures a CacheManagerConfig pointer with all enabled caches.
      *
      * @param clusterSettings OpenSearch cluster settings containing cache configuration
-     * @return CacheManagerConfig pointer ready for runtime creation
      */
-    public static long createCacheConfig(ClusterSettings clusterSettings) {
+    public static void createCacheConfig(ClusterSettings clusterSettings, long cacheManagerPtr) {
         logger.info("Initializing cache configuration");
-
-        // Get the custom cache manager pointer directly
-        long cacheManagerPtr = createCustomCacheManager();
 
         // Configure each enabled cache type
         for (CacheType type : CacheType.values()) {
@@ -110,14 +103,13 @@ public final class CacheUtils {
                     type.getSizeLimit(clusterSettings).getBytes(),
                     type.getEvictionType(clusterSettings));
 
-                createCache(cacheManagerPtr, type.cacheTypeName, type.getSizeLimit(clusterSettings).getBytes(), type.getEvictionType(clusterSettings));
-                clusterSettings.addSettingsUpdateConsumer(type.sizeLimitSetting,(v) -> cacheManagerUpdateSizeLimitForCacheType(cacheManagerPtr, CacheType.METADATA.getCacheTypeName(),v.getBytes()));
+                NativeBridge.createCache(cacheManagerPtr, type.cacheTypeName, type.getSizeLimit(clusterSettings).getBytes(), type.getEvictionType(clusterSettings));
+                clusterSettings.addSettingsUpdateConsumer(type.sizeLimitSetting,(v) -> NativeBridge.cacheManagerUpdateSizeLimitForCacheType(cacheManagerPtr, CacheType.METADATA.getCacheTypeName(),v.getBytes()));
             } else {
                 logger.debug("Cache type {} is disabled", type.getCacheTypeName());
             }
         }
 
         logger.info("Cache configuration complete");
-        return cacheManagerPtr;
     }
 }

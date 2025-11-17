@@ -37,6 +37,7 @@ use datafusion::{
     execution::runtime_env::{RuntimeEnv, RuntimeEnvBuilder},
     execution::TaskContext
     ,
+    execution::TaskContext,
     parquet::arrow::arrow_reader::RowSelector,
     physical_plan::{ExecutionPlan, SendableRecordBatchStream},
     prelude::SessionConfig,
@@ -44,6 +45,9 @@ use datafusion::{
     DATAFUSION_VERSION,
 };
 use std::default::Default;
+use jni::objects::{JLongArray, JValue};
+use jni::sys::{jbyteArray, jlong, jstring};
+use jni::JNIEnv;
 use std::time::Instant;
 
 mod util;
@@ -145,6 +149,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeGlob
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::execution::cache::cache_unit::{DefaultFilesMetadataCache};
 
+
+/// Create a new DataFusion session context
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createSessionContext(
     _env: JNIEnv,
@@ -202,7 +208,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_registerC
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createGlobalRuntime(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_createGlobalRuntime(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -226,7 +232,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createG
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createDefaultGlobalRuntimeEnv(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_createDefaultGlobalRuntimeEnv(
     mut env: JNIEnv,
     _class: JClass,
 ) -> jlong {
@@ -238,7 +244,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createD
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createSessionContext(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_createSessionContext(
     _env: JNIEnv,
     _class: JClass,
     runtime_id: jlong,
@@ -251,7 +257,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createS
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeSessionContext(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_closeSessionContext(
     _env: JNIEnv,
     _class: JClass,
     context_id: jlong,
@@ -261,7 +267,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeSe
 
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createDatafusionReader(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_createDatafusionReader(
     mut env: JNIEnv,
     _class: JClass,
     table_path: JString,
@@ -328,7 +334,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeData
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeGlobalRuntime(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_closeGlobalRuntime(
     mut env: JNIEnv,
     _class: JClass,
     runtime_env_ptr: jlong
@@ -337,7 +343,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeGl
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_destroyTokioRuntime(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_destroyTokioRuntime(
     mut env: JNIEnv,
     _class: JClass,
     tokio_runtime_ptr: jlong
@@ -1023,7 +1029,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeGl
 
 /// Destroy a CustomCacheManager instance
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_destroyCustomCacheManager(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_destroyCustomCacheManager(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1038,7 +1044,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_destroy
 /// Generic cache creation method that handles all cache types
 /// This creates a cache and stores it in CustomCacheManager
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createCache(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_createCache(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1106,7 +1112,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createC
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheManagerAddFiles(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerAddFiles(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1154,7 +1160,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheMa
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheManagerRemoveFiles(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerRemoveFiles(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1202,7 +1208,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheMa
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheManagerClear(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerClear(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1219,7 +1225,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheMa
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheManagerUpdateSizeLimitForCacheType(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerUpdateSizeLimitForCacheType(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1258,7 +1264,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheMa
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheManagerGetMemoryConsumedForCacheType(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerGetMemoryConsumedForCacheType(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1296,7 +1302,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheMa
 
 /// Get total memory consumed by all caches
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheManagerGetTotalMemoryConsumed(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerGetTotalMemoryConsumed(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1314,7 +1320,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheMa
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheManagerClearByCacheType(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerClearByCacheType(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1351,7 +1357,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheMa
 
 // Method added for Testing purposes only
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheManagerGetItemByCacheType(
+pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerGetItemByCacheType(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
