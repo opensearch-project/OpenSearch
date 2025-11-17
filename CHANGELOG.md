@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add async periodic flush task support for pull-based ingestion ([#19878](https://github.com/opensearch-project/OpenSearch/pull/19878))
 - Add support for context aware segments ([#19098](https://github.com/opensearch-project/OpenSearch/pull/19098))
 - Implement GRPC FunctionScoreQuery ([#19888](https://github.com/opensearch-project/OpenSearch/pull/19888))
+- Allow the truncate filter in normalizers ([#19778](https://github.com/opensearch-project/OpenSearch/issues/19778))
 - Support pull-based ingestion message mappers and raw payload support ([#19765](https://github.com/opensearch-project/OpenSearch/pull/19765)]
 
 ### Changed
@@ -105,6 +106,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.api:gax-httpjson` from 2.69.0 to 2.72.1 ([#19943](https://github.com/opensearch-project/OpenSearch/pull/19943))
 - Update Hadoop to 3.4.2 and enable security (Kerberos) integration tests under JDK-24 and above  ([#19952](https://github.com/opensearch-project/OpenSearch/pull/19952))
 - Bump `com.google.cloud:google-cloud-storage` from 2.55.0 to 2.60.0 ([#20023](https://github.com/opensearch-project/OpenSearch/pull/20023))
+- Bump `commons-cli:commons-cli` from 1.10.0 to 1.11.0 ([#20022](https://github.com/opensearch-project/OpenSearch/pull/20022))
 - Bump `com.squareup.okio:okio` from 3.16.0 to 3.16.3 ([#20025](https://github.com/opensearch-project/OpenSearch/pull/20025))
 
 ### Deprecated
