@@ -12,6 +12,7 @@
 
 import org.opensearch.gradle.MavenFilteringHack
 import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.info.FipsBuildParams
 import org.opensearch.gradle.test.InternalClusterTestPlugin
 import org.opensearch.gradle.test.RestIntegTestTask
 import org.opensearch.gradle.test.rest.YamlRestTestPlugin
@@ -351,6 +352,14 @@ processYamlRestTestResources {
 internalClusterTest {
   // this is tested explicitly in a separate test task
   exclude '**/GoogleCloudStorageThirdPartyTests.class'
+  exclude '**/GoogleCloudStorageThirdPartyFipsTests.class'
+
+  // Conditionally exclude based on FIPS mode
+  if (FipsBuildParams.isInFipsMode()) {
+    exclude '**/GoogleCloudStorageBlobStoreRepositoryTests.class'
+  } else {
+    exclude '**/GoogleCloudStorageBlobStoreRepositoryFipsTests.class'
+  }
 }
 
 final Closure testClustersConfiguration = {
@@ -413,7 +422,11 @@ task gcsThirdPartyTest(type: Test) {
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  include '**/GoogleCloudStorageThirdPartyTests.class'
+  if (FipsBuildParams.isInFipsMode()) {
+    include '**/GoogleCloudStorageThirdPartyFipsTests.class'
+  } else {
+    include '**/GoogleCloudStorageThirdPartyTests.class'
+  }
   systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed

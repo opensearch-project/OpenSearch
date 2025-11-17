@@ -49,13 +49,15 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.settings.SecureString;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.Authenticator;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
 import java.net.URI;
+import java.nio.file.Files;
+import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.Security;
 import java.util.Map;
@@ -189,18 +191,12 @@ public class GoogleCloudStorageService {
     private HttpTransport createHttpTransport(final GoogleCloudStorageClientSettings clientSettings) throws IOException {
         return SocketAccess.doPrivilegedIOException(() -> {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-            KeyStore certTrustStore;
-            if (Security.getProvider("BCFIPS") != null) {
-                certTrustStore = KeyStore.getInstance("BCFKS");
-                InputStream keyStoreStream = getClass().getResourceAsStream("/google.bcfks");
-                SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
-            } else {
-                // requires java.lang.RuntimePermission "setFactory"
-                // Pin the TLS trust certificates.
-                certTrustStore = GoogleUtils.getCertificateTrustStore();
+            final TruststoreSettings truststoreSettings = clientSettings.getTruststoreSettings();
+            try {
+                builder.trustCertificates(loadTrustStore(truststoreSettings));
+            } catch (GeneralSecurityException e) {
+                throw new IllegalStateException("Failed to load truststore", e);
             }
-
-            builder.trustCertificates(certTrustStore);
             final ProxySettings proxySettings = clientSettings.getProxySettings();
             if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
                 if (proxySettings.isAuthenticated()) {
@@ -215,6 +211,32 @@ public class GoogleCloudStorageService {
             }
             return builder.build();
         });
+    }
+
+    private KeyStore loadTrustStore(TruststoreSettings truststoreSettings) throws GeneralSecurityException, IOException {
+        KeyStore certTrustStore;
+        if (truststoreSettings.isConfigured()) {
+            final var truststorePath = truststoreSettings.path();
+            final var truststoreType = truststoreSettings.type();
+            final SecureString truststorePassword = truststoreSettings.password();
+            certTrustStore = KeyStore.getInstance(truststoreType);
+            try (var trustStoreStream = Files.newInputStream(truststorePath)) {
+                SecurityUtils.loadKeyStore(certTrustStore, trustStoreStream, truststorePassword.toString());
+            }
+            logger.debug("Loaded custom truststore from path: {} with type: {}", truststorePath, truststoreType);
+        } else if (Security.getProvider("BCFIPS") != null) {
+            throw new IllegalStateException(
+                "FIPS mode is active but no custom truststore is configured. "
+                    + "Please configure gcs.client.<client-name>.truststore.path and "
+                    + "gcs.client.<client-name>.truststore.secure_password settings."
+            );
+        } else {
+            // requires java.lang.RuntimePermission "setFactory"
+            // Pin the TLS trust certificates.
+            certTrustStore = GoogleUtils.getCertificateTrustStore();
+            logger.debug("Using Google default certificate trust store");
+        }
+        return certTrustStore;
     }
 
     StorageOptions createStorageOptions(
