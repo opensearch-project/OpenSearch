@@ -218,8 +218,12 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
                 logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
             }
-            logger.info("Memory Pool Allocation Post Query ShardID:{}", context.getQueryShardContext().getShardId());
-            printMemoryPoolAllocation(datafusionService.getRuntimePointer());
+
+
+//            logger.info("Memory Pool Allocation Post Query ShardID:{}", context.getQueryShardContext().getShardId());
+//            printMemoryPoolAllocation(datafusionService.getRuntimePointer());
+
+
 //            logger.info("Final Results:");
 //            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
 //                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
