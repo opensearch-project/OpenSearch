@@ -9,6 +9,7 @@
 package org.opensearch.vectorized.execution.jni;
 
 import java.lang.ref.Cleaner;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Base class for type-safe native pointer wrappers.
@@ -19,7 +20,7 @@ import java.lang.ref.Cleaner;
 public abstract class NativeHandle implements AutoCloseable {
 
     protected final long ptr;
-    private volatile boolean closed = false;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     protected static final long NULL_POINTER = 0L;
     private final Cleaner.Cleanable cleanable;
 
@@ -43,7 +44,7 @@ public abstract class NativeHandle implements AutoCloseable {
      * @throws IllegalStateException if the handle has been closed
      */
     protected void ensureOpen() {
-        if (closed) {
+        if (closed.get()) {
             throw new IllegalStateException("Handle already closed");
         }
     }
@@ -59,14 +60,9 @@ public abstract class NativeHandle implements AutoCloseable {
     }
 
     @Override
-    public final void close() {
-        if (!closed) {
-            synchronized (this) {
-                if (!closed) {
-                    closed = true;
-                    cleanable.clean();  // Triggers cleanup immediately
-                }
-            }
+    public void close() {
+        if (closed.compareAndSet(false, true)) {
+            cleanable.clean();
         }
     }
 
