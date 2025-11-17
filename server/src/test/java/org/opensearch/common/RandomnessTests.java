@@ -11,7 +11,6 @@ package org.opensearch.common;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 
-import java.security.Provider;
 import java.security.Security;
 
 public class RandomnessTests extends OpenSearchTestCase {

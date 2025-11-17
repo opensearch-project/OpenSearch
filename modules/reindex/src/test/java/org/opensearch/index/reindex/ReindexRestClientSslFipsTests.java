@@ -8,11 +8,11 @@
 
 package org.opensearch.index.reindex;
 
-import org.hamcrest.Matchers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.watcher.ResourceWatcherService;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;

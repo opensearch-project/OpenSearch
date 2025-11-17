@@ -8,10 +8,10 @@
 
 package org.opensearch.bootstrap;
 
+import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.settings.SecureString;
-import org.opensearch.common.settings.KeyStoreWrapper;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
