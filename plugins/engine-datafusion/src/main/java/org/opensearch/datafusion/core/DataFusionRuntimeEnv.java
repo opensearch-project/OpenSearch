@@ -23,10 +23,13 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
 
     private final GlobalRuntimeHandle runtimeHandle;
 
+    /**
+     * Controls the memory used for the datafusion query execution
+     */
     public static final Setting<ByteSizeValue> MEMORY_POOL_CONFIGURATION_DATAFUSION = Setting.byteSizeSetting(
         "datafusion.search.memory_pool",
         new ByteSizeValue(2, ByteSizeUnit.GB),
-        Setting.Property.Dynamic,
+        Setting.Property.Final,
         Setting.Property.NodeScope
     );
 
