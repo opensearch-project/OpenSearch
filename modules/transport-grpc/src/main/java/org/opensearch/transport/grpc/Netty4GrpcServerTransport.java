@@ -55,6 +55,7 @@ import static org.opensearch.common.settings.Setting.intSetting;
 import static org.opensearch.common.settings.Setting.listSetting;
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 import static org.opensearch.transport.Transport.resolveTransportPublishPort;
+import static org.opensearch.transport.grpc.GrpcPlugin.GRPC_THREAD_POOL_NAME;
 
 /**
  * Netty4 gRPC server implemented as a LifecycleComponent.
@@ -287,7 +288,7 @@ public class Netty4GrpcServerTransport extends AuxTransport {
         NetworkService networkService,
         ThreadPool threadPool
     ) {
-        this(settings, services, networkService, threadPool, new GrpcInterceptorChain());
+        this(settings, services, networkService, threadPool, new GrpcInterceptorChain(threadPool.getThreadContext()));
     }
 
     /**
@@ -332,7 +333,7 @@ public class Netty4GrpcServerTransport extends AuxTransport {
             this.workerEventLoopGroup = new NioEventLoopGroup(nettyEventLoopThreads, daemonThreadFactory(settings, "grpc_worker"));
 
             // Use OpenSearch's managed thread pool for gRPC request processing
-            this.grpcExecutor = threadPool.executor("grpc");
+            this.grpcExecutor = threadPool.executor(GRPC_THREAD_POOL_NAME);
 
             bindServer();
             success = true;

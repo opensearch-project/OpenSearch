@@ -686,11 +686,11 @@ public abstract class Engine implements LifecycleAware, Closeable {
     @PublicApi(since = "1.0.0")
     public static class NoOpResult extends Result {
 
-        NoOpResult(long term, long seqNo) {
+        public NoOpResult(long term, long seqNo) {
             super(Operation.TYPE.NO_OP, 0, term, seqNo);
         }
 
-        NoOpResult(long term, long seqNo, Exception failure) {
+        public NoOpResult(long term, long seqNo, Exception failure) {
             super(Operation.TYPE.NO_OP, failure, 0, term, seqNo);
         }
 

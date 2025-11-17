@@ -37,18 +37,14 @@ public class ShardOperationFailedExceptionProtoUtils {
      * @return ShardFailure
      */
     public static ShardFailure toProto(ShardOperationFailedException exception, GlobalParams params) throws IOException {
-        if (exception instanceof ShardSearchFailure) {
-            return ShardSearchFailureProtoUtils.toProto((ShardSearchFailure) exception, params);
-        } else if (exception instanceof SnapshotShardFailure) {
-            return SnapshotShardFailureProtoUtils.toProto((SnapshotShardFailure) exception, params);
-        } else if (exception instanceof DefaultShardOperationFailedException) {
-            return DefaultShardOperationFailedExceptionProtoUtils.toProto((DefaultShardOperationFailedException) exception, params);
-        } else if (exception instanceof ReplicationResponse.ShardInfo.Failure) {
-            return ReplicationResponseShardInfoFailureProtoUtils.toProto((ReplicationResponse.ShardInfo.Failure) exception, params);
-        } else {
-            throw new UnsupportedOperationException(
+        return switch (exception) {
+            case ShardSearchFailure ssf -> ShardSearchFailureProtoUtils.toProto(ssf, params);
+            case SnapshotShardFailure ssf -> SnapshotShardFailureProtoUtils.toProto(ssf, params);
+            case DefaultShardOperationFailedException dsofe -> DefaultShardOperationFailedExceptionProtoUtils.toProto(dsofe, params);
+            case ReplicationResponse.ShardInfo.Failure sf -> ReplicationResponseShardInfoFailureProtoUtils.toProto(sf, params);
+            default -> throw new UnsupportedOperationException(
                 "Unsupported ShardOperationFailedException " + exception.getClass().getName() + "cannot be converted to proto."
             );
-        }
+        };
     }
 }

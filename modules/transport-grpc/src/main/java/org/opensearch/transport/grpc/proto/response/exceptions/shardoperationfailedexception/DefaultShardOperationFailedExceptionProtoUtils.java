@@ -40,14 +40,15 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
     public static ShardFailure toProto(DefaultShardOperationFailedException exception, GlobalParams params) throws IOException {
         ShardFailure.Builder shardFailureBuilder = ShardFailure.newBuilder();
 
-        if (exception instanceof AddIndexBlockResponse.AddBlockShardResult.Failure) {
-            innerToProto(shardFailureBuilder, (AddIndexBlockResponse.AddBlockShardResult.Failure) exception, params);
-        } else if (exception instanceof IndicesShardStoresResponse.Failure) {
-            innerToProto(shardFailureBuilder, (IndicesShardStoresResponse.Failure) exception, params);
-        } else if (exception instanceof CloseIndexResponse.ShardResult.Failure) {
-            innerToProto(shardFailureBuilder, (CloseIndexResponse.ShardResult.Failure) exception, params);
-        } else {
-            parentInnerToProto(shardFailureBuilder, exception, params);
+        switch (exception) {
+            case AddIndexBlockResponse.AddBlockShardResult.Failure addBlockFailure -> innerToProto(shardFailureBuilder, addBlockFailure, params);
+            case IndicesShardStoresResponse.Failure indicesShardStoresFailure -> innerToProto(
+                shardFailureBuilder,
+                indicesShardStoresFailure,
+                params
+            );
+            case CloseIndexResponse.ShardResult.Failure closeIndexFailure -> innerToProto(shardFailureBuilder, closeIndexFailure, params);
+            default -> parentInnerToProto(shardFailureBuilder, exception, params);
         }
         return shardFailureBuilder.build();
     }

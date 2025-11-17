@@ -59,57 +59,59 @@ public class GrpcErrorHandler {
         // Custom OpenSearch exceptions which extend {@link OpenSearchException}.
         // Uses {@link RestToGrpcStatusConverter} for REST -> gRPC status mapping and
         // follows {@link OpenSearchException#generateFailureXContent} unwrapping logic
-        if (e instanceof OpenSearchException) {
-            return handleOpenSearchException((OpenSearchException) e, shouldIncludeDetailedStackTrace);
-        }
-        // ========== OpenSearch Core System Exceptions ==========
-        // Low-level OpenSearch exceptions that don't extend OpenSearchException - include full details
-        else if (e instanceof OpenSearchRejectedExecutionException) {
-            return Status.RESOURCE_EXHAUSTED.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
-        } else if (e instanceof NotXContentException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
-        } else if (e instanceof NotCompressedException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
-        }
+        switch (e) {
+            case OpenSearchException ose -> {
+                return handleOpenSearchException(ose, shouldIncludeDetailedStackTrace);
+            }
 
-        // ========== 3. Third-party Library Exceptions ==========
-        // External library exceptions (Jackson JSON parsing) - include full details
-        else if (e instanceof InputCoercionException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
-        } else if (e instanceof JsonParseException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
-        }
+            // ========== OpenSearch Core System Exceptions ==========
+            // Low-level OpenSearch exceptions that don't extend OpenSearchException - include full details
+            case OpenSearchRejectedExecutionException osree -> {
+                return Status.RESOURCE_EXHAUSTED.withDescription(getErrorDetailsForConfig(osree, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
+            case NotXContentException notXContentException -> {
+                return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(notXContentException, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
+            case NotCompressedException notCompressedException -> {
+                return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(notCompressedException, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
 
-        // ========== 4. Standard Java Exceptions ==========
-        // Generic Java runtime exceptions - include full exception details for debugging
-        else if (e instanceof IllegalArgumentException) {
-            return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
-        } else if (e instanceof IllegalStateException) {
-            return Status.FAILED_PRECONDITION.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
-        } else if (e instanceof SecurityException) {
-            return Status.PERMISSION_DENIED.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
-        } else if (e instanceof TimeoutException) {
-            return Status.DEADLINE_EXCEEDED.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace))
-                .asRuntimeException();
-        } else if (e instanceof InterruptedException) {
-            return Status.CANCELLED.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace)).asRuntimeException();
-        } else if (e instanceof IOException) {
-            return Status.INTERNAL.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace)).asRuntimeException();
-        }
+            // ========== 3. Third-party Library Exceptions ==========
+            // External library exceptions (Jackson JSON parsing) - include full details
+            case InputCoercionException inputCoercionException -> {
+                return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(inputCoercionException, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
+            case JsonParseException jsonParseException -> {
+                return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(jsonParseException, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
 
-        // ========== 5. Unknown/Unmapped Exceptions ==========
-        // Safety fallback for any unexpected exception to {@code Status.INTERNAL} with full debugging info
-        else {
-            logger.warn("Unmapped exception type: {}, treating as INTERNAL error", e.getClass().getSimpleName());
-            return Status.INTERNAL.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            // ========== 4. Standard Java Exceptions ==========
+            // Generic Java runtime exceptions - include full exception details for debugging
+            case IllegalArgumentException illegalArgumentException -> {
+                return Status.INVALID_ARGUMENT.withDescription(getErrorDetailsForConfig(illegalArgumentException, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
+            case IllegalStateException illegalStateException -> {
+                return Status.FAILED_PRECONDITION.withDescription(getErrorDetailsForConfig(illegalStateException, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
+            case SecurityException securityException -> {
+                return Status.PERMISSION_DENIED.withDescription(getErrorDetailsForConfig(securityException, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
+            case TimeoutException timeoutException -> {
+                return Status.DEADLINE_EXCEEDED.withDescription(getErrorDetailsForConfig(timeoutException, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
+            case InterruptedException interruptedException -> {
+                return Status.CANCELLED.withDescription(getErrorDetailsForConfig(interruptedException, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
+            case IOException ioException -> {
+                return Status.INTERNAL.withDescription(getErrorDetailsForConfig(ioException, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
+
+            // ========== 5. Unknown/Unmapped Exceptions ==========
+            // Safety fallback for any unexpected exception to {@code Status.INTERNAL} with full debugging info
+            default -> {
+                logger.warn("Unmapped exception type: {}, treating as INTERNAL error", e.getClass().getSimpleName());
+                return Status.INTERNAL.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace)).asRuntimeException();
+            }
         }
     }
 

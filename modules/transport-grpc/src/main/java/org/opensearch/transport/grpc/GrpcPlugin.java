@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import io.grpc.BindableService;
 
@@ -88,7 +89,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
     private final List<GrpcServiceFactory> servicesFactory = new ArrayList<>();
     private QueryBuilderProtoConverterRegistryImpl queryRegistry;
     private AbstractQueryBuilderProtoUtils queryUtils;
-    private GrpcInterceptorChain serverInterceptor = new GrpcInterceptorChain();
+    private GrpcInterceptorChain serverInterceptor; // Initialized in createComponents
+    private List<GrpcInterceptorProvider> interceptorProviders = new ArrayList<>();
     private Client client;
 
     /**
@@ -122,39 +124,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         }
         List<GrpcInterceptorProvider> providers = loader.loadExtensions(GrpcInterceptorProvider.class);
         if (providers != null) {
-            List<OrderedGrpcInterceptor> orderedList = new ArrayList<>();
-            for (GrpcInterceptorProvider provider : providers) {
-                orderedList.addAll(provider.getOrderedGrpcInterceptors());
-            }
-
-            // Validate that no two interceptors have the same order
-            Map<Integer, List<OrderedGrpcInterceptor>> orderMap = new HashMap<>();
-            for (OrderedGrpcInterceptor interceptor : orderedList) {
-                int order = interceptor.order();
-                orderMap.computeIfAbsent(order, k -> new ArrayList<>()).add(interceptor);
-            }
-
-            // Check for duplicates and throw exception if found
-            for (Map.Entry<Integer, List<OrderedGrpcInterceptor>> entry : orderMap.entrySet()) {
-                if (entry.getValue().size() > 1) {
-                    throw new IllegalArgumentException(
-                        "Multiple gRPC interceptors have the same order value: "
-                            + entry.getKey()
-                            + ". Each interceptor must have a unique order value."
-                    );
-                }
-            }
-
-            // Sort by order and create a chain - similar to OpenSearch's ActionFilter pattern
-            orderedList.sort(Comparator.comparingInt(OrderedGrpcInterceptor::order));
-
-            if (!orderedList.isEmpty()) {
-                // Create a single chain interceptor that manages the execution
-                // This ensures proper ordering and exception handling
-                serverInterceptor.addInterceptors(orderedList);
-
-                logger.info("Loaded {} gRPC interceptors into chain", orderedList.size());
-            }
+            // Note: ThreadContext will be provided during component creation
+            // For now, we collect providers to be initialized later with ThreadContext
+            this.interceptorProviders = providers;
+            logger.info("Found {} gRPC interceptor providers, will initialize during component creation", providers.size());
         }
         // Load discovered gRPC service factories
         List<GrpcServiceFactory> services = loader.loadExtensions(GrpcServiceFactory.class);
@@ -369,6 +342,53 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.client = client;
+
+        // Initialize the interceptor chain with ThreadContext
+        this.serverInterceptor = new GrpcInterceptorChain(threadPool.getThreadContext());
+
+        List<OrderedGrpcInterceptor> orderedList = new ArrayList<>();
+
+        // Then add plugin-provided interceptors
+        if (!interceptorProviders.isEmpty()) {
+            for (GrpcInterceptorProvider provider : interceptorProviders) {
+                orderedList.addAll(provider.getOrderedGrpcInterceptors(threadPool.getThreadContext()));
+            }
+
+            // Validate that no two interceptors have the same order
+            Map<Integer, List<OrderedGrpcInterceptor>> orderMap = new HashMap<>();
+            for (OrderedGrpcInterceptor interceptor : orderedList) {
+                int order = interceptor.order();
+                orderMap.computeIfAbsent(order, k -> new ArrayList<>()).add(interceptor);
+            }
+
+            // Check for duplicates and throw exception if found
+            for (Map.Entry<Integer, List<OrderedGrpcInterceptor>> entry : orderMap.entrySet()) {
+                if (entry.getValue().size() > 1) {
+                    String conflictingInterceptors = entry.getValue()
+                        .stream()
+                        .map(i -> i.getInterceptor().getClass().getName())
+                        .collect(Collectors.joining(", "));
+                    throw new IllegalArgumentException(
+                        "Multiple gRPC interceptors have the same order value ["
+                            + entry.getKey()
+                            + "]: "
+                            + conflictingInterceptors
+                            + ". Each interceptor must have a unique order value."
+                    );
+                }
+            }
+
+            // Sort by order and create a chain - similar to OpenSearch's ActionFilter pattern
+            orderedList.sort(Comparator.comparingInt(OrderedGrpcInterceptor::order));
+
+            if (!orderedList.isEmpty()) {
+                // Create a single chain interceptor that manages the execution
+                // This ensures proper ordering and exception handling
+                serverInterceptor.addInterceptors(orderedList);
+
+                logger.info("Loaded {} gRPC interceptors into chain", orderedList.size());
+            }
+        }
 
         // Create the registry
         this.queryRegistry = new QueryBuilderProtoConverterRegistryImpl();
