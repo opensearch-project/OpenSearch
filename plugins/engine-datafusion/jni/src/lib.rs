@@ -82,9 +82,6 @@ use futures::TryStreamExt;
 use jni::objects::{JObjectArray, JString};
 use object_store::ObjectMeta;
 use prost::Message;
-use std::io::Write;
-use std::num::NonZeroUsize;
-use std::result;
 use tokio::runtime::Runtime;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -439,7 +436,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
 
     let runtime_env = RuntimeEnvBuilder::from_runtime_env(runtimeEnv)
         .with_cache_manager(
-            CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache.clone())),
+            CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache.clone()))
+                .with_file_metadata_cache(Some(global_runtime_env.cache_manager.get_file_metadata_cache())),
         )
         .build()
         .unwrap();
@@ -770,7 +768,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
 
     let runtime_env = RuntimeEnvBuilder::new()
         .with_cache_manager(
-            CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache)),
+            CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
+                .with_file_metadata_cache(Some(global_runtime_env.cache_manager.get_file_metadata_cache())),
         )
         .build()
         .unwrap();
@@ -1202,7 +1201,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_cacheMa
             let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
         }
     }
-
 }
 
 #[no_mangle]
