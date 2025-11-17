@@ -91,7 +91,7 @@ public class PlatformHelper {
         } else if (OS_ARCH.contains("x86")) {
             return "x86";
         } else if (OS_ARCH.contains("aarch64") || OS_ARCH.contains("arm64")) {
-            return "arm64";
+            return "aarch64";
         }
         return OS_ARCH;
     }
