@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.composite;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.engine.DocumentInput;
 import org.opensearch.index.engine.exec.engine.FileMetadata;
 import org.opensearch.index.engine.exec.engine.WriteResult;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 /**
  * A layer which encapsulates writers from different data formats and manages writes across all of them.
  */
+@ExperimentalApi
 public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWriter.CompositeDocumentInput> {
 
     List<Writer<? extends DocumentInput>> writers = new ArrayList<>();
@@ -74,17 +76,32 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
         return new CompositeDocumentInput(writers.stream().map(Writer::newDocumentInput).collect(Collectors.toList()), this, postWrite);
     }
 
+    /**
+     * Document input for composite data format writer.
+     */
+    @ExperimentalApi
     public static class CompositeDocumentInput implements DocumentInput<List<? extends DocumentInput<?>>> {
         List<? extends DocumentInput<?>> inputs;
         CompositeDataFormatWriter writer;
         Runnable onClose;
 
+        /**
+         * Creates a new composite document input.
+         * @param inputs the list of document inputs
+         * @param writer the composite writer
+         * @param onClose the close callback
+         */
         public CompositeDocumentInput(List<? extends DocumentInput<?>> inputs, CompositeDataFormatWriter writer, Runnable onClose) {
             this.inputs = inputs;
             this.writer = writer;
             this.onClose = onClose;
         }
 
+        /**
+         * Adds a field to all inputs.
+         * @param fieldType the field type
+         * @param value the field value
+         */
         @Override
         public void addField(MappedFieldType fieldType, Object value) {
             for (DocumentInput<?> input : inputs) {
@@ -92,11 +109,20 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
             }
         }
 
+        /**
+         * Gets the final input.
+         * @return the final input
+         */
         @Override
         public List<? extends DocumentInput<?>> getFinalInput() {
             return null;
         }
 
+        /**
+         * Adds this input to the writer.
+         * @return the write result
+         * @throws IOException if an I/O error occurs
+         */
         @Override
         public WriteResult addToWriter() throws IOException {
             WriteResult writeResult = null;
@@ -106,6 +132,10 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
             return writeResult;
         }
 
+        /**
+         * Closes the input.
+         * @throws Exception if an error occurs
+         */
         @Override
         public void close() throws Exception {
             onClose.run();

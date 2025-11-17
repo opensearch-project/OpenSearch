@@ -88,19 +88,36 @@ public class CatalogSnapshot extends AbstractRefCounted {
             '}';
     }
 
+    /**
+     * Represents a segment in the catalog snapshot.
+     */
     public static class Segment implements Comparable<Segment> {
         private final long generation;
         private final Map<String, Collection<FileMetadata>> dfGroupedSearchableFiles;
 
+        /**
+         * Creates a new segment.
+         * @param dfGroupedSearchableFiles the grouped searchable files
+         * @param generation the generation number
+         */
         public Segment(Map<String, Collection<FileMetadata>> dfGroupedSearchableFiles, long generation) {
             this.dfGroupedSearchableFiles = dfGroupedSearchableFiles;
             this.generation = generation;
         }
 
+        /**
+         * Gets searchable files for a data format.
+         * @param df the data format
+         * @return the collection of file metadata
+         */
         public Collection<FileMetadata> getSearchableFiles(String df) {
             return dfGroupedSearchableFiles.get(df);
         }
 
+        /**
+         * Gets the generation number.
+         * @return the generation number
+         */
         public long getGeneration() {
             return generation;
         }

@@ -41,6 +41,9 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 
+/**
+ * Utility class for Lucene shard operations.
+ */
 public class ShardLuceneUtils {
 
     static boolean localDirectoryContains(Directory localDirectory, String file, long checksum, IndexShard indexShard) throws IOException {

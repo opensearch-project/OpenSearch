@@ -11,5 +11,8 @@ package org.opensearch.index.engine.exec.engine;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.format.DataFormat;
 
+/**
+ * File metadata record.
+ */
 @ExperimentalApi
 public record FileMetadata(DataFormat df, String fileName, String directory, long generation) { }

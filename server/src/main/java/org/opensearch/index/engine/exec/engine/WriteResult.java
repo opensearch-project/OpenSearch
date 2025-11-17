@@ -10,6 +10,9 @@ package org.opensearch.index.engine.exec.engine;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+/**
+ * Result of a write operation.
+ */
 @ExperimentalApi
 public record WriteResult(boolean success, Exception e, long version, long term, long seqNo) {
 }

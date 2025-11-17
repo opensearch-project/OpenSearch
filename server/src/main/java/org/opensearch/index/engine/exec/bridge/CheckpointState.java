@@ -42,4 +42,8 @@ public interface CheckpointState {
      * Returns the minimum sequence number retained for this engine.
      */
     long getMinRetainedSeqNo();
+
+    void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary);
+
+    long getMaxSeqNoOfUpdatesOrDeletes();
 }

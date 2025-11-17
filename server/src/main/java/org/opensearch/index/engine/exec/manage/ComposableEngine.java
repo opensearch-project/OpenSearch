@@ -10,12 +10,16 @@ package org.opensearch.index.engine.exec.manage;
 
 
 import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.index.engine.exec.bridge.CommitData;
+import org.opensearch.index.engine.exec.bridge.ConfigurationProvider;
+import org.opensearch.index.engine.exec.bridge.OperationMapper;
 import org.opensearch.index.engine.exec.engine.IndexingConfiguration;
 import org.opensearch.index.engine.exec.engine.RefreshInput;
 import org.opensearch.index.engine.exec.engine.WriteResult;
@@ -31,27 +35,50 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Composable engine implementation.
+ */
 public class ComposableEngine implements Indexer {  //Internal Engine
 
     private final CompositeIndexingExecutionEngine engine;
     private List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
     private CatalogSnapshot catalogSnapshot;
 
+    /**
+     * Creates a new composable engine.
+     * @param dataSourceRegistry the data source registry
+     * @param indexingConfiguration the indexing configuration
+     */
     public ComposableEngine(DataSourceRegistry dataSourceRegistry, IndexingConfiguration indexingConfiguration) {
         this.engine = new CompositeIndexingExecutionEngine(dataSourceRegistry, indexingConfiguration);
     }
 
+    /**
+     * Creates a document input.
+     * @return the document input
+     * @throws IOException if an I/O error occurs
+     */
     public CompositeDataFormatWriter.CompositeDocumentInput documentInput() throws IOException {
         return engine.createWriter().newDocumentInput();
     }
 
+    /**
+     * Indexes a document.
+     * @param index the index operation
+     * @return the index result
+     * @throws IOException if an I/O error occurs
+     */
     public Engine.IndexResult index(Engine.Index index) throws IOException {
-        WriteResult writeResult = index.parsedDoc().documentInput.addToWriter();
+        WriteResult writeResult = index.getDocumentInput().addToWriter();
         // TODO: translog, checkpoint, other checks
         return new Engine.IndexResult(writeResult.version(), writeResult.seqNo(), writeResult.term(), writeResult.success());
     }
 
-
+    /**
+     * Refreshes the engine.
+     * @param source the refresh source
+     * @throws EngineException if an engine error occurs
+     */
     public synchronized void refresh(String source) throws EngineException {
         refreshListeners.forEach(ref -> {
             try {
@@ -83,9 +110,10 @@ public class ComposableEngine implements Indexer {  //Internal Engine
     }
 
 
-    // This should get wired into searcher acquireSnapshot for initializing reader context later
-    // this now becomes equivalent of the reader
-    // Each search side specific impl can decide on how to init specific reader instances using this pit snapshot provided by writers
+    /**
+     * Acquires a snapshot of the catalog.
+     * @return the releasable snapshot reference
+     */
     public ReleasableRef<CatalogSnapshot> acquireSnapshot() {
         final CatalogSnapshot currentSnapshot = catalogSnapshot;
         currentSnapshot.incRef(); // this should be package-private
@@ -97,15 +125,24 @@ public class ComposableEngine implements Indexer {  //Internal Engine
         };
     }
 
-
-
+    /**
+     * Releasable reference wrapper.
+     */
     public static abstract class ReleasableRef<T> implements AutoCloseable {
         private T t;
 
+        /**
+         * Creates a new releasable reference.
+         * @param t the reference object
+         */
         public ReleasableRef(T t) {
             this.t = t;
         }
 
+        /**
+         * Gets the reference.
+         * @return the reference object
+         */
         public T getRef() {
             return t;
         }
@@ -209,5 +246,45 @@ public class ComposableEngine implements Indexer {  //Internal Engine
     @Override
     public void writeIndexingBuffer() throws EngineException {
 
+    }
+
+    @Override
+    public ConfigurationProvider configProvider() {
+        return null;
+    }
+
+    @Override
+    public OperationMapper operationMapper() {
+        return null;
+    }
+
+    @Override
+    public void failEngine(String reason, Exception failure) {
+
+    }
+
+    @Override
+    public boolean refreshNeeded() {
+        return false;
+    }
+
+    @Override
+    public void maybePruneDeletes() {
+
+    }
+
+    @Override
+    public boolean maybeRefresh(String source) {
+        return false;
+    }
+
+    @Override
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+
+    }
+
+    @Override
+    public GatedCloseable<CommitData> acquireSafeCommit() {
+        return null;
     }
 }

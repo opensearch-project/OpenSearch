@@ -8,13 +8,18 @@
 
 package org.opensearch.index.engine.exec.bridge;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.index.mapper.DocumentMapperForType;
+import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
 
@@ -166,4 +171,20 @@ public interface Indexer {
     ) throws IOException;
 
     String getHistoryUUID();
+
+    ConfigurationProvider configProvider();
+
+    OperationMapper operationMapper();
+
+    void failEngine(String reason, @Nullable Exception failure);
+
+    boolean refreshNeeded();
+
+    void maybePruneDeletes();
+
+    boolean maybeRefresh(String source);
+
+    void verifyEngineBeforeIndexClosing() throws IllegalStateException;
+
+    GatedCloseable<CommitData> acquireSafeCommit();
 }
