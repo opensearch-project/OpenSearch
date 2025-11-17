@@ -277,6 +277,15 @@ thirdPartyAudit {
     'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
     'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
     'org.graalvm.nativeimage.hosted.RuntimeReflection',
+    // jackson
+    'com.fasterxml.jackson.databind.DeserializationContext',
+    'com.fasterxml.jackson.databind.DeserializationFeature',
+    'com.fasterxml.jackson.databind.Module',
+    'com.fasterxml.jackson.databind.Module$SetupContext',
+    'com.fasterxml.jackson.databind.SerializerProvider',
+    'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
+    'com.fasterxml.jackson.databind.ser.std.StdSerializer',
+    'com.fasterxml.jackson.dataformat.xml.XmlMapper',
   )
 }
 
