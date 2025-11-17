@@ -248,42 +248,6 @@ pub fn create_object_meta_from_file(file_path: &str) -> Result<Vec<ObjectMeta>, 
     Ok(vec![object_meta])
 }
 
-pub fn create_file_meta_from_file(file_path: &str) -> Result<Vec<CustomFileMeta>, DataFusionError> {
-    let file_size = fs::metadata(&file_path).map(|m| m.len()).unwrap_or(0);
-    let modified = fs::metadata(&file_path)
-        .and_then(|m| m.modified())
-        .map(|t| DateTime::<Utc>::from(t))
-        .unwrap_or_else(|_| Utc::now());
-
-    let file_result = fs::File::open(&file_path);
-    if file_result.is_err() {
-        return Err(DataFusionError::Execution(format!("{} {}", file_result.unwrap_err().to_string(), file_path)))
-    }
-    let file = file_result.unwrap();
-    let parquet_metadata = ParquetRecordBatchReaderBuilder::try_new(file)
-        .map_err(|e| DataFusionError::Execution(format!("Failed to read parquet metadata: {}", e)))?;
-    let row_group_row_counts: Vec<i64> = parquet_metadata.metadata().row_groups()
-        .iter()
-        .map(|row_group| row_group.num_rows())
-        .collect();
-
-    let object_meta = ObjectMeta {
-        location: ObjectPath::from(file_path),
-        last_modified: modified,
-        size: file_size,
-        e_tag: None,
-        version: None,
-    };
-
-    let file_meta = CustomFileMeta::new(
-        row_group_row_counts,
-        0, // row_base starts at 0 for a single file
-        object_meta
-    );
-
-    Ok(vec![file_meta])
-}
-
 pub async fn construct_file_metadata(
     store: &dyn ObjectStore,
     object_meta: &ObjectMeta,

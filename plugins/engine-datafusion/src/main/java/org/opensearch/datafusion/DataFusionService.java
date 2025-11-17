@@ -208,6 +208,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
     }
 
     public CacheManager getCacheManager() {
-        return cacheManager;
+        return globalRuntimeEnv.getCacheManager();
     }
 }

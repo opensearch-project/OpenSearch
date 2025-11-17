@@ -8,7 +8,11 @@
 
 package org.opensearch.datafusion.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.datafusion.DataFusionQueryJNI;
+import org.opensearch.datafusion.DataFusionService;
 import org.opensearch.datafusion.core.DefaultRecordBatchStream;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.index.engine.EngineSearcher;
