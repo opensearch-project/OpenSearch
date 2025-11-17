@@ -129,7 +129,6 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
 
         long[] bitArray = new long[(bitArraySize + 63) / 64];
         IndexInputImmutableLongArray bloomFilterArray = createTestArray(bitArray);
-        long startTime = System.nanoTime();
         for (int i = 0; i < expectedItems; i++) {
             String item = "item" + i;
             int[] hashPositions = calculateHashes(item, numHashes, bitArraySize);
@@ -139,8 +138,6 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
                 bitArray[longIndex] |= bitMask;
             }
         }
-        long insertionTime = System.nanoTime() - startTime;
-        startTime = System.nanoTime();
         int lookups = 1000;
         for (int i = 0; i < lookups; i++) {
             String item = "item" + randomIntBetween(0, expectedItems - 1);
@@ -156,11 +153,9 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
             }
             assertTrue("Should find existing item", found);
         }
-        long lookupTime = System.nanoTime() - startTime;
-
-        logger.info("Bloom filter performance - Insertion time: {} ns/item, Lookup time: {} ns/lookup", insertionTime / expectedItems, lookupTime / lookups);
+        logger.debug("Bloom filter operation completed successfully with {} items and {} lookups",
+            expectedItems, lookups);
     }
-
 
     public void testUnsupportedOperations() {
         IndexInputImmutableLongArray array = createTestArray(new long[]{1L, 2L, 3L});

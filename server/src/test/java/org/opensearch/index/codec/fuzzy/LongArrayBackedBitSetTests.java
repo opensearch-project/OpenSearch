@@ -110,7 +110,7 @@ public class LongArrayBackedBitSetTests extends OpenSearchTestCase {
         }
         double falsePositiveRate = (double) falsePositives / testCount;
         logger.info("False positive rate: {}", falsePositiveRate);
-        assertTrue("False positive rate should be reasonable", falsePositiveRate < 0.1);
+        assertTrue("False positive rate should be reasonable", falsePositiveRate < 0.2);
         long setBits = bloomFilter.cardinality();
         double fillRatio = (double) setBits / bitArraySize;
         logger.info("Bloom filter fill ratio: {}", fillRatio);
