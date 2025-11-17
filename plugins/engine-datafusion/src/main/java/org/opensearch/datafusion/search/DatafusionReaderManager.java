@@ -8,6 +8,8 @@
 
 package org.opensearch.datafusion.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileMetadata;
@@ -24,6 +26,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     private DatafusionReader current;
     private String path;
     private String dataFormat;
+    private static final Logger logger = LogManager.getLogger(DatafusionReaderManager.class);
 //    private final Lock refreshLock = new ReentrantLock();
 //    private final List<ReferenceManager.RefreshListener> refreshListeners = new CopyOnWriteArrayList();
 

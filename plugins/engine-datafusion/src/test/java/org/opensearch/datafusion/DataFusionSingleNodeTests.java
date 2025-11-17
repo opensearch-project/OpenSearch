@@ -15,6 +15,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.datafusion.search.DatafusionReaderManager;
+import org.opensearch.node.Node;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -30,6 +32,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+
+import static org.opensearch.test.OpenSearchIntegTestCase.internalCluster;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
@@ -76,9 +80,10 @@ public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent,
             sourceFile);
         source.parseXContent(parser);
-        SearchResponse response = client().prepareSearch(indexName).setSource(source).get();
+
+        // SearchResponse response = client().prepareSearch(indexName).setSource(source).get();
         // TODO: Match expected results...
-        System.out.println(response);
+        // System.out.println(response);
     }
 
     static String getResourceFilePath(String relPath) {

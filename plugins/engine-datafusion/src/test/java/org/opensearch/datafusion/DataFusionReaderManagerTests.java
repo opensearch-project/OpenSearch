@@ -70,7 +70,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
 
         refreshResult.add(getMockDataFormat(), List.of(writerFileSet));
-        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult, 1, null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult, 1, 1,null, noOpFileDeleterSupplier));
 
         DatafusionSearcher searcher = engine.acquireSearcher("test");
         DatafusionReader reader = searcher.getReader();
@@ -98,7 +98,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
 
         refreshResult.add(getMockDataFormat(), List.of(writerFileSet));
-        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult, 1, null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult, 1, 1,null, noOpFileDeleterSupplier));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
@@ -127,7 +127,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
 
         refreshResult.add(getMockDataFormat(), List.of(writerFileSet));
-        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult, 1, null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult, 1, 1, null, noOpFileDeleterSupplier));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
@@ -156,7 +156,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         addFilesToShardPath(shardPath, "parquet_file_generation_0.parquet");
         writerFileSet1.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
         refreshResult1.add(getMockDataFormat(), List.of(writerFileSet1));
-        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult1, 1, null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult1, 1, 1,null, noOpFileDeleterSupplier));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionReader reader1 = searcher1.getReader();
@@ -169,7 +169,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet2.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
         writerFileSet2.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
         refreshResult2.add(getMockDataFormat(), List.of(writerFileSet2));
-        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult2, 2, null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult2, 2, 2,null, noOpFileDeleterSupplier));
 
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
         DatafusionReader reader2 = searcher2.getReader();
@@ -199,7 +199,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         WriterFileSet writerFileSet = new WriterFileSet(shardPath.getDataPath(), 1);
         writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_2.parquet");
         refreshResult.add(getMockDataFormat(), List.of(writerFileSet));
-        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult, 1, null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult, 1, 1, null, noOpFileDeleterSupplier));
 
         DatafusionSearcher searcher = engine.acquireSearcher("test");
         DatafusionReader reader = searcher.getReader();
@@ -235,7 +235,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
             List<WriterFileSet> writerFiles = List.of(writerFileSet);
 
             refreshResult.add(getMockDataFormat(), writerFiles);
-            readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult, 1, null, noOpFileDeleterSupplier));
+            readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult, 1, 1,null, noOpFileDeleterSupplier));
 
             // DatafusionReader readerR1 = readerManager.acquire();
             DatafusionSearcher datafusionSearcherS1 = engine.acquireSearcher("Search");
@@ -258,7 +258,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
             List<WriterFileSet> writerFiles2 = List.of(writerFileSet2);
 
             refreshResultR2.add(getMockDataFormat(), writerFiles2);
-            readerManager.afterRefresh(true, new CatalogSnapshot(refreshResultR2, 2, null, noOpFileDeleterSupplier));
+            readerManager.afterRefresh(true, new CatalogSnapshot(refreshResultR2, 2, 2, null, noOpFileDeleterSupplier));
 
             // now check if new Reader is created with F2, F3
             // DatafusionReader readerR2 = readerManager.acquire();
@@ -300,7 +300,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         WriterFileSet writerFileSet1 = new WriterFileSet(shardPath.getDataPath(), 1);
         writerFileSet1.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
         refreshResult1.add(getMockDataFormat(), List.of(writerFileSet1));
-        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult1, 1, null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult1, 1, 1, null, noOpFileDeleterSupplier));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("search");
         DatafusionReader reader1 = searcher1.getReader();
@@ -328,7 +328,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         WriterFileSet writerFileSet2 = new WriterFileSet(shardPath.getDataPath(), 2);
         writerFileSet2.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
         refreshResult2.add(getMockDataFormat(), List.of(writerFileSet2));
-        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult2, 2, null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true, new CatalogSnapshot(refreshResult2, 2, 2, null, noOpFileDeleterSupplier));
 
         expectedResults = new HashMap<>();
         expectedResults.put("min", 4L);

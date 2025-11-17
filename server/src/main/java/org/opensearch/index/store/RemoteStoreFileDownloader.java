@@ -98,6 +98,7 @@ public final class RemoteStoreFileDownloader {
      *                         Must be thread safe as this may be invoked concurrently from
      *                         different threads.
      */
+    @Deprecated
     public void download(
         Directory source,
         Directory destination,

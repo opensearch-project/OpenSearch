@@ -9,6 +9,9 @@
 package org.opensearch.index.store;
 
 import org.apache.logging.log4j.Logger;
+
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -63,6 +66,10 @@ public class CompositeStoreDirectory {
         this.directoryPath = shardPath.getDataPath();
 
         try {
+            FormatStoreDirectory<?> metadataDirectory = createMetadataDirectory(shardPath);
+            delegatesMap.put("metadata", metadataDirectory);
+            logger.debug("Created metadata directory pointing to: {}", shardPath.resolveIndex());
+
             DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class).stream()
                 .findAny()
                 .orElseThrow(() -> new IllegalArgumentException("dataformat is not registered."));
@@ -71,6 +78,17 @@ public class CompositeStoreDirectory {
         } catch (NullPointerException | IOException e) {
                 throw new RuntimeException("Failed to create fallback directory", e);
         }
+    }
+
+    /**
+     * Creates a metadata directory that points to the base Lucene directory where segments_N files are stored.
+     * This directory is at {@code <dataPath>/lucene/} and always exists regardless of active data formats.
+     */
+    private FormatStoreDirectory<?> createMetadataDirectory(ShardPath shardPath) throws IOException {
+        // Create FSDirectory pointing to <dataPath>/lucene/ where segments_N files live
+        Path luceneIndexPath = shardPath.resolveIndex(); // Returns <dataPath>/lucene/
+        Directory luceneDirectory = FSDirectory.open(luceneIndexPath);
+        return new LuceneStoreDirectory(luceneIndexPath, luceneDirectory);
     }
 
     public void initialize() throws IOException {
