@@ -2256,9 +2256,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             synchronized (engineMutex) {
                 // if the engine is not running, we can access the store directly, but we need to make sure no one starts
                 // the engine on us. If the engine is running, we can get a snapshot via the deletion policy of the engine.
-                final Engine engine = getEngineOrNull();
-                if (engine != null) {
-                    wrappedIndexCommit = engine.acquireLastIndexCommit(false);
+                CompositeEngine compositeEngine = getIndexingExecutionCoordinator();
+                if (compositeEngine != null) {
+                    try {
+                        wrappedIndexCommit = compositeEngine.acquireSafeIndexCommit();
+                    } catch (IllegalStateException e) {
+                        if (e.getMessage() != null && e.getMessage().contains("not yet initialized")) {
+                            logger.debug("CompositeEngine deletion policy not initialized during peer recovery, falling back to direct store access for shard [{}]", shardId);
+                            wrappedIndexCommit = null;
+                        } else {
+                            throw e;
+                        }
+                    }
                 }
                 if (wrappedIndexCommit == null) {
                     return store.getMetadata(null, true);
