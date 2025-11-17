@@ -17,7 +17,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import static org.opensearch.datafusion.DataFusionQueryJNI.cacheManagerUpdateSizeLimitForCacheType;
 import static org.opensearch.datafusion.DataFusionQueryJNI.createCache;
 import static org.opensearch.datafusion.DataFusionQueryJNI.createCustomCacheManager;
-import static org.opensearch.datafusion.DataFusionQueryJNI.initCacheManagerConfig;
+// initCacheManagerConfig import removed - using CustomCacheManager directly
 import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_ENABLED;
 import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
 import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_SIZE_LIMIT;
@@ -99,8 +99,8 @@ public final class CacheUtils {
     public static long createCacheConfig(ClusterSettings clusterSettings) {
         logger.info("Initializing cache configuration");
 
-        // Initialize empty cache manager config
-        long cacheConfigPtr = initCacheManagerConfig();
+        // Get the custom cache manager pointer directly
+        long cacheManagerPtr = createCustomCacheManager();
 
         // Configure each enabled cache type
         for (CacheType type : CacheType.values()) {
@@ -110,14 +110,14 @@ public final class CacheUtils {
                     type.getSizeLimit(clusterSettings).getBytes(),
                     type.getEvictionType(clusterSettings));
 
-                createCache(cacheConfigPtr,type.cacheTypeName, type.getSizeLimit(clusterSettings).getBytes(), type.getEvictionType(clusterSettings));
-                clusterSettings.addSettingsUpdateConsumer(type.sizeLimitSetting,(v) ->cacheManagerUpdateSizeLimitForCacheType(type.cacheTypeName,v.getBytes()));
+                createCache(cacheManagerPtr, type.cacheTypeName, type.getSizeLimit(clusterSettings).getBytes(), type.getEvictionType(clusterSettings));
+                clusterSettings.addSettingsUpdateConsumer(type.sizeLimitSetting,(v) -> cacheManagerUpdateSizeLimitForCacheType(cacheManagerPtr, CacheType.METADATA.getCacheTypeName(),v.getBytes()));
             } else {
                 logger.debug("Cache type {} is disabled", type.getCacheTypeName());
             }
         }
 
         logger.info("Cache configuration complete");
-        return cacheConfigPtr;
+        return cacheManagerPtr;
     }
 }

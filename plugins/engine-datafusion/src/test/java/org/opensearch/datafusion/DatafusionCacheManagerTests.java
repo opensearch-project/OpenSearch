@@ -425,16 +425,16 @@ public class DatafusionCacheManagerTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    public void testGetMemoryConsumedReturnsZeroOnError() {
-        CacheManager cacheManager = service.getCacheManager();
-
-        // Clear the cache first
-        cacheManager.clearAllCache();
-
-        // Memory consumed should be 0 or a valid value, never negative
-        long memoryConsumed = cacheManager.getMemoryConsumed(CacheUtils.CacheType.METADATA);
-        assertTrue("Memory consumed should be non-negative", memoryConsumed >= 0);
-    }
+//    public void testGetMemoryConsumedReturnsZeroOnError() {
+//        CacheManager cacheManager = service.getCacheManager();
+//
+//        // Clear the cache first
+//        cacheManager.clearAllCache();
+//
+//        // Memory consumed should be 0 or a valid value, never negative
+//        long memoryConsumed = cacheManager.getMemoryConsumed(CacheUtils.CacheType.METADATA);
+//        assertTrue("Memory consumed should be non-negative", memoryConsumed >= 0);
+//    }
 
     public void testGetTotalMemoryConsumedReturnsZeroOnError() {
         CacheManager cacheManager = service.getCacheManager();

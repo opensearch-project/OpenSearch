@@ -23,7 +23,9 @@ import static org.opensearch.datafusion.DataFusionQueryJNI.cacheManagerGetMemory
 import static org.opensearch.datafusion.DataFusionQueryJNI.cacheManagerGetTotalMemoryConsumed;
 import static org.opensearch.datafusion.DataFusionQueryJNI.cacheManagerRemoveFiles;
 import static org.opensearch.datafusion.DataFusionQueryJNI.cacheManagerUpdateSizeLimitForCacheType;
+import static org.opensearch.datafusion.DataFusionQueryJNI.createCustomCacheManager;
 import static org.opensearch.datafusion.DataFusionQueryJNI.destroyCustomCacheManager;
+import static org.opensearch.datafusion.search.cache.CacheUtils.createCacheConfig;
 
 /**
  * Manages cache lifecycle for DataFusion caches.
@@ -32,7 +34,21 @@ import static org.opensearch.datafusion.DataFusionQueryJNI.destroyCustomCacheMan
 public class CacheManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(CacheManager.class);
 
-    public CacheManager() {
+    private long cacheManagerPointer;
+
+    public CacheManager(ClusterSettings clusterSettings) {
+        this.cacheManagerPointer = createCacheConfig(clusterSettings);
+        if (this.cacheManagerPointer == 0) {
+            throw new IllegalStateException("Failed to create native cache manager");
+        }
+    }
+
+    /**
+     * Get the native cache manager pointer
+     * @return the native pointer
+     */
+    public long getCacheManagerPointer() {
+        return cacheManagerPointer;
     }
 
     public void addFilesToCacheManager(List<String> files){
@@ -41,7 +57,7 @@ public class CacheManager implements Closeable {
                 return;
             }
             String[] filesArray = files.toArray(new String[0]);
-            cacheManagerAddFiles(filesArray);
+            cacheManagerAddFiles(cacheManagerPointer, filesArray);
         } catch (Exception e) {
             logger.error("Error adding files to cache manager: {}", e.getMessage(), e);
         }
@@ -53,7 +69,7 @@ public class CacheManager implements Closeable {
                 return;
             }
             String[] filesArray = files.toArray(new String[0]);
-            cacheManagerRemoveFiles(filesArray);
+            cacheManagerRemoveFiles(cacheManagerPointer, filesArray);
         } catch (Exception e) {
             logger.error("Error removing files from cache manager: {}", e.getMessage(), e);
         }
@@ -61,7 +77,7 @@ public class CacheManager implements Closeable {
 
     public void clearAllCache(){
         try {
-            cacheManagerClear();
+            cacheManagerClear(cacheManagerPointer);
         } catch (Exception e) {
             logger.error("Error clearing cache manager: {}", e.getMessage(), e);
         }
@@ -69,7 +85,7 @@ public class CacheManager implements Closeable {
 
     public void clearCacheForCacheType(CacheUtils.CacheType cacheType){
         try {
-            cacheManagerClearByCacheType(cacheType.getCacheTypeName());
+            cacheManagerClearByCacheType(cacheManagerPointer, cacheType.getCacheTypeName());
         } catch (Exception e) {
             logger.error("Error clearing cache manager for cache type {}: {}", cacheType.getCacheTypeName(), e.getMessage(), e);
         }
@@ -77,7 +93,7 @@ public class CacheManager implements Closeable {
 
     public long getMemoryConsumed(CacheUtils.CacheType cacheType){
         try {
-            return cacheManagerGetMemoryConsumedForCacheType(cacheType.getCacheTypeName());
+            return cacheManagerGetMemoryConsumedForCacheType(cacheManagerPointer, cacheType.getCacheTypeName());
         } catch (Exception e) {
             logger.error("Error getting memory consumed for cache type {}: {}", cacheType.getCacheTypeName(), e.getMessage(), e);
             return 0;
@@ -86,7 +102,7 @@ public class CacheManager implements Closeable {
 
     public long getTotalMemoryConsumed(){
         try {
-            return cacheManagerGetTotalMemoryConsumed();
+            return cacheManagerGetTotalMemoryConsumed(cacheManagerPointer);
         } catch (Exception e) {
             logger.error("Error getting total memory consumed: {}", e.getMessage(), e);
             return 0;
@@ -95,7 +111,7 @@ public class CacheManager implements Closeable {
 
     public void updateSizeLimit(CacheUtils.CacheType cacheType, long sizeLimit){
         try {
-            cacheManagerUpdateSizeLimitForCacheType(cacheType.getCacheTypeName(), sizeLimit);
+            cacheManagerUpdateSizeLimitForCacheType(cacheManagerPointer, cacheType.getCacheTypeName(), sizeLimit);
         } catch (Exception e) {
             logger.error("Error updating size limit for cache type {} to {}: {}", cacheType.getCacheTypeName(), sizeLimit, e.getMessage(), e);
         }
@@ -103,7 +119,7 @@ public class CacheManager implements Closeable {
 
     public boolean getEntryFromCacheType(CacheUtils.CacheType cacheType, String filePath){
         try {
-            return cacheManagerGetItemByCacheType(cacheType.getCacheTypeName(), filePath);
+            return cacheManagerGetItemByCacheType(cacheManagerPointer, cacheType.getCacheTypeName(), filePath);
         } catch (Exception e) {
             logger.error("Error getting entry from cache type {} for file {}: {}", cacheType.getCacheTypeName(), filePath, e.getMessage(), e);
             return false;
@@ -113,7 +129,10 @@ public class CacheManager implements Closeable {
     @Override
     public void close() throws IOException {
         try {
-            destroyCustomCacheManager();
+            if (cacheManagerPointer != -1) {
+                destroyCustomCacheManager(cacheManagerPointer);
+                this.cacheManagerPointer = -1;
+            }
         } catch (Exception e) {
             logger.error("Error closing cache manager: {}", e.getMessage(), e);
             throw new IOException("Failed to close cache manager", e);
