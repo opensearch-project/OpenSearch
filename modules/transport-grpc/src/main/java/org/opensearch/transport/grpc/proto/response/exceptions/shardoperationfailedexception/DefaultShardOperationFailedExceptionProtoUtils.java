@@ -45,6 +45,8 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
                 indicesShardStoresFailure
             );
             case CloseIndexResponse.ShardResult.Failure closeIndexFailure -> innerToProto(shardFailureBuilder, closeIndexFailure);
+            case null -> {
+            }
             default -> parentInnerToProto(shardFailureBuilder, exception);
         }
         return shardFailureBuilder.build();

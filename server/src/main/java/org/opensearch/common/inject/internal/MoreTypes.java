@@ -235,7 +235,7 @@ public class MoreTypes {
             );
             case GenericArrayType genericArrayType -> hashCode(genericArrayType.getGenericComponentType());
             case WildcardType w -> Arrays.hashCode(w.getLowerBounds()) ^ Arrays.hashCode(w.getUpperBounds());
-            default ->
+            case null, default ->
                 // This isn't a type we support. Probably a type variable
                 hashCodeOrZero(type);
         };
@@ -305,7 +305,7 @@ public class MoreTypes {
             case Field ignored -> Field.class;
             case Method ignored -> Method.class;
             case Constructor ignored -> Constructor.class;
-            default -> throw new IllegalArgumentException("Unsupported implementation class for Member, " + member.getClass());
+            case null, default -> throw new IllegalArgumentException("Unsupported implementation class for Member, " + member.getClass());
         };
     }
 
