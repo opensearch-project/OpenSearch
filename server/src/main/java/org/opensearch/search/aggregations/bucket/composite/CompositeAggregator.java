@@ -642,6 +642,11 @@ public final class CompositeAggregator extends BucketsAggregator {
                     public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
                         super.collect(stream, owningBucketOrd);
                     }
+
+                    @Override
+                    public void collectRange(int min, int max) throws IOException {
+                        super.collectRange(min, max);
+                    }
                 };
             }
         }
@@ -675,6 +680,11 @@ public final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
                 super.collect(stream, owningBucketOrd);
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                super.collectRange(min, max);
             }
         };
     }
@@ -739,6 +749,11 @@ public final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
                 super.collect(stream, owningBucketOrd);
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                super.collectRange(min, max);
             }
         };
     }

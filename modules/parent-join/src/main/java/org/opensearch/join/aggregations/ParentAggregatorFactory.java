@@ -92,12 +92,11 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
 
         ValuesSource rawValuesSource = config.getValuesSource();
-        if (rawValuesSource instanceof WithOrdinals == false) {
+        if (!(rawValuesSource instanceof WithOrdinals valuesSource)) {
             throw new AggregationExecutionException(
                 "ValuesSource type " + rawValuesSource.toString() + "is not supported for aggregation " + this.name()
             );
         }
-        WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
         return new ChildrenToParentAggregator(
             name,

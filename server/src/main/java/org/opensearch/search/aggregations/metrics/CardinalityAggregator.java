@@ -600,6 +600,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
+        public void collectRange(int min, int max) throws IOException {
+            super.collectRange(min, max);
+        }
+
+        @Override
         public void postCollect() throws IOException {
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
                 for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
