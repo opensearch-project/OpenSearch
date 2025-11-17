@@ -44,7 +44,9 @@ public final class OTelAttributesConverter {
             case Long l -> attributesBuilder.put(key, l);
             case Double v -> attributesBuilder.put(key, v);
             case String s -> attributesBuilder.put(key, s);
-            default -> throw new IllegalArgumentException(String.format(Locale.ROOT, "Span attribute value %s type not supported", value));
+            case null, default -> throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Span attribute value %s type not supported", value)
+            );
         }
     }
 
