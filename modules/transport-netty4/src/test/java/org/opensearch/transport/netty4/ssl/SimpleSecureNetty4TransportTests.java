@@ -132,7 +132,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
                         .clientAuth(ClientAuth.NONE)
                         .trustManager(clientTrustManagerFactory)
                         .build()
-                        .newEngine(NettyAllocator.getAllocator())
+                        .newEngine(NettyAllocator.getAllocator(), hostname, port)
                 );
             }
         };

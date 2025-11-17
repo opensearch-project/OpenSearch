@@ -44,29 +44,12 @@ openssl x509 -req \
     -out server.crt \
     -days 8192 \
     -extfile openssl.conf \
+    -extensions SAN \
     -sigopt rsa_padding_mode:pss \
     -sigopt rsa_pss_saltlen:-1
 ```
 
-# 2. Create a client certificate and key
-```bash
-openssl req -new -nodes \
-    -keyout client.key \
-    -out client.csr \
-    -config openssl.conf
-openssl x509 -req \
-    -in client.csr \
-    -CA root.crt \
-    -CAkey root.key \
-    -CAcreateserial \
-    -out client.crt \
-    -days 8192 \
-    -extfile openssl.conf \
-    -sigopt rsa_padding_mode:pss \
-    -sigopt rsa_pss_saltlen:-1
-```
-
-# 3. Export the certificates in pkcs12 format
+# 2. Export the certificates in pkcs12 format
 ```bash
 keytool -import -trustcacerts \
     -file root.crt \
@@ -83,7 +66,7 @@ openssl pkcs12 -export \
     -passin pass:"$PW"
 ```
 
-# 4. Import the certificate into JDK keystore (PKCS12 type)
+# 3. Import the certificate into JDK keystore (PKCS12 type)
 ```bash
 keytool -importkeystore \
     -srcstorepass "$PW" \
@@ -99,7 +82,7 @@ keytool -importkeystore \
     -deststorepass "$PW"
 ```
 
-# 5. Import the certificate into BCFKS keystore
+# 4. Import the certificate into BCFKS keystore
 ```bash
 keytool -importkeystore \
     -noprompt \

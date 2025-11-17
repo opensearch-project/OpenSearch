@@ -8,6 +8,8 @@
 
 package org.opensearch.common;
 
+import org.junit.After;
+
 import java.security.Provider;
 import java.security.Security;
 
@@ -15,8 +17,8 @@ public class RandomnessFipsTests extends RandomnessTests {
 
     private static final String BCFIPS = "BCFIPS";
 
-    void restore() throws Exception {
-        super.restore();
+    @After
+    void restoreFipsProvider() throws Exception {
         if (Security.getProvider(BCFIPS) == null) {
             Class<?> clazz = Class.forName("org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider");
             Provider bcFips = (Provider) clazz.getConstructor().newInstance();
