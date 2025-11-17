@@ -8,6 +8,7 @@
 
 package org.opensearch.datafusion.jni.handle;
 
+import org.opensearch.datafusion.ObjectResultCallback;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.vectorized.execution.jni.NativeHandle;
 
@@ -24,4 +25,22 @@ public final class StreamHandle extends NativeHandle {
     protected void doClose() {
         NativeBridge.streamClose(ptr);
     }
+
+    /**
+     * Gets the next batch from this stream.
+     * @param runtimePtr the runtime pointer
+     * @param callback callback to receive the batch result
+     */
+    public void next(long runtimePtr, ObjectResultCallback callback) {
+        NativeBridge.streamNext(runtimePtr, getPointer(), callback);
+    }
+
+    /**
+     * Gets the schema for this stream.
+     * @param callback callback to receive the schema result
+     */
+    public void getSchema(ObjectResultCallback callback) {
+        NativeBridge.streamGetSchema(getPointer(), callback);
+    }
+
 }

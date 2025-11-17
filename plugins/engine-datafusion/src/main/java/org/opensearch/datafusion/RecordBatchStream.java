@@ -17,7 +17,7 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.opensearch.datafusion.jni.NativeBridge;
+import org.opensearch.datafusion.jni.handle.StreamHandle;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -29,12 +29,12 @@ import static org.apache.arrow.c.Data.importField;
  */
 public class RecordBatchStream {
 
-    private final long streamPointer;
+    private final StreamHandle streamHandle;
     private final BufferAllocator allocator;
     private final CDataDictionaryProvider dictionaryProvider;
+    private final long runtimePtr;
     private boolean initialized = false;
     private VectorSchemaRoot vectorSchemaRoot = null;
-    private long runtimePtr;
 
     /**
      * Creates a new RecordBatchStream for the given stream pointer
@@ -42,7 +42,7 @@ public class RecordBatchStream {
      * @param allocator memory allocator for Arrow vectors
      */
     public RecordBatchStream(long streamId, long runtimePtr, BufferAllocator allocator) {
-        this.streamPointer = streamId;
+        this.streamHandle = new StreamHandle(streamId);
         this.allocator = allocator;
         this.runtimePtr = runtimePtr;
         this.dictionaryProvider = new CDataDictionaryProvider();
@@ -58,9 +58,8 @@ public class RecordBatchStream {
     }
 
     private Schema getSchema() {
-        // Native method is not async, but use a future to store the result for convenience
         CompletableFuture<Schema> result = new CompletableFuture<>();
-        getSchema(streamPointer, (errString, arrowSchemaAddress) -> {
+        streamHandle.getSchema((errString, arrowSchemaAddress) -> {
             if (ErrorUtil.containsError(errString)) {
                 result.completeExceptionally(new RuntimeException(errString));
             } else {
@@ -98,9 +97,8 @@ public class RecordBatchStream {
      */
     public CompletableFuture<Boolean> loadNextBatch() {
         ensureInitialized();
-        long runtimePointer = this.runtimePtr;
         CompletableFuture<Boolean> result = new CompletableFuture<>();
-        next(runtimePointer, streamPointer, (errString, arrowArrayAddress) -> {
+        streamHandle.next(runtimePtr, (errString, arrowArrayAddress) -> {
             if (ErrorUtil.containsError(errString)) {
                 result.completeExceptionally(new RuntimeException(errString));
             } else if (arrowArrayAddress == 0) {
@@ -124,22 +122,10 @@ public class RecordBatchStream {
      * @throws Exception if an error occurs during cleanup
      */
     public void close() throws Exception {
-        closeStream(streamPointer);
+        streamHandle.close();
         dictionaryProvider.close();
         if (initialized) {
             vectorSchemaRoot.close();
         }
-    }
-
-    private static void next(long runtime, long pointer, ObjectResultCallback callback) {
-        NativeBridge.streamNext(runtime, pointer, callback);
-    }
-
-    private static void getSchema(long pointer, ObjectResultCallback callback) {
-        NativeBridge.streamGetSchema(pointer, callback);
-    }
-
-    private static void closeStream(long pointer) {
-        NativeBridge.streamClose(pointer);
     }
 }
