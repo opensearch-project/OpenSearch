@@ -105,7 +105,7 @@ jobs:
             {"message": 2,"message2": 3,"message3": 4}
             {"index":{"_index":"index-7"}}
             {"message": 3,"message2": 4,"message3": 5}
-            '
+          '
 
           # Refresh index
           curl -X POST 'localhost:9200/index-7/_refresh'
