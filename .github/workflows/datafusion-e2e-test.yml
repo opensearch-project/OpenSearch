@@ -1,16 +1,12 @@
-name: Engine DataFusion E2E Test
+name: DataFusion E2E Integration Test
 
 on:
   pull_request:
     branches:
       - feature/datafusion
-    paths:
-      - 'plugins/engine-datafusion/**'
   push:
     branches:
       - feature/datafusion
-    paths:
-      - 'plugins/engine-datafusion/**'
   workflow_dispatch:
 
 jobs:
