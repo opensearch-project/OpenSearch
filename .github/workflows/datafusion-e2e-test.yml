@@ -27,6 +27,10 @@ jobs:
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt
+        env:
+          RUSTFLAGS: "-A unused_variables -A unused_mut"
 
       - name: Install Protocol Buffers
         if: runner.os == 'Linux'
@@ -47,7 +51,7 @@ jobs:
 
       - name: Publish OpenSearch to Maven Local
         working-directory: OpenSearch
-        run: ./gradlew publishToMavenLocal -x test
+        run: ./gradlew publishToMavenLocal -x test -PrustDebug=true
 
       - name: Checkout SQL Plugin
         uses: actions/checkout@v4
