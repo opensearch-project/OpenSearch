@@ -55,7 +55,7 @@ opensearchplugin {
 dependencies {
 
   // dependencies consistent with 'com.google.cloud:google-cloud-storage-bom:2.55.0'
-  implementation "com.google.cloud:google-cloud-storage:2.55.0"
+  implementation "com.google.cloud:google-cloud-storage:2.60.0"
   implementation "com.google.cloud:google-cloud-core:2.60.0"
   implementation "com.google.cloud:google-cloud-core-http:2.60.0"
 
@@ -91,7 +91,7 @@ dependencies {
 
   runtimeOnly "io.opentelemetry:opentelemetry-api:1.47.0"
   runtimeOnly "io.opentelemetry:opentelemetry-context:1.47.0"
-  runtimeOnly "com.google.api.grpc:proto-google-cloud-storage-v2:2.55.0"
+  runtimeOnly "com.google.api.grpc:proto-google-cloud-storage-v2:2.60.0"
   runtimeOnly "io.grpc:grpc-api:1.71.0"
 
   testImplementation project(':test:fixtures:gcs-fixture')
@@ -277,6 +277,15 @@ thirdPartyAudit {
     'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
     'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
     'org.graalvm.nativeimage.hosted.RuntimeReflection',
+    // jackson
+    'com.fasterxml.jackson.databind.DeserializationContext',
+    'com.fasterxml.jackson.databind.DeserializationFeature',
+    'com.fasterxml.jackson.databind.Module',
+    'com.fasterxml.jackson.databind.Module$SetupContext',
+    'com.fasterxml.jackson.databind.SerializerProvider',
+    'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
+    'com.fasterxml.jackson.databind.ser.std.StdSerializer',
+    'com.fasterxml.jackson.dataformat.xml.XmlMapper',
   )
 }
 

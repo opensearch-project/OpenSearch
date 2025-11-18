@@ -414,8 +414,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
                 }
             }
             return new MatchNoDocsQuery(); // unmapped field
-        } else if (ft.unwrap() instanceof RankFeatureFieldType) {
-            final RankFeatureFieldType fft = (RankFeatureFieldType) ft;
+        } else if (ft.unwrap() instanceof RankFeatureFieldType fft) {
             return scoreFunction.toQuery(RankFeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
         } else {
             throw new IllegalArgumentException(
