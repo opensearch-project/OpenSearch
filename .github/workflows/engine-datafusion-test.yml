@@ -1,0 +1,118 @@
+name: Engine DataFusion E2E Test
+
+on:
+  pull_request:
+    branches:
+      - feature/datafusion
+    paths:
+      - 'plugins/engine-datafusion/**'
+  push:
+    branches:
+      - feature/datafusion
+    paths:
+      - 'plugins/engine-datafusion/**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout OpenSearch
+        uses: actions/checkout@v4
+        with:
+          path: OpenSearch
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install Protocol Buffers
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Install Protocol Buffers
+        if: runner.os == 'macOS'
+        run: brew install protobuf
+
+      - name: Install Protocol Buffers
+        if: runner.os == 'Windows'
+        run: choco install protoc
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Publish OpenSearch to Maven Local
+        working-directory: OpenSearch
+        run: ./gradlew publishToMavenLocal -x test
+
+      - name: Checkout SQL Plugin
+        uses: actions/checkout@v4
+        with:
+          repository: vinaykpud/sql
+          ref: feature/substrait-plan
+          path: opensearch-sql
+
+      - name: Publish SQL Plugin to Maven Local
+        working-directory: opensearch-sql
+        run: ./gradlew publishToMavenLocal -x test
+
+      - name: Run OpenSearch with DataFusion Plugin
+        working-directory: OpenSearch
+        run: |
+          ./gradlew run \
+            --preserve-data \
+            -PremotePlugins="['org.opensearch.plugin:opensearch-job-scheduler:3.3.0.0-SNAPSHOT', 'org.opensearch.plugin:opensearch-sql-plugin:3.3.0.0-SNAPSHOT']" \
+            -PinstalledPlugins="['engine-datafusion']" &
+
+          # Wait for OpenSearch to start
+          timeout 300 bash -c 'until curl -s http://localhost:9200; do sleep 5; done'
+
+      - name: Run E2E Tests
+        run: |
+          # Delete previous index
+          curl -X DELETE 'localhost:9200/index-7' || true
+
+          # Create index
+          curl -X PUT 'http://localhost:9200/index-7' \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0,
+                "refresh_interval": -1
+              },
+              "mappings": {
+                "properties": {
+                  "message": {"type": "long"},
+                  "message2": {"type": "long"},
+                  "message3": {"type": "long"}
+                }
+              }
+            }'
+
+          # Index documents
+          curl -X POST 'http://localhost:9200/_bulk' \
+            -H 'Content-Type: application/json' \
+            -d '{"index":{"_index":"index-7"}}
+            {"message": 2,"message2": 3,"message3": 4}
+            {"index":{"_index":"index-7"}}
+            {"message": 3,"message2": 4,"message3": 5}
+            '
+
+          # Refresh index
+          curl -X POST 'localhost:9200/index-7/_refresh'
+
+          # Query
+          curl -X POST 'http://localhost:9200/_plugins/_ppl' \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "query": "source=index-7 | stats count(), min(message) as min, max(message2) as max"
+            }'
