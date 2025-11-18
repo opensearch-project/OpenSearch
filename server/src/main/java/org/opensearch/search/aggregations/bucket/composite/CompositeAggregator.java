@@ -771,6 +771,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
             ));
             row++;
         }
+        buckets.sort(InternalComposite.InternalBucket::compareKey);
         CompositeKey lastBucket = buckets.isEmpty() ? null : buckets.getLast().getRawKey();
         return List.of(
             new InternalComposite(

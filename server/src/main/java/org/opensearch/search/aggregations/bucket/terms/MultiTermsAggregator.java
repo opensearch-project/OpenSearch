@@ -709,7 +709,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
     @Override
     public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
         int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(fields.getFirst()).length ;
-        List<InternalMultiTerms.Bucket> buckets = new ArrayList<>();
+        List<InternalMultiTerms.Bucket> buckets = new ArrayList<>(rowCount);
         for (int i = 0; i < rowCount; i++) {
             final int j = i;
             List<Object> key = fields.stream().map(fieldName -> (Object) searchContext.convertToComparable(shardResult.get(fieldName)[j])).toList();
@@ -725,13 +725,10 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
             }
             buckets.add(new InternalMultiTerms.Bucket(key, docCount, InternalAggregations.from(subAggs), showTermDocCountError, 0, formats));
         }
-        // TODO : Not reducing using Priority Queue into top buckets as depending on Substrait plan.
-        BucketOrder reduceOrder;
+        BucketOrder reduceOrder = order;
         if (isKeyOrder(order) == false) {
             reduceOrder = InternalOrder.key(true);
-            //buckets.sort(reduceOrder.comparator());
-        } else {
-            reduceOrder = order;
+            buckets.sort(reduceOrder.comparator());
         }
         return Collections.singletonList(new InternalMultiTerms(
             name,

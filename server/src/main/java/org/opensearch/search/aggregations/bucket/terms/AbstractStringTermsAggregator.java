@@ -51,6 +51,8 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -116,34 +118,38 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator implements 
     }
 
     @Override
-    public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
-        String termKey = (String) searchContext.convertToComparable(shardResult.get(name)[row]);
-        long docCount = 1;
-
-        List<InternalAggregation> subAggs = new ArrayList<>();
-        for (Aggregator aggregator : subAggregators) {
-            if (aggregator instanceof ShardResultConvertor convertor) {
-                InternalAggregation subAgg = convertor.convertRow(shardResult, row, searchContext);
-                if (aggregator instanceof ValueCountAggregator) {
-                    docCount = ((InternalValueCount) subAgg).getValue();
+    public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+        int rowCount = shardResult.get(shardResult.keySet().stream().findFirst().get()).length;
+        List<StringTerms.Bucket> buckets = new ArrayList<>(rowCount);
+        for (int row = 0; row < rowCount; row++) {
+            String termKey = (String) searchContext.convertToComparable(shardResult.get(name)[row]);
+            List<InternalAggregation> subAggs = new ArrayList<>();
+            long docCount = 1;
+            for (Aggregator aggregator : subAggregators) {
+                if (aggregator instanceof ShardResultConvertor convertor) {
+                    InternalAggregation subAgg = convertor.convertRow(shardResult, row, searchContext);
+                    if (aggregator instanceof ValueCountAggregator) {
+                        docCount = ((InternalValueCount) subAgg).getValue();
+                    }
+                    subAggs.add(subAgg);
                 }
-                subAggs.add(subAgg);
             }
-        }
 
+            buckets.add(new StringTerms.Bucket(
+                new BytesRef(termKey),
+                docCount,
+                InternalAggregations.from(subAggs),
+                showTermDocCountError,
+                0,
+                format
+            ));
+        }
         BucketOrder reduceOrder = order;
         if (isKeyOrder(order) == false) {
             reduceOrder = InternalOrder.key(true);
+            buckets.sort(reduceOrder.comparator());
         }
-        StringTerms.Bucket bucket = new StringTerms.Bucket(
-            new BytesRef(termKey),
-            docCount,
-            InternalAggregations.from(subAggs),
-            showTermDocCountError,
-            0,
-            format
-        );
-        return new StringTerms(
+        return List.of(new StringTerms(
             name,
             reduceOrder,
             order,
@@ -152,10 +158,10 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator implements 
             bucketCountThresholds.getShardSize(),
             showTermDocCountError,
             0,
-            List.of(bucket),
+            buckets,
             0,
             bucketCountThresholds
-        );
+        ));
     }
 
 }
