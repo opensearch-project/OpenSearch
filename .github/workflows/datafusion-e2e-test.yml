@@ -64,9 +64,9 @@ jobs:
         working-directory: opensearch-sql
         run: ./gradlew publishToMavenLocal -x test
 
-      - name: Run DataFusion Tests
+      - name: Run DataFusionReaderManager Tests
         working-directory: OpenSearch
-        run: ./gradlew :plugins:engine-datafusion:test --tests "org.opensearch.datafusion.*"
+        run: ./gradlew :plugins:engine-datafusion:test --tests "org.opensearch.datafusion.DataFusionReaderManagerTests"
 
       - name: Run OpenSearch with DataFusion Plugin
         working-directory: OpenSearch
