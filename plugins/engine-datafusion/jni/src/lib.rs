@@ -73,7 +73,7 @@ use crate::memory::{CustomMemoryPool, Monitor, MonitoredMemoryPool};
 
 struct DataFusionRuntime {
     runtime_env: RuntimeEnv,
-    custom_cache_manager: *const CustomCacheManager,
+    custom_cache_manager: Option<CustomCacheManager>,
     tokio_runtime: Runtime,
     monitor: Arc<Monitor>,
 }
@@ -94,23 +94,41 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         monitor.clone(),
     ));
 
-      let custom_cache_manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+    if cache_manager_ptr != 0 {
+        // Take ownership of the CustomCacheManager
+        let custom_cache_manager = unsafe { *Box::from_raw(cache_manager_ptr as *mut CustomCacheManager) };
         let cache_manager_config = custom_cache_manager.build_cache_manager_config();
+        
+        let runtime_env = RuntimeEnvBuilder::new().with_cache_manager(cache_manager_config)
+            .with_memory_pool(memory_pool.clone())
+            .build().unwrap();
 
-    let runtime_env = RuntimeEnvBuilder::new().with_cache_manager(cache_manager_config)
-        .with_memory_pool(memory_pool)
-        .build().unwrap();
+        let tokio_runtime = Runtime::new().expect("Failed to create Tokio runtime");
 
-    let tokio_runtime = Runtime::new().expect("Failed to create Tokio runtime");
+        let runtime = DataFusionRuntime {
+            runtime_env,
+            custom_cache_manager: Some(custom_cache_manager),
+            tokio_runtime,
+            monitor,
+        };
 
-    let runtime = DataFusionRuntime {
-        runtime_env,
-        custom_cache_manager,
-        tokio_runtime,
-        monitor,
-    };
+        Box::into_raw(Box::new(runtime)) as jlong
+    } else {
+        let runtime_env = RuntimeEnvBuilder::new()
+            .with_memory_pool(memory_pool)
+            .build().unwrap();
 
-    Box::into_raw(Box::new(runtime)) as jlong
+        let tokio_runtime = Runtime::new().expect("Failed to create Tokio runtime");
+
+        let runtime = DataFusionRuntime {
+            runtime_env,
+            custom_cache_manager: None,
+            tokio_runtime,
+            monitor,
+        };
+
+        Box::into_raw(Box::new(runtime)) as jlong
+    }
 }
 
 #[no_mangle]
@@ -362,6 +380,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         .build()
         .unwrap();
 
+    
     // TODO: get config from CSV DataFormat
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = false;
@@ -1020,46 +1039,56 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createCac
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerAddFiles(
     mut env: JNIEnv,
     _class: JClass,
-    cache_manager_ptr: jlong,
+    runtime_env_ptr: jlong,
     files: JObjectArray,
 ) {
-    if cache_manager_ptr == 0 {
+    if runtime_env_ptr == 0 {
         let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
         return;
     }
 
-    let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
 
-    // Parse the array of file paths
-    let file_paths: Vec<String> = match parse_string_arr(&mut env, files) {
-        Ok(paths) => paths,
-        Err(e) => {
-            let msg = format!("Failed to parse file paths array: {}", e);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            return;
-        }
-    };
+    // Check if custom_cache_manager exists
+    match &runtime_env.custom_cache_manager {
+        Some(manager) => {
+            // Parse the array of file paths
+            let file_paths: Vec<String> = match parse_string_arr(&mut env, files) {
+                Ok(paths) => paths,
+                Err(e) => {
+                    let msg = format!("Failed to parse file paths array: {}", e);
+                    eprintln!("[CACHE ERROR] {}", msg);
+                    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
+                    return;
+                }
+            };
 
-    // Use the add_files method directly
-    match manager.add_files(&file_paths) {
-        Ok(results) => {
-            let mut failed_files = Vec::new();
-            for (file_path, success) in results {
-                if !success {
-                    failed_files.push(file_path);
+            // Use the add_files method directly
+            match manager.add_files(&file_paths) {
+                Ok(results) => {
+                    let mut failed_files = Vec::new();
+                    for (file_path, success) in results {
+                        if !success {
+                            failed_files.push(file_path);
+                        }
+                    }
+
+                    if !failed_files.is_empty() {
+                        let msg = format!("Failed to add {} files to cache: {:?}", failed_files.len(), failed_files);
+                        eprintln!("[CACHE ERROR] {}", msg);
+                    }
+                }
+                Err(e) => {
+                    let msg = format!("Failed to add files to cache: {}", e);
+                    eprintln!("[CACHE ERROR] {}", msg);
+                    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
                 }
             }
-
-            if !failed_files.is_empty() {
-                let msg = format!("Failed to add {} files to cache: {:?}", failed_files.len(), failed_files);
-                eprintln!("[CACHE ERROR] {}", msg);
-            }
         }
-        Err(e) => {
-            let msg = format!("Failed to add files to cache: {}", e);
+        None => {
+            let msg = "No custom cache manager available";
             eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
+            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
         }
     }
 }
@@ -1068,15 +1097,15 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerRemoveFiles(
     mut env: JNIEnv,
     _class: JClass,
-    cache_manager_ptr: jlong,
+    runtime_env_ptr: jlong,
     files: JObjectArray,
 ) {
-    if cache_manager_ptr == 0 {
+    if runtime_env_ptr == 0 {
         let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
         return;
     }
 
-    let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
 
     // Parse the array of file paths
     let file_paths: Vec<String> = match parse_string_arr(&mut env, files) {
@@ -1089,25 +1118,35 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
         }
     };
 
-    // Use the remove_files method directly
-    match manager.remove_files(&file_paths) {
-        Ok(results) => {
-            let mut failed_files = Vec::new();
-            for (file_path, removed) in results {
-                if !removed {
-                    failed_files.push(file_path);
+        // Check if custom_cache_manager exists
+    match &runtime_env.custom_cache_manager {
+        Some(manager) => {
+            // Use the remove_files method directly
+            match manager.remove_files(&file_paths) {
+                Ok(results) => {
+                    let mut failed_files = Vec::new();
+                    for (file_path, removed) in results {
+                        if !removed {
+                            failed_files.push(file_path);
+                        }
+                    }
+
+                    if !failed_files.is_empty() {
+                        let msg = format!("Failed to remove {} files from cache: {:?}", failed_files.len(), failed_files);
+                        eprintln!("[CACHE ERROR] {}", msg);
+                    }
+                }
+                Err(e) => {
+                    let msg = format!("Failed to remove files from cache: {}", e);
+                    eprintln!("[CACHE ERROR] {}", msg);
+                    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
                 }
             }
-
-            if !failed_files.is_empty() {
-                let msg = format!("Failed to remove {} files from cache: {:?}", failed_files.len(), failed_files);
-                eprintln!("[CACHE ERROR] {}", msg);
-            }
         }
-        Err(e) => {
-            let msg = format!("Failed to remove files from cache: {}", e);
+         None => {
+            let msg = "No custom cache manager available";
             eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
+            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
         }
     }
 }
@@ -1116,33 +1155,41 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerClear(
     mut env: JNIEnv,
     _class: JClass,
-    cache_manager_ptr: jlong,
+    runtime_env_ptr: jlong,
 ) {
-    if cache_manager_ptr == 0 {
+    if runtime_env_ptr == 0 {
         let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
         return;
     }
 
-    let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
 
-    manager.clear_all();
-    println!("[CACHE INFO] Successfully cleared all caches");
+      match &runtime_env.custom_cache_manager {
+        Some(manager) => {
+            manager.clear_all();
+            println!("[CACHE INFO] Successfully cleared all caches");
+        } None => {
+            let msg = "No custom cache manager available";
+            eprintln!("[CACHE ERROR] {}", msg);
+            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
+        }
+    }
 }
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerUpdateSizeLimitForCacheType(
     mut env: JNIEnv,
     _class: JClass,
-    cache_manager_ptr: jlong,
+    runtime_env_ptr: jlong,
     cache_type: JString,
     new_size_limit: jlong,
 ) -> bool {
-    if cache_manager_ptr == 0 {
+    if runtime_env_ptr == 0 {
         let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
         return false;
     }
 
-    let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
 
     let cache_type: String = match env.get_string(&cache_type) {
         Ok(s) => s.into(),
@@ -1154,16 +1201,26 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
         }
     };
 
-    match cache_type.as_str() {
-        cache::CACHE_TYPE_METADATA => {
-            manager.update_metadata_cache_limit(new_size_limit as usize);
-            true
+    match &runtime_env.custom_cache_manager {
+        Some(manager) => {
+                match cache_type.as_str() {
+                    cache::CACHE_TYPE_METADATA => {
+                        manager.update_metadata_cache_limit(new_size_limit as usize);
+                        true
+                    }
+                    _ => {
+                        let msg = format!("Unknown cache type: {}", cache_type);
+                        eprintln!("[CACHE ERROR] {}", msg);
+                        let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
+                        false
+                    }
+            }
         }
-        _ => {
-            let msg = format!("Unknown cache type: {}", cache_type);
+        None => {
+            let msg = "No custom cache manager available";
             eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            false
+            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
+            return false;
         }
     }
 }
@@ -1172,15 +1229,15 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerGetMemoryConsumedForCacheType(
     mut env: JNIEnv,
     _class: JClass,
-    cache_manager_ptr: jlong,
+    runtime_env_ptr: jlong,
     cache_type: JString,
 ) -> jlong {
-    if cache_manager_ptr == 0 {
-        let _ = env.throw_new("java/lang/DataFusionException", "Cache manager pointer is null");
+    if runtime_env_ptr == 0 {
+        let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
         return 0;
     }
 
-    let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
 
     let cache_type: String = match env.get_string(&cache_type) {
         Ok(s) => s.into(),
@@ -1191,17 +1248,26 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
             return 0;
         }
     };
-
-    match cache_type.as_str() {
-        cache::CACHE_TYPE_METADATA => {
-            manager.get_total_memory_consumed() as jlong
+    match &runtime_env.custom_cache_manager {
+        Some(manager) => {
+        match cache_type.as_str() {
+            cache::CACHE_TYPE_METADATA => {
+                manager.get_total_memory_consumed() as jlong
+            }
+            _ => {
+                let msg = format!("Unknown cache type: {}", cache_type);
+                eprintln!("[CACHE ERROR] {}", msg);
+                let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
+                0
+            }
         }
-        _ => {
-            let msg = format!("Unknown cache type: {}", cache_type);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            0
-        }
+    }
+    None => {
+    let msg = "No custom cache manager available";
+    eprintln!("[CACHE ERROR] {}", msg);
+    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
+    return 0;
+    }
     }
 }
 
@@ -1210,33 +1276,39 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerGetTotalMemoryConsumed(
     mut env: JNIEnv,
     _class: JClass,
-    cache_manager_ptr: jlong,
+    runtime_env_ptr: jlong,
 ) -> jlong {
-    if cache_manager_ptr == 0 {
+    if runtime_env_ptr == 0 {
         let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
         return 0;
     }
 
-    let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
 
-    let total = manager.get_total_memory_consumed();
-    println!("[CACHE INFO] Total memory consumed: {} bytes", total);
-    total as jlong
+     match &runtime_env.custom_cache_manager {
+        Some(manager) => {
+            let total = manager.get_total_memory_consumed();
+            total as jlong
+        }
+         None => {
+            0
+         }
+        }
 }
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerClearByCacheType(
     mut env: JNIEnv,
     _class: JClass,
-    cache_manager_ptr: jlong,
+    runtime_env_ptr: jlong,
     cache_type: JString,
 ) {
-    if cache_manager_ptr == 0 {
-        let _ = env.throw_new("java/lang/DataFusionException", "Cache manager pointer is null");
+    if runtime_env_ptr == 0 {
+        let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
         return;
     }
 
-    let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
 
     let cache_type: String = match env.get_string(&cache_type) {
         Ok(s) => s.into(),
@@ -1248,13 +1320,22 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
         }
     };
 
-    match manager.clear_cache_type(&cache_type) {
-        Ok(_) => {
-            println!("[CACHE INFO] Cache Type: {} cleared", cache_type);
+    match &runtime_env.custom_cache_manager {
+        Some(manager) => {
+            match manager.clear_cache_type(&cache_type) {
+                Ok(_) => {
+                    println!("[CACHE INFO] Cache Type: {} cleared", cache_type);
+                }
+                Err(e) => {
+                    eprintln!("[CACHE ERROR] {}", e);
+                    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &e);
+                }
+            }
         }
-        Err(e) => {
-            eprintln!("[CACHE ERROR] {}", e);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &e);
+        None => {
+            let msg = "No custom cache manager available";
+            eprintln!("[CACHE ERROR] {}", msg);
+            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
         }
     }
 }
@@ -1265,16 +1346,16 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerGetItemByCacheType(
     mut env: JNIEnv,
     _class: JClass,
-    cache_manager_ptr: jlong,
+    runtime_env_ptr: jlong,
     cache_type: JString,
     file_path: JString,
 ) -> bool {
-    if cache_manager_ptr == 0 {
-        let _ = env.throw_new("java/lang/DataFusionException", "Cache manager pointer is null");
+    if runtime_env_ptr == 0 {
+        let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
         return false;
     }
 
-    let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
 
     let cache_type: String = match env.get_string(&cache_type) {
         Ok(s) => s.into(),
@@ -1296,14 +1377,24 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
         }
     };
 
-    match cache_type.as_str() {
-        cache::CACHE_TYPE_METADATA => {
-            manager.contains_file(&file_path)
+    match &runtime_env.custom_cache_manager {
+        Some(manager) => {
+            match cache_type.as_str() {
+                cache::CACHE_TYPE_METADATA => {
+                    manager.contains_file(&file_path)
+                }
+                _ => {
+                    let msg = format!("Unknown cache type: {}", cache_type);
+                    eprintln!("[CACHE ERROR] {}", msg);
+                    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
+                    false
+                }
+            }
         }
-        _ => {
-            let msg = format!("Unknown cache type: {}", cache_type);
+        None => {
+            let msg = "No custom cache manager available";
             eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
+            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
             false
         }
     }

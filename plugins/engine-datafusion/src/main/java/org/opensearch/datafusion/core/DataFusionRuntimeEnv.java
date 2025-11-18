@@ -13,9 +13,9 @@ import org.opensearch.common.settings.Setting;
 
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.datafusion.jni.handle.CacheHandle;
 import org.opensearch.datafusion.jni.handle.GlobalRuntimeHandle;
 import org.opensearch.datafusion.search.cache.CacheManager;
+import org.opensearch.datafusion.search.cache.CacheUtils;
 
 /**
  * DataFusion runtime environment manager.
@@ -42,8 +42,9 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
      */
     public DataFusionRuntimeEnv(ClusterService clusterService) {
         long memoryLimit = clusterService.getClusterSettings().get(MEMORY_POOL_CONFIGURATION_DATAFUSION).getBytes();
-        this.cacheManager = new CacheManager(clusterService.getClusterSettings());
-        this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManager.getCacheManagerPointer());
+        long cacheManagerPtr = CacheUtils.createCacheConfig(clusterService.getClusterSettings());
+        this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerPtr);
+        this.cacheManager = new CacheManager(runtimeHandle.getPointer());
     }
 
     /**
