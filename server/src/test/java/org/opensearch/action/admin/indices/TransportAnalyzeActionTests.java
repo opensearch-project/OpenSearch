@@ -39,9 +39,17 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
 import org.opensearch.action.admin.indices.analyze.TransportAnalyzeAction;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexService;
@@ -55,12 +63,15 @@ import org.opensearch.index.analysis.NormalizingTokenFilterFactory;
 import org.opensearch.index.analysis.PreConfiguredCharFilter;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.opensearch.indices.analysis.AnalysisModuleTests.AppendCharFilter;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -598,5 +609,54 @@ public class TransportAnalyzeActionTests extends OpenSearchTestCase {
 
         analyze = TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
         assertEquals(1, analyze.getTokens().size());
+    }
+
+    public void testResolveIndicesForNoIndex() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext);
+
+        TransportAnalyzeAction action = new TransportAnalyzeAction(
+            Settings.EMPTY,
+            mock(ThreadPool.class),
+            mock(ClusterService.class),
+            mock(TransportService.class),
+            mock(IndicesService.class),
+            mock(ActionFilters.class),
+            indexNameExpressionResolver
+        );
+
+        AnalyzeAction.Request request = new AnalyzeAction.Request().text("the quick brown fox");
+        assertEquals(ResolvedIndices.of(ResolvedIndices.Local.of()), action.resolveIndices(request));
+    }
+
+    public void testResolveIndicesForIndex() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext);
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test_index")
+                    .settings(
+                        settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    )
+            );
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        TransportAnalyzeAction action = new TransportAnalyzeAction(
+            Settings.EMPTY,
+            mock(ThreadPool.class),
+            clusterService,
+            mock(TransportService.class),
+            mock(IndicesService.class),
+            mock(ActionFilters.class),
+            indexNameExpressionResolver
+        );
+
+        AnalyzeAction.Request request = new AnalyzeAction.Request("test_index").text("the quick brown fox");
+        assertEquals(ResolvedIndices.of(ResolvedIndices.Local.of("test_index")), action.resolveIndices(request));
     }
 }

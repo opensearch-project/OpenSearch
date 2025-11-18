@@ -44,8 +44,8 @@ import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cloud.gce.util.Access;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -82,7 +82,7 @@ public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
     // Use only for testing
     static MockGoogleCredential.Builder newMockCredentialBuilder() {
         // TODO: figure out why GCE is so bad like this
-        return Access.doPrivileged(MockGoogleCredential.Builder::new);
+        return AccessController.doPrivileged(MockGoogleCredential.Builder::new);
     }
 
     @Override

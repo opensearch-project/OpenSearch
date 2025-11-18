@@ -229,8 +229,8 @@ public class AggregatorFactories {
                     aggBuilder.subAggregations(subFactories);
                 }
 
-                if (aggBuilder instanceof AggregationBuilder) {
-                    factories.addAggregator((AggregationBuilder) aggBuilder);
+                if (aggBuilder instanceof AggregationBuilder aggregationBuilder) {
+                    factories.addAggregator(aggregationBuilder);
                 } else {
                     factories.addPipelineAggregator((PipelineAggregationBuilder) aggBuilder);
                 }
@@ -388,8 +388,8 @@ public class AggregatorFactories {
             for (AggregationBuilder builder : aggregationBuilders) {
                 if (builder instanceof GlobalAggregationBuilder) {
                     return true;
-                } else if (builder instanceof TermsAggregationBuilder) {
-                    if (((TermsAggregationBuilder) builder).minDocCount() == 0) {
+                } else if (builder instanceof TermsAggregationBuilder termsAggregationBuilder) {
+                    if (termsAggregationBuilder.minDocCount() == 0) {
                         return true;
                     }
                 }

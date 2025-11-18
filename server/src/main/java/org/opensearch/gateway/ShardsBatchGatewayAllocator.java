@@ -43,7 +43,6 @@ import org.opensearch.index.store.Store;
 import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 
@@ -836,17 +835,6 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
         protected void removeShard(ShardId shardId) {
             this.batchInfo.remove(shardId);
-        }
-
-        private TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata buildEmptyReplicaShardResponse() {
-            return new TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata(
-                new TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata(
-                    null,
-                    Store.MetadataSnapshot.EMPTY,
-                    Collections.emptyList()
-                ),
-                null
-            );
         }
 
         private void removeFromBatch(ShardRouting shard) {

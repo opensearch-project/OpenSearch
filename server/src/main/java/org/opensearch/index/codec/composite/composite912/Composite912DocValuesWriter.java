@@ -328,15 +328,15 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             if (mergeState.docValuesProducers[i] == null) {
                 continue;
             }
-            if (mergeState.docValuesProducers[i] instanceof CompositeIndexReader) {
-                reader = (CompositeIndexReader) mergeState.docValuesProducers[i];
+            if (mergeState.docValuesProducers[i] instanceof CompositeIndexReader compositeReader) {
+                reader = compositeReader;
             } else {
                 Set<DocValuesProducer> docValuesProducers = DocValuesProducerUtil.getSegmentDocValuesProducers(
                     mergeState.docValuesProducers[i]
                 );
                 for (DocValuesProducer docValuesProducer : docValuesProducers) {
-                    if (docValuesProducer instanceof CompositeIndexReader) {
-                        reader = (CompositeIndexReader) docValuesProducer;
+                    if (docValuesProducer instanceof CompositeIndexReader compositeReader) {
+                        reader = compositeReader;
                         List<CompositeIndexFieldInfo> compositeFieldInfo = reader.getCompositeIndexFields();
                         if (compositeFieldInfo.isEmpty() == false) {
                             break;
@@ -349,8 +349,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             for (CompositeIndexFieldInfo fieldInfo : compositeFieldInfo) {
                 if (fieldInfo.getType().equals(CompositeMappedFieldType.CompositeFieldType.STAR_TREE)) {
                     CompositeIndexValues compositeIndexValues = reader.getCompositeIndexValues(fieldInfo);
-                    if (compositeIndexValues instanceof StarTreeValues) {
-                        StarTreeValues starTreeValues = (StarTreeValues) compositeIndexValues;
+                    if (compositeIndexValues instanceof StarTreeValues starTreeValues) {
                         List<StarTreeValues> fieldsList = starTreeSubsPerField.getOrDefault(fieldInfo.getField(), new ArrayList<>());
                         fieldsList.add(starTreeValues);
                         starTreeSubsPerField.put(fieldInfo.getField(), fieldsList);

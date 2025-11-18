@@ -137,4 +137,80 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         assertNotNull(consumer);
         assertEquals(KafkaConsumer.class, consumer.getClass());
     }
+
+    public void testGetPointerBasedLagBeforeAnyFetch() {
+        // Before any messages are fetched, lag should be calculated from expected start pointer
+        TopicPartition topicPartition = new TopicPartition("test-topic", 0);
+        when(mockConsumer.endOffsets(Collections.singletonList(topicPartition))).thenReturn(Collections.singletonMap(topicPartition, 100L));
+
+        // Expected start pointer is offset 0
+        KafkaOffset expectedStartPointer = new KafkaOffset(0L);
+        long lag = consumer.getPointerBasedLag(expectedStartPointer);
+
+        assertEquals(100L, lag);
+    }
+
+    public void testGetPointerBasedLagAfterFetch() throws Exception {
+        // Simulate fetching messages up to offset 50
+        TopicPartition topicPartition = new TopicPartition("test-topic", 0);
+        ConsumerRecord<byte[], byte[]> record1 = new ConsumerRecord<>(
+            "test-topic",
+            0,
+            50,
+            null,
+            "message".getBytes(StandardCharsets.UTF_8)
+        );
+        ConsumerRecords<byte[], byte[]> records = new ConsumerRecords<>(
+            Collections.singletonMap(topicPartition, Collections.singletonList(record1))
+        );
+
+        when(mockConsumer.poll(any(Duration.class))).thenReturn(records);
+        consumer.readNext(new KafkaOffset(50), true, 10, 1000);
+
+        // Now endOffset is 100, lastFetchedOffset is 50
+        // expected lag is 49
+        when(mockConsumer.endOffsets(Collections.singletonList(topicPartition))).thenReturn(Collections.singletonMap(topicPartition, 100L));
+
+        // Expected start pointer doesn't matter since we've already fetched
+        KafkaOffset expectedStartPointer = new KafkaOffset(0L);
+        long lag = consumer.getPointerBasedLag(expectedStartPointer);
+
+        assertEquals(49L, lag);
+    }
+
+    public void testGetPointerBasedLagWhenCaughtUp() throws Exception {
+        // Simulate being caught up: lastFetchedOffset = endOffset - 1
+        TopicPartition topicPartition = new TopicPartition("test-topic", 0);
+        ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("test-topic", 0, 99, null, "message".getBytes(StandardCharsets.UTF_8));
+        ConsumerRecords<byte[], byte[]> records = new ConsumerRecords<>(
+            Collections.singletonMap(topicPartition, Collections.singletonList(record))
+        );
+
+        when(mockConsumer.poll(any(Duration.class))).thenReturn(records);
+        consumer.readNext(new KafkaOffset(99), true, 10, 1000);
+
+        // endOffset is 100, lastFetchedOffset is 99
+        // expected lag is 0
+        when(mockConsumer.endOffsets(Collections.singletonList(topicPartition))).thenReturn(Collections.singletonMap(topicPartition, 100L));
+
+        // Expected start pointer doesn't matter since we've already fetched
+        KafkaOffset expectedStartPointer = new KafkaOffset(0L);
+        long lag = consumer.getPointerBasedLag(expectedStartPointer);
+
+        assertEquals(0L, lag);
+    }
+
+    public void testGetPointerBasedLagHandlesException() {
+        // Simulate an exception when calling endOffsets
+        TopicPartition topicPartition = new TopicPartition("test-topic", 0);
+        when(mockConsumer.endOffsets(Collections.singletonList(topicPartition))).thenThrow(
+            new RuntimeException("Kafka broker unavailable")
+        );
+
+        KafkaOffset expectedStartPointer = new KafkaOffset(0L);
+        long lag = consumer.getPointerBasedLag(expectedStartPointer);
+
+        // Should return -1 on exception
+        assertEquals(-1, lag);
+    }
 }
