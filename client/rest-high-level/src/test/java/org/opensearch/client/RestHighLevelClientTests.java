@@ -917,7 +917,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         // TODO remove in 8.0 - we will undeprecate indices.get_template because the current getIndexTemplate
         // impl will replace the existing getTemplate method.
         // The above general-purpose code ignores all deprecated methods which in this case leaves `getTemplate`
-        // looking like it doesn't have a valid implementatation when it does.
+        // looking like it doesn't have a valid implementation when it does.
         apiUnsupported.remove("indices.get_template");
 
         // Synced flush is deprecated
