@@ -21,6 +21,7 @@ import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
+import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 
 import java.util.Comparator;
 import java.util.List;
@@ -70,6 +71,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private long maxPollSize;
     private int pollTimeout;
     private long pointerBasedLagUpdateIntervalMs;
+    private final IngestionMessageMapper messageMapper;
 
     private final String indexName;
 
@@ -95,7 +97,8 @@ public class DefaultStreamPoller implements StreamPoller {
         int pollTimeout,
         int numProcessorThreads,
         int blockingQueueSize,
-        long pointerBasedLagUpdateIntervalMs
+        long pointerBasedLagUpdateIntervalMs,
+        IngestionMessageMapper.MapperType mapperType
     ) {
         this(
             startPointer,
@@ -110,7 +113,8 @@ public class DefaultStreamPoller implements StreamPoller {
             maxPollSize,
             pollTimeout,
             pointerBasedLagUpdateIntervalMs,
-            ingestionEngine.config().getIndexSettings()
+            ingestionEngine.config().getIndexSettings(),
+            IngestionMessageMapper.create(mapperType.getName(), shardId)
         );
     }
 
@@ -130,7 +134,8 @@ public class DefaultStreamPoller implements StreamPoller {
         long maxPollSize,
         int pollTimeout,
         long pointerBasedLagUpdateIntervalMs,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        IngestionMessageMapper messageMapper
     ) {
         this.consumerFactory = Objects.requireNonNull(consumerFactory);
         this.consumerClientId = Objects.requireNonNull(consumerClientId);
@@ -148,6 +153,7 @@ public class DefaultStreamPoller implements StreamPoller {
         );
         this.errorStrategy = errorStrategy;
         this.indexName = indexSettings.getIndex().getName();
+        this.messageMapper = Objects.requireNonNull(messageMapper);
 
         // handle initial poller states
         this.paused = initialState == State.PAUSED;
@@ -257,7 +263,11 @@ public class DefaultStreamPoller implements StreamPoller {
         for (IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> result : results) {
             try {
                 totalPolledCount.inc();
-                blockingQueueContainer.add(result);
+
+                // Use mapper to create ShardUpdateMessage
+                ShardUpdateMessage shardUpdateMessage = messageMapper.mapAndProcess(result.getPointer(), result.getMessage());
+
+                blockingQueueContainer.add(shardUpdateMessage);
                 setLastPolledMessageTimestamp(result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp());
                 logger.debug(
                     "Put message {} with pointer {} to the blocking queue",
@@ -533,6 +543,7 @@ public class DefaultStreamPoller implements StreamPoller {
         private int numProcessorThreads = 1;
         private int blockingQueueSize = 100;
         private long pointerBasedLagUpdateIntervalMs = 10000;
+        private IngestionMessageMapper.MapperType mapperType = IngestionMessageMapper.MapperType.DEFAULT;
 
         /**
          * Initialize the builder with mandatory parameters
@@ -625,6 +636,14 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
+         * Set mapper type
+         */
+        public Builder mapperType(IngestionMessageMapper.MapperType mapperType) {
+            this.mapperType = mapperType;
+            return this;
+        }
+
+        /**
          * Build the DefaultStreamPoller instance
          */
         public DefaultStreamPoller build() {
@@ -642,7 +661,8 @@ public class DefaultStreamPoller implements StreamPoller {
                 pollTimeout,
                 numProcessorThreads,
                 blockingQueueSize,
-                pointerBasedLagUpdateIntervalMs
+                pointerBasedLagUpdateIntervalMs,
+                mapperType
             );
         }
     }

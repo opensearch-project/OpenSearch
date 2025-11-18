@@ -168,6 +168,11 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
             public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
                 super.collect(stream, owningBucketOrd);
             }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                super.collectRange(min, max);
+            }
         };
     }
 

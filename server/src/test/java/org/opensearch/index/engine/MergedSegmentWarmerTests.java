@@ -142,8 +142,6 @@ public class MergedSegmentWarmerTests extends OpenSearchTestCase {
     }
 
     public void testShouldWarm_failure() throws IOException {
-        ClassLoader.getSystemClassLoader().setDefaultAssertionStatus(false);
-
         MergedSegmentWarmer warmer = spy(new MergedSegmentWarmer(null, null, null, mockIndexShard));
         doThrow(new RuntimeException("test exception")).when(warmer).shouldWarm(any());
         doReturn(mock(SegmentCommitInfo.class)).when(warmer).segmentCommitInfo(any());

@@ -79,13 +79,14 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
     ) throws IOException {
         TreeMap<String, ValuesSource.Numeric> typedValuesSources = new TreeMap<>();
         for (Map.Entry<String, ValuesSource> entry : valuesSources.entrySet()) {
-            if (entry.getValue() instanceof ValuesSource.Numeric == false) {
+            if (entry.getValue() instanceof ValuesSource.Numeric numericValuesSource) {
+                // TODO: There must be a better option than this.
+                typedValuesSources.put(entry.getKey(), numericValuesSource);
+            } else {
                 throw new AggregationExecutionException(
                     "ValuesSource type " + entry.getValue().toString() + "is not supported for aggregation " + this.name()
                 );
             }
-            // TODO: There must be a better option than this.
-            typedValuesSources.put(entry.getKey(), (ValuesSource.Numeric) entry.getValue());
         }
         return new MatrixStatsAggregator(name, typedValuesSources, searchContext, parent, multiValueMode, metadata);
     }
