@@ -20,6 +20,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Collections;
 import java.util.List;
 
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_ENABLED;
@@ -50,8 +51,10 @@ public class TestDataFusionServiceTests extends OpenSearchTestCase {
         clusterSettingsToAdd.add(METADATA_CACHE_EVICTION_TYPE);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);
-
-        service = new DataFusionService(Collections.emptyMap(),clusterSettings);
+        clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        service = new DataFusionService(Collections.emptyMap(),clusterService);
         service.doStart();
     }
 

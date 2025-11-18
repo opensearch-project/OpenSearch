@@ -23,7 +23,7 @@ public final class NativeBridge {
     private NativeBridge() {}
 
     // Runtime management
-    public static native long createGlobalRuntime(long limit);
+    public static native long createGlobalRuntime(long limit, long cacheManagerPtr);
     public static native void closeGlobalRuntime(long ptr);
 
     // Session management

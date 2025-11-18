@@ -25,6 +25,6 @@ public class CacheHandle extends NativeHandle {
 
     @Override
     protected void doClose() {
-
+        NativeBridge.destroyCustomCacheManager(ptr);
     }
 }

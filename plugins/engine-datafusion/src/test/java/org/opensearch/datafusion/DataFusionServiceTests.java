@@ -102,10 +102,15 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
         clusterSettingsToAdd.add(METADATA_CACHE_ENABLED);
         clusterSettingsToAdd.add(METADATA_CACHE_SIZE_LIMIT);
         clusterSettingsToAdd.add(METADATA_CACHE_EVICTION_TYPE);
+        clusterSettingsToAdd.add(org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION);
+
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);
+        clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        service = new DataFusionService(Collections.emptyMap(), clusterSettings);
+        service = new DataFusionService(Collections.emptyMap(), clusterService);
         //service = new DataFusionService(Map.of());
         service.doStart();
     }

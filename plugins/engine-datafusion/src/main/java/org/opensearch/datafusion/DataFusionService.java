@@ -16,6 +16,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.datafusion.core.DataFusionRuntimeEnv;
 import org.opensearch.datafusion.jni.NativeBridge;
+import org.opensearch.datafusion.search.cache.CacheManager;
 import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
@@ -208,6 +209,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
     }
 
     public CacheManager getCacheManager() {
-        return globalRuntimeEnv.getCacheManager();
+        return runtimeEnv.getCacheManager();
     }
 }

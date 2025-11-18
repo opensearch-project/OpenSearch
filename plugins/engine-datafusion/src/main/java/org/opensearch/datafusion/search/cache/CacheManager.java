@@ -17,6 +17,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.datafusion.jni.handle.CacheHandle;
 
+import static org.opensearch.datafusion.jni.NativeBridge.destroyCustomCacheManager;
 import static org.opensearch.datafusion.search.cache.CacheUtils.createCacheConfig;
 
 /**
@@ -29,7 +30,6 @@ public class CacheManager implements Closeable {
     private CacheHandle cacheHandle;
 
     public CacheManager(ClusterSettings clusterSettings) {
-     //   long cacheManagerPointer = createCacheConfig(clusterSettings);
         this.cacheHandle = new CacheHandle();
         createCacheConfig(clusterSettings,cacheHandle.getPointer());
     }

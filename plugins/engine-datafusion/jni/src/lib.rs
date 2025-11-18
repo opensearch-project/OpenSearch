@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -10,15 +11,12 @@ use datafusion_datasource::PartitionedFile;
 use datafusion_datasource::file_groups::FileGroup;
 use datafusion_datasource::file_scan_config::FileScanConfigBuilder;
 use datafusion_datasource::source::DataSourceExec;
-use datafusion_expr::expr_rewriter::unalias;
 use jni::objects::{JByteArray, JClass, JObject};
 use std::collections::{BTreeSet, HashMap};
-use std::future::Future;
-use downcast_rs::Downcast;
-use jni::objects::{JLongArray, JValue};
+use jni::objects::JLongArray;
 use jni::sys::{jbyteArray, jlong, jstring};
 use jni::JNIEnv;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use arrow_array::{Array, StructArray};
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_schema::DataType;
@@ -27,27 +25,22 @@ use datafusion::{
     common::DataFusionError,
     datasource::file_format::csv::CsvFormat,
     datasource::file_format::parquet::ParquetFormat,
+    datasource::listing::ListingTableUrl,
     datasource::object_store::ObjectStoreUrl,
     datasource::physical_plan::parquet::{ParquetAccessPlan, RowGroupAccess},
     datasource::physical_plan::ParquetSource,
     execution::cache::cache_manager::CacheManagerConfig,
-    execution::cache::cache_unit::DefaultListFilesCache,
+    execution::cache::cache_unit::{DefaultListFilesCache,DefaultFilesMetadataCache},
     execution::cache::CacheAccessor,
     execution::context::SessionContext,
     execution::runtime_env::{RuntimeEnv, RuntimeEnvBuilder},
-    execution::TaskContext
-    ,
     execution::TaskContext,
     parquet::arrow::arrow_reader::RowSelector,
     physical_plan::{ExecutionPlan, SendableRecordBatchStream},
-    prelude::SessionConfig,
     prelude::*,
     DATAFUSION_VERSION,
 };
 use std::default::Default;
-use jni::objects::{JLongArray, JValue};
-use jni::sys::{jbyteArray, jlong, jstring};
-use jni::JNIEnv;
 use std::time::Instant;
 
 mod util;
@@ -55,52 +48,32 @@ mod row_id_optimizer;
 mod listing_table;
 mod cache;
 mod custom_cache_manager;
+mod memory;
 
-use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
-use crate::memory::{CustomMemoryPool, Monitor, MonitoredMemoryPool};
-
+use crate::custom_cache_manager::CustomCacheManager;
 use crate::row_id_optimizer::ProjectRowIdOptimizer;
 use crate::util::{
-    create_file_metadata_from_filenames, parse_string_arr, set_object_result_error,
+    create_file_meta_from_filenames, parse_string_arr, set_object_result_error,
     set_object_result_ok,
 };
-use arrow_schema::DataType;
-use datafusion::catalog::TableProvider;
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
-use datafusion_datasource::file_groups::FileGroup;
-use datafusion_datasource::file_scan_config::FileScanConfigBuilder;
-use datafusion_datasource::source::DataSourceExec;
-use datafusion_datasource::PartitionedFile;
-use datafusion_expr::registry::FunctionRegistry;
-use datafusion_substrait::extensions::Extensions;
-use datafusion_substrait::logical_plan::consumer::{
-    from_substrait_plan,
-    SubstraitConsumer,
-};
-use datafusion_substrait::substrait::proto::Plan;
-use crate::util::{ create_file_meta_from_filenames, parse_string_arr, set_object_result_error, set_object_result_ok};
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use datafusion_substrait::substrait::proto::Plan;
-use futures::TryStreamExt;
-use jni::objects::{JObjectArray, JString};
 use object_store::ObjectMeta;
 use prost::Message;
 use tokio::runtime::Runtime;
-use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::fs::OpenOptions;
-use std::io::Write;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::result;
 
 pub type Result<T, E = DataFusionError> = result::Result<T, E>;
 
 // NativeBridge JNI implementations
 use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
-use crate::cache::MutexFileMetadataCache;
-use crate::util::{construct_file_metadata, create_object_meta_from_file};
+use jni::objects::{JObjectArray, JString};
+use crate::memory::{CustomMemoryPool, Monitor, MonitoredMemoryPool};
 
 struct DataFusionRuntime {
     runtime_env: RuntimeEnv,
+    custom_cache_manager: *const CustomCacheManager,
     tokio_runtime: Runtime,
     monitor: Arc<Monitor>,
 }
@@ -109,7 +82,8 @@ struct DataFusionRuntime {
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlobalRuntime(
     _env: JNIEnv,
     _class: JClass,
-    memory_pool_limit: jlong
+    memory_pool_limit: jlong,
+    cache_manager_ptr: jlong
 ) -> jlong {
     let monitor = Arc::new(Monitor::default());
     let memory_pool = Arc::new(MonitoredMemoryPool::new(
@@ -120,7 +94,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         monitor.clone(),
     ));
 
-    let runtime_env = RuntimeEnvBuilder::default()
+      let custom_cache_manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
+        let cache_manager_config = custom_cache_manager.build_cache_manager_config();
+
+    let runtime_env = RuntimeEnvBuilder::new().with_cache_manager(cache_manager_config)
         .with_memory_pool(memory_pool)
         .build().unwrap();
 
@@ -128,6 +105,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
 
     let runtime = DataFusionRuntime {
         runtime_env,
+        custom_cache_manager,
         tokio_runtime,
         monitor,
     };
@@ -145,9 +123,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeGlob
         let _ = unsafe { Box::from_raw(ptr as *mut DataFusionRuntime) };
     }
 }
- use datafusion::execution::cache::cache_manager::{self, CacheManager, FileMetadataCache};
-use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
-use datafusion::execution::cache::cache_unit::{DefaultFilesMetadataCache};
 
 
 /// Create a new DataFusion session context
@@ -208,66 +183,17 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_registerC
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_createGlobalRuntime(
-    mut env: JNIEnv,
-    _class: JClass,
-    cache_manager_ptr: jlong,
-) -> jlong {
-    let runtime_env = if cache_manager_ptr == 0 {
-        RuntimeEnvBuilder::default()
-            .build()
-            .unwrap()
-    } else {
-        // Get the CustomCacheManager and build CacheManagerConfig from it
-        let manager = unsafe { &*(cache_manager_ptr as *const custom_cache_manager::CustomCacheManager) };
-        let cache_manager_config = manager.build_cache_manager_config();
-
-        RuntimeEnvBuilder::default()
-            .with_cache_manager(cache_manager_config)
-            .build()
-            .unwrap()
-    };
-
-    Box::into_raw(Box::new(runtime_env)) as jlong
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_createDefaultGlobalRuntimeEnv(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createCustomCacheManager(
     mut env: JNIEnv,
     _class: JClass,
 ) -> jlong {
-    let runtime_env = RuntimeEnvBuilder::default()
-        .build()
-        .unwrap();
-
-    Box::into_raw(Box::new(runtime_env)) as jlong
+    // Create CustomCacheManager without any config
+    let manager = custom_cache_manager::CustomCacheManager::new();
+    Box::into_raw(Box::new(manager)) as jlong
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_createSessionContext(
-    _env: JNIEnv,
-    _class: JClass,
-    runtime_id: jlong,
-) -> jlong {
-    let runtimeEnv = unsafe { &mut *(runtime_id as *mut RuntimeEnv) };
-    let config = SessionConfig::new().with_repartition_aggregations(true);
-    let context = SessionContext::new_with_config_rt(config, Arc::new(runtimeEnv.clone()));
-    let ctx = Box::into_raw(Box::new(context)) as jlong;
-    ctx
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_closeSessionContext(
-    _env: JNIEnv,
-    _class: JClass,
-    context_id: jlong,
-) {
-    let _ = unsafe { Box::from_raw(context_id as *mut SessionContext) };
-}
-
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_createDatafusionReader(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createDatafusionReader(
     mut env: JNIEnv,
     _class: JClass,
     table_path: JString,
@@ -334,16 +260,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeData
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_closeGlobalRuntime(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_env_ptr: jlong
-)  {
-    let _ = unsafe { Box::from_raw(runtime_env_ptr as *mut RuntimeEnv) };
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_destroyTokioRuntime(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_destroyTokioRuntime(
     mut env: JNIEnv,
     _class: JClass,
     tokio_runtime_ptr: jlong
@@ -434,15 +351,13 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             .collect(),
     );
 
-
-
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
     list_file_cache.put(table_path.prefix(), object_meta);
 
     let runtime_env = RuntimeEnvBuilder::from_runtime_env(runtimeEnv)
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache.clone()))
-                .with_file_metadata_cache(Some(global_runtime_env.cache_manager.get_file_metadata_cache())),
+                .with_file_metadata_cache(Some(runtimeEnv.cache_manager.get_file_metadata_cache())),
         )
         .build()
         .unwrap();
@@ -647,10 +562,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
     let stream = unsafe { &mut *(stream as *mut SendableRecordBatchStream) };
     runtime.tokio_runtime.block_on(async {
         //let fetch_start = std::time::Instant::now();
-        let next = stream.try_next().await;
+        let next = futures::StreamExt::next(stream).await;
         //let fetch_time = fetch_start.elapsed();
         match next {
-            Ok(Some(batch)) => {
+            Some(Ok(batch)) => {
                 //let convert_start = std::time::Instant::now();
                 // Convert to struct array for compatibility with FFI
                 //println!("Num rows : {}", batch.num_rows());
@@ -665,10 +580,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
                 // println!("Fetch: {:?}, Convert: {:?}, Callback: {:?}",
                 //          fetch_time, convert_time, callback_time);
             }
-            Ok(None) => {
+            None => {
                 set_object_result_ok(&mut env, callback, 0 as *mut FFI_ArrowSchema);
             }
-            Err(err) => {
+            Some(Err(err)) => {
                 set_object_result_error(&mut env, callback, &err);
             }
         }
@@ -773,7 +688,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     let runtime_env = RuntimeEnvBuilder::new()
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(global_runtime_env.cache_manager.get_file_metadata_cache())),
+                .with_file_metadata_cache(Some(runtime.runtime_env.cache_manager.get_file_metadata_cache())),
         )
         .build()
         .unwrap();
@@ -1017,19 +932,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamClo
     let _ = unsafe { Box::from_raw(stream as *mut SendableRecordBatchStream) };
 }
 
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeGlobalRuntime(
-    _env: JNIEnv,
-    _class: JClass,
-) -> jlong {
-    // Create CustomCacheManager without any config
-    let manager = custom_cache_manager::CustomCacheManager::new();
-    Box::into_raw(Box::new(manager)) as jlong
-}
-
 /// Destroy a CustomCacheManager instance
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_destroyCustomCacheManager(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_destroyCustomCacheManager(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1044,7 +949,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_destroyCustom
 /// Generic cache creation method that handles all cache types
 /// This creates a cache and stores it in CustomCacheManager
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_createCache(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createCache(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1112,7 +1017,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_createCache(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerAddFiles(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerAddFiles(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1160,7 +1065,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerA
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerRemoveFiles(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerRemoveFiles(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1208,7 +1113,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerR
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerClear(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerClear(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1225,7 +1130,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerC
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerUpdateSizeLimitForCacheType(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerUpdateSizeLimitForCacheType(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1264,7 +1169,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerU
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerGetMemoryConsumedForCacheType(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerGetMemoryConsumedForCacheType(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1302,7 +1207,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerG
 
 /// Get total memory consumed by all caches
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerGetTotalMemoryConsumed(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerGetTotalMemoryConsumed(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1320,7 +1225,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerG
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerClearByCacheType(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerClearByCacheType(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
@@ -1357,7 +1262,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerC
 
 // Method added for Testing purposes only
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_NativeBridge_cacheManagerGetItemByCacheType(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerGetItemByCacheType(
     mut env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,

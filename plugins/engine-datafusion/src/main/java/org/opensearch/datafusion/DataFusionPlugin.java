@@ -8,6 +8,7 @@
 
 package org.opensearch.datafusion;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -176,6 +177,10 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         List<Setting<?>> settingList = new ArrayList<>();
 
         settingList.add(MEMORY_POOL_CONFIGURATION_DATAFUSION);
+        settingList.addAll(Stream.of(
+                CacheSettings.CACHE_SETTINGS,
+                CacheSettings.CACHE_ENABLED)
+            .flatMap(x -> x.stream()).collect(Collectors.toList()));
 
         return settingList;
     }
@@ -191,14 +196,14 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         }
         return List.of(new ActionHandler<>(NodesDataFusionInfoAction.INSTANCE, TransportNodesDataFusionInfoAction.class));
     }
-
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Stream.of(
-                CacheSettings.CACHE_SETTINGS,
-                CacheSettings.CACHE_ENABLED)
-            .flatMap(x -> x.stream())
-            .collect(Collectors.toList());
-
-    }
+//
+//    @Override
+//    public List<Setting<?>> getSettings() {
+//        return Stream.of(
+//                CacheSettings.CACHE_SETTINGS,
+//                CacheSettings.CACHE_ENABLED)
+//            .flatMap(x -> x.stream())
+//            .collect(Collectors.toList()).add(MEMORY_POOL_CONFIGURATION_DATAFUSION);
+//
+//    }
 }

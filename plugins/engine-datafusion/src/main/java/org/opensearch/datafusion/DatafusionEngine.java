@@ -120,7 +120,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             searcher = new DatafusionSearcherSupplier(null) {
                 @Override
                 protected DatafusionSearcher acquireSearcherInternal(String source) {
-                    return new DatafusionSearcher(source, reader, datafusionService.getGlobalRuntimeEnv(),
+                    return new DatafusionSearcher(source, reader,
                          () -> {});
 
                 }
@@ -164,7 +164,6 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             return new DatafusionSearcher(
                 source,
                 searcher.getReader(),
-                datafusionService.getGlobalRuntimeEnv(),
                 () -> Releasables.close(searcher, searcherSupplier)
             );
         } finally {

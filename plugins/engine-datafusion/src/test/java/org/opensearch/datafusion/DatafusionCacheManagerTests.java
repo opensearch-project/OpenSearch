@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.MockitoAnnotations;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -49,7 +50,8 @@ public class DatafusionCacheManagerTests extends OpenSearchSingleNodeTestCase {
     @Mock
     private Environment mockEnvironment;
 
-    private CacheManager cacheManagerv1;
+    @Mock
+    private ClusterService clusterService;
 
     @Before
     public void setup() {
@@ -61,10 +63,14 @@ public class DatafusionCacheManagerTests extends OpenSearchSingleNodeTestCase {
         clusterSettingsToAdd.add(METADATA_CACHE_ENABLED);
         clusterSettingsToAdd.add(METADATA_CACHE_SIZE_LIMIT);
         clusterSettingsToAdd.add(METADATA_CACHE_EVICTION_TYPE);
+        clusterSettingsToAdd.add(org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION);
+
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);
-
-        service = new DataFusionService(Collections.emptyMap(), clusterSettings);
+        clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        service = new DataFusionService(Collections.emptyMap(), clusterService);
         service.doStart();
     }
 
