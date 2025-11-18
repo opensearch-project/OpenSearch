@@ -72,7 +72,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
 
     /**
      * This constructor will be deprecated starting in version 3.4.0.
-     * Use {@link Builder} instead.
+     * Use {@link ScriptStats#aggregate(List)} instead.
      */
     @Deprecated
     public ScriptStats(List<ScriptContextStats> contextStats) {
