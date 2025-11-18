@@ -26,10 +26,6 @@ public final class NativeBridge {
     public static native long createGlobalRuntime(long limit);
     public static native void closeGlobalRuntime(long ptr);
 
-    // Session management
-    public static native long createSessionContext(long runtimeId);
-    public static native void closeSessionContext(long contextId);
-
     // Query execution
     public static native long executeQueryPhase(long readerPtr, String tableName, byte[] plan, long runtimePtr);
     public static native long executeFetchPhase(long readerPtr, long[] rowIds, String[] projections, long runtimePtr);
@@ -49,5 +45,4 @@ public final class NativeBridge {
 
     // Other methods
     public static native String getVersionInfo();
-    public static native int registerCsvDirectory(long contextId, String tableName, String directoryPath, String[] fileNames);
 }

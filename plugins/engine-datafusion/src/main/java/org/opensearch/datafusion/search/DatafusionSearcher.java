@@ -9,16 +9,13 @@
 package org.opensearch.datafusion.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.datafusion.core.DefaultRecordBatchStream;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.index.engine.EngineSearcher;
-import org.opensearch.search.aggregations.SearchResultsCollector;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Objects;
 
 public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, RecordBatchStream> {
@@ -37,10 +34,6 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
         return source;
     }
 
-    @Override
-    public void search(DatafusionQuery datafusionQuery, List<SearchResultsCollector<RecordBatchStream>> collectors) throws IOException {
-        throw new UnsupportedOperationException("Use search(DatafusionQuery, Long, Long) instead");
-    }
 
     @Override
     public long search(DatafusionQuery datafusionQuery, Long runtimePtr) {

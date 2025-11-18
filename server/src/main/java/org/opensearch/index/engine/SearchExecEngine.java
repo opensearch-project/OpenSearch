@@ -15,8 +15,6 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
-import org.opensearch.search.query.GenericQueryPhaseSearcher;
-import org.opensearch.search.query.QueryPhaseExecutor;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,16 +29,6 @@ import java.util.Map;
 @ExperimentalApi
 // TODO too many templatized types
 public abstract class SearchExecEngine<C extends SearchContext, S extends EngineSearcher<?,?>, R, Q> implements SearcherOperations<S, R> {
-
-    /**
-     * Get the query phase searcher for this engine
-     */
-    public abstract GenericQueryPhaseSearcher<C,S, Q> getQueryPhaseSearcher();
-
-    /**
-     * Get the query phase executor for this engine
-     */
-    public abstract QueryPhaseExecutor<C> getQueryPhaseExecutor();
 
     /**
      * Create a search context for this engine

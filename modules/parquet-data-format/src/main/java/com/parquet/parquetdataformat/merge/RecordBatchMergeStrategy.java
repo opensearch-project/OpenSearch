@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static com.parquet.parquetdataformat.bridge.RustBridge.getTotalRows;
 import static com.parquet.parquetdataformat.bridge.RustBridge.mergeParquetFilesInRust;
 
 /**
@@ -73,23 +72,5 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
 
     private String getMergedFilePath(long generation, String outputDirectory) {
         return Path.of(outputDirectory, getMergedFileName(generation)).toString();
-    }
-
-    private Map<RowId, Long> buildRowIdMapping(List<Path> filePaths) {
-        Map<RowId, Long> rowIdMapping = new HashMap<>();
-        long newRowId = 0;
-
-        for (Path filePath : filePaths) {
-            String fileIdentifier = filePath.getFileName().toString();
-            String filePathStr = filePath.toString();
-            long fileRowCount = getTotalRows(filePathStr);
-
-            for (long currentRowId = 0; currentRowId < fileRowCount; currentRowId++) {
-                RowId originalRowId = new RowId(currentRowId, fileIdentifier);
-                rowIdMapping.put(originalRowId, newRowId++);
-            }
-        }
-
-        return rowIdMapping;
     }
 }

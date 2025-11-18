@@ -30,38 +30,7 @@ public class RustBridge {
     public static native void flushToDisk(String file) throws IOException;
     public static native long getFilteredNativeBytesUsed(String pathPrefix);
 
-    // State and metrics methods handled on Rust side
-    public static native boolean writerExists(String file);
-    public static native long getWriteCount(String file);
-    public static native long getTotalRows(String file);
-    public static native String[] getActiveWriters();
-
-    // Validation helpers that could be implemented natively for better performance
-    public static boolean isValidFileName(String fileName) {
-        return fileName != null && !fileName.trim().isEmpty();
-    }
-
-    public static boolean isValidMemoryAddress(long address) {
-        return address != 0;
-    }
-
-
-    // DATAFUSION specific native methods starts here
-
-    // Record batch and streaming related methods
-    public static native String nativeNextBatch(long streamPtr);
-
-    public static native void nativeCloseStream(long streamPtr);
-
 
     // Native method declarations - these will be implemented in the JNI library
-    public static native void nativeRegisterDirectory(String tableName, String directoryPath, String[] files, long runtimeId);
-
-    public static native long nativeCreateSessionContext(String[] configKeys, String[] configValues);
-
-    public static native long nativeExecuteSubstraitQuery(long sessionContextPtr, byte[] substraitPlan);
-
-    public static native void nativeCloseSessionContext(long sessionContextPtr);
-
     public static native void mergeParquetFilesInRust(List<Path> inputFiles, String outputFile);
 }

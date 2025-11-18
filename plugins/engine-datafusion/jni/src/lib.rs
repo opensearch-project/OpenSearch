@@ -9,8 +9,8 @@ use arrow_array::ffi::FFI_ArrowArray;
 use arrow_array::{Array, StructArray};
 use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::{
-    common::DataFusionError,
-    datasource::file_format::csv::CsvFormat,
+    common::DataFusionError
+    ,
     datasource::file_format::parquet::ParquetFormat,
     datasource::listing::ListingTableUrl,
     datasource::object_store::ObjectStoreUrl,
@@ -29,8 +29,8 @@ use datafusion::{
     prelude::*,
     DATAFUSION_VERSION,
 };
-use jni::objects::{JByteArray, JClass, JObject};
 use jni::objects::JLongArray;
+use jni::objects::{JByteArray, JClass, JObject};
 use jni::sys::{jbyteArray, jlong, jstring};
 use jni::JNIEnv;
 use std::collections::{BTreeSet, HashMap};
@@ -46,7 +46,7 @@ mod row_id_optimizer;
 mod util;
 
 use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
-use crate::memory::{CustomMemoryPool, Monitor, MonitoredMemoryPool};
+use crate::memory::{Monitor, MonitoredMemoryPool};
 use crate::row_id_optimizer::ProjectRowIdOptimizer;
 use crate::util::{
     create_file_metadata_from_filenames, parse_string_arr, set_object_result_error,
@@ -126,32 +126,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeGlob
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createSessionContext(
-    _env: JNIEnv,
-    _class: JClass,
-    runtime_id: jlong,
-) -> jlong {
-    if runtime_id == 0 {
-        return 0;
-    }
-    let runtime_env = unsafe { &*(runtime_id as *const RuntimeEnv) };
-    let config = SessionConfig::new().with_repartition_aggregations(true);
-    let context = SessionContext::new_with_config_rt(config, Arc::new(runtime_env.clone()));
-    Box::into_raw(Box::new(context)) as jlong
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeSessionContext(
-    _env: JNIEnv,
-    _class: JClass,
-    context_id: jlong,
-) {
-    if context_id != 0 {
-        let _ = unsafe { Box::from_raw(context_id as *mut SessionContext) };
-    }
-}
-
-#[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_getVersionInfo(
     env: JNIEnv,
     _class: JClass,
@@ -164,20 +138,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_getVersio
         .expect("Couldn't create Java string")
         .as_raw()
 }
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_registerCsvDirectory(
-    _env: JNIEnv,
-    _class: JClass,
-    _context_id: jlong,
-    _table_name: JString,
-    _directory_path: JString,
-    _file_names: JObjectArray,
-) -> jni::sys::jint {
-    // Legacy method - not implemented
-    0
-}
-
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_printMemoryPoolAllocation(
@@ -463,82 +423,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
 
         stream_ptr
     })
-}
-
-// If we need to create session context separately
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_nativeCreateSessionContext(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_ptr: jlong,
-    shard_view_ptr: jlong,
-    global_runtime_env_ptr: jlong,
-) -> jlong {
-    let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
-    let table_path = shard_view.table_path();
-    let files_metadata = shard_view.files_metadata();
-    let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
-        files_metadata
-            .iter()
-            .map(|metadata| (*metadata.object_meta).clone())
-            .collect(),
-    );
-    // Will use it once the global RunTime is defined
-    // let runtime_arc = unsafe {
-    //     let boxed = &*(runtime_env_ptr as *const Pin<Arc<RuntimeEnv>>);
-    //     (**boxed).clone()
-    // };
-
-    let list_file_cache = Arc::new(DefaultListFilesCache::default());
-    list_file_cache.put(table_path.prefix(), object_meta);
-
-    let runtime_env = RuntimeEnvBuilder::new()
-        .with_cache_manager(
-            CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache)),
-        )
-        .build()
-        .unwrap();
-
-    let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = false;
-    config.options_mut().execution.target_partitions = 9;
-
-    let ctx = SessionContext::new_with_config_rt(config, Arc::new(runtime_env));
-
-    // Create default parquet options
-    let file_format = CsvFormat::default();
-    let listing_options = ListingOptions::new(Arc::new(file_format)).with_file_extension(".csv");
-
-    // let runtime = unsafe { &mut *(runtime_ptr as *mut Runtime) };
-    let mut session_context_ptr = 0;
-
-    // Ideally the executor will give this
-    Runtime::new()
-        .expect("Failed to create Tokio Runtime")
-        .block_on(async {
-            let resolved_schema = listing_options
-                .infer_schema(&ctx.state(), &table_path.clone())
-                .await
-                .unwrap();
-
-            let config = ListingTableConfig::new(table_path.clone())
-                .with_listing_options(listing_options)
-                .with_schema(resolved_schema);
-
-            // Create a new TableProvider
-            let provider = Arc::new(ListingTable::try_new(config).unwrap());
-            let shard_id = table_path
-                .prefix()
-                .filename()
-                .expect("error in fetching Path");
-            ctx.register_table(shard_id, provider)
-                .expect("Failed to attach the Table");
-
-            // Return back after wrapping in Box
-            session_context_ptr = Box::into_raw(Box::new(ctx)) as jlong
-        });
-
-    session_context_ptr
 }
 
 #[no_mangle]
