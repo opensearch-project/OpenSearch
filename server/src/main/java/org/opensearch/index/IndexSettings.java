@@ -602,7 +602,7 @@ public final class IndexSettings {
         "index.engine.lego",
         true,
         Property.IndexScope,
-        Property.Dynamic
+        Property.Final
     );
 
     /**
@@ -1229,7 +1229,6 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_UNREFERENCED_FILE_CLEANUP, this::setShouldCleanupUnreferencedFiles);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_ENGINE_LEGO, this::setIndexEngineLego);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
@@ -2030,10 +2029,6 @@ public final class IndexSettings {
 
     public boolean getIndexEngineLego() {
         return indexEngineLego;
-    }
-
-    private void setIndexEngineLego(boolean indexEngineLego) {
-        this.indexEngineLego = indexEngineLego;
     }
 
     public long getMappingNestedFieldsLimit() {
