@@ -318,8 +318,8 @@ public final class ExceptionsHelper {
      */
     public static boolean reThrowIfNotNull(@Nullable Throwable e) {
         if (e != null) {
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException) e;
+            if (e instanceof RuntimeException re) {
+                throw re;
             } else {
                 throw new RuntimeException(e);
             }
@@ -442,8 +442,8 @@ public final class ExceptionsHelper {
             // which does not include the cluster alias.
             String indexName = failure.index();
             if (indexName == null) {
-                if (cause instanceof OpenSearchException) {
-                    final Index index = ((OpenSearchException) cause).getIndex();
+                if (cause instanceof OpenSearchException ose) {
+                    final Index index = ose.getIndex();
                     if (index != null) {
                         indexName = index.getName();
                     }

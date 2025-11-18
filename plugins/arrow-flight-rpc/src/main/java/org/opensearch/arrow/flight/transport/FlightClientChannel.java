@@ -308,8 +308,8 @@ class FlightClientChannel implements TcpChannel {
 
     private void notifyHandlerOfException(TransportResponseHandler<?> handler, Exception exception) {
         StreamException streamException;
-        if (exception instanceof StreamException) {
-            streamException = (StreamException) exception;
+        if (exception instanceof StreamException se) {
+            streamException = se;
         } else {
             streamException = new StreamException(StreamErrorCode.INTERNAL, "Stream processing failed", exception);
         }
@@ -340,7 +340,7 @@ class FlightClientChannel implements TcpChannel {
     private void notifyListener(ActionListener<Void> listener, CompletableFuture<Void> future) {
         if (future.isCompletedExceptionally()) {
             future.handle((result, ex) -> {
-                listener.onFailure(ex instanceof Exception ? (Exception) ex : new Exception(ex));
+                listener.onFailure(ex instanceof Exception exception ? exception : new Exception(ex));
                 return null;
             });
         } else {
