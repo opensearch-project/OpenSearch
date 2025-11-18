@@ -42,9 +42,9 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
      */
     public DataFusionRuntimeEnv(ClusterService clusterService) {
         long memoryLimit = clusterService.getClusterSettings().get(MEMORY_POOL_CONFIGURATION_DATAFUSION).getBytes();
-        long cacheManagerPtr = CacheUtils.createCacheConfig(clusterService.getClusterSettings());
-        this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerPtr);
-        this.cacheManager = new CacheManager(runtimeHandle.getPointer());
+        long cacheManagerConfigPtr = CacheUtils.createCacheConfig(clusterService.getClusterSettings());
+        this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerConfigPtr);
+        this.cacheManager = new CacheManager(this.runtimeHandle);
     }
 
     /**

@@ -25,10 +25,11 @@ import org.opensearch.datafusion.jni.handle.GlobalRuntimeHandle;
 public class CacheManager {
     private static final Logger logger = LogManager.getLogger(CacheManager.class);
 
-    private long runtimeEnvPtr;
+    GlobalRuntimeHandle globalRuntimeHandle;
 
-    public CacheManager(long runtimeEnvPtr) {
-        this.runtimeEnvPtr = runtimeEnvPtr;
+    public CacheManager(GlobalRuntimeHandle runtimeHandle) {
+        this.globalRuntimeHandle = runtimeHandle;
+
     }
 
     public void addFilesToCacheManager(List<String> files){
@@ -37,7 +38,7 @@ public class CacheManager {
                 return;
             }
             String[] filesArray = files.toArray(new String[0]);
-            NativeBridge.cacheManagerAddFiles(runtimeEnvPtr, filesArray);
+            NativeBridge.cacheManagerAddFiles(globalRuntimeHandle.getPointer(), filesArray);
         } catch (Exception e) {
             logger.error("Error adding files to cache manager: {}", e.getMessage(), e);
         }
@@ -49,7 +50,7 @@ public class CacheManager {
                 return;
             }
             String[] filesArray = files.toArray(new String[0]);
-            NativeBridge.cacheManagerRemoveFiles(runtimeEnvPtr, filesArray);
+            NativeBridge.cacheManagerRemoveFiles(globalRuntimeHandle.getPointer(), filesArray);
         } catch (Exception e) {
             logger.error("Error removing files from cache manager: {}", e.getMessage(), e);
         }
@@ -57,7 +58,7 @@ public class CacheManager {
 
     public void clearAllCache(){
         try {
-            NativeBridge.cacheManagerClear(runtimeEnvPtr);
+            NativeBridge.cacheManagerClear(globalRuntimeHandle.getPointer());
         } catch (Exception e) {
             logger.error("Error clearing cache manager: {}", e.getMessage(), e);
         }
@@ -65,7 +66,7 @@ public class CacheManager {
 
     public void clearCacheForCacheType(CacheUtils.CacheType cacheType){
         try {
-            NativeBridge.cacheManagerClearByCacheType(runtimeEnvPtr, cacheType.getCacheTypeName());
+            NativeBridge.cacheManagerClearByCacheType(globalRuntimeHandle.getPointer(), cacheType.getCacheTypeName());
         } catch (Exception e) {
             logger.error("Error clearing cache manager for cache type {}: {}", cacheType.getCacheTypeName(), e.getMessage(), e);
         }
@@ -73,7 +74,7 @@ public class CacheManager {
 
     public long getMemoryConsumed(CacheUtils.CacheType cacheType){
         try {
-            return NativeBridge.cacheManagerGetMemoryConsumedForCacheType(runtimeEnvPtr, cacheType.getCacheTypeName());
+            return NativeBridge.cacheManagerGetMemoryConsumedForCacheType(globalRuntimeHandle.getPointer(), cacheType.getCacheTypeName());
         } catch (Exception e) {
             logger.error("Error getting memory consumed for cache type {}: {}", cacheType.getCacheTypeName(), e.getMessage(), e);
             return 0;
@@ -82,7 +83,7 @@ public class CacheManager {
 
     public long getTotalMemoryConsumed(){
         try {
-            return NativeBridge.cacheManagerGetTotalMemoryConsumed(runtimeEnvPtr);
+            return NativeBridge.cacheManagerGetTotalMemoryConsumed(globalRuntimeHandle.getPointer());
         } catch (Exception e) {
             logger.error("Error getting total memory consumed: {}", e.getMessage(), e);
             return 0;
@@ -91,7 +92,7 @@ public class CacheManager {
 
     public void updateSizeLimit(CacheUtils.CacheType cacheType, long sizeLimit){
         try {
-            NativeBridge.cacheManagerUpdateSizeLimitForCacheType(runtimeEnvPtr, cacheType.getCacheTypeName(), sizeLimit);
+            NativeBridge.cacheManagerUpdateSizeLimitForCacheType(globalRuntimeHandle.getPointer(), cacheType.getCacheTypeName(), sizeLimit);
         } catch (Exception e) {
             logger.error("Error updating size limit for cache type {} to {}: {}", cacheType.getCacheTypeName(), sizeLimit, e.getMessage(), e);
         }
@@ -99,7 +100,7 @@ public class CacheManager {
 
     public boolean getEntryFromCacheType(CacheUtils.CacheType cacheType, String filePath){
         try {
-            return NativeBridge.cacheManagerGetItemByCacheType(runtimeEnvPtr, cacheType.getCacheTypeName(), filePath);
+            return NativeBridge.cacheManagerGetItemByCacheType(globalRuntimeHandle.getPointer(), cacheType.getCacheTypeName(), filePath);
         } catch (Exception e) {
             logger.error("Error getting entry from cache type {} for file {}: {}", cacheType.getCacheTypeName(), filePath, e.getMessage(), e);
             return false;
