@@ -170,7 +170,7 @@ public class RunningStats implements Writeable, Cloneable {
 
         if (in.getVersion().onOrAfter(ARRAY_IMPL_VERSION)) {
             this.usesMaps = in.readBoolean();
-            this.fieldNames = in.readStringArray();
+            this.fieldNames = in.readOptionalStringArray();
             if (!usesMaps) {
                 switchToArrays();
             }
@@ -263,7 +263,7 @@ public class RunningStats implements Writeable, Cloneable {
 
         if (out.getVersion().onOrAfter(ARRAY_IMPL_VERSION)) {
             out.writeBoolean(usesMaps);
-            out.writeStringArray(fieldNames);
+            out.writeOptionalStringArray(fieldNames);
         }
     }
 

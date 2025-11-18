@@ -78,7 +78,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         stats = in.readOptionalWriteable(RunningStats::new);
         results = in.readOptionalWriteable(MatrixStatsResults::new);
         if (in.getVersion().onOrAfter(RunningStats.ARRAY_IMPL_VERSION)) {
-            fieldNames = in.readStringArray();
+            fieldNames = in.readOptionalStringArray();
         } else {
             fieldNames = null;
         }
@@ -89,7 +89,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         out.writeOptionalWriteable(stats);
         out.writeOptionalWriteable(results);
         if (out.getVersion().onOrAfter(RunningStats.ARRAY_IMPL_VERSION)) {
-            out.writeStringArray(fieldNames);
+            out.writeOptionalStringArray(fieldNames);
         }
     }
 
