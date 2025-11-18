@@ -165,6 +165,7 @@ configure([
   project(":plugins:engine-datafusion"), //TODO
   project(":server"),
   project(":modules:parquet-data-format"),
+  project(":modules:parquet-data-format:benchmarks")
 ]) {
   project.tasks.withType(MissingJavadocTask) {
     isExcluded = true
