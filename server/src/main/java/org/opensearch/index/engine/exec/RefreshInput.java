@@ -8,32 +8,34 @@
 
 package org.opensearch.index.engine.exec;
 
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class RefreshInput {
 
+    private List<CatalogSnapshot.Segment> existingSegments;
     private final List<WriterFileSet> writerFiles;
-    private final List<WriterFileSet> filesToRemove;
 
     public RefreshInput() {
         this.writerFiles = new ArrayList<>();
-        this.filesToRemove = new ArrayList<>();
+        this.existingSegments = new ArrayList<>();
+    }
+
+    public void setExistingSegments(List<CatalogSnapshot.Segment> existingSegments) {
+        this.existingSegments = existingSegments;
     }
 
     public void add(WriterFileSet writerFileSetGroup) {
         this.writerFiles.add(writerFileSetGroup);
     }
 
-    public void addFilesToRemove(WriterFileSet writerFileSetGroup) {
-        this.filesToRemove.add(writerFileSetGroup);
-    }
-
     public List<WriterFileSet> getWriterFiles() {
         return writerFiles;
     }
 
-    public List<WriterFileSet> getFilesToRemove() {
-        return filesToRemove;
+    public List<CatalogSnapshot.Segment> getExistingSegments() {
+        return existingSegments;
     }
 }

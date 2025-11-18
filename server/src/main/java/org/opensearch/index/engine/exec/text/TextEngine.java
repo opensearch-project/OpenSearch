@@ -20,6 +20,7 @@ import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.RowIdMapping;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -77,7 +78,9 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
         openFiles.addAll(refreshInput.getWriterFiles());
         RefreshResult refreshResult = new RefreshResult();
-        refreshResult.add(DataFormat.TEXT, openFiles);
+        CatalogSnapshot.Segment segment = new CatalogSnapshot.Segment(0);
+        openFiles.forEach(file -> segment.addSearchableFiles(DataFormat.TEXT.name(), file));
+        refreshResult.setRefreshedSegments(List.of(segment));
         return refreshResult;
     }
 
