@@ -123,7 +123,7 @@ jobs:
                 {"index":{"_index":"index-7"}}
                 {"id":"6","name":"Diana","age":35,"salary":65000,"score":71.1,"active":true,"created_date":"2024-02-05"}
           ')
-          if [ "$HTTP_CODE" != "201" ]; then
+          if [ "$HTTP_CODE" != "200" ]; then
             echo "Failed to index documents. HTTP status: $HTTP_CODE"
             exit 1
           fi
