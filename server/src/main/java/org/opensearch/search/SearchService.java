@@ -112,6 +112,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.SearchContextAggregations;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
@@ -1632,6 +1633,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
             try {
+                // If the user has not specified any count agg and there is none in DSL, then add it.
+                if (source.queryPlanIR() != null) {
+                    SearchEngineResultConversionUtils.addValueCountIfAbsent(context, source);
+                    logger.info("Modified DSL to add value count, DSL after modification {}", source);
+                }
                 AggregatorFactories factories = source.aggregations().build(queryShardContext, null);
                 context.aggregations(new SearchContextAggregations(factories, multiBucketConsumerService.create()));
             } catch (IOException e) {

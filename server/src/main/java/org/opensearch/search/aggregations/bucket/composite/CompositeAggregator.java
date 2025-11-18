@@ -78,6 +78,8 @@ import org.opensearch.search.aggregations.bucket.filterrewrite.CompositeAggregat
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.opensearch.search.aggregations.metrics.InternalValueCount;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
@@ -749,15 +751,15 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
         int row = 0;
         for (CompositeKey compositeKey : compositeKeys) {
             List<InternalAggregation> subAggs = new ArrayList<>();
-            for (Aggregator subAgg : subAggregators) {
-                if (subAgg instanceof ShardResultConvertor == false) {
-                    throw new UnsupportedOperationException(String.format("Aggregation [%s] doesn't support shard result conversion Impl [%s]", subAgg.name(), subAgg.getClass().getName()));
-                }
-                ShardResultConvertor convertor = (ShardResultConvertor) subAgg;
-                subAggs.add(convertor.convertRow(shardResult, row, searchContext));
-            }
-            // This is mocked as we are forcing SQLPlugin to always send a count sub aggregation instead of relying on doc_count in the response.
             long docCount = 1;
+            for (Aggregator subAggregator : subAggregators) {
+                ShardResultConvertor convertor = (ShardResultConvertor) subAggregator;
+                InternalAggregation subAggregation = convertor.convertRow(shardResult, row, searchContext);
+                if (subAggregator instanceof ValueCountAggregator) {
+                    docCount = ((InternalValueCount) subAggregation).getValue();
+                }
+                subAggs.add(subAggregation);
+            }
             buckets.add(new InternalComposite.InternalBucket(
                 sourceNames,
                 formats,

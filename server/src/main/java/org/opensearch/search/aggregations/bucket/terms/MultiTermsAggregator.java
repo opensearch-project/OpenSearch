@@ -45,6 +45,8 @@ import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
+import org.opensearch.search.aggregations.metrics.InternalValueCount;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
@@ -712,11 +714,16 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
             final int j = i;
             List<Object> key = fields.stream().map(fieldName -> (Object) searchContext.convertToComparable(shardResult.get(fieldName)[j])).toList();
             List<InternalAggregation> subAggs = new ArrayList<>(subAggregators.length);
+            long docCount = 1;
             for (Aggregator aggregator : subAggregators) {
                 ShardResultConvertor convertor = (ShardResultConvertor) aggregator;
-                subAggs.add(convertor.convertRow(shardResult, i, searchContext));
+                InternalAggregation subAggregation = convertor.convertRow(shardResult, i, searchContext);
+                if (aggregator instanceof ValueCountAggregator) {
+                    docCount = ((InternalValueCount) subAggregation).getValue();
+                }
+                subAggs.add(subAggregation);
             }
-            buckets.add(new InternalMultiTerms.Bucket(key, 1, InternalAggregations.from(subAggs), showTermDocCountError, 0, formats));
+            buckets.add(new InternalMultiTerms.Bucket(key, docCount, InternalAggregations.from(subAggs), showTermDocCountError, 0, formats));
         }
         // TODO : Not reducing using Priority Queue into top buckets as depending on Substrait plan.
         BucketOrder reduceOrder;

@@ -43,6 +43,9 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.ShardResultConvertor;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.opensearch.search.aggregations.metrics.InternalValueCount;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 
@@ -115,16 +118,18 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator implements 
     @Override
     public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
         String termKey = (String) searchContext.convertToComparable(shardResult.get(name)[row]);
+        long docCount = 1;
 
         List<InternalAggregation> subAggs = new ArrayList<>();
         for (Aggregator aggregator : subAggregators) {
             if (aggregator instanceof ShardResultConvertor convertor) {
                 InternalAggregation subAgg = convertor.convertRow(shardResult, row, searchContext);
+                if (aggregator instanceof ValueCountAggregator) {
+                    docCount = ((InternalValueCount) subAgg).getValue();
+                }
                 subAggs.add(subAgg);
             }
         }
-        // This is mocked as we are forcing SQLPlugin to always send a count sub aggregation instead of relying on doc_count in the response.
-        long docCount = 1;
 
         BucketOrder reduceOrder = order;
         if (isKeyOrder(order) == false) {
