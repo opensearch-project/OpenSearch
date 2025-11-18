@@ -16,8 +16,8 @@ import org.opensearch.vectorized.execution.jni.NativeHandle;
  */
 public final class GlobalRuntimeHandle extends NativeHandle {
 
-    public GlobalRuntimeHandle(long memoryLimit, long cacheManagerPtr) {
-        super(NativeBridge.createGlobalRuntime(memoryLimit,cacheManagerPtr));
+    public GlobalRuntimeHandle(long memoryLimit, long cacheManagerConfigPtr) {
+        super(NativeBridge.createGlobalRuntime(memoryLimit,cacheManagerConfigPtr));
     }
 
     /**
