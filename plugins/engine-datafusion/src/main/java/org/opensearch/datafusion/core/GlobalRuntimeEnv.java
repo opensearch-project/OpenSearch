@@ -20,6 +20,7 @@ public class GlobalRuntimeEnv implements AutoCloseable {
     // ptr to runtime environment in df
     private final long ptr;
     private final long tokio_runtime_ptr;
+    private volatile boolean closed = false;
 
     /**
      * Creates a new global runtime environment.
@@ -43,6 +44,18 @@ public class GlobalRuntimeEnv implements AutoCloseable {
 
     @Override
     public void close() {
-        closeGlobalRuntime(this.ptr);
+        if (!closed) {
+            synchronized (this) {
+                if (!closed) {
+                    try {
+                        closeGlobalRuntime(this.ptr);
+                    } catch (Exception e) {
+                        // Log but don't rethrow to prevent blocking shutdown
+                        System.err.println("Warning: Error during DataFusion GlobalRuntimeEnv cleanup: " + e.getMessage());
+                    }
+                    closed = true;
+                }
+            }
+        }
     }
 }

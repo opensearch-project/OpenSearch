@@ -3269,7 +3269,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public long getNativeBytesUsed() {
-        return getIndexingExecutionCoordinator().getNativeBytesUsed();
+        CompositeEngine compositeEngine = getIndexingExecutionCoordinator();
+        if (compositeEngine == null) {
+            // CompositeEngine not yet initialized during recovery/startup
+            return 0;
+        }
+        return compositeEngine.getNativeBytesUsed();
     }
 
     public void addShardFailureCallback(Consumer<ShardFailure> onShardFailure) {

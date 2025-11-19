@@ -669,7 +669,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         // Leverage try-with-resources to close the shard lock for us
         try (Closeable c = shardLock) {
             try {
-                directory.close(); // close the composite directory
+                //ToDo:: Add this but with composite Directory directory.close();
             } finally {
                 onClose.accept(shardLock);
             }

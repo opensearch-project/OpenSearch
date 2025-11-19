@@ -1076,6 +1076,9 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             assert rwl.isWriteLockedByCurrentThread()
                 || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
+                // Close DataFusion-specific resources first to prevent leakage
+                closeDataFusionResources();
+                
                 this.versionMap.clear();
                 try {
                     IOUtils.close(engine, translogManager);
@@ -1092,6 +1095,69 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                     closedLatch.countDown();
                 }
             }
+        }
+    }
+
+    /**
+     * Close all DataFusion-specific resources to prevent IndexWriter and other resource leakage.
+     */
+    private void closeDataFusionResources() {
+        try {
+            // Close writer pool first to ensure all IndexWriters are properly closed
+            if (engine != null) {
+                try {
+                    engine.getDataFormatWriterPool().close();
+                } catch (Exception e) {
+                    logger.warn("Failed to close writer pool", e);
+                }
+            }
+            
+            // Shutdown merge scheduler
+            if (mergeScheduler != null) {
+                try {
+                    mergeScheduler.shutdown();
+                } catch (Exception e) {
+                    logger.warn("Failed to shutdown merge scheduler", e);
+                }
+            }
+            
+            // Close all read engines
+            for (List<SearchExecEngine<?, ?, ?, ?>> engineList : readEngines.values()) {
+                for (SearchExecEngine<?, ?, ?, ?> searchEngine : engineList) {
+                    try {
+                        if (searchEngine instanceof AutoCloseable) {
+                            ((AutoCloseable) searchEngine).close();
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Failed to close search engine", e);
+                    }
+                }
+            }
+            readEngines.clear();
+
+            // Close and clear catalog snapshots
+            if (catalogSnapshot != null) {
+                try {
+                    catalogSnapshot.decRef();
+                } catch (Exception e) {
+                    logger.warn("Failed to decref current catalog snapshot", e);
+                }
+                catalogSnapshot = null;
+            }
+            
+            // Close all catalog snapshots in the map
+            for (CatalogSnapshot snapshot : catalogSnapshotMap.values()) {
+                try {
+                    snapshot.decRef();
+                } catch (Exception e) {
+                    logger.warn("Failed to decref catalog snapshot", e);
+                }
+            }
+            catalogSnapshotMap.clear();
+            
+            logger.debug("DataFusion resources closed successfully");
+        } catch (Exception e) {
+            logger.warn("Error closing DataFusion resources", e);
         }
     }
 
