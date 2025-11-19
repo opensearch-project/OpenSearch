@@ -10,6 +10,7 @@ package org.opensearch.index.shard;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -105,7 +106,7 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             .deleteCurrent(7)
             .noopUpdateCount(8)
             .isThrottled(false)
-            .throttleTimeInMillis(9)
+            .throttleTimeInMillis(9);
         IndexingStats.Stats stats1 = defaultStats.maxLastIndexRequestTimestamp(ts1).build();
         IndexingStats.Stats stats2 = defaultStats.maxLastIndexRequestTimestamp(ts2).build();
         IndexingStats.Stats stats3 = defaultStats.maxLastIndexRequestTimestamp(ts3).build();
