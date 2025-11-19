@@ -249,6 +249,8 @@ public abstract class AggregatorBase extends Aggregator {
     protected boolean isTryPrecomputePath() {
         if (precomputePath) {
             return true;
+        } else if (parent == null) {
+            return false;
         }
         Aggregator current = parent;
         do {
