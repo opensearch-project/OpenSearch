@@ -79,9 +79,11 @@ public class KeyStoreUtils {
         final Locale locale = Locale.getDefault();
         try {
             Locale.setDefault(LocaleUtil.EN_Locale);
+            // must use FIPS-approved algorithms like rsa2048, rsa3072, rsa4096, rsa8192, ecp256, ecp384
+            // reference: https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4943
             return new CertificateBuilder().subject("CN=Test CA Certificate")
                 .setIsCertificateAuthority(true)
-                .algorithm(Algorithm.ed25519)
+                .algorithm(Algorithm.rsa2048)
                 .provider(new BouncyCastleFipsProvider())
                 .buildSelfSigned();
         } finally {

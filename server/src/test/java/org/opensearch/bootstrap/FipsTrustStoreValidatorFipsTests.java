@@ -27,7 +27,7 @@ public class FipsTrustStoreValidatorFipsTests extends FipsTrustStoreValidatorTes
     }
 
     public void testBCFKSEmptyTrustStoreWarning() throws Exception {
-        var trustStorePath = tempDir.newFolder().toPath().resolve("empty_trust_store.bcfks");
+        var trustStorePath = createTempFile("empty-trust_store", ".bcfks");
         var password = "testPassword";
 
         var keyStore = java.security.KeyStore.getInstance("BCFKS", "BCFIPS");
