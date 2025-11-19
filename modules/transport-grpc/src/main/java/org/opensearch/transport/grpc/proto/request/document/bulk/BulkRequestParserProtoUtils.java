@@ -34,12 +34,10 @@ import org.opensearch.protobufs.UpdateAction;
 import org.opensearch.protobufs.UpdateOperation;
 import org.opensearch.protobufs.WriteOperation;
 import org.opensearch.script.Script;
-import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 import org.opensearch.transport.grpc.proto.response.document.common.VersionTypeProtoUtils;
-import org.opensearch.transport.grpc.proto.response.search.SearchHitProtoUtils;
 
 import java.util.List;
 import java.util.Objects;
@@ -88,45 +86,23 @@ public class BulkRequestParserProtoUtils {
     }
 
     /**
-     * Converts a protobuf ByteString to OpenSearch BytesReference with zero-copy optimization.
+     * Converts a protobuf ByteString to OpenSearch BytesReference.
      *
-     * This method uses asReadOnlyByteBuffer() to get a view of the ByteString's internal data
-     * without copying. The ByteBuffer is then converted to a BytesRef which wraps the underlying
-     * byte array. This approach matches the pattern used in
-     * {@link SearchHitProtoUtils#processSource(SearchHit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder)}.
+     * This method uses ByteString.toByteArray() which delegates to protobuf's internal
+     * implementation. Protobuf optimizes this based on the ByteString's internal representation:
+     * - For ByteStrings created with UnsafeByteOperations.unsafeWrap(), it returns the wrapped array directly (zero-copy)
+     * - For other ByteStrings, it creates a copy
      *
      * @param byteString The protobuf ByteString to convert
-     * @return A BytesReference wrapping the ByteString data without copying
+     * @return A BytesReference wrapping the ByteString data
      */
     private static BytesReference byteStringToBytesReference(ByteString byteString) {
         if (byteString == null || byteString.isEmpty()) {
             return BytesArray.EMPTY;
         }
-
-        // Use asReadOnlyByteBuffer() to get a zero-copy view of the ByteString's internal data
-        // Then extract the backing array and wrap it in BytesArray
-        java.nio.ByteBuffer buffer = byteString.asReadOnlyByteBuffer();
-
-        if (buffer.hasArray()) {
-            // Fast path: ByteBuffer is backed by an array
-            byte[] array = buffer.array();
-            int offset = buffer.arrayOffset() + buffer.position();
-            int length = buffer.remaining();
-
-            if (offset == 0 && length == array.length) {
-                // No offset, can use the array directly
-                return new BytesArray(array);
-            } else {
-                // Has offset or partial array
-                return new BytesArray(array, offset, length);
-            }
-        } else {
-            // Fallback: ByteBuffer is not array-backed (rare case)
-            // Must copy in this case
-            byte[] bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
-            return new BytesArray(bytes);
-        }
+        // Let protobuf handle the conversion efficiently
+        // For ByteStrings created with UnsafeByteOperations.unsafeWrap(), this returns the backing array
+        return new BytesArray(byteString.toByteArray());
     }
 
     /**
