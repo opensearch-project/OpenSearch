@@ -186,12 +186,13 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         return false;
     }
 
-    RootAllocator allocator = null;
-    RecordBatchStream stream = null;
+
     @Override
     public Map<String, Object[]> executeQueryPhase(DatafusionContext context) {
         Map<String, Object[]> finalRes = new HashMap<>();
         List<Long> rowIdResult = new ArrayList<>();
+        RootAllocator allocator = null;
+        RecordBatchStream stream = null;
 
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
