@@ -44,7 +44,9 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
             .map(fm -> Path.of(fm.directory(), fm.file()))
             .collect(Collectors.toList());
 
-        String outputDirectory = files.iterator().next().directory();
+        FileMetadata firstFile = files.iterator().next();
+        String outputDirectory = firstFile.directory();
+        String dataFormat = firstFile.dataFormat();
         long generation = generationCounter.incrementAndGet();
         String mergedFilePath = getMergedFilePath(generation, outputDirectory);
         String mergedFileName = getMergedFileName(generation);
@@ -56,7 +58,7 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         Map<RowId, Long> rowIdMapping = new HashMap<>();
 
         FileMetadata mergedFileMetadata = new FileMetadata(
-            "",
+            dataFormat,
             outputDirectory,
             mergedFileName
         );

@@ -116,6 +116,10 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, indexNameExpressionResolver, repositoriesServiceSupplier);
     }
 
+    private Class<? extends DataFormat> getDataFormatType() {
+        return ParquetDataFormat.class;
+    }
+
     @Override
     public DataFormat getDataFormat() {
         return new ParquetDataFormat();
@@ -136,12 +140,9 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         IndexSettings indexSettings,
         ShardPath shardPath
     ) throws IOException {
-        Logger logger = LogManager.getLogger("index.store.parquet." + shardPath.getShardId());
-
         return new GenericStoreDirectory<>(
             new ParquetDataFormat(),
-            shardPath.getDataPath(),
-            logger
+            shardPath
         );
     }
 

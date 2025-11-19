@@ -281,15 +281,6 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
         return cloned;
     }
 
-    // @Override
-    // public String toString() {
-    //     return "CatalogSnapshot{" +
-    //         "id=" + id +
-    //         ", version=" + version +
-    //         ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles +
-    //         '}';
-    // }
-
     public long getLastWriterGeneration() {
         return lastWriterGeneration;
     }
@@ -309,7 +300,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     @Override
     public String toString() {
-        return "CatalogSnapshot{" + "id=" + id + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + '}';
+        return "CatalogSnapshot{" + "id=" + id + ", version=" + version + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + ", userData=" + userData +'}';
     }
 
     public static class Segment implements Serializable {

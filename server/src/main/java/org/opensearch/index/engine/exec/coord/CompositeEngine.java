@@ -339,6 +339,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
         }
         logger.trace("created new CompositeEngine");
+
+        initializeRefreshListeners(engineConfig);
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
@@ -434,7 +436,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
         }
 
-        System.out.println("CompositeEngine initialized with " + catalogSnapshotAwareRefreshListeners.size() + " catalog snapshot aware refresh listeners");
+        logger.trace("CompositeEngine initialized with {} catalog snapshot aware refresh listeners", catalogSnapshotAwareRefreshListeners.size());
     }
 
     public SearchExecEngine<?, ?, ?, ?> getReadEngine(org.opensearch.vectorized.execution.search.DataFormat dataFormat) {
@@ -804,19 +806,19 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         }
     }
 
-    public GatedCloseable<CatalogSnapshot> getCatalogSnapshotReference() {
-        if(catalogSnapshot == null) {
-            return new GatedCloseable<>(null, () -> {});
+
+    public synchronized void setCatalogSnapshot(CatalogSnapshot catalogSnapshot, ShardPath shardPath) {
+        CatalogSnapshot oldSnapshot = this.catalogSnapshot;
+
+        if (catalogSnapshot != null) {
+            catalogSnapshot.incRef();
+            this.catalogSnapshot = catalogSnapshot.remapPaths(shardPath.getDataPath());
+        } else {
+            this.catalogSnapshot = null;
         }
 
-        catalogSnapshot.incRef();
-        return new GatedCloseable<>(catalogSnapshot, () -> catalogSnapshot.decRef());
-    }
-
-    public void setCatalogSnapshot(CatalogSnapshot catalogSnapshot, ShardPath shardPath) {
-        this.catalogSnapshot = catalogSnapshot;
-        if(this.catalogSnapshot != null) {
-            this.catalogSnapshot = this.catalogSnapshot.remapPaths(shardPath.getDataPath());
+        if (oldSnapshot != null) {
+            oldSnapshot.decRef();
         }
     }
 
@@ -824,6 +826,15 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     // this now becomes equivalent of the reader
     // Each search side specific impl can decide on how to init specific reader instances using this pit snapshot provided by writers
     public ReleasableRef<CatalogSnapshot> acquireSnapshot() {
+        if (catalogSnapshot == null) {
+            return new ReleasableRef<CatalogSnapshot>(null) {
+                @Override
+                public void close() {
+                    // No-op for null
+                }
+            };
+        }
+
         final CatalogSnapshot snapshot = catalogSnapshot;
         snapshot.incRef();
         return new ReleasableRef<>(snapshot) {

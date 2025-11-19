@@ -23,6 +23,7 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.CompositeStoreDirectory;
@@ -134,8 +135,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         if (shouldSync(didRefresh, true) && isReadyForUpload()) {
             try {
                 segmentTracker.updateLocalRefreshTimeAndSeqNo();
-                try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshotFromEngine()) {
-                    Collection<FileMetadata> localFilesPostRefresh = catalogSnapshotRef.get().getFileMetadataList();
+        try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshotFromEngine()) {
+            Collection<FileMetadata> localFilesPostRefresh = catalogSnapshotRef.getRef().getFileMetadataList();
                     updateLocalSizeMapAndTracker(localFilesPostRefresh);
                 }
             } catch (Throwable t) {
@@ -203,8 +204,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @return true iff all the local files are uploaded to remote store.
      */
     boolean isRemoteSegmentStoreInSync() {
-        try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshotFromEngine()) {
-            Collection<FileMetadata> localFiles = catalogSnapshotRef.get().getFileMetadataList();
+        try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshotFromEngine()) {
+            Collection<FileMetadata> localFiles = catalogSnapshotRef.getRef().getFileMetadataList();
             return localFiles.stream().allMatch(this::skipUpload);
         } catch (Throwable throwable) {
             logger.error("Throwable thrown during isRemoteSegmentStoreInSync", throwable);
@@ -241,8 +242,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
                 }
 
-                try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshotFromEngine()) {
-                    CatalogSnapshot catalogSnapshot = catalogSnapshotRef.get();
+                try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshotFromEngine()) {
+                    CatalogSnapshot catalogSnapshot = catalogSnapshotRef.getRef();
                     final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(catalogSnapshot);
                     if (checkpoint.getPrimaryTerm() != indexShard.getOperationPrimaryTerm()) {
                         throw new IllegalStateException(
@@ -467,18 +468,18 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         throws IOException {
         final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
         CatalogSnapshot catalogSnapshotCopy = catalogSnapshot.clone();
-        
+
         // CRITICAL FIX: Load userData from committed segments to get ALL metadata including HISTORY_UUID_KEY
         final Map<String, String> segmentUserData = indexShard.store().readLastCommittedSegmentsInfo().getUserData();
-        
+
         // Create mutable copy and update checkpoint fields while preserving ALL existing metadata
         final Map<String, String> userData = new HashMap<>(segmentUserData);
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         catalogSnapshotCopy.setUserData(userData, false);
-        
+
         // Log for verification during debugging
-        logger.debug("Uploading metadata with userData: translog_uuid={}, history_uuid={}, all_keys={}", 
+        logger.debug("Uploading metadata with userData: translog_uuid={}, history_uuid={}, all_keys={}",
                    userData.get(Translog.TRANSLOG_UUID_KEY),
                    userData.get(org.opensearch.index.engine.Engine.HISTORY_UUID_KEY),
                    userData.keySet());
