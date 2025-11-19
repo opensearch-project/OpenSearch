@@ -166,7 +166,7 @@ impl NativeParquetWriter {
         println!("{}", log_msg.trim());
         Self::log_to_file(&log_msg);
 
-        if let Some(mut file) = FILE_MANAGER.get_mut(&filename) {
+        if let Some(file) = FILE_MANAGER.get_mut(&filename) {
             match file.sync_all() {
                 Ok(_) => {
                     let success_msg = format!("[RUST] Successfully fsynced file: {}\n", filename);
@@ -190,9 +190,9 @@ impl NativeParquetWriter {
     }
 
     fn get_filtered_writer_memory_usage(path_prefix: String) -> Result<usize, Box<dyn std::error::Error>> {
-        let log_msg = format!("[RUST] get_filtered_writer_memory_usage called with prefix: {}\n", path_prefix);
-//         println!("{}", log_msg.trim());
-//         Self::log_to_file(&log_msg);
+        let _log_msg = format!("[RUST] get_filtered_writer_memory_usage called with prefix: {}\n", path_prefix);
+//         println!("{}", _log_msg.trim());
+//         Self::log_to_file(&_log_msg);
 
         let mut total_memory = 0;
         let mut writer_count = 0;
@@ -215,9 +215,9 @@ impl NativeParquetWriter {
             }
         }
 
-        let total_msg = format!("[RUST] Total memory usage across {} filtered ArrowWriters (prefix: {}): {} bytes\n", writer_count, path_prefix, total_memory);
-        //println!("{}", total_msg.trim());
-        //Self::log_to_file(&total_msg);
+        let _total_msg = format!("[RUST] Total memory usage across {} filtered ArrowWriters (prefix: {}): {} bytes\n", writer_count, path_prefix, total_memory);
+        //println!("{}", _total_msg.trim());
+        //Self::log_to_file(&_total_msg);
 
         Ok(total_memory)
     }

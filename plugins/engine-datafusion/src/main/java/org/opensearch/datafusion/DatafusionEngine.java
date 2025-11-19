@@ -46,8 +46,6 @@ import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SourceLookup;
-import org.opensearch.search.query.GenericQueryPhaseSearcher;
-import org.opensearch.search.query.QueryPhaseExecutor;
 import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.search.query.GenericQueryPhaseSearcher;
 
@@ -61,7 +59,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.datafusion.jni.NativeBridge.printMemoryPoolAllocation;
 
 public class DatafusionEngine extends SearchExecEngine<DatafusionContext, DatafusionSearcher,
     DatafusionReaderManager, DatafusionQuery> {
@@ -85,16 +82,6 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 cacheManager.addFilesToCacheManager(files);
             });
         }
-    }
-
-    @Override
-    public GenericQueryPhaseSearcher<DatafusionContext, DatafusionSearcher, DatafusionQuery> getQueryPhaseSearcher() {
-        return new DatafusionQueryPhaseSearcher();
-    }
-
-    @Override
-    public QueryPhaseExecutor<DatafusionContext> getQueryPhaseExecutor() {
-        return new DatafusionQueryPhaseExecutor();
     }
 
     @Override
