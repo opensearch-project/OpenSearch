@@ -25,6 +25,10 @@ import io.netty.pkitesting.X509Bundle;
 
 public class KeyStoreUtils {
 
+    // Cached keystore to avoid expensive cert generation on every test (especially slow in FIPS mode)
+    // TODO: Replace with @BeforeAll when migrating to JUnit 5.
+    private static volatile KeyStore cachedServerKeyStore;
+
     public static final char[] KEYSTORE_PASSWORD = "keystore_password".toCharArray();
     public static final Map<String, List<String>> TYPE_TO_EXTENSION_MAP = new HashMap<>();
 
@@ -48,6 +52,17 @@ public class KeyStoreUtils {
     }
 
     public static KeyStore createServerKeyStore() throws Exception {
+        if (cachedServerKeyStore == null) {
+            synchronized (KeyStoreUtils.class) {
+                if (cachedServerKeyStore == null) {
+                    cachedServerKeyStore = generateServerKeyStore();
+                }
+            }
+        }
+        return cachedServerKeyStore;
+    }
+
+    private static KeyStore generateServerKeyStore() throws Exception {
         var serverCred = generateCert();
         var keyStore = KeyStore.getInstance(FipsMode.CHECK.isFipsEnabled() ? "BCFKS" : "JKS");
         keyStore.load(null, null);

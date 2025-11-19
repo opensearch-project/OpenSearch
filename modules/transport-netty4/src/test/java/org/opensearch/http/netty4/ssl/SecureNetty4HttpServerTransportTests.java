@@ -98,7 +98,20 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase imp
 
     private static final char[] PASSWORD = "password".toCharArray();
 
-    private final KeyManagerFactory keyManagerFactory = createKeyManagerFactory();
+    // Cached factory to avoid repeated keystore loading (especially slow in FIPS mode with BCFKS).
+    // TODO: Replace with @BeforeAll when migrating to JUnit 5.
+    private static volatile KeyManagerFactory cachedKeyManagerFactory;
+
+    private KeyManagerFactory getKeyManagerFactory() {
+        if (cachedKeyManagerFactory == null) {
+            synchronized (SecureNetty4HttpServerTransportTests.class) {
+                if (cachedKeyManagerFactory == null) {
+                    cachedKeyManagerFactory = createKeyManagerFactory();
+                }
+            }
+        }
+        return cachedKeyManagerFactory;
+    }
 
     private NetworkService networkService;
     private ThreadPool threadPool;
@@ -142,7 +155,7 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase imp
             @Override
             public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
                 return Optional.of(
-                    SslContextBuilder.forServer(keyManagerFactory)
+                    SslContextBuilder.forServer(getKeyManagerFactory())
                         .trustManager(InsecureTrustManagerFactory.INSTANCE)
                         .build()
                         .newEngine(NettyAllocator.getAllocator())

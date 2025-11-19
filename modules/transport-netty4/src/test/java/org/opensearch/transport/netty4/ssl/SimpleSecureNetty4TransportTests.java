@@ -8,6 +8,8 @@
 
 package org.opensearch.transport.netty4.ssl;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
@@ -25,6 +27,7 @@ import org.opensearch.fips.TrustManagerFipsAwareTestCase;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
 import org.opensearch.transport.AbstractSimpleTransportTestCase;
@@ -62,6 +65,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+@ThreadLeakFilters(filters = { BouncyCastleThreadFilter.class })
 public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTestCase
     implements
         TrustManagerFipsAwareTestCase,
@@ -69,8 +73,32 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
 
     private static final char[] PASSWORD = "password".toCharArray();
 
-    private final KeyManagerFactory serverKeyManagersFactory = createKeyManagerFactory();
-    private final TrustManagerFactory clientTrustManagerFactory = createTrustManagerFactory();
+    // Cached factories to avoid repeated keystore loading (especially slow in FIPS mode)
+    // TODO: Replace with @BeforeAll when migrating to JUnit 5.
+    private static volatile KeyManagerFactory cachedServerKeyManagerFactory;
+    private static volatile TrustManagerFactory cachedClientTrustManagerFactory;
+
+    private KeyManagerFactory getServerKeyManagerFactory() {
+        if (cachedServerKeyManagerFactory == null) {
+            synchronized (SimpleSecureNetty4TransportTests.class) {
+                if (cachedServerKeyManagerFactory == null) {
+                    cachedServerKeyManagerFactory = createKeyManagerFactory();
+                }
+            }
+        }
+        return cachedServerKeyManagerFactory;
+    }
+
+    private TrustManagerFactory getClientTrustManagerFactory() {
+        if (cachedClientTrustManagerFactory == null) {
+            synchronized (SimpleSecureNetty4TransportTests.class) {
+                if (cachedClientTrustManagerFactory == null) {
+                    cachedClientTrustManagerFactory = createTrustManagerFactory();
+                }
+            }
+        }
+        return cachedClientTrustManagerFactory;
+    }
 
     @Override
     public KeyManagerFactory createKeyManagerFactory(String keyStoreType, String fileExtension, String jcaProvider, String jsseProvider) {
@@ -118,7 +146,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
             @Override
             public Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, Transport transport) throws SSLException {
                 return Optional.of(
-                    SslContextBuilder.forServer(serverKeyManagersFactory)
+                    SslContextBuilder.forServer(getServerKeyManagerFactory())
                         .clientAuth(ClientAuth.NONE)
                         .build()
                         .newEngine(NettyAllocator.getAllocator())
@@ -130,7 +158,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
                 return Optional.of(
                     SslContextBuilder.forClient()
                         .clientAuth(ClientAuth.NONE)
-                        .trustManager(clientTrustManagerFactory)
+                        .trustManager(getClientTrustManagerFactory())
                         .build()
                         .newEngine(NettyAllocator.getAllocator(), hostname, port)
                 );
