@@ -91,7 +91,7 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
             store.incRef();
             multiFileWriter.renameAllTempFiles();
             final CatalogSnapshot catalogSnapshot = deserializeCatalogSnapshot(checkpointInfoResponse.getInfosBytes());
-            indexShard.finalizeReplication(catalogSnapshot);
+            indexShard.finalizeReplication(catalogSnapshot, checkpointInfoResponse.getCheckpoint());
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are

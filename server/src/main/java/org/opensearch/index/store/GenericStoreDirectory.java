@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -48,17 +49,15 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
      * Creates a new GenericStoreDirectory
      * @param dataFormat the data format this directory handles
      * @param shardPath the shard path where directories should be created
-     * @param logger logger for this directory
      * @throws IOException if directory creation fails
      */
     public GenericStoreDirectory(
         T dataFormat,
-        Path shardPath,
-        Logger logger
+        ShardPath shardPath
     ) throws IOException {
         this.dataFormat = dataFormat;
-        this.directoryPath = shardPath.resolve(dataFormat.name());
-        this.logger = logger;
+        this.directoryPath = shardPath.getDataPath().resolve(dataFormat.name());
+        this.logger = LogManager.getLogger(dataFormat.name()+"."+shardPath.getShardId());
 
         Files.createDirectories(this.directoryPath);
     }
