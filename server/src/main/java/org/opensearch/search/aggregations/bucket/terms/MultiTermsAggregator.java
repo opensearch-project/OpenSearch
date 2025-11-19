@@ -16,6 +16,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -45,9 +46,12 @@ import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
+import org.opensearch.search.aggregations.metrics.InternalValueCount;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.query.SearchEngineResultConversionUtils;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.MatchAllFilter;
@@ -707,24 +711,17 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
     @Override
     public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
         int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(fields.getFirst()).length ;
-        List<InternalMultiTerms.Bucket> buckets = new ArrayList<>();
+        List<InternalMultiTerms.Bucket> buckets = new ArrayList<>(rowCount);
         for (int i = 0; i < rowCount; i++) {
             final int j = i;
             List<Object> key = fields.stream().map(fieldName -> (Object) searchContext.convertToComparable(shardResult.get(fieldName)[j])).toList();
-            List<InternalAggregation> subAggs = new ArrayList<>(subAggregators.length);
-            for (Aggregator aggregator : subAggregators) {
-                ShardResultConvertor convertor = (ShardResultConvertor) aggregator;
-                subAggs.add(convertor.convertRow(shardResult, i, searchContext));
-            }
-            buckets.add(new InternalMultiTerms.Bucket(key, 1, InternalAggregations.from(subAggs), showTermDocCountError, 0, formats));
+            Tuple<List<InternalAggregation>, Long> subAggsAndDocCount = SearchEngineResultConversionUtils.extractSubAggsAndDocCount(subAggregators, searchContext, shardResult, i);
+            buckets.add(new InternalMultiTerms.Bucket(key, subAggsAndDocCount.v2(), InternalAggregations.from(subAggsAndDocCount.v1()), showTermDocCountError, 0, formats));
         }
-        // TODO : Not reducing using Priority Queue into top buckets as depending on Substrait plan.
-        BucketOrder reduceOrder;
+        BucketOrder reduceOrder = order;
         if (isKeyOrder(order) == false) {
             reduceOrder = InternalOrder.key(true);
-            //buckets.sort(reduceOrder.comparator());
-        } else {
-            reduceOrder = order;
+            buckets.sort(reduceOrder.comparator());
         }
         return Collections.singletonList(new InternalMultiTerms(
             name,

@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -43,11 +44,17 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.ShardResultConvertor;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.opensearch.search.aggregations.metrics.InternalValueCount;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.query.SearchEngineResultConversionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -113,32 +120,27 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator implements 
     }
 
     @Override
-    public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
-        String termKey = (String) searchContext.convertToComparable(shardResult.get(name)[row]);
-
-        List<InternalAggregation> subAggs = new ArrayList<>();
-        for (Aggregator aggregator : subAggregators) {
-            if (aggregator instanceof ShardResultConvertor convertor) {
-                InternalAggregation subAgg = convertor.convertRow(shardResult, row, searchContext);
-                subAggs.add(subAgg);
-            }
+    public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+        int rowCount = shardResult.get(shardResult.keySet().stream().findFirst().get()).length;
+        List<StringTerms.Bucket> buckets = new ArrayList<>(rowCount);
+        for (int row = 0; row < rowCount; row++) {
+            String termKey = (String) searchContext.convertToComparable(shardResult.get(name)[row]);
+            Tuple<List<InternalAggregation>, Long> subAggsAndDocCount = SearchEngineResultConversionUtils.extractSubAggsAndDocCount(subAggregators, searchContext, shardResult, row);
+            buckets.add(new StringTerms.Bucket(
+                new BytesRef(termKey),
+                subAggsAndDocCount.v2(),
+                InternalAggregations.from(subAggsAndDocCount.v1()),
+                showTermDocCountError,
+                0,
+                format
+            ));
         }
-        // This is mocked as we are forcing SQLPlugin to always send a count sub aggregation instead of relying on doc_count in the response.
-        long docCount = 1;
-
         BucketOrder reduceOrder = order;
         if (isKeyOrder(order) == false) {
             reduceOrder = InternalOrder.key(true);
+            buckets.sort(reduceOrder.comparator());
         }
-        StringTerms.Bucket bucket = new StringTerms.Bucket(
-            new BytesRef(termKey),
-            docCount,
-            InternalAggregations.from(subAggs),
-            showTermDocCountError,
-            0,
-            format
-        );
-        return new StringTerms(
+        return List.of(new StringTerms(
             name,
             reduceOrder,
             order,
@@ -147,10 +149,10 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator implements 
             bucketCountThresholds.getShardSize(),
             showTermDocCountError,
             0,
-            List.of(bucket),
+            buckets,
             0,
             bucketCountThresholds
-        );
+        ));
     }
 
 }

@@ -112,6 +112,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.SearchContextAggregations;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
@@ -1309,6 +1310,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
             }
+            // FIXME : We don't need to do both, but commenting the one on Datafusion Context hangs up the JVM need to debug.
             parseSource(context, request.source(), includeAggregations);
             parseSource(context.getOriginalContext(), request.source(), includeAggregations);
 
