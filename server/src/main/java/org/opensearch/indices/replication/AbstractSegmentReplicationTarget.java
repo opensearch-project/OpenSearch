@@ -26,12 +26,17 @@ import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
+import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -215,7 +220,12 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
         if (indexShard.indexSettings().isWarmIndex()) {
             return Collections.emptyList();
         }
-        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
+
+        // Get format-aware metadata from checkpoint info
+        final Map<FileMetadata, StoreFileMetadata> sourceMetadataMap = checkpointInfo.getFormatAwareMetadataMap();
+        final Map<FileMetadata, StoreFileMetadata> targetMetadataMap = indexShard.getFormatAwareSegmentMetadataMap();
+        final Store.RecoveryDiff diff = Store.formatAwareSegmentReplicationDiff(sourceMetadataMap, targetMetadataMap);
+
         // local files
         final Set<String> localFiles = Set.of(indexShard.store().directory().listAll());
         // set of local files that can be reused
@@ -231,7 +241,7 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
 
         logger.trace(
             () -> new ParameterizedMessage(
-                "Replication diff for checkpoint {} {} {}",
+                "Replication diff for checkpoint {} {} {} (format-aware)",
                 checkpointInfo.getCheckpoint(),
                 missingFiles,
                 diff.different

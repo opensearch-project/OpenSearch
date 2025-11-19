@@ -384,7 +384,6 @@ public class RemoteDirectory extends Directory {
         }
         return false;
     }
-
     private void uploadBlob(
         Directory from,
         String src,

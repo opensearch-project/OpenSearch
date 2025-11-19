@@ -23,6 +23,7 @@ import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
@@ -209,7 +210,7 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
             RemoteSegmentMetadata segmentMetadata = entry.getValue();
 
             Map<String, Object> segmentMetadataMap = new HashMap<>();
-            Map<String, Object> filesMap = new HashMap<>();
+            Map<FileMetadata, Object> filesMap = new HashMap<>();
             segmentMetadata.getMetadata().forEach((file, meta) -> {
                 Map<String, Object> metaMap = new HashMap<>();
                 metaMap.put("original_name", meta.getOriginalFilename());

@@ -42,6 +42,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.ShardLock;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.CompositeStoreDirectoryFactory;
 import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -123,6 +124,21 @@ public interface IndexStorePlugin {
      * @return a map from composite store type to a composite directory factory
      */
     default Map<String, CompositeDirectoryFactory> getCompositeDirectoryFactories() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * The {@link CompositeStoreDirectoryFactory} mappings for this plugin. When an index is created the composite store directory
+     * factory type setting will be examined and either use the default or looked up among all the composite store directory
+     * factories from {@link IndexStorePlugin} plugins.
+     *
+     * This factory enables plugin-based format discovery and centralized creation of CompositeStoreDirectory instances
+     * with all discovered DataFormat plugins.
+     *
+     * @return a map from factory type to a composite store directory factory
+     */
+    @ExperimentalApi
+    default Map<String, CompositeStoreDirectoryFactory> getCompositeStoreDirectoryFactories() {
         return Collections.emptyMap();
     }
 

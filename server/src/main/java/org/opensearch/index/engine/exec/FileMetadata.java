@@ -8,9 +8,9 @@
 
 package org.opensearch.index.engine.exec;
 
-public record FileMetadata(String directory, String file) {
-
+public record FileMetadata(String dataFormat, String directory, String file) {
+    @Override
     public String toString() {
-        return "FileMetadata {" + "directory='" + directory + '\'' + ", file='" + file + '\'' + '}';
+        return "FileMetadata {" + "directory='" + directory + '\'' + ", file='" + file + '\'' + ", format='" + dataFormat + '\'' + '}';
     }
 }

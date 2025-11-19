@@ -12,11 +12,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.store.NIOFSDirectory;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
+import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.store.Store;
@@ -62,6 +65,9 @@ public class LuceneCommitEngine implements Committer {
 
     @Override
     public CommitPoint commit(Iterable<Map.Entry<String, String>> commitData, CatalogSnapshot catalogSnapshot) {
+        if(catalogSnapshot == null) {
+            catalogSnapshot = new CatalogSnapshot(new RefreshResult(), 0, 0, null, null);
+        }
         addLuceneIndexes(catalogSnapshot);
         indexWriter.setLiveCommitData(commitData);
         try {
@@ -96,6 +102,27 @@ public class LuceneCommitEngine implements Committer {
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
         return this.combinedDeletionPolicy.getSafeCommitInfo();
+    }
+
+    /**
+     * Acquires the most recent safe index commit snapshot.
+     * All index files referenced by this commit won't be freed until the commit/snapshot is closed.
+     * This method is required for replica recovery operations.
+     */
+    public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
+        try {
+            // Use CombinedDeletionPolicy to acquire safe commit
+            IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
+            return new GatedCloseable<>(safeCommit, () -> {
+                try {
+                    combinedDeletionPolicy.releaseCommit(safeCommit);
+                } catch (Exception e) {
+                    logger.warn("Failed to release safe commit", e);
+                }
+            });
+        } catch (Exception e) {
+            throw new EngineException(store.shardId(), "Failed to acquire safe index commit", e);
+        }
     }
 
     @Override

@@ -9,11 +9,13 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.concurrent.KeyedLock;
@@ -37,6 +39,7 @@ import org.opensearch.index.engine.LiveVersionMap;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.VersionValue;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
@@ -397,6 +400,43 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         return localCheckpointTracker;
     }
 
+    public void updateSearchEngine() throws IOException {
+        catalogSnapshotAwareRefreshListeners.forEach(ref -> {
+            try {
+                ref.afterRefresh(true, catalogSnapshot);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    /**
+     * Initialize refresh listeners from EngineConfig after all dependencies are ready.
+     * This method should be called after remote store stats trackers have been created.
+     * ToDo: Added as part of upload flow test, Need to discuss.
+     */
+    public void initializeRefreshListeners(EngineConfig engineConfig) {
+        // Add EngineConfig refresh listeners to catalogSnapshotAwareRefreshListeners
+        if (engineConfig.getInternalRefreshListener() != null) {
+            for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
+                if (listener instanceof CatalogSnapshotAwareRefreshListener) {
+                    catalogSnapshotAwareRefreshListeners.add((CatalogSnapshotAwareRefreshListener) listener);
+                }
+            }
+        }
+
+        // Also check external refresh listeners
+        if (engineConfig.getExternalRefreshListener() != null) {
+            for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
+                if (listener instanceof CatalogSnapshotAwareRefreshListener) {
+                    catalogSnapshotAwareRefreshListeners.add((CatalogSnapshotAwareRefreshListener) listener);
+                }
+            }
+        }
+
+        System.out.println("CompositeEngine initialized with " + catalogSnapshotAwareRefreshListeners.size() + " catalog snapshot aware refresh listeners");
+    }
+
     public SearchExecEngine<?, ?, ?, ?> getReadEngine(org.opensearch.vectorized.execution.search.DataFormat dataFormat) {
         return readEngines.getOrDefault(dataFormat, new ArrayList<>()).getFirst();
     }
@@ -683,8 +723,11 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         refreshListeners.forEach(PRE_REFRESH_LISTENER_CONSUMER);
 
         long id = 0L;
+        long version = 0L;
         if (catalogSnapshot != null) {
             id = catalogSnapshot.getId();
+            version = catalogSnapshot.getVersion();
+
         }
         CatalogSnapshot newCatSnap;
         try {
@@ -697,7 +740,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                     return;
                 }
             }
-            newCatSnap = new CatalogSnapshot(refreshResult, id + 1L, catalogSnapshotMap, indexFileDeleter::get);
+            newCatSnap = new CatalogSnapshot(refreshResult, id + 1L, version + 1L, catalogSnapshotMap, indexFileDeleter::get);
             catalogSnapshotMap.put(newCatSnap.getId(), newCatSnap);
             System.out.println("CATALOG SNAPSHOT: " + newCatSnap);
         } catch (IOException ex) {
@@ -758,6 +801,22 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         } catch (Exception e) {
             System.out.println("ERROR in MERGE : " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    public GatedCloseable<CatalogSnapshot> getCatalogSnapshotReference() {
+        if(catalogSnapshot == null) {
+            return new GatedCloseable<>(null, () -> {});
+        }
+
+        catalogSnapshot.incRef();
+        return new GatedCloseable<>(catalogSnapshot, () -> catalogSnapshot.decRef());
+    }
+
+    public void setCatalogSnapshot(CatalogSnapshot catalogSnapshot, ShardPath shardPath) {
+        this.catalogSnapshot = catalogSnapshot;
+        if(this.catalogSnapshot != null) {
+            this.catalogSnapshot = this.catalogSnapshot.remapPaths(shardPath.getDataPath());
         }
     }
 
@@ -1033,6 +1092,22 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                     closedLatch.countDown();
                 }
             }
+        }
+    }
+
+    /**
+     * Acquires the most recent safe index commit snapshot from the currently running engine.
+     * All index files referenced by this commit won't be freed until the commit/snapshot is closed.
+     * This method is required for replica recovery operations.
+     */
+    public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
+        ensureOpen();
+        if (compositeEngineCommitter instanceof LuceneCommitEngine) {
+            LuceneCommitEngine luceneCommitEngine = (LuceneCommitEngine) compositeEngineCommitter;
+            // Delegate to the LuceneCommitEngine's acquireSafeIndexCommit method
+            return luceneCommitEngine.acquireSafeIndexCommit();
+        } else {
+            throw new EngineException(shardId, "CompositeEngine committer is not a LuceneCommitEngine");
         }
     }
 }

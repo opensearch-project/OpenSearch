@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.StoreFileMetadata;
 
@@ -36,10 +37,10 @@ public class ReferencedSegmentsCheckpoint extends ReplicationCheckpoint {
         long segmentInfosVersion,
         long length,
         String codec,
-        Map<String, StoreFileMetadata> metadataMap,
+        Map<FileMetadata, StoreFileMetadata> metadataMap,
         Set<String> segmentNames
     ) {
-        super(shardId, primaryTerm, SequenceNumbers.NO_OPS_PERFORMED, segmentInfosVersion, length, codec, metadataMap);
+        super(shardId, primaryTerm, SequenceNumbers.NO_OPS_PERFORMED, segmentInfosVersion, length, metadataMap, codec);
         this.segmentNames = segmentNames;
     }
 

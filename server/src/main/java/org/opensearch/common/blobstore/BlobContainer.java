@@ -34,6 +34,7 @@ package org.opensearch.common.blobstore;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
@@ -50,6 +51,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "1.0.0")
 public interface BlobContainer {
 
     /**
@@ -276,6 +278,7 @@ public interface BlobContainer {
 
     /**
      * The type representing sort order of blob names
+     * @opensearch.api
      */
     enum BlobNameSortOrder {
 

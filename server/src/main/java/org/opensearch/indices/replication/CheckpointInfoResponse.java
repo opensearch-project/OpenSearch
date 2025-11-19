@@ -11,10 +11,12 @@ package org.opensearch.indices.replication;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -27,44 +29,82 @@ import java.util.Map;
 public class CheckpointInfoResponse extends TransportResponse {
 
     private final ReplicationCheckpoint checkpoint;
-    private final Map<String, StoreFileMetadata> metadataMap;
+    private final Map<String, StoreFileMetadata> legacyMetadataMap;
+    private final Map<FileMetadata, StoreFileMetadata> formatAwareMetadataMap;
     private final byte[] infosBytes;
 
+    // Constructor with legacy metadata map for backward compatibility (used by tests)
     public CheckpointInfoResponse(
         final ReplicationCheckpoint checkpoint,
         final Map<String, StoreFileMetadata> metadataMap,
         final byte[] infosBytes
     ) {
         this.checkpoint = checkpoint;
-        this.metadataMap = metadataMap;
+        this.legacyMetadataMap = metadataMap;
+        this.formatAwareMetadataMap = convertLegacyToFormatAware(metadataMap);
         this.infosBytes = infosBytes;
     }
 
+    // Constructor using checkpoint's metadata
     public CheckpointInfoResponse(final ReplicationCheckpoint checkpoint, final byte[] infosBytes) {
         this.checkpoint = checkpoint;
         this.infosBytes = infosBytes;
-        this.metadataMap = checkpoint.getMetadataMap();
+        this.formatAwareMetadataMap = checkpoint.getFormatAwareMetadataMap();
+        this.legacyMetadataMap = checkpoint.getMetadataMap();
     }
 
     public CheckpointInfoResponse(StreamInput in) throws IOException {
         this.checkpoint = new ReplicationCheckpoint(in);
-        this.metadataMap = in.readMap(StreamInput::readString, StoreFileMetadata::new);
+        this.legacyMetadataMap = in.readMap(StreamInput::readString, StoreFileMetadata::new);
+        this.formatAwareMetadataMap = convertLegacyToFormatAware(legacyMetadataMap);
         this.infosBytes = in.readByteArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         checkpoint.writeTo(out);
-        out.writeMap(metadataMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        out.writeMap(legacyMetadataMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
         out.writeByteArray(infosBytes);
+    }
+
+    /**
+     * Converts legacy String-based metadata map to format-aware FileMetadata-based map.
+     */
+    private static Map<FileMetadata, StoreFileMetadata> convertLegacyToFormatAware(Map<String, StoreFileMetadata> legacyMap) {
+        Map<FileMetadata, StoreFileMetadata> formatAwareMap = new HashMap<>();
+        for (Map.Entry<String, StoreFileMetadata> entry : legacyMap.entrySet()) {
+            String fileName = entry.getKey();
+            StoreFileMetadata storeMetadata = entry.getValue();
+
+            // Use the dataFormat from StoreFileMetadata if available, otherwise default to "lucene"
+            String dataFormat = storeMetadata.dataFormat() != null ? storeMetadata.dataFormat() : "lucene";
+            FileMetadata fileMetadata = new FileMetadata(dataFormat, "", fileName);
+            formatAwareMap.put(fileMetadata, storeMetadata);
+        }
+        return formatAwareMap;
     }
 
     public ReplicationCheckpoint getCheckpoint() {
         return checkpoint;
     }
 
+    /**
+     * Returns the legacy metadata map for backward compatibility.
+     * Format information may be lost in this conversion.
+     *
+     * @deprecated Use getFormatAwareMetadataMap() instead to preserve format information
+     */
+    @Deprecated
     public Map<String, StoreFileMetadata> getMetadataMap() {
-        return metadataMap;
+        return legacyMetadataMap;
+    }
+
+    /**
+     * Returns the format-aware metadata map that preserves format information.
+     * This is the preferred method for accessing file metadata.
+     */
+    public Map<FileMetadata, StoreFileMetadata> getFormatAwareMetadataMap() {
+        return formatAwareMetadataMap;
     }
 
     public byte[] getInfosBytes() {

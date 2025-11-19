@@ -141,7 +141,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             exception -> fail("Should not fail for empty segments")
         );
 
-        uploaderService.uploadSegments(emptySegments, segmentSizeMap, listener, mockUploadListenerFunction, false);
+        uploaderService.uploadSegmentsLegacy(emptySegments, segmentSizeMap, listener, mockUploadListenerFunction, false);
 
         assertTrue(latch.await(1, TimeUnit.SECONDS));
     }
@@ -201,7 +201,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             exception -> fail("Upload should succeed: " + exception.getMessage())
         );
 
-        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false);
+        testUploaderService.uploadSegmentsLegacy(segments, segmentSizeMap, listener, mockUploadListenerFunction, false);
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         // Verify the upload listener was called correctly

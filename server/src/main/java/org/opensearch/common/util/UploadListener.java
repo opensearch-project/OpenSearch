@@ -8,6 +8,8 @@
 
 package org.opensearch.common.util;
 
+import org.opensearch.index.engine.exec.FileMetadata;
+
 /**
  * A tracker class that is fed to FileUploader.
  *
@@ -15,9 +17,9 @@ package org.opensearch.common.util;
  */
 public interface UploadListener {
 
-    void beforeUpload(String file);
+    void beforeUpload(FileMetadata fileMetadata);
 
-    void onSuccess(String file);
+    void onSuccess(FileMetadata fileMetadata);
 
-    void onFailure(String file);
+    void onFailure(FileMetadata fileMetadata);
 }

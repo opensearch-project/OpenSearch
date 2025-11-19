@@ -77,7 +77,7 @@ public abstract class MergeHandler {
             catalogSnapshotReleasableRef.getRef().getSearchableFiles(merge.getDataFormat().name())
                 .forEach(writerFileSet -> {
                     for (String file : writerFileSet.getFiles()) {
-                        catalogFiles.add(new FileMetadata(writerFileSet.getDirectory(), file));
+                        catalogFiles.add(new FileMetadata(merge.getDataFormat().name(), writerFileSet.getDirectory(), file));
                     }
                 });
 
