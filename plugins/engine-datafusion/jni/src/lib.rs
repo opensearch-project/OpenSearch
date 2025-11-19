@@ -529,7 +529,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
 
     let substrait_plan = match Plan::decode(plan_bytes_vec.as_slice()) {
         Ok(plan) => {
-            println!("SUBSTRAIT rust: Decoding is successful, Plan has {} relations", plan.relations.len());
+            // println!("SUBSTRAIT rust: Decoding is successful, Plan has {} relations", plan.relations.len());
             plan
         },
         Err(e) => {

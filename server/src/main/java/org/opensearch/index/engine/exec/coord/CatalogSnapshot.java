@@ -355,13 +355,26 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
         return cloned;
     }
 
+    public long getLastWriterGeneration() {
+        return lastWriterGeneration;
+    }
+
+    public Set<String> getDataFormats() {
+        return dfGroupedSearchableFiles.keySet();
+    }
+
+    // used only when catalog snapshot is created from last commited segment and hence the object is not initialized with the deleter and map
+    public void setIndexFileDeleterSupplier(Supplier<IndexFileDeleter> supplier) {
+        this.indexFileDeleterSupplier = supplier;
+    }
+
+    public void setCatalogSnapshotMap(Map<Long, CatalogSnapshot> catalogSnapshotMap) {
+        this.catalogSnapshotMap = catalogSnapshotMap;
+    }
+
     @Override
     public String toString() {
-        return "CatalogSnapshot{" +
-            "id=" + id +
-            ", version=" + version +
-            ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles +
-            '}';
+        return "CatalogSnapshot{" + "id=" + id + ", version=" + version + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + ", userData=" + userData +'}';
     }
 
     public static class Segment implements Serializable, Writeable {

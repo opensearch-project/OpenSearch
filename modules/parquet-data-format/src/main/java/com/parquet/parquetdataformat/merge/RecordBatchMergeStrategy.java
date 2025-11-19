@@ -45,9 +45,12 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         files.forEach(writerFileSet ->  writerFileSet.getFiles().forEach(
             file -> filePaths.add(Path.of(writerFileSet.getDirectory(), file))));
 
-        String outputDirectory = files.iterator().next().getDirectory();
-        String mergedFilePath = getMergedFilePath(writerGeneration, outputDirectory);
-        String mergedFileName = getMergedFileName(writerGeneration);
+        FileMetadata firstFile = files.iterator().next();
+        String outputDirectory = firstFile.directory();
+        String dataFormat = firstFile.dataFormat();
+        long generation = generationCounter.incrementAndGet();
+        String mergedFilePath = getMergedFilePath(generation, outputDirectory);
+        String mergedFileName = getMergedFileName(generation);
 
         // Merge files in Rust
         mergeParquetFilesInRust(filePaths, mergedFilePath);
@@ -56,7 +59,7 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         Map<RowId, Long> rowIdMapping = new HashMap<>();
 
         FileMetadata mergedFileMetadata = new FileMetadata(
-            "",
+            dataFormat,
             outputDirectory,
             mergedFileName
         );

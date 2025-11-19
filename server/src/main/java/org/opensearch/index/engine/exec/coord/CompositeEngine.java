@@ -263,13 +263,68 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 }
             }
         }
-        catalogSnapshotAwareRefreshListeners.forEach(ref -> {
-            try {
-                ref.afterRefresh(true, catalogSnapshot);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        logger.trace("created new CompositeEngine");
+
+        initializeRefreshListeners(engineConfig);
+    }
+
+    private LocalCheckpointTracker createLocalCheckpointTracker(
+        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier
+    ) throws IOException {
+        final long maxSeqNo;
+        final long localCheckpoint;
+        final SequenceNumbers.CommitInfo seqNoStats =
+            SequenceNumbers.loadSeqNoInfoFromLuceneCommit(store.readLastCommittedSegmentsInfo().getUserData().entrySet());
+        maxSeqNo = seqNoStats.maxSeqNo;
+        localCheckpoint = seqNoStats.localCheckpoint;
+        logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
+        return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
+    }
+
+    protected TranslogDeletionPolicy getTranslogDeletionPolicy(EngineConfig engineConfig) {
+        TranslogDeletionPolicy customTranslogDeletionPolicy = null;
+        if (engineConfig.getCustomTranslogDeletionPolicyFactory() != null) {
+            customTranslogDeletionPolicy = engineConfig.getCustomTranslogDeletionPolicyFactory()
+                .create(engineConfig.getIndexSettings(), engineConfig.retentionLeasesSupplier());
+        }
+        return Objects.requireNonNullElseGet(
+            customTranslogDeletionPolicy, () -> new DefaultTranslogDeletionPolicy(
+                engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
+                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
+                engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
+            )
+        );
+    }
+
+    protected TranslogManager createTranslogManager(
+        String translogUUID,
+        TranslogDeletionPolicy translogDeletionPolicy,
+        CompositeTranslogEventListener translogEventListener
+    ) throws IOException {
+        return new InternalTranslogManager(
+            engineConfig.getTranslogConfig(),
+            engineConfig.getPrimaryTermSupplier(),
+            engineConfig.getGlobalCheckpointSupplier(),
+            translogDeletionPolicy,
+            shardId,
+            readLock,
+            this::getLocalCheckpointTracker,
+            translogUUID,
+            translogEventListener,
+            this::ensureOpen,
+            engineConfig.getTranslogFactory(),
+            engineConfig.getStartedPrimarySupplier(),
+            TranslogOperationHelper.create(engineConfig)
+        );
+    }
+
+    @Override
+    public void ensureOpen() {
+
+    }
+
+    LocalCheckpointTracker getLocalCheckpointTracker() {
+        return localCheckpointTracker;
     }
 
     public void updateSearchEngine() throws IOException {
@@ -306,7 +361,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
         }
 
-        System.out.println("CompositeEngine initialized with " + catalogSnapshotAwareRefreshListeners.size() + " catalog snapshot aware refresh listeners");
+        logger.trace("CompositeEngine initialized with {} catalog snapshot aware refresh listeners", catalogSnapshotAwareRefreshListeners.size());
     }
 
     public SearchExecEngine<?, ?, ?, ?> getReadEngine(DataFormat dataFormat) {
@@ -654,19 +709,19 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         }
     }
 
-    public GatedCloseable<CatalogSnapshot> getCatalogSnapshotReference() {
-        if(catalogSnapshot == null) {
-            return new GatedCloseable<>(null, () -> {});
+
+    public synchronized void setCatalogSnapshot(CatalogSnapshot catalogSnapshot, ShardPath shardPath) {
+        CatalogSnapshot oldSnapshot = this.catalogSnapshot;
+
+        if (catalogSnapshot != null) {
+            catalogSnapshot.incRef();
+            this.catalogSnapshot = catalogSnapshot.remapPaths(shardPath.getDataPath());
+        } else {
+            this.catalogSnapshot = null;
         }
 
-        catalogSnapshot.incRef();
-        return new GatedCloseable<>(catalogSnapshot, () -> catalogSnapshot.decRef());
-    }
-
-    public void setCatalogSnapshot(CatalogSnapshot catalogSnapshot, ShardPath shardPath) {
-        this.catalogSnapshot = catalogSnapshot;
-        if(this.catalogSnapshot != null) {
-            this.catalogSnapshot = this.catalogSnapshot.remapPaths(shardPath.getDataPath());
+        if (oldSnapshot != null) {
+            oldSnapshot.decRef();
         }
     }
 
@@ -674,18 +729,21 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     // this now becomes equivalent of the reader
     // Each search side specific impl can decide on how to init specific reader instances using this pit snapshot provided by writers
     public ReleasableRef<CatalogSnapshot> acquireSnapshot() {
-        return this.catalogSnapshotManager.acquireSnapshot();
-    }
+        if (catalogSnapshot == null) {
+            return new ReleasableRef<CatalogSnapshot>(null) {
+                @Override
+                public void close() {
+                    // No-op for null
+                }
+            };
+        }
 
-    // Notifies composite execution engine to delete dataformat specific files
-    public void notifyDelete(Map<String, Collection<String>> dfFilesToDelete) throws IOException {
-        // notify engine to delete all files
-        engine.deleteFiles(dfFilesToDelete);
-        // trigger postDelete hooks for fileDeletionListeners
-        for (String dataFormat : dfFilesToDelete.keySet()) {
-            if (fileDeletionListeners.get(dataFormat) == null) continue;
-            for (FileDeletionListener fileDeletionListener : fileDeletionListeners.get(dataFormat)) {
-                fileDeletionListener.onFileDeleted(dfFilesToDelete.get(dataFormat));
+        final CatalogSnapshot snapshot = catalogSnapshot;
+        snapshot.incRef();
+        return new ReleasableRef<>(snapshot) {
+            @Override
+            public void close() {
+                snapshot.decRef();
             }
         }
     }

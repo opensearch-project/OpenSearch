@@ -584,21 +584,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Complete the initialization of CompositeEngine refresh listeners after all dependencies are ready.
-     * This method should be called after remote store stats trackers have been created.
-     */
-    public void completeCompositeEngineInitialization() {
-        try {
-            final EngineConfig engineConfig = newEngineConfig(() -> replicationTracker.getGlobalCheckpoint());
-            compositeEngine.initializeRefreshListeners(engineConfig);
-            logger.debug("Completed CompositeEngine refresh listener initialization for shard [{}]", shardId);
-        } catch (IOException e) {
-            logger.error("Failed to complete CompositeEngine initialization for shard [{}]", shardId, e);
-            throw new RuntimeException("Failed to complete CompositeEngine initialization", e);
-        }
-    }
-
-    /**
      * By default, UNASSIGNED_SEQ_NO is used as the initial global checkpoint for new shard initialization. Ingestion
      * source does not track sequence numbers explicitly and hence defaults to NO_OPS_PERFORMED for compatibility.
      *
@@ -1851,24 +1836,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * to ensure consistent version tracking and format-aware segment management.
      *
      * @param catalogSnapshot the CatalogSnapshot containing segment metadata
+     * @param replicationCheckpoint the ReplicationCheckpoint contains replication info
      * @throws IOException if an error occurs during replication finalization
      */
-    public void finalizeReplication(CatalogSnapshot catalogSnapshot) throws IOException {
-        assert Thread.holdsLock(mutex) == false : "finalizeReplication must not be called under mutex";
+    public void finalizeReplication(CatalogSnapshot catalogSnapshot, ReplicationCheckpoint replicationCheckpoint) throws IOException {
+        if (Thread.holdsLock(mutex)) {
+            throw new IllegalStateException("finalizeReplication must not be called under mutex - potential deadlock risk");
+        }
+
         assert state == IndexShardState.RECOVERING || state == IndexShardState.STARTED;
 
         if (catalogSnapshot == null) {
-            logger.warn("Cannot finalize replication with null CatalogSnapshot for shard [{}]", shardId);
-            return;
+            throw new OpenSearchException(
+                "Replication failed for shard [" + shardId + "]: received null CatalogSnapshot"
+            );
         }
 
         // Use the fresh catalogSnapshot parameter directly (like old SegmentInfos pattern)
         try {
-            final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(catalogSnapshot);
-            replicationTracker.setLatestReplicationCheckpoint(checkpoint);
-            compositeEngine.setCatalogSnapshot(catalogSnapshot, this.shardPath());
-            logger.trace("Updated replication checkpoint from fresh CatalogSnapshot: shard={}, checkpoint={}", shardId, checkpoint);
-        } catch (IOException e) {
+            replicationTracker.setLatestReplicationCheckpoint(replicationCheckpoint);
+            getIndexingExecutionCoordinator().setCatalogSnapshot(catalogSnapshot, this.shardPath());
+            logger.trace("Updated replication checkpoint from fresh CatalogSnapshot: shard={}, checkpoint={}", shardId, replicationCheckpoint);
+        } catch (Exception e) {
             logger.error("Error computing replication checkpoint from fresh catalog snapshot for shard [{}]", shardId, e);
             throw new OpenSearchException("Error computing replication checkpoint from fresh catalog snapshot", e);
         }
@@ -2306,9 +2295,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IOException - When there is an error loading metadata from the store.
      */
     public Map<FileMetadata, StoreFileMetadata> getFormatAwareSegmentMetadataMap() throws IOException {
-        try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshotFromEngine()) {
-            return extractFormatAwareMetadata(catalogSnapshotRef.get());
-        } catch (IOException e) {
+        try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshotFromEngine()) {
+            return extractFormatAwareMetadata(catalogSnapshotRef.getRef());
+        } catch (Exception e) {
             logger.warn("Failed to get format-aware segment metadata", e);
             return Collections.emptyMap();
         }
@@ -5365,11 +5354,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void updateReplicationCheckpoint() {
-        try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshotFromEngine()) {
-            final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(catalogSnapshotRef.get());
+        try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshotFromEngine()) {
+            final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(catalogSnapshotRef.getRef());
             replicationTracker.setLatestReplicationCheckpoint(checkpoint);
             logger.trace("Updated replication checkpoint from CatalogSnapshot: shard={}, checkpoint={}", shardId, checkpoint);
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.error("Error computing replication checkpoint from catalog snapshot for shard [{}]", shardId, e);
             // throw new OpenSearchException("Error computing replication checkpoint from catalog snapshot", e);
         }
@@ -5811,11 +5800,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().getSegmentInfosSnapshot();
     }
 
-    public GatedCloseable<CatalogSnapshot> getCatalogSnapshotFromEngine() {
+    public CompositeEngine.ReleasableRef<CatalogSnapshot> getCatalogSnapshotFromEngine() {
         try {
-            return compositeEngine.getCatalogSnapshotReference();
-        }
-        catch (Exception e) {
+            return getIndexingExecutionCoordinator().acquireSnapshot();
+        } catch (Exception e) {
             throw new OpenSearchException("Error occurred while getting catalog snapshot", e);
         }
     }
