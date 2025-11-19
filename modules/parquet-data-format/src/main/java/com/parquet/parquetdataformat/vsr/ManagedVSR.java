@@ -10,6 +10,8 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -22,6 +24,8 @@ import static org.apache.arrow.vector.BitVectorHelper.byteIndex;
  * and provides thread-safe access for the ACTIVE/FROZEN lifecycle.
  */
 public class ManagedVSR implements AutoCloseable {
+
+    private static final Logger logger = LogManager.getLogger(ManagedVSR.class);
 
     private final String id;
     private final VectorSchemaRoot vsr;
@@ -109,9 +113,7 @@ public class ManagedVSR implements AutoCloseable {
     public void setState(VSRState newState) {
         VSRState oldState = state.getAndSet(newState);
 
-        System.out.println(String.format(
-            "[VSR] State transition: %s -> %s for VSR %s",
-            oldState, newState, id));
+        logger.debug("State transition: {} -> {} for VSR {}", oldState, newState, id);
     }
 
     /**
@@ -225,35 +227,5 @@ public class ManagedVSR implements AutoCloseable {
     public String toString() {
         return String.format("ManagedVSR{id='%s', state=%s, rows=%d, immutable=%s}",
             id, state.get(), getRowCount(), isImmutable());
-    }
-
-    public static void main(String[] args) {
-        RootAllocator allocator = new RootAllocator();
-        BigIntVector vector = new BigIntVector("vector", allocator);
-        vector.allocateNew(10);
-        vector.set(0, 100);  // Set position 0
-//        vector.setNull(1);
-        vector.set(2, 300);  // Set position 2
-// Position 1 is not set!
-        vector.setValueCount(3);  // Claims vector has 3 elements
-
-// Position 1 now contains undefined data
-//        long value = vector.get(1);  // Could be any value!
-        System.out.println(readBit(vector.getValidityBuffer(), 0));
-        System.out.println(readBit(vector.getValidityBuffer(), 1));
-        System.out.println(readBit(vector.getValidityBuffer(), 2));
-        System.out.println(readBit(vector.getValidityBuffer(), 3));
-    }
-
-    public static byte readBit(ArrowBuf validityBuffer, long index) {
-        // it can be observed that some logic is duplicate of the logic in setValidityBit.
-        // this is because JIT cannot always remove the if branch in setValidityBit,
-        // so we give a dedicated implementation for setting bits.
-        final long byteIndex = byteIndex(index);
-
-        // the byte is promoted to an int, because according to Java specification,
-        // bytes will be promoted to ints automatically, upon expression evaluation.
-        // by promoting it manually, we avoid the unnecessary conversions.
-        return validityBuffer.getByte(byteIndex);
     }
 }
