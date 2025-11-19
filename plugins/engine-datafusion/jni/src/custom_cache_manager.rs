@@ -59,10 +59,9 @@ impl CustomCacheManager {
             match self.metadata_cache_put(file_path) {
                 Ok(true) => {
                     any_success = true;
-                    println!("[CACHE INFO] Added file to metadata cache: {}", file_path);
                 }
                 Ok(false) => {
-                    println!("[CACHE INFO] File not applicable for metadata cache: {}", file_path);
+                    println!("[CACHE INFO] File not added for metadata cache: {}", file_path);
                 }
                 Err(e) => {
                     errors.push(format!("Metadata cache: {}", e));
@@ -276,7 +275,6 @@ impl CustomCacheManager {
                 cache_guard.put(object_meta, metadata);
 
                 if cache_guard.contains_key(object_meta) {
-                    println!("Successfully cached new metadata for: {}", file_path);
                     Ok(true)
                 } else {
                     println!("Failed to cache metadata for: {}", file_path);
