@@ -45,9 +45,13 @@ import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -208,30 +212,59 @@ public class XContentMapValues {
      * then {@code a.b} will be kept in the filtered map.
      */
     public static Map<String, Object> filter(Map<String, ?> map, String[] includes, String[] excludes) {
-        return filter(includes, excludes).apply(map);
+        return filter(includes, excludes, true).apply(map);
+    }
+
+    /**
+     * Only keep properties in {@code map} that match the {@code includes} but
+     * not the {@code excludes}. An empty list of includes is interpreted as a
+     * wildcard while an empty list of excludes does not match anything.
+     * <p>
+     * If a property matches both an include and an exclude, then the exclude
+     * wins.
+     * <p>
+     * If an object matches, then any of its sub properties are automatically
+     * considered as matching as well, both for includes and excludes.
+     * <p>
+     * Dots in field names are treated as sub objects. So for instance if a
+     * document contains {@code a.b} as a property and {@code a} is an include,
+     * then {@code a.b} will be kept in the filtered map.
+     */
+    public static Map<String, Object> filter(Map<String, ?> map, String[] includes, String[] excludes, boolean caseSensitive) {
+        return filter(includes, excludes, caseSensitive).apply(map);
+    }
+
+    private static Set<String> toSet(String[] fields, boolean caseSensitive) {
+        Set<String> set = new HashSet<>(fields.length);
+        for (String field : fields) {
+            set.add(caseSensitive ? field : field.toLowerCase(Locale.ROOT));
+        }
+        return set;
     }
 
     /**
      * Returns a function that filters a document map based on the given include and exclude rules.
      * @see #filter(Map, String[], String[]) for details
      */
-    public static Function<Map<String, ?>, Map<String, Object>> filter(String[] includes, String[] excludes) {
+    public static Function<Map<String, ?>, Map<String, Object>> filter(String[] includes, String[] excludes, boolean caseSensitive) {
+        Set<String> includeSet = (includes == null || includes.length == 0) ? null : toSet(includes, caseSensitive);
+        Set<String> excludeSet = (excludes == null || excludes.length == 0) ? Collections.emptySet() : toSet(excludes, caseSensitive);
         CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
 
         CharacterRunAutomaton include;
-        if (includes == null || includes.length == 0) {
+        if (includeSet == null || includeSet.isEmpty()) {
             include = matchAllAutomaton;
         } else {
-            Automaton includeA = Regex.simpleMatchToAutomaton(includes);
+            Automaton includeA = Regex.simpleMatchToAutomaton(includeSet.toArray(new String[0]));
             includeA = makeMatchDotsInFieldNames(includeA);
             include = new CharacterRunAutomaton(includeA);
         }
 
         Automaton excludeA;
-        if (excludes == null || excludes.length == 0) {
+        if (excludeSet.isEmpty()) {
             excludeA = Automata.makeEmpty();
         } else {
-            excludeA = Regex.simpleMatchToAutomaton(excludes);
+            excludeA = Regex.simpleMatchToAutomaton(excludeSet.toArray(new String[0]));
             excludeA = makeMatchDotsInFieldNames(excludeA);
         }
         CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA);
@@ -239,7 +272,7 @@ public class XContentMapValues {
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches
 
-        return (map) -> filter(map, include, 0, exclude, 0, matchAllAutomaton);
+        return (map) -> filter(map, include, 0, exclude, 0, matchAllAutomaton, caseSensitive);
     }
 
     /** Make matches on objects also match dots in field names.
@@ -265,18 +298,20 @@ public class XContentMapValues {
         int initialIncludeState,
         CharacterRunAutomaton excludeAutomaton,
         int initialExcludeState,
-        CharacterRunAutomaton matchAllAutomaton
+        CharacterRunAutomaton matchAllAutomaton,
+        boolean caseSensitive
     ) {
         Map<String, Object> filtered = new HashMap<>();
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             String key = entry.getKey();
+            String k = caseSensitive ? key : key.toLowerCase(Locale.ROOT);
 
-            int includeState = step(includeAutomaton, key, initialIncludeState);
+            int includeState = step(includeAutomaton, k, initialIncludeState);
             if (includeState == -1) {
                 continue;
             }
 
-            int excludeState = step(excludeAutomaton, key, initialExcludeState);
+            int excludeState = step(excludeAutomaton, k, initialExcludeState);
             if (excludeState != -1 && excludeAutomaton.isAccept(excludeState)) {
                 continue;
             }
@@ -315,7 +350,8 @@ public class XContentMapValues {
                     subIncludeState,
                     excludeAutomaton,
                     excludeState,
-                    matchAllAutomaton
+                    matchAllAutomaton,
+                    caseSensitive
                 );
                 if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
@@ -329,7 +365,8 @@ public class XContentMapValues {
                     subIncludeState,
                     excludeAutomaton,
                     excludeState,
-                    matchAllAutomaton
+                    matchAllAutomaton,
+                    caseSensitive
                 );
                 if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
@@ -354,7 +391,8 @@ public class XContentMapValues {
         int initialIncludeState,
         CharacterRunAutomaton excludeAutomaton,
         int initialExcludeState,
-        CharacterRunAutomaton matchAllAutomaton
+        CharacterRunAutomaton matchAllAutomaton,
+        boolean caseSensitive
     ) {
         List<Object> filtered = new ArrayList<>();
         boolean isInclude = includeAutomaton.isAccept(initialIncludeState);
@@ -371,7 +409,8 @@ public class XContentMapValues {
                     includeState,
                     excludeAutomaton,
                     excludeState,
-                    matchAllAutomaton
+                    matchAllAutomaton,
+                    caseSensitive
                 );
                 if (filteredValue.isEmpty() == false) {
                     filtered.add(filteredValue);
@@ -383,7 +422,8 @@ public class XContentMapValues {
                     initialIncludeState,
                     excludeAutomaton,
                     initialExcludeState,
-                    matchAllAutomaton
+                    matchAllAutomaton,
+                    caseSensitive
                 );
                 if (filteredValue.isEmpty() == false) {
                     filtered.add(filteredValue);
