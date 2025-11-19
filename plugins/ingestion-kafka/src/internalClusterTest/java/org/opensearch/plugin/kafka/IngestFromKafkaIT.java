@@ -778,6 +778,123 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
 
         waitForSearchableDocs(10, Arrays.asList(nodeA));
         waitForState(() -> getPeriodicFlushCount(nodeA, indexName) >= 1);
+    }
 
+    public void testRawPayloadMapperIngestion() throws Exception {
+        // Start cluster
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Publish 2 valid messages
+        String validMessage1 = "{\"name\":\"alice\",\"age\":30}";
+        String validMessage2 = "{\"name\":\"bob\",\"age\":25}";
+        produceData(validMessage1);
+        produceData(validMessage2);
+
+        // Create index with raw_payload mapper
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.mapper_type", "raw_payload")
+                .put("ingestion_source.error_strategy", "drop")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        // Wait for both messages to be indexed
+        waitForSearchableDocs(2, List.of(nodeA));
+
+        // Verify stats show 2 processed messages
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null
+                && stats.getMessageProcessorStats().totalProcessedCount() == 2L
+                && stats.getConsumerStats().totalPolledCount() == 2L
+                && stats.getConsumerStats().totalPollerMessageFailureCount() == 0L
+                && stats.getConsumerStats().totalPollerMessageDroppedCount() == 0L
+                && stats.getMessageProcessorStats().totalInvalidMessageCount() == 0L;
+        });
+
+        // Validate document content
+        SearchResponse searchResponse = client().prepareSearch(indexName).get();
+        assertEquals(2, searchResponse.getHits().getHits().length);
+        for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+            Map<String, Object> source = searchResponse.getHits().getHits()[i].getSourceAsMap();
+            assertTrue(source.containsKey("name"));
+            assertTrue(source.containsKey("age"));
+        }
+
+        // Publish invalid JSON message
+        String invalidJsonMessage = "{ invalid json";
+        produceData(invalidJsonMessage);
+
+        // Wait for consumer to encounter the error and drop it
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null
+                && stats.getConsumerStats().totalPolledCount() == 3L
+                && stats.getConsumerStats().totalPollerMessageFailureCount() == 1L
+                && stats.getConsumerStats().totalPollerMessageDroppedCount() == 1L
+                && stats.getMessageProcessorStats().totalProcessedCount() == 2L;
+        });
+
+        // Publish message with invalid content that will fail at processor level
+        String invalidFieldTypeMessage = "{\"name\":123,\"age\":\"not a number\"}";
+        produceData(invalidFieldTypeMessage);
+
+        // Wait for processor to encounter the error
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null
+                && stats.getConsumerStats().totalPolledCount() == 4L
+                && stats.getConsumerStats().totalPollerMessageFailureCount() == 1L
+                && stats.getMessageProcessorStats().totalProcessedCount() == 3L
+                && stats.getMessageProcessorStats().totalFailedCount() == 1L
+                && stats.getMessageProcessorStats().totalFailuresDroppedCount() == 1L;
+        });
+
+        // Pause ingestion, reset to offset 0, and resume
+        pauseIngestion(indexName);
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getFailedShards() == 0
+                && ingestionState.getShardStates()[0].isPollerPaused()
+                && ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("paused");
+        });
+
+        // Resume with reset to offset 0 (will re-process the 2 valid messages)
+        resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "0");
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getShardStates()[0].isPollerPaused() == false
+                && (ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("polling")
+                    || ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("processing"));
+        });
+
+        // Wait for the 3 messages to be processed by the processor after reset (1 will be dropped by the poller)
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null && stats.getMessageProcessorStats().totalProcessedCount() == 3L;
+        });
+
+        // Verify still only 2 documents (no duplicates must be indexed)
+        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(0);
+        SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+        assertThat(response.getHits().getTotalHits().value(), is(2L));
     }
 }

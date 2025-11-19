@@ -36,6 +36,20 @@ public class ShardIndexingPressureStats implements Writeable, ToXContentFragment
     private final boolean shardIndexingPressureEnabled;
     private final boolean shardIndexingPressureEnforced;
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new ShardIndexingPressureStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private ShardIndexingPressureStats(Builder builder) {
+        this.shardIndexingPressureStore = builder.shardIndexingPressureStore;
+        this.totalNodeLimitsBreachedRejections = builder.totalNodeLimitsBreachedRejections;
+        this.totalLastSuccessfulRequestLimitsBreachedRejections = builder.totalLastSuccessfulRequestLimitsBreachedRejections;
+        this.totalThroughputDegradationLimitsBreachedRejections = builder.totalThroughputDegradationLimitsBreachedRejections;
+        this.shardIndexingPressureEnabled = builder.shardIndexingPressureEnabled;
+        this.shardIndexingPressureEnforced = builder.shardIndexingPressureEnforced;
+    }
+
     public ShardIndexingPressureStats(StreamInput in) throws IOException {
         int shardEntries = in.readInt();
         shardIndexingPressureStore = new HashMap<>();
@@ -51,6 +65,11 @@ public class ShardIndexingPressureStats implements Writeable, ToXContentFragment
         shardIndexingPressureEnforced = in.readBoolean();
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public ShardIndexingPressureStats(
         Map<ShardId, IndexingPressurePerShardStats> shardIndexingPressureStore,
         long totalNodeLimitsBreachedRejections,
@@ -83,6 +102,59 @@ public class ShardIndexingPressureStats implements Writeable, ToXContentFragment
 
     public IndexingPressurePerShardStats getIndexingPressureShardStats(ShardId shardId) {
         return shardIndexingPressureStore.get(shardId);
+    }
+
+    /**
+     * Builder for the {@link ShardIndexingPressureStats} class.
+     * Provides a fluent API for constructing a ShardIndexingPressureStats object.
+     */
+    public static class Builder {
+        private Map<ShardId, IndexingPressurePerShardStats> shardIndexingPressureStore = null;
+        private long totalNodeLimitsBreachedRejections = 0;
+        private long totalLastSuccessfulRequestLimitsBreachedRejections = 0;
+        private long totalThroughputDegradationLimitsBreachedRejections = 0;
+        private boolean shardIndexingPressureEnabled = false;
+        private boolean shardIndexingPressureEnforced = false;
+
+        public Builder() {}
+
+        public Builder shardIndexingPressureStore(Map<ShardId, IndexingPressurePerShardStats> shardIndexingPressureStore) {
+            this.shardIndexingPressureStore = shardIndexingPressureStore;
+            return this;
+        }
+
+        public Builder totalNodeLimitsBreachedRejections(long total) {
+            this.totalNodeLimitsBreachedRejections = total;
+            return this;
+        }
+
+        public Builder totalLastSuccessfulRequestLimitsBreachedRejections(long total) {
+            this.totalLastSuccessfulRequestLimitsBreachedRejections = total;
+            return this;
+        }
+
+        public Builder totalThroughputDegradationLimitsBreachedRejections(long total) {
+            this.totalThroughputDegradationLimitsBreachedRejections = total;
+            return this;
+        }
+
+        public Builder shardIndexingPressureEnabled(boolean enabled) {
+            this.shardIndexingPressureEnabled = enabled;
+            return this;
+        }
+
+        public Builder shardIndexingPressureEnforced(boolean enforced) {
+            this.shardIndexingPressureEnforced = enforced;
+            return this;
+        }
+
+        /**
+         * Creates a {@link ShardIndexingPressureStats} object from the builder's current state.
+         * @return A new ShardIndexingPressureStats instance.
+         */
+        public ShardIndexingPressureStats build() {
+            return new ShardIndexingPressureStats(this);
+        }
     }
 
     @Override

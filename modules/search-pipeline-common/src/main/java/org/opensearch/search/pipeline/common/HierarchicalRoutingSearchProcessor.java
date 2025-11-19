@@ -123,25 +123,21 @@ public class HierarchicalRoutingSearchProcessor extends AbstractProcessor implem
 
         @Override
         public void accept(QueryBuilder qb) {
-            if (qb instanceof TermQueryBuilder) {
-                TermQueryBuilder termQuery = (TermQueryBuilder) qb;
+            if (qb instanceof TermQueryBuilder termQuery) {
                 if (pathField.equals(termQuery.fieldName())) {
                     paths.add(termQuery.value().toString());
                 }
-            } else if (qb instanceof TermsQueryBuilder) {
-                TermsQueryBuilder termsQuery = (TermsQueryBuilder) qb;
+            } else if (qb instanceof TermsQueryBuilder termsQuery) {
                 if (pathField.equals(termsQuery.fieldName())) {
                     for (Object value : termsQuery.values()) {
                         paths.add(value.toString());
                     }
                 }
-            } else if (qb instanceof PrefixQueryBuilder) {
-                PrefixQueryBuilder prefixQuery = (PrefixQueryBuilder) qb;
+            } else if (qb instanceof PrefixQueryBuilder prefixQuery) {
                 if (pathField.equals(prefixQuery.fieldName())) {
                     paths.add(prefixQuery.value());
                 }
-            } else if (qb instanceof WildcardQueryBuilder) {
-                WildcardQueryBuilder wildcardQuery = (WildcardQueryBuilder) qb;
+            } else if (qb instanceof WildcardQueryBuilder wildcardQuery) {
                 if (pathField.equals(wildcardQuery.fieldName())) {
                     String pattern = wildcardQuery.value();
                     String pathPrefix = extractPrefixFromWildcard(pattern);

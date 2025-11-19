@@ -272,8 +272,8 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
 
         try {
             Exception flightError = task.error();
-            if (task.error() instanceof StreamException) {
-                flightError = FlightErrorMapper.toFlightException((StreamException) task.error());
+            if (task.error() instanceof StreamException se) {
+                flightError = FlightErrorMapper.toFlightException(se);
             }
             flightServerChannel.sendError(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), flightError);
             messageListener.onResponseSent(task.requestId(), task.action(), task.error());

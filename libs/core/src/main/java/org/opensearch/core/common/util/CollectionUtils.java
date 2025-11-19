@@ -163,19 +163,12 @@ public class CollectionUtils {
      */
     @SuppressWarnings("unchecked")
     private static Iterable<?> convert(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) value;
-            return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
-        } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
-            return (Iterable<?>) value;
-        } else if (value instanceof Object[]) {
-            return Arrays.asList((Object[]) value);
-        } else {
-            return null;
-        }
+        return switch (value) {
+            case Map<?, ?> map -> () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
+            case Iterable<?> iterable when value instanceof Path == false -> iterable;
+            case Object[] objects -> Arrays.asList(objects);
+            case null, default -> null;
+        };
     }
 
     private static void ensureNoSelfReferences(

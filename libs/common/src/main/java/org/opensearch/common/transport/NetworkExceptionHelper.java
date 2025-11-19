@@ -43,10 +43,7 @@ import java.nio.channels.ClosedChannelException;
 public class NetworkExceptionHelper {
 
     public static boolean isConnectException(Throwable e) {
-        if (e instanceof ConnectException) {
-            return true;
-        }
-        return false;
+        return e instanceof ConnectException;
     }
 
     public static boolean isCloseConnectionException(Throwable e) {

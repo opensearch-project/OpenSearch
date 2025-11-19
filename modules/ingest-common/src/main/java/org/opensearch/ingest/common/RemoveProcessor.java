@@ -194,7 +194,7 @@ public final class RemoveProcessor extends AbstractProcessor {
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
             if (field != null) {
-                if (field instanceof List) {
+                if (field instanceof List<?>) {
                     @SuppressWarnings("unchecked")
                     List<String> stringList = (List<String>) field;
                     fields.addAll(stringList);
@@ -206,7 +206,7 @@ public final class RemoveProcessor extends AbstractProcessor {
                     .collect(Collectors.toList());
                 return new RemoveProcessor(processorTag, description, fieldCompiledTemplates, null, ignoreMissing);
             } else {
-                if (excludeField instanceof List) {
+                if (excludeField instanceof List<?>) {
                     @SuppressWarnings("unchecked")
                     List<String> stringList = (List<String>) excludeField;
                     excludeFields.addAll(stringList);

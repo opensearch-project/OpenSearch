@@ -3,8 +3,8 @@
 </a>
 
 [![License](https://img.shields.io/badge/license-Apache%20v2-blue.svg)](https://github.com/opensearch-project/OpenSearch/blob/main/LICENSE.txt)
-[![LFX Health Score](https://insights.production.lfx.dev/api/badge/health-score?project=opensearch-foundation)](https://insights.linuxfoundation.org/project/opensearch-foundation)
-[![LFX Active Contributors](https://insights.production.lfx.dev/api/badge/active-contributors?project=opensearch-foundation&repos=https://github.com/opensearch-project/OpenSearch)](https://insights.linuxfoundation.org/project/opensearch-foundation/repository/opensearch-project-opensearch)
+[![LFX Health Score](https://insights.linuxfoundation.org/api/badge/health-score?project=opensearch-foundation)](https://insights.linuxfoundation.org/project/opensearch-foundation)
+[![LFX Active Contributors](https://insights.linuxfoundation.org/api/badge/active-contributors?project=opensearch-foundation)](https://insights.linuxfoundation.org/project/opensearch-foundation)
 [![Code Coverage](https://codecov.io/gh/opensearch-project/OpenSearch/branch/main/graph/badge.svg)](https://codecov.io/gh/opensearch-project/OpenSearch)
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/opensearch-project/OpenSearch?sort=semver)
 [![Linkedin](https://img.shields.io/badge/Follow-Linkedin-blue)](https://www.linkedin.com/company/opensearch-project)

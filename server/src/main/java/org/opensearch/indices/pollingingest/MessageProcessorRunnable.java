@@ -49,10 +49,11 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  *  engine operation.
  */
 public class MessageProcessorRunnable implements Runnable, Closeable {
+    public static final String ID = "_id";
+    public static final String OP_TYPE = "_op_type";
+    public static final String SOURCE = "_source";
+
     private static final Logger logger = LogManager.getLogger(MessageProcessorRunnable.class);
-    private static final String ID = "_id";
-    private static final String OP_TYPE = "_op_type";
-    private static final String SOURCE = "_source";
     private static final int MIN_RETRY_COUNT = 2;
     private static final int WAIT_BEFORE_RETRY_DURATION_MS = 2000;
 

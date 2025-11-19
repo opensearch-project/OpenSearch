@@ -109,12 +109,9 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
 
         // Verify the result
-        // The implementation returns a default FetchSourceContext with fetchSource=true
-        // and empty includes/excludes arrays when no source parameters are provided
-        assertNotNull("Context should not be null", context);
-        assertTrue("fetchSource should be true", context.fetchSource());
-        assertArrayEquals("includes should be empty", Strings.EMPTY_ARRAY, context.includes());
-        assertArrayEquals("excludes should be empty", Strings.EMPTY_ARRAY, context.excludes());
+        // When no source parameters are provided, should return null to match REST API behavior
+        // This prevents the "get" field from being returned in update/upsert responses
+        assertNull("Context should be null when no source parameters provided", context);
     }
 
     public void testFromProtoWithFetch() {

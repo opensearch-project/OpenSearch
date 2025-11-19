@@ -92,8 +92,8 @@ class GeoDistanceQueryBuilderProtoUtils {
         }
 
         GeoDistanceQueryBuilder qb = new GeoDistanceQueryBuilder(fieldName);
-        if (vDistance instanceof Number) {
-            qb.distance(((Number) vDistance).doubleValue(), unit);
+        if (vDistance instanceof Number number) {
+            qb.distance(number.doubleValue(), unit);
         } else {
             qb.distance((String) vDistance, unit);
         }

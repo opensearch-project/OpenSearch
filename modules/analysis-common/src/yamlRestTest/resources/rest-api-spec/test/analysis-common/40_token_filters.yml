@@ -824,6 +824,11 @@
                   my_truncate:
                     type: truncate
                     length: 3
+                normalizer:
+                  my_truncate_norm:
+                    type: custom
+                    filter:
+                      - my_truncate
     - do:
         indices.analyze:
           index: test
@@ -831,6 +836,14 @@
             text:      foobar
             tokenizer: keyword
             filter:    [my_truncate]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo }
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foobar
+            normalizer: my_truncate_norm
     - length: { tokens: 1 }
     - match:  { tokens.0.token: foo }
 

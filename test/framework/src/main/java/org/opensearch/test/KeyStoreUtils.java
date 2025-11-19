@@ -8,10 +8,12 @@
 
 package org.opensearch.test;
 
+import org.bouncycastle.asn1.LocaleUtil;
 import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
+import java.util.Locale;
 
 import io.netty.pkitesting.CertificateBuilder;
 import io.netty.pkitesting.CertificateBuilder.Algorithm;
@@ -35,11 +37,17 @@ public class KeyStoreUtils {
     }
 
     private static X509Bundle generateCert() throws Exception {
-        return new CertificateBuilder().subject("CN=Test CA Certificate")
-            .setIsCertificateAuthority(true)
-            .algorithm(Algorithm.ed25519)
-            .provider(new BouncyCastleFipsProvider())
-            .buildSelfSigned();
+        final Locale locale = Locale.getDefault();
+        try {
+            Locale.setDefault(LocaleUtil.EN_Locale);
+            return new CertificateBuilder().subject("CN=Test CA Certificate")
+                .setIsCertificateAuthority(true)
+                .algorithm(Algorithm.ed25519)
+                .provider(new BouncyCastleFipsProvider())
+                .buildSelfSigned();
+        } finally {
+            Locale.setDefault(locale);
+        }
     }
 
 }

@@ -112,8 +112,8 @@ public class RunningStats implements Writeable, Cloneable {
 
     // Convert Map to HashMap if it isn't
     private static <K, V> HashMap<K, V> convertIfNeeded(Map<K, V> map) {
-        if (map instanceof HashMap) {
-            return (HashMap<K, V>) map;
+        if (map instanceof HashMap<K, V> hashMap) {
+            return hashMap;
         } else {
             return new HashMap<>(map);
         }

@@ -591,13 +591,12 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         final List<TranslogStats> statsList = new ArrayList<>(n);
         long earliestLastModifiedAge = Long.MAX_VALUE;
         for (int i = 0; i < n; i++) {
-            final TranslogStats stats = new TranslogStats(
-                randomIntBetween(1, 4096),
-                randomIntBetween(1, 1 << 20),
-                randomIntBetween(1, 1 << 20),
-                randomIntBetween(1, 4096),
-                randomIntBetween(1, 1 << 20)
-            );
+            final TranslogStats stats = new TranslogStats.Builder().numberOfOperations(randomIntBetween(1, 4096))
+                .translogSizeInBytes(randomIntBetween(1, 1 << 20))
+                .uncommittedOperations(randomIntBetween(1, 1 << 20))
+                .uncommittedSizeInBytes(randomIntBetween(1, 4096))
+                .earliestLastModifiedAge(randomIntBetween(1, 1 << 20))
+                .build();
             statsList.add(stats);
             total.add(stats);
             if (earliestLastModifiedAge > stats.getEarliestLastModifiedAge()) {
@@ -619,21 +618,61 @@ public class LocalTranslogTests extends OpenSearchTestCase {
     }
 
     public void testNegativeNumberOfOperations() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(-1, 1, 1, 1, 1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(-1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("numberOfOperations must be >= 0")));
-        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, -1, 1, 1));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(-1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("uncommittedOperations must be >= 0")));
     }
 
     public void testNegativeSizeInBytes() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, -1, 1, 1, 1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(-1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("translogSizeInBytes must be >= 0")));
-        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, 1, -1, 1));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(-1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("uncommittedSizeInBytes must be >= 0")));
     }
 
     public void testOldestEntryInSeconds() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, 1, 1, -1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(-1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("earliestLastModifiedAge must be >= 0")));
     }
 

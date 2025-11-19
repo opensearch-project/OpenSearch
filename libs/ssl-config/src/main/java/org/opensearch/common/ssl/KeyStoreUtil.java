@@ -151,8 +151,8 @@ final class KeyStoreUtil {
         kmf.init(keyStore, password);
         KeyManager[] keyManagers = kmf.getKeyManagers();
         for (KeyManager keyManager : keyManagers) {
-            if (keyManager instanceof X509ExtendedKeyManager) {
-                return (X509ExtendedKeyManager) keyManager;
+            if (keyManager instanceof X509ExtendedKeyManager x509KeyManager) {
+                return x509KeyManager;
             }
         }
         throw new SslConfigException(
@@ -169,8 +169,8 @@ final class KeyStoreUtil {
         tmf.init(trustStore);
         TrustManager[] trustManagers = tmf.getTrustManagers();
         for (TrustManager trustManager : trustManagers) {
-            if (trustManager instanceof X509ExtendedTrustManager) {
-                return (X509ExtendedTrustManager) trustManager;
+            if (trustManager instanceof X509ExtendedTrustManager x509TrustManager) {
+                return x509TrustManager;
             }
         }
         throw new SslConfigException(

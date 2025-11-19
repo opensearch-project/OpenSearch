@@ -1,6 +1,6 @@
 [versions]
 opensearch        = "3.4.0"
-lucene            = "10.3.1"
+lucene            = "10.3.2"
 
 bundled_jdk_vendor = "adoptium"
 bundled_jdk = "25.0.1+8"

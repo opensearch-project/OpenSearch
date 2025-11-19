@@ -18,7 +18,6 @@ import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.BoundTransportAddress;
@@ -35,7 +34,6 @@ import org.opensearch.transport.stream.StreamTransportResponse;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -310,8 +308,8 @@ class FlightClientChannel implements TcpChannel {
 
     private void notifyHandlerOfException(TransportResponseHandler<?> handler, Exception exception) {
         StreamException streamException;
-        if (exception instanceof StreamException) {
-            streamException = (StreamException) exception;
+        if (exception instanceof StreamException se) {
+            streamException = se;
         } else {
             streamException = new StreamException(StreamErrorCode.INTERNAL, "Stream processing failed", exception);
         }
@@ -342,7 +340,7 @@ class FlightClientChannel implements TcpChannel {
     private void notifyListener(ActionListener<Void> listener, CompletableFuture<Void> future) {
         if (future.isCompletedExceptionally()) {
             future.handle((result, ex) -> {
-                listener.onFailure(ex instanceof Exception ? (Exception) ex : new Exception(ex));
+                listener.onFailure(ex instanceof Exception exception ? exception : new Exception(ex));
                 return null;
             });
         } else {
@@ -351,8 +349,7 @@ class FlightClientChannel implements TcpChannel {
     }
 
     private Ticket serializeToTicket(BytesReference reference) {
-        byte[] data = Arrays.copyOfRange(((BytesArray) reference).array(), 0, reference.length());
-        return new Ticket(data);
+        return new Ticket(BytesReference.toBytes(reference));
     }
 
     @Override

@@ -436,7 +436,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
-        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
+        if (channel.detailedErrorStackTraceEnabled() && channel.detailedErrorsEnabled() == false) {
             channel.sendResponse(
                 BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled.")
             );
@@ -637,6 +637,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public boolean detailedErrorStackTraceEnabled() {
+            return delegate.detailedErrorStackTraceEnabled();
+        }
+
+        @Override
         public void sendResponse(RestResponse response) {
             close();
             delegate.sendResponse(response);
@@ -697,6 +702,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public boolean detailedErrorsEnabled() {
             return delegate.detailedErrorsEnabled();
+        }
+
+        @Override
+        public boolean detailedErrorStackTraceEnabled() {
+            return delegate.detailedErrorStackTraceEnabled();
         }
 
         @Override

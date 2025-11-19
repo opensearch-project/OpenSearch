@@ -38,7 +38,7 @@ public class FetchSourceContextProtoUtils {
      * @return A FetchSourceContext object based on the request parameters, or null if no source parameters are provided
      */
     public static FetchSourceContext parseFromProtoRequest(org.opensearch.protobufs.BulkRequest request) {
-        Boolean fetchSource = true;
+        Boolean fetchSource = null;
         String[] sourceExcludes = null;
         String[] sourceIncludes = null;
 
