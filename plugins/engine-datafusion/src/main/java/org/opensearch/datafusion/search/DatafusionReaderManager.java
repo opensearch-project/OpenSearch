@@ -103,6 +103,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     private Set<String> extractFilePaths(Collection<WriterFileSet> files) {
         String[] fileNames = files.stream()
             .flatMap(writerFileSet -> writerFileSet.getFiles().stream())
+            .map(fileName -> String.format("%s/%s", this.path, fileName))
             .toArray(String[]::new);
         Set<String> paths = new HashSet<>();
         paths.addAll(Arrays.asList(fileNames));

@@ -61,7 +61,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.datafusion.jni.NativeBridge.printMemoryPoolAllocation;
 
 public class DatafusionEngine extends SearchExecEngine<DatafusionContext, DatafusionSearcher,
     DatafusionReaderManager, DatafusionQuery> {
@@ -158,8 +157,6 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             DatafusionSearcherSupplier searcherSupplier = releasable = (DatafusionSearcherSupplier) acquireSearcherSupplier(wrapper, scope);
             DatafusionSearcher searcher = searcherSupplier.acquireSearcher(source);
             releasable = null;
-            logger.info("Memory consumed by Mcache {} and Acache {}",cacheManager.getMemoryConsumed(CacheUtils.CacheType.METADATA),
-                cacheManager.getTotalMemoryConsumed());
 
             return new DatafusionSearcher(
                 source,
