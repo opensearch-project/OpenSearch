@@ -11,6 +11,7 @@ package com.parquet.parquetdataformat.merge;
 import com.parquet.parquetdataformat.engine.ParquetDataFormat;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.RowId;
 import org.opensearch.index.engine.exec.merge.RowIdMapping;
@@ -55,16 +56,16 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         // Build row ID mapping
         Map<RowId, Long> rowIdMapping = new HashMap<>();
 
-        FileMetadata mergedFileMetadata = new FileMetadata(
-            outputDirectory,
-            mergedFileName
-        );
-        Map<DataFormat, Collection<FileMetadata>> mergedFiles = Collections.singletonMap(
+        WriterFileSet mergedWriterFileSet =
+            WriterFileSet.builder().directory(Path.of(outputDirectory)).addFile(mergedFileName).writerGeneration(0).build();
+
+
+        Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(
             new ParquetDataFormat(),
-            Collections.singletonList(mergedFileMetadata)
+            mergedWriterFileSet
         );
 
-        return new MergeResult(new RowIdMapping(rowIdMapping, mergedFileName), mergedFiles);
+        return new MergeResult(new RowIdMapping(rowIdMapping, mergedFileName), mergedWriterFileSetMap);
     }
 
     private String getMergedFileName(long generation) {

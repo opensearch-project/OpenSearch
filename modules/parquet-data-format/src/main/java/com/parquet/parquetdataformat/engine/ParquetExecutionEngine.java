@@ -140,11 +140,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
         RefreshResult refreshResult = new RefreshResult();
-        filesWrittenAlready.addAll(refreshInput.getWriterFiles());
-        if (!refreshInput.getFilesToRemove().isEmpty()) {
-            filesWrittenAlready.removeAll(refreshInput.getFilesToRemove());
-        }
-        refreshResult.add(PARQUET_DATA_FORMAT, filesWrittenAlready);
+        // NO-OP, as refresh is being handled at CompositeIndexingExecution Engin
         return refreshResult;
     }
 
