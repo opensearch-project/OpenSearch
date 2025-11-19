@@ -8,12 +8,7 @@
 
 package org.opensearch.datafusion.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.datafusion.DataFusionService;
-import org.opensearch.datafusion.core.DataFusionRuntimeEnv;
-import org.opensearch.datafusion.core.DefaultRecordBatchStream;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.index.engine.EngineSearcher;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
@@ -21,7 +16,6 @@ import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Objects;
 
 public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, RecordBatchStream> {
