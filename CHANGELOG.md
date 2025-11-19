@@ -57,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactor the FieldDataStats and CompletionStats class to use the Builder pattern instead of constructors ([#19936](https://github.com/opensearch-project/OpenSearch/pull/19936))
 - Thread Context Preservation by gRPC Interceptor ([#19776](https://github.com/opensearch-project/OpenSearch/pull/19776))
 - Update NoOpResult constructors in the Engine to be public ([#19950](https://github.com/opensearch-project/OpenSearch/pull/19950))
+- Make XContentMapValues.filter case insensitive ([#19976](https://github.com/opensearch-project/OpenSearch/pull/19976))
 - Refactor the TranslogStats and RequestCacheStats class to use the Builder pattern instead of constructors ([#19961](https://github.com/opensearch-project/OpenSearch/pull/19961))
 - Refactor the IndexPressutreStats, DeviceStats and TransportStats class to use the Builder pattern instead of constructors ([#19991](https://github.com/opensearch-project/OpenSearch/pull/19991))
 

@@ -271,7 +271,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
      */
     public Function<Map<String, ?>, Map<String, Object>> getFilter() {
         if (filter == null) {
-            filter = XContentMapValues.filter(includes, excludes);
+            filter = XContentMapValues.filter(includes, excludes, true);
         }
         return filter;
     }
