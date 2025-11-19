@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.merge;
 
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
@@ -33,18 +34,13 @@ public class ParquetMergeHandler extends MergeHandler {
         CompositeEngine compositeEngine,
         CompositeIndexingExecutionEngine compositeIndexingExecutionEngine,
         Any dataFormats,
-        ParquetTieredMergePolicy parquetTieredMergePolicy
+        IndexSettings indexSettings
     ) {
         super(compositeEngine, compositeIndexingExecutionEngine, dataFormats);
         this.compositeEngine = compositeEngine;
         this.compositeIndexingExecutionEngine = compositeIndexingExecutionEngine;
 
-        mergePolicy = parquetTieredMergePolicy;
-        // Merge Policy configurations
-        this.mergePolicy.setMaxMergedSegmentMB(2000);
-        this.mergePolicy.setSegmentsPerTier(10.0);
-//        this.mergePolicy.setMaxMergeAtOnce(5);
-//        this.mergePolicy.setFloorSegmentMB(1.0);
+        mergePolicy = new ParquetTieredMergePolicy(indexSettings.getMergePolicy(true));
     }
 
     @Override
@@ -52,11 +48,12 @@ public class ParquetMergeHandler extends MergeHandler {
         List<OneMerge> oneMerges = new ArrayList<>();
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = compositeEngine.acquireSnapshot()) {
             CatalogSnapshot catalogSnapshot = catalogSnapshotReleasableRef.getRef();
-            Collection<WriterFileSet> parquetWriterSet = catalogSnapshot.getSearchableFiles(PARQUET_DATAFORMAT);
 
+            List<CatalogSnapshot.Segment> segmentList = catalogSnapshot.getSegments();
             List<ParquetTieredMergePolicy.ParquetFileInfo> parquetSegmentInfos = new ArrayList<>();
 
-            for(WriterFileSet writerFileSet : parquetWriterSet) {
+            for(CatalogSnapshot.Segment segment : segmentList) {
+                WriterFileSet writerFileSet = segment.getDFGroupedSearchableFiles().get(PARQUET_DATAFORMAT);
                 for(String file: writerFileSet.getFiles()) {
                     parquetSegmentInfos.add(new ParquetTieredMergePolicy.ParquetFileInfo(writerFileSet.getDirectory()+"/"+file));
                 }
@@ -69,7 +66,7 @@ public class ParquetMergeHandler extends MergeHandler {
             for (int i = 0; i < mergeCandidates.size(); i++) {
                 List<ParquetTieredMergePolicy.ParquetFileInfo> mergeGroup = mergeCandidates.get(i);
 
-                Set<FileMetadata> files = new HashSet<>();
+                List<FileMetadata> files = new ArrayList<>();
                 for (ParquetTieredMergePolicy.ParquetFileInfo file : mergeGroup) {
                     Path path = Path.of(file.getSegmentName());
                     files.add(new FileMetadata(path.getParent().toString(), path.getFileName().toString()));
@@ -87,11 +84,12 @@ public class ParquetMergeHandler extends MergeHandler {
         List<OneMerge> oneMerges = new ArrayList<>();
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = compositeEngine.acquireSnapshot()) {
             CatalogSnapshot catalogSnapshot = catalogSnapshotReleasableRef.getRef();
-            Collection<WriterFileSet> parquetWriterSet = catalogSnapshot.getSearchableFiles(PARQUET_DATAFORMAT);
 
+            List<CatalogSnapshot.Segment> segmentList = catalogSnapshot.getSegments();
             List<ParquetTieredMergePolicy.ParquetFileInfo> parquetSegmentInfos = new ArrayList<>();
 
-            for(WriterFileSet writerFileSet : parquetWriterSet) {
+            for(CatalogSnapshot.Segment segment : segmentList) {
+                WriterFileSet writerFileSet = segment.getDFGroupedSearchableFiles().get(PARQUET_DATAFORMAT);
                 for(String file: writerFileSet.getFiles()) {
                     parquetSegmentInfos.add(new ParquetTieredMergePolicy.ParquetFileInfo(writerFileSet.getDirectory()+"/"+file));
                 }
@@ -104,7 +102,7 @@ public class ParquetMergeHandler extends MergeHandler {
             for (int i = 0; i < mergeCandidates.size(); i++) {
                 List<ParquetTieredMergePolicy.ParquetFileInfo> mergeGroup = mergeCandidates.get(i);
 
-                Set<FileMetadata> files = new HashSet<>();
+                List<FileMetadata> files = new ArrayList<>();
                 for (ParquetTieredMergePolicy.ParquetFileInfo file : mergeGroup) {
                     Path path = Path.of(file.getSegmentName());
                     files.add(new FileMetadata(path.getParent().toString(), path.getFileName().toString()));

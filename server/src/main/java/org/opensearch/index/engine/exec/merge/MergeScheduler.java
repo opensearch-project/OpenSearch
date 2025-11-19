@@ -81,7 +81,9 @@ public class MergeScheduler {
     }
 
     public void forceMerge(int maxNumSegment) throws IOException {
-        // TODO: Add validation for background merge before executing force merge
+        if(mergeThreads.size() > 0) {
+            throw new IllegalStateException("Cannot force merge while background merges are active");
+        }
         Collection<OneMerge> oneMerges = mergeHandler.findForceMerges(maxNumSegment);
 
         for(OneMerge oneMerge : oneMerges) {

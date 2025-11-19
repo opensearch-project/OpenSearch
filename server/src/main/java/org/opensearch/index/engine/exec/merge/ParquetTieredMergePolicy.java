@@ -22,14 +22,15 @@ import java.nio.file.Paths;
 import java.util.*;
 
 public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
-    private final TieredMergePolicy luceneMergePolicy;
+    private final MergePolicy luceneMergePolicy;
     private final InfoStream infoStream;
 
     private static final HashSet<SegmentCommitInfo> mergingSegments = new HashSet<>();
     private static final Set<String> mergingFileNames = new HashSet<>();
 
-    public ParquetTieredMergePolicy() {
-        this.luceneMergePolicy = new TieredMergePolicy();
+    public ParquetTieredMergePolicy(MergePolicy mergePolicy) {
+        this.luceneMergePolicy = mergePolicy;
+        System.out.println("Merge Policy : " + mergePolicy);
         this.infoStream = new InfoStream() {
             @Override
             public void message(String s, String s1) {
@@ -153,15 +154,6 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
         return Collections.unmodifiableSet(mergingSegments);
     }
 
-    // Configuration methods
-    public void setMaxMergedSegmentMB(double mb) {
-        luceneMergePolicy.setMaxMergedSegmentMB(mb);
-    }
-
-    public void setSegmentsPerTier(double segments) {
-        luceneMergePolicy.setSegmentsPerTier(segments);
-    }
-
     public synchronized void addMergingSegment(Collection<FileMetadata> files) {
         try {
             for (FileMetadata fileMetadata : files) {
@@ -189,15 +181,6 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
             throw new RuntimeException(e);
         }
     }
-
-    public void setMaxMergeAtOnce(int count) {
-        luceneMergePolicy.setMaxMergeAtOnce(count);
-    }
-
-    public void setFloorSegmentMB(double mb) {
-        luceneMergePolicy.setFloorSegmentMB(mb);
-    }
-
 
     public static class ParquetFileInfo {
         private final Path path;
