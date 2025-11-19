@@ -23,7 +23,7 @@ public final class NativeBridge {
     private NativeBridge() {}
 
     // Runtime management
-    public static native long createGlobalRuntime(long limit);
+    public static native long createGlobalRuntime(long limit, long cacheManagerPtr);
     public static native void closeGlobalRuntime(long ptr);
 
     // Query execution
@@ -34,6 +34,21 @@ public final class NativeBridge {
     public static native void streamNext(long runtime, long stream, ObjectResultCallback callback);
     public static native void streamGetSchema(long stream, ObjectResultCallback callback);
     public static native void streamClose(long stream);
+
+    // Cache management
+    public static native long createCustomCacheManager();
+    public static native long createCache(long cacheManagerPointer, String cacheType, long sizeLimit, String evictionType);
+    public static native void cacheManagerAddFiles(long cacheManagerPointer, String[] filePaths);
+    public static native void cacheManagerRemoveFiles(long cacheManagerPointer, String[] filePaths);
+    public static native boolean cacheManagerUpdateSizeLimitForCacheType(long cacheManagerPointer, String cacheType, long sizeLimit);
+    public static native long cacheManagerGetMemoryConsumedForCacheType(long cacheManagerPointer, String cacheType);
+    public static native long cacheManagerGetTotalMemoryConsumed(long cacheManagerPointer);
+    public static native void cacheManagerClearByCacheType(long cacheManagerPointer, String cacheType);
+    public static native void cacheManagerClear(long cacheManagerPointer);
+    public static native void destroyCustomCacheManager(long cacheManagerPointer);
+    // For testing-purposes only
+    public static native boolean cacheManagerGetItemByCacheType(long cacheManagerPointer, String cacheType, String filePath);
+
 
     // Reader management
     public static native long createDatafusionReader(String path, String[] files);

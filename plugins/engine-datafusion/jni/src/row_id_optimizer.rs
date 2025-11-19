@@ -21,13 +21,9 @@ use datafusion::{
     },
     error::DataFusionError,
     logical_expr::Operator,
-    parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder,
-    physical_expr::{
-        expressions::{BinaryExpr, Column},
-        PhysicalExpr,
-    },
+    physical_expr::{PhysicalExpr, expressions::{BinaryExpr, Column}},
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{filter::FilterExec, projection::ProjectionExec, ExecutionPlan},
+    physical_plan::{ExecutionPlan, filter::FilterExec, projection::{ProjectionExec, ProjectionExpr}},
 };
 
 #[derive(Debug)]
@@ -190,17 +186,10 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
                         .index_of("___row_id")
                         .is_ok())
                     {
-                        projection_exprs.push((
-                            Arc::new(Column::new(
-                                "___row_id",
-                                projection_exec
-                                    .input()
-                                    .schema()
-                                    .index_of("___row_id")
-                                    .unwrap(),
-                            )),
-                            "___row_id".to_string(),
-                        ));
+                      if projection_exec.input().schema().index_of("___row_id").is_ok() {
+                        let row_id_col: Arc<dyn PhysicalExpr> = Arc::new(Column::new("___row_id", projection_exec.input().schema().index_of("___row_id").unwrap()));
+                        projection_exprs.push(ProjectionExpr::new(row_id_col, "___row_id".to_string()));
+                    }
                     }
 
                     let projection =

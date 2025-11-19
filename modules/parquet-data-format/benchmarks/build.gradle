@@ -20,6 +20,7 @@ base {
 }
 
 test.enabled = false
+javadoc.enabled = false
 
 dependencies {
   // Dependency on parent parquet-data-format module

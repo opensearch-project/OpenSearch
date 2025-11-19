@@ -21,6 +21,7 @@ import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.Writer;
 import org.opensearch.index.engine.exec.coord.Any;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeDataFormatWriterPool;
 import org.opensearch.index.engine.exec.text.TextEngine;
 import org.opensearch.index.mapper.MapperService;
@@ -107,24 +108,29 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     @Override
     public RefreshResult refresh(RefreshInput ignore) throws IOException {
         RefreshResult finalResult;
-        Map<DataFormat, RefreshInput> refreshInputs = new HashMap<>();
         try {
             List<CompositeDataFormatWriter> dataFormatWriters = dataFormatWriterPool.checkoutAll();
-
+            List<CatalogSnapshot.Segment> refreshedSegment = ignore.getExistingSegments();
             // flush to disk
             for (CompositeDataFormatWriter dataFormatWriter : dataFormatWriters) {
+                CatalogSnapshot.Segment newSegment = new CatalogSnapshot.Segment(0);
                 FileInfos fileInfos = dataFormatWriter.flush(null);
                 fileInfos.getWriterFilesMap()
-                    .forEach((key, value) -> refreshInputs.computeIfAbsent(key, dataFormat -> new RefreshInput()).add(value));
+                    .forEach((key, value) -> {
+                        newSegment.addSearchableFiles(key.name(), value);
+                    });
                 dataFormatWriter.close();
+                refreshedSegment.add(newSegment);
             }
 
-            if (refreshInputs.isEmpty()) {
-                return null;
+            // call refresh for delegats
+            for (IndexingExecutionEngine<?> delegate : delegates) {
+                delegate.refresh(new RefreshInput());
             }
 
             // make indexing engines aware of everything
-            finalResult = refresh(refreshInputs);
+            finalResult = new RefreshResult();
+            finalResult.setRefreshedSegments(refreshedSegment);
 
             // provide a view to the upper layer
             return finalResult;
@@ -136,20 +142,6 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     @Override
     public Merger getMerger() {
         throw new UnsupportedOperationException("Merger for Composite Engine is not used");
-    }
-
-    public RefreshResult refresh(Map<DataFormat, RefreshInput> refreshInputs) throws IOException {
-        RefreshResult finalResult = new RefreshResult();
-
-        // make indexing engines aware of everything
-        for (IndexingExecutionEngine<?> delegate : delegates) {
-            RefreshInput refreshInput = refreshInputs.get(delegate.getDataFormat());
-            if (refreshInput != null) {
-                RefreshResult result = delegate.refresh(refreshInput);
-                finalResult.add(delegate.getDataFormat(), result.getRefreshedFiles(delegate.getDataFormat()));
-            }
-        }
-        return finalResult;
     }
 
     public List<IndexingExecutionEngine<?>> getDelegates() {

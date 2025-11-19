@@ -39,74 +39,70 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
     public static final String LAST_COMPOSITE_WRITER_GEN_KEY = "_last_composite_writer_gen_";
     private final long id;
     private long lastWriterGeneration;
-    private final Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles;
+    private final Map<String, List<WriterFileSet>> dfGroupedSearchableFiles;
+    private List<Segment> segmentList;
     private Supplier<IndexFileDeleter> indexFileDeleterSupplier;
     private Map<Long, CatalogSnapshot> catalogSnapshotMap;
 
-    public CatalogSnapshot(RefreshResult refreshResult, long id, Map<Long, CatalogSnapshot> catalogSnapshotMap, Supplier<IndexFileDeleter> indexFileDeleterSupplier) {
+    public CatalogSnapshot(long id, List<Segment> segmentList, Map<Long, CatalogSnapshot> catalogSnapshotMap, Supplier<IndexFileDeleter> indexFileDeleterSupplier) {
         super("catalog_snapshot_" + id);
         this.id = id;
+        this.segmentList = segmentList;
         this.dfGroupedSearchableFiles = new HashMap<>();
         this.lastWriterGeneration = -1;
-        refreshResult.getRefreshedFiles().forEach((dataFormat, writerFiles) -> {
-            dfGroupedSearchableFiles.put(dataFormat.name(), writerFiles);
-            writerFiles.stream().mapToLong(WriterFileSet::getWriterGeneration).max().ifPresent(value -> this.lastWriterGeneration = value);
-        });
+
+        segmentList.forEach(segment -> segment.getDFGroupedSearchableFiles().forEach((dataFormat, writerFiles) -> {
+            dfGroupedSearchableFiles.computeIfAbsent(dataFormat, k -> new ArrayList<>()).add(writerFiles);
+            this.lastWriterGeneration = Math.max(this.lastWriterGeneration, writerFiles.getWriterGeneration());
+        }));
         this.catalogSnapshotMap = catalogSnapshotMap;
         this.indexFileDeleterSupplier = indexFileDeleterSupplier;
         // Whenever a new CatalogSnapshot is created add its files to the IndexFileDeleter
         indexFileDeleterSupplier.get().addFileReferences(this);
     }
 
-    private CatalogSnapshot(long id, Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles) {
-        super("catalog_snapshot");
-        this.id = id;
-        this.dfGroupedSearchableFiles = dfGroupedSearchableFiles;
-    }
-
     public CatalogSnapshot(StreamInput in) throws IOException {
         super("catalog_snapshot");
         this.id = in.readLong();
         this.lastWriterGeneration = in.readLong();
-        this.dfGroupedSearchableFiles = new HashMap<>();
 
-        int mapSize = in.readVInt();
-        for (int i = 0; i < mapSize; i++) {
-            String dataFormat = in.readString();
-            int fileSetCount = in.readVInt();
-            List<WriterFileSet> fileSets = new ArrayList<>(fileSetCount);
-            for (int j = 0; j < fileSetCount; j++) {
-                fileSets.add(new WriterFileSet(in));
-            }
-            dfGroupedSearchableFiles.put(dataFormat, fileSets);
+        int segmentCount = in.readVInt();
+        this.segmentList = new ArrayList<>(segmentCount);
+        for (int i = 0; i < segmentCount; i++) {
+            segmentList.add(new Segment(in));
         }
+
+        // Rebuild dfGroupedSearchableFiles from segmentList
+        this.dfGroupedSearchableFiles = new HashMap<>();
+        segmentList.forEach(segment -> segment.getDFGroupedSearchableFiles().forEach((dataFormat, writerFiles) -> {
+            dfGroupedSearchableFiles.computeIfAbsent(dataFormat, k -> new ArrayList<>()).add(writerFiles);
+        }));
     }
 
     public CatalogSnapshot remapPaths(Path newShardDataPath) {
-        Map<String, Collection<WriterFileSet>> remappedFiles = new HashMap<>();
-        for (Map.Entry<String, Collection<WriterFileSet>> entry : dfGroupedSearchableFiles.entrySet()) {
-            String dataFormat = entry.getKey();
-            List<WriterFileSet> remappedFileSets = new ArrayList<>();
-            for (WriterFileSet fileSet : entry.getValue()) {
-                // Create new WriterFileSet with updated directory and file paths
-                WriterFileSet remappedFileSet = fileSet.withDirectory(newShardDataPath.toString());
-                remappedFileSets.add(remappedFileSet);
+        List<Segment> remappedSegments = new ArrayList<>();
+        for (Segment segment : segmentList) {
+            Segment remappedSegment = new Segment(segment.getGeneration());
+            for (Map.Entry<String, WriterFileSet> entry : segment.getDFGroupedSearchableFiles().entrySet()) {
+                String dataFormat = entry.getKey();
+                WriterFileSet originalFileSet = entry.getValue();
+                WriterFileSet remappedFileSet = originalFileSet.withDirectory(newShardDataPath.toString());
+                remappedSegment.addSearchableFiles(dataFormat, remappedFileSet);
             }
-            remappedFiles.put(dataFormat, remappedFileSets);
+            remappedSegments.add(remappedSegment);
         }
-        return new CatalogSnapshot(this.id, remappedFiles);
+        return new CatalogSnapshot(this.id, remappedSegments, this.catalogSnapshotMap, this.indexFileDeleterSupplier);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
         out.writeLong(lastWriterGeneration);
-        out.writeVInt(dfGroupedSearchableFiles.size());
-        for (Map.Entry<String, Collection<WriterFileSet>> entry : dfGroupedSearchableFiles.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().size());
-            for (WriterFileSet fileSet : entry.getValue()) {
-                fileSet.writeTo(out);
+
+        out.writeVInt(segmentList != null ? segmentList.size() : 0);
+        if (segmentList != null) {
+            for (Segment segment : segmentList) {
+                segment.writeTo(out);
             }
         }
     }
@@ -132,13 +128,8 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
         return Collections.emptyList();
     }
 
-    public Collection<Segment> getSegments() {
-        Map<Long, Segment> segmentMap = new HashMap<>();
-        dfGroupedSearchableFiles.forEach((dataFormat, writerFileSets) -> writerFileSets.forEach(writerFileSet -> {
-            Segment segment = segmentMap.computeIfAbsent(writerFileSet.getWriterGeneration(), Segment::new);
-            segment.addSearchableFiles(dataFormat, writerFileSet);
-        }));
-        return Collections.unmodifiableCollection(segmentMap.values());
+    public List<Segment> getSegments() {
+        return segmentList;
     }
 
     @Override
@@ -172,10 +163,10 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     @Override
     public String toString() {
-        return "CatalogSnapshot{" + "id=" + id + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + '}';
+        return "CatalogSnapshot{" + "id=" + id + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + ", List of Segment= " + segmentList + '}';
     }
 
-    public static class Segment implements Serializable {
+    public static class Segment implements Serializable, Writeable {
 
         private final long generation;
         private final Map<String, WriterFileSet> dfGroupedSearchableFiles;
@@ -185,8 +176,23 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
             this.generation = generation;
         }
 
+        public Segment(StreamInput in) throws IOException {
+            this.generation = in.readLong();
+            this.dfGroupedSearchableFiles = new HashMap<>();
+            int mapSize = in.readVInt();
+            for (int i = 0; i < mapSize; i++) {
+                String dataFormat = in.readString();
+                WriterFileSet writerFileSet = new WriterFileSet(in);
+                dfGroupedSearchableFiles.put(dataFormat, writerFileSet);
+            }
+        }
+
         public void addSearchableFiles(String dataFormat, WriterFileSet writerFileSetGroup) {
             dfGroupedSearchableFiles.put(dataFormat, writerFileSetGroup);
+        }
+
+        public Map<String, WriterFileSet> getDFGroupedSearchableFiles() {
+            return dfGroupedSearchableFiles;
         }
 
         public Collection<FileMetadata> getSearchableFiles(String df) {
@@ -200,6 +206,16 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
         public long getGeneration() {
             return generation;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(generation);
+            out.writeVInt(dfGroupedSearchableFiles.size());
+            for (Map.Entry<String, WriterFileSet> entry : dfGroupedSearchableFiles.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
         }
 
         @Override

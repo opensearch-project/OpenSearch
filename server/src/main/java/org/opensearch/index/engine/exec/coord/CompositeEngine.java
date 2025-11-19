@@ -140,7 +140,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private final TranslogManager translogManager;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
-    private CatalogSnapshot catalogSnapshot;
     private final List<CatalogSnapshotAwareRefreshListener> catalogSnapshotAwareRefreshListeners = new ArrayList<>();
     private final Map<org.opensearch.vectorized.execution.search.DataFormat, List<SearchExecEngine<?, ?, ?, ?>>> readEngines =
         new HashMap<>();
@@ -188,7 +187,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
     private final IndexingStrategyPlanner indexingStrategyPlanner;
     private final AtomicReference<IndexFileDeleter> indexFileDeleter;
-    private final Map<Long, CatalogSnapshot> catalogSnapshotMap;
+    private final CatalogSnapshotManager catalogSnapshotManager;
 
     public CompositeEngine(
         EngineConfig engineConfig,
@@ -205,7 +204,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         Committer committerRef = null;
         TranslogManager translogManagerRef = null;
         indexFileDeleter = new AtomicReference<>(null);
-        catalogSnapshotMap = new HashMap<>();
         try {
             this.engineConfig = engineConfig;
             this.store.incRef();
@@ -253,14 +251,14 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             committerRef = new LuceneCommitEngine(store, translogDeletionPolicy, translogManager::getLastSyncedGlobalCheckpoint);
             this.compositeEngineCommitter = committerRef;
             final AtomicLong lastCommittedWriterGeneration = new AtomicLong(-1);
+            AtomicReference<CatalogSnapshot> lastCommitedSnapshot = new AtomicReference<>();
             this.compositeEngineCommitter.readLastCommittedCatalogSnapshot().ifPresent(lastCommittedCatalogSnapshot -> {
-                this.catalogSnapshot = lastCommittedCatalogSnapshot;
+                lastCommitedSnapshot.set(lastCommittedCatalogSnapshot);
                 // Since the catalog snapshot is created from last commit, deleter and map are not available, so we explicitly set them
-                catalogSnapshot.setIndexFileDeleterSupplier(indexFileDeleter::get);
-                catalogSnapshot.setCatalogSnapshotMap(catalogSnapshotMap);
-                this.catalogSnapshot.remapPaths(shardPath.getDataPath());
+                lastCommitedSnapshot.get().setIndexFileDeleterSupplier(indexFileDeleter::get);
+//                TODO: Enable again
+//                lastCommitedSnapshot.get().remapPaths(shardPath.getDataPath());
                 lastCommittedWriterGeneration.set(lastCommittedCatalogSnapshot.getLastWriterGeneration());
-                catalogSnapshotMap.put(catalogSnapshot.getId(), catalogSnapshot);
             });
             // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
             this.engine = new CompositeIndexingExecutionEngine(
@@ -270,8 +268,10 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 lastCommittedWriterGeneration.incrementAndGet()
             );
             //Initialize IndexFileDeleter before loadWriterFiles to ensure stale files are cleaned up before loading
-            indexFileDeleter.set(new IndexFileDeleter(this.engine, catalogSnapshot, shardPath));
+            indexFileDeleter.set(new IndexFileDeleter(this.engine, lastCommitedSnapshot.get(), shardPath));
             System.out.println("IndexFile Deleter after initialising : " + indexFileDeleter);
+
+            this.catalogSnapshotManager = new CatalogSnapshotManager(committerRef, lastCommitedSnapshot.get(), indexFileDeleter);
             this.engine.loadWriterFiles();
 
             this.maxSeqNoOfUpdatesOrDeletes =
@@ -322,7 +322,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                     }
                 }
             }
-            catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.accept(catalogSnapshot,
+            catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.accept(lastCommitedSnapshot.get(),
                 refreshListener
             ));
             success = true;
@@ -676,80 +676,34 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     }
 
     public synchronized void refresh(String source) throws EngineException {
-        refresh(source, Collections.emptyMap());
-    }
-
-    public synchronized void refresh(String source, Map<DataFormat, RefreshInput> refreshInputs) throws EngineException {
-        refreshListeners.forEach(PRE_REFRESH_LISTENER_CONSUMER);
-
-        long id = 0L;
-        if (catalogSnapshot != null) {
-            id = catalogSnapshot.getId();
-        }
-        CatalogSnapshot newCatSnap;
-        try {
-            RefreshResult refreshResult;
-            if (source.equals("merge")) {
-                refreshResult = engine.refresh(refreshInputs);
-            } else {
-                refreshResult = engine.refresh(new RefreshInput());
-                if (refreshResult == null) {
-                    return;
-                }
+        try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()){
+            refreshListeners.forEach(PRE_REFRESH_LISTENER_CONSUMER);
+            RefreshInput refreshInput = new RefreshInput();
+            refreshInput.setExistingSegments(catalogSnapshotReleasableRef.getRef().getSegments());
+            RefreshResult refreshResult = engine.refresh(refreshInput);
+            if (refreshResult == null) {
+                return;
             }
-            newCatSnap = new CatalogSnapshot(refreshResult, id + 1L, catalogSnapshotMap, indexFileDeleter::get);
-            catalogSnapshotMap.put(newCatSnap.getId(), newCatSnap);
-            System.out.println("CATALOG SNAPSHOT: " + newCatSnap);
-        } catch (IOException ex) {
+
+            CatalogSnapshot newCatalogSnapshot = catalogSnapshotManager.applyRefreshResult(refreshResult);
+            System.out.println("CATALOG SNAPSHOT: " + newCatalogSnapshot);
+
+            catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.accept(newCatalogSnapshot,
+                refreshListener
+            ));
+            refreshListeners.forEach(POST_REFRESH_LISTENER_CONSUMER);
+
+            // trigger merges
+            triggerPossibleMerges();
+        } catch (Exception ex) {
+            ex.printStackTrace();
             throw new RuntimeException(ex);
         }
-        if (catalogSnapshot != null) {
-            catalogSnapshot.decRef();
-        }
-        catalogSnapshot = newCatSnap;
-        compositeEngineCommitter.addLuceneIndexes(catalogSnapshot);
-        catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.accept(catalogSnapshot,
-            refreshListener
-        ));
-        refreshListeners.forEach(POST_REFRESH_LISTENER_CONSUMER);
-
-        System.out.println("IndexFile Deleter after REFRESH : " + indexFileDeleter);
-
-        // trigger merges
-        if(!source.equals("merge")) {
-            triggerPossibleMerges();
-        }
     }
 
-    public void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
-        Map<DataFormat, RefreshInput> refreshInputs = new HashMap<>();
-
-        Map<DataFormat, Collection<FileMetadata>> mergedFileMetadata = mergeResult.getMergedFileMetadata();
-        for (DataFormat dataFormat : mergedFileMetadata.keySet()) {
-            Collection<FileMetadata> mergedFiles = mergedFileMetadata.get(dataFormat);
-            RefreshInput refreshInput = new RefreshInput();
-
-            mergedFiles.forEach(mergedFile -> {
-                WriterFileSet writerFileSet = WriterFileSet.builder()
-                    .directory(Path.of(mergedFile.directory()))
-                    .writerGeneration(0)
-                    .addFile(mergedFile.file())
-                    .build();
-                refreshInput.add(writerFileSet);
-            });
-
-            oneMerge.getFilesToMerge().forEach(fileToMerge -> {
-                WriterFileSet writerFileSet = WriterFileSet.builder()
-                    .directory(Path.of(fileToMerge.directory()))
-                    .writerGeneration(0)
-                    .addFile(fileToMerge.file())
-                    .build();
-                refreshInput.addFilesToRemove(writerFileSet);
-            });
-
-            refreshInputs.put(dataFormat, refreshInput);
-        }
-        refresh("merge", refreshInputs);
+    public synchronized void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
+        CatalogSnapshot newCatalogSnapshot = this.catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
+        System.out.println("CATALOG SNAPSHOT: " + newCatalogSnapshot);
     }
 
     public void triggerPossibleMerges() {
@@ -765,14 +719,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     // this now becomes equivalent of the reader
     // Each search side specific impl can decide on how to init specific reader instances using this pit snapshot provided by writers
     public ReleasableRef<CatalogSnapshot> acquireSnapshot() {
-        final CatalogSnapshot snapshot = catalogSnapshot;
-        snapshot.incRef();
-        return new ReleasableRef<>(snapshot) {
-            @Override
-            public void close() {
-                snapshot.decRef();
-            }
-        };
+        return this.catalogSnapshotManager.acquireSnapshot();
     }
 
     @ExperimentalApi
@@ -871,10 +818,10 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 boolean shouldFlush = true;
                 if (shouldFlush) {
                     // TODO - translogManager.ensureCanFlush();
-                    try {
+                    try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()) {
                         translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
-                        final CatalogSnapshot catalogSnapshotToFlush = catalogSnapshot;
+                        final CatalogSnapshot catalogSnapshotToFlush = catalogSnapshotReleasableRef.getRef();
                         final Optional<CatalogSnapshot> previousCatalogSnapshot = compositeEngineCommitter.readLastCommittedCatalogSnapshot();
                         long previousCatalogSnapshotId = previousCatalogSnapshot.map(CatalogSnapshot::getId).orElse(-1L);
                         if (catalogSnapshotToFlush != null) {
@@ -899,7 +846,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                             );
                             // Once commit is successful, decRef the CatalogSnapshot of the older commit
                             if (previousCatalogSnapshotId != -1) {
-                                CatalogSnapshot prevCatSnap = catalogSnapshotMap.get(previousCatalogSnapshotId);
+                                CatalogSnapshot prevCatSnap = catalogSnapshotManager.getCatalogSnapshotFromId(previousCatalogSnapshotId);
                                 if (prevCatSnap != null)
                                     prevCatSnap.decRef();
                             }

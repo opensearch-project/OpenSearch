@@ -21,6 +21,7 @@ arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
 arrow-buffer = { workspace = true }
 
+
 # JNI dependencies
 jni = { workspace = true }
 
@@ -46,6 +47,7 @@ thiserror = { workspace = true }
 log ={ workspace = true }
 # Parquet support
 parquet = { workspace = true }
+
 
 # Object store for file access
 object_store = { workspace = true }

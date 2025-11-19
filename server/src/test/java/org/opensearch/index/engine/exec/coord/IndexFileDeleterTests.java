@@ -53,21 +53,21 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId(new Index("test", "test-uuid"), 0);
         Path shardDir = tempDir.resolve("test-uuid").resolve("0");
         shardPath = new ShardPath(false, shardDir, shardDir, shardId);
-        
+
         mockEngine = mock(CompositeIndexingExecutionEngine.class);
         catalogSnapshotId = new AtomicLong(0);
         lastCommittedSnapshotId = new AtomicLong(0);
         catalogSnapshotMap = new HashMap<>();
         deletedFiles = new HashSet<>();
 
-        
+
         // Mock engine deleteFiles to track deleted files
         doAnswer(invocation -> {
             Map<String, Collection<String>> filesToDelete = invocation.getArgument(0);
             filesToDelete.values().forEach(deletedFiles::addAll);
             return null;
         }).when(mockEngine).deleteFiles(any());
-        
+
         catalogSnapshot = null;
         indexFileDeleter = new IndexFileDeleter(mockEngine, null, shardPath);
     }
@@ -89,7 +89,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
     public void testRefreshCreatesNewSnapshotAndAddsReferences() {
         // Simulate refresh creating new snapshot
         simulateRefresh(Map.of("parquet", createWriterFileSet("dir1", "file1.parquet")));
-        
+
         assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").size());
         assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file1.parquet").get());
     }
@@ -97,7 +97,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
     public void testMultipleSnapshotsWithOverlappingFiles() {
         // First refresh
         simulateRefresh(Map.of("parquet", createWriterFileSet("dir1", "file1.parquet", "file2.parquet")));
-        
+
         // Second refresh with overlapping files
         simulateRefresh(Map.of("parquet", createWriterFileSet("dir1", "file2.parquet", "file3.parquet")));
 
@@ -152,23 +152,23 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
 
 
     private void simulateRefresh(Map<String, List<WriterFileSet>> files) {
-        // Create RefreshResult
-        RefreshResult refreshResult = mock(RefreshResult.class);
-        Map<DataFormat, List<WriterFileSet>> refreshedFiles = new HashMap<>();
-        
+        // Create RefreshResult with segments
+        RefreshResult refreshResult = new RefreshResult();
+        CatalogSnapshot.Segment segment = new CatalogSnapshot.Segment(catalogSnapshotId.get() + 1);
+
         files.forEach((formatName, fileSets) -> {
-            DataFormat dataFormat = mock(DataFormat.class);
-            when(dataFormat.name()).thenReturn(formatName);
-            refreshedFiles.put(dataFormat, fileSets);
+            fileSets.forEach(fileSet -> {
+                segment.addSearchableFiles(formatName, fileSet);
+            });
         });
-        
-        when(refreshResult.getRefreshedFiles()).thenReturn(refreshedFiles);
+
+        refreshResult.setRefreshedSegments(List.of(segment));
 
         CatalogSnapshot prevSnap = catalogSnapshot;
 
         // Create new snapshot
         long id = catalogSnapshotId.incrementAndGet();
-        catalogSnapshot = new CatalogSnapshot(refreshResult, id, catalogSnapshotMap, () -> indexFileDeleter);
+        catalogSnapshot = new CatalogSnapshot(id, List.of(segment), catalogSnapshotMap, () -> indexFileDeleter);
         catalogSnapshotMap.put(id, catalogSnapshot);
 
         // Release previous snapshot if exists
@@ -201,11 +201,11 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         WriterFileSet.Builder builder = WriterFileSet.builder()
             .directory(Path.of(directory))
             .writerGeneration(1L);
-        
+
         for (String file : files) {
             builder.addFile(file);
         }
-        
+
         return Collections.singletonList(builder.build());
     }
 }

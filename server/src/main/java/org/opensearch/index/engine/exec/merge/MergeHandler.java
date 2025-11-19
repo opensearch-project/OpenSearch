@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec.merge;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.Merger;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
 import org.opensearch.index.engine.exec.coord.Any;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -127,15 +128,14 @@ public abstract class MergeHandler {
 
     public MergeResult doMerge(OneMerge oneMerge) {
 
-        Map<DataFormat, Collection<FileMetadata>> mergedFiles = new HashMap<>();
+        Map<DataFormat, WriterFileSet> mergedWriterFileSet = new HashMap<>();
         try(CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot = compositeEngine.acquireSnapshot()) {
 
             Collection<FileMetadata> filesToMerge = getFilesToMerge(oneMerge, compositeDataFormat.getPrimaryDataFormat(), catalogSnapshot.getRef());
 
             // Merging primary data format
             MergeResult primaryMergeResult = dataFormatMergerMap.get(compositeDataFormat.getPrimaryDataFormat()).merge(filesToMerge);
-            mergedFiles.put(compositeDataFormat.getPrimaryDataFormat(), primaryMergeResult.getMergedFileMetadata().get(compositeDataFormat.getPrimaryDataFormat()));
-
+            mergedWriterFileSet.put(compositeDataFormat.getPrimaryDataFormat(), primaryMergeResult.getMergedWriterFileSetForDataformat(compositeDataFormat.getPrimaryDataFormat()));
             // Merging other format as per the old segment + row id -> new row id mapping.
             compositeIndexingExecutionEngine.getDelegates().stream()
                     .filter(engine -> !engine.getDataFormat().equals(compositeDataFormat.getPrimaryDataFormat()))
@@ -143,9 +143,9 @@ public abstract class MergeHandler {
                         DataFormat dataFormat = indexingExecutionEngine.getDataFormat();
                         Collection<FileMetadata> files = getFilesToMerge(oneMerge, dataFormat, catalogSnapshot.getRef());
                         MergeResult secondaryMergeResult = dataFormatMergerMap.get(dataFormat).merge(files, primaryMergeResult.getRowIdMapping());
-                        mergedFiles.put(dataFormat, secondaryMergeResult.getMergedFileMetadata().get(dataFormat));
+                        mergedWriterFileSet.put(dataFormat, secondaryMergeResult.getMergedWriterFileSetForDataformat(dataFormat));
                     });
-            return new MergeResult(primaryMergeResult.getRowIdMapping(), mergedFiles);
+            return new MergeResult(primaryMergeResult.getRowIdMapping(), mergedWriterFileSet);
 
         } catch (Exception e) {
             throw new RuntimeException(e);

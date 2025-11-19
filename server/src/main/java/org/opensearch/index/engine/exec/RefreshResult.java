@@ -8,29 +8,24 @@
 
 package org.opensearch.index.engine.exec;
 
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class RefreshResult {
 
-    private final Map<DataFormat, List<WriterFileSet>> refreshedFiles;
+    private List<CatalogSnapshot.Segment> refreshedSegments;
 
     public RefreshResult() {
-        this.refreshedFiles = new HashMap<>();
+        this.refreshedSegments = new ArrayList<>();
     }
 
-    public void add(DataFormat df, List<WriterFileSet> writerFiles) {
-        writerFiles.forEach(writerFileSet -> refreshedFiles.computeIfAbsent(df, dataFormat -> new ArrayList<>()).add(writerFileSet));
+    public List<CatalogSnapshot.Segment> getRefreshedSegments() {
+        return refreshedSegments;
     }
 
-    public List<WriterFileSet> getRefreshedFiles(DataFormat dataFormat) {
-        return Collections.unmodifiableList(refreshedFiles.get(dataFormat));
-    }
-
-    public Map<DataFormat, List<WriterFileSet>> getRefreshedFiles() {
-        return Map.copyOf(refreshedFiles);
+    public void setRefreshedSegments(List<CatalogSnapshot.Segment> refreshedSegments) {
+        this.refreshedSegments = refreshedSegments;
     }
 }
