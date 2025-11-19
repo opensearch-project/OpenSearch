@@ -10,20 +10,17 @@ package org.opensearch.search.query;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.ShardResultConvertor;
-import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.aggregations.metrics.InternalValueCount;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -70,43 +67,27 @@ public class SearchEngineResultConversionUtils {
         }
     }
 
-    public static boolean hasValueCountAggregator(Collection<AggregationBuilder> aggregationBuilders) {
-        boolean hasValueCountAggregator = false;
-        for (AggregationBuilder aggregationBuilder : aggregationBuilders) {
-            if (aggregationBuilder instanceof ValueCountAggregationBuilder) {
-                return true;
-            } else {
-                hasValueCountAggregator |= aggregationBuilder.getSubAggregations().isEmpty() == false && hasValueCountAggregator(aggregationBuilder.getSubAggregations());
-            }
-        }
-        return hasValueCountAggregator;
-    }
-
-    public static String getNonMetadataFieldName(SearchContext searchContext) {
-        for (MappedFieldType mappedFieldType : searchContext.mapperService().fieldTypes()) {
-            if (searchContext.mapperService().isMetadataField(mappedFieldType.name()) == false) {
-                return mappedFieldType.name();
-            }
-        }
-        throw new IllegalStateException("Found no fields other than metadata in index " + searchContext.mapperService().index().getName());
-    }
-
-    public static void addValueCountIfAbsent(SearchContext searchContext, SearchSourceBuilder sourceBuilder) {
-        if (sourceBuilder.aggregations() != null) {
-            // There can be 2 cases :
-            // <1> There is only one aggregator with sub-aggregators ( Terms, MultiTerms, DateHistogram and Composite ) ( Group By )
-            // <2> There are individual metric aggregators present ( Non Group By )
-            Collection<AggregationBuilder> aggregationBuilders = sourceBuilder.aggregations().getAggregatorFactories();
-            String fieldName = getNonMetadataFieldName(searchContext);
-            if (aggregationBuilders.size() == 1) {
-                if (hasValueCountAggregator(aggregationBuilders) == false) {
-                    AggregationBuilder aggregationBuilder = aggregationBuilders.stream().findFirst().get();
-                    aggregationBuilder.subAggregation(new ValueCountAggregationBuilder(INJECTED_COUNT_AGG_NAME).field(fieldName));
+    public static Tuple<List<InternalAggregation>, Long> extractSubAggsAndDocCount(Aggregator[] subAggregators, SearchContext searchContext, Map<String, Object[]> shardResult, int row) {
+        List<InternalAggregation> subAggs = new ArrayList<>();
+        long docCount = -1;
+        for (Aggregator aggregator : subAggregators) {
+            if (aggregator instanceof ShardResultConvertor convertor) {
+                InternalAggregation subAgg = convertor.convertRow(shardResult, row, searchContext);
+                if (aggregator instanceof ValueCountAggregator) {
+                    docCount = ((InternalValueCount) subAgg).getValue();
                 }
-            } else {
-                sourceBuilder.aggregations().addAggregator(new ValueCountAggregationBuilder(INJECTED_COUNT_AGG_NAME).field(fieldName));
+                subAggs.add(subAgg);
             }
         }
+        if (docCount == -1) {
+            Object[] values = shardResult.get(INJECTED_COUNT_AGG_NAME);
+            if (values != null) {
+                docCount = ((Number) values[row]).longValue();
+            } else {
+                throw new IllegalStateException(String.format("Unable to populate doc count from shard result [%s]", shardResult.keySet()));
+            }
+        }
+        return new Tuple<>(subAggs, docCount);
     }
 
 }

@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -48,6 +49,7 @@ import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.query.SearchEngineResultConversionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -123,22 +125,11 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator implements 
         List<StringTerms.Bucket> buckets = new ArrayList<>(rowCount);
         for (int row = 0; row < rowCount; row++) {
             String termKey = (String) searchContext.convertToComparable(shardResult.get(name)[row]);
-            List<InternalAggregation> subAggs = new ArrayList<>();
-            long docCount = 1;
-            for (Aggregator aggregator : subAggregators) {
-                if (aggregator instanceof ShardResultConvertor convertor) {
-                    InternalAggregation subAgg = convertor.convertRow(shardResult, row, searchContext);
-                    if (aggregator instanceof ValueCountAggregator) {
-                        docCount = ((InternalValueCount) subAgg).getValue();
-                    }
-                    subAggs.add(subAgg);
-                }
-            }
-
+            Tuple<List<InternalAggregation>, Long> subAggsAndDocCount = SearchEngineResultConversionUtils.extractSubAggsAndDocCount(subAggregators, searchContext, shardResult, row);
             buckets.add(new StringTerms.Bucket(
                 new BytesRef(termKey),
-                docCount,
-                InternalAggregations.from(subAggs),
+                subAggsAndDocCount.v2(),
+                InternalAggregations.from(subAggsAndDocCount.v1()),
                 showTermDocCountError,
                 0,
                 format

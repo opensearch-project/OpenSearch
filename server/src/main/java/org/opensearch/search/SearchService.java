@@ -1310,6 +1310,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
             }
+            // FIXME : We don't need to do both, but commenting the one on Datafusion Context hangs up the JVM need to debug.
             parseSource(context, request.source(), includeAggregations);
             parseSource(context.getOriginalContext(), request.source(), includeAggregations);
 
@@ -1633,11 +1634,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
             try {
-                // If the user has not specified any count agg and there is none in DSL, then add it.
-                if (source.queryPlanIR() != null) {
-                    SearchEngineResultConversionUtils.addValueCountIfAbsent(context, source);
-                    logger.info("Modified DSL to add value count, DSL after modification {}", source);
-                }
                 AggregatorFactories factories = source.aggregations().build(queryShardContext, null);
                 context.aggregations(new SearchContextAggregations(factories, multiBucketConsumerService.create()));
             } catch (IOException e) {
