@@ -534,25 +534,16 @@ public class IngestionEngine extends InternalEngine {
             return;
         }
 
-        try {
-            logger.info("Ingestion source params updated, reinitializing consumer");
+        logger.info("Ingestion source params updated, reinitializing consumer");
 
-            // Get current ingestion source with updated params from index metadata
-            IndexMetadata indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
-            assert indexMetadata != null;
-            IngestionSource updatedIngestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
+        // Get current ingestion source with updated params from index metadata
+        IndexMetadata indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
+        assert indexMetadata != null;
+        IngestionSource updatedIngestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
 
-            // Initialize the factory with updated params
-            ingestionConsumerFactory.initialize(updatedIngestionSource);
-
-            // Request consumer reinitialization in the poller
-            streamPoller.requestConsumerReinitialization();
-
-            logger.info("Successfully processed ingestion source params update");
-        } catch (Exception e) {
-            logger.error("Failed to update ingestion source params", e);
-            throw new OpenSearchException("Failed to update ingestion source params", e);
-        }
+        // Request consumer reinitialization in the poller
+        streamPoller.requestConsumerReinitialization(updatedIngestionSource);
+        logger.info("Successfully processed ingestion source params update");
     }
 
     /**
