@@ -288,6 +288,7 @@ public class MoreTypes {
                     return "? extends " + toString(upperBounds[0]);
                 }
             }
+            case null -> throw new UnsupportedOperationException("Unsupported wildcard type [null]");
             default -> {
                 return type.toString();
             }
@@ -305,7 +306,7 @@ public class MoreTypes {
             case Field ignored -> Field.class;
             case Method ignored -> Method.class;
             case Constructor ignored -> Constructor.class;
-            case null, default -> throw new IllegalArgumentException("Unsupported implementation class for Member, " + member.getClass());
+            default -> throw new IllegalArgumentException("Unsupported implementation class for Member, " + member.getClass());
         };
     }
 
