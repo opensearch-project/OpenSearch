@@ -135,6 +135,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.EngineNotInitializedException;
 import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
@@ -2254,13 +2255,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (compositeEngine != null) {
                     try {
                         wrappedIndexCommit = compositeEngine.acquireSafeIndexCommit();
-                    } catch (IllegalStateException e) {
-                        if (e.getMessage() != null && e.getMessage().contains("not yet initialized")) {
-                            logger.debug("CompositeEngine deletion policy not initialized during peer recovery, falling back to direct store access for shard [{}]", shardId);
-                            wrappedIndexCommit = null;
-                        } else {
-                            throw e;
-                        }
+                    } catch (EngineNotInitializedException e) {
+                        logger.debug("CompositeEngine deletion policy not initialized during peer recovery, falling back to direct store access for shard [{}]", shardId);
+                        wrappedIndexCommit = null;
                     }
                 }
                 if (wrappedIndexCommit == null) {
