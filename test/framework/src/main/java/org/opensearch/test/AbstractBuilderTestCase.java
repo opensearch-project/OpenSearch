@@ -432,7 +432,8 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 mapperRegistry,
                 () -> createShardContext(null),
                 () -> false,
-                null
+                null,
+                null  // pluginsService
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             },

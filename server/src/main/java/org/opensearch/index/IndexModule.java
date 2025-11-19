@@ -936,7 +936,8 @@ public final class IndexModule {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
             () -> false,
-            scriptService
+            scriptService,
+            null  // pluginsService not available in this context
         );
     }
 

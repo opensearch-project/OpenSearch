@@ -33,4 +33,9 @@ public class TextDF implements DataFormat {
     public void configureStore() {
 
     }
+
+    @Override
+    public boolean isDataFormatSupported(String fieldTypeName) {
+        return true;
+    }
 }

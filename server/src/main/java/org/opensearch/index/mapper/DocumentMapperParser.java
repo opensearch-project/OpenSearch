@@ -176,6 +176,7 @@ public class DocumentMapperParser {
         if (mapperService.getIndexSettings().isDerivedSourceEnabled()) {
             documentMapper.root().canDeriveSource();
         }
+        documentMapper.root().checkDataFormat(docBuilder.getBuilderContext());
         return documentMapper;
     }
 

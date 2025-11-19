@@ -91,6 +91,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexValidator;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;

@@ -47,7 +47,10 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.engine.DataFormatPlugin;
+import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.opensearch.plugins.PluginsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,6 +61,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Objects;
 import java.util.Spliterators;
 import java.util.TreeMap;
@@ -218,8 +222,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected MultiFields multiFields;
     protected CopyTo copyTo;
     protected DerivedFieldGenerator derivedFieldGenerator;
+    protected Set<String> dataFormats;
 
     protected FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
+        // Hardcoded to validate all fields against "parquet" data format
+        this(simpleName, fieldType, mappedFieldType, multiFields, copyTo, Collections.singleton("parquet"));
+    }
+
+    protected FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Set<String> dataFormats) {
         super(simpleName);
         if (mappedFieldType.name().isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
@@ -230,6 +240,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
         this.derivedFieldGenerator = derivedFieldGenerator();
+        this.dataFormats = dataFormats;
     }
 
     @Override
@@ -635,6 +646,47 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         if (getDerivedFieldGenerator() == null) {
             throw new UnsupportedOperationException(
                 "Derive source is not supported for field [" + name() + "] with field " + "type [" + fieldType().typeName() + "]"
+            );
+        }
+    }
+
+    @Override
+    public void checkDataFormat(BuilderContext context) {
+        PluginsService pluginsService = context.pluginsService();
+        if (pluginsService == null) {
+            return;
+        }
+
+        if (this.dataFormats == null || this.dataFormats.isEmpty()) {
+            return;
+        }
+
+        Map<String, DataFormat> availableDataFormats = new HashMap<>();
+        for (DataFormatPlugin plugin : pluginsService.filterPlugins(DataFormatPlugin.class)) {
+            DataFormat format = plugin.getDataFormat();
+            availableDataFormats.put(format.name().toLowerCase(), format);
+        }
+
+        String fieldTypeName = this.typeName();
+        List<String> unsupportedFormats = new ArrayList<>();
+
+        for (String formatName : this.dataFormats) {
+            DataFormat dataFormat = availableDataFormats.get(formatName.toLowerCase());
+            if (dataFormat == null) {
+                throw new MapperParsingException(
+                    "Unknown data format '" + formatName + "' specified for field '" + this.name() + "'"
+                );
+            }
+
+            if (!dataFormat.isDataFormatSupported(fieldTypeName)) {
+                unsupportedFormats.add(formatName);
+            }
+        }
+
+        if (!unsupportedFormats.isEmpty()) {
+            throw new MapperParsingException(
+                "Field [" + this.name() + "] of type [" + fieldTypeName +
+                "] is not supported by data format [" + String.join(", ", unsupportedFormats) + "]"
             );
         }
     }
