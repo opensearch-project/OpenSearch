@@ -132,19 +132,19 @@ public final class GeoIpProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
         }
 
-        if (ip instanceof String) {
-            Map<String, Object> geoData = getGeoData((String) ip);
+        if (ip instanceof String ipString) {
+            Map<String, Object> geoData = getGeoData(ipString);
             if (geoData.isEmpty() == false) {
                 ingestDocument.setFieldValue(targetField, geoData);
             }
-        } else if (ip instanceof List) {
+        } else if (ip instanceof List<?> ipList) {
             boolean match = false;
-            List<Map<String, Object>> geoDataList = new ArrayList<>(((List) ip).size());
-            for (Object ipAddr : (List) ip) {
-                if (ipAddr instanceof String == false) {
+            List<Map<String, Object>> geoDataList = new ArrayList<>(ipList.size());
+            for (Object ipAddr : ipList) {
+                if (!(ipAddr instanceof String ipAddrString)) {
                     throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
                 }
-                Map<String, Object> geoData = getGeoData((String) ipAddr);
+                Map<String, Object> geoData = getGeoData(ipAddrString);
                 if (geoData.isEmpty()) {
                     geoDataList.add(null);
                     continue;

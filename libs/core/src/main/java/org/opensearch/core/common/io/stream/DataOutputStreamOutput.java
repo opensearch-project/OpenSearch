@@ -71,8 +71,8 @@ public class DataOutputStreamOutput extends StreamOutput {
 
     @Override
     public void close() throws IOException {
-        if (out instanceof Closeable) {
-            ((Closeable) out).close();
+        if (out instanceof Closeable closeable) {
+            closeable.close();
         }
     }
 }

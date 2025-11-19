@@ -906,9 +906,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 if (throwable != null) {
                     logger.error(() -> new ParameterizedMessage("Failed to complete async deletion for path [{}]", keyPath), throwable);
                     completionListener.onFailure(
-                        throwable instanceof Exception
-                            ? (Exception) throwable
-                            : new IOException("Unexpected error during async deletion", throwable)
+                        throwable instanceof Exception e ? e : new IOException("Unexpected error during async deletion", throwable)
                     );
                 } else {
                     logger.debug(

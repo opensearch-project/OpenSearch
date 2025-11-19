@@ -8,7 +8,6 @@
 
 package org.opensearch.search.pipeline;
 
-import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.NamedDiff;
@@ -54,11 +53,6 @@ public class SearchPipelineMetadata implements Metadata.Custom {
     @Override
     public String getWriteableName() {
         return TYPE;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     public Map<String, PipelineConfiguration> getPipelines() {

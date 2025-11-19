@@ -653,4 +653,248 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             && shardTypeToStats.get("replica").getConsumerStats().pointerBasedLag() == expectedLag;
         return valid;
     }
+
+    public void testAllActiveIngestionBatchStartPointerOnReplicaPromotion() throws Exception {
+        // Step 1: Publish 10 messages
+        for (int i = 1; i <= 10; i++) {
+            produceDataWithExternalVersion(String.valueOf(i), 1, "name" + i, "25", defaultMessageTimestamp, "index");
+        }
+
+        // Step 2: Start nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Step 3: Create all-active index
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        // Step 4: Wait for 10 messages to be searchable on nodeA
+        waitForSearchableDocs(10, Arrays.asList(nodeA));
+
+        // Step 5: Flush to persist data
+        flush(indexName);
+
+        // Step 6: Add second node
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        // Step 7: Relocate shard from nodeA to nodeB
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(indexName, 0, nodeA, nodeB)).get();
+        ensureGreen(indexName);
+        assertTrue(nodeB.equals(primaryNodeName(indexName)));
+
+        // Step 8: Publish 1 new message
+        produceDataWithExternalVersion("11", 1, "name11", "25", defaultMessageTimestamp, "index");
+
+        // Step 9: Wait for 11 messages to be visible on nodeB
+        waitForSearchableDocs(11, Arrays.asList(nodeB));
+
+        // Step 10: Flush to persist data
+        flush(indexName);
+
+        // Step 11: Validate processed messages and version conflict count on nodeB
+        PollingIngestStats nodeBStats = client(nodeB).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(nodeBStats);
+        assertEquals(2L, nodeBStats.getMessageProcessorStats().totalProcessedCount());
+        assertEquals(1L, nodeBStats.getMessageProcessorStats().totalVersionConflictsCount());
+
+        // Step 12: Add third node
+        final String nodeC = internalCluster().startDataOnlyNode();
+
+        // Step 13: Bring down nodeA so the new replica will be allocated to nodeC
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+
+        // Step 14: Add a replica (will be allocated to nodeC since only nodeB and nodeC are available)
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            .get();
+        ensureGreen(indexName);
+
+        // Step 15: Wait for 11 messages to be searchable on nodeC (replica)
+        waitForSearchableDocs(11, Arrays.asList(nodeC));
+
+        // Step 16: Bring down nodeB (primary) and wait for nodeC to become primary
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeB));
+        ensureYellowAndNoInitializingShards(indexName);
+        assertTrue(nodeC.equals(primaryNodeName(indexName)));
+
+        // Step 17: Publish 1 more message
+        produceDataWithExternalVersion("12", 1, "name12", "25", defaultMessageTimestamp, "index");
+
+        // Step 18: Wait for 12 messages to be visible on nodeC
+        waitForSearchableDocs(12, Arrays.asList(nodeC));
+
+        // Step 19: Validate processed messages and version conflict count on nodeC
+        PollingIngestStats nodeCStats = client(nodeC).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(nodeCStats);
+
+        assertEquals(2L, nodeCStats.getMessageProcessorStats().totalProcessedCount());
+        assertEquals(1L, nodeCStats.getMessageProcessorStats().totalVersionConflictsCount());
+    }
+
+    public void testAllActiveIngestionPeriodicFlush() throws Exception {
+        // Publish 10 messages
+        for (int i = 1; i <= 10; i++) {
+            produceData(String.valueOf(i), "name" + i, "25");
+        }
+
+        // Start nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Create all-active index with 5 second periodic flush interval
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.all_active", true)
+                .put("index.periodic_flush_interval", "5s")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        waitForSearchableDocs(10, Arrays.asList(nodeA));
+        waitForState(() -> getPeriodicFlushCount(nodeA, indexName) >= 1);
+    }
+
+    public void testRawPayloadMapperIngestion() throws Exception {
+        // Start cluster
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Publish 2 valid messages
+        String validMessage1 = "{\"name\":\"alice\",\"age\":30}";
+        String validMessage2 = "{\"name\":\"bob\",\"age\":25}";
+        produceData(validMessage1);
+        produceData(validMessage2);
+
+        // Create index with raw_payload mapper
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.mapper_type", "raw_payload")
+                .put("ingestion_source.error_strategy", "drop")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        // Wait for both messages to be indexed
+        waitForSearchableDocs(2, List.of(nodeA));
+
+        // Verify stats show 2 processed messages
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null
+                && stats.getMessageProcessorStats().totalProcessedCount() == 2L
+                && stats.getConsumerStats().totalPolledCount() == 2L
+                && stats.getConsumerStats().totalPollerMessageFailureCount() == 0L
+                && stats.getConsumerStats().totalPollerMessageDroppedCount() == 0L
+                && stats.getMessageProcessorStats().totalInvalidMessageCount() == 0L;
+        });
+
+        // Validate document content
+        SearchResponse searchResponse = client().prepareSearch(indexName).get();
+        assertEquals(2, searchResponse.getHits().getHits().length);
+        for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+            Map<String, Object> source = searchResponse.getHits().getHits()[i].getSourceAsMap();
+            assertTrue(source.containsKey("name"));
+            assertTrue(source.containsKey("age"));
+        }
+
+        // Publish invalid JSON message
+        String invalidJsonMessage = "{ invalid json";
+        produceData(invalidJsonMessage);
+
+        // Wait for consumer to encounter the error and drop it
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null
+                && stats.getConsumerStats().totalPolledCount() == 3L
+                && stats.getConsumerStats().totalPollerMessageFailureCount() == 1L
+                && stats.getConsumerStats().totalPollerMessageDroppedCount() == 1L
+                && stats.getMessageProcessorStats().totalProcessedCount() == 2L;
+        });
+
+        // Publish message with invalid content that will fail at processor level
+        String invalidFieldTypeMessage = "{\"name\":123,\"age\":\"not a number\"}";
+        produceData(invalidFieldTypeMessage);
+
+        // Wait for processor to encounter the error
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null
+                && stats.getConsumerStats().totalPolledCount() == 4L
+                && stats.getConsumerStats().totalPollerMessageFailureCount() == 1L
+                && stats.getMessageProcessorStats().totalProcessedCount() == 3L
+                && stats.getMessageProcessorStats().totalFailedCount() == 1L
+                && stats.getMessageProcessorStats().totalFailuresDroppedCount() == 1L;
+        });
+
+        // Pause ingestion, reset to offset 0, and resume
+        pauseIngestion(indexName);
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getFailedShards() == 0
+                && ingestionState.getShardStates()[0].isPollerPaused()
+                && ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("paused");
+        });
+
+        // Resume with reset to offset 0 (will re-process the 2 valid messages)
+        resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "0");
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getShardStates()[0].isPollerPaused() == false
+                && (ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("polling")
+                    || ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("processing"));
+        });
+
+        // Wait for the 3 messages to be processed by the processor after reset (1 will be dropped by the poller)
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null && stats.getMessageProcessorStats().totalProcessedCount() == 3L;
+        });
+
+        // Verify still only 2 documents (no duplicates must be indexed)
+        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(0);
+        SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+        assertThat(response.getHits().getTotalHits().value(), is(2L));
+    }
 }

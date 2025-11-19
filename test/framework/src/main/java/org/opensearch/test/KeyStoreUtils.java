@@ -8,65 +8,46 @@
 
 package org.opensearch.test;
 
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.bouncycastle.cert.X509CertificateHolder;
-import org.bouncycastle.cert.X509v1CertificateBuilder;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.bouncycastle.asn1.LocaleUtil;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 
-import javax.security.auth.x500.X500Principal;
-import javax.security.auth.x500.X500PrivateCredential;
-
-import java.math.BigInteger;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
-import java.util.Date;
 import java.util.Locale;
+
+import io.netty.pkitesting.CertificateBuilder;
+import io.netty.pkitesting.CertificateBuilder.Algorithm;
+import io.netty.pkitesting.X509Bundle;
 
 public class KeyStoreUtils {
 
     public static final char[] KEYSTORE_PASSWORD = "keystore_password".toCharArray();
 
     public static KeyStore createServerKeyStore() throws Exception {
-        var serverCred = createCredential();
+        var serverCred = generateCert();
         var keyStore = KeyStore.getInstance("JKS");
         keyStore.load(null, null);
         keyStore.setKeyEntry(
-            serverCred.getAlias(),
-            serverCred.getPrivateKey(),
+            "server-ca",
+            serverCred.getKeyPair().getPrivate(),
             KEYSTORE_PASSWORD,
             new X509Certificate[] { serverCred.getCertificate() }
         );
         return keyStore;
     }
 
-    private static X500PrivateCredential createCredential() throws Exception {
-        var keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(2048);
-        var keyPair = keyPairGenerator.generateKeyPair();
-        var rootCert = new JcaX509CertificateConverter().getCertificate(generateCert(keyPair));
-        return new X500PrivateCredential(rootCert, keyPair.getPrivate(), "server-ca");
-    }
-
-    private static X509CertificateHolder generateCert(KeyPair pair) throws Exception {
-        var baseTime = System.currentTimeMillis();
-        // 10 years in milliseconds
-        var validityPeriod = 10L * 365 * 24 * 60 * 60 * 1000;
-
-        var certBuilder = new X509v1CertificateBuilder(
-            X500Name.getInstance(new X500Principal("CN=Test CA Certificate").getEncoded()),
-            BigInteger.valueOf(1),
-            new Date(baseTime),
-            new Date(baseTime + validityPeriod),
-            Locale.ROOT,
-            X500Name.getInstance(new X500Principal("CN=Test CA Certificate").getEncoded()),
-            SubjectPublicKeyInfo.getInstance(pair.getPublic().getEncoded())
-        );
-        var signer = new JcaContentSignerBuilder("SHA256withRSA").build(pair.getPrivate());
-        return certBuilder.build(signer);
+    private static X509Bundle generateCert() throws Exception {
+        final Locale locale = Locale.getDefault();
+        try {
+            Locale.setDefault(LocaleUtil.EN_Locale);
+            return new CertificateBuilder().subject("CN=Test CA Certificate")
+                .setIsCertificateAuthority(true)
+                .algorithm(Algorithm.ed25519)
+                .provider(new BouncyCastleFipsProvider())
+                .buildSelfSigned();
+        } finally {
+            Locale.setDefault(locale);
+        }
     }
 
 }
