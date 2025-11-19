@@ -576,11 +576,11 @@ public class DefaultStreamPoller implements StreamPoller {
     private void closeConsumer() {
         if (this.consumer != null) {
             try {
-                logger.info("Closing consumer for shard {}", shardId);
+                logger.info("Closing consumer for index {} shard {}", indexName, shardId);
                 this.consumer.close();
                 this.consumer = null;
             } catch (Exception e) {
-                logger.warn("Error closing consumer for shard {}: {}", shardId, e.getMessage());
+                logger.warn("Error closing consumer for index {} shard {}: {}", indexName, shardId, e.getMessage());
             }
         }
     }
