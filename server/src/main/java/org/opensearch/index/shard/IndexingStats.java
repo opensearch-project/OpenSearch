@@ -71,7 +71,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
          * @opensearch.api
          */
         @PublicApi(since = "1.0.0")
-        @DeprecatedApi(since = "3.3.0")
+        @DeprecatedApi(since = "3.4.0")
         public static class DocStatusStats implements Writeable, ToXContentFragment {
 
             final AtomicLong[] docStatusCounter;
@@ -198,12 +198,12 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             noopUpdateCount = in.readVLong();
             isThrottled = in.readBoolean();
             throttleTimeInMillis = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+            if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
                 maxLastIndexRequestTimestamp = in.readLong();
             } else {
                 maxLastIndexRequestTimestamp = 0L;
             }
-            if (in.getVersion().onOrAfter(Version.V_2_11_0) && in.getVersion().onOrBefore(Version.V_3_2_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_11_0) && in.getVersion().onOrBefore(Version.V_3_4_0)) {
                 docStatusStats = in.readOptionalWriteable(DocStatusStats::new);
             } else {
                 docStatusStats = null;
@@ -439,10 +439,10 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeVLong(noopUpdateCount);
             out.writeBoolean(isThrottled);
             out.writeLong(throttleTimeInMillis);
-            if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+            if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
                 out.writeLong(maxLastIndexRequestTimestamp);
             }
-            if (out.getVersion().onOrAfter(Version.V_2_11_0) && out.getVersion().onOrBefore(Version.V_3_2_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_11_0) && out.getVersion().onOrBefore(Version.V_3_4_0)) {
                 out.writeOptionalWriteable(docStatusStats);
             }
         }
