@@ -60,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Make XContentMapValues.filter case insensitive ([#19976](https://github.com/opensearch-project/OpenSearch/pull/19976))
 - Refactor the TranslogStats and RequestCacheStats class to use the Builder pattern instead of constructors ([#19961](https://github.com/opensearch-project/OpenSearch/pull/19961))
 - Refactor the IndexPressutreStats, DeviceStats and TransportStats class to use the Builder pattern instead of constructors ([#19991](https://github.com/opensearch-project/OpenSearch/pull/19991))
+- Refactor the Cache.CacheStats class to use the Builder pattern instead of constructors ([#20015](https://github.com/opensearch-project/OpenSearch/pull/20015))
 
 ### Fixed
 - Fix Allocation and Rebalance Constraints of WeightFunction are incorrectly reset ([#19012](https://github.com/opensearch-project/OpenSearch/pull/19012))
@@ -124,6 +125,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Deprecated existing constructors in FieldDataStats and CompletionStats in favor of the new Builder ([#19936](https://github.com/opensearch-project/OpenSearch/pull/19936))
 - Deprecated existing constructors in TranslogStats and RequestCacheStats in favor of the new Builder ([#19961](https://github.com/opensearch-project/OpenSearch/pull/19961))
 - Deprecated existing constructors in IndexPressutreStats, DeviceStats and TransportStats in favor of the new Builder ([#19991](https://github.com/opensearch-project/OpenSearch/pull/19991))
+- Deprecated existing constructors in Cache.CacheStats in favor of the new Builder ([#20015](https://github.com/opensearch-project/OpenSearch/pull/20015))
 
 ### Removed
 
