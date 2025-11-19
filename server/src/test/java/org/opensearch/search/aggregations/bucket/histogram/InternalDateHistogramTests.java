@@ -34,10 +34,15 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.opensearch.common.Rounding;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.time.ZonedDateTime;
@@ -46,6 +51,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
@@ -105,6 +112,47 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
         return new InternalDateHistogram(name, buckets, order, minDocCount, 0L, emptyBucketInfo, format, keyed, metadata);
+    }
+
+    public void testTooManyBucketsExceptionWhenAddingEmptyBuckets() {
+        String name = randomAlphaOfLength(5);
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMillis(intervalMillis)).build();
+        long now = System.currentTimeMillis();
+        baseMillis = rounding.prepare(now, now).round(now);
+        long min = baseMillis - intervalMillis * randomNumberOfBuckets();
+        long max = baseMillis + randomNumberOfBuckets() * intervalMillis;
+        LongBounds extendedBounds = new LongBounds(min, max);
+        InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = new InternalDateHistogram.EmptyBucketInfo(
+            rounding,
+            InternalAggregations.EMPTY,
+            extendedBounds
+        );
+        List<InternalDateHistogram.Bucket> bucket1 = List.of(
+            new InternalDateHistogram.Bucket(randomNonNegativeLong(), randomIntBetween(1, 100), false, format, InternalAggregations.EMPTY)
+        );
+        List<InternalDateHistogram.Bucket> bucket2 = List.of(
+            new InternalDateHistogram.Bucket(randomNonNegativeLong(), randomIntBetween(1, 100), false, format, InternalAggregations.EMPTY)
+        );
+        BucketOrder order = BucketOrder.key(true);
+        InternalDateHistogram histogram1 = new InternalDateHistogram(name, bucket1, order, 0, 0L, emptyBucketInfo, format, false, null);
+        InternalDateHistogram histogram2 = new InternalDateHistogram(name, bucket2, order, 0, 0L, emptyBucketInfo, format, false, null);
+
+        CircuitBreaker breaker = Mockito.mock(CircuitBreaker.class);
+        Mockito.when(breaker.addEstimateBytesAndMaybeBreak(50L * 2, "empty date histogram buckets"))
+            .thenThrow(CircuitBreakingException.class);
+
+        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(0, breaker);
+        InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+            null,
+            null,
+            bucketConsumer,
+            PipelineAggregator.PipelineTree.EMPTY
+        );
+        List<InternalDateHistogram.Bucket> reducedBuckets = histogram1.reduceBuckets(List.of(histogram1, histogram2), reduceContext);
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> histogram1.addEmptyBuckets(reducedBuckets, reduceContext)
+        );
     }
 
     @Override
