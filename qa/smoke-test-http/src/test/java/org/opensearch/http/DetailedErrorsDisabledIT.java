@@ -34,17 +34,26 @@ package org.opensearch.http;
 
 import java.io.IOException;
 
+import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.opensearch.action.search.MultiSearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.query.QueryStringQueryBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests that when disabling detailed errors, a request with the error_trace parameter returns an HTTP 400 response.
@@ -73,4 +82,19 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
                    containsString("\"error\":\"error traces in responses are disabled.\""));
         assertThat(response.getStatusLine().getStatusCode(), is(400));
     }
+
+    public void testDetailedStackTracesAreNotIncludedWhenErrorTraceIsDisabledForBulkApis() throws IOException, ParseException {
+        MediaType contentType = MediaTypeRegistry.JSON;
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(
+            new SearchRequest("missing_index")
+                .source(new SearchSourceBuilder().query(new QueryStringQueryBuilder("foo").field("*"))));
+        Request request = new Request("POST", "/_msearch");
+        byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
+        request.setEntity(new ByteArrayEntity(requestBody, ContentType.APPLICATION_JSON));
+
+        Response response = getRestClient().performRequest(request);
+
+        assertThat(EntityUtils.toString(response.getEntity()), not(containsString("stack_trace")));
+    }
+
 }

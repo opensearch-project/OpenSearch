@@ -36,7 +36,7 @@ import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Class to encapsulate a set of ValuesSource objects labeled by field name
@@ -47,7 +47,7 @@ public abstract class ArrayValuesSource<VS extends ValuesSource> {
     protected VS[] values;
 
     public static class NumericArrayValuesSource extends ArrayValuesSource<ValuesSource.Numeric> {
-        public NumericArrayValuesSource(Map<String, ValuesSource.Numeric> valuesSources, MultiValueMode multiValueMode) {
+        public NumericArrayValuesSource(TreeMap<String, ValuesSource.Numeric> valuesSources, MultiValueMode multiValueMode) {
             super(valuesSources, multiValueMode);
             if (valuesSources != null) {
                 this.values = valuesSources.values().toArray(new ValuesSource.Numeric[0]);
@@ -65,7 +65,7 @@ public abstract class ArrayValuesSource<VS extends ValuesSource> {
     }
 
     public static class BytesArrayValuesSource extends ArrayValuesSource<ValuesSource.Bytes> {
-        public BytesArrayValuesSource(Map<String, ValuesSource.Bytes> valuesSources, MultiValueMode multiValueMode) {
+        public BytesArrayValuesSource(TreeMap<String, ValuesSource.Bytes> valuesSources, MultiValueMode multiValueMode) {
             super(valuesSources, multiValueMode);
             this.values = valuesSources.values().toArray(new ValuesSource.Bytes[0]);
         }
@@ -76,13 +76,13 @@ public abstract class ArrayValuesSource<VS extends ValuesSource> {
     }
 
     public static class GeoPointValuesSource extends ArrayValuesSource<ValuesSource.GeoPoint> {
-        public GeoPointValuesSource(Map<String, ValuesSource.GeoPoint> valuesSources, MultiValueMode multiValueMode) {
+        public GeoPointValuesSource(TreeMap<String, ValuesSource.GeoPoint> valuesSources, MultiValueMode multiValueMode) {
             super(valuesSources, multiValueMode);
             this.values = valuesSources.values().toArray(new ValuesSource.GeoPoint[0]);
         }
     }
 
-    private ArrayValuesSource(Map<String, ?> valuesSources, MultiValueMode multiValueMode) {
+    private ArrayValuesSource(TreeMap<String, ?> valuesSources, MultiValueMode multiValueMode) {
         if (valuesSources != null) {
             this.names = valuesSources.keySet().toArray(new String[0]);
         }
@@ -97,6 +97,9 @@ public abstract class ArrayValuesSource<VS extends ValuesSource> {
         return needsScores;
     }
 
+    /**
+     * Returns the field names for this values source. Guaranteed to be in sorted order.
+     */
     public String[] fieldNames() {
         return this.names;
     }

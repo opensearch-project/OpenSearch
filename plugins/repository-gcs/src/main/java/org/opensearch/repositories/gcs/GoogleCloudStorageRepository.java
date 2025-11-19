@@ -150,7 +150,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         if (value == null) {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is not defined for repository");
         }
-        if ((value instanceof String) && (Strings.hasText((String) value)) == false) {
+        if (value instanceof String s && Strings.hasText(s) == false) {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is empty for repository");
         }
         return value;
