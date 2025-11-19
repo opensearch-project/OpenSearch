@@ -149,7 +149,7 @@ public final class TieredMergePolicyProvider implements MergePolicyProvider {
     public static final int MIN_DEFAULT_MAX_MERGE_AT_ONCE = 2;
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 30;
 
-    public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
+    public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(2, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
     public static final double DEFAULT_RECLAIM_DELETES_WEIGHT = 2.0d;
     public static final double DEFAULT_DELETES_PCT_ALLOWED = 20.0d;

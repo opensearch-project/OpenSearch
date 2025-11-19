@@ -12,12 +12,13 @@ import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 
 import java.util.Collection;
+import java.util.List;
 
 public class OneMerge {
     private final DataFormat dataFormat;
-    private final Collection<FileMetadata> filesToMerge; // Files to merge as per given data format
+    private final List<FileMetadata> filesToMerge; // Files to merge as per given data format
 
-    public OneMerge(DataFormat dataFormat, Collection<FileMetadata> filesToMerge) {
+    public OneMerge(DataFormat dataFormat, List<FileMetadata> filesToMerge) {
         this.dataFormat = dataFormat;
         this.filesToMerge = filesToMerge;
     }
@@ -26,7 +27,7 @@ public class OneMerge {
         return dataFormat;
     }
 
-    public Collection<FileMetadata> getFilesToMerge() {
+    public List<FileMetadata> getFilesToMerge() {
         return filesToMerge;
     }
 

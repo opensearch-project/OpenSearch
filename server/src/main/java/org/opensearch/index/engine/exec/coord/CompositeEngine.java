@@ -293,7 +293,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             this.throttle = new IndexThrottle();
             this.historyUUID = loadHistoryUUID(userData);
             this.mergeHandler =
-                new ParquetMergeHandler(this, this.engine, this.engine.getDataFormat(), indexSettings.getParquetMergePolicy());
+                new ParquetMergeHandler(this, this.engine, this.engine.getDataFormat(), indexSettings);
             this.mergeScheduler = new MergeScheduler(this.mergeHandler, this);
 
             // Refresh here so that catalog snapshot gets initialized
