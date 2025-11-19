@@ -49,6 +49,11 @@ public class Any implements DataFormat {
     }
 
     @Override
+    public boolean isDataFormatSupported(String fieldType) {
+        return dataFormats.stream().anyMatch(df -> df.isDataFormatSupported(fieldType));
+    }
+
+    @Override
     public void configureStore() {
         for (DataFormat dataFormat : dataFormats) {
             dataFormat.configureStore();

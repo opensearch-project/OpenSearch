@@ -1,5 +1,6 @@
 package com.parquet.parquetdataformat.engine;
 
+import com.parquet.parquetdataformat.fields.ArrowFieldRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.exec.DataFormat;
@@ -42,6 +43,11 @@ public class ParquetDataFormat implements DataFormat {
     @Override
     public void configureStore() {
 
+    }
+
+    @Override
+    public boolean isDataFormatSupported(String fieldTypeName) {
+        return ArrowFieldRegistry.getRegisteredFieldNames().contains(fieldTypeName);
     }
 
     public static ParquetDataFormat PARQUET_DATA_FORMAT = new ParquetDataFormat();

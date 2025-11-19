@@ -227,7 +227,8 @@ public class MetadataIndexUpgradeService {
                     mapperRegistry,
                     () -> null,
                     () -> false,
-                    scriptService
+                    scriptService,
+                    null  // pluginsService not available in upgrade context
                 );
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
