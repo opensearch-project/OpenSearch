@@ -44,8 +44,8 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFactory {
 
@@ -77,7 +77,7 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        Map<String, ValuesSource.Numeric> typedValuesSources = new HashMap<>(valuesSources.size());
+        TreeMap<String, ValuesSource.Numeric> typedValuesSources = new TreeMap<>();
         for (Map.Entry<String, ValuesSource> entry : valuesSources.entrySet()) {
             if (entry.getValue() instanceof ValuesSource.Numeric numericValuesSource) {
                 // TODO: There must be a better option than this.

@@ -50,6 +50,7 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Metric Aggregation for computing the pearson product correlation coefficient between multiple fields
@@ -63,7 +64,7 @@ final class MatrixStatsAggregator extends MetricsAggregator {
 
     MatrixStatsAggregator(
         String name,
-        Map<String, ValuesSource.Numeric> valuesSources,
+        TreeMap<String, ValuesSource.Numeric> valuesSources,
         SearchContext context,
         Aggregator parent,
         MultiValueMode multiValueMode,
@@ -152,12 +153,12 @@ final class MatrixStatsAggregator extends MetricsAggregator {
         if (valuesSources == null || bucket >= stats.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMatrixStats(name, stats.size(), stats.get(bucket), null, metadata());
+        return new InternalMatrixStats(name, stats.size(), stats.get(bucket), null, metadata(), valuesSources.fieldNames());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMatrixStats(name, 0, null, null, metadata());
+        return new InternalMatrixStats(name, 0, null, null, metadata(), null);
     }
 
     @Override
