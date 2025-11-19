@@ -69,7 +69,7 @@ public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         // TODO: run in a loop
         String sourceFile = fileToString(
-            "q25.json",
+            "q7.json",
             false
         );
         SearchSourceBuilder source = new SearchSourceBuilder();

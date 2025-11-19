@@ -15,6 +15,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -185,7 +186,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     protected void doClose() {
-
+        Releasables.close(engineSearcher);
     }
 
     /**
