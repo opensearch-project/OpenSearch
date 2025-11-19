@@ -76,7 +76,8 @@ public interface RestRequestFilter {
                         Map<String, Object> transformedSource = XContentMapValues.filter(
                             result.v2(),
                             null,
-                            fields.toArray(Strings.EMPTY_ARRAY)
+                            fields.toArray(Strings.EMPTY_ARRAY),
+                            false
                         );
                         try {
                             XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
