@@ -156,7 +156,7 @@
 ---
 "Metric - indexing doc_status":
   - skip:
-      version: " - 2.10.99 , 3.4.0 - "
+      version: " - 3.3.99"
       reason: "Doc Status Stats were introduced in v2.11.0 and moved to Status Counter in v3.4.0"
   - do:
       nodes.info: {}
