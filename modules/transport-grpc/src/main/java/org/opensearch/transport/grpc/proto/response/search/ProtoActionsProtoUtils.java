@@ -11,6 +11,7 @@ package org.opensearch.transport.grpc.proto.response.search;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.SearchResponse;
 import org.opensearch.rest.action.RestActions;
 
@@ -36,6 +37,7 @@ public class ProtoActionsProtoUtils {
      * @param skipped the number of skipped shards
      * @param failed the number of failed shards
      * @param shardFailures the array of shard operation failures
+     * @param params The global gRPC request parameters
      * @throws IOException if there's an error during conversion
      */
     protected static void buildBroadcastShardsHeader(
@@ -44,8 +46,11 @@ public class ProtoActionsProtoUtils {
         int successful,
         int skipped,
         int failed,
-        ShardOperationFailedException[] shardFailures
+        ShardOperationFailedException[] shardFailures,
+        GlobalParams params
     ) throws IOException {
-        searchResponseProtoBuilder.setXShards(ShardStatisticsProtoUtils.getShardStats(total, successful, skipped, failed, shardFailures));
+        searchResponseProtoBuilder.setXShards(
+            ShardStatisticsProtoUtils.getShardStats(total, successful, skipped, failed, shardFailures, params)
+        );
     }
 }

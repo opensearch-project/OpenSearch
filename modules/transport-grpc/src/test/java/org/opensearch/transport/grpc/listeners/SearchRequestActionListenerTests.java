@@ -10,6 +10,7 @@ package org.opensearch.transport.grpc.listeners;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
 import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -19,7 +20,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -34,7 +34,7 @@ public class SearchRequestActionListenerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         MockitoAnnotations.openMocks(this);
-        listener = new SearchRequestActionListener(responseObserver);
+        listener = new SearchRequestActionListener(responseObserver, GlobalParams.newBuilder().build());
     }
 
     public void testOnResponse() {
@@ -60,13 +60,6 @@ public class SearchRequestActionListenerTests extends OpenSearchTestCase {
     }
 
     public void testOnFailure() {
-        // Create a mock StreamObserver
-        @SuppressWarnings("unchecked")
-        StreamObserver<org.opensearch.protobufs.SearchResponse> mockResponseObserver = mock(StreamObserver.class);
-
-        // Create a SearchRequestActionListener
-        SearchRequestActionListener listener = new SearchRequestActionListener(mockResponseObserver);
-
         // Create an exception
         Exception exception = new Exception("Test exception");
 
@@ -74,6 +67,6 @@ public class SearchRequestActionListenerTests extends OpenSearchTestCase {
         listener.onFailure(exception);
 
         // Verify that onError was called with a StatusRuntimeException
-        verify(mockResponseObserver, times(1)).onError(any(StatusRuntimeException.class));
+        verify(responseObserver, times(1)).onError(any(StatusRuntimeException.class));
     }
 }

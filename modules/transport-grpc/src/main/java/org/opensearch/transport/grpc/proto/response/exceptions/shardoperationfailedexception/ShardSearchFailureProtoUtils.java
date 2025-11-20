@@ -10,6 +10,7 @@ package org.opensearch.transport.grpc.proto.response.exceptions.shardoperationfa
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ShardFailure;
 import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
 
@@ -29,16 +30,17 @@ public class ShardSearchFailureProtoUtils {
      * Similar to {@link ShardSearchFailure#toXContent(XContentBuilder, ToXContent.Params)}     *
      *
      * @param exception The ShardSearchFailure to convert
+     * @param params The global gRPC request parameters
      * @return A Protocol Buffer Struct containing the exception metadata
      */
-    public static ShardFailure toProto(ShardSearchFailure exception) throws IOException {
+    public static ShardFailure toProto(ShardSearchFailure exception, GlobalParams params) throws IOException {
         ShardFailure.Builder shardFailure = ShardFailure.newBuilder();
         shardFailure.setShard(exception.shardId());
         shardFailure.setIndex(exception.index());
         if (exception.shard() != null && exception.shard().getNodeId() != null) {
             shardFailure.setNode(exception.shard().getNodeId());
         }
-        shardFailure.setReason(OpenSearchExceptionProtoUtils.generateThrowableProto(exception.getCause()));
+        shardFailure.setReason(OpenSearchExceptionProtoUtils.generateThrowableProto(exception.getCause(), params));
         return shardFailure.build();
     }
 }

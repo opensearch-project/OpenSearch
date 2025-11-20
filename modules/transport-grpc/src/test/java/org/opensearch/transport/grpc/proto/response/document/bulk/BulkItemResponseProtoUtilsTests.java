@@ -30,6 +30,8 @@ import java.util.Map;
 
 import io.grpc.Status;
 
+import static org.opensearch.transport.grpc.TestFixtures.GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE;
+
 public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithIndexResponse() throws IOException {
@@ -47,7 +49,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, indexResponse);
 
         // Convert to protobuf ResponseItem
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -72,7 +77,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.CREATE, indexResponse);
 
         // Convert to protobuf ResponseItem
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -97,7 +105,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.DELETE, deleteResponse);
 
         // Convert to protobuf ResponseItem
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -122,7 +133,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE, updateResponse);
 
         // Convert to protobuf Item
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -165,7 +179,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE, updateResponse);
 
         // Convert to protobuf Item
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -195,7 +212,10 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, failure);
 
         // Convert to protobuf Item
-        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(
+            bulkItemResponse,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the result
         assertNotNull("ResponseItem should not be null", responseItem);
@@ -210,6 +230,6 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithNullResponse() throws IOException {
         // Call toProto with null, should throw NullPointerException
-        expectThrows(NullPointerException.class, () -> BulkItemResponseProtoUtils.toProto(null));
+        expectThrows(NullPointerException.class, () -> BulkItemResponseProtoUtils.toProto(null, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE));
     }
 }

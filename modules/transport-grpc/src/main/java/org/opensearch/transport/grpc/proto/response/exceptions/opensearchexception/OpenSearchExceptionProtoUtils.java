@@ -17,6 +17,7 @@ import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ErrorCause;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.StringArray;
 import org.opensearch.protobufs.StringOrStringArray;
@@ -31,6 +32,7 @@ import org.opensearch.transport.grpc.proto.response.exceptions.ScriptExceptionPr
 import org.opensearch.transport.grpc.proto.response.exceptions.SearchParseExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.SearchPhaseExecutionExceptionProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.TooManyBucketsExceptionProtoUtils;
+import org.opensearch.transport.grpc.util.GrpcParamsHandler;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -53,16 +55,18 @@ public class OpenSearchExceptionProtoUtils {
 
     /**
      * Converts an OpenSearchException to its Protocol Buffer representation.
-     * This method is equivalent to the {@link OpenSearchException#toXContent(XContentBuilder, ToXContent.Params)}
+     * The corresponding global gRPC request parameters are used to control whether the full stacktrace is included or only a summary.
+     * This method is equivalent to the {@link OpenSearchException#toXContent(XContentBuilder, ToXContent.Params)}.
      *
      * @param exception The OpenSearchException to convert
+     * @param params Global gRPC params to control how much details of an error should be included
      * @return A Protocol Buffer ErrorCause representation
      * @throws IOException if there's an error during conversion
      */
-    public static ErrorCause toProto(OpenSearchException exception) throws IOException {
+    public static ErrorCause toProto(OpenSearchException exception, GlobalParams params) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(exception);
         if (ex != exception) {
-            return generateThrowableProto(ex);
+            return generateThrowableProto(ex, params);
         } else {
             return innerToProto(
                 exception,
@@ -70,7 +74,8 @@ public class OpenSearchExceptionProtoUtils {
                 exception.getMessage(),
                 exception.getHeaders(),
                 exception.getMetadata(),
-                exception.getCause()
+                exception.getCause(),
+                params
             );
         }
     }
@@ -80,24 +85,27 @@ public class OpenSearchExceptionProtoUtils {
      * as Protocol Buffers.
      * <p>
      * This method is usually used when the {@link Throwable} is rendered as a part of another Protocol Buffer object.
+     * The corresponding global gRPC request parameters are used to control whether the full stacktrace is included or only a summary.
      * It is equivalent to the {@link OpenSearchException#generateThrowableXContent(XContentBuilder, ToXContent.Params, Throwable)}
      *
      * @param t The throwable to convert
+     * @param params Global gRPC params to control how much details of an error should be included
      * @return A Protocol Buffer ErrorCause representation
      * @throws IOException if there's an error during conversion
      */
-    public static ErrorCause generateThrowableProto(Throwable t) throws IOException {
+    public static ErrorCause generateThrowableProto(Throwable t, GlobalParams params) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
         if (t instanceof OpenSearchException ose) {
-            return toProto(ose);
+            return toProto(ose, params);
         } else {
-            return innerToProto(t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
+            return innerToProto(t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause(), params);
         }
     }
 
     /**
      * Inner helper method for converting a Throwable to its Protocol Buffer representation.
+     * The corresponding global gRPC request parameters are used to control whether the full stacktrace is included or only a summary.
      * This method is equivalent to the {@link OpenSearchException#innerToXContent(XContentBuilder, ToXContent.Params, Throwable, String, String, Map, Map, Throwable)}.
      *
      * @param throwable The throwable to convert
@@ -106,6 +114,7 @@ public class OpenSearchExceptionProtoUtils {
      * @param headers The exception headers
      * @param metadata The exception metadata
      * @param cause The exception cause
+     * @param params Global gRPC params to control how much details of an error should be included
      * @return A Protocol Buffer ErrorCause representation
      * @throws IOException if there's an error during conversion
      */
@@ -115,7 +124,8 @@ public class OpenSearchExceptionProtoUtils {
         String message,
         Map<String, List<String>> headers,
         Map<String, List<String>> metadata,
-        Throwable cause
+        Throwable cause,
+        GlobalParams params
     ) throws IOException {
         ErrorCause.Builder errorCauseBuilder = ErrorCause.newBuilder();
 
@@ -145,7 +155,7 @@ public class OpenSearchExceptionProtoUtils {
         }
 
         if (cause != null) {
-            errorCauseBuilder.setCausedBy(generateThrowableProto(cause));
+            errorCauseBuilder.setCausedBy(generateThrowableProto(cause, params));
         }
 
         if (headers.isEmpty() == false) {
@@ -156,13 +166,15 @@ public class OpenSearchExceptionProtoUtils {
         }
 
         // Add stack trace
-        errorCauseBuilder.setStackTrace(ExceptionsHelper.stackTrace(throwable));
+        if (GrpcParamsHandler.isDetailedStackTraceRequested(params)) {
+            errorCauseBuilder.setStackTrace(ExceptionsHelper.stackTrace(throwable));
+        }
 
         // Add suppressed exceptions
         Throwable[] allSuppressed = throwable.getSuppressed();
         if (allSuppressed.length > 0) {
             for (Throwable suppressed : allSuppressed) {
-                errorCauseBuilder.addSuppressed(generateThrowableProto(suppressed));
+                errorCauseBuilder.addSuppressed(generateThrowableProto(suppressed, params));
             }
         }
 
