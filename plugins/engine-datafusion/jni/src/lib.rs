@@ -49,6 +49,7 @@ mod listing_table;
 mod cache;
 mod custom_cache_manager;
 mod memory;
+mod partial_agg_optimizer;
 
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::row_id_optimizer::ProjectRowIdOptimizer;
@@ -57,8 +58,21 @@ use crate::util::{
     set_object_result_ok,
 };
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
-use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
-use datafusion_substrait::substrait::proto::Plan;
+use crate::partial_agg_optimizer::PartialAggregationOptimizer;
+
+use datafusion::catalog::TableProvider;
+use datafusion_expr::registry::FunctionRegistry;
+use datafusion_substrait::extensions::Extensions;
+use datafusion_substrait::logical_plan::consumer::{
+    from_substrait_plan, from_substrait_plan_with_consumer, DefaultSubstraitConsumer,
+    SubstraitConsumer,
+};
+use datafusion_substrait::substrait::proto::{
+    Expression, ExtensionLeafRel, ExtensionMultiRel, ExtensionSingleRel, Plan, PlanRel, ProjectRel,
+};
+use futures::TryStreamExt;
+use datafusion_substrait::substrait::proto::extensions::simple_extension_declaration::MappingType;
+
 use object_store::ObjectMeta;
 use prost::Message;
 use tokio::runtime::Runtime;
@@ -373,6 +387,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
         .with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer))
+        .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer))
         .build();
 
     let ctx = SessionContext::new_with_state(state);
@@ -424,7 +439,18 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     };
 
     runtime.tokio_runtime.block_on(async {
-        let logical_plan = match from_substrait_plan(&ctx.state(), &substrait_plan).await {
+        let mut modified_plan = substrait_plan.clone();
+        for ext in modified_plan.extensions.iter_mut() {
+            if let Some(mapping_type) = &mut ext.mapping_type {
+                if let MappingType::ExtensionFunction(func) = mapping_type {
+                    if func.name == "approx_count_distinct:any" {
+                        func.name = "approx_distinct:any".to_string();
+                    }
+                }
+            }
+        }
+
+        let logical_plan = match from_substrait_plan(&ctx.state(), &modified_plan).await {
             Ok(plan) => {
                 // println!("SUBSTRAIT Rust: LogicalPlan: {:?}", plan);
                 let duration = start.elapsed();
