@@ -525,7 +525,7 @@ class S3Service implements Closeable {
                     }
                 });
             } catch (Exception e) {
-                throw (IOException) e;
+                throw new IOException(e);
             }
         }
 
