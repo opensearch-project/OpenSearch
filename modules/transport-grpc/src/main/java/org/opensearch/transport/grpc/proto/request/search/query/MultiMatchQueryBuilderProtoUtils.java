@@ -14,6 +14,7 @@ import org.opensearch.index.query.Operator;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.protobufs.MultiMatchQuery;
 import org.opensearch.transport.grpc.proto.request.search.OperatorProtoUtils;
+import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -133,8 +134,10 @@ class MultiMatchQueryBuilderProtoUtils {
             }
         }
 
-        if (multiMatchQueryProto.hasFuzzyRewrite()) {
-            fuzzyRewrite = convertMultiTermQueryRewriteToString(multiMatchQueryProto.getFuzzyRewrite());
+        if (multiMatchQueryProto.hasFuzzyRewrite()
+            && multiMatchQueryProto
+                .getFuzzyRewrite() != org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED) {
+            fuzzyRewrite = ProtobufEnumUtils.convertToString(multiMatchQueryProto.getFuzzyRewrite());
         }
 
         if (multiMatchQueryProto.hasTieBreaker()) {
@@ -200,31 +203,5 @@ class MultiMatchQueryBuilderProtoUtils {
         }
 
         return builder;
-    }
-
-    /**
-     * Converts a MultiTermQueryRewrite enum to its string representation.
-     *
-     * @param rewrite The MultiTermQueryRewrite enum value
-     * @return The string representation of the rewrite method
-     */
-    private static String convertMultiTermQueryRewriteToString(org.opensearch.protobufs.MultiTermQueryRewrite rewrite) {
-        switch (rewrite) {
-            case MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE:
-                return "constant_score";
-            case MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE_BOOLEAN:
-                return "constant_score_boolean";
-            case MULTI_TERM_QUERY_REWRITE_SCORING_BOOLEAN:
-                return "scoring_boolean";
-            case MULTI_TERM_QUERY_REWRITE_TOP_TERMS_N:
-                return "top_terms_N";
-            case MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BLENDED_FREQS_N:
-                return "top_terms_blended_freqs_N";
-            case MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BOOST_N:
-                return "top_terms_boost_N";
-            case MULTI_TERM_QUERY_REWRITE_UNSPECIFIED:
-            default:
-                return null;
-        }
     }
 }

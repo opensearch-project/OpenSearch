@@ -43,7 +43,7 @@ public class ScoreSortProtoUtils {
 
         ScoreSortBuilder builder = new ScoreSortBuilder();
 
-        if (scoreSort.hasOrder()) {
+        if (scoreSort.hasOrder() && scoreSort.getOrder() != org.opensearch.protobufs.SortOrder.SORT_ORDER_UNSPECIFIED) {
             SortOrder order = SortOrder.fromString(ProtobufEnumUtils.convertToString(scoreSort.getOrder()));
             builder.order(order);
         }
