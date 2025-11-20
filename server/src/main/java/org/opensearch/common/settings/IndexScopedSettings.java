@@ -147,6 +147,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
                 IndexSettings.INDEX_WARMER_ENABLED_SETTING,
                 IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
+                IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING,
                 IndexSettings.MAX_RESULT_WINDOW_SETTING,
                 IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING,
                 IndexSettings.MAX_TOKEN_COUNT_SETTING,
@@ -171,8 +172,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING,
+                ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING,
+                ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING,
                 IndexSettings.INDEX_GC_DELETES_SETTING,
                 IndexSettings.INDEX_SOFT_DELETES_SETTING,
+                IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING,
+                IndexSettings.INDEX_MAX_RETRY_ON_LOOKUP_MAP_LOCK_ACQUISITION_EXCEPTION,
                 IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING,
                 IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING,
                 IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
@@ -279,6 +284,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING,
                 IndexMetadata.INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING,
                 IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING,
+                IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING,
 
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,

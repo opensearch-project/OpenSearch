@@ -232,6 +232,7 @@ public class TransferManager {
         @ExperimentalApi
         public CompletableFuture<IndexInput> asyncLoadIndexInput(Executor executor) {
             if (isClosed.get()) {
+                fileCache.decRef(request.getFilePath());
                 return CompletableFuture.failedFuture(new IllegalStateException("Already closed"));
             }
             if (isStarted.getAndSet(true) == false) {
@@ -252,6 +253,9 @@ public class TransferManager {
                     }
                     return null;
                 });
+            } else {
+                // Decreasing the extra ref count introduced by compute
+                fileCache.decRef(request.getFilePath());
             }
             return result;
         }

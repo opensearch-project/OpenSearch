@@ -256,14 +256,13 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             this.collectMode = collectMode;
         }
         // Don't defer any child agg if we are dependent on it for pruning results
-        if (order instanceof Aggregation) {
-            AggregationPath path = ((Aggregation) order).path();
+        if (order instanceof Aggregation aggregation) {
+            AggregationPath path = aggregation.path();
             aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
-        } else if (order instanceof CompoundOrder) {
-            CompoundOrder compoundOrder = (CompoundOrder) order;
+        } else if (order instanceof CompoundOrder compoundOrder) {
             for (BucketOrder orderElement : compoundOrder.orderElements()) {
-                if (orderElement instanceof Aggregation) {
-                    AggregationPath path = ((Aggregation) orderElement).path();
+                if (orderElement instanceof Aggregation aggregation) {
+                    AggregationPath path = aggregation.path();
                     aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
                 }
             }

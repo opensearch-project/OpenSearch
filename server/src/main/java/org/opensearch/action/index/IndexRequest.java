@@ -33,7 +33,6 @@
 package org.opensearch.action.index;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
@@ -653,24 +652,20 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         routing(metadata.resolveWriteIndexRouting(routing, index));
     }
 
+    @Deprecated(forRemoval = true)
     public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {
-        if (id == null && opType == OpType.CREATE && version.before(LegacyESVersion.fromId(7050099))) {
-            throw new IllegalArgumentException(
-                "optype create not supported for indexing requests without explicit id until all nodes " + "are on version 7.5.0 or higher"
-            );
-        }
+        // Do nothing.
+        // TODO: Remove in OpenSearch 4.0
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
         super.writeTo(out);
         writeBody(out);
     }
 
     @Override
     public void writeThin(StreamOutput out) throws IOException {
-        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
         super.writeThin(out);
         writeBody(out);
     }

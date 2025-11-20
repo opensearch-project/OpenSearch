@@ -190,17 +190,14 @@ public final class IngestDocument {
      */
     public byte[] getFieldValueAsBytes(String path, boolean ignoreMissing) {
         Object object = getFieldValue(path, Object.class, ignoreMissing);
-        if (object == null) {
-            return null;
-        } else if (object instanceof byte[]) {
-            return (byte[]) object;
-        } else if (object instanceof String) {
-            return Base64.getDecoder().decode(object.toString());
-        } else {
-            throw new IllegalArgumentException(
+        return switch (object) {
+            case null -> null;
+            case byte[] bytes -> bytes;
+            case String string -> Base64.getDecoder().decode(string);
+            default -> throw new IllegalArgumentException(
                 "Content field [" + path + "] of unknown type [" + object.getClass().getName() + "], must be string or byte array"
             );
-        }
+        };
     }
 
     /**
@@ -238,11 +235,11 @@ public final class IngestDocument {
             if (context == null) {
                 return false;
             }
-            if (context instanceof Map) {
+            if (context instanceof Map<?, ?>) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) context;
                 context = map.get(pathElement);
-            } else if (context instanceof List) {
+            } else if (context instanceof List<?>) {
                 @SuppressWarnings("unchecked")
                 List<Object> list = (List<Object>) context;
                 try {
@@ -323,7 +320,7 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        if (context instanceof Map) {
+        if (context instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             if (map.containsKey(leafKey)) {
@@ -332,7 +329,7 @@ public final class IngestDocument {
             }
             throw new IllegalArgumentException("field [" + leafKey + "] not present as part of path [" + path + "]");
         }
-        if (context instanceof List) {
+        if (context instanceof List<?>) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) context;
             int index;
@@ -365,7 +362,7 @@ public final class IngestDocument {
         if (context == null) {
             throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
         }
-        if (context instanceof Map) {
+        if (context instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             if (map.containsKey(pathElement)) {
@@ -373,7 +370,7 @@ public final class IngestDocument {
             }
             throw new IllegalArgumentException("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
         }
-        if (context instanceof List) {
+        if (context instanceof List<?>) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) context;
             int index;
@@ -537,7 +534,7 @@ public final class IngestDocument {
             if (context == null) {
                 throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from null as part of path [" + path + "]");
             }
-            if (context instanceof Map) {
+            if (context instanceof Map<?, ?>) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) context;
                 if (map.containsKey(pathElement)) {
@@ -547,7 +544,7 @@ public final class IngestDocument {
                     map.put(pathElement, newMap);
                     context = newMap;
                 }
-            } else if (context instanceof List) {
+            } else if (context instanceof List<?>) {
                 @SuppressWarnings("unchecked")
                 List<Object> list = (List<Object>) context;
                 int index;
@@ -582,7 +579,7 @@ public final class IngestDocument {
         if (context == null) {
             throw new IllegalArgumentException("cannot set [" + leafKey + "] with null parent as part of path [" + path + "]");
         }
-        if (context instanceof Map) {
+        if (context instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             if (append) {
@@ -600,7 +597,7 @@ public final class IngestDocument {
                 return;
             }
             map.put(leafKey, value);
-        } else if (context instanceof List) {
+        } else if (context instanceof List<?>) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) context;
             int index;
@@ -642,7 +639,7 @@ public final class IngestDocument {
     @SuppressWarnings("unchecked")
     private static Object appendValues(Object maybeList, Object value, boolean allowDuplicates) {
         List<Object> list;
-        if (maybeList instanceof List) {
+        if (maybeList instanceof List<?>) {
             // maybeList is already a list, we append the provided values to it
             list = (List<Object>) maybeList;
         } else {
@@ -660,8 +657,8 @@ public final class IngestDocument {
     }
 
     private static void appendValues(List<Object> list, Object value) {
-        if (value instanceof List) {
-            list.addAll((List<?>) value);
+        if (value instanceof List<?> valueList) {
+            list.addAll(valueList);
         } else {
             list.add(value);
         }
@@ -669,8 +666,7 @@ public final class IngestDocument {
 
     private static boolean appendValuesWithoutDuplicates(List<Object> list, Object value) {
         boolean valuesWereAppended = false;
-        if (value instanceof List) {
-            List<?> valueList = (List<?>) value;
+        if (value instanceof List<?> valueList) {
             for (Object val : valueList) {
                 if (list.contains(val) == false) {
                     list.add(val);
@@ -758,22 +754,19 @@ public final class IngestDocument {
     }
 
     public static Object deepCopy(Object value) {
-        if (value instanceof Map) {
-            Map<?, ?> mapValue = (Map<?, ?>) value;
+        if (value instanceof Map<?, ?> mapValue) {
             Map<Object, Object> copy = new HashMap<>(mapValue.size());
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopy(entry.getValue()));
             }
             return copy;
-        } else if (value instanceof List) {
-            List<?> listValue = (List<?>) value;
+        } else if (value instanceof List<?> listValue) {
             List<Object> copy = new ArrayList<>(listValue.size());
             for (Object itemValue : listValue) {
                 copy.add(deepCopy(itemValue));
             }
             return copy;
-        } else if (value instanceof byte[]) {
-            byte[] bytes = (byte[]) value;
+        } else if (value instanceof byte[] bytes) {
             return Arrays.copyOf(bytes, bytes.length);
         } else if (value == null
             || value instanceof Byte
@@ -787,8 +780,8 @@ public final class IngestDocument {
             || value instanceof Boolean
             || value instanceof ZonedDateTime) {
                 return value;
-            } else if (value instanceof Date) {
-                return ((Date) value).clone();
+            } else if (value instanceof Date date) {
+                return date.clone();
             } else {
                 throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
             }

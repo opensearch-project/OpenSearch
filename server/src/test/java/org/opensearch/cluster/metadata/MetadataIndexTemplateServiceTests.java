@@ -2458,7 +2458,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         List<Throwable> throwables = putTemplate(xContentRegistry(), request, clusterSettings);
         assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
         assertEquals(
-            "Setting [index.routing.allocation.total_primary_shards_per_node] can only be used with remote store enabled clusters",
+            "Setting [index.routing.allocation.total_primary_shards_per_node] or [index.routing.allocation.total_remote_capable_primary_shards_per_node] can only be used with remote store enabled clusters",
             throwables.get(0).getMessage()
         );
     }
