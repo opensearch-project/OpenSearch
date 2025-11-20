@@ -116,6 +116,8 @@ public class IndexFileDeleter {
 
     private void deleteUnreferencedFiles(Map<String, Collection<String>> dfFilesToDelete) {
         try {
+            if (dfFilesToDelete.isEmpty())
+                return;
             compositeEngine.notifyDelete(dfFilesToDelete);
         } catch (Exception e) {
             System.err.println("Failed to delete unreferenced files: " + dfFilesToDelete + ", error: " + e.getMessage());

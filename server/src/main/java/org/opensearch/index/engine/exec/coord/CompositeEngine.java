@@ -706,6 +706,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         engine.deleteFiles(dfFilesToDelete);
         // trigger postDelete hooks for fileDeletionListeners
         for (String dataFormat : dfFilesToDelete.keySet()) {
+            if (fileDeletionListeners.get(dataFormat) == null)
+                continue;
             for (FileDeletionListener fileDeletionListener : fileDeletionListeners.get(dataFormat)) {
                 fileDeletionListener.onFileDeleted(dfFilesToDelete.get(dataFormat));
             }
