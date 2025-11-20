@@ -1146,7 +1146,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
         final DiscoveryNodes nodes = clusterState.nodes();
-        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null);
+        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
+            && searchRequest.scroll() == null;
         final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
         final boolean streamingEnabledEffective = streamingEnabledSetting || FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
         final boolean useStreamingTransportForConnection = isStreamingCandidate
@@ -1289,7 +1290,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequestContext searchRequestContext
     ) {
         // Determine if this request should use streaming transport
-        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null);
+        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
+            && searchRequest.scroll() == null;
 
         // Check if streaming transport is actually available and enabled (cluster setting OR feature flag)
         final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
@@ -1348,7 +1350,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
         } else {
             // Set default streaming mode when only flag is set
-            if (searchRequest.isStreamingScoring() && searchRequest.getStreamingSearchMode() == null) {
+            // Only set a default streaming mode if we will actually use the streaming transport.
+            // Classic transport paths (e.g., reindex/UBQ) must not be implicitly switched to streaming.
+            if (useStreamingTransport && searchRequest.isStreamingScoring() && searchRequest.getStreamingSearchMode() == null) {
                 searchRequest.setStreamingSearchMode(StreamingSearchMode.SCORED_UNSORTED.toString());
             }
 
