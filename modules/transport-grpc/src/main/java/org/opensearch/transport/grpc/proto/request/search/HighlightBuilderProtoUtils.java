@@ -248,6 +248,10 @@ class HighlightBuilderProtoUtils {
                     fieldBuilder.maxAnalyzerOffset(fieldProto.getMaxAnalyzerOffset());
                 }
 
+                if (fieldProto.hasForceSource()) {
+                    fieldBuilder.forceSource(fieldProto.getForceSource());
+                }
+
                 highlightBuilder.field(fieldBuilder);
             }
         }
