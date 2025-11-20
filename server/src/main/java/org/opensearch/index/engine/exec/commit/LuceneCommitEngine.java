@@ -84,6 +84,7 @@ public class LuceneCommitEngine implements Committer {
         return store.readLastCommittedSegmentsInfo().getUserData();
     }
 
+    /*
     @Override
     public Optional<CatalogSnapshot> readLastCommittedCatalogSnapshot() throws IOException {
         Map<String, String> lastCommittedData = getLastCommittedData();
@@ -92,6 +93,7 @@ public class LuceneCommitEngine implements Committer {
         }
         return Optional.empty();
     }
+     */
 
     @Override
     public SafeCommitInfo getSafeCommitInfo() {

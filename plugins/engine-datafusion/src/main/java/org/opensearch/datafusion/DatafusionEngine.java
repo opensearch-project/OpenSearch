@@ -167,6 +167,11 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     }
 
     @Override
+    public FileDeletionListener getFileDeletionListener(Engine.SearcherScope scope) {
+        return datafusionReaderManager;
+    }
+
+    @Override
     public boolean assertSearcherIsWarmedUp(String source, Engine.SearcherScope scope) {
         return false;
     }

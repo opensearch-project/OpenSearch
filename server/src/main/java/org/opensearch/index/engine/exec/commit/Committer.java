@@ -24,7 +24,7 @@ public interface Committer extends Closeable {
 
     Map<String, String> getLastCommittedData() throws IOException;
 
-    Optional<CatalogSnapshot> readLastCommittedCatalogSnapshot() throws IOException;
+    //Optional<CatalogSnapshot> readLastCommittedCatalogSnapshot() throws IOException;
 
     SafeCommitInfo getSafeCommitInfo();
 }
