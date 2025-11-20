@@ -128,8 +128,8 @@ class HighlightBuilderProtoUtils {
             highlightBuilder.phraseLimit(highlightProto.getPhraseLimit());
         }
 
-        if (highlightProto.hasMaxAnalyzedOffset()) {
-            highlightBuilder.maxAnalyzerOffset(highlightProto.getMaxAnalyzedOffset());
+        if (highlightProto.hasMaxAnalyzerOffset()) {
+            highlightBuilder.maxAnalyzerOffset(highlightProto.getMaxAnalyzerOffset());
         }
 
         if (highlightProto.hasOptions()) {
@@ -244,8 +244,8 @@ class HighlightBuilderProtoUtils {
                 if (fieldProto.hasOptions()) {
                     fieldBuilder.options(ObjectMapProtoUtils.fromProto(fieldProto.getOptions()));
                 }
-                if (fieldProto.hasMaxAnalyzedOffset()) {
-                    fieldBuilder.maxAnalyzerOffset(fieldProto.getMaxAnalyzedOffset());
+                if (fieldProto.hasMaxAnalyzerOffset()) {
+                    fieldBuilder.maxAnalyzerOffset(fieldProto.getMaxAnalyzerOffset());
                 }
 
                 highlightBuilder.field(fieldBuilder);

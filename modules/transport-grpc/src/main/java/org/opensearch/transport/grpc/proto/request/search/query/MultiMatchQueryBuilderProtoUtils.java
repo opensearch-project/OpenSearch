@@ -134,7 +134,7 @@ class MultiMatchQueryBuilderProtoUtils {
         }
 
         if (multiMatchQueryProto.hasFuzzyRewrite()) {
-            fuzzyRewrite = multiMatchQueryProto.getFuzzyRewrite();
+            fuzzyRewrite = convertMultiTermQueryRewriteToString(multiMatchQueryProto.getFuzzyRewrite());
         }
 
         if (multiMatchQueryProto.hasTieBreaker()) {
@@ -200,5 +200,31 @@ class MultiMatchQueryBuilderProtoUtils {
         }
 
         return builder;
+    }
+
+    /**
+     * Converts a MultiTermQueryRewrite enum to its string representation.
+     *
+     * @param rewrite The MultiTermQueryRewrite enum value
+     * @return The string representation of the rewrite method
+     */
+    private static String convertMultiTermQueryRewriteToString(org.opensearch.protobufs.MultiTermQueryRewrite rewrite) {
+        switch (rewrite) {
+            case MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE:
+                return "constant_score";
+            case MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE_BOOLEAN:
+                return "constant_score_boolean";
+            case MULTI_TERM_QUERY_REWRITE_SCORING_BOOLEAN:
+                return "scoring_boolean";
+            case MULTI_TERM_QUERY_REWRITE_TOP_TERMS_N:
+                return "top_terms_N";
+            case MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BLENDED_FREQS_N:
+                return "top_terms_blended_freqs_N";
+            case MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BOOST_N:
+                return "top_terms_boost_N";
+            case MULTI_TERM_QUERY_REWRITE_UNSPECIFIED:
+            default:
+                return null;
+        }
     }
 }
