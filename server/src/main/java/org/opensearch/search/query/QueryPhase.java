@@ -161,7 +161,19 @@ public class QueryPhase {
         suggestProcessor.process(searchContext);
         aggregationProcessor.postProcess(searchContext);
 
-        // Do not set default TopDocs here; collector postProcess paths handle it.
+        // Ensure topDocs is present for serialization when truly needed.
+        // Only apply for size=0 aggregation-only queries where collectors legitimately don't set TopDocs.
+        // This prevents interfering with legitimate queries (size>0) that should return hits.
+        if (searchContext.queryResult().hasTopDocs() == false && searchContext.size() == 0) {
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace("Setting default empty TopDocs for size=0 aggregation query");
+            }
+            searchContext.queryResult()
+                .topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]
+                );
+        }
 
         if (searchContext.getProfilers() != null) {
             ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(

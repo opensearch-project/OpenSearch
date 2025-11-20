@@ -752,8 +752,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
 
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
-            // Skip if topDocs have already been consumed (streaming already sent final response)
-            if (result.hasConsumedTopDocs()) {
+            // If topDocs already present, nothing to do
+            if (result.hasTopDocs()) {
                 return;
             }
             final TopDocsAndMaxScore topDocs = newTopDocs();

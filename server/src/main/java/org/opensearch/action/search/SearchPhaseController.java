@@ -434,6 +434,7 @@ public final class SearchPhaseController {
         final List<TopDocs> topDocs = new ArrayList<>();
         for (SearchPhaseResult sortedResult : queryResults) {
             QuerySearchResult queryResult = sortedResult.queryResult();
+            // Consume TopDocs exactly once for merge/reduce phase
             final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
             assert td != null;
             topDocsStats.add(td, queryResult.searchTimedOut(), queryResult.terminatedEarly());

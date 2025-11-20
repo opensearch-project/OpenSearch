@@ -236,7 +236,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         Arrays.sort(toConsume, Comparator.comparingInt(QuerySearchResult::getShardIndex));
 
         for (QuerySearchResult result : toConsume) {
-            topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+            // Use non-consuming topDocs() for stats aggregation only
+            if (result.hasTopDocs()) {
+                topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+            }
         }
 
         final TopDocs newTopDocs;
@@ -246,6 +249,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 topDocsList.add(lastReduceResult.reducedTopDocs);
             }
             for (QuerySearchResult result : toConsume) {
+                // Consume TopDocs exactly once for merge/reduce phase
                 TopDocsAndMaxScore topDocs = result.consumeTopDocs();
                 // For streaming, avoid reassigning shardIndex if already set
                 SearchPhaseController.setShardIndex(topDocs.topDocs, result.getShardIndex());
@@ -569,7 +573,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         private synchronized SearchPhaseController.TopDocsStats consumeTopDocsStats() {
             for (QuerySearchResult result : buffer) {
-                topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+                // Use non-consuming topDocs() for stats aggregation only
+                if (result.hasTopDocs()) {
+                    topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+                }
             }
             return topDocsStats;
         }
@@ -583,8 +590,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 topDocsList.add(reduceResult.reducedTopDocs);
             }
             for (QuerySearchResult result : buffer) {
+                // Consume TopDocs exactly once for merge/reduce phase
                 TopDocsAndMaxScore topDocs = result.consumeTopDocs();
-                // For streaming, avoid reassigning shardIndex if already set
                 SearchPhaseController.setShardIndex(topDocs.topDocs, result.getShardIndex());
                 topDocsList.add(topDocs.topDocs);
             }
