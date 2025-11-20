@@ -145,8 +145,6 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             DatafusionSearcherSupplier searcherSupplier = releasable = (DatafusionSearcherSupplier) acquireSearcherSupplier(wrapper, scope);
             DatafusionSearcher searcher = searcherSupplier.acquireSearcher(source);
             releasable = null;
-            logger.info("Memory consumed by Mcache {} and Acache {}",cacheManager.getMemoryConsumed(CacheUtils.CacheType.METADATA),
-                cacheManager.getTotalMemoryConsumed());
 
             return new DatafusionSearcher(
                 source,
