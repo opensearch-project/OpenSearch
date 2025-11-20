@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
 public class IndexFileDeleterTests extends OpenSearchTestCase {
 
     private IndexFileDeleter indexFileDeleter;
-    private CompositeIndexingExecutionEngine mockEngine;
+    private CompositeEngine mockEngine;
     private ShardPath shardPath;
     private CatalogSnapshot catalogSnapshot;
     private Map<Long, CatalogSnapshot> catalogSnapshotMap;
@@ -54,7 +54,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         Path shardDir = tempDir.resolve("test-uuid").resolve("0");
         shardPath = new ShardPath(false, shardDir, shardDir, shardId);
 
-        mockEngine = mock(CompositeIndexingExecutionEngine.class);
+        mockEngine = mock(CompositeEngine.class);
         catalogSnapshotId = new AtomicLong(0);
         lastCommittedSnapshotId = new AtomicLong(0);
         catalogSnapshotMap = new HashMap<>();
@@ -66,7 +66,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
             Map<String, Collection<String>> filesToDelete = invocation.getArgument(0);
             filesToDelete.values().forEach(deletedFiles::addAll);
             return null;
-        }).when(mockEngine).deleteFiles(any());
+        }).when(mockEngine).notifyDelete(any());
 
         catalogSnapshot = null;
         indexFileDeleter = new IndexFileDeleter(mockEngine, null, shardPath);
