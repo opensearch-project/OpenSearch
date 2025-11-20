@@ -18,11 +18,16 @@ import org.opensearch.index.engine.exec.merge.OneMerge;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNAPSHOT_KEY;
-import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY;
 
 public class CatalogSnapshotManager {
 
@@ -134,15 +139,6 @@ public class CatalogSnapshotManager {
             return Optional.of(CatalogSnapshot.deserializeFromString(lastCommittedData.get(CATALOG_SNAPSHOT_KEY)));
         }
         return Optional.empty();
-    }
-
-    private long getLastCommittedCatalogSnapshotId() throws IOException {
-        long lastCommittedSnapshotId = -1;
-        Map<String,String> lastCommittedData =  this.compositeEngineCommitter.getLastCommittedData();
-        if (lastCommittedData.containsKey(LAST_COMPOSITE_WRITER_GEN_KEY)) {
-            lastCommittedSnapshotId = Long.parseLong(lastCommittedData.get(LAST_COMPOSITE_WRITER_GEN_KEY));
-        }
-        return lastCommittedSnapshotId;
     }
 
 }

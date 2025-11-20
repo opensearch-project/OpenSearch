@@ -91,7 +91,11 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
             }
             remappedSegments.add(remappedSegment);
         }
+        dfGroupedSearchableFiles.clear();
         this.segmentList = remappedSegments;
+        segmentList.forEach(segment -> segment.getDFGroupedSearchableFiles().forEach((dataFormat, writerFiles) -> {
+            dfGroupedSearchableFiles.computeIfAbsent(dataFormat, k -> new ArrayList<>()).add(writerFiles);
+        }));
     }
 
     @Override

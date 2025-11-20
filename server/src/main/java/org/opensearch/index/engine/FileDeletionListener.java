@@ -9,7 +9,8 @@
 package org.opensearch.index.engine;
 
 import java.io.IOException;
+import java.util.Collection;
 
 public interface FileDeletionListener {
-    void onFileDeleted(String file) throws IOException;
+    void onFileDeleted(Collection<String> files) throws IOException;
 }

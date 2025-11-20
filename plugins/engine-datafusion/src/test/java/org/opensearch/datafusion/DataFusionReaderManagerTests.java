@@ -22,7 +22,6 @@ import org.mockito.MockitoAnnotations;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
@@ -31,6 +30,7 @@ import org.opensearch.datafusion.search.*;
 import org.opensearch.env.Environment;
 import org.opensearch.index.engine.exec.*;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.engine.exec.coord.IndexFileDeleter;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.search.aggregations.SearchResultsCollector;
@@ -99,7 +99,8 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
-        readerManager.afterRefresh(true, new CatalogSnapshot(1, List.of(segment), null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true,
+                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher = engine.acquireSearcher("test");
         DatafusionReader reader = searcher.getReader();
@@ -127,7 +128,8 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
-        readerManager.afterRefresh(true, new CatalogSnapshot(1, List.of(segment), null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true,
+                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
@@ -156,7 +158,8 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
-        readerManager.afterRefresh(true, new CatalogSnapshot(1, List.of(segment), null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true,
+                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
@@ -186,7 +189,8 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet1.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
         segment1.addSearchableFiles(getMockDataFormat().name(), writerFileSet1);
 
-        readerManager.afterRefresh(true, new CatalogSnapshot(1, List.of(segment1), null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true,
+                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment1), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionReader reader1 = searcher1.getReader();
@@ -200,7 +204,8 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet2.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
         segment2.addSearchableFiles(getMockDataFormat().name(), writerFileSet2);
 
-        readerManager.afterRefresh(true, new CatalogSnapshot(2, List.of(segment2), null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true,
+                getCatalogSnapshotRef(new CatalogSnapshot(2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
         DatafusionReader reader2 = searcher2.getReader();
@@ -231,7 +236,8 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_2.parquet");
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
-        readerManager.afterRefresh(true, new CatalogSnapshot(1, List.of(segment), null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true,
+                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher = engine.acquireSearcher("test");
         DatafusionReader reader = searcher.getReader();
@@ -266,7 +272,8 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
             writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
             segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
-            readerManager.afterRefresh(true, new CatalogSnapshot(1, List.of(segment), null, noOpFileDeleterSupplier));
+            readerManager.afterRefresh(true,
+                    getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
             // DatafusionReader readerR1 = readerManager.acquire();
             DatafusionSearcher datafusionSearcherS1 = engine.acquireSearcher("Search");
@@ -288,7 +295,8 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
             writerFileSet2.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
             segment2.addSearchableFiles(getMockDataFormat().name(), writerFileSet2);
 
-            readerManager.afterRefresh(true, new CatalogSnapshot(2, List.of(segment2), null, noOpFileDeleterSupplier));
+            readerManager.afterRefresh(true,
+                    getCatalogSnapshotRef(new CatalogSnapshot(2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
 
             // now check if new Reader is created with F2, F3
             // DatafusionReader readerR2 = readerManager.acquire();
@@ -331,7 +339,8 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet1.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
         segment1.addSearchableFiles(getMockDataFormat().name(), writerFileSet1);
 
-        readerManager.afterRefresh(true, new CatalogSnapshot(1, List.of(segment1), null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true,
+                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment1), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("search");
         DatafusionReader reader1 = searcher1.getReader();
@@ -360,7 +369,8 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         writerFileSet2.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
         segment2.addSearchableFiles(getMockDataFormat().name(), writerFileSet2);
 
-        readerManager.afterRefresh(true, new CatalogSnapshot(2, List.of(segment2), null, noOpFileDeleterSupplier));
+        readerManager.afterRefresh(true,
+                getCatalogSnapshotRef(new CatalogSnapshot(2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
 
         expectedResults = new HashMap<>();
         expectedResults.put("min", 3L);
@@ -501,6 +511,15 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
 
         @Override
         public synchronized void removeFileReferences(CatalogSnapshot snapshot) {}
+    }
+
+    private CompositeEngine.ReleasableRef<CatalogSnapshot> getCatalogSnapshotRef(CatalogSnapshot catalogSnapshot) {
+        return new CompositeEngine.ReleasableRef<>(catalogSnapshot) {
+            @Override
+            public void close() {
+                if (catalogSnapshot != null) catalogSnapshot.decRef();
+            }
+        };
     }
 }
 

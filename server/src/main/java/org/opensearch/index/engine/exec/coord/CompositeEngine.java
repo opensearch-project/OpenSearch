@@ -121,7 +121,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
     private final List<CatalogSnapshotAwareRefreshListener> catalogSnapshotAwareRefreshListeners = new ArrayList<>();
-    private final List<FileDeletionListener> fileDeletionListeners = new ArrayList<>();
+    private final Map<String, List<FileDeletionListener>> fileDeletionListeners = new HashMap<>();
     private final Map<org.opensearch.vectorized.execution.search.DataFormat, List<SearchExecEngine<?, ?, ?, ?>>> readEngines =
         new HashMap<>();
     private final MergeScheduler mergeScheduler;
@@ -297,7 +297,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                     }
 
                     if (newSearchEngine.getFileDeletionListener(Engine.SearcherScope.INTERNAL) != null) {
-                        fileDeletionListeners.add(newSearchEngine.getFileDeletionListener(Engine.SearcherScope.INTERNAL));
+                        fileDeletionListeners.computeIfAbsent(dataFormat.getName(), k -> new ArrayList<>())
+                                .add(newSearchEngine.getFileDeletionListener(Engine.SearcherScope.INTERNAL));
                     }
                 }
             }
@@ -701,7 +702,14 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
     // Notifies composite execution engine to delete dataformat specific files
     public void notifyDelete(Map<String, Collection<String>> dfFilesToDelete) throws IOException {
+        // notify engine to delete all files
         engine.deleteFiles(dfFilesToDelete);
+        // trigger postDelete hooks for fileDeletionListeners
+        for (String dataFormat : dfFilesToDelete.keySet()) {
+            for (FileDeletionListener fileDeletionListener : fileDeletionListeners.get(dataFormat)) {
+                fileDeletionListener.onFileDeleted(dfFilesToDelete.get(dataFormat));
+            }
+        }
     }
 
     @ExperimentalApi

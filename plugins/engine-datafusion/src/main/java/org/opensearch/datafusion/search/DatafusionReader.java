@@ -10,6 +10,8 @@ package org.opensearch.datafusion.search;
 
 import org.opensearch.datafusion.jni.handle.ReaderHandle;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -36,14 +38,19 @@ public class DatafusionReader implements Closeable {
      * The reference count.
      */
     private AtomicInteger refCount = new AtomicInteger(1);
+    /**
+     * The catalog snapshot reference.
+     */
+    private CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef;
 
     /**
      * Constructor
      * @param directoryPath The directory path
      * @param files The file metadata collection
      */
-    public DatafusionReader(String directoryPath, Collection<WriterFileSet> files) {
+    public DatafusionReader(String directoryPath, CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef, Collection<WriterFileSet> files) {
         this.directoryPath = directoryPath;
+        this.catalogSnapshotRef = catalogSnapshotRef;
         this.files = files;
         String[] fileNames = new String[0];
         if(files != null) {
@@ -91,5 +98,11 @@ public class DatafusionReader implements Closeable {
     @Override
     public void close() throws IOException {
         readerHandle.close();
+        try {
+            if (catalogSnapshotRef != null)
+                catalogSnapshotRef.close();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }
