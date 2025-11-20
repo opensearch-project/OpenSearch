@@ -205,7 +205,7 @@ public class GoogleCloudStorageService {
                 return builder.build();
             });
         } catch (Exception e) {
-            throw (IOException) e;
+            throw new IOException(e);
         }
     }
 
