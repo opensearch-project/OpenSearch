@@ -158,8 +158,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
-    private final NamedXContentRegistry xContentRegistry;
-    private final NamedWriteableRegistry namedWriteableRegistry;
+    private volatile NamedXContentRegistry xContentRegistry;
+    private volatile NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
     private final EngineFactory engineFactory;
     private final EngineConfigFactory engineConfigFactory;
@@ -1643,6 +1643,24 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
         }
         return clearedAtLeastOne;
+    }
+
+    /**
+     * Update the XContent registry (for search plugin hot reload)
+     * @param newRegistry the new registry to use
+     */
+    public synchronized void updateXContentRegistry(NamedXContentRegistry newRegistry) {
+        logger.info("[{}] Updating NamedXContentRegistry for search plugin hot reload", index());
+        this.xContentRegistry = newRegistry;
+    }
+
+    /**
+     * Update the NamedWriteable registry (for search plugin hot reload)
+     * @param newRegistry the new registry to use  
+     */
+    public synchronized void updateNamedWriteableRegistry(NamedWriteableRegistry newRegistry) {
+        logger.info("[{}] Updating NamedWriteableRegistry for search plugin hot reload", index());
+        this.namedWriteableRegistry = newRegistry;
     }
 
 }
