@@ -75,6 +75,10 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return dataFormat;
     }
 
+    public long getNextWriterGeneration() {
+        return writerGeneration.getAndIncrement();
+    }
+
     @Override
     public List<String> supportedFieldTypes() {
         throw new UnsupportedOperationException();
@@ -111,6 +115,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         try {
             List<CompositeDataFormatWriter> dataFormatWriters = dataFormatWriterPool.checkoutAll();
             List<CatalogSnapshot.Segment> refreshedSegment = ignore.getExistingSegments();
+            List<CatalogSnapshot.Segment> newSegmentList = new ArrayList<>();
             // flush to disk
             for (CompositeDataFormatWriter dataFormatWriter : dataFormatWriters) {
                 CatalogSnapshot.Segment newSegment = new CatalogSnapshot.Segment(0);
@@ -120,7 +125,15 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                         newSegment.addSearchableFiles(key.name(), value);
                     });
                 dataFormatWriter.close();
-                refreshedSegment.add(newSegment);
+                if(!newSegment.getDFGroupedSearchableFiles().isEmpty()) {
+                    newSegmentList.add(newSegment);
+                }
+            }
+
+            if(newSegmentList.isEmpty()) {
+                return null;
+            } else {
+                refreshedSegment.addAll(newSegmentList);
             }
 
             // call refresh for delegats
