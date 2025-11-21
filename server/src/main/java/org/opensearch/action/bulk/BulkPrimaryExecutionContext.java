@@ -350,11 +350,13 @@ class BulkPrimaryExecutionContext {
     }
 
     /** builds the bulk shard response to return to the user */
-    public BulkShardResponse buildShardResponse() {
+    public BulkShardResponse buildShardResponse(long serviceTimeEWMA, int nodeQueueSize) {
         assert hasMoreOperationsToExecute() == false;
         return new BulkShardResponse(
             request.shardId(),
-            Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new)
+            Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new),
+            serviceTimeEWMA,
+            nodeQueueSize
         );
     }
 

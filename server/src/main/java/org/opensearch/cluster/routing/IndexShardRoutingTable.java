@@ -524,7 +524,7 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
         }
     }
 
-    private static List<ShardRouting> rankShardsAndUpdateStats(
+    public static List<ShardRouting> rankShardsAndUpdateStats(
         List<ShardRouting> shards,
         final ResponseCollectorService collector,
         final Map<String, Long> nodeSearchCounts

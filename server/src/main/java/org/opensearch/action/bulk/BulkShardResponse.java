@@ -32,6 +32,7 @@
 
 package org.opensearch.action.bulk;
 
+import org.opensearch.Version;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.support.WriteResponse;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -48,19 +49,32 @@ import java.io.IOException;
  */
 public class BulkShardResponse extends ReplicationResponse implements WriteResponse {
 
+    public static final int DEFAULT_QUEUE_SIZE = 0;
+    public static final long DEFAULT_SERVICE_TIME = 500000000L;
     private final ShardId shardId;
     private final BulkItemResponse[] responses;
+    private final long serviceTimeEWMA;
+    private final int nodeQueueSize;
 
     BulkShardResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
         responses = in.readArray(i -> new BulkItemResponse(shardId, i), BulkItemResponse[]::new);
+        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
+            serviceTimeEWMA = in.readVLong();
+            nodeQueueSize = in.readVInt();
+        } else {
+            serviceTimeEWMA = DEFAULT_SERVICE_TIME;
+            nodeQueueSize = DEFAULT_QUEUE_SIZE;
+        }
     }
 
     // NOTE: public for testing only
-    public BulkShardResponse(ShardId shardId, BulkItemResponse[] responses) {
+    public BulkShardResponse(ShardId shardId, BulkItemResponse[] responses, long serviceTimeEWMA, int nodeQueueSize) {
         this.shardId = shardId;
         this.responses = responses;
+        this.serviceTimeEWMA = serviceTimeEWMA;
+        this.nodeQueueSize = nodeQueueSize;
     }
 
     public ShardId getShardId() {
@@ -69,6 +83,14 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
 
     public BulkItemResponse[] getResponses() {
         return responses;
+    }
+
+    public long getServiceTimeEWMA() {
+        return serviceTimeEWMA;
+    }
+
+    public int getNodeQueueSize() {
+        return nodeQueueSize;
     }
 
     @Override
@@ -90,5 +112,9 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
         super.writeTo(out);
         shardId.writeTo(out);
         out.writeArray((o, item) -> item.writeThin(out), responses);
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+            out.writeVLong(serviceTimeEWMA);
+            out.writeVInt(nodeQueueSize);
+        }
     }
 }
