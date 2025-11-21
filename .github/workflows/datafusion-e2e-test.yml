@@ -68,6 +68,10 @@ jobs:
         working-directory: OpenSearch
         run: ./gradlew :plugins:engine-datafusion:test --tests "org.opensearch.datafusion.DataFusionReaderManagerTests"
 
+      - name: Run IndexFileDeleter Tests
+        working-directory: OpenSearch
+        run: ./gradlew :server:test --tests "org.opensearch.index.engine.exec.coord.IndexFileDeleterTests"
+
       - name: Run OpenSearch with DataFusion Plugin
         working-directory: OpenSearch
         run: |
