@@ -8,214 +8,457 @@
 
 package org.opensearch.search.internal;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSearcher.LeafReaderContextPartition;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.PriorityQueue;
-
-import javax.swing.GroupLayout.Group;
+import java.util.Set;
 
 /**
- * Supplier to compute leaf slices based on passed in leaves and max target slice count to limit the number of computed slices. It sorts
- * all the leaves based on document count and then assign each leaf in round-robin fashion to the target slice count slices. Based on
- * experiment results as shared in <a href=https://github.com/opensearch-project/OpenSearch/issues/7358>issue-7358</a>
- * we can see this mechanism helps to achieve better tail/median latency over default lucene slice computation.
+ * Supplier to compute leaf slices based on passed in leaves and max target slice count.
+ *
+ * Uses threshold-based automatic partitioning: only segments that are too large relative
+ * to the target slice size get partitioned. This is simple and efficient.
  *
  * @opensearch.internal
  */
 final class MaxTargetSliceSupplier {
 
-    static IndexSearcher.LeafSlice[] getSlices(List<LeafReaderContext> leaves, SliceInputConfig sliceInputConfig) {
+    private static final Logger logger = LogManager.getLogger(MaxTargetSliceSupplier.class);
 
-        int targetMaxSlice = sliceInputConfig.targetMaxSliceCount;
-
-
+    /**
+     * Original method for whole segments - maintains backward compatibility
+     */
+    static IndexSearcher.LeafSlice[] getSlices(List<LeafReaderContext> leaves, int targetMaxSlice) {
         if (targetMaxSlice <= 0) {
             throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
         }
 
-        boolean isIntraSegmentEnabled = sliceInputConfig.intraSegmentEnabled;
-        int segmentSizeToSplit = sliceInputConfig.segmentSizeToSplit; // Smallest partition of a segment
-        int minSegmentSizeToSplit = segmentSizeToSplit * 2; // At least 2 partitions would make sense
+        // slice count should not exceed the segment count
+        int targetSliceCount = Math.min(targetMaxSlice, leaves.size());
 
-        List<IndexSearcher.LeafReaderContextPartition> partitions = new ArrayList<>(leaves.size());
+        // Make a copy so we can sort:
+        List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
 
-        Map<Integer, Integer> leafToLastUnassignedDocId = new HashMap<>(leaves.size());
+        // Sort by maxDoc, descending:
+        sortedLeaves.sort(Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().maxDoc())));
 
-        for (LeafReaderContext leafReaderContext : leaves) {
-            // Split a segment if it meets the configured size.
-            if (isIntraSegmentEnabled == true && leafReaderContext.reader().maxDoc() >= minSegmentSizeToSplit) {
-                partitions.addAll(partitionSegment(leafReaderContext, segmentSizeToSplit, targetMaxSlice));
-            } else {
-                partitions.add(createAppropriatePartition(leafReaderContext, 0, DocIdSetIterator.NO_MORE_DOCS));
-            }
-            leafToLastUnassignedDocId.put(leafReaderContext.ord, 0);
+        final List<List<LeafReaderContextPartition>> groupedLeaves = new ArrayList<>(targetSliceCount);
+        for (int i = 0; i < targetSliceCount; ++i) {
+            groupedLeaves.add(new ArrayList<>());
         }
 
-        // slice count should not exceed the partition count
-        int targetSliceCount = Math.min(targetMaxSlice, partitions.size());
+        PriorityQueue<Group> groupQueue = new PriorityQueue<>();
+        for (int i = 0; i < targetSliceCount; i++) {
+            groupQueue.offer(new Group(i));
+        }
 
-        if (targetSliceCount == 0) {
+        Group minGroup;
+        // LPT algorithm
+        for (int i = 0; i < sortedLeaves.size(); ++i) {
+            minGroup = groupQueue.poll();
+            groupedLeaves.get(minGroup.index).add(LeafReaderContextPartition.createForEntireSegment(sortedLeaves.get(i)));
+            minGroup.sum += sortedLeaves.get(i).reader().maxDoc();
+            groupQueue.offer(minGroup);
+        }
+
+        return groupedLeaves.stream().map(IndexSearcher.LeafSlice::new).toArray(IndexSearcher.LeafSlice[]::new);
+    }
+
+    static IndexSearcher.LeafSlice[] getSlicesWithAutoPartitioning(List<LeafReaderContext> leaves, int targetMaxSlice) {
+        if (targetMaxSlice <= 0) {
+            throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
+        }
+
+        if (leaves.isEmpty()) {
             return new IndexSearcher.LeafSlice[0];
         }
 
-        // Sort all the partitions based on their doc counts in descending order.
-        partitions.sort(Collections.reverseOrder(Comparator.comparingInt(MaxTargetSliceSupplier::getPartitionDocCount)));
+        logger.info("=== Starting Automatic Threshold-Based Partitioning ===");
+        logger.info("Input: {} segments, target {} slices", leaves.size(), targetMaxSlice);
 
-        PriorityQueue<LeafSliceBuilder> queue = new PriorityQueue<>(targetSliceCount);
-        for (int i = 0; i < targetSliceCount; i++) {
-            queue.add(new LeafSliceBuilder());
+        // Step 1: Calculate total documents and threshold
+        long totalDocs = 0;
+        for (LeafReaderContext leaf : leaves) {
+            totalDocs += leaf.reader().maxDoc();
         }
 
-        for (IndexSearcher.LeafReaderContextPartition partition : partitions) {
-            LeafSliceBuilder leafSliceBuilder = queue.poll();
-            leafSliceBuilder.addLeafPartition(partition);
-            queue.offer(leafSliceBuilder);
-        }
-         // Perform de-duplication
-        IndexSearcher.LeafSlice[] leafSlices = new IndexSearcher.LeafSlice[targetSliceCount];
-        int index = 0;
+        // Threshold: max docs per partition = total / target_slices Threshold - Global Level, Decision threshold - determines WHICH segments to partition
+        // long maxDocsPerPartition = totalDocs / targetMaxSlice;
 
-        for (LeafSliceBuilder leafSliceBuilder : queue) {
-            leafSlices[index++] = leafSliceBuilder.build(leafToLastUnassignedDocId);
-        }
+        // With Double
+        long maxDocsPerPartition = (long) Math.ceil((double) totalDocs / targetMaxSlice);
 
-        return leafSlices;
-    }
+        logger.info("");
+        logger.info("Total docs: {}, Threshold (max docs per partition): {}", totalDocs, maxDocsPerPartition);
+        logger.info("The targetMaxSlice is  {}", targetMaxSlice );
+        logger.info("--- Analyzing Segments and Creating Partitions ---");
 
-    static class SliceInputConfig {
-        final int targetMaxSliceCount;
-        final boolean intraSegmentEnabled;
-        final int segmentSizeToSplit;
+        // Step 2: Create partitions - split only segments that exceed threshold
+        List<LeafReaderContextPartition> partitions = new ArrayList<>();
 
-        SliceInputConfig(SearchContext searchContext) {
-            targetMaxSliceCount = searchContext.getTargetMaxSliceCount();
-            intraSegmentEnabled = searchContext.shouldUseIntraSegmentConcurrentSearch();
-            segmentSizeToSplit = searchContext.getSegmentPartitionSize();
-        }
 
-        SliceInputConfig(int targetMaxSliceCount, boolean intraSegmentEnabled, int segmentSizeToSplit) {
-            this.targetMaxSliceCount = targetMaxSliceCount;
-            this.intraSegmentEnabled = intraSegmentEnabled;
-            this.segmentSizeToSplit = segmentSizeToSplit;
-        }
+        //COmment below 2
+        int segmentsPartitioned = 0;
+        int segmentsKeptWhole = 0;
 
-    }
+        for (LeafReaderContext leaf : leaves) {
+            int segmentSize = leaf.reader().maxDoc();
 
-    private static class LeafSliceBuilder implements Comparable<LeafSliceBuilder> {
+            if (segmentSize > maxDocsPerPartition) {
+                // Segment is too large - partition it
+                // int numPartitions = (int) Math.ceil(segmentSize / maxDocsPerPartition);
 
-        private int totalSize = 0;
-        private final Map<Integer, IndexSearcher.LeafReaderContextPartition> segmentOrdToMergedPartition = new HashMap<>();
+                // With Double
+                int numPartitions = (int) Math.ceil((double) segmentSize / maxDocsPerPartition);
 
-        void addLeafPartition(IndexSearcher.LeafReaderContextPartition leafReaderContextPartition) {
-            IndexSearcher.LeafReaderContextPartition effectivePartition = leafReaderContextPartition;
-            int effectivePartitionDocCount = getPartitionDocCount(effectivePartition);
-            // Merging 2 LeafReaderContextPartition that fall within same slice.
-            // IndexSearcher in Lucene will throw an exception if not merged as it doesn't help parallelism.
-            if (segmentOrdToMergedPartition.containsKey(leafReaderContextPartition.ctx.ord)) {
-                IndexSearcher.LeafReaderContextPartition storedPartition = segmentOrdToMergedPartition.get(
-                    leafReaderContextPartition.ctx.ord
+                // Actual partition size - determines HOW to split a specific segment
+                int docsPerPartition = segmentSize / numPartitions;
+
+                logger.info(
+                    "Segment {}: {} docs > {} threshold → PARTITION into {} pieces ({} docs each)",
+                    leaf.ord,
+                    segmentSize,
+                    maxDocsPerPartition,
+                    numPartitions,
+                    docsPerPartition
                 );
-                effectivePartitionDocCount += getPartitionDocCount(storedPartition);
-                effectivePartition = createAppropriatePartition(leafReaderContextPartition.ctx, 0, effectivePartitionDocCount);
+
+                for (int i = 0; i < numPartitions; i++) {
+                    int startDoc = i * docsPerPartition;
+                    int endDoc = (i == numPartitions - 1) ? segmentSize : (i + 1) * docsPerPartition;
+
+                    int actualDocs = endDoc - startDoc;
+
+                    partitions.add(LeafReaderContextPartition.createFromAndTo(leaf, startDoc, endDoc));
+                    logger.info(
+                        "  → Created partition {} for segment {}: docs [{} to {}), {} docs",
+                        i,
+                        leaf.ord,
+                        startDoc,
+                        endDoc,
+                        actualDocs
+                    );
+                }
+                segmentsPartitioned++;
+            } else {
+                // Segment is small enough - keep whole
+                partitions.add(LeafReaderContextPartition.createForEntireSegment(leaf));
+                logger.info("Segment {}: {} docs ≤ {} threshold → Keep WHOLE", leaf.ord, segmentSize, maxDocsPerPartition);
+                segmentsKeptWhole++;
             }
-            segmentOrdToMergedPartition.put(effectivePartition.ctx.ord, effectivePartition);
-            totalSize += effectivePartitionDocCount;
         }
 
-        /**
-         * Called when all the leaf partitions are added.
-         * @param leafToLastUnassignedDocId : Map used to track and generate the real From and To docIds for each segment as
-         * @return : Leaf slice containing all partitions with
-         */
-        IndexSearcher.LeafSlice build(Map<Integer, Integer> leafToLastUnassignedDocId) {
-            List<IndexSearcher.LeafReaderContextPartition> partitions = new ArrayList<>(segmentOrdToMergedPartition.size());
-            for (IndexSearcher.LeafReaderContextPartition leafReaderContextPartition : segmentOrdToMergedPartition.values()) {
-                int fromDocId = leafToLastUnassignedDocId.get(leafReaderContextPartition.ctx.ord);
-                int toDocId = fromDocId + getPartitionDocCount(leafReaderContextPartition);
-                partitions.add(createAppropriatePartition(leafReaderContextPartition.ctx, fromDocId, toDocId));
-                leafToLastUnassignedDocId.put(leafReaderContextPartition.ctx.ord, toDocId);
+        logger.info("");
+        logger.info("Partitioning Summary:");
+        logger.info("  Segments partitioned: {}", segmentsPartitioned);
+        logger.info("  Segments kept whole: {}", segmentsKeptWhole);
+        logger.info("  Total partitions created: {}", partitions.size());
+        logger.info("");
+
+        // Step 3: Distribute partitions using LPT
+        return distributePartitionsWithLPTLogger(partitions, targetMaxSlice);
+    }
+
+    /**
+     * Distribute partitions using LPT algorithm while respecting Lucene's constraint
+     * that same-segment partitions must be in different slices.
+     */
+    private static IndexSearcher.LeafSlice[] distributePartitionsWithLPT(
+        List<LeafReaderContextPartition> partitions,
+        int targetMaxSlice
+    ) {
+        if (partitions.isEmpty()) {
+            return new IndexSearcher.LeafSlice[0];
+        }
+
+        // Determine slice count - cannot exceed partition count
+        int sliceCount = Math.min(targetMaxSlice, partitions.size());
+
+        // Sort partitions by size descending (LPT requirement)
+        List<LeafReaderContextPartition> sortedPartitions = new ArrayList<>(partitions);
+        sortedPartitions.sort(Collections.reverseOrder(Comparator.comparingInt(p -> getPartitionDocCount(p))));
+
+        // Initialize slices
+        PriorityQueue<GroupWithSegmentTracking> sliceHeap = new PriorityQueue<>();
+        for (int i = 0; i < sliceCount; i++) {
+            sliceHeap.offer(new GroupWithSegmentTracking(i));
+        }
+
+        // Assign each partition using LPT with segment constraint
+        for (LeafReaderContextPartition partition : sortedPartitions) {
+            int segmentOrd = partition.ctx.ord;
+            int docCount = getPartitionDocCount(partition);
+
+            // Find least-loaded slice that doesn't have this segment yet
+            List<GroupWithSegmentTracking> allSlices = new ArrayList<>();
+            while (!sliceHeap.isEmpty()) {
+                allSlices.add(sliceHeap.poll());
             }
-            return new IndexSearcher.LeafSlice(partitions);
+
+            GroupWithSegmentTracking targetSlice = null;
+            for (GroupWithSegmentTracking slice : allSlices) {
+                if (!slice.hasSegment(segmentOrd)) {
+                    targetSlice = slice;
+                    break; // Already sorted by load
+                }
+            }
+
+            if (targetSlice == null) {
+                // Fallback: not enough slices for the partitions created
+                logger.warn("FALLBACK TRIGGERED: Insufficient slices to distribute partitions");
+                logger.warn("Segment {} needs a slice but all {} slices already contain this segment", segmentOrd, sliceCount);
+                logger.warn("Reverting to whole-segment distribution");
+
+                // Fall back to whole segment distribution
+                Set<LeafReaderContext> uniqueSegments = new HashSet<>();
+                for (LeafReaderContextPartition p : sortedPartitions) {
+                    uniqueSegments.add(p.ctx);
+                }
+                return getSlices(new ArrayList<>(uniqueSegments), targetMaxSlice);
+            }
+
+            // Assign partition to target slice
+            targetSlice.addPartition(partition, segmentOrd, docCount);
+
+            // Put all slices back
+            for (GroupWithSegmentTracking slice : allSlices) {
+                sliceHeap.offer(slice);
+            }
+        }
+
+        // Convert to array
+        List<IndexSearcher.LeafSlice> result = new ArrayList<>();
+        while (!sliceHeap.isEmpty()) {
+            GroupWithSegmentTracking group = sliceHeap.poll();
+            if (!group.partitions.isEmpty()) {
+                result.add(new IndexSearcher.LeafSlice(group.partitions));
+            }
+        }
+
+        return result.toArray(new IndexSearcher.LeafSlice[0]);
+    }
+
+    /**
+     * Distribute partitions using LPT algorithm while respecting Lucene's constraint
+     * that same-segment partitions must be in different slices.
+     */
+    private static IndexSearcher.LeafSlice[] distributePartitionsWithLPTLogger(List<LeafReaderContextPartition> partitions, int targetMaxSlice) {
+        if (partitions.isEmpty()) {
+            return new IndexSearcher.LeafSlice[0];
+        }
+
+        logger.info("--- LPT Distribution Phase ---");
+
+        // Determine slice count - cannot exceed partition count
+        int sliceCount = Math.min(targetMaxSlice, partitions.size());
+        logger.info("Effective slice count: {} (min of target={} and partitions={})", sliceCount, targetMaxSlice, partitions.size());
+
+        // Sort partitions by size descending (LPT requirement)
+        List<LeafReaderContextPartition> sortedPartitions = new ArrayList<>(partitions);
+        sortedPartitions.sort(Collections.reverseOrder(Comparator.comparingInt(p -> getPartitionDocCount(p))));
+
+        logger.info("");
+        logger.info("Partitions sorted by size (descending):");
+        for (int i = 0; i < sortedPartitions.size(); i++) {
+            LeafReaderContextPartition p = sortedPartitions.get(i);
+            int docs = getPartitionDocCount(p);
+            String partitionType = (p.maxDocId == Integer.MAX_VALUE) ? "WHOLE" : "PART";
+            logger.info("  [{}] Segment {} ({}): {} docs", i, p.ctx.ord, partitionType, docs);
+        }
+
+        // Initialize slices
+        PriorityQueue<GroupWithSegmentTracking> sliceHeap = new PriorityQueue<>();
+        for (int i = 0; i < sliceCount; i++) {
+            sliceHeap.offer(new GroupWithSegmentTracking(i));
+        }
+
+        logger.info("");
+        logger.info("--- Assigning Partitions to Slices (LPT Algorithm) ---");
+
+        // Assign each partition using LPT with segment constraint
+        int assignmentNumber = 0;
+        for (LeafReaderContextPartition partition : sortedPartitions) {
+            int segmentOrd = partition.ctx.ord;
+            int docCount = getPartitionDocCount(partition);
+            String partitionType = (partition.maxDocId == Integer.MAX_VALUE) ? "WHOLE" : "PART";
+
+            // Find least-loaded slice that doesn't have this segment yet
+            List<GroupWithSegmentTracking> allSlices = new ArrayList<>();
+            while (!sliceHeap.isEmpty()) {
+                allSlices.add(sliceHeap.poll());
+            }
+
+            // Log current state
+            logger.info("");
+            logger.info("Assignment #{}: Segment {} ({}) with {} docs", ++assignmentNumber, segmentOrd, partitionType, docCount);
+            logger.info("  Current slice loads:");
+            for (GroupWithSegmentTracking slice : allSlices) {
+                logger.info("    Slice {}: {} docs, has segments: {}", slice.index, slice.docCountSum, slice.segmentOrdinals);
+            }
+
+            GroupWithSegmentTracking targetSlice = null;
+            for (GroupWithSegmentTracking slice : allSlices) {
+                if (!slice.hasSegment(segmentOrd)) {
+                    targetSlice = slice;
+                    break; // Already sorted by load
+                }
+            }
+
+            if (targetSlice == null) {
+                // This means we don't have enough slices for the partitions created
+                logger.warn("FALLBACK TRIGGERED: Insufficient slices to distribute partitions");
+                logger.warn("  Segment {} needs a slice but all {} slices already contain this segment", segmentOrd, sliceCount);
+                logger.warn("  Reverting to whole-segment distribution");
+
+                // Put slices back
+                for (GroupWithSegmentTracking slice : allSlices) {
+                    sliceHeap.offer(slice);
+                }
+
+                // Fall back to whole segment distribution
+                Set<LeafReaderContext> uniqueSegments = new HashSet<>();
+                for (LeafReaderContextPartition p : sortedPartitions) {
+                    uniqueSegments.add(p.ctx);
+                }
+                return getSlices(new ArrayList<>(uniqueSegments), targetMaxSlice);
+            }
+
+            // Assign partition to target slice
+            targetSlice.addPartition(partition, segmentOrd, docCount);
+            logger.info(
+                "  → Assigned to Slice {} (was {} docs, now {} docs)",
+                targetSlice.index,
+                targetSlice.docCountSum - docCount,
+                targetSlice.docCountSum
+            );
+
+            // Put all slices back
+            for (GroupWithSegmentTracking slice : allSlices) {
+                sliceHeap.offer(slice);
+            }
+        }
+
+        // Convert to array
+        List<IndexSearcher.LeafSlice> result = new ArrayList<>();
+        List<GroupWithSegmentTracking> finalSlices = new ArrayList<>();
+        while (!sliceHeap.isEmpty()) {
+            GroupWithSegmentTracking group = sliceHeap.poll();
+            if (!group.partitions.isEmpty()) {
+                result.add(new IndexSearcher.LeafSlice(group.partitions));
+                finalSlices.add(group);
+            }
+        }
+
+        // Log final distribution and calculate imbalance
+        logger.info("");
+        logger.info("=== Final Distribution Summary ===");
+
+        long totalDocs = 0;
+        long maxDocs = 0;
+        long minDocs = Long.MAX_VALUE;
+
+        for (GroupWithSegmentTracking slice : finalSlices) {
+            totalDocs += slice.docCountSum;
+            maxDocs = Math.max(maxDocs, slice.docCountSum);
+            minDocs = Math.min(minDocs, slice.docCountSum);
+
+            logger.info("");
+            logger.info("Slice {}: {} docs across {} partitions", slice.index, slice.docCountSum, slice.partitions.size());
+            logger.info("  Contains segments: {}", slice.segmentOrdinals);
+            logger.info("  Partitions:");
+            for (LeafReaderContextPartition p : slice.partitions) {
+                int docs = getPartitionDocCount(p);
+                String type = (p.maxDocId == Integer.MAX_VALUE) ? "WHOLE" : "PART";
+                logger.info("    - Segment {} ({}): {} docs", p.ctx.ord, type, docs);
+            }
+        }
+
+        // Calculate imbalance
+        double avgDocs = finalSlices.isEmpty() ? 0 : (double) totalDocs / finalSlices.size();
+        double imbalancePercentage = (avgDocs > 0) ? ((maxDocs - minDocs) / avgDocs) * 100.0 : 0.0;
+
+        logger.info("");
+        logger.info("=== Load Balance Statistics ===");
+        logger.info("Total docs distributed: {}", totalDocs);
+        logger.info("Number of slices: {}", finalSlices.size());
+        logger.info("Average docs per slice: {}", String.format("%.0f", avgDocs));
+        logger.info("Min docs in a slice: {}", minDocs);
+        logger.info("Max docs in a slice: {}", maxDocs);
+        logger.info("Imbalance: {}", String.format("%.2f%%", imbalancePercentage));
+
+
+        logger.info("=== End of Distribution ===");
+        logger.info("");
+
+        return result.toArray(new IndexSearcher.LeafSlice[0]);
+    }
+
+    /**
+     * Helper to get document count from a partition
+     */
+    private static int getPartitionDocCount(LeafReaderContextPartition partition) {
+        if (partition.maxDocId == Integer.MAX_VALUE) { // NO_MORE_DOCS - entire segment
+            return partition.ctx.reader().maxDoc();
+        }
+        return partition.maxDocId - partition.minDocId;
+    }
+
+    /**
+     * Original Group class for backward compatibility
+     */
+    static class Group implements Comparable<Group> {
+        final int index;
+        long sum;
+
+        public Group(int index) {
+            this.index = index;
+            this.sum = 0;
         }
 
         @Override
-        public int compareTo(LeafSliceBuilder o) {
-            return Integer.compare(totalSize, o.totalSize);
+        public int compareTo(Group other) {
+            return Long.compare(this.sum, other.sum);
         }
     }
 
     /**
-     * Consider a segment with 31_000 documents and user has configured 10_000 ( denoted by partitonSize parameter )
-     * as minimum size for the partition of a segment. We first determine number of partitions, 31_000 / 10_000 = 3. <br>
-     * Then, we determine the remainingDocs = 31_000 % 10_000 = 1000 that need to be divided. <br>
-     * Then, it's divided equally amongst all partitions as 10_000 + ( 1000 / 3 ) = 10_333  <br>
-     * Still one partition would get one extra doc which is also considered. So, net result is: <br>
-     * [ 31_000 ] = [ 10_334. 10_333, 10_333 ]
+     * Group that tracks which segments are in the slice to enforce Lucene constraint
      */
-    private static List<IndexSearcher.LeafReaderContextPartition> partitionSegment(
-        LeafReaderContext leaf,
-        int partitionSize,
-        int targetMaxSlice
-    ) {
+    static class GroupWithSegmentTracking implements Comparable<GroupWithSegmentTracking> {
+        final int index;
+        long docCountSum;
+        final Set<Integer> segmentOrdinals;
+        final List<LeafReaderContextPartition> partitions;
 
-        int segmentMaxDoc = leaf.reader().maxDoc();
-        int numPartitions = segmentMaxDoc / partitionSize;
-
-        // Max number of splits/partitions for a segment should not exceed the available slices.
-        if (numPartitions > targetMaxSlice) {
-            numPartitions = targetMaxSlice;
-            partitionSize = segmentMaxDoc / numPartitions;
+        public GroupWithSegmentTracking(int index) {
+            this.index = index;
+            this.docCountSum = 0;
+            this.segmentOrdinals = new HashSet<>();
+            this.partitions = new ArrayList<>();
         }
 
-        int remainingDocs = segmentMaxDoc % partitionSize;
-        int minPartitionSize = partitionSize + (remainingDocs / numPartitions);
-        int partitionsWithOneExtraDoc = remainingDocs % numPartitions;
-
-        List<IndexSearcher.LeafReaderContextPartition> partitions = new ArrayList<>(numPartitions);
-
-        int currentStartDocId = 0, currentEndDocId;
-
-        for (int i = 0; i < numPartitions; ++i) {
-            currentEndDocId = currentStartDocId + minPartitionSize;
-            currentEndDocId += (i < partitionsWithOneExtraDoc) ? 1 : 0;
-            partitions.add(createAppropriatePartition(leaf, currentStartDocId, currentEndDocId));
-            currentStartDocId = currentEndDocId;
+        public boolean hasSegment(int segmentOrd) {
+            return segmentOrdinals.contains(segmentOrd);
         }
 
-        return partitions;
-    }
-
-    static int getPartitionDocCount(IndexSearcher.LeafReaderContextPartition partition) {
-        int effectiveMaxDocId = partition.maxDocId;
-        if (partition.maxDocId == DocIdSetIterator.NO_MORE_DOCS) {
-            effectiveMaxDocId = partition.ctx.reader().maxDoc();
+        public void addPartition(LeafReaderContextPartition partition, int segmentOrd, long docCount) {
+            this.partitions.add(partition);
+            this.segmentOrdinals.add(segmentOrd);
+            this.docCountSum += docCount;
         }
-        return effectiveMaxDocId - partition.minDocId;
-    }
 
-    /**
-     * We want to ensure that all optimisations in Lucene relying on endDocId being NO_MORE_DOCS keeps working.
-     * We don't want a segment to be created as LeafReaderContextPartition.createFromAndTo(leafReaderContext, 0, leafReaderContext.reader().maxDoc())
-     */
-    private static IndexSearcher.LeafReaderContextPartition createAppropriatePartition(
-        LeafReaderContext leafReaderContext,
-        int startDocId,
-        int endDocId
-    ) {
-        endDocId = (endDocId == DocIdSetIterator.NO_MORE_DOCS) ? leafReaderContext.reader().maxDoc() : endDocId;
-        int docCount = endDocId - startDocId;
-        if (docCount == leafReaderContext.reader().maxDoc()) {
-            return IndexSearcher.LeafReaderContextPartition.createForEntireSegment(leafReaderContext);
-        } else {
-            return IndexSearcher.LeafReaderContextPartition.createFromAndTo(leafReaderContext, startDocId, endDocId);
+        @Override
+        public int compareTo(GroupWithSegmentTracking other) {
+            return Long.compare(this.docCountSum, other.docCountSum);
         }
     }
 }

@@ -438,13 +438,6 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
-     * Returns intra segment concurrent search status for the search context
-     */
-    public boolean shouldUseIntraSegmentConcurrentSearch() {
-        return false;
-    }
-
-    /**
      * Returns local bucket count thresholds based on concurrent segment search status
      */
     public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
@@ -528,10 +521,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract int getTargetMaxSliceCount();
 
-    public int getSegmentPartitionSize() {
-        return 2;
-    }
-
     @ExperimentalApi
     public long getStreamingMaxEstimatedBucketCount() {
         return 100_000L;
@@ -604,5 +593,11 @@ public abstract class SearchContext implements Releasable {
     public boolean setFlushModeIfAbsent(FlushMode flushMode) {
         return false;
     }
+
+    public abstract boolean getIntraSegmentSearchEnabled();
+
+    public abstract int getIntraSegmentPartitionsPerSegment();
+
+    public abstract int getIntraSegmentMinSegmentSize();
 
 }

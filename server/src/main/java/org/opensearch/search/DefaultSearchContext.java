@@ -126,10 +126,12 @@ import static org.opensearch.search.SearchService.BUCKET_SELECTION_STRATEGY_FACT
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
-import static org.opensearch.search.SearchService.CLUSTER_INTRA_CONCURRENT_SEGMENT_SEARCH_MODE;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+import static org.opensearch.search.SearchService.INTRA_SEGMENT_SEARCH_ENABLED;
+import static org.opensearch.search.SearchService.INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE;
+import static org.opensearch.search.SearchService.INTRA_SEGMENT_SEARCH_PARTITIONS_PER_SEGMENT;
 import static org.opensearch.search.SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED;
 import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
 import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT;
@@ -217,9 +219,7 @@ final class DefaultSearchContext extends SearchContext {
     private final FetchPhase fetchPhase;
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
     private final String concurrentSearchMode;
-    private final String concurrentIntraSegmentSearchMode;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
-    private final SetOnce<Boolean> requestShouldUseConcurrentIntraSegmentSearch = new SetOnce<>();
     private final int maxAggRewriteFilters;
     private final int filterRewriteSegmentThreshold;
     private final int cardinalityAggregationPruningThreshold;
@@ -262,7 +262,6 @@ final class DefaultSearchContext extends SearchContext {
         this.clusterService = clusterService;
         this.engineSearcher = readerContext.acquireSearcher("search");
         this.concurrentSearchMode = evaluateConcurrentSearchMode(executor);
-        this.concurrentIntraSegmentSearchMode = evaluateConcurrentIntraSegmentSearchMode(executor);
         this.searcher = new ContextIndexSearcher(
             engineSearcher.getIndexReader(),
             engineSearcher.getSimilarity(),
@@ -979,15 +978,6 @@ final class DefaultSearchContext extends SearchContext {
         return profilers;
     }
 
-    @Override
-    public boolean shouldUseIntraSegmentConcurrentSearch() {
-        assert requestShouldUseConcurrentIntraSegmentSearch.get() != null : "requestShouldUseConcurrentIntraSegmentSearch must be set";
-        assert concurrentIntraSegmentSearchMode != null : "concurrentIntraSegmentSearchMode must be set";
-        // TODO : Handle auto mode here
-        return (concurrentIntraSegmentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL))
-            && Boolean.TRUE.equals(requestShouldUseConcurrentIntraSegmentSearch.get());
-    }
-
     /**
      * Returns concurrent segment search status for the search context. This should only be used after request parsing, during which requestShouldUseConcurrentSearch will be set.
      */
@@ -1078,22 +1068,6 @@ final class DefaultSearchContext extends SearchContext {
             } else {
                 requestShouldUseConcurrentSearch.set(true);
             }
-    }
-
-    public void evaluateRequestShouldUseIntraSegmentConcurrentSearch() {
-        if (sort != null && sort.isSortOnTimeSeriesField()) {
-            requestShouldUseConcurrentIntraSegmentSearch.set(false);
-        } else if (aggregations() != null) {
-            requestShouldUseConcurrentIntraSegmentSearch.set(false);
-        } else if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
-            requestShouldUseConcurrentIntraSegmentSearch.set(false);
-        } else if (trackTotalHitsUpTo != TRACK_TOTAL_HITS_DISABLED) { // TODO : Need to handle TotalHitCountCollectorManager
-            requestShouldUseConcurrentIntraSegmentSearch.set(false);
-        } else if (concurrentIntraSegmentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL)) { // TODO : Handle auto mode here
-            requestShouldUseConcurrentIntraSegmentSearch.set(true);
-        } else {
-            requestShouldUseConcurrentIntraSegmentSearch.set(false);
-        }
     }
 
     public void setProfilers(Profilers profilers) {
@@ -1194,42 +1168,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Determines the appropriate concurrent intra segment search mode for the current search request.
-     * <p>
-     * This method evaluates both index-level and cluster-level settings to decide whether
-     * concurrent segment search should be enabled. The resolution logic is as follows:
-     * <ol>
-     *     <li>If the request targets a system index or uses search throttling, concurrent segment search is disabled.</li>
-     *     <li>If a legacy boolean setting is present (cluster or index level), it is honored:
-     *         <ul>
-     *             <li><code>true</code> → enables concurrent segment search ("all")</li>
-     *             <li><code>false</code> → disables it ("none")</li>
-     *         </ul>
-     *     </li>
-     *     <li>Otherwise, the modern string-based setting is used. Allowed values are: "none", "auto", or "all".</li>
-     * </ol>
-     *
-     * @param concurrentSearchExecutor the executor used for concurrent segment search; if null, disables the feature
-     * @return the resolved concurrent segment search mode: "none", "auto", or "all"
-     */
-    private String evaluateConcurrentIntraSegmentSearchMode(Executor concurrentSearchExecutor) {
-        // Skip concurrent search for system indices, throttled requests, or if dependencies are missing
-        if (indexShard.isSystem()
-            || indexShard.indexSettings().isSearchThrottled()
-            || clusterService == null
-            || concurrentSearchExecutor == null) {
-            return CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
-        }
-
-        Settings indexSettings = indexService.getIndexSettings().getSettings();
-        ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        return indexSettings.get(
-            IndexSettings.INDEX_CONCURRENT_INTRA_SEGMENT_SEARCH_MODE.getKey(),
-            clusterSettings.get(CLUSTER_INTRA_CONCURRENT_SEGMENT_SEARCH_MODE)
-        );
-    }
-
-    /**
      * Returns the target maximum slice count to use for concurrent segment search.
      *
      * If concurrent segment search is disabled (either due to system index, throttled search,
@@ -1254,16 +1192,6 @@ final class DefaultSearchContext extends SearchContext {
                 clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING)
             );
 
-    }
-
-    @Override
-    public int getSegmentPartitionSize() {
-        return indexService.getIndexSettings()
-            .getSettings()
-            .getAsInt(
-                IndexSettings.INDEX_CONCURRENT_INTRA_SEGMENT_PARTITION_SIZE.getKey(),
-                clusterService.getClusterSettings().get(SearchService.CONCURRENT_INTRA_SEGMENT_SEARCH_PARTITION_SIZE_SETTING)
-            );
     }
 
     @Override
@@ -1385,5 +1313,33 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public long getStreamingMinEstimatedBucketCount() {
         return clusterService.getClusterSettings().get(STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
+    }
+
+    /**
+     * Returns whether intra-segment search is enabled for this search context.
+     * This checks cluster-level settings to determine if segments should be partitioned for concurrent search.
+     */
+    @Override
+    public boolean getIntraSegmentSearchEnabled() {
+        return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_ENABLED);
+    }
+
+    /**
+     * Returns the number of partitions to create per segment when intra-segment search is enabled.
+     * This value is retrieved from cluster-level settings.
+     */
+    @Override
+    public int getIntraSegmentPartitionsPerSegment() {
+        return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_PARTITIONS_PER_SEGMENT);
+    }
+
+    /**
+     * Returns the minimum segment size required to enable intra-segment partitioning.
+     * Segments smaller than this threshold will not be partitioned.
+     * This value is retrieved from cluster-level settings.
+     */
+    @Override
+    public int getIntraSegmentMinSegmentSize() {
+        return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE);
     }
 }

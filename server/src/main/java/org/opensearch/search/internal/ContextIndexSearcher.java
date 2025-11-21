@@ -119,6 +119,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
     private SearchContext searchContext;
+    private ContextualProfileBreakdown breakdown;
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -165,6 +166,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     public QueryProfiler getProfiler() {
         return profiler;
+    }
+
+    public ContextualProfileBreakdown getBreakdown() {
+        return breakdown;
     }
 
     /**
@@ -225,6 +230,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // each invocation so that it can build an internal representation of the query
             // tree
             ContextualProfileBreakdown profile = profiler.getQueryBreakdown(query);
+            this.breakdown = profile;
             Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT);
             timer.start();
             final Weight weight;
@@ -232,7 +238,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 weight = query.createWeight(this, scoreMode, boost);
             } finally {
                 timer.stop();
-                profiler.pollLastElement();
+                //profiler.pollLastElement();
             }
             return new ProfileWeight(query, weight, profile);
         } else {
@@ -301,6 +307,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector) throws IOException {
+        logger.info("After fanout, this search task is on thread: {}", Thread.currentThread().getName());
+        logger.info("ContextIndexSearcher.search(LeafReaderContextPartition[]) called with {} partitions", partitions.length);
         searchContext.indexShard().getSearchOperationListener().onPreSliceExecution(searchContext);
         try {
             // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
@@ -308,11 +316,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
             // reader order here.
             if (searchContext.shouldUseTimeSeriesDescSortOptimization()) {
+                logger.info("Using time series desc optimization - searching {} partitions in reverse order", partitions.length);
                 for (int i = partitions.length - 1; i >= 0; i--) {
+                    logger.info("Searching partition {}: segment {} docs [{}-{}]",
+                        (partitions.length - 1 - i), partitions[i].ctx.ord, partitions[i].minDocId, partitions[i].maxDocId);
                     searchLeaf(partitions[i].ctx, partitions[i].minDocId, partitions[i].maxDocId, weight, collector);
                 }
             } else {
+                logger.info("Using normal order - searching {} partitions", partitions.length);
+                int partitionIndex = 0;
                 for (LeafReaderContextPartition partition : partitions) {
+                    logger.info("Searching partition {}: segment {} docs [{}-{}]",
+                        partitionIndex++, partition.ctx.ord, partition.minDocId, partition.maxDocId);
                     searchLeaf(partition.ctx, partition.minDocId, partition.maxDocId, weight, collector);
                 }
             }
@@ -571,13 +586,84 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
+     * Determines whether intra-segment search should be used for the current search context
+     */
+    private boolean shouldUseIntraSegmentSearch() {
+        // Check if intra-segment search is enabled globally and for this search context
+        // Note: Intra-segment search requires concurrent execution since partitions from the same
+        // segment must be processed by different threads (cannot be in the same slice)
+        // return getIntraSegmentSearchEnabled() && searchContext.shouldUseConcurrentSearch() && !hasComplexAggregations();
+        return getIntraSegmentSearchEnabled() && searchContext.shouldUseConcurrentSearch();
+        // searchContext.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE
+    }
+
+    /**
+     * Check if the search has complex aggregations that might not benefit from intra-segment search
+     */
+    private boolean hasComplexAggregations() {
+        // For now, be conservative and disable intra-segment search when aggregations are present
+        // This can be enhanced later to support specific types of aggregations
+        return searchContext.aggregations() != null && searchContext.aggregations().factories() != null;
+
+        /*if (searchContext.aggregations() == null || searchContext.aggregations().factories() == null) {
+            logger.info("No aggregations present in search request");
+            return false;
+        }
+        logger.info("aggregations present in search request");
+        return true;*/
+    }
+
+    /**
+     * Get intra-segment search enabled setting from search context
+     */
+    private boolean getIntraSegmentSearchEnabled() {
+        return searchContext.getIntraSegmentSearchEnabled();
+    }
+
+    /**
+     * Get number of partitions per segment from search context
+     */
+    private int getIntraSegmentPartitionsPerSegment() {
+        return searchContext.getIntraSegmentPartitionsPerSegment();
+    }
+
+    /**
+     * Get minimum segment size for intra-segment partitioning from search context
+     */
+    private int getIntraSegmentMinSegmentSize() {
+        return searchContext.getIntraSegmentMinSegmentSize();
+    }
+
+    /**
      * Compute the leaf slices that will be used by concurrent segment search to spread work across threads
      * @param leaves all the segments
      * @return leafSlice group to be executed by different threads
      */
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return slicesInternal(leaves, new MaxTargetSliceSupplier.SliceInputConfig(searchContext));
+        if (getBreakdown() != null) {
+            Timer timer = getBreakdown().getTimer(QueryTimingType.SLICING);
+            try {
+                timer.start();
+                return internalGetSlices(leaves);
+            } finally {
+                timer.stop();
+                profiler.pollLastElement();
+            }
+        } else {
+            return internalGetSlices(leaves);
+        }
+    }
+
+    private LeafSlice[] internalGetSlices(List<LeafReaderContext> leaves) {
+        if (leaves == null || leaves.isEmpty()) {
+            return new LeafSlice[0];
+        }
+        int targetMaxSlice = searchContext.getTargetMaxSliceCount();
+        if (!shouldUseIntraSegmentSearch()) {
+            return MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
+        }
+        return MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, targetMaxSlice);
     }
 
     public DirectoryReader getDirectoryReader() {
@@ -647,15 +733,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     // package-private for testing
-    LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, MaxTargetSliceSupplier.SliceInputConfig sliceInputConfig) {
+    // Disable the usage of slicesInternal for now (temp).
+    LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, int targetMaxSlice) {
         LeafSlice[] leafSlices;
-        if (sliceInputConfig.targetMaxSliceCount == 0) {
+        if (targetMaxSlice == 0) {
             // use the default lucene slice calculation
             leafSlices = super.slices(leaves);
             logger.debug("Slice count using lucene default [{}]", leafSlices.length);
         } else {
             // use the custom slice calculation based on targetMaxSlice
-            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, sliceInputConfig);
+            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
             logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
         }
         return leafSlices;

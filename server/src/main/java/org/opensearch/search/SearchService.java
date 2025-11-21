@@ -281,7 +281,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<Boolean> QUERY_REWRITING_ENABLED_SETTING = Setting.boolSetting(
         "search.query_rewriting.enabled",
-        true,
+        false,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -342,41 +342,29 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
-    public static final String CONCURRENT_INTRA_SEGMENT_PARTITION_SIZE_KEY = "search.concurrent_intra_segment_search.partition_size";
-    public static final int CONCURRENT_INTRA_SEGMENT_DEFAULT_PARTITION_SIZE_VALUE = 10_000;
-    public static final int CONCURRENT_INTRA_SEGMENT_MINIMUM_PARTITION_SIZE_VALUE = 2;
-
-    // Allow concurrent intra segment search for all requests
-    public static final String CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_ALL = "all";
-
-    // Disallow concurrent intra segment search for all requests
-    public static final String CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_NONE = "none";
-
-    // Make decision for concurrent intra segment search based on concurrent search deciders
-    public static final String CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_AUTO = "auto";
-
-    public static final Setting<String> CLUSTER_INTRA_CONCURRENT_SEGMENT_SEARCH_MODE = Setting.simpleString(
-        "search.concurrent_intra_segment_search.mode",
-        CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_AUTO,
-        value -> {
-            switch (value) {
-                case CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_ALL:
-                case CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_NONE:
-                case CONCURRENT_INTRA_SEGMENT_SEARCH_MODE_AUTO:
-                    // valid setting
-                    break;
-                default:
-                    throw new IllegalArgumentException("Setting value must be one of [all, none, auto]");
-            }
-        },
+    // Intra-segment search settings
+    public static final Setting<Boolean> INTRA_SEGMENT_SEARCH_ENABLED = Setting.boolSetting(
+        "search.intra_segment_search.enabled",
+        true,
         Property.Dynamic,
         Property.NodeScope
     );
 
-    public static final Setting<Integer> CONCURRENT_INTRA_SEGMENT_SEARCH_PARTITION_SIZE_SETTING = Setting.intSetting(
-        CONCURRENT_INTRA_SEGMENT_PARTITION_SIZE_KEY,
-        CONCURRENT_INTRA_SEGMENT_DEFAULT_PARTITION_SIZE_VALUE,
-        CONCURRENT_INTRA_SEGMENT_MINIMUM_PARTITION_SIZE_VALUE,
+    // Setting to control minimum segment size for intra-segment partitioning
+    public static final Setting<Integer> INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE = Setting.intSetting(
+        "search.intra_segment_search.min_segment_size",
+        // 10000, // Only partition segments with 10k+ docs
+        1000000,
+        1000,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    // Setting to control number of partitions per segment
+    public static final Setting<Integer> INTRA_SEGMENT_SEARCH_PARTITIONS_PER_SEGMENT = Setting.intSetting(
+        "search.intra_segment_search.partitions_per_segment",
+        2,      // Default 2 partitions per segment
+        1,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -1560,7 +1548,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // nothing to parse...
         if (source == null) {
             context.evaluateRequestShouldUseConcurrentSearch();
-            context.evaluateRequestShouldUseIntraSegmentConcurrentSearch();
             return;
         }
 
@@ -1752,7 +1739,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.collapse(collapseContext);
         }
         context.evaluateRequestShouldUseConcurrentSearch();
-        context.evaluateRequestShouldUseIntraSegmentConcurrentSearch();
         if (source.profile()) {
             final Function<Query, Collection<Supplier<ProfileMetric>>> pluginProfileMetricsSupplier = (query) -> pluginProfilers.stream()
                 .flatMap(p -> p.getQueryProfileMetrics(context, query).stream())
@@ -2091,6 +2077,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @return the computed default slice count
      */
     private static int computeDefaultSliceCount() {
+        // int sliceCount = Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
+        // logger.info("The computeDefaultSliceCount is {}", sliceCount);
+        // return sliceCount;
         return Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
     }
 
