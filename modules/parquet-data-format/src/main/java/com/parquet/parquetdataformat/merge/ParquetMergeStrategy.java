@@ -21,7 +21,7 @@ public interface ParquetMergeStrategy {
     /**
      * Performs the actual Parquet merge.
      */
-    MergeResult mergeParquetFiles(Collection<FileMetadata> files);
+    MergeResult mergeParquetFiles(Collection<FileMetadata> files, long writerGeneration);
 
     /**
      * Optional post-merge hook.

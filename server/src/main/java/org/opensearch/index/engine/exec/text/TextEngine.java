@@ -127,7 +127,7 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
     public static class TextMerger implements Merger {
 
         @Override
-        public MergeResult merge(Collection<FileMetadata> fileMetadataList) {
+        public MergeResult merge(Collection<FileMetadata> fileMetadataList, long writerGeneration) {
             // Here we will implementation of logic for merging files and reassign the row-ids
             // and creating the mapping of the old segment+id to new row id.
             //
@@ -136,7 +136,7 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
         }
 
         @Override
-        public MergeResult merge(Collection<FileMetadata> fileMetadataList, RowIdMapping rowIdMapping) {
+        public MergeResult merge(Collection<FileMetadata> fileMetadataList, RowIdMapping rowIdMapping, long writerGeneration) {
             // Here we will have implementation of the merge logic where we will have the mapping of the old row id to new id
             // and merging the files.
             //

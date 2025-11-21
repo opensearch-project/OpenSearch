@@ -17,7 +17,7 @@ import java.util.Collection;
 
 public abstract class ParquetMerger implements Merger {
     @Override
-    public MergeResult merge(Collection<FileMetadata> fileMetadataList, RowIdMapping rowIdMapping) {
+    public MergeResult merge(Collection<FileMetadata> fileMetadataList, RowIdMapping rowIdMapping, long writerGeneration) {
         throw new UnsupportedOperationException("Not supported parquet as secondary data format yet.");
     }
 }

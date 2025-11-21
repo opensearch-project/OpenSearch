@@ -73,7 +73,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
 
     public static final String FILE_NAME_PREFIX = "_parquet_file_generation";
     private static final Pattern FILE_PATTERN = Pattern.compile(".*_(\\d+)\\.parquet$", Pattern.CASE_INSENSITIVE);
-    private static final String FILE_NAME_EXT = ".parquet";
+    public static final String FILE_NAME_EXT = ".parquet";
 
     private final Supplier<Schema> schema;
     private final List<WriterFileSet> filesWrittenAlready = new ArrayList<>();

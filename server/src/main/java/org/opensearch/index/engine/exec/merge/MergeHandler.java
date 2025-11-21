@@ -128,13 +128,14 @@ public abstract class MergeHandler {
 
     public MergeResult doMerge(OneMerge oneMerge) {
 
+        long mergedWriterGeneration = compositeIndexingExecutionEngine.getNextWriterGeneration();
         Map<DataFormat, WriterFileSet> mergedWriterFileSet = new HashMap<>();
         try(CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot = compositeEngine.acquireSnapshot()) {
 
             Collection<FileMetadata> filesToMerge = getFilesToMerge(oneMerge, compositeDataFormat.getPrimaryDataFormat(), catalogSnapshot.getRef());
 
             // Merging primary data format
-            MergeResult primaryMergeResult = dataFormatMergerMap.get(compositeDataFormat.getPrimaryDataFormat()).merge(filesToMerge);
+            MergeResult primaryMergeResult = dataFormatMergerMap.get(compositeDataFormat.getPrimaryDataFormat()).merge(filesToMerge, mergedWriterGeneration);
             mergedWriterFileSet.put(compositeDataFormat.getPrimaryDataFormat(), primaryMergeResult.getMergedWriterFileSetForDataformat(compositeDataFormat.getPrimaryDataFormat()));
             // Merging other format as per the old segment + row id -> new row id mapping.
             compositeIndexingExecutionEngine.getDelegates().stream()
@@ -142,7 +143,7 @@ public abstract class MergeHandler {
                     .forEach(indexingExecutionEngine -> {
                         DataFormat dataFormat = indexingExecutionEngine.getDataFormat();
                         Collection<FileMetadata> files = getFilesToMerge(oneMerge, dataFormat, catalogSnapshot.getRef());
-                        MergeResult secondaryMergeResult = dataFormatMergerMap.get(dataFormat).merge(files, primaryMergeResult.getRowIdMapping());
+                        MergeResult secondaryMergeResult = dataFormatMergerMap.get(dataFormat).merge(files, primaryMergeResult.getRowIdMapping(), mergedWriterGeneration);
                         mergedWriterFileSet.put(dataFormat, secondaryMergeResult.getMergedWriterFileSetForDataformat(dataFormat));
                     });
             return new MergeResult(primaryMergeResult.getRowIdMapping(), mergedWriterFileSet);
