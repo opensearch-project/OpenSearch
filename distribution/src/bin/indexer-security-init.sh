@@ -65,7 +65,7 @@ getNetworkHost() {
     HOST=$(echo "${HOST}" | tr -d "[\"\']")
 
     isIP=$(echo "${HOST}" | grep -P "^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$")
-    isDNS=$(echo "${HOST}" | grep -P "^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$")
+    isDNS=$(echo "${HOST}" | grep -P "^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9](?:\.[a-zA-Z-]{2,})+$")
 
     # Allow to find ip with an interface
     if [ -z "${isIP}" ] && [ -z "${isDNS}" ]; then
