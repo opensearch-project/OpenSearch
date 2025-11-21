@@ -584,13 +584,16 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         @Override
         public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-            visitedOrds = bigArrays.grow(visitedOrds, owningBucketOrd + 1);
-            BitArray bits = visitedOrds.get(owningBucketOrd);
-            if (bits == null) {
-                bits = new BitArray(maxOrd, bigArrays);
-                visitedOrds.set(owningBucketOrd, bits);
+            final BitArray bits = getBitArray(owningBucketOrd);
+            stream.forEach((doc) -> collect(doc, bits));
+        }
+
+        @Override
+        public void collectRange(int minDoc, int maxDoc) throws IOException {
+            final BitArray bits = getBitArray(0);
+            for (int doc = minDoc; doc < maxDoc; ++doc) {
+                collect(doc, bits);
             }
-            stream.forEach((doc) -> collect(doc, getBitArray(owningBucketOrd)));
         }
 
         private BitArray getBitArray(long bucket) {
