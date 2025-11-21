@@ -15,6 +15,7 @@ import org.opensearch.search.aggregations.SearchResultsCollector;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @ExperimentalApi
 // TODO make this <Query, Collector> generic type
@@ -29,6 +30,10 @@ public interface EngineSearcher<Q,C> extends Releasable {
      * Search using substrait query plan bytes and call the result collectors
      */
     default void search(Q query, List<SearchResultsCollector<C>> collectors) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    default CompletableFuture<Long> searchAsync(Q query, Long runtimePtr) throws IOException {
         throw new UnsupportedOperationException();
     }
 
