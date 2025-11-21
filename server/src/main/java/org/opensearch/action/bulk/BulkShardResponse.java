@@ -61,8 +61,8 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
         shardId = new ShardId(in);
         responses = in.readArray(i -> new BulkItemResponse(shardId, i), BulkItemResponse[]::new);
         if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
-            serviceTimeEWMA = in.readVLong();
-            nodeQueueSize = in.readVInt();
+            serviceTimeEWMA = in.readLong();
+            nodeQueueSize = in.readInt();
         } else {
             serviceTimeEWMA = DEFAULT_SERVICE_TIME;
             nodeQueueSize = DEFAULT_QUEUE_SIZE;
@@ -113,8 +113,8 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
         shardId.writeTo(out);
         out.writeArray((o, item) -> item.writeThin(out), responses);
         if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
-            out.writeVLong(serviceTimeEWMA);
-            out.writeVInt(nodeQueueSize);
+            out.writeLong(serviceTimeEWMA);
+            out.writeInt(nodeQueueSize);
         }
     }
 }
