@@ -141,7 +141,7 @@ public abstract class LeafBucketCollector implements LeafCollector {
      * <p>The default implementation calls {@link #collect(DocIdStream)} on a {@link DocIdStream} that
      * matches the given range.
      *
-     * @see #collect(int, long)
+     * @see #collect(int,long)
      */
     @Override
     public void collectRange(int min, int max) throws IOException {
