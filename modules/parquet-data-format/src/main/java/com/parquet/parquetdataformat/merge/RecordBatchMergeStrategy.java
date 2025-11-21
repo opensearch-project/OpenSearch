@@ -9,6 +9,7 @@
 package com.parquet.parquetdataformat.merge;
 
 import com.parquet.parquetdataformat.engine.ParquetDataFormat;
+import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -31,10 +32,9 @@ import static com.parquet.parquetdataformat.bridge.RustBridge.mergeParquetFilesI
  * Implements record-batch-based merging of Parquet files.
  */
 public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
-    private static final AtomicLong generationCounter = new AtomicLong();
 
     @Override
-    public MergeResult mergeParquetFiles(Collection<FileMetadata> files) {
+    public MergeResult mergeParquetFiles(Collection<FileMetadata> files, long writerGeneration) {
 
         if (files.isEmpty()) {
             throw new IllegalArgumentException("No files to merge");
@@ -45,9 +45,8 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
             .collect(Collectors.toList());
 
         String outputDirectory = files.iterator().next().directory();
-        long generation = generationCounter.incrementAndGet();
-        String mergedFilePath = getMergedFilePath(generation, outputDirectory);
-        String mergedFileName = getMergedFileName(generation);
+        String mergedFilePath = getMergedFilePath(writerGeneration, outputDirectory);
+        String mergedFileName = getMergedFileName(writerGeneration);
 
         // Merge files in Rust
         mergeParquetFilesInRust(filePaths, mergedFilePath);
@@ -56,7 +55,7 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         Map<RowId, Long> rowIdMapping = new HashMap<>();
 
         WriterFileSet mergedWriterFileSet =
-            WriterFileSet.builder().directory(Path.of(outputDirectory)).addFile(mergedFileName).writerGeneration(0).build();
+            WriterFileSet.builder().directory(Path.of(outputDirectory)).addFile(mergedFileName).writerGeneration(writerGeneration).build();
 
 
         Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(
@@ -68,7 +67,9 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
     }
 
     private String getMergedFileName(long generation) {
-        return "_parquet_file_merged_" + generation + ".parquet";
+        // TODO
+        // For debuging we have added extra "merged" in file name, later we can remove and keep same as writer
+        return ParquetExecutionEngine.FILE_NAME_PREFIX + "_merged_" + generation + ParquetExecutionEngine.FILE_NAME_EXT;
     }
 
     private String getMergedFilePath(long generation, String outputDirectory) {

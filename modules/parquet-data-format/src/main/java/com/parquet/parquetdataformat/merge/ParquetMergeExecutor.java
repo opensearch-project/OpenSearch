@@ -24,8 +24,8 @@ public class ParquetMergeExecutor extends ParquetMerger {
     }
 
     @Override
-    public MergeResult merge(Collection<FileMetadata> fileMetadataList) {
-        MergeResult result = strategy.mergeParquetFiles(fileMetadataList);
+    public MergeResult merge(Collection<FileMetadata> fileMetadataList, long writerGeneration) {
+        MergeResult result = strategy.mergeParquetFiles(fileMetadataList, writerGeneration);
         strategy.postMerge();
         return result;
     }

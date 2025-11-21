@@ -19,7 +19,7 @@ public interface Merger {
      * @param fileMetadataList List of FileMetadata to merge
      * @return MergeResult - having RowIdMapping and mergedFileMetadata
      */
-    MergeResult merge(Collection<FileMetadata> fileMetadataList);
+    MergeResult merge(Collection<FileMetadata> fileMetadataList, long writerGeneration);
 
     /**
      *
@@ -27,5 +27,5 @@ public interface Merger {
      * @param rowIdMapping Mapping of old segment + old rowId to new rowId
      * @return MergeResult - having mergedFileMetadata
      */
-    MergeResult merge(Collection<FileMetadata> fileMetadataList, RowIdMapping rowIdMapping);
+    MergeResult merge(Collection<FileMetadata> fileMetadataList, RowIdMapping rowIdMapping, long writerGeneration);
 }
