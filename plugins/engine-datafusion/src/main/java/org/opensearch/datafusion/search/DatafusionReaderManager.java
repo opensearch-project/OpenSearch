@@ -15,9 +15,11 @@ import java.util.function.Consumer;
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.EngineReaderManager;
+import org.opensearch.index.engine.FileDeletionListener;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 
 import java.io.IOException;
 import java.net.URI;
@@ -25,7 +27,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
-public class DatafusionReaderManager implements EngineReaderManager<DatafusionReader>, CatalogSnapshotAwareRefreshListener {
+public class DatafusionReaderManager implements EngineReaderManager<DatafusionReader>, CatalogSnapshotAwareRefreshListener, FileDeletionListener {
     private DatafusionReader current;
     private String path;
     private String dataFormat;
@@ -36,7 +38,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     public DatafusionReaderManager(String path, Collection<FileMetadata> files, String dataFormat) throws IOException {
         WriterFileSet writerFileSet = new WriterFileSet(Path.of(URI.create("file:///" + path)), 1);
         files.forEach(fileMetadata -> writerFileSet.add(fileMetadata.file()));
-        this.current = new DatafusionReader(path, List.of(writerFileSet));;
+        this.current = new DatafusionReader(path, null, List.of(writerFileSet));
         this.path = path;
         this.dataFormat = dataFormat;
     }
@@ -70,17 +72,17 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     }
 
     @Override
-    public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
+    public void afterRefresh(boolean didRefresh, CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot) throws IOException {
         if (didRefresh && catalogSnapshot != null) {
             DatafusionReader old = this.current;
-            Collection<WriterFileSet> newFiles = catalogSnapshot.getSearchableFiles(dataFormat);
+            Collection<WriterFileSet> newFiles = catalogSnapshot.getRef().getSearchableFiles(dataFormat);
             if(old !=null) {
                 release(old);
                 processFileChanges(old.files, newFiles);
             } else {
                 processFileChanges(List.of(), newFiles);
             }
-            this.current = new DatafusionReader(this.path, catalogSnapshot.getSearchableFiles(dataFormat));
+            this.current = new DatafusionReader(this.path, catalogSnapshot, catalogSnapshot.getRef().getSearchableFiles(dataFormat));
         }
     }
 
@@ -108,5 +110,11 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
         Set<String> paths = new HashSet<>();
         paths.addAll(Arrays.asList(fileNames));
         return paths;
+    }
+
+    @Override
+    public void onFileDeleted(Collection<String> files) throws IOException {
+        // TODO - Hook cache eviction with deletion here
+        System.out.println("onFileDeleted call from DatafusionReader Manager: " + files);
     }
 }

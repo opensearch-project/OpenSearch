@@ -37,4 +37,8 @@ public interface SearcherOperations<S extends EngineSearcher, R> {
         // default is no-op, TODO : revisit this
         return null;
     }
+
+    default FileDeletionListener getFileDeletionListener(Engine.SearcherScope searcherScope) {
+        return null;
+    }
 }

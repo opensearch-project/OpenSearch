@@ -27,10 +27,10 @@ import java.util.stream.StreamSupport;
 public class IndexFileDeleter {
 
     private final Map<String,Map<String, AtomicInteger>> fileRefCounts = new ConcurrentHashMap<>();
-    private final CompositeIndexingExecutionEngine engine;
+    private final CompositeEngine compositeEngine;
 
-    public IndexFileDeleter(CompositeIndexingExecutionEngine engine, CatalogSnapshot initialCatalogSnapshot, ShardPath shardPath) throws IOException {
-        this.engine = engine;
+    public IndexFileDeleter(CompositeEngine compositeEngine, CatalogSnapshot initialCatalogSnapshot, ShardPath shardPath) throws IOException {
+        this.compositeEngine = compositeEngine;
         if (initialCatalogSnapshot != null) {
             addFileReferences(initialCatalogSnapshot);
             deleteUnreferencedFiles(shardPath);
@@ -74,7 +74,6 @@ public class IndexFileDeleter {
             System.out.println("Files to delete : " + dfFilesToDelete);
             deleteUnreferencedFiles(dfFilesToDelete);
         }
-        System.out.println("IndexFileDeleter after removeFileReferences: " + this.toString());
     }
 
     private Map<String, Collection<String>> segregateFilesByFormat(CatalogSnapshot snapshot) {
@@ -116,7 +115,9 @@ public class IndexFileDeleter {
 
     private void deleteUnreferencedFiles(Map<String, Collection<String>> dfFilesToDelete) {
         try {
-            engine.deleteFiles(dfFilesToDelete);
+            if (dfFilesToDelete.isEmpty())
+                return;
+            compositeEngine.notifyDelete(dfFilesToDelete);
         } catch (Exception e) {
             System.err.println("Failed to delete unreferenced files: " + dfFilesToDelete + ", error: " + e.getMessage());
         }

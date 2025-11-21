@@ -85,15 +85,6 @@ public class LuceneCommitEngine implements Committer {
     }
 
     @Override
-    public Optional<CatalogSnapshot> readLastCommittedCatalogSnapshot() throws IOException {
-        Map<String, String> lastCommittedData = getLastCommittedData();
-        if (lastCommittedData.containsKey(CATALOG_SNAPSHOT_KEY)) {
-            return Optional.of(CatalogSnapshot.deserializeFromString(lastCommittedData.get(CATALOG_SNAPSHOT_KEY)));
-        }
-        return Optional.empty();
-    }
-
-    @Override
     public SafeCommitInfo getSafeCommitInfo() {
         return this.combinedDeletionPolicy.getSafeCommitInfo();
     }

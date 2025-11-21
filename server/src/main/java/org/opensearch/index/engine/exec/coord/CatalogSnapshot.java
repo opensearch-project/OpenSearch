@@ -79,7 +79,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
         }));
     }
 
-    public CatalogSnapshot remapPaths(Path newShardDataPath) {
+    public void remapPaths(Path newShardDataPath) {
         List<Segment> remappedSegments = new ArrayList<>();
         for (Segment segment : segmentList) {
             Segment remappedSegment = new Segment(segment.getGeneration());
@@ -91,7 +91,11 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
             }
             remappedSegments.add(remappedSegment);
         }
-        return new CatalogSnapshot(this.id, remappedSegments, this.catalogSnapshotMap, this.indexFileDeleterSupplier);
+        dfGroupedSearchableFiles.clear();
+        this.segmentList = remappedSegments;
+        segmentList.forEach(segment -> segment.getDFGroupedSearchableFiles().forEach((dataFormat, writerFiles) -> {
+            dfGroupedSearchableFiles.computeIfAbsent(dataFormat, k -> new ArrayList<>()).add(writerFiles);
+        }));
     }
 
     @Override
@@ -154,7 +158,9 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     // used only when catalog snapshot is created from last commited segment and hence the object is not initialized with the deleter and map
     public void setIndexFileDeleterSupplier(Supplier<IndexFileDeleter> supplier) {
-        this.indexFileDeleterSupplier = supplier;
+        if (this.indexFileDeleterSupplier == null) {
+            this.indexFileDeleterSupplier = supplier;
+        }
     }
 
     public void setCatalogSnapshotMap(Map<Long, CatalogSnapshot> catalogSnapshotMap) {
