@@ -58,11 +58,13 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.hash.MurmurHash3;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BitArray;
 import org.opensearch.common.util.BitMixer;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.ObjectArray;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
@@ -76,6 +78,7 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
@@ -88,6 +91,28 @@ import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNIN
 public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private static final Logger logger = LogManager.getLogger(CardinalityAggregator.class);
+
+    /**
+     * Setting to enable/disable hybrid collector for cardinality aggregation.
+     */
+    public static final Setting<Boolean> CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED = Setting.boolSetting(
+        "search.aggregations.cardinality.hybrid_collector.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Setting for hybrid collector memory threshold. Supports both percentage (e.g., "1%")
+     * and absolute values (e.g., "10mb", "1gb").
+     * Note: This threshold is applied at the Lucene segment level since collectors are created per segment.
+     */
+    public static final Setting<ByteSizeValue> CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD = Setting.memorySizeSetting(
+        "search.aggregations.cardinality.hybrid_collector.memory_threshold",
+        "1%",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     final CardinalityAggregatorFactory.ExecutionMode executionMode;
     final int precision;
@@ -104,6 +129,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     int emptyCollectorsUsed;
     int numericCollectorsUsed;
     int ordinalsCollectorsUsed;
+    int hybridCollectorsUsed;
     int ordinalsCollectorsOverheadTooHigh;
     int stringHashingCollectorsUsed;
     int dynamicPrunedSegments;
@@ -158,14 +184,22 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
             } else if (executionMode == null) {
                 // no hint provided, fall back to heuristics
-                final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
-                final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
-                // only use ordinals if they don't increase memory usage by more than 25%
-                if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
-                    ordinalsCollectorsUsed++;
-                    collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+                CardinalityAggregationContext cardinalityContext = context.cardinalityAggregationContext();
+
+                if (cardinalityContext.isHybridCollectorEnabled()) {
+                    // Use HybridCollector with configurable memory threshold
+                    MurmurHash3Values hashValues = MurmurHash3Values.hash(source.bytesValues(ctx));
+                    hybridCollectorsUsed++;
+                    collector = new HybridCollector(counts, ordinalValues, hashValues, context.bigArrays(), cardinalityContext);
                 } else {
-                    ordinalsCollectorsOverheadTooHigh++;
+                    final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
+                    final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+                    if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+                        ordinalsCollectorsUsed++;
+                        collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+                    } else {
+                        ordinalsCollectorsOverheadTooHigh++;
+                    }
                 }
             }
         }
@@ -340,6 +374,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         add.accept("empty_collectors_used", emptyCollectorsUsed);
         add.accept("numeric_collectors_used", numericCollectorsUsed);
         add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
+        add.accept("hybrid_collectors_used", hybridCollectorsUsed);
         add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
         add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
         add.accept("dynamic_pruned_segments", dynamicPrunedSegments);
@@ -565,8 +600,22 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private final int maxOrd;
         private final HyperLogLogPlusPlus counts;
         private ObjectArray<BitArray> visitedOrds;
+        private long currentMemoryUsage = 0;
+
+        private final long memoryThreshold;
+        private final Optional<BiConsumer<Integer, Long>> onMemoryLimitReached;
 
         OrdinalsCollector(HyperLogLogPlusPlus counts, SortedSetDocValues values, BigArrays bigArrays) {
+            this(counts, values, bigArrays, Long.MAX_VALUE, Optional.empty());
+        }
+
+        OrdinalsCollector(
+            HyperLogLogPlusPlus counts,
+            SortedSetDocValues values,
+            BigArrays bigArrays,
+            long memoryThreshold,
+            Optional<BiConsumer<Integer, Long>> onMemoryLimitReached
+        ) {
             if (values.getValueCount() > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException();
             }
@@ -574,6 +623,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             this.bigArrays = bigArrays;
             this.counts = counts;
             this.values = values;
+            this.memoryThreshold = memoryThreshold;
+            this.onMemoryLimitReached = onMemoryLimitReached;
             visitedOrds = bigArrays.newObjectArray(1);
         }
 
@@ -584,6 +635,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             if (bits == null) {
                 bits = new BitArray(maxOrd, bigArrays);
                 visitedOrds.set(bucketOrd, bits);
+
+                if (onMemoryLimitReached.isPresent()) {
+                    currentMemoryUsage += memoryOverhead(maxOrd);
+                    if (currentMemoryUsage > memoryThreshold) {
+                        onMemoryLimitReached.get().accept(doc, bucketOrd);
+                        return;
+                    }
+                }
             }
             if (values.advanceExact(doc)) {
                 int count = values.docValueCount();
@@ -636,6 +695,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     }
                 }
             }
+        }
+
+        public long getCurrentMemoryUsage() {
+            return currentMemoryUsage;
         }
 
         @Override
@@ -770,6 +833,82 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, hash);
                 return hash.h1;
             }
+        }
+    }
+
+    /**
+     * Hybrid Collector that starts with OrdinalsCollector and switches to DirectCollector
+     * when memory consumption exceeds a threshold.
+     */
+    static class HybridCollector extends Collector {
+        private final HyperLogLogPlusPlus counts;
+        private final MurmurHash3Values hashValues;
+        private final CardinalityAggregationContext cardinalityContext;
+
+        private Collector activeCollector;
+        private final OrdinalsCollector ordinalsCollector;
+
+        HybridCollector(
+            HyperLogLogPlusPlus counts,
+            SortedSetDocValues ordinalValues,
+            MurmurHash3Values hashValues,
+            BigArrays bigArrays,
+            CardinalityAggregationContext cardinalityContext
+        ) {
+            this.counts = counts;
+            this.hashValues = hashValues;
+            this.cardinalityContext = cardinalityContext;
+
+            // Start with OrdinalsCollector with memory monitoring
+            this.ordinalsCollector = new OrdinalsCollector(
+                counts,
+                ordinalValues,
+                bigArrays,
+                cardinalityContext.getMemoryThreshold(),
+                Optional.of(this::handleMemoryLimitReached)
+            );
+            this.activeCollector = ordinalsCollector;
+        }
+
+        @Override
+        public void collect(int doc, long bucketOrd) throws IOException {
+            activeCollector.collect(doc, bucketOrd);
+        }
+
+        private void handleMemoryLimitReached(int doc, long bucketOrd) {
+            try {
+                switchToDirectCollector();
+                // Collect the document that triggered the switch
+                activeCollector.collect(doc, bucketOrd);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to switch to direct collector", e);
+            }
+        }
+
+        private void switchToDirectCollector() throws IOException {
+            // Switching to Direct Collector because memory consumption from Ordinals Collector is high.
+            // Post collect all the already computed data.
+            ordinalsCollector.postCollect();
+            ordinalsCollector.close();
+            logger.debug("switching to direct collector");
+
+            // Pass computed data to Direct Collector.
+            activeCollector = new DirectCollector(counts, hashValues);
+        }
+
+        @Override
+        public void postCollect() throws IOException {
+            activeCollector.postCollect();
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(activeCollector);
+        }
+
+        // Visible for testing
+        Collector getActiveCollector() {
+            return activeCollector;
         }
     }
 }
