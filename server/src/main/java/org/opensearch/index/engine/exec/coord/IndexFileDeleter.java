@@ -74,7 +74,6 @@ public class IndexFileDeleter {
             System.out.println("Files to delete : " + dfFilesToDelete);
             deleteUnreferencedFiles(dfFilesToDelete);
         }
-        //System.out.println("IndexFileDeleter after removeFileReferences: " + this.toString());
     }
 
     private Map<String, Collection<String>> segregateFilesByFormat(CatalogSnapshot snapshot) {
