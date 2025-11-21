@@ -45,11 +45,11 @@ public class FetchSourceContextProtoUtils {
         // Set up source context if source parameters are provided
         if (request.hasXSource()) {
             switch (request.getXSource().getSourceConfigParamCase()) {
-                case BOOL:
-                    fetchSource = request.getXSource().getBool();
+                case FETCH:
+                    fetchSource = request.getXSource().getFetch();
                     break;
-                case STRING_ARRAY:
-                    sourceIncludes = request.getXSource().getStringArray().getStringArrayList().toArray(new String[0]);
+                case FIELDS:
+                    sourceIncludes = request.getXSource().getFields().getStringArrayList().toArray(new String[0]);
                     break;
                 default:
                     throw new UnsupportedOperationException("Invalid sourceConfig provided.");
@@ -84,10 +84,10 @@ public class FetchSourceContextProtoUtils {
         if (request.hasXSource()) {
             SourceConfigParam source = request.getXSource();
 
-            if (source.hasBool()) {
-                fetchSource = source.getBool();
+            if (source.hasFetch()) {
+                fetchSource = source.getFetch();
             } else {
-                sourceIncludes = source.getStringArray().getStringArrayList().toArray(new String[0]);
+                sourceIncludes = source.getFields().getStringArrayList().toArray(new String[0]);
             }
         }
 
