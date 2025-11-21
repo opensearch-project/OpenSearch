@@ -117,6 +117,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -472,7 +473,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     ) {
         new ActionRunnable<PrimaryResult<BulkShardRequest, BulkShardResponse>>(listener) {
 
-            private final OpenSearchThreadPoolExecutor executor = (OpenSearchThreadPoolExecutor) threadPool.executor(executorName);
+            private final ExecutorService executor = threadPool.executor(executorName);
 
             private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
 
@@ -495,7 +496,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     assert context.isInitial(); // either completed and moved to next or reset
                 }
                 // We're done, there's no more operations to execute so we resolve the wrapped listener
-                finishRequest(System.nanoTime() - startTime, executor.getQueue().size());
+                if (executor instanceof OpenSearchThreadPoolExecutor) {
+                    finishRequest(System.nanoTime() - startTime, ((OpenSearchThreadPoolExecutor) executor).getQueue().size());
+                } else {
+                    finishRequest(System.nanoTime() - startTime, 0);
+                }
             }
 
             @Override
