@@ -247,7 +247,7 @@ public class OpenSearchExceptionProtoUtils {
             case SearchParseException spe -> SearchParseExceptionProtoUtils.metadataToProto(spe);
             case SearchPhaseExecutionException spee -> SearchPhaseExecutionExceptionProtoUtils.metadataToProto(spee);
             case MultiBucketConsumerService.TooManyBucketsException tmbe -> TooManyBucketsExceptionProtoUtils.metadataToProto(tmbe);
-            default -> new HashMap<>();
+            case null, default -> new HashMap<>();
         };
     }
 }
