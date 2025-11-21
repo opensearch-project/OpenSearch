@@ -157,20 +157,29 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
+            int[] docBuffer = new int[1];
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                docBuffer[0] = doc;
+                collect(docBuffer, bucket);
+            }
+
+            @Override
+            public void collect(int[] docBuffer, long bucket) throws IOException {
                 if (bucket >= maxes.size()) {
                     long from = maxes.size();
                     maxes = bigArrays.grow(maxes, bucket + 1);
                     maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
                 }
-                if (values.advanceExact(doc)) {
-                    final double value = values.doubleValue();
-                    double max = maxes.get(bucket);
-                    max = Math.max(max, value);
-                    maxes.set(bucket, max);
+
+                double max = maxes.get(bucket);
+                for (int doc : docBuffer) {
+                    if (values.advanceExact(doc)) {
+                        max = Math.max(max, values.doubleValue());
+                    }
                 }
+                maxes.set(bucket, max);
             }
 
             @Override

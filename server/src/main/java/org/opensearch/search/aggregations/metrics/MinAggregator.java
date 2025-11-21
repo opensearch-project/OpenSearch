@@ -157,20 +157,29 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
+            int[] docBuffer = new int[1];
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                docBuffer[0] = doc;
+                collect(docBuffer, bucket);
+            }
+
+            @Override
+            public void collect(int[] docBuffer, long bucket) throws IOException {
                 if (bucket >= mins.size()) {
                     long from = mins.size();
                     mins = bigArrays.grow(mins, bucket + 1);
                     mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
                 }
-                if (values.advanceExact(doc)) {
-                    final double value = values.doubleValue();
-                    double min = mins.get(bucket);
-                    min = Math.min(min, value);
-                    mins.set(bucket, min);
+
+                double min = mins.get(bucket);
+                for (int doc : docBuffer) {
+                    if (values.advanceExact(doc)) {
+                        min = Math.min(min, values.doubleValue());
+                    }
                 }
+                mins.set(bucket, min);
             }
 
             @Override

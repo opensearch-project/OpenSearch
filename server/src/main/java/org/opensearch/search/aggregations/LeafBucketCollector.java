@@ -126,6 +126,12 @@ public abstract class LeafBucketCollector implements LeafCollector {
         collect(doc, 0);
     }
 
+    public void collect(int[] docIds, long owningBucketOrd) throws IOException {
+        for (int doc : docIds) {
+            collect(doc, owningBucketOrd);
+        }
+    }
+
     @Override
     public void collect(DocIdStream stream) throws IOException {
         collect(stream, 0);
