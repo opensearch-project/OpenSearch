@@ -3010,6 +3010,164 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(translogBufferInterval, indexSettings.get(INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()));
     }
 
+    public void testTemplateWithPreserveDots() throws Exception {
+        // Create a template with preserve_dots enabled
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            try {
+                builder.putMapping(
+                    "type",
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("preserve_dots", true)
+                        .startObject("properties")
+                        .startObject("cpu.usage")
+                        .field("type", "float")
+                        .endObject()
+                        .startObject("memory.used")
+                        .field("type", "long")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .toString()
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // Parse mappings with the template
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
+            "",
+            Collections.singletonList(templateMetadata.getMappings()),
+            NamedXContentRegistry.EMPTY
+        );
+
+        // Verify preserve_dots is present in the parsed mappings
+        assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
+        assertThat(doc, hasKey("preserve_dots"));
+        assertEquals(true, doc.get("preserve_dots"));
+
+        // Verify the dotted field properties are present
+        assertThat(doc, hasKey("properties"));
+        Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+        assertThat(properties, hasKey("cpu.usage"));
+        assertThat(properties, hasKey("memory.used"));
+    }
+
+    public void testTemplateWithPreserveDotsAtNestedLevel() throws Exception {
+        // Create a template with preserve_dots enabled on a nested object
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            try {
+                builder.putMapping(
+                    "type",
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("user")
+                        .field("type", "object")
+                        .startObject("properties")
+                        .startObject("name")
+                        .field("type", "text")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .startObject("metrics")
+                        .field("type", "object")
+                        .field("preserve_dots", true)
+                        .startObject("properties")
+                        .startObject("cpu.usage")
+                        .field("type", "float")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .toString()
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // Parse mappings with the template
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
+            "",
+            Collections.singletonList(templateMetadata.getMappings()),
+            NamedXContentRegistry.EMPTY
+        );
+
+        // Verify the structure
+        assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
+        assertThat(doc, hasKey("properties"));
+        Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+
+        // Verify user object (without preserve_dots)
+        assertThat(properties, hasKey("user"));
+        Map<String, Object> userObject = (Map<String, Object>) properties.get("user");
+        assertThat(userObject, hasKey("properties"));
+
+        // Verify metrics object (with preserve_dots)
+        assertThat(properties, hasKey("metrics"));
+        Map<String, Object> metricsObject = (Map<String, Object>) properties.get("metrics");
+        assertThat(metricsObject, hasKey("preserve_dots"));
+        assertEquals(true, metricsObject.get("preserve_dots"));
+        assertThat(metricsObject, hasKey("properties"));
+        Map<String, Object> metricsProperties = (Map<String, Object>) metricsObject.get("properties");
+        assertThat(metricsProperties, hasKey("cpu.usage"));
+    }
+
+    public void testMultipleTemplatesWithPreserveDots() throws Exception {
+        // Create first template with preserve_dots=false
+        CompressedXContent template1Mapping = new CompressedXContent(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .field("preserve_dots", false)
+                .startObject("properties")
+                .startObject("field1")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .toString()
+        );
+
+        // Create second template with preserve_dots=true
+        CompressedXContent template2Mapping = new CompressedXContent(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .field("preserve_dots", true)
+                .startObject("properties")
+                .startObject("field.dotted")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .toString()
+        );
+
+        // Parse mappings with both templates (template2 should override template1)
+        List<CompressedXContent> templateMappings = Arrays.asList(template1Mapping, template2Mapping);
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
+            "",
+            templateMappings,
+            NamedXContentRegistry.EMPTY
+        );
+
+        // Verify preserve_dots from the last template is applied
+        assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
+        assertThat(doc, hasKey("preserve_dots"));
+        assertEquals(true, doc.get("preserve_dots"));
+
+        // Verify both field1 and field.dotted are present
+        assertThat(doc, hasKey("properties"));
+        Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+        assertThat(properties, hasKey("field1"));
+        assertThat(properties, hasKey("field.dotted"));
+    }
+
     private DiscoveryNode getRemoteNode() {
         Map<String, String> attributes = new HashMap<>();
         attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");

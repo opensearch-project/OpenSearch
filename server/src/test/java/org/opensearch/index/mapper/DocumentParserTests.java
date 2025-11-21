@@ -2600,4 +2600,102 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals("300", doc.docs().getFirst().getGroupingCriteria());
     }
 
+    public void testPreserveDotsWithFlatFields() throws Exception {
+        // Test that when preserve_dots=true, dotted field names are treated as literal field names
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("preserve_dots", true);
+            b.startObject("properties");
+            {
+                b.startObject("metrics.cpu.usage");
+                {
+                    b.field("type", "float");
+                }
+                b.endObject();
+                b.startObject("metrics.memory.used");
+                {
+                    b.field("type", "long");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("metrics.cpu.usage", 75.5);
+            b.field("metrics.memory.used", 8589934592L);
+        }));
+
+        // Verify that fields are stored with their complete dotted names
+        IndexableField cpuField = doc.rootDoc().getField("metrics.cpu.usage");
+        assertNotNull("Field 'metrics.cpu.usage' should exist", cpuField);
+        assertEquals(75.5f, cpuField.numericValue().floatValue(), 0.001f);
+
+        IndexableField memoryField = doc.rootDoc().getField("metrics.memory.used");
+        assertNotNull("Field 'metrics.memory.used' should exist", memoryField);
+        assertEquals(8589934592L, memoryField.numericValue().longValue());
+
+        // Verify that no nested object structure was created
+        assertNull("No 'metrics' object should exist", doc.rootDoc().getField("metrics"));
+    }
+
+    public void testPreserveDotsWithDynamicFields() throws Exception {
+        // Test that dynamic fields work correctly with preserve_dots=true
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("preserve_dots", true);
+            b.field("dynamic", "true");
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("user.name", "John Doe");
+            b.field("user.age", 30);
+            b.field("metrics.response.time", 150);
+        }));
+
+        // Verify that dynamic fields are created with dotted names
+        IndexableField nameField = doc.rootDoc().getField("user.name");
+        assertNotNull("Dynamic field 'user.name' should exist", nameField);
+
+        IndexableField ageField = doc.rootDoc().getField("user.age");
+        assertNotNull("Dynamic field 'user.age' should exist", ageField);
+
+        IndexableField responseTimeField = doc.rootDoc().getField("metrics.response.time");
+        assertNotNull("Dynamic field 'metrics.response.time' should exist", responseTimeField);
+    }
+
+    public void testPreserveDotsDefaultBehavior() throws Exception {
+        // Test that when preserve_dots is not set (default=false), normal nested object behavior is preserved
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startObject("properties");
+            {
+                b.startObject("user");
+                {
+                    b.field("type", "object");
+                    b.startObject("properties");
+                    {
+                        b.startObject("name");
+                        {
+                            b.field("type", "text");
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("user");
+            {
+                b.field("name", "Jane Doe");
+            }
+            b.endObject();
+        }));
+
+        // Verify that nested object structure is created (default behavior)
+        IndexableField nameField = doc.rootDoc().getField("user.name");
+        assertNotNull("Field 'user.name' should exist in nested structure", nameField);
+    }
+
 }

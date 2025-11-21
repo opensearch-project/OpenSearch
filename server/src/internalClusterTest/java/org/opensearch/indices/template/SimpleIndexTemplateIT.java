@@ -1078,4 +1078,181 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testIndexTemplateWithPreserveDots() throws Exception {
+        // Create an index template with preserve_dots enabled
+        client().admin()
+            .indices()
+            .preparePutTemplate("metrics_template")
+            .setPatterns(Collections.singletonList("metrics-*"))
+            .setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("preserve_dots", true)
+                    .startObject("properties")
+                    .startObject("cpu.usage")
+                    .field("type", "float")
+                    .endObject()
+                    .startObject("memory.used")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        // Create an index that matches the template pattern
+        assertAcked(prepareCreate("metrics-001"));
+
+        // Verify that preserve_dots setting was applied from the template
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        IndexMetadata indexMetadata = state.metadata().index("metrics-001");
+        assertNotNull(indexMetadata);
+
+        // Get the mapping and verify preserve_dots is set
+        String mapping = indexMetadata.mapping().source().toString();
+        assertTrue("Mapping should contain preserve_dots", mapping.contains("preserve_dots"));
+        assertTrue("preserve_dots should be set to true", mapping.contains("\"preserve_dots\":true"));
+
+        // Index a document with dotted field names
+        client().prepareIndex("metrics-001")
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("cpu.usage", 75.5)
+                    .field("memory.used", 8589934592L)
+                    .endObject()
+            )
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        // Query using the complete dotted field name
+        SearchResponse searchResponse = client().prepareSearch("metrics-001")
+            .setQuery(QueryBuilders.rangeQuery("cpu.usage").gte(70.0))
+            .get();
+
+        assertHitCount(searchResponse, 1);
+    }
+
+    public void testIndexTemplateWithPreserveDotsAtNestedLevel() throws Exception {
+        // Create an index template with preserve_dots enabled on a nested object
+        client().admin()
+            .indices()
+            .preparePutTemplate("mixed_template")
+            .setPatterns(Collections.singletonList("mixed-*"))
+            .setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("user")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("name")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .startObject("metrics")
+                    .field("type", "object")
+                    .field("preserve_dots", true)
+                    .startObject("properties")
+                    .startObject("cpu.usage")
+                    .field("type", "float")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        // Create an index that matches the template pattern
+        assertAcked(prepareCreate("mixed-001"));
+
+        // Verify that preserve_dots setting was applied from the template
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        IndexMetadata indexMetadata = state.metadata().index("mixed-001");
+        assertNotNull(indexMetadata);
+
+        // Get the mapping and verify preserve_dots is set on the metrics object
+        String mapping = indexMetadata.mapping().source().toString();
+        assertTrue("Mapping should contain preserve_dots", mapping.contains("preserve_dots"));
+
+        // Index a document with both nested and flat dotted fields
+        client().prepareIndex("mixed-001")
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("user")
+                    .field("name", "John Doe")
+                    .endObject()
+                    .startObject("metrics")
+                    .field("cpu.usage", 85.0)
+                    .endObject()
+                    .endObject()
+            )
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        // Query using both field types
+        SearchResponse searchResponse = client().prepareSearch("mixed-001")
+            .setQuery(QueryBuilders.boolQuery()
+                .must(QueryBuilders.matchQuery("user.name", "John"))
+                .must(QueryBuilders.rangeQuery("metrics.cpu.usage").gte(80.0)))
+            .get();
+
+        assertHitCount(searchResponse, 1);
+    }
+
+    public void testMultipleTemplatesWithPreserveDots() throws Exception {
+        // Create first template with lower order
+        client().admin()
+            .indices()
+            .preparePutTemplate("template_1")
+            .setPatterns(Collections.singletonList("test-*"))
+            .setOrder(0)
+            .setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("preserve_dots", false)
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        // Create second template with higher order and preserve_dots enabled
+        client().admin()
+            .indices()
+            .preparePutTemplate("template_2")
+            .setPatterns(Collections.singletonList("test-*"))
+            .setOrder(1)
+            .setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("preserve_dots", true)
+                    .startObject("properties")
+                    .startObject("field.dotted")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        // Create an index that matches both templates
+        assertAcked(prepareCreate("test-001"));
+
+        // Verify that preserve_dots from the higher order template was applied
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        IndexMetadata indexMetadata = state.metadata().index("test-001");
+        assertNotNull(indexMetadata);
+
+        String mapping = indexMetadata.mapping().source().toString();
+        assertTrue("Mapping should contain preserve_dots", mapping.contains("preserve_dots"));
+        assertTrue("preserve_dots should be set to true from higher order template", mapping.contains("\"preserve_dots\":true"));
+    }
+
 }

@@ -81,6 +81,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public static final boolean ENABLED = true;
         public static final Nested NESTED = Nested.NO;
         public static final Dynamic DYNAMIC = null; // not set, inherited from root
+        public static final Explicit<Boolean> PRESERVE_DOTS = new Explicit<>(false, false);
     }
 
     /**
@@ -202,6 +203,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected Dynamic dynamic = Defaults.DYNAMIC;
 
+        protected Explicit<Boolean> preserveDots = Defaults.PRESERVE_DOTS;
+
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
         public Builder(String name) {
@@ -221,6 +224,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public T nested(Nested nested) {
             this.nested = nested;
+            return builder;
+        }
+
+        public T preserveDots(boolean preserveDots) {
+            this.preserveDots = new Explicit<>(preserveDots, true);
             return builder;
         }
 
@@ -250,6 +258,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 enabled,
                 nested,
                 dynamic,
+                preserveDots,
                 mappers,
                 context.indexSettings()
             );
@@ -263,10 +272,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Explicit<Boolean> enabled,
             Nested nested,
             Dynamic dynamic,
+            Explicit<Boolean> preserveDots,
             Map<String, Mapper> mappers,
             @Nullable Settings settings
         ) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, mappers, settings);
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, preserveDots, mappers, settings);
         }
     }
 
@@ -323,6 +333,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return true;
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
+                return true;
+            } else if (fieldName.equals("preserve_dots")) {
+                try {
+                    builder.preserveDots(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".preserve_dots"));
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException(
+                        "Configuration error: Parameter [preserve_dots] must be a boolean value (true or false), but got ["
+                            + fieldNode
+                            + "]. "
+                            + e.getMessage(),
+                        e
+                    );
+                }
                 return true;
             } else if (fieldName.equals("derived")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -623,6 +646,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private volatile Dynamic dynamic;
 
+    private Explicit<Boolean> preserveDots;
+
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     ObjectMapper(
@@ -631,6 +656,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         Explicit<Boolean> enabled,
         Nested nested,
         Dynamic dynamic,
+        Explicit<Boolean> preserveDots,
         Map<String, Mapper> mappers,
         Settings settings
     ) {
@@ -643,6 +669,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         this.enabled = enabled;
         this.nested = nested;
         this.dynamic = dynamic;
+        this.preserveDots = preserveDots;
         if (mappers == null) {
             this.mappers = new CopyOnWriteHashMap<>();
         } else {
@@ -726,6 +753,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return dynamic;
     }
 
+    public boolean preserveDots() {
+        return preserveDots.value();
+    }
+
+    public Explicit<Boolean> preserveDotsExplicit() {
+        return preserveDots;
+    }
+
     /**
      * Returns the parent {@link ObjectMapper} instance of the specified object mapper or <code>null</code> if there
      * isn't any.
@@ -762,6 +797,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public void validate(MappingLookup mappers) {
+        // Validate flat field compatibility when preserve_dots is enabled
+        validateFlatFieldCompatibility();
+        
         for (Mapper mapper : this.mappers.values()) {
             mapper.validate(mappers);
         }
@@ -787,8 +825,17 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (mergeWith.enabled.explicit()) {
                 this.enabled = mergeWith.enabled;
             }
-        } else if (isEnabled() != mergeWith.isEnabled()) {
-            throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
+            if (mergeWith.preserveDotsExplicit().explicit()) {
+                this.preserveDots = mergeWith.preserveDotsExplicit();
+            }
+        } else {
+            if (isEnabled() != mergeWith.isEnabled()) {
+                throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
+            }
+            // Validate preserve_dots immutability (except for MAPPING_RECOVERY)
+            if (reason != MergeReason.MAPPING_RECOVERY) {
+                validatePreserveDotsImmutability(mergeWith, reason);
+            }
         }
 
         for (Mapper mergeWithMapper : mergeWith) {
@@ -796,6 +843,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
             Mapper merged;
             if (mergeIntoMapper == null) {
+                // Validate that we're not adding nested objects when preserve_dots is enabled
+                if (reason != MergeReason.INDEX_TEMPLATE && reason != MergeReason.MAPPING_RECOVERY) {
+                    validateNestedObjectRejection(mergeWithMapper);
+                }
                 merged = mergeWithMapper;
             } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                 merged = objectMapper.merge(mergeWithMapper, reason);
@@ -816,6 +867,74 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
             }
             putMapper(merged);
+        }
+    }
+
+    /**
+     * Validates that preserve_dots parameter is not being modified after index creation.
+     * Provides descriptive error message including the field name and attempted change.
+     * 
+     * @param mergeWith The ObjectMapper being merged
+     * @param reason The reason for the merge
+     * @throws MapperException if preserve_dots is being changed
+     */
+    private void validatePreserveDotsImmutability(ObjectMapper mergeWith, MergeReason reason) {
+        if (this.preserveDotsExplicit().explicit() && mergeWith.preserveDotsExplicit().explicit()) {
+            if (this.preserveDots() != mergeWith.preserveDots()) {
+                throw new MapperException(
+                    "Cannot update parameter [preserve_dots] from ["
+                        + this.preserveDots()
+                        + "] to ["
+                        + mergeWith.preserveDots()
+                        + "] for object mapping ["
+                        + name()
+                        + "]. The preserve_dots setting is immutable after index creation."
+                );
+            }
+        }
+    }
+
+    /**
+     * Validates that nested objects are not being added when preserve_dots is enabled.
+     * Provides clear indication of flat vs nested conflict with field name.
+     * 
+     * @param newMapper The new mapper being added
+     * @throws MapperException if attempting to add nested object when preserve_dots=true
+     */
+    private void validateNestedObjectRejection(Mapper newMapper) {
+        if (this.preserveDots() && newMapper instanceof ObjectMapper) {
+            throw new MapperException(
+                "Field mapping conflict: Cannot add nested object field ["
+                    + newMapper.name()
+                    + "] when preserve_dots is enabled for ["
+                    + name()
+                    + "]. With preserve_dots=true, all fields must use flat field notation (e.g., 'field.name' as a single field) "
+                    + "rather than nested object structures."
+            );
+        }
+    }
+
+    /**
+     * Validates that no nested object definitions exist when preserve_dots is enabled.
+     * This is called during index creation to ensure compatibility.
+     * Provides clear indication of flat vs nested conflict with field name.
+     * 
+     * @throws MapperParsingException if nested objects are found when preserve_dots=true
+     */
+    private void validateFlatFieldCompatibility() {
+        if (this.preserveDots()) {
+            for (Mapper childMapper : this.mappers.values()) {
+                if (childMapper instanceof ObjectMapper) {
+                    throw new MapperParsingException(
+                        "Field mapping conflict: Cannot define nested object ["
+                            + childMapper.name()
+                            + "] when preserve_dots is enabled for parent ["
+                            + name()
+                            + "]. With preserve_dots=true, all fields must use flat field notation (e.g., 'field.name' as a single field) "
+                            + "rather than nested object structures."
+                    );
+                }
+            }
         }
     }
 
@@ -844,6 +963,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
+        }
+        if (preserveDotsExplicit().explicit()) {
+            builder.field("preserve_dots", preserveDots.value());
         }
 
         if (custom != null) {
