@@ -26,8 +26,15 @@ public final class NativeBridge {
     public static native long createGlobalRuntime(long limit, long cacheManagerPtr);
     public static native void closeGlobalRuntime(long ptr);
 
+    // Tokio runtime
+    public static native long startTokioRuntimeMonitoring();
+    // Initialize tokio runtime manager once on startup
+    public static native void initTokioRuntimeManager(int cpuThreads);
+    // Shutdown tokio runtime manager on datafusion service
+    public static native void shutdownTokioRuntimeManager();
+
     // Query execution
-    public static native long executeQueryPhase(long readerPtr, String tableName, byte[] plan, long runtimePtr);
+    public static native void executeQueryPhaseAsync(long readerPtr, String tableName, byte[] plan, long runtimePtr, ObjectResultCallback callback);
     public static native long executeFetchPhase(long readerPtr, long[] rowIds, String[] projections, long runtimePtr);
 
     // Stream operations

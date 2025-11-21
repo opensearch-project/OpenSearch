@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::num::NonZeroUsize;
 /*
  * SPDX-License-Identifier: Apache-2.0
@@ -14,9 +15,9 @@ use datafusion_datasource::source::DataSourceExec;
 use jni::objects::{JByteArray, JClass, JObject};
 use std::collections::{BTreeSet, HashMap};
 use jni::objects::JLongArray;
-use jni::sys::{jbyteArray, jlong, jstring};
-use jni::JNIEnv;
-use std::sync::Arc;
+use jni::sys::{jbyteArray, jint, jlong, jstring};
+use jni::{JNIEnv, JavaVM};
+use std::sync::{Arc, OnceLock};
 use arrow_array::{Array, StructArray};
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_schema::DataType;
@@ -41,7 +42,7 @@ use datafusion::{
     DATAFUSION_VERSION,
 };
 use std::default::Default;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 mod util;
 mod row_id_optimizer;
@@ -49,14 +50,16 @@ mod listing_table;
 mod cache;
 mod custom_cache_manager;
 mod memory;
+mod cross_rt_stream;
+mod executor;
+mod io;
+mod runtime_manager;
+mod cache_jni;
 mod partial_agg_optimizer;
 
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::row_id_optimizer::ProjectRowIdOptimizer;
-use crate::util::{
-    create_file_meta_from_filenames, parse_string_arr, set_object_result_error,
-    set_object_result_ok,
-};
+use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_object_result_error, set_object_result_error_global, set_object_result_ok, set_object_result_ok_global};
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 use crate::partial_agg_optimizer::PartialAggregationOptimizer;
 
@@ -77,19 +80,164 @@ use object_store::ObjectMeta;
 use prost::Message;
 use tokio::runtime::Runtime;
 use std::result;
+use std::sync::atomic::AtomicU64;
+use datafusion::execution::RecordBatchStream;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use futures::TryStreamExt;
 
 pub type Result<T, E = DataFusionError> = result::Result<T, E>;
 
 // NativeBridge JNI implementations
 use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
 use jni::objects::{JObjectArray, JString};
+use log::{error, info};
+use once_cell::sync::Lazy;
+use tokio_metrics::{RuntimeMonitor, TaskMonitor};
+use crate::cross_rt_stream::CrossRtStream;
+use crate::executor::DedicatedExecutor;
 use crate::memory::{CustomMemoryPool, Monitor, MonitoredMemoryPool};
+use crate::runtime_manager::RuntimeManager;
 
 struct DataFusionRuntime {
     runtime_env: RuntimeEnv,
     custom_cache_manager: Option<CustomCacheManager>,
-    tokio_runtime: Runtime,
     monitor: Arc<Monitor>,
+}
+
+// TASK monitorint metrics
+static QUERY_EXECUTION_MONITOR: Lazy<TaskMonitor> = Lazy::new(|| {
+    TaskMonitor::with_slow_poll_threshold(Duration::from_micros(100)).clone()
+});
+
+static STREAM_NEXT_MONITOR: Lazy<TaskMonitor> = Lazy::new(|| {
+    TaskMonitor::with_slow_poll_threshold(Duration::from_micros(50)).clone()
+});
+
+// Global runtime manager
+static TOKIO_RUNTIME_MANAGER: OnceLock<Arc<RuntimeManager>> = OnceLock::new();
+
+// Global JavaVM reference
+static JAVA_VM: OnceLock<JavaVM> = OnceLock::new();
+
+thread_local! {
+    static THREAD_JNIENV: RefCell<Option<JNIEnv<'static>>> = RefCell::new(None);
+}
+
+// Helper function to get or attach JNI env
+fn with_jni_env<F, R>(f: F) -> R
+where
+    F: FnOnce(&mut JNIEnv) -> R,
+{
+    THREAD_JNIENV.with(|cell| {
+        let mut opt = cell.borrow_mut();
+        if opt.is_none() {
+            let jvm = JAVA_VM.get().expect("JavaVM not initialized");
+            let env = jvm.attach_current_thread_permanently()
+                .expect("Failed to attach thread to JVM");
+            *opt = Some(env);
+        }
+
+        // Safe because we're the only one with access to this thread-local
+        let env_ref = opt.as_mut().unwrap();
+        f(env_ref)
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_initTokioRuntimeManager(
+    env: JNIEnv,
+    _class: JClass,
+    cpu_threads: jint,
+) {
+    // Initialize JavaVM once
+    JAVA_VM.get_or_init(|| {
+        env.get_java_vm().expect("Failed to get JavaVM")
+    });
+
+    TOKIO_RUNTIME_MANAGER.get_or_init(|| {
+        println!("Runtime manager initialized with {} CPU threads", cpu_threads);
+        Arc::new(RuntimeManager::new(cpu_threads as usize))
+    });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_shutdownTokioRuntimeManager(
+    _env: JNIEnv,
+    _class: JClass,
+) {
+    if let Some(_mgr) = TOKIO_RUNTIME_MANAGER.get() {
+        // Runtimes will be dropped and shut down when RUNTIME_MANAGER is dropped
+        info!("Runtime manager shut down");
+    }
+}
+
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_startTokioRuntimeMonitoring(
+    _env: JNIEnv,
+    _class: JClass,
+) {
+    let manager = match TOKIO_RUNTIME_MANAGER.get() {
+        Some(m) => m,
+        None => {
+            error!("Tokio runtime manager not initialized");
+            return;
+        }
+    };
+
+    // Uncomment this to monitor tokio metrics
+
+    // let io_runtime = manager.io_runtime.clone();
+    // io_runtime.spawn(async move {
+    //     let handle = tokio::runtime::Handle::current();
+    //     let runtime_monitor = RuntimeMonitor::new(&handle);
+    //
+    //     // Monitor at 120-second intervals
+    //     for metrics in runtime_monitor.intervals() {
+    //         log_runtime_metrics(&metrics);
+    //         tokio::time::sleep(Duration::from_secs(120)).await;
+    //     }
+    // });
+    //
+    // println!("Runtime monitoring started");
+}
+
+/// Log runtime metrics with performance analysis
+fn log_runtime_metrics(metrics: &tokio_metrics::RuntimeMetrics) {
+    println!("=== Runtime Metrics ===");
+    println!("  Workers: {}", metrics.workers_count);
+    println!("  Global queue depth: {}", metrics.global_queue_depth);
+    /**
+    // Uncomment this when debugging
+    println!("  Worker overflow: {}", metrics.total_overflow_count);
+    println!("  Remote schedule: {}", metrics.max_local_schedule_count);
+    println!("  Worker steal ops: {}", metrics.total_steal_operations);
+    println!("  Blocking queue depth: {}", metrics.blocking_queue_depth);
+    println!("  Max local queue depth: {}", metrics.max_local_queue_depth);
+    println!("  Min local queue depth: {}", metrics.min_local_queue_depth);
+    println!("  Max local schedule count: {}", metrics.max_local_schedule_count);
+    println!("  Min local schedule count: {}", metrics.min_local_schedule_count);
+    println!("  Queue depth: {}", metrics.total_local_queue_depth);
+    println!("  Total schedule count: {}", metrics.total_local_schedule_count);
+    **/
+    let query_metrics = QUERY_EXECUTION_MONITOR.cumulative();
+    log_task_metrics("Query exec (via CrossRtStream)", &query_metrics);
+    let stream_metrics = STREAM_NEXT_MONITOR.cumulative();
+    log_task_metrics("Stream Next (via CrossRtStream)", &stream_metrics);
+    println!("======================");
+}
+
+/// Log task metrics with performance analysis
+fn log_task_metrics(operation: &str, metrics: &tokio_metrics::TaskMetrics) {
+    println!("=== Task Metrics: {} ===", operation);
+    println!("  Scheduled duration: {:?}", metrics.total_scheduled_duration);
+    println!("  Poll duration: {:?}", metrics.total_poll_duration);
+    println!("  Idle duration: {:?}", metrics.total_idle_duration);
+    println!("  Mean poll duration: {:?}", metrics.mean_poll_duration());
+    println!("  Slow poll ratio: {:.2}%", metrics.slow_poll_ratio() * 100.0);
+    println!("  Mean first poll delay: {:?}", metrics.mean_first_poll_delay());
+    println!("  Total slow polls: {}", metrics.total_slow_poll_count);
+    println!("  Total long delays: {}", metrics.total_long_delay_count);
 }
 
 #[no_mangle]
@@ -117,12 +265,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
             .with_memory_pool(memory_pool.clone())
             .build().unwrap();
 
-        let tokio_runtime = Runtime::new().expect("Failed to create Tokio runtime");
-
         let runtime = DataFusionRuntime {
             runtime_env,
             custom_cache_manager: Some(custom_cache_manager),
-            tokio_runtime,
             monitor,
         };
 
@@ -132,12 +277,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
             .with_memory_pool(memory_pool)
             .build().unwrap();
 
-        let tokio_runtime = Runtime::new().expect("Failed to create Tokio runtime");
-
         let runtime = DataFusionRuntime {
             runtime_env,
             custom_cache_manager: None,
-            tokio_runtime,
             monitor,
         };
 
@@ -196,15 +338,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_getVersio
         .as_raw()
 }
 
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createCustomCacheManager(
-    mut env: JNIEnv,
-    _class: JClass,
-) -> jlong {
-    // Create CustomCacheManager without any config
-    let manager = custom_cache_manager::CustomCacheManager::new();
-    Box::into_raw(Box::new(manager)) as jlong
-}
+
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createDatafusionReader(
@@ -338,26 +472,102 @@ impl CustomFileMeta {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQueryPhase(
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQueryPhaseAsync(
     mut env: JNIEnv,
     _class: JClass,
     shard_view_ptr: jlong,
     table_name: JString,
     substrait_bytes: jbyteArray,
-    runtime_ptr: jlong
-) -> jlong {
-    let overall = Instant::now();
+    runtime_ptr: jlong,
+    callback: JObject,
+) {
+    let manager = match TOKIO_RUNTIME_MANAGER.get() {
+        Some(m) => m,
+        None => {
+            error!("Runtime manager not initialized");
+            set_object_result_error(&mut env, callback,
+                                    &DataFusionError::Execution("Runtime manager not initialized".to_string()));
+            return;
+        }
+    };
+
+    // ===== EXTRACT ALL JAVA DATA BEFORE ASYNC BLOCK =====
+    let table_name: String = match env.get_string(&table_name) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            error!("Failed to get table name: {}", e);
+            set_object_result_error(&mut env, callback,
+                                    &DataFusionError::Execution(format!("Failed to get table name: {}", e)));
+            return;
+        }
+    };
+
+    let plan_bytes_obj = unsafe { JByteArray::from_raw(substrait_bytes) };
+    let plan_bytes_vec = match env.convert_byte_array(plan_bytes_obj) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            error!("Failed to convert plan bytes: {}", e);
+            set_object_result_error(&mut env, callback,
+                                    &DataFusionError::Execution(format!("Failed to convert plan bytes: {}", e)));
+            return;
+        }
+    };
+
+    // Convert callback to GlobalRef (thread-safe)
+    let callback_ref = match env.new_global_ref(&callback) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("Failed to create global ref: {}", e);
+            set_object_result_error(&mut env, callback,
+                                    &DataFusionError::Execution(format!("Failed to create global ref: {}", e)));
+            return;
+        }
+    };
+    let io_runtime = manager.io_runtime.clone();
+    let cpu_executor = manager.cpu_executor();
+
     let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
     let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
-    let table_name: String = env
-        .get_string(&table_name)
-        .expect("Couldn't get java string!")
-        .into();
-
-    let runtimeEnv = &runtime.runtime_env;
 
     let table_path = shard_view.table_path();
     let files_meta = shard_view.files_metadata();
+
+    // Spawn async task - TRULY NON-BLOCKING!
+    io_runtime.block_on(async move {
+
+        let result = execute_query_with_cross_rt_stream(
+            table_path,
+            files_meta,
+            table_name,
+            plan_bytes_vec,
+            runtime,
+            cpu_executor,
+        ).await;
+
+        match result {
+            Ok(stream_ptr) => {
+                with_jni_env(|env| {
+                    set_object_result_ok_global(env, &callback_ref, stream_ptr as *mut u8);
+                });
+            }
+            Err(e) => {
+                with_jni_env(|env| {
+                    error!("Query execution failed: {}", e);
+                    set_object_result_error_global(env, &callback_ref, &e);
+                });
+            }
+        }
+    });
+}
+
+async fn execute_query_with_cross_rt_stream(
+    table_path: ListingTableUrl,
+    files_meta: Arc<Vec<CustomFileMeta>>,
+    table_name: String,
+    plan_bytes_vec: Vec<u8>,
+    runtime: &DataFusionRuntime,
+    cpu_executor: DedicatedExecutor,
+) -> Result<jlong, DataFusionError> {
     let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
         files_meta
             .iter()
@@ -368,16 +578,22 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
     list_file_cache.put(table_path.prefix(), object_meta);
 
-    let runtime_env = RuntimeEnvBuilder::from_runtime_env(runtimeEnv)
+    let runtimeEnv = &runtime.runtime_env;
+
+    let runtime_env = match RuntimeEnvBuilder::from_runtime_env(runtimeEnv)
         .with_cache_manager(
-            CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache.clone()))
+            CacheManagerConfig::default()
+                .with_list_files_cache(Some(list_file_cache.clone()))
                 .with_file_metadata_cache(Some(runtimeEnv.cache_manager.get_file_metadata_cache())),
         )
-        .build()
-        .unwrap();
+        .build() {
+        Ok(env) => env,
+        Err(e) => {
+            error!("Failed to build runtime env: {}", e);
+            return Err(e);
+        }
+    };
 
-
-    // TODO: get config from CSV DataFormat
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = false;
     config.options_mut().execution.target_partitions = 1;
@@ -392,54 +608,50 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
 
     let ctx = SessionContext::new_with_state(state);
 
-    // Create default parquet options
+    // Register table
     let file_format = ParquetFormat::new();
     let listing_options = ListingOptions::new(Arc::new(file_format))
         .with_file_extension(".parquet") // TODO: take this as parameter
         .with_files_metadata(files_meta)
         .with_table_partition_cols(vec![("row_base".to_string(), DataType::Int64)]);
 
-    // Ideally the executor will give this
-    runtime.tokio_runtime.block_on(async {
-        let resolved_schema = listing_options
-            .infer_schema(&ctx.state(), &table_path.clone())
-            .await.unwrap();
-
-        let config = ListingTableConfig::new(table_path.clone())
-            .with_listing_options(listing_options)
-            .with_schema(resolved_schema);
-
-        // Create a new TableProvider
-        let provider = Arc::new(ListingTable::try_new(config).unwrap());
-        ctx.register_table(table_name.clone(), provider)
-            .expect("Failed to attach the Table");
-    });
-
-    let start = Instant::now();
-    // TODO : how to close ctx ?
-    // Convert Java byte array to Rust Vec<u8>
-    let plan_bytes_obj = unsafe { JByteArray::from_raw(substrait_bytes) };
-    let plan_bytes_vec = match env.convert_byte_array(plan_bytes_obj) {
-        Ok(bytes) => bytes,
+    let resolved_schema = match listing_options
+        .infer_schema(&ctx.state(), &table_path)
+        .await {
+        Ok(schema) => schema,
         Err(e) => {
-            let error_msg = format!("Failed to convert plan bytes: {}", e);
-            env.throw_new("java/lang/Exception", error_msg);
-            return 0;
+            error!("Failed to infer schema: {}", e);
+            return Err(e);
         }
     };
 
+    let table_config = ListingTableConfig::new(table_path.clone())
+        .with_listing_options(listing_options)
+        .with_schema(resolved_schema);
+
+    let provider = match ListingTable::try_new(table_config) {
+        Ok(table) => Arc::new(table),
+        Err(e) => {
+            error!("Failed to create listing table: {}", e);
+            return Err(e);
+        }
+    };
+
+    if let Err(e) = ctx.register_table(&table_name, provider) {
+        error!("Failed to register table: {}", e);
+        return Err(e);
+    }
+
+    // Decode substrait
     let substrait_plan = match Plan::decode(plan_bytes_vec.as_slice()) {
-        Ok(plan) => {
-            // println!("SUBSTRAIT rust: Decoding is successful, Plan has {} relations", plan.relations.len());
-            plan
-        }
+        Ok(plan) => plan,
         Err(e) => {
-            return 0;
+            error!("Failed to decode Substrait plan: {}", e);
+            return Err(DataFusionError::Execution(format!("Failed to decode Substrait: {}", e)));
         }
     };
 
-    runtime.tokio_runtime.block_on(async {
-        let mut modified_plan = substrait_plan.clone();
+    let mut modified_plan = substrait_plan.clone();
         for ext in modified_plan.extensions.iter_mut() {
             if let Some(mapping_type) = &mut ext.mapping_type {
                 if let MappingType::ExtensionFunction(func) = mapping_type {
@@ -451,53 +663,44 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         }
 
         let logical_plan = match from_substrait_plan(&ctx.state(), &modified_plan).await {
-            Ok(plan) => {
-                // println!("SUBSTRAIT Rust: LogicalPlan: {:?}", plan);
-                let duration = start.elapsed();
-                println!(
-                    "Rust: Substrait decoding time in milliseconds: {}",
-                    duration.as_millis()
-                );
-                plan
-            }
-            Err(e) => {
-                let error_msg = format!("Failed to convert Substrait plan: {}", e);
-                println!("SUBSTRAIT Rust: {}", error_msg);
-                let _ = env.throw_new("java/lang/RuntimeException", error_msg);
-                return 0;
-            }
-        };
+        Ok(plan) => plan,
+        Err(e) => {
+            error!("Failed to convert Substrait plan: {}", e);
+            return Err(e);
+        }
+    };
 
-        let dataframe = ctx
-            .execute_logical_plan(logical_plan)
-            .await
-            .expect("Failed to execute logical plan");
-        let physical_plan = dataframe.clone().create_physical_plan().await.unwrap();
-        println!(
-            "Physical Plan:\n{}",
-            datafusion::physical_plan::displayable(physical_plan.as_ref()).indent(true)
-        );
+    let dataframe = match ctx.execute_logical_plan(logical_plan).await {
+        Ok(df) => df,
+        Err(e) => {
+            error!("Failed to execute logical plan: {}", e);
+            return Err(e);
+        }
+    };
 
-        let stream = match dataframe.execute_stream().await {
-            Ok(stream) => stream,
-            Err(e) => {
-                let error_msg = format!("Failed to execute stream: {}", e);
-                println!("{}", error_msg);
-                env.throw_new("java/lang/Exception", error_msg);
-                return 0;
-            }
-        };
-        let stream_ptr = Box::into_raw(Box::new(stream)) as jlong;
+    let df_stream = match dataframe.execute_stream().await {
+        Ok(stream) => stream,
+        Err(e) => {
+            error!("Failed to create execution stream: {}", e);
+            return Err(e);
+        }
+    };
 
-        let duration1 = overall.elapsed();
-        println!(
-            "Rust: Overall query setup time in milliseconds: {}",
-            duration1.as_millis()
-        );
+    Ok(get_cross_rt_stream(cpu_executor, df_stream))
+}
 
-        // set_projections(env, projections, callback);
-        stream_ptr
-    })
+fn get_cross_rt_stream(cpu_executor: DedicatedExecutor, df_stream: SendableRecordBatchStream) -> jlong {
+    let cross_rt_stream = CrossRtStream::new_with_df_error_stream(
+        df_stream,
+        cpu_executor,
+    );
+
+    let wrapped_stream = RecordBatchStreamAdapter::new(
+        cross_rt_stream.schema(),
+        cross_rt_stream,
+    );
+
+    Box::into_raw(Box::new(wrapped_stream)) as jlong
 }
 
 #[no_mangle]
@@ -508,57 +711,95 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
     stream: jlong,
     callback: JObject,
 ) {
-    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
-
-    let stream = unsafe { &mut *(stream as *mut SendableRecordBatchStream) };
-    runtime.tokio_runtime.block_on(async {
-        //let fetch_start = std::time::Instant::now();
-        let next = futures::StreamExt::next(stream).await;
-        //let fetch_time = fetch_start.elapsed();
-        match next {
-            Some(Ok(batch)) => {
-                //let convert_start = std::time::Instant::now();
-                // Convert to struct array for compatibility with FFI
-                //println!("Num rows : {}", batch.num_rows());
-                let struct_array: StructArray = batch.into();
-                let array_data = struct_array.into_data();
-                let mut ffi_array = FFI_ArrowArray::new(&array_data);
-                //let convert_time = convert_start.elapsed();
-                // ffi_array must remain alive until after the callback is called
-                // let callback_start = std::time::Instant::now();
-                set_object_result_ok(&mut env, callback, addr_of_mut!(ffi_array));
-                // let callback_time = callback_start.elapsed();
-                // println!("Fetch: {:?}, Convert: {:?}, Callback: {:?}",
-                //          fetch_time, convert_time, callback_time);
-            }
-            None => {
-                set_object_result_ok(&mut env, callback, 0 as *mut FFI_ArrowSchema);
-            }
-            Some(Err(err)) => {
-                set_object_result_error(&mut env, callback, &err);
-            }
+    let manager = match TOKIO_RUNTIME_MANAGER.get() {
+        Some(m) => m,
+        None => {
+            set_object_result_error(
+                &mut env,
+                callback,
+                &DataFusionError::Execution("Runtime manager not initialized".to_string())
+            );
+            return;
         }
-        //println!("Total time: {:?}", start.elapsed());
+    };
+
+    // Convert callback to GlobalRef
+    let callback_ref = match env.new_global_ref(&callback) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("Failed to create global ref: {}", e);
+            set_object_result_error(&mut env, callback,
+                                    &DataFusionError::Execution(format!("Failed to create global ref: {}", e)));
+            return;
+        }
+    };
+
+    let stream_ptr = stream;
+    let io_runtime = manager.io_runtime.clone();
+    io_runtime.spawn(async move {
+
+        let stream = unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
+        // Poll the stream with monitoring
+        let result = stream.try_next().await;
+
+        // Uncomemnt for monitoring stream next
+        // let result = STREAM_NEXT_MONITOR.instrument(async {
+        //         stream.try_next().await
+        // }).await;
+
+        // Use thread-local JNI env - auto-attaches!
+        with_jni_env(|env| {
+            match result {
+                Ok(Some(batch)) => {
+                    // Convert to FFI
+                    let struct_array: StructArray = batch.into();
+                    let array_data = struct_array.into_data();
+                    let ffi_array = FFI_ArrowArray::new(&array_data);
+                    let ffi_array_ptr = Box::into_raw(Box::new(ffi_array));
+                    set_object_result_ok_global(env, &callback_ref, ffi_array_ptr);
+                }
+                Ok(None) => {
+                    // End of stream
+                    set_object_result_ok_global(env, &callback_ref, std::ptr::null_mut::<FFI_ArrowSchema>());
+                }
+                Err(err) => {
+                    error!("Stream next failed: {}", err);
+                    set_object_result_error_global(env, &callback_ref, &err);
+                }
+            }
+        });
     });
+    // Function returns immediately to java - async rust work continues in background
 }
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamGetSchema(
     mut env: JNIEnv,
     _class: JClass,
-    stream: jlong,
+    stream_ptr: jlong,
     callback: JObject,
 ) {
-    let stream = unsafe { &mut *(stream as *mut SendableRecordBatchStream) };
+    if stream_ptr == 0 {
+        set_object_result_error(
+            &mut env,
+            callback,
+            &DataFusionError::Execution("Invalid stream pointer".to_string())
+        );
+        return;
+    }
+    // Schema access is synchronous and fast - no need for runtime
+    let stream = unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
+    //let stream = unsafe { &mut *(stream_ptr as *mut SendableRecordBatchStream) };
+
     let schema = stream.schema();
-    let ffi_schema = FFI_ArrowSchema::try_from(&*schema);
-    match ffi_schema {
+    match FFI_ArrowSchema::try_from(schema.as_ref()) {
         Ok(mut ffi_schema) => {
-            // ffi_schema must remain alive until after the callback is called
             set_object_result_ok(&mut env, callback, addr_of_mut!(ffi_schema));
         }
         Err(err) => {
-            set_object_result_error(&mut env, callback, &err);
+            set_object_result_error(&mut env, callback, &DataFusionError::Execution(
+                format!("Schema conversion failed: {}", err)
+            ));
         }
     }
 }
@@ -617,12 +858,18 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
         }
     }
 
-    // Safety checks
-    if runtime_ptr == 0 {
-        let error = DataFusionError::Execution("Null runtime pointer".to_string());
-        set_object_result_error(&mut env, callback, &error);
-        return 0;
-    }
+    let manager = match TOKIO_RUNTIME_MANAGER.get() {
+        Some(m) => m,
+        None => {
+            error!("Runtime manager not initialized");
+            set_object_result_error(&mut env, callback,
+                                    &DataFusionError::Execution("Runtime manager not initialized".to_string()));
+            return 0;
+        }
+    };
+
+    let io_runtime = manager.io_runtime.clone();
+    let cpu_executor = manager.cpu_executor();
 
     let access_plans = create_access_plans(row_ids, files_metadata.clone());
 
@@ -653,7 +900,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
 
     // Ideally the executor will give this
 
-    runtime.tokio_runtime.block_on(async {
+    io_runtime.block_on(async {
         let parquet_schema = match listing_options
             .infer_schema(&ctx.state(), &table_path.clone())
             .await
@@ -758,9 +1005,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
             }
         };
 
-        let stream_ptr = Box::into_raw(Box::new(stream)) as jlong;
-
-        stream_ptr
+        // Convert the stream to cross rt stream to execute in CPU executor while streaming
+        get_cross_rt_stream(cpu_executor, stream)
     })
 }
 
@@ -880,454 +1126,5 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamClo
     _class: JClass,
     stream: jlong,
 ) {
-    let _ = unsafe { Box::from_raw(stream as *mut SendableRecordBatchStream) };
-}
-
-/// Destroy a CustomCacheManager instance
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_destroyCustomCacheManager(
-    mut env: JNIEnv,
-    _class: JClass,
-    cache_manager_ptr: jlong,
-) {
-    if cache_manager_ptr != 0 {
-        // Simply destroy the CustomCacheManager by converting back to Box and letting it drop
-        let _ = unsafe { Box::from_raw(cache_manager_ptr as *mut custom_cache_manager::CustomCacheManager) };
-        println!("[CACHE INFO] CustomCacheManager destroyed");
-    }
-}
-
-/// Generic cache creation method that handles all cache types
-/// This creates a cache and stores it in CustomCacheManager
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createCache(
-    mut env: JNIEnv,
-    _class: JClass,
-    cache_manager_ptr: jlong,
-    cache_type: JString,
-    size_limit: jlong,
-    eviction_type: JString,
-) -> jlong {
-    if cache_manager_ptr == 0 {
-        let _ = env.throw_new("java/lang/DataFusionException", "CustomCacheManager pointer is null");
-        return 0;
-    }
-
-    // Convert Java strings to Rust strings
-    let cache_type_str: String = match env.get_string(&cache_type) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            let msg = format!("Failed to convert cache_type string: {}", e);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("java/lang/DataFusionException", &msg);
-            return 0;
-        }
-    };
-
-    let eviction_type_str: String = match env.get_string(&eviction_type) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            let msg = format!("Failed to convert eviction_type string: {}", e);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("java/lang/DataFusionException", &msg);
-            return 0;
-        }
-    };
-
-    println!("[CACHE INFO] Creating cache: type={}, size_limit={}, eviction_type={}",
-             cache_type_str, size_limit, eviction_type_str);
-
-    let manager = unsafe { &mut *(cache_manager_ptr as *mut custom_cache_manager::CustomCacheManager) };
-
-    match cache_type_str.as_str() {
-        cache::CACHE_TYPE_METADATA => {
-            // Create a new metadata cache with MutexFileMetadataCache wrapper
-            let inner_cache = DefaultFilesMetadataCache::new(size_limit as usize);
-            let metadata_cache = Arc::new(cache::MutexFileMetadataCache::new(inner_cache));
-
-            // Set it in CustomCacheManager
-            manager.set_file_metadata_cache(metadata_cache);
-            println!("[CACHE INFO] Successfully created {} cache in CustomCacheManager", cache_type_str);
-        }
-        cache::CACHE_TYPE_STATS => {
-            let msg = "Stats cache not yet implemented";
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("java/lang/DataFusionException", msg);
-            return 0;
-        }
-        _ => {
-            let msg = format!("Invalid cache type: {}", cache_type_str);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("java/lang/DataFusionException", &msg);
-            return 0;
-        }
-    }
-
-    // Return success indicator
-    0
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerAddFiles(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_env_ptr: jlong,
-    files: JObjectArray,
-) {
-    if runtime_env_ptr == 0 {
-        let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
-        return;
-    }
-
-    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
-
-    // Check if custom_cache_manager exists
-    match &runtime_env.custom_cache_manager {
-        Some(manager) => {
-            // Parse the array of file paths
-            let file_paths: Vec<String> = match parse_string_arr(&mut env, files) {
-                Ok(paths) => paths,
-                Err(e) => {
-                    let msg = format!("Failed to parse file paths array: {}", e);
-                    eprintln!("[CACHE ERROR] {}", msg);
-                    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-                    return;
-                }
-            };
-
-            // Use the add_files method directly
-            match manager.add_files(&file_paths) {
-                Ok(results) => {
-                    let mut failed_files = Vec::new();
-                    for (file_path, success) in results {
-                        if !success {
-                            failed_files.push(file_path);
-                        }
-                    }
-
-                    if !failed_files.is_empty() {
-                        let msg = format!("Failed to add {} files to cache: {:?}", failed_files.len(), failed_files);
-                        eprintln!("[CACHE ERROR] {}", msg);
-                    }
-                }
-                Err(e) => {
-                    let msg = format!("Failed to add files to cache: {}", e);
-                    eprintln!("[CACHE ERROR] {}", msg);
-                    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-                }
-            }
-        }
-        None => {
-            let msg = "No custom cache manager available";
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerRemoveFiles(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_env_ptr: jlong,
-    files: JObjectArray,
-) {
-    if runtime_env_ptr == 0 {
-        let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
-        return;
-    }
-
-    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
-
-    // Parse the array of file paths
-    let file_paths: Vec<String> = match parse_string_arr(&mut env, files) {
-        Ok(paths) => paths,
-        Err(e) => {
-            let msg = format!("Failed to parse file paths array: {}", e);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            return;
-        }
-    };
-
-        // Check if custom_cache_manager exists
-    match &runtime_env.custom_cache_manager {
-        Some(manager) => {
-            // Use the remove_files method directly
-            match manager.remove_files(&file_paths) {
-                Ok(results) => {
-                    let mut failed_files = Vec::new();
-                    for (file_path, removed) in results {
-                        if !removed {
-                            failed_files.push(file_path);
-                        }
-                    }
-
-                    if !failed_files.is_empty() {
-                        let msg = format!("Failed to remove {} files from cache: {:?}", failed_files.len(), failed_files);
-                        eprintln!("[CACHE ERROR] {}", msg);
-                    }
-                }
-                Err(e) => {
-                    let msg = format!("Failed to remove files from cache: {}", e);
-                    eprintln!("[CACHE ERROR] {}", msg);
-                    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-                }
-            }
-        }
-         None => {
-            let msg = "No custom cache manager available";
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerClear(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_env_ptr: jlong,
-) {
-    if runtime_env_ptr == 0 {
-        let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
-        return;
-    }
-
-    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
-
-      match &runtime_env.custom_cache_manager {
-        Some(manager) => {
-            manager.clear_all();
-            println!("[CACHE INFO] Successfully cleared all caches");
-        } None => {
-            let msg = "No custom cache manager available";
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerUpdateSizeLimitForCacheType(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_env_ptr: jlong,
-    cache_type: JString,
-    new_size_limit: jlong,
-) -> bool {
-    if runtime_env_ptr == 0 {
-        let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
-        return false;
-    }
-
-    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
-
-    let cache_type: String = match env.get_string(&cache_type) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            let msg = format!("Failed to convert cache type string: {}", e);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            return false;
-        }
-    };
-
-    match &runtime_env.custom_cache_manager {
-        Some(manager) => {
-                match cache_type.as_str() {
-                    cache::CACHE_TYPE_METADATA => {
-                        manager.update_metadata_cache_limit(new_size_limit as usize);
-                        true
-                    }
-                    _ => {
-                        let msg = format!("Unknown cache type: {}", cache_type);
-                        eprintln!("[CACHE ERROR] {}", msg);
-                        let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-                        false
-                    }
-            }
-        }
-        None => {
-            let msg = "No custom cache manager available";
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
-            return false;
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerGetMemoryConsumedForCacheType(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_env_ptr: jlong,
-    cache_type: JString,
-) -> jlong {
-    if runtime_env_ptr == 0 {
-        let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
-        return 0;
-    }
-
-    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
-
-    let cache_type: String = match env.get_string(&cache_type) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            let msg = format!("Failed to convert cache type string: {}", e);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            return 0;
-        }
-    };
-    match &runtime_env.custom_cache_manager {
-        Some(manager) => {
-        match cache_type.as_str() {
-            cache::CACHE_TYPE_METADATA => {
-                manager.get_total_memory_consumed() as jlong
-            }
-            _ => {
-                let msg = format!("Unknown cache type: {}", cache_type);
-                eprintln!("[CACHE ERROR] {}", msg);
-                let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-                0
-            }
-        }
-    }
-    None => {
-    let msg = "No custom cache manager available";
-    eprintln!("[CACHE ERROR] {}", msg);
-    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
-    return 0;
-    }
-    }
-}
-
-/// Get total memory consumed by all caches
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerGetTotalMemoryConsumed(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_env_ptr: jlong,
-) -> jlong {
-    if runtime_env_ptr == 0 {
-        let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
-        return 0;
-    }
-
-    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
-
-     match &runtime_env.custom_cache_manager {
-        Some(manager) => {
-            let total = manager.get_total_memory_consumed();
-            total as jlong
-        }
-         None => {
-            0
-         }
-        }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerClearByCacheType(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_env_ptr: jlong,
-    cache_type: JString,
-) {
-    if runtime_env_ptr == 0 {
-        let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
-        return;
-    }
-
-    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
-
-    let cache_type: String = match env.get_string(&cache_type) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            let msg = format!("Failed to convert cache type string: {}", e);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            return;
-        }
-    };
-
-    match &runtime_env.custom_cache_manager {
-        Some(manager) => {
-            match manager.clear_cache_type(&cache_type) {
-                Ok(_) => {
-                    println!("[CACHE INFO] Cache Type: {} cleared", cache_type);
-                }
-                Err(e) => {
-                    eprintln!("[CACHE ERROR] {}", e);
-                    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &e);
-                }
-            }
-        }
-        None => {
-            let msg = "No custom cache manager available";
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
-        }
-    }
-}
-
-
-// Method added for Testing purposes only
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheManagerGetItemByCacheType(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_env_ptr: jlong,
-    cache_type: JString,
-    file_path: JString,
-) -> bool {
-    if runtime_env_ptr == 0 {
-        let _ = env.throw_new("java/lang/NullPointerException", "Cache manager pointer is null");
-        return false;
-    }
-
-    let runtime_env = unsafe { &*(runtime_env_ptr as *const DataFusionRuntime) };
-
-    let cache_type: String = match env.get_string(&cache_type) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            let msg = format!("Failed to convert cache type string: {}", e);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            return false;
-        }
-    };
-
-    let file_path: String = match env.get_string(&file_path) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            let msg = format!("Failed to convert file path string: {}", e);
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-            return false;
-        }
-    };
-
-    match &runtime_env.custom_cache_manager {
-        Some(manager) => {
-            match cache_type.as_str() {
-                cache::CACHE_TYPE_METADATA => {
-                    manager.contains_file(&file_path)
-                }
-                _ => {
-                    let msg = format!("Unknown cache type: {}", cache_type);
-                    eprintln!("[CACHE ERROR] {}", msg);
-                    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-                    false
-                }
-            }
-        }
-        None => {
-            let msg = "No custom cache manager available";
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
-            false
-        }
-    }
+    let _ = unsafe { Box::from_raw(stream as *mut RecordBatchStreamAdapter<CrossRtStream>) };
 }

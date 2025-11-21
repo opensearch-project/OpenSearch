@@ -34,6 +34,7 @@ prost = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
 #tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros"] }
+tokio-metrics = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -64,7 +65,11 @@ async-trait = { workspace = true }
 itertools = { workspace = true }
 rstest = { workspace = true }
 regex = { workspace = true }
-parking_lot = "0.12.5"
+
+once_cell = { workspace = true }
+tokio-stream = { workspace = true }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
 
 [build-dependencies]
 cbindgen = "0.27"
@@ -73,10 +78,10 @@ rustflags = ["-C", "force-frame-pointers=yes","symbol-mangling-version=v0"]
 
 [profile.release]
 lto = true
-codegen-units = 1
+codegen-units = 16
 panic = "abort"
 incremental = true
-debug = "full"
+debug = "full"        #TODO : remove this
 strip = false
 
 [profile.dev]

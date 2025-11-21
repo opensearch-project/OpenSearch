@@ -112,7 +112,6 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.SearchContextAggregations;
-import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
@@ -161,7 +160,6 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -786,12 +784,24 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         return;
                     }
                 }
-                // fork the execution in the search thread pool
-                runAsync(
-                    getExecutor(executorName, shard),
-                    () -> executeQueryPhase(orig, task, keepStatesInContext, isStreamSearch, listener),
-                    listener
-                );
+                boolean isNativeQuery = orig.source() != null && orig.source().queryPlanIR() != null;
+
+                // Execute
+                if (isNativeQuery) {
+                    getExecutor(executorName, shard).execute(new ActionRunnable<SearchPhaseResult>(listener) {
+                        @Override
+                        protected void doRun() throws Exception {
+                            executeQueryPhaseAsync(orig, task,  getExecutor(Names.STREAM_SEARCH /* TODO : Create a new threadpool for native execution*/, shard), keepStatesInContext, isStreamSearch, listener);
+                        }
+                    });
+                } else {
+                    // fork the execution in the search thread pool
+                    runAsync(
+                        getExecutor(executorName, shard),
+                        () -> executeQueryPhase(orig, task, keepStatesInContext, isStreamSearch, listener),
+                        listener
+                    );
+                }
             }
 
             @Override
@@ -854,38 +864,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 Map<String, Object[]> result = searchExecEngine.executeQueryPhase(context);
                 context.setDFResults(result);
             }
-
-            if (isStreamSearch) {
-                assert listener instanceof StreamSearchChannelListener : "Stream search expects StreamSearchChannelListener";
-                context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
-            }
-            final long afterQueryTime;
-            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
-                // TODO check for this
-//                @SuppressWarnings("unchecked")
-//                QueryPhaseExecutor<SearchContext> queryPhaseExecutor =
-//                    (QueryPhaseExecutor<SearchContext>) searchExecEngine.getQueryPhaseExecutor();
-
-                //QueryPhaseExecutor<?> queryPhaseExecutor = readEngine.getQueryPhaseExecutor();
-//                boolean success = queryPhaseExecutor.execute(context);
-                loadOrExecuteQueryPhase(request, context);
-                //queryPhase.execute(context);
-                // loadOrExecuteQueryPhase(request, context);
-                if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
-                    freeReaderContext(readerContext.id());
-                }
-                afterQueryTime = executor.success();
-            }
-            if (request.numberOfShards() == 1) {
-                return executeFetchPhase(readerContext, context, afterQueryTime);
-            } else {
-                // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
-                // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
-                final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
-                context.queryResult().setRescoreDocIds(rescoreDocIds);
-                readerContext.setRescoreDocIds(rescoreDocIds);
-                return context.queryResult();
-            }
+            return executeQueryPhase(
+                context,
+                readerContext,
+                request,
+                isStreamSearch,
+                listener
+            );
         } catch (Exception e) {
             // execution exception can happen while loading the cache, strip it
             Exception exception = e;
@@ -899,6 +884,174 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw exception;
         } finally {
             taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
+        }
+    }
+
+    private SearchPhaseResult executeQueryPhase(
+        SearchContext context,
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        boolean isStreamSearch,
+        ActionListener<SearchPhaseResult> listener) throws Exception {
+        if (isStreamSearch) {
+            assert listener instanceof StreamSearchChannelListener;
+            context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
+        }
+        final long afterQueryTime;
+        try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+            loadOrExecuteQueryPhase(request, context);
+
+            if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
+                freeReaderContext(readerContext.id());
+            }
+            afterQueryTime = executor.success();
+        }
+        SearchPhaseResult result;
+        if (request.numberOfShards() == 1) {
+            result = executeFetchPhase(readerContext, context, afterQueryTime);
+        } else {
+            // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
+            // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
+            final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
+            context.queryResult().setRescoreDocIds(rescoreDocIds);
+            readerContext.setRescoreDocIds(rescoreDocIds);
+            result = context.queryResult();
+        }
+        return result;
+    }
+
+    private void executeQueryPhaseAsync(
+        ShardSearchRequest request,
+        SearchShardTask task,
+        Executor executor,
+        boolean keepStatesInContext,
+        boolean isStreamSearch,
+        ActionListener<SearchPhaseResult> listener
+    ) {
+
+        final ReaderContext readerContext;
+        try {
+            readerContext = createOrGetReaderContext(request, keepStatesInContext);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        @SuppressWarnings("unchecked")
+        SearchExecEngine searchExecEngine = readerContext.indexShard()
+            .getIndexingExecutionCoordinator()
+            .getPrimaryReadEngine();
+        SearchShardTarget shardTarget = new SearchShardTarget(
+            clusterService.localNode().getId(),
+            readerContext.indexShard().shardId(),
+            request.getClusterAlias(),
+            OriginalIndices.NONE
+        );
+
+        Releasable readerContextRelease = null;
+        SearchContext context = null;
+
+        try {
+            readerContextRelease = readerContext.markAsUsed(getKeepAlive(request));
+            context = createContext(readerContext, request, task, true, isStreamSearch, searchExecEngine);
+
+            final Releasable finalRelease = readerContextRelease;
+            final SearchContext finalContext = context;
+
+            // Prevent cleanup in this try-catch, will be handled in callback
+            readerContextRelease = null;
+            context = null;
+
+            // Execute native query async
+            searchExecEngine.executeQueryPhaseAsync(finalContext, executor, new ActionListener<Map<String, Object[]>>() {
+                @Override
+                public void onResponse(Map<String, Object[]> result) {
+                    try {
+                        finalContext.setDFResults(result);
+                        // Continue with rest of query phase
+                        listener.onResponse(executeQueryPhase(
+                            finalContext,
+                            readerContext,
+                            request,
+                            isStreamSearch,
+                            listener)
+                        );
+                    } catch (Exception e) {
+                        Exception exception = e;
+                        if (exception instanceof ExecutionException) {
+                            exception = (exception.getCause() == null || exception.getCause() instanceof Exception)
+                                ? (Exception) exception.getCause()
+                                : new OpenSearchException(exception.getCause());
+                        }
+                        logger.trace("Query phase failed", exception);
+                        processFailure(readerContext, exception);
+                        onFailure(e);
+                    } finally {
+                        taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+
+                    logger.error("Query execution failed", e);
+                    Exception exception = e;
+                    if (exception instanceof ExecutionException) {
+                        exception = (exception.getCause() == null || exception.getCause() instanceof Exception)
+                            ? (Exception) exception.getCause()
+                            : new OpenSearchException(exception.getCause());
+                    }
+                    logger.trace("Query phase failed", exception);
+
+                    // Cleanup
+                    try {
+                        finalContext.close();
+                    } catch (Exception ex) {
+                        logger.error("Error closing context", ex);
+                    }
+                    try {
+                        finalRelease.close();
+                    } catch (Exception ex) {
+                        logger.error("Error closing release", ex);
+                    }
+
+                    processFailure(readerContext, exception);
+                    listener.onFailure(exception);
+                    try {
+                        taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
+                    } catch (Exception ex) {
+                        logger.error("Error writing task resource usage", ex);
+                    }
+
+                }
+            });
+
+        } catch (Exception e) {
+            // Cleanup on exception
+            if (context != null) {
+                try {
+                    context.close();
+                } catch (Exception ex) {
+                    logger.error("Error closing context", ex);
+                }
+            }
+            if (readerContextRelease != null) {
+                try {
+                    readerContextRelease.close();
+                } catch (Exception ex) {
+                    logger.error("Error closing release", ex);
+                }
+            }
+
+            Exception exception = e;
+            if (exception instanceof ExecutionException) {
+                exception = (exception.getCause() == null || exception.getCause() instanceof Exception)
+                    ? (Exception) exception.getCause()
+                    : new OpenSearchException(exception.getCause());
+            }
+            logger.trace("Query phase failed", exception);
+            processFailure(readerContext, exception);
+            listener.onFailure(exception);
         }
     }
 
