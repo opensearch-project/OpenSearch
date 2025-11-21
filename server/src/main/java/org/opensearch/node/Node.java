@@ -1292,7 +1292,7 @@ public class Node implements Closeable {
                         streamTransport,
                         threadPool,
                         networkModule.getTransportInterceptor(),
-                        new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService),
+                        new LocalNodeFactory(settings, nodeEnvironment.nodeId()),
                         settingsModule.getClusterSettings(),
                         transportService.getTaskManager(),
                         transportService.getRemoteClusterService(),
@@ -2327,12 +2327,10 @@ public class Node implements Closeable {
         private final SetOnce<DiscoveryNode> localNode = new SetOnce<>();
         private final String persistentNodeId;
         protected final Settings settings;
-        protected final RemoteStoreNodeService remoteStoreNodeService;
 
-        private LocalNodeFactory(Settings settings, String persistentNodeId, RemoteStoreNodeService remoteStoreNodeService) {
+        private LocalNodeFactory(Settings settings, String persistentNodeId) {
             this.persistentNodeId = persistentNodeId;
             this.settings = settings;
-            this.remoteStoreNodeService = remoteStoreNodeService;
         }
 
         @Override
@@ -2357,12 +2355,15 @@ public class Node implements Closeable {
      */
     private static class RemoteStoreVerifyingLocalNodeFactory extends LocalNodeFactory {
 
+        private final RemoteStoreNodeService remoteStoreNodeService;
+
         private RemoteStoreVerifyingLocalNodeFactory(
             Settings settings,
             String persistentNodeId,
             RemoteStoreNodeService remoteStoreNodeService
         ) {
-            super(settings, persistentNodeId, remoteStoreNodeService);
+            super(settings, persistentNodeId);
+            this.remoteStoreNodeService = remoteStoreNodeService;
         }
 
         @Override
