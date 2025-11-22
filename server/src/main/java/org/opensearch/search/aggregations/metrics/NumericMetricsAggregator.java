@@ -37,6 +37,9 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 
 /**
@@ -63,6 +66,19 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         }
 
         public abstract double metric(long owningBucketOrd);
+
+        /**
+         * Converts a LocalDateTime value to epoch milliseconds for use in aggregation results.
+         * The LocalDateTime is treated as UTC to preserve the exact date-time values
+         * without any timezone conversion.
+         *
+         * @param value the LocalDateTime value to convert
+         * @return the epoch milliseconds representation of the LocalDateTime treated as UTC
+         */
+        protected static double convertLocalDateTimeToEpochMillis(LocalDateTime value) {
+            Instant instant = value.atZone(ZoneOffset.UTC).toInstant();
+            return instant.toEpochMilli();
+        }
 
         @Override
         public BucketComparator bucketComparator(String key, SortOrder order) {
