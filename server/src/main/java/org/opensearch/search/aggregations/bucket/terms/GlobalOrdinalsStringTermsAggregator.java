@@ -76,6 +76,8 @@ import org.opensearch.search.aggregations.bucket.terms.SignificanceLookup.Backgr
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.AggregationProfileBreakdown;
+import org.opensearch.search.profile.aggregation.startree.StarTreeProfileBreakdown;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.MatchAllFilter;
@@ -92,6 +94,7 @@ import java.util.function.LongUnaryOperator;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_DOCS;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
@@ -228,7 +231,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (tryStarTreePrecompute(ctx) == true) {
             return true;
         }
@@ -246,8 +249,24 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected boolean tryStarTreePrecompute(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
-            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
-            StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+            if (context.getProfilers() != null) {
+                StarTreeProfileBreakdown breakdown = context.getProfilers().getAggregationProfiler().getStarTreeProfileBreakdown(this);
+                StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollectorProfiling(
+                    ctx,
+                    supportedStarTree,
+                    null,
+                    breakdown
+                );
+                preComputeBucketsWithStarTreeProfiling(starTreeBucketCollector, breakdown);
+                AggregationProfileBreakdown aggregationProfileBreakdown = context.getProfilers()
+                    .getAggregationProfiler()
+                    .getQueryBreakdown(this);
+                aggregationProfileBreakdown.setStarTreeProfileBreakdown(breakdown);
+                aggregationProfileBreakdown.setStarTreePrecomputed();
+            } else {
+                StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+                preComputeBucketsWithStarTree(starTreeBucketCollector);
+            }
             return true;
         }
         return false;
@@ -373,6 +392,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         return StarTreeQueryHelper.collectDimensionFilters(new MatchAllFilter(fieldName), subAggregators);
     }
 
+    @Override
     public StarTreeBucketCollector getStarTreeBucketCollector(
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,
@@ -558,7 +578,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
             if (subAggregators.length == 0) {
                 if (mapping != null) {
                     mapSegmentCountsToGlobalCounts(mapping);

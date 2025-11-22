@@ -169,6 +169,86 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
+    public void testMultiTermsWithStarTreeProfiling() throws IOException {
+        // Setup index with star-tree codec
+        Directory directory = newDirectory();
+        IndexWriterConfig conf = newIndexWriterConfig(null);
+        conf.setCodec(getCodec());
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
+
+        // Index documents with values for our dimensions and metrics
+        iw.addDocument(doc("a", 1, 10.0f, 100.0));
+        iw.addDocument(doc("a", 1, 10.0f, 100.0));
+        iw.addDocument(doc("a", 2, 20.0f, 200.0));
+        iw.addDocument(doc("b", 1, 10.0f, 100.0));
+        iw.addDocument(doc("b", 3, 30.0f, 300.0));
+        iw.addDocument(doc("c", 2, 20.0f, 200.0));
+
+        // Force merge to ensure the star-tree structure is built
+        iw.forceMerge(1);
+        iw.close();
+
+        DirectoryReader ir = DirectoryReader.open(directory);
+        LeafReaderContext context = ir.leaves().get(0);
+        SegmentReader reader = Lucene.segmentReader(context.reader());
+        IndexSearcher indexSearcher = newSearcher(wrapInMockESDirectoryReader(ir), false, false);
+
+        // Extract the star-tree metadata from the segment
+        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+        CompositeIndexFieldInfo starTree = starTreeDocValuesReader.getCompositeIndexFields().get(0);
+
+        // Define the dimensions we expect our star-tree to have
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = new LinkedHashMap<>();
+        supportedDimensions.put(new OrdinalDimension(KEYWORD_FIELD), KEYWORD_FIELD_TYPE);
+        supportedDimensions.put(new NumericDimension(INT_FIELD), INT_FIELD_TYPE);
+        supportedDimensions.put(new NumericDimension(FLOAT_FIELD), FLOAT_FIELD_TYPE);
+        supportedDimensions.put(new NumericDimension(METRIC_FIELD), METRIC_FIELD_TYPE);
+
+        // Test Case 1: Simple 2-term aggregation
+        testCaseProfiling(
+            indexSearcher,
+            new MatchAllDocsQuery(),
+            null,
+            new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(KEYWORD_FIELD, INT_FIELD)),
+            starTree,
+            supportedDimensions
+        );
+
+        // Test Case 2: 3-term aggregation
+        testCaseProfiling(
+            indexSearcher,
+            new MatchAllDocsQuery(),
+            null,
+            new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(KEYWORD_FIELD, INT_FIELD, FLOAT_FIELD)),
+            starTree,
+            supportedDimensions
+        );
+
+        // Test Case 3: Aggregation with a query that filters on a dimension
+        testCaseProfiling(
+            indexSearcher,
+            SortedSetDocValuesField.newSlowExactQuery(KEYWORD_FIELD, newBytesRef("a")),
+            new TermQueryBuilder(KEYWORD_FIELD, "a"),
+            new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(INT_FIELD, FLOAT_FIELD)),
+            starTree,
+            supportedDimensions
+        );
+
+        // Test Case 4: Aggregation with a sub-aggregation
+        testCaseProfiling(
+            indexSearcher,
+            new MatchAllDocsQuery(),
+            null,
+            new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(KEYWORD_FIELD, FLOAT_FIELD))
+                .subAggregation(max("max_metric").field(METRIC_FIELD)),
+            starTree,
+            supportedDimensions
+        );
+
+        ir.close();
+        directory.close();
+    }
+
     /**
      * Executes an aggregation twice: once with star-tree enabled and once with it disabled (default path),
      * then asserts that the results are identical.
@@ -212,6 +292,62 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             DEFAULT_MAX_BUCKETS,
             false,
             null,
+            false,
+            KEYWORD_FIELD_TYPE,
+            INT_FIELD_TYPE,
+            FLOAT_FIELD_TYPE,
+            METRIC_FIELD_TYPE
+        );
+
+        assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());
+        assertEquals(defaultAggregation, starTreeAggregation);
+    }
+
+    /**
+     * Executes an aggregation twice: once with star-tree and profiling enabled and once with it disabled (default path),
+     * then asserts that the results are identical.
+     */
+    private void testCaseProfiling(
+        IndexSearcher indexSearcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        MultiTermsAggregationBuilder aggregationBuilder,
+        CompositeIndexFieldInfo starTree,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions
+    ) throws IOException {
+        InternalMultiTerms starTreeAggregation = searchAndReduceStarTreeProfiling(
+            createIndexSettings(),
+            indexSearcher,
+            query,
+            queryBuilder,
+            aggregationBuilder,
+            starTree,
+            supportedDimensions,
+            null,
+            DEFAULT_MAX_BUCKETS,
+            false,
+            null,
+            true,
+            false,
+            KEYWORD_FIELD_TYPE,
+            INT_FIELD_TYPE,
+            FLOAT_FIELD_TYPE,
+            METRIC_FIELD_TYPE
+        );
+
+        InternalMultiTerms defaultAggregation = searchAndReduceStarTreeProfiling(
+            createIndexSettings(),
+            indexSearcher,
+            query,
+            queryBuilder,
+            aggregationBuilder,
+            null,
+            null,
+            null,
+            DEFAULT_MAX_BUCKETS,
+            false,
+            null,
+            false,
             false,
             KEYWORD_FIELD_TYPE,
             INT_FIELD_TYPE,

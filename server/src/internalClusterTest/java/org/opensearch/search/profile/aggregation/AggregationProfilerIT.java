@@ -89,6 +89,7 @@ import static org.hamcrest.Matchers.sameInstance;
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
+    private static final String PRE_COMPUTE = AggregationTimingType.PRE_COMPUTE.toString();
     private static final String BUILD_LEAF_COLLECTOR = AggregationTimingType.BUILD_LEAF_COLLECTOR.toString();
     private static final String COLLECT = AggregationTimingType.COLLECT.toString();
     private static final String POST_COLLECTION = AggregationTimingType.POST_COLLECTION.toString();
@@ -97,18 +98,21 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
     private static final String REDUCE = AggregationTimingType.REDUCE.toString();
     private static final Set<String> BREAKDOWN_KEYS = Set.of(
         INITIALIZE,
+        PRE_COMPUTE,
         BUILD_LEAF_COLLECTOR,
         COLLECT,
         POST_COLLECTION,
         BUILD_AGGREGATION,
         REDUCE,
         INITIALIZE + "_count",
+        PRE_COMPUTE + "_count",
         BUILD_LEAF_COLLECTOR + "_count",
         COLLECT + "_count",
         POST_COLLECTION + "_count",
         BUILD_AGGREGATION + "_count",
         REDUCE + "_count",
         INITIALIZE + "_start_time",
+        PRE_COMPUTE + "_start_time",
         BUILD_LEAF_COLLECTOR + "_start_time",
         COLLECT + "_start_time",
         POST_COLLECTION + "_start_time",
@@ -118,30 +122,35 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
 
     private static final Set<String> CONCURRENT_SEARCH_BREAKDOWN_KEYS = Set.of(
         INITIALIZE,
+        PRE_COMPUTE,
         BUILD_LEAF_COLLECTOR,
         COLLECT,
         POST_COLLECTION,
         BUILD_AGGREGATION,
         REDUCE,
         INITIALIZE + "_count",
+        PRE_COMPUTE + "_count",
         BUILD_LEAF_COLLECTOR + "_count",
         COLLECT + "_count",
         POST_COLLECTION + "_count",
         BUILD_AGGREGATION + "_count",
         REDUCE + "_count",
         "max_" + INITIALIZE,
+        "max_" + PRE_COMPUTE,
         "max_" + BUILD_LEAF_COLLECTOR,
         "max_" + COLLECT,
         "max_" + POST_COLLECTION,
         "max_" + BUILD_AGGREGATION,
         "max_" + REDUCE,
         "min_" + INITIALIZE,
+        "min_" + PRE_COMPUTE,
         "min_" + BUILD_LEAF_COLLECTOR,
         "min_" + COLLECT,
         "min_" + POST_COLLECTION,
         "min_" + BUILD_AGGREGATION,
         "min_" + REDUCE,
         "avg_" + INITIALIZE,
+        "avg_" + PRE_COMPUTE,
         "avg_" + BUILD_LEAF_COLLECTOR,
         "avg_" + COLLECT,
         "avg_" + POST_COLLECTION,

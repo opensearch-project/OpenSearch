@@ -148,6 +148,8 @@ import org.opensearch.search.fetch.subphase.FetchSourcePhase;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.profile.Profilers;
+import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
@@ -375,6 +377,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         SearchContext searchContext;
         if (starTree != null) {
             searchContext = createSearchContextWithStarTreeContext(
+                false,
                 indexSearcher,
                 indexSettings,
                 query,
@@ -402,10 +405,33 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         MultiBucketConsumer bucketConsumer,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
+        return createSearchContext(false, indexSearcher, indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
+    }
+
+    /**
+     * Create a {@linkplain SearchContext} for testing an {@link Aggregator} with profiling.
+     */
+    protected SearchContext createSearchContext(
+        boolean shouldProfile,
+        IndexSearcher indexSearcher,
+        IndexSettings indexSettings,
+        Query query,
+        MultiBucketConsumer bucketConsumer,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return createSearchContext(
+            shouldProfile,
+            indexSearcher,
+            indexSettings,
+            query,
+            bucketConsumer,
+            new NoneCircuitBreakerService(),
+            fieldTypes
+        );
     }
 
     protected SearchContext createSearchContextWithStarTreeContext(
+        boolean shouldProfile,
         IndexSearcher indexSearcher,
         IndexSettings indexSettings,
         Query query,
@@ -418,6 +444,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         SearchContext searchContext = createSearchContext(
+            shouldProfile,
             indexSearcher,
             indexSettings,
             query,
@@ -466,7 +493,23 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         return searchContext;
     }
 
+    /**
+     * Create a {@linkplain SearchContext} for testing an {@link Aggregator} with profiling disabled as default for backwards
+     * compatibility.
+     */
     protected SearchContext createSearchContext(
+        IndexSearcher indexSearcher,
+        IndexSettings indexSettings,
+        Query query,
+        MultiBucketConsumer bucketConsumer,
+        CircuitBreakerService circuitBreakerService,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return createSearchContext(false, indexSearcher, indexSettings, query, bucketConsumer, circuitBreakerService, fieldTypes);
+    }
+
+    protected SearchContext createSearchContext(
+        boolean shouldProfile,
         IndexSearcher indexSearcher,
         IndexSettings indexSettings,
         Query query,
@@ -510,6 +553,10 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContext.query()).thenReturn(query);
         when(searchContext.bucketCollectorProcessor()).thenReturn(new BucketCollectorProcessor());
         when(searchContext.asLocalBucketCountThresholds(any())).thenCallRealMethod();
+        if (shouldProfile) {
+            Profilers profilers = new Profilers(contextIndexSearcher, false, null);
+            when(searchContext.getProfilers()).thenReturn(profilers);
+        }
         /*
          * Always use the circuit breaking big arrays instance so that the CircuitBreakerService
          * we're passed gets a chance to break.
@@ -973,6 +1020,84 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             bucketConsumer,
             aggregatorFactory,
             fieldTypes
+        );
+
+        countingAggregator.preCollection();
+        searcher.search(query, countingAggregator);
+        countingAggregator.postCollection();
+        aggs.add(countingAggregator.buildTopLevel());
+        if (compositeIndexFieldInfo != null && assertCollectorEarlyTermination) {
+            assertEquals(0, countingAggregator.collectCounter.get());
+        }
+
+        MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
+            maxBucket,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+            countingAggregator.context().bigArrays(),
+            getMockScriptService(),
+            reduceBucketConsumer,
+            pipelines
+        );
+
+        @SuppressWarnings("unchecked")
+        A internalAgg = (A) aggs.get(0).reduce(aggs, context);
+        if (skipReducedMultiBucketConsumerAssertion == false) doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+        return internalAgg;
+    }
+
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceStarTreeProfiling(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        AggregationBuilder builder,
+        CompositeIndexFieldInfo compositeIndexFieldInfo,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
+        List<Metric> supportedMetrics,
+        int maxBucket,
+        boolean hasNested,
+        AggregatorFactory aggregatorFactory,
+        boolean assertCollectorEarlyTermination,
+        boolean skipReducedMultiBucketConsumerAssertion,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        query = query.rewrite(searcher);
+        final IndexReaderContext ctx = searcher.getTopReaderContext();
+        final PipelineTree pipelines = builder.buildPipelineTree();
+        List<InternalAggregation> aggs = new ArrayList<>();
+        if (hasNested) {
+            query = Queries.filtered(query, Queries.newNonNestedFilter());
+        }
+
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
+            maxBucket,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+
+        SearchContext searchContext;
+        if (compositeIndexFieldInfo != null) {
+            searchContext = createSearchContextWithStarTreeContext(
+                true,
+                searcher,
+                indexSettings,
+                query,
+                queryBuilder,
+                compositeIndexFieldInfo,
+                supportedDimensions,
+                supportedMetrics,
+                bucketConsumer,
+                aggregatorFactory,
+                fieldTypes
+            );
+        } else {
+            searchContext = createSearchContext(true, searcher, indexSettings, query, bucketConsumer, fieldTypes);
+        }
+
+        CountingAggregator countingAggregator = new CountingAggregator(
+            new AtomicInteger(),
+            new ProfilingAggregator(createAggregator(builder, searchContext), searchContext.getProfilers().getAggregationProfiler())
         );
 
         countingAggregator.preCollection();

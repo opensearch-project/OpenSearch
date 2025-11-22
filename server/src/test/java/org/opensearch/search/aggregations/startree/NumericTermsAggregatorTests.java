@@ -187,6 +187,109 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
+    public void testStarTreeNumericTermsProfiling() throws IOException {
+        Directory directory = newDirectory();
+        IndexWriterConfig conf = newIndexWriterConfig(null);
+        conf.setCodec(getCodec());
+        conf.setMergePolicy(newLogMergePolicy());
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
+
+        Random random = RandomizedTest.getRandom();
+        int totalDocs = 100;
+
+        long val;
+
+        List<Document> docs = new ArrayList<>();
+        // Index 100 random documents
+        for (int i = 0; i < totalDocs; i++) {
+            Document doc = new Document();
+            if (random.nextBoolean()) {
+                val = random.nextInt(10); // Random int between (0 and 9) for status
+                doc.add(new SortedNumericDocValuesField(STATUS, val));
+            }
+            if (random.nextBoolean()) {
+                val = NumericUtils.doubleToSortableLong(random.nextInt(100) + 0.5f);
+                // Random float between (0 and 99)+0.5f for size
+                doc.add(new SortedNumericDocValuesField(SIZE, val));
+            }
+            iw.addDocument(doc);
+            docs.add(doc);
+        }
+
+        if (randomBoolean()) {
+            iw.forceMerge(1);
+        }
+        iw.close();
+        DirectoryReader ir = DirectoryReader.open(directory);
+        LeafReaderContext context = ir.leaves().get(0);
+
+        SegmentReader reader = Lucene.segmentReader(context.reader());
+        IndexSearcher indexSearcher = newSearcher(reader, false, false);
+        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+
+        List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
+        CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
+
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = new LinkedHashMap<>();
+        supportedDimensions.put(new NumericDimension(STATUS), STATUS_FIELD_TYPE);
+        supportedDimensions.put(new NumericDimension(SIZE), SIZE_FIELD_NAME);
+
+        Query query = new MatchAllDocsQuery();
+        QueryBuilder queryBuilder = null;
+        TermsAggregationBuilder termsAggregationBuilder = terms("terms_agg").field(STATUS);
+        testCaseProfiling(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
+
+        ValuesSourceAggregationBuilder[] aggBuilders = {
+            sum("_sum").field(SIZE),
+            max("_max").field(SIZE),
+            min("_min").field(SIZE),
+            count("_count").field(SIZE),
+            avg("_avg").field(SIZE) };
+
+        for (ValuesSourceAggregationBuilder aggregationBuilder : aggBuilders) {
+            query = new MatchAllDocsQuery();
+            queryBuilder = null;
+            termsAggregationBuilder = terms("terms_agg").field(STATUS).subAggregation(aggregationBuilder);
+            testCaseProfiling(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
+
+            // Numeric-terms query with numeric terms aggregation
+            for (int cases = 0; cases < 100; cases++) {
+
+                // query of status field
+                String queryField = STATUS;
+                long queryValue = random.nextInt(10);
+                query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
+                queryBuilder = new TermQueryBuilder(queryField, queryValue);
+                testCaseProfiling(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
+
+                // query on size field
+                queryField = SIZE;
+                queryValue = NumericUtils.floatToSortableInt(random.nextInt(20) - 14.5f);
+                query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
+                queryBuilder = new TermQueryBuilder(queryField, queryValue);
+                testCaseProfiling(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
+            }
+        }
+
+        aggBuilders = new ValuesSourceAggregationBuilder[] {
+            sum("_sum").field(STATUS),
+            max("_max").field(STATUS),
+            min("_min").field(STATUS),
+            count("_count").field(STATUS),
+            avg("_avg").field(STATUS) };
+
+        for (ValuesSourceAggregationBuilder aggregationBuilder : aggBuilders) {
+            query = new MatchAllDocsQuery();
+            queryBuilder = null;
+
+            termsAggregationBuilder = terms("terms_agg").field(SIZE).subAggregation(aggregationBuilder);
+            testCaseProfiling(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
+        }
+
+        ir.close();
+        directory.close();
+    }
+
     private void testCase(
         IndexSearcher indexSearcher,
         Query query,
@@ -226,6 +329,57 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 DEFAULT_MAX_BUCKETS,
                 false,
                 null,
+                false,
+                STATUS_FIELD_TYPE,
+                SIZE_FIELD_NAME
+            );
+
+            assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());
+            assertEquals(defaultAggregation.getBuckets(), starTreeAggregation.getBuckets());
+        }
+    }
+
+    private void testCaseProfiling(
+        IndexSearcher indexSearcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        TermsAggregationBuilder termsAggregationBuilder,
+        CompositeIndexFieldInfo starTree,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions
+    ) throws IOException {
+        for (Aggregator.SubAggCollectionMode collectionMode : List.of(DEPTH_FIRST, BREADTH_FIRST)) {
+            termsAggregationBuilder.collectMode(collectionMode);
+            InternalTerms starTreeAggregation = searchAndReduceStarTreeProfiling(
+                createIndexSettings(),
+                indexSearcher,
+                query,
+                queryBuilder,
+                termsAggregationBuilder,
+                starTree,
+                supportedDimensions,
+                null,
+                DEFAULT_MAX_BUCKETS,
+                false,
+                null,
+                true,
+                false,
+                STATUS_FIELD_TYPE,
+                SIZE_FIELD_NAME
+            );
+
+            InternalTerms defaultAggregation = searchAndReduceStarTreeProfiling(
+                createIndexSettings(),
+                indexSearcher,
+                query,
+                queryBuilder,
+                termsAggregationBuilder,
+                null,
+                null,
+                null,
+                DEFAULT_MAX_BUCKETS,
+                false,
+                null,
+                false,
                 false,
                 STATUS_FIELD_TYPE,
                 SIZE_FIELD_NAME
