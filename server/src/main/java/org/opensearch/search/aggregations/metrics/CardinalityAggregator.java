@@ -68,6 +68,7 @@ import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.ShardResultConvertor;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -84,7 +85,7 @@ import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNIN
  *
  * @opensearch.internal
  */
-public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
+public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue implements ShardResultConvertor {
 
     private static final Logger logger = LogManager.getLogger(CardinalityAggregator.class);
 
@@ -760,5 +761,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 return hash.h1;
             }
         }
+    }
+
+    @Override
+    public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
+        Object[] hlls = shardResult.get(name);
+        HyperLogLogPlusPlus sketch = DataFusionHLLWrapper.getHyperLogLogPlusPlus((byte[]) hlls[row]);
+        return new InternalCardinality(name, sketch, null);
     }
 }
