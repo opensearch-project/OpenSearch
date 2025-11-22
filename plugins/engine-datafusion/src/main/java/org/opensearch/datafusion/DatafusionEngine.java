@@ -8,7 +8,6 @@
 
 package org.opensearch.datafusion;
 
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ViewVarCharVector;
@@ -181,14 +180,12 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     public Map<String, Object[]> executeQueryPhase(DatafusionContext context) {
         Map<String, Object[]> finalRes = new HashMap<>();
         List<Long> rowIdResult = new ArrayList<>();
-        RootAllocator allocator = null;
         RecordBatchStream stream = null;
 
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
             long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
-            allocator = new RootAllocator(Long.MAX_VALUE);
-            stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
+            stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer());
 
             // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
             // Is the possible? need to check
@@ -245,9 +242,6 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 if (stream != null) {
                     stream.close();
                 }
-                if (allocator != null) {
-                    allocator.close();
-                }
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -281,8 +275,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         context.getDatafusionQuery().setProjections(projections);
         DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
         long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
-        RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
+        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer());
 
         Map<Long, Integer> rowIdToIndex = new HashMap<>();
         for (int idx = 0; idx < rowIds.size(); idx++) {
@@ -354,7 +347,6 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         } finally {
             try {
                 stream.close();
-                allocator.close();
             } catch (Exception e) {
                 logger.error("Failed to close stream", e);
                 throw new RuntimeException(e);

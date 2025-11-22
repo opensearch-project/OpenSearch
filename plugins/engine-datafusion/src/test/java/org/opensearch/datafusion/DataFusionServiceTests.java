@@ -160,8 +160,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
             }
 
             long streamPointer = datafusionSearcher.search(new DatafusionQuery(index.getName(), protoContent, new ArrayList<>()), service.getRuntimePointer());
-            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-            RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer() , allocator);
+            RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer());
 
             // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
             // Is the possible? need to check
@@ -220,8 +219,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
 
             DatafusionQuery query = new DatafusionQuery(index.getName(), protoContent, new ArrayList<>());
             long streamPointer = datafusionSearcher.search(query, service.getRuntimePointer());
-            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-            RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer() , allocator);
+            RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer());
 
             ArrayList<Long> row_ids_res = new ArrayList<>();
 
@@ -245,7 +243,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
             query.setFetchPhaseContext(row_ids_res);
             long fetchPhaseStreamPointer = datafusionSearcher.search(query, service.getRuntimePointer());
 
-            RecordBatchStream fetchPhaseStream = new RecordBatchStream(fetchPhaseStreamPointer, service.getRuntimePointer() , allocator);
+            RecordBatchStream fetchPhaseStream = new RecordBatchStream(fetchPhaseStreamPointer, service.getRuntimePointer());
             int total_fetch_results = 0;
             ArrayList<Long> fetch_row_ids_res = new ArrayList<>();
 
