@@ -9,7 +9,7 @@
 package org.opensearch.datafusion;
 
 import org.apache.arrow.c.CDataDictionaryProvider;
-import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.datafusion.jni.handle.StreamHandle;
 
@@ -22,7 +22,7 @@ import java.util.concurrent.CompletableFuture;
 public class RecordBatchStream {
 
     private final StreamHandle streamHandle;
-    private final RootAllocator allocator;
+    private final BufferAllocator allocator;
     private final CDataDictionaryProvider dictionaryProvider;
     private final CompletableFuture<VectorSchemaRoot> schemaFuture;
     private volatile VectorSchemaRoot vectorSchemaRoot;
@@ -31,10 +31,11 @@ public class RecordBatchStream {
      * Creates a new RecordBatchStream for the given stream pointer
      * @param streamId the stream pointer
      * @param runtimePtr the runtime pointer
+     * @param parentAllocator parent allocator to create child from
      */
-    public RecordBatchStream(long streamId, long runtimePtr) {
+    public RecordBatchStream(long streamId, long runtimePtr, BufferAllocator parentAllocator) {
         this.streamHandle = new StreamHandle(streamId, runtimePtr);
-        this.allocator = new RootAllocator(Long.MAX_VALUE);
+        this.allocator = parentAllocator.newChildAllocator("stream-" + streamId, 0, Long.MAX_VALUE);
         this.dictionaryProvider = new CDataDictionaryProvider();
         this.schemaFuture = streamHandle.getSchema(allocator, dictionaryProvider)
             .thenApply(schema -> VectorSchemaRoot.create(schema, allocator));

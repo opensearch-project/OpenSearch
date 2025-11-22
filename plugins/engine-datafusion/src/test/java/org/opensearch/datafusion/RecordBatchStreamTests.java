@@ -17,15 +17,18 @@ import org.opensearch.test.OpenSearchTestCase;
 public class RecordBatchStreamTests extends OpenSearchTestCase {
 
     private DataFusionService service;
+    private RootAllocator allocator;
 
     @Before
     public void setup() {
         service = new DataFusionService(java.util.Collections.emptyMap(), null);
         service.doStart();
+        allocator = new RootAllocator(Long.MAX_VALUE);
     }
 
     @After
     public void cleanUp() {
+        allocator.close();
         service.doStop();
     }
 
@@ -34,7 +37,7 @@ public class RecordBatchStreamTests extends OpenSearchTestCase {
         long runtimePtr = service.getRuntimePointer();
         
         long startTime = System.nanoTime();
-        RecordBatchStream stream = new RecordBatchStream(streamId, runtimePtr);
+        RecordBatchStream stream = new RecordBatchStream(streamId, runtimePtr, allocator);
         long duration = System.nanoTime() - startTime;
         
         assertNotNull(stream);
@@ -45,7 +48,7 @@ public class RecordBatchStreamTests extends OpenSearchTestCase {
         long streamId = createMockStream();
         long runtimePtr = service.getRuntimePointer();
         
-        RecordBatchStream stream = new RecordBatchStream(streamId, runtimePtr);
+        RecordBatchStream stream = new RecordBatchStream(streamId, runtimePtr, allocator);
         
         boolean initialized = stream.isInitialized();
         assertTrue(initialized);
@@ -58,7 +61,7 @@ public class RecordBatchStreamTests extends OpenSearchTestCase {
         long streamId = createMockStream();
         long runtimePtr = service.getRuntimePointer();
         
-        RecordBatchStream stream = new RecordBatchStream(streamId, runtimePtr);
+        RecordBatchStream stream = new RecordBatchStream(streamId, runtimePtr, allocator);
         
         VectorSchemaRoot root = stream.getVectorSchemaRoot();
         assertNotNull(root);
@@ -70,7 +73,7 @@ public class RecordBatchStreamTests extends OpenSearchTestCase {
         long streamId = createMockStream();
         long runtimePtr = service.getRuntimePointer();
         
-        RecordBatchStream stream = new RecordBatchStream(streamId, runtimePtr);
+        RecordBatchStream stream = new RecordBatchStream(streamId, runtimePtr, allocator);
         
         Boolean hasMore = stream.loadNextBatch().join();
         assertNotNull(hasMore);
@@ -82,7 +85,7 @@ public class RecordBatchStreamTests extends OpenSearchTestCase {
         long streamId = 1L;
         long runtimePtr = service.getRuntimePointer();
         
-        RecordBatchStream stream = new RecordBatchStream(streamId, runtimePtr);
+        RecordBatchStream stream = new RecordBatchStream(streamId, runtimePtr, allocator);
         stream.close(); // Should not throw
     }
 

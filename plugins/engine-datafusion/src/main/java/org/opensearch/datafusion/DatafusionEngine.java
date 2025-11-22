@@ -8,6 +8,8 @@
 
 package org.opensearch.datafusion;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ViewVarCharVector;
@@ -68,6 +70,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     private DatafusionReaderManager datafusionReaderManager;
     private DataFusionService datafusionService;
     private CacheManager cacheManager;
+    private final RootAllocator rootAllocator;
 
     public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService, ShardPath shardPath) throws IOException {
         this.dataFormat = dataFormat;
@@ -75,6 +78,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         this.datafusionReaderManager = new DatafusionReaderManager(shardPath.getDataPath().toString(), formatCatalogSnapshot, dataFormat.getName());
         this.datafusionService = dataFusionService;
         this.cacheManager = datafusionService.getCacheManager();
+        this.rootAllocator = new RootAllocator(Long.MAX_VALUE);
         if(this.cacheManager!=null) {
             datafusionReaderManager.setOnFilesAdded(files -> {
                 // Handle new files added during refresh
@@ -185,7 +189,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
             long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
-            stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer());
+            stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator);
 
             // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
             // Is the possible? need to check
@@ -275,7 +279,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         context.getDatafusionQuery().setProjections(projections);
         DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
         long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
-        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer());
+        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator);
 
         Map<Long, Integer> rowIdToIndex = new HashMap<>();
         for (int idx = 0; idx < rowIds.size(); idx++) {

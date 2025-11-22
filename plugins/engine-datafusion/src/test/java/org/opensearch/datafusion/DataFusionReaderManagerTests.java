@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 
+import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -463,7 +464,8 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         Map<String, Object[]> finalRes = new HashMap<>();
         Long streamPointer = searcher.search(datafusionQuery, service.getRuntimePointer());
 
-        RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer());
+        RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+        RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer(), allocator);
 
         SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
             @Override
