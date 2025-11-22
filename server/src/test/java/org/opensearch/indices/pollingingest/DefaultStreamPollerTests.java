@@ -650,6 +650,13 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Start with no messages
         messages.clear();
 
+        // Set up latch to wait for message processing
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
+
         FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
 
         poller = new DefaultStreamPoller(
@@ -684,13 +691,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         messages.add("{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
 
         // Wait for the message to be processed
-        CountDownLatch latch = new CountDownLatch(1);
-        doAnswer(invocation -> {
-            latch.countDown();
-            return null;
-        }).when(processor).process(any(), any());
-
-        latch.await();
+        assertTrue("Message should be processed within timeout", latch.await(30, TimeUnit.SECONDS));
 
         // Verify 1 message was processed
         verify(processor, times(1)).process(any(), any());
