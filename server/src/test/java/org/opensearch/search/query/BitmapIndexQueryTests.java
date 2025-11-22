@@ -280,4 +280,53 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         Set<Integer> expected = Set.of(1, 2, 3);
         assertEquals(expected, actual);
     }
+
+    public void testScoreWithNegatives() throws IOException {
+        Document d = new Document();
+        d.add(new IntField("product_id", 1, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 2, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 3, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 4, Field.Store.NO));
+        w.addDocument(d);
+
+        // Add negative product_ids as they are technically valid integer values
+        d = new Document();
+        d.add(new IntField("product_id", -2, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", -3, Field.Store.NO));
+        w.addDocument(d);
+
+        w.commit();
+        reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
+
+        RoaringBitmap bitmap = new RoaringBitmap();
+        bitmap.add(1);
+        bitmap.add(4);
+        bitmap.add(-2);
+        bitmap.add(2);
+        bitmap.add(-3);
+        bitmap.add(3);
+
+        BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
+
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+
+        List<Integer> actual = getMatchingValues(weight, searcher.getIndexReader());
+        // Has to be sorted. Negative values are greater than Positive as 2^32 is added to negative numbers when
+        // converting signed int to unsigned int
+        List<Integer> expected = List.of(1, 2, 3, 4, -2, -3);
+        assertEquals(expected, actual);
+    }
 }
