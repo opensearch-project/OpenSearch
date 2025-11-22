@@ -10,16 +10,16 @@ package org.opensearch.core.tasks.resourcetracker;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Objects;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
@@ -202,7 +202,46 @@ public class TaskResourceInfo implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this);
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        try (StreamOutput streamOutput = new StreamOutput() {
+            @Override
+            public void writeByte(byte b) {
+                byteArrayOutputStream.write(b);
+            }
+
+            @Override
+            public void writeBytes(byte[] b, int offset, int length) {
+                byteArrayOutputStream.write(b, offset, length);
+            }
+
+            /**
+             * Forces any buffered output to be written.
+             */
+            @Override
+            public void flush() throws IOException {
+                byteArrayOutputStream.flush();
+            }
+
+            /**
+             * Closes this stream to further operations.
+             */
+            @Override
+            public void close() throws IOException {
+                byteArrayOutputStream.close();
+            }
+
+            @Override
+            public void reset() {
+                byteArrayOutputStream.reset();
+            }
+        }) {
+            // Serialize the object to the custom StreamOutput
+            this.writeTo(streamOutput);
+            // Convert the byte array to Base64 string
+            return Base64.getEncoder().encodeToString(byteArrayOutputStream.toByteArray());
+        } catch (IOException e) {
+            return "";
+        }
     }
 
     @Override
