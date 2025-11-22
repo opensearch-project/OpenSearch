@@ -44,6 +44,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityProvider;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.script.ScriptService;
 
 import java.io.IOException;
@@ -69,11 +70,17 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public static class BuilderContext {
         private final Settings indexSettings;
         private final ContentPath contentPath;
+        private final PluginsService pluginsService;
 
         public BuilderContext(Settings indexSettings, ContentPath contentPath) {
+            this(indexSettings, contentPath, null);
+        }
+
+        public BuilderContext(Settings indexSettings, ContentPath contentPath, PluginsService pluginsService) {
             Objects.requireNonNull(indexSettings, "indexSettings is required");
             this.contentPath = contentPath;
             this.indexSettings = indexSettings;
+            this.pluginsService = pluginsService;
         }
 
         public ContentPath path() {
@@ -82,6 +89,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         public Settings indexSettings() {
             return this.indexSettings;
+        }
+
+        public PluginsService pluginsService() {
+            return this.pluginsService;
         }
 
         public Version indexCreatedVersion() {
@@ -308,6 +319,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public void canDeriveSource() {
         throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
+    }
+
+    public void checkDataFormat(BuilderContext context) {
+        // Default implementation - no validation
     }
 
     /**
