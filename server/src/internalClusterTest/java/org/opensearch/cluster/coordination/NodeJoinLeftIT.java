@@ -36,9 +36,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.MockEngineFactoryPlugin;
@@ -61,11 +70,19 @@ import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_ACTION_NAME;
 import static org.hamcrest.Matchers.is;
@@ -80,6 +97,7 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
     private TestLogsAppender testLogsAppender;
     private String clusterManager;
     private String redNodeName;
+    private Settings nodeSettings;
     private LoggerContext loggerContext;
 
     @Override
@@ -105,7 +123,12 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
     public void setUp() throws Exception {
         super.setUp();
         // Add any other specific messages you want to capture
-        List<String> messagesToCapture = Arrays.asList("failed to join", "IllegalStateException");
+        List<String> messagesToCapture = Arrays.asList(
+            "failed to join",
+            "IllegalStateException",
+            "NodeRemovalClusterStateTaskExecutor",
+            ""
+        );
         testLogsAppender = new TestLogsAppender(messagesToCapture);
         loggerContext = (LoggerContext) LogManager.getContext(false);
         Configuration config = loggerContext.getConfiguration();
@@ -114,7 +137,7 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         loggerContext.updateLoggers();
 
         String indexName = "test";
-        final Settings nodeSettings = Settings.builder()
+        this.nodeSettings = Settings.builder()
             .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
             .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "10s")
             .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "200ms")
@@ -306,6 +329,100 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         assertTrue("Expected log was not found within the timeout period", logFound);
     }
 
+    public void testClusterStabilityWhenClusterStatePublicationLagsWithLongRunningTaskOnApplierThread() throws Exception {
+        internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
+        internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
+        internalCluster().startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
+        internalCluster().startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
+        internalCluster().client().admin().cluster().prepareHealth().setWaitForNodes("7").get();
+        for (int i = 0; i < 2; i++) {
+            String indexName = "index-" + i;
+            internalCluster().client()
+                .admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                )
+                .get();
+        }
+        internalCluster().client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
+        Settings settings = Settings.builder().put("cluster.follower_lag.timeout", "5s").put("cluster.publish.timeout", "15s").build();
+        settingsRequest.transientSettings(settings);
+        internalCluster().client().admin().cluster().updateSettings(settingsRequest).actionGet();
+
+        Iterable<ClusterService> dataNodeClusterServices = internalCluster().getDataNodeInstances(ClusterService.class);
+        List<ClusterApplierService> dataNodeClusterApplierService = new ArrayList<>();
+        dataNodeClusterServices.forEach(clusterService -> dataNodeClusterApplierService.add(clusterService.getClusterApplierService()));
+        Map<ClusterApplierService, ClusterStateListener> clusterApplierServiceClusterListenerMap = new HashMap<>();
+        AtomicLong previousVersion = new AtomicLong(-1);
+        AtomicInteger sleepCounter = new AtomicInteger(0);
+        dataNodeClusterApplierService.forEach(dataNodeClusterApplierServiceInstance -> {
+            ClusterStateListener clusterStateListener = new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent event) {
+
+                    long currentVersion = event.state().version();
+
+                    // Reset counter for new cluster state version
+                    if (previousVersion.compareAndSet(-1, currentVersion) || previousVersion.get() != currentVersion) {
+                        sleepCounter.set(0);
+                        previousVersion.set(currentVersion);
+                    }
+
+                    Random random = new Random();
+                    if (random.nextBoolean() && sleepCounter.getAndIncrement() < 2) {
+                        dataNodeClusterApplierServiceInstance.runOnApplierThread("NodeJoinLeftIT", clusterState -> {
+                            try {
+                                logger.info("Sleeping for 30 seconds");
+                                Thread.sleep(30 * 1000);
+                            } catch (InterruptedException e) {
+                                logger.info("Interrupted while waiting for cluster state applier");
+                            }
+                        }, (source, e) -> logger.error(() -> new ParameterizedMessage("{} unexpected error in listener wait", e), e));
+                    }
+                }
+            };
+            clusterApplierServiceClusterListenerMap.put(dataNodeClusterApplierServiceInstance, clusterStateListener);
+            dataNodeClusterApplierServiceInstance.addListener(clusterStateListener);
+        });
+
+        testLogsAppender.clearCapturedLogs();
+        ShardMover shardMover = new ShardMover();
+        Thread shufflerThread = new Thread(shardMover);
+        shufflerThread.start();
+        Thread.sleep(45 * 1000);
+        shardMover.setMoveShards(false);
+        shufflerThread.join();
+        dataNodeClusterApplierService.forEach(dataNodeClusterApplierServiceInstance -> {
+            dataNodeClusterApplierServiceInstance.removeListener(
+                clusterApplierServiceClusterListenerMap.get(dataNodeClusterApplierServiceInstance)
+            );
+        });
+        internalCluster().client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("7").get();
+
+        testLogsAppender.waitForLog(
+            "Tasks batched with key: org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor",
+            30,
+            TimeUnit.SECONDS
+        );
+        boolean logFound = testLogsAppender.waitForLog(
+            "Tasks batched with key: org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor",
+            30,
+            TimeUnit.SECONDS
+        ) && testLogsAppender.waitForLog("reason: lagging", 30, TimeUnit.SECONDS);
+        assertTrue("Expected log was not found within the timeout period", logFound);
+        // assert that join requests fail with the right exception
+        logFound = testLogsAppender.waitForLog("failed to join", 30, TimeUnit.SECONDS)
+            && testLogsAppender.waitForLog(
+                "IllegalStateException[cannot make a new connection as disconnect to node",
+                30,
+                TimeUnit.SECONDS
+            );
+        assertTrue("Expected log was not found within the timeout period", logFound);
+    }
+
     public void testRestartDataNode() throws Exception {
 
         Settings redNodeDataPathSettings = internalCluster().dataPathSettings(redNodeName);
@@ -356,6 +473,60 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
             connectionBreaker.run();
             handler.messageReceived(request, channel, task);
+        }
+    }
+
+    private class ShardMover implements Runnable {
+        private boolean moveShards = true;
+
+        public void setMoveShards(boolean moveShards) {
+            this.moveShards = moveShards;
+        }
+
+        @Override
+        public void run() {
+            ClusterState clusterState = internalCluster().client().admin().cluster().prepareState().get().getState();
+            List<String> dataNodes = clusterState.getNodes()
+                .getDataNodes()
+                .values()
+                .stream()
+                .map(DiscoveryNode::getId)
+                .collect(Collectors.toList());
+            Random random = new Random();
+            while (moveShards) {
+                for (ShardRouting shard : clusterState.getRoutingTable().allShards()) {
+                    if (!moveShards) {
+                        break;
+                    }
+                    if (shard.assignedToNode() && shard.primary()) {
+                        String currentNode = shard.currentNodeId();
+                        // Filter nodes that have the same color attribute as the current node
+                        DiscoveryNode currentDiscoveryNode = clusterState.getNodes().get(currentNode);
+                        String currentColor = currentDiscoveryNode.getAttributes().get("color");
+
+                        List<String> compatibleNodes = dataNodes.stream().filter(nodeId -> !nodeId.equals(currentNode)).filter(nodeId -> {
+                            DiscoveryNode node = clusterState.getNodes().get(nodeId);
+                            String nodeColor = node.getAttributes().get("color");
+                            return Objects.equals(currentColor, nodeColor);
+                        }).collect(Collectors.toList());
+
+                        if (!compatibleNodes.isEmpty()) {
+                            String targetNode = compatibleNodes.get(random.nextInt(compatibleNodes.size()));
+                            try {
+                                internalCluster().client()
+                                    .admin()
+                                    .cluster()
+                                    .prepareReroute()
+                                    .add(new MoveAllocationCommand(shard.getIndexName(), shard.getId(), currentNode, targetNode))
+                                    .get();
+                            } catch (Exception e) {
+                                // Ignore allocation failures and continue
+                                logger.debug("Failed to move shard {}, continuing", shard, e);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
