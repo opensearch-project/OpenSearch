@@ -121,6 +121,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
+            final double[] valueBuffer = new double[64];
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 sums = bigArrays.grow(sums, bucket + 1);
@@ -145,13 +146,30 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
-            }
-
-            @Override
-            public void collectRange(int min, int max) throws IOException {
-                super.collectRange(min, max);
+            public void collect(DocIdStream stream, long bucket) throws IOException {
+                sums = bigArrays.grow(sums, bucket + 1);
+                compensations = bigArrays.grow(compensations, bucket + 1);
+                // Compute the sum of double values with Kahan summation algorithm which is more
+                // accurate than naive summation.
+                double sum = sums.get(bucket);
+                double compensation = compensations.get(bucket);
+                kahanSummation.reset(sum, compensation);
+                final int[] count = {0};
+                stream.forEach((doc) -> {
+                    if (values.advanceExact(doc)) {
+                        final int valuesCount = values.docValueCount();
+                        for (int i = 0; i < valuesCount; i++) {
+                            if (count[0] == valueBuffer.length) {
+                                kahanSummation.add(valueBuffer, count[0]);
+                                count[0] = 0;
+                            }
+                            valueBuffer[count[0]++] = values.nextValue();
+                        }
+                    }
+                });
+                kahanSummation.add(valueBuffer, count[0]);
+                compensations.set(bucket, kahanSummation.delta());
+                sums.set(bucket, kahanSummation.value());
             }
         };
     }
