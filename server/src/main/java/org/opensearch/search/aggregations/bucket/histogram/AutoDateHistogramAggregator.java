@@ -31,7 +31,10 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
@@ -52,6 +55,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
+import org.opensearch.search.aggregations.bucket.HistogramSkiplistLeafCollector;
 import org.opensearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
@@ -85,6 +89,7 @@ import static org.opensearch.search.aggregations.bucket.filterrewrite.DateHistog
  * @opensearch.internal
  */
 abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
+
     static AutoDateHistogramAggregator build(
         String name,
         AggregatorFactories factories,
@@ -135,6 +140,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     protected final int targetBuckets;
     protected int roundingIdx;
     protected Rounding.Prepared preparedRounding;
+    private final String fieldName;
 
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
 
@@ -157,6 +163,9 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.roundingInfos = roundingInfos;
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
+        this.fieldName = (valuesSource instanceof ValuesSource.Numeric.FieldData)
+            ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
+            : null;
 
         DateHistogramAggregatorBridge bridge = new DateHistogramAggregatorBridge() {
             @Override
@@ -243,7 +252,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         return deferringCollector;
     }
 
-    protected abstract LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) throws IOException;
+    protected abstract LeafBucketCollector getLeafCollector(SortedNumericDocValues values, DocValuesSkipper skipper, LeafBucketCollector sub) throws IOException;
 
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
@@ -262,7 +271,14 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
-        final LeafBucketCollector iteratingCollector = getLeafCollector(values, sub);
+        // Try to unwrap to single-valued NumericDocValues
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        DocValuesSkipper skipper = null;
+        if (this.fieldName != null) {
+            skipper = ctx.reader().getDocValuesSkipper(this.fieldName);
+        }
+
+        final LeafBucketCollector iteratingCollector = getLeafCollector(values, skipper, sub);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -370,6 +386,9 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         private long min = Long.MAX_VALUE;
         private long max = Long.MIN_VALUE;
 
+        // Debug tracking counters for collector types
+        private int skiplistCollectorCount = 0;
+
         FromSingle(
             String name,
             AggregatorFactories factories,
@@ -402,7 +421,24 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) throws IOException {
+        protected LeafBucketCollector getLeafCollector(SortedNumericDocValues values, DocValuesSkipper skipper, LeafBucketCollector sub) throws IOException {
+            // Check if skiplist optimization is available
+            // Requirements: 1.1, 1.2, 1.3, 1.4
+            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null && skipper != null) {
+                // Increment skiplist collector count
+                skiplistCollectorCount++;
+                return new HistogramSkiplistLeafCollector(
+                    singleton,
+                    skipper,
+                    () -> preparedRounding,  // Pass supplier to allow rounding change detection
+                    bucketOrds,
+                    sub,
+                    FromSingle.this
+                );
+            }
+
+            // Fall back to standard LeafBucketCollectorBase when skiplist unavailable
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -513,6 +549,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         public void collectDebugInfo(BiConsumer<String, Object> add) {
             super.collectDebugInfo(add);
             add.accept("surviving_buckets", bucketOrds.size());
+            add.accept("skiplist_collectors_used", skiplistCollectorCount);
         }
 
         @Override
@@ -661,7 +698,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) throws IOException {
+        protected LeafBucketCollector getLeafCollector(SortedNumericDocValues values, DocValuesSkipper skipper, LeafBucketCollector sub) throws IOException {
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
