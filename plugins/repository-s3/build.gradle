@@ -39,6 +39,7 @@ import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 opensearchplugin {
   description = 'The S3 repository plugin adds S3 repositories'
@@ -113,6 +114,9 @@ dependencies {
   api 'javax.xml.bind:jaxb-api:2.3.1'
 
   testImplementation project(':test:fixtures:s3-fixture')
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 restResources {

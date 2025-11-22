@@ -32,6 +32,7 @@ import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 opensearchplugin {
   description = 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
@@ -74,6 +75,9 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 restResources {

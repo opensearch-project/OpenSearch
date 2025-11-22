@@ -260,7 +260,9 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testSpecialCharacterInName() throws Exception {
-        createKeystore("");
+        final String password = "keystorepassword";
+        createKeystore(password);
+        terminal.addSecretInput(password);
         terminal.addSecretInput("value");
         final String key = randomAlphaOfLength(4) + '@' + randomAlphaOfLength(4);
         final UserException e = expectThrows(UserException.class, () -> execute(key));

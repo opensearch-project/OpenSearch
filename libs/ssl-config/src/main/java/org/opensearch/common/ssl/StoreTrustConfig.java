@@ -54,7 +54,7 @@ final class StoreTrustConfig implements SslTrustConfig {
      * @param path      The path to the keystore file
      * @param password  The password for the keystore
      * @param type      The {@link KeyStore#getType() type} of the keystore (typically "PKCS12" or "jks").
-     *                  See {@link KeyStoreUtil#inferKeyStoreType(Path)}.
+     *                  See {@link KeyStoreUtil#inferStoreType(String)}.
      * @param algorithm The algorithm to use for the Trust Manager (see {@link javax.net.ssl.TrustManagerFactory#getAlgorithm()}).
      */
     StoreTrustConfig(Path path, char[] password, String type, String algorithm) {

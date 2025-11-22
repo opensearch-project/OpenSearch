@@ -97,7 +97,10 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
             GoogleCloudStorageClientSettings.PROXY_HOST_SETTING,
             GoogleCloudStorageClientSettings.PROXY_PORT_SETTING,
             GoogleCloudStorageClientSettings.PROXY_USERNAME_SETTING,
-            GoogleCloudStorageClientSettings.PROXY_PASSWORD_SETTING
+            GoogleCloudStorageClientSettings.PROXY_PASSWORD_SETTING,
+            GoogleCloudStorageClientSettings.TRUSTSTORE_PATH_SETTING,
+            GoogleCloudStorageClientSettings.TRUSTSTORE_PASSWORD_SETTING,
+            GoogleCloudStorageClientSettings.TRUSTSTORE_TYPE_SETTING
         );
     }
 

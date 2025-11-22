@@ -12,6 +12,7 @@
 
 import org.opensearch.gradle.MavenFilteringHack
 import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.info.FipsBuildParams
 import org.opensearch.gradle.test.InternalClusterTestPlugin
 import org.opensearch.gradle.test.RestIntegTestTask
 import org.opensearch.gradle.test.rest.YamlRestTestPlugin
@@ -42,6 +43,7 @@ import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 ext {
   guava_version = "33.4.0-jre"
@@ -95,6 +97,9 @@ dependencies {
   runtimeOnly "io.grpc:grpc-api:1.71.0"
 
   testImplementation project(':test:fixtures:gcs-fixture')
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 compileJava {
@@ -356,6 +361,14 @@ processYamlRestTestResources {
 internalClusterTest {
   // this is tested explicitly in a separate test task
   exclude '**/GoogleCloudStorageThirdPartyTests.class'
+  exclude '**/GoogleCloudStorageThirdPartyFipsTests.class'
+
+  // Conditionally exclude based on FIPS mode
+  if (FipsBuildParams.isInFipsMode()) {
+    exclude '**/GoogleCloudStorageBlobStoreRepositoryTests.class'
+  } else {
+    exclude '**/GoogleCloudStorageBlobStoreRepositoryFipsTests.class'
+  }
 }
 
 final Closure testClustersConfiguration = {
@@ -418,7 +431,11 @@ task gcsThirdPartyTest(type: Test) {
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  include '**/GoogleCloudStorageThirdPartyTests.class'
+  if (FipsBuildParams.isInFipsMode()) {
+    include '**/GoogleCloudStorageThirdPartyFipsTests.class'
+  } else {
+    include '**/GoogleCloudStorageThirdPartyTests.class'
+  }
   systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed

@@ -89,12 +89,73 @@ plugins.withId('opensearch.testclusters') {
 // This applies to both 'java' and 'java-base' plugins
 ['java', 'java-base'].each { pluginId ->
   plugins.withId(pluginId) {
+    // Exclude FipsTests and FipsIT source files from compilation when not in FIPS mode
+    if (!BuildParams.isInFipsJvm()) {
+      afterEvaluate {
+        sourceSets.matching { it.name == "test" }.configureEach {
+          java.exclude '**/*FipsTests.java'
+          java.exclude '**/*FipsIT.java'
+        }
+      }
+    }
+
     tasks.withType(Test).configureEach { testTask ->
       if (BuildParams.isInFipsJvm()) {
         testTask.systemProperty 'javax.net.ssl.trustStore', "${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks"
         testTask.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
         testTask.systemProperty 'javax.net.ssl.trustStoreProvider', 'BCFIPS'
         testTask.systemProperty 'javax.net.ssl.trustStorePassword', 'changeit'
+
+        // Exclude base test classes that have corresponding FipsTests or FipsIT
+        // Check if a FipsTests or FipsIT variant exists in the same directory
+        // Track logged exclusions to avoid duplicate log messages
+        def loggedExclusions = [] as Set
+
+        // Helper to check if a FIPS variant exists and should exclude the base test
+        def shouldExcludeForFipsVariant = { fileName, parent, suffix, fipsSuffix ->
+          if (!fileName.endsWith(suffix)) return false
+
+          def baseName = fileName.replace(suffix, '')
+          def fipsTestName = baseName + fipsSuffix
+          def fipsTestFile = new File(parent, fipsTestName)
+
+          if (fipsTestFile.exists()) {
+            if (!loggedExclusions.contains(baseName)) {
+              loggedExclusions.add(baseName)
+              def basePattern = suffix.replace('.class', '')
+              def fipsPattern = fipsSuffix.replace('.class', '')
+              testTask.logger.lifecycle("FIPS mode: Excluding ${baseName}${basePattern} in favor of ${baseName}${fipsPattern}")
+            }
+            return true
+          }
+          return false
+        }
+
+        testTask.exclude { fileTreeElement ->
+          def fileName = fileTreeElement.name
+          // Skip non-test classes and FIPS variants themselves
+          if (fileName.endsWith('FipsTests.class') || fileName.endsWith('FipsIT.class')) {
+            return false
+          }
+
+          def parent = fileTreeElement.file.parentFile
+          if (!parent) return false
+
+          // Check for *Tests -> *FipsTests pattern
+          if (shouldExcludeForFipsVariant(fileName, parent, 'Tests.class', 'FipsTests.class')) {
+            return true
+          }
+
+          // Check for *IT -> *FipsIT pattern
+          if (shouldExcludeForFipsVariant(fileName, parent, 'IT.class', 'FipsIT.class')) {
+            return true
+          }
+
+          return false
+        }
+      } else {
+        testTask.exclude '**/*FipsTests.class'
+        testTask.exclude '**/*FipsIT.class'
       }
     }
   }

@@ -332,6 +332,10 @@ Map<String, Object> expansions = [
   'base_path': azureBasePath + "_integration_tests"
 ]
 
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false }
+}
+
 processYamlRestTestResources {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)

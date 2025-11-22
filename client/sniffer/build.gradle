@@ -29,6 +29,7 @@
  */
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
+apply from: "$rootDir/gradle/fips.gradle"
 
 java {
   targetCompatibility = JavaVersion.VERSION_11
@@ -55,6 +56,9 @@ dependencies {
   testImplementation "org.objenesis:objenesis:${versions.objenesis}"
   testImplementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
   testImplementation "net.bytebuddy:byte-buddy-agent:${versions.bytebuddy}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 tasks.named('forbiddenApisMain').configure {
