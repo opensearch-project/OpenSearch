@@ -15,6 +15,8 @@ use parquet::basic::{Compression, ZstdLevel};
 use parquet::file::properties::WriterProperties;
 
 pub mod parquet_merge;
+mod rate_limited_writer;
+
 pub use parquet_merge::*;
 
 lazy_static! {
