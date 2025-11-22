@@ -17,9 +17,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class IndexingStatsTests extends OpenSearchTestCase {
 
@@ -50,22 +47,6 @@ public class IndexingStatsTests extends OpenSearchTestCase {
                 assertEquals(totalStats.getNoopUpdateCount(), deserializedTotalStats.getNoopUpdateCount());
                 assertEquals(totalStats.isThrottled(), deserializedTotalStats.isThrottled());
                 assertEquals(totalStats.getThrottleTime(), deserializedTotalStats.getThrottleTime());
-
-                if (totalStats.getDocStatusStats() == null) {
-                    assertNull(deserializedTotalStats.getDocStatusStats());
-                    return;
-                }
-
-                IndexingStats.Stats.DocStatusStats docStatusStats = totalStats.getDocStatusStats();
-                IndexingStats.Stats.DocStatusStats deserializedDocStatusStats = deserializedTotalStats.getDocStatusStats();
-
-                assertTrue(
-                    Arrays.equals(
-                        docStatusStats.getDocStatusCounter(),
-                        deserializedDocStatusStats.getDocStatusCounter(),
-                        Comparator.comparingLong(AtomicLong::longValue)
-                    )
-                );
             }
         }
     }
@@ -73,7 +54,6 @@ public class IndexingStatsTests extends OpenSearchTestCase {
     public void testToXContentForIndexingStats() throws IOException {
         IndexingStats stats = createTestInstance();
         IndexingStats.Stats totalStats = stats.getTotal();
-        AtomicLong[] counter = totalStats.getDocStatusStats().getDocStatusCounter();
 
         String expected = "{\"indexing\":{\"index_total\":"
             + totalStats.getIndexCount()
@@ -95,17 +75,7 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             + totalStats.isThrottled()
             + ",\"throttle_time_in_millis\":"
             + totalStats.getThrottleTime().getMillis()
-            + ",\"doc_status\":{\"1xx\":"
-            + counter[0]
-            + ",\"2xx\":"
-            + counter[1]
-            + ",\"3xx\":"
-            + counter[2]
-            + ",\"4xx\":"
-            + counter[3]
-            + ",\"5xx\":"
-            + counter[4]
-            + "},\"max_last_index_request_timestamp\":"
+            + ",\"max_last_index_request_timestamp\":"
             + totalStats.getMaxLastIndexRequestTimestamp()
             + "}}";
 
@@ -124,7 +94,6 @@ public class IndexingStatsTests extends OpenSearchTestCase {
      */
     public void testMaxLastIndexRequestTimestampAggregation() throws Exception {
         // Use explicit values for all fields except the timestamp
-        IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
         long ts1 = randomLongBetween(0, 1000000);
         long ts2 = randomLongBetween(0, 1000000);
         long ts3 = randomLongBetween(0, 1000000);
@@ -137,8 +106,7 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             .deleteCurrent(7)
             .noopUpdateCount(8)
             .isThrottled(false)
-            .throttleTimeInMillis(9)
-            .docStatusStats(docStatusStats);
+            .throttleTimeInMillis(9);
         IndexingStats.Stats stats1 = defaultStats.maxLastIndexRequestTimestamp(ts1).build();
         IndexingStats.Stats stats2 = defaultStats.maxLastIndexRequestTimestamp(ts2).build();
         IndexingStats.Stats stats3 = defaultStats.maxLastIndexRequestTimestamp(ts3).build();
@@ -164,7 +132,6 @@ public class IndexingStatsTests extends OpenSearchTestCase {
     }
 
     public void testMaxLastIndexRequestTimestampBackwardCompatibility() throws IOException {
-        IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
         long ts = randomLongBetween(0, 1000000);
         IndexingStats.Stats stats = new IndexingStats.Stats.Builder().indexCount(1)
             .indexTimeInMillis(2)
@@ -176,7 +143,6 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             .noopUpdateCount(8)
             .isThrottled(false)
             .throttleTimeInMillis(9)
-            .docStatusStats(docStatusStats)
             .maxLastIndexRequestTimestamp(ts)
             .build();
 
@@ -215,7 +181,6 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             .noopUpdateCount(randomNonNegativeLong())
             .isThrottled(randomBoolean())
             .throttleTimeInMillis(randomNonNegativeLong())
-            .docStatusStats(docStatusStats)
             .maxLastIndexRequestTimestamp(randomLong())
             .build();
 
