@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.datafusion;
+package org.opensearch.datafusion.search;
 
 import org.apache.arrow.c.CDataDictionaryProvider;
 import org.apache.arrow.memory.BufferAllocator;
@@ -19,7 +19,7 @@ import java.util.concurrent.CompletableFuture;
  * Represents a stream of Apache Arrow record batches from DataFusion query execution.
  * Provides a Java interface to iterate through query results in a memory-efficient way.
  */
-public class RecordBatchStream {
+public class RecordBatchStream implements AutoCloseable {
 
     private final StreamHandle streamHandle;
     private final BufferAllocator allocator;
@@ -74,6 +74,7 @@ public class RecordBatchStream {
      * Closes the stream and releases all associated resources
      * @throws Exception if an error occurs during cleanup
      */
+    @Override
     public void close() throws Exception {
         streamHandle.close();
         dictionaryProvider.close();

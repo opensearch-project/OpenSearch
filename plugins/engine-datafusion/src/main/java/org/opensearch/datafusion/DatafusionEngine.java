@@ -8,7 +8,6 @@
 
 package org.opensearch.datafusion;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -31,7 +30,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.datafusion.search.*;
 import org.opensearch.datafusion.search.cache.CacheManager;
-import org.opensearch.datafusion.search.cache.CacheUtils;
+import org.opensearch.datafusion.search.RecordBatchStream;
 import org.opensearch.index.engine.*;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
@@ -48,7 +47,6 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.vectorized.execution.search.DataFormat;
-import org.opensearch.search.query.GenericQueryPhaseSearcher;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -194,10 +192,9 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
             // Is the possible? need to check
 
-            SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
-                @Override
-                public void collect(RecordBatchStream value) {
-                    VectorSchemaRoot root = value.getVectorSchemaRoot();
+            SearchResultsCollector<RecordBatchIterator> collector = iterator -> {
+                while (iterator.hasNext()) {
+                    VectorSchemaRoot root = iterator.next();
                     for (Field field : root.getSchema().getFields()) {
                         String fieldName = field.getName();
                         FieldVector fieldVector = root.getVector(fieldName);
@@ -219,9 +216,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 }
             };
 
-            while (stream.loadNextBatch().join()) {
-                collector.collect(stream);
-            }
+            collector.collect(new RecordBatchIterator(stream));
 
             logger.info("Final Results:");
             for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
@@ -288,12 +283,12 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
         MapperService mapperService = context.mapperService();
         MappingLookup mappingLookup = mapperService.documentMapper().mappers();
-        SearchResultsCollector<RecordBatchStream> collector = recordBatchStream -> {
+        SearchResultsCollector<RecordBatchIterator> collector = iterator -> {
             List<BytesReference> byteRefs = new ArrayList<>();
             SearchHit[] hits = new SearchHit[rowIds.size()];
             int totalHits = 0;
-            while (recordBatchStream.loadNextBatch().join()) {
-                VectorSchemaRoot vectorSchemaRoot = recordBatchStream.getVectorSchemaRoot();
+            while (iterator.hasNext()) {
+                VectorSchemaRoot vectorSchemaRoot = iterator.next();
                 List<FieldVector> fieldVectorList = vectorSchemaRoot.getFieldVectors();
                 for (int i = 0; i < vectorSchemaRoot.getRowCount(); i++) {
                     XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
@@ -344,7 +339,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         };
 
         try {
-            collector.collect(stream);
+            collector.collect(new RecordBatchIterator(stream));
         } catch (IOException exception) {
             logger.error("Failed to perform fetch phase", exception);
             throw new RuntimeException(exception);
