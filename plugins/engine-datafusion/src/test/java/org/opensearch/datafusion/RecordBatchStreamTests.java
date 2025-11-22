@@ -12,7 +12,6 @@ import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.datafusion.search.RecordBatchStream;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class RecordBatchStreamTests extends OpenSearchTestCase {

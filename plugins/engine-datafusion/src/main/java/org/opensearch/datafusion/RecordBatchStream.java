@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.datafusion.search;
+package org.opensearch.datafusion;
 
 import org.apache.arrow.c.CDataDictionaryProvider;
 import org.apache.arrow.memory.BufferAllocator;

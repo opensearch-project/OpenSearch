@@ -30,7 +30,6 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.datafusion.search.*;
 import org.opensearch.datafusion.search.cache.CacheManager;
-import org.opensearch.datafusion.search.RecordBatchStream;
 import org.opensearch.index.engine.*;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
@@ -60,7 +59,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 
 public class DatafusionEngine extends SearchExecEngine<DatafusionContext, DatafusionSearcher,
-    DatafusionReaderManager, DatafusionQuery> {
+    DatafusionReaderManager, DatafusionQuery> implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(DatafusionEngine.class);
 
@@ -77,7 +76,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         this.datafusionService = dataFusionService;
         this.cacheManager = datafusionService.getCacheManager();
         this.rootAllocator = new RootAllocator(Long.MAX_VALUE);
-        if(this.cacheManager!=null) {
+        if (this.cacheManager != null) {
             datafusionReaderManager.setOnFilesAdded(files -> {
                 // Handle new files added during refresh
                 cacheManager.addFilesToCacheManager(files);
@@ -175,6 +174,11 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     @Override
     public boolean assertSearcherIsWarmedUp(String source, Engine.SearcherScope scope) {
         return false;
+    }
+
+    @Override
+    public void close() {
+        rootAllocator.close();
     }
 
 

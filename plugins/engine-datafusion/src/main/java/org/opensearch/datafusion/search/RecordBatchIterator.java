@@ -9,6 +9,7 @@
 package org.opensearch.datafusion.search;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.opensearch.datafusion.RecordBatchStream;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;

@@ -28,7 +28,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.datafusion.search.*;
-import org.opensearch.datafusion.search.RecordBatchStream;
 import org.opensearch.env.Environment;
 import org.opensearch.index.engine.exec.*;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
