@@ -24,7 +24,11 @@ public class KeyStoreUtils {
     public static final char[] KEYSTORE_PASSWORD = "keystore_password".toCharArray();
 
     public static KeyStore createServerKeyStore() throws Exception {
-        var serverCred = generateCert();
+        return createServerKeyStore(Algorithm.ed25519);
+    }
+
+    public static KeyStore createServerKeyStore(Algorithm algorithm) throws Exception {
+        var serverCred = generateCert(algorithm);
         var keyStore = KeyStore.getInstance("JKS");
         keyStore.load(null, null);
         keyStore.setKeyEntry(
@@ -36,13 +40,13 @@ public class KeyStoreUtils {
         return keyStore;
     }
 
-    private static X509Bundle generateCert() throws Exception {
+    private static X509Bundle generateCert(Algorithm algorithm) throws Exception {
         final Locale locale = Locale.getDefault();
         try {
             Locale.setDefault(LocaleUtil.EN_Locale);
             return new CertificateBuilder().subject("CN=Test CA Certificate")
                 .setIsCertificateAuthority(true)
-                .algorithm(Algorithm.ed25519)
+                .algorithm(algorithm)
                 .provider(new BouncyCastleFipsProvider())
                 .buildSelfSigned();
         } finally {

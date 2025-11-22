@@ -259,5 +259,12 @@ public final class HttpTransportSettings {
         Setting.Property.NodeScope
     );
 
+    // Enable HTTP/3 protocol if supported by the operating system and architecture
+    public static final Setting<Boolean> SETTING_HTTP_HTTP3_ENABLED = Setting.boolSetting(
+        "http.protocol.http3.enabled",
+        false,
+        Property.NodeScope
+    );
+
     private HttpTransportSettings() {}
 }
