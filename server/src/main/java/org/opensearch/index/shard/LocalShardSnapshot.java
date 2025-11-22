@@ -82,11 +82,11 @@ final class LocalShardSnapshot implements Closeable {
     }
 
     long maxSeqNo() {
-        return shard.getEngine().getSeqNoStats(-1).getMaxSeqNo();
+        return shard.getCheckpointState().getSeqNoStats(-1).getMaxSeqNo();
     }
 
     long maxUnsafeAutoIdTimestamp() {
-        return Long.parseLong(shard.getEngine().commitStats().getUserData().get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID));
+        return Long.parseLong(shard.getStatsHolder().commitStats().getUserData().get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID));
     }
 
     Directory getSnapshotDirectory() {

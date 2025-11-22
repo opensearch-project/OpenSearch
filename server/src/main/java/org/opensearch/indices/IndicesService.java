@@ -120,6 +120,7 @@ import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
+import org.opensearch.index.engine.exec.format.DataSourceRegistry;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -419,6 +420,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile int maxSizeInRequestCache;
     private volatile int defaultMaxMergeAtOnce;
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
+    private final DataSourceRegistry dataSourceRegistry;
 
     @Override
     protected void doStart() {
@@ -461,7 +463,8 @@ public class IndicesService extends AbstractLifecycleComponent
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
-        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        DataSourceRegistry dataSourceRegistry
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -601,6 +604,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 this::onClusterLevelForceMergeMBPerSecUpdate
             );
+
+        this.dataSourceRegistry = dataSourceRegistry;
     }
 
     @InternalApi
@@ -665,6 +670,7 @@ public class IndicesService extends AbstractLifecycleComponent
             recoverySettings,
             cacheService,
             remoteStoreSettings,
+            null,
             null,
             null,
             null,
@@ -1128,7 +1134,8 @@ public class IndicesService extends AbstractLifecycleComponent
             replicator,
             segmentReplicationStatsProvider,
             this::getClusterDefaultMaxMergeAtOnce,
-            clusterMergeSchedulerConfig
+            clusterMergeSchedulerConfig,
+            dataSourceRegistry
         );
     }
 
