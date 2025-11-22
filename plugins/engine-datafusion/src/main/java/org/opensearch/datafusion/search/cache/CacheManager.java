@@ -29,7 +29,6 @@ public class CacheManager {
 
     public CacheManager(GlobalRuntimeHandle runtimeHandle) {
         this.globalRuntimeHandle = runtimeHandle;
-
     }
 
     public void addFilesToCacheManager(List<String> files){

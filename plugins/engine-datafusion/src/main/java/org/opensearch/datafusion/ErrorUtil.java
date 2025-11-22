@@ -14,7 +14,7 @@ package org.opensearch.datafusion;
 public class ErrorUtil {
     private ErrorUtil() {}
 
-    static boolean containsError(String errString) {
+    public static boolean containsError(String errString) {
         return errString != null && !errString.isEmpty();
     }
 }
