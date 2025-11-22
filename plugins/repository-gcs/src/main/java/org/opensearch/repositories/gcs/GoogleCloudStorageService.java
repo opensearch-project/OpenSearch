@@ -48,6 +48,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.net.Authenticator;
@@ -183,25 +184,29 @@ public class GoogleCloudStorageService {
     }
 
     private HttpTransport createHttpTransport(final GoogleCloudStorageClientSettings clientSettings) throws IOException {
-        return SocketAccess.doPrivilegedIOException(() -> {
-            final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-            // requires java.lang.RuntimePermission "setFactory"
-            // Pin the TLS trust certificates.
-            builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
-            final ProxySettings proxySettings = clientSettings.getProxySettings();
-            if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
-                if (proxySettings.isAuthenticated()) {
-                    Authenticator.setDefault(new Authenticator() {
-                        @Override
-                        protected PasswordAuthentication getPasswordAuthentication() {
-                            return new PasswordAuthentication(proxySettings.getUsername(), proxySettings.getPassword().toCharArray());
-                        }
-                    });
+        try {
+            return AccessController.doPrivilegedChecked(() -> {
+                final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
+                // requires java.lang.RuntimePermission "setFactory"
+                // Pin the TLS trust certificates.
+                builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
+                final ProxySettings proxySettings = clientSettings.getProxySettings();
+                if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
+                    if (proxySettings.isAuthenticated()) {
+                        Authenticator.setDefault(new Authenticator() {
+                            @Override
+                            protected PasswordAuthentication getPasswordAuthentication() {
+                                return new PasswordAuthentication(proxySettings.getUsername(), proxySettings.getPassword().toCharArray());
+                            }
+                        });
+                    }
+                    builder.setProxy(new Proxy(proxySettings.getType(), proxySettings.getAddress()));
                 }
-                builder.setProxy(new Proxy(proxySettings.getType(), proxySettings.getAddress()));
-            }
-            return builder.build();
-        });
+                return builder.build();
+            });
+        } catch (Exception e) {
+            throw new IOException(e);
+        }
     }
 
     StorageOptions createStorageOptions(
@@ -241,7 +246,7 @@ public class GoogleCloudStorageService {
             }
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
-        return SocketAccess.doPrivilegedException(() -> storageOptionsBuilder.build());
+        return AccessController.doPrivileged(() -> storageOptionsBuilder.build());
     }
 
     /**

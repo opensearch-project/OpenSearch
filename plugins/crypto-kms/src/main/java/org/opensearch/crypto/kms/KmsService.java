@@ -29,6 +29,7 @@ import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.Closeable;
 import java.net.URI;
@@ -70,10 +71,10 @@ public class KmsService implements Closeable {
     }
 
     private KmsClient buildClient(KmsClientSettings clientSettings) {
-        SocketAccess.doPrivilegedVoid(KmsService::setDefaultAwsProfilePath);
+        AccessController.doPrivileged(KmsService::setDefaultAwsProfilePath);
         final AwsCredentialsProvider awsCredentialsProvider = buildCredentials(clientSettings);
         final ClientOverrideConfiguration overrideConfiguration = buildOverrideConfiguration();
-        final ProxyConfiguration proxyConfiguration = SocketAccess.doPrivileged(() -> buildProxyConfiguration(clientSettings));
+        final ProxyConfiguration proxyConfiguration = AccessController.doPrivileged(() -> buildProxyConfiguration(clientSettings));
         return buildClient(
             awsCredentialsProvider,
             proxyConfiguration,
@@ -113,7 +114,7 @@ public class KmsService implements Closeable {
             builder.region(Region.of(region));
         }
 
-        return SocketAccess.doPrivileged(builder::build);
+        return AccessController.doPrivileged(builder::build);
     }
 
     ProxyConfiguration buildProxyConfiguration(KmsClientSettings clientSettings) {
@@ -166,7 +167,7 @@ public class KmsService implements Closeable {
                 return existing;
             }
             final AmazonKmsClientReference clientReference = new AmazonKmsClientReference(
-                SocketAccess.doPrivileged(() -> buildClient(clientSettings))
+                AccessController.doPrivileged(() -> buildClient(clientSettings))
             );
             clientReference.incRef();
             clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientSettings, clientReference).immutableMap();

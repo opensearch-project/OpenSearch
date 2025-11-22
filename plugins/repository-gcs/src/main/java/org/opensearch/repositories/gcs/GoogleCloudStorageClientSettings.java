@@ -40,6 +40,7 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.settings.SecureString;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -318,7 +319,7 @@ public class GoogleCloudStorageClientSettings {
             }
             try (InputStream credStream = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).get(settings)) {
                 final Collection<String> scopes = Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL);
-                return SocketAccess.doPrivilegedIOException(() -> {
+                return AccessController.doPrivilegedChecked(() -> {
                     final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream);
                     if (credentials.createScopedRequired()) {
                         return (ServiceAccountCredentials) credentials.createScoped(scopes);
