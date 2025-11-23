@@ -30,7 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Implement GRPC FunctionScoreQuery ([#19888](https://github.com/opensearch-project/OpenSearch/pull/19888))
 - Implement error_trace parameter for bulk requests ([#19985](https://github.com/opensearch-project/OpenSearch/pull/19985))
 - Allow the truncate filter in normalizers ([#19778](https://github.com/opensearch-project/OpenSearch/issues/19778))
-- Support pull-based ingestion message mappers and raw payload support ([#19765](https://github.com/opensearch-project/OpenSearch/pull/19765)]
+- Support pull-based ingestion message mappers and raw payload support ([#19765](https://github.com/opensearch-project/OpenSearch/pull/19765))
+- Support dynamic consumer configuration update in pull-based ingestion ([#19963](https://github.com/opensearch-project/OpenSearch/pull/19963))
 
 ### Changed
 - Combining filter rewrite and skip list to optimize sub aggregation([#19573](https://github.com/opensearch-project/OpenSearch/pull/19573))
@@ -63,6 +64,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Improve performance of matrix_stats aggregation ([#19989](https://github.com/opensearch-project/OpenSearch/pull/19989))
 - Refactor the IndexPressutreStats, DeviceStats and TransportStats class to use the Builder pattern instead of constructors ([#19991](https://github.com/opensearch-project/OpenSearch/pull/19991))
 - Refactor the Cache.CacheStats class to use the Builder pattern instead of constructors ([#20015](https://github.com/opensearch-project/OpenSearch/pull/20015))
+- Refactor the HttpStats, ScriptStats, AdaptiveSelectionStats and OsStats class to use the Builder pattern instead of constructors ([#20014](https://github.com/opensearch-project/OpenSearch/pull/20014))
+- Bump opensearch-protobufs dependency to 0.24.0 and update transport-grpc module compatibility ([#20059](https://github.com/opensearch-project/OpenSearch/pull/20059))
+
 
 ### Fixed
 - Fix Allocation and Rebalance Constraints of WeightFunction are incorrectly reset ([#19012](https://github.com/opensearch-project/OpenSearch/pull/19012))
@@ -82,6 +86,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix NPE of ScriptScoreQuery ([#19650](https://github.com/opensearch-project/OpenSearch/pull/19650))
 - Fix ClassCastException in FlightClientChannel for requests larger than 16KB ([#20010](https://github.com/opensearch-project/OpenSearch/pull/20010))
 - Fix GRPC Bulk ([#19937](https://github.com/opensearch-project/OpenSearch/pull/19937))
+- Fix node bootstrap error when enable stream transport and remote cluster state ([#19948](https://github.com/opensearch-project/OpenSearch/pull/19948))
 
 ### Dependencies
 - Bump Apache Lucene from 10.3.1 to 10.3.2 ([#20026](https://github.com/opensearch-project/OpenSearch/pull/20026))
@@ -128,6 +133,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Deprecated existing constructors in TranslogStats and RequestCacheStats in favor of the new Builder ([#19961](https://github.com/opensearch-project/OpenSearch/pull/19961))
 - Deprecated existing constructors in IndexPressutreStats, DeviceStats and TransportStats in favor of the new Builder ([#19991](https://github.com/opensearch-project/OpenSearch/pull/19991))
 - Deprecated existing constructors in Cache.CacheStats in favor of the new Builder ([#20015](https://github.com/opensearch-project/OpenSearch/pull/20015))
+- Deprecated existing constructors in HttpStats, ScriptStats, AdaptiveSelectionStats and OsStats in favor of the new Builder ([#20014](https://github.com/opensearch-project/OpenSearch/pull/20014))
 
 ### Removed
 

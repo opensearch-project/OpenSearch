@@ -14,8 +14,6 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.protobufs.ErrorCause;
-import org.opensearch.protobufs.Id;
-import org.opensearch.protobufs.NullValue;
 import org.opensearch.protobufs.ResponseItem;
 import org.opensearch.transport.grpc.proto.response.document.common.DocWriteResponseProtoUtils;
 import org.opensearch.transport.grpc.proto.response.document.get.GetResultProtoUtils;
@@ -59,10 +57,8 @@ public class BulkItemResponseProtoUtils {
             responseItemBuilder = ResponseItem.newBuilder();
 
             responseItemBuilder.setXIndex(failure.getIndex());
-            if (response.getId().isEmpty()) {
-                responseItemBuilder.setXId(Id.newBuilder().setNullValue(NullValue.NULL_VALUE_NULL).build());
-            } else {
-                responseItemBuilder.setXId(Id.newBuilder().setString(response.getId()).build());
+            if (response.getId() != null && !response.getId().isEmpty()) {
+                responseItemBuilder.setXId(response.getId());
             }
             int grpcStatusCode = RestToGrpcStatusConverter.getGrpcStatusCode(failure.getStatus());
             responseItemBuilder.setStatus(grpcStatusCode);

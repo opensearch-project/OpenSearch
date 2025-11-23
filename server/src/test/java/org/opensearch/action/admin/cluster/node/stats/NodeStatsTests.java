@@ -644,23 +644,24 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             long memTotal = randomNonNegativeLong();
             long swapTotal = randomNonNegativeLong();
-            osStats = new OsStats(
-                System.currentTimeMillis(),
-                new OsStats.Cpu(randomShort(), loadAverages),
-                new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)),
-                new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
-                new OsStats.Cgroup(
-                    randomAlphaOfLength(8),
-                    randomNonNegativeLong(),
-                    randomAlphaOfLength(8),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-                    randomAlphaOfLength(8),
-                    Long.toString(randomNonNegativeLong()),
-                    Long.toString(randomNonNegativeLong())
+            osStats = new OsStats.Builder().timestamp(System.currentTimeMillis())
+                .cpu(new OsStats.Cpu(randomShort(), loadAverages))
+                .mem(new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)))
+                .swap(new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)))
+                .cgroup(
+                    new OsStats.Cgroup(
+                        randomAlphaOfLength(8),
+                        randomNonNegativeLong(),
+                        randomAlphaOfLength(8),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+                        randomAlphaOfLength(8),
+                        Long.toString(randomNonNegativeLong()),
+                        Long.toString(randomNonNegativeLong())
+                    )
                 )
-            );
+                .build();
         }
         ProcessStats processStats = frequently()
             ? new ProcessStats(
@@ -805,7 +806,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 .txSize(randomNonNegativeLong())
                 .build()
             : null;
-        HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        HttpStats httpStats = frequently()
+            ? new HttpStats.Builder().serverOpen(randomNonNegativeLong()).totalOpen(randomNonNegativeLong()).build()
+            : null;
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
             int numCircuitBreakerStats = randomIntBetween(0, 10);
@@ -822,7 +825,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
         ScriptStats scriptStats = frequently()
-            ? new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+            ? new ScriptStats.Builder().compilations(randomNonNegativeLong())
+                .cacheEvictions(randomNonNegativeLong())
+                .compilationLimitTriggered(randomNonNegativeLong())
+                .build()
             : null;
         ClusterStateStats stateStats = new ClusterStateStats();
         RemotePersistenceStats remoteStateStats = new RemotePersistenceStats();
@@ -901,7 +907,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     nodeStats.put(nodeId, stats);
                 }
             }
-            adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
+            adaptiveSelectionStats = new AdaptiveSelectionStats.Builder().clientOutgoingConnections(nodeConnections)
+                .nodeComputedStats(nodeStats)
+                .build();
         }
         NodesResourceUsageStats nodesResourceUsageStats = null;
         if (frequently()) {
