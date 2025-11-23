@@ -302,14 +302,11 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
      * @return
      */
     private boolean canUseSkiplist(DocValuesSkipper skipper, NumericDocValues singleton) {
-        if (skipper == null || singleton == null)
-            return false;
+        if (skipper == null || singleton == null) return false;
         // TODO: add hard bounds support
-        if (hardBounds == null)
-            return false;
+        if (hardBounds == null) return false;
 
-        if (parent == null)
-            return true;
+        if (parent == null) return true;
 
         if (parent instanceof AggregatorBase base) {
             return base.getLeafCollectorMode() == LeafCollectionMode.FILTER_REWRITE;

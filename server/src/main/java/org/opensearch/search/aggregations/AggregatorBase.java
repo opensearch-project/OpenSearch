@@ -362,5 +362,4 @@ public abstract class AggregatorBase extends Aggregator {
         }
     }
 
-
 }
