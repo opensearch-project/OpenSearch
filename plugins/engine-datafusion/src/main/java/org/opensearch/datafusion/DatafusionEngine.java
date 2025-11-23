@@ -47,6 +47,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.vectorized.execution.search.DataFormat;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.*;
@@ -59,7 +60,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 
 public class DatafusionEngine extends SearchExecEngine<DatafusionContext, DatafusionSearcher,
-    DatafusionReaderManager, DatafusionQuery> implements AutoCloseable {
+    DatafusionReaderManager, DatafusionQuery> implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(DatafusionEngine.class);
 

@@ -13,13 +13,15 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.datafusion.jni.handle.StreamHandle;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * Represents a stream of Apache Arrow record batches from DataFusion query execution.
  * Provides a Java interface to iterate through query results in a memory-efficient way.
  */
-public class RecordBatchStream implements AutoCloseable {
+public class RecordBatchStream implements Closeable {
 
     private final StreamHandle streamHandle;
     private final BufferAllocator allocator;
@@ -75,7 +77,7 @@ public class RecordBatchStream implements AutoCloseable {
      * @throws Exception if an error occurs during cleanup
      */
     @Override
-    public void close() throws Exception {
+    public void close() throws IOException {
         streamHandle.close();
         dictionaryProvider.close();
         if (vectorSchemaRoot != null) {

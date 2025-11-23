@@ -13,12 +13,13 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 
+import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Collection;
 /**
  * DataFusion reader for JNI operations.
  */
-public class DatafusionReader implements AutoCloseable {
+public class DatafusionReader implements Closeable {
     /**
      * The directory path.
      */
