@@ -8,12 +8,13 @@
 
 package com.parquet.parquetdataformat.bridge;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
  * Type-safe handle for native Parquet writer with lifecycle management.
  */
-public class NativeParquetWriter implements AutoCloseable {
+public class NativeParquetWriter implements Closeable {
 
     private final String filePath;
 
