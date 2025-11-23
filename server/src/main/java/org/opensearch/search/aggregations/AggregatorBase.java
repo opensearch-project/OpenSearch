@@ -238,11 +238,20 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * To be used in conjunction with <code>tryPrecomputeAggregationForLeaf()</code> method.
-     * @return
+     * To be used in conjunction with <code>tryPrecomputeAggregationForLeaf()</code>
+     * or <code>getLeafCollector</code> method.
      */
     public LeafCollectionMode getLeafCollectorMode() {
         return leafCollectorMode;
+    }
+
+    /**
+     * To be used in conjunction with <code>tryPrecomputeAggregationForLeaf()</code>
+     * or <code>getLeafCollector</code> method.
+     */
+    public enum LeafCollectionMode {
+        NORMAL,
+        FILTER_REWRITE
     }
 
     @Override
@@ -353,8 +362,5 @@ public abstract class AggregatorBase extends Aggregator {
         }
     }
 
-    public enum LeafCollectionMode {
-        NORMAL,
-        FILTER_REWRITE
-    }
+
 }
