@@ -200,9 +200,7 @@ public class VSRManager implements Closeable {
                 if (newVSR == null) {
                     throw new IOException("No active VSR available after rotation");
                 }
-                if (managedVSR.compareAndSet(oldVSR, newVSR)) {
-                    reinitializeFieldVectorMap();
-                }
+                updateVSRAndReinitialize(oldVSR, newVSR);
 
                 System.out.println("[JAVA] VSR rotation completed, new active VSR: " + newVSR.getId() +
                     ", row count: " + newVSR.getRowCount());
@@ -230,12 +228,19 @@ public class VSRManager implements Closeable {
             System.out.println("[JAVA] VSR rotation detected, updating references");
 
             // Update the managed VSR reference atomically with field vector map
-            if (managedVSR.compareAndSet(oldVSR, currentActive)) {
-                reinitializeFieldVectorMap();
-            }
+            updateVSRAndReinitialize(oldVSR, currentActive);
 
             // Note: Writer initialization is not needed per VSR as it's per file
             System.out.println("[JAVA] VSR rotation completed, new row count: " + currentActive.getRowCount());
+        }
+    }
+
+    /**
+     * Atomically updates managedVSR and reinitializes field vector map.
+     */
+    private void updateVSRAndReinitialize(ManagedVSR oldVSR, ManagedVSR newVSR) {
+        if (managedVSR.compareAndSet(oldVSR, newVSR)) {
+            reinitializeFieldVectorMap();
         }
     }
 
