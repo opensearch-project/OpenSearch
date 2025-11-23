@@ -73,7 +73,7 @@ public abstract class AggregatorBase extends Aggregator {
     private Map<String, Aggregator> subAggregatorbyName;
     private final CircuitBreakerService breakerService;
     private long requestBytesUsed;
-    boolean precomputePath = false;
+    protected LeafCollectionMode leafCollectorMode = LeafCollectionMode.NORMAL;
 
     /**
      * Constructs a new Aggregator.
@@ -203,13 +203,8 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        try {
-            precomputePath = true;
-            if (tryPrecomputeAggregationForLeaf(ctx)) {
-                throw new CollectionTerminatedException();
-            }
-        } finally {
-            precomputePath = false;
+        if (tryPrecomputeAggregationForLeaf(ctx)) {
+            throw new CollectionTerminatedException();
         }
         preGetSubLeafCollectors(ctx);
         final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
@@ -243,26 +238,11 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * Returns true if currently in precompute path
+     * To be used in conjunction with <code>tryPrecomputeAggregationForLeaf()</code> method.
      * @return
      */
-    protected boolean isTryPrecomputePath() {
-        if (precomputePath) {
-            return true;
-        } else if (parent == null) {
-            return false;
-        }
-        Aggregator current = parent;
-        do {
-            if (current instanceof AggregatorBase base) {
-                if (base.precomputePath) {
-                    return true;
-                }
-            }
-            current = current.parent();
-        } while (current != null);
-
-        return precomputePath;
+    public LeafCollectionMode getLeafCollectorMode() {
+        return leafCollectorMode;
     }
 
     @Override
@@ -371,5 +351,10 @@ public abstract class AggregatorBase extends Aggregator {
         if (context.isCancelled()) {
             throw new TaskCancelledException("The query has been cancelled");
         }
+    }
+
+    public enum LeafCollectionMode {
+        NORMAL,
+        FILTER_REWRITE
     }
 }

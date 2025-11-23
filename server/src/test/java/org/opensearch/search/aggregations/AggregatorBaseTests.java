@@ -207,26 +207,4 @@ public class AggregatorBaseTests extends OpenSearchSingleNodeTestCase {
             );
         }
     }
-
-    public void testIsTryPrecomputePath() throws IOException {
-        SearchContext context = mockSearchContext(null);
-        BogusAggregator rootAgg = new BogusAggregator(context, null);
-        BogusAggregator childAgg = new BogusAggregator(context, rootAgg);
-        BogusAggregator grandchildAgg = new BogusAggregator(context, childAgg);
-
-        assertFalse(rootAgg.isTryPrecomputePath());
-        assertFalse(childAgg.isTryPrecomputePath());
-        assertFalse(grandchildAgg.isTryPrecomputePath());
-
-        rootAgg.precomputePath = true;
-        assertTrue(rootAgg.isTryPrecomputePath());
-        assertTrue(childAgg.isTryPrecomputePath());
-        assertTrue(grandchildAgg.isTryPrecomputePath());
-
-        rootAgg.precomputePath = false;
-        childAgg.precomputePath = true;
-        assertFalse(rootAgg.isTryPrecomputePath());
-        assertTrue(childAgg.isTryPrecomputePath());
-        assertTrue(grandchildAgg.isTryPrecomputePath());
-    }
 }
