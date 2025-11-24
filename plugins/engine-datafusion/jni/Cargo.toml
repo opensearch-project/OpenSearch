@@ -73,15 +73,13 @@ tracing = { workspace = true }
 
 [build-dependencies]
 cbindgen = "0.27"
-[build]
-rustflags = ["-C", "force-frame-pointers=yes","symbol-mangling-version=v0"]
 
 [profile.release]
 lto = true
-codegen-units = 16
+codegen-units = 1
 panic = "abort"
 incremental = true
-debug = "full"        #TODO : remove this
+debug = "line-tables-only"        #TODO : remove this
 strip = false
 
 [profile.dev]

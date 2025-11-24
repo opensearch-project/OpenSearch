@@ -73,7 +73,6 @@ use datafusion_substrait::logical_plan::consumer::{
 use datafusion_substrait::substrait::proto::{
     Expression, ExtensionLeafRel, ExtensionMultiRel, ExtensionSingleRel, Plan, PlanRel, ProjectRel,
 };
-use futures::TryStreamExt;
 use datafusion_substrait::substrait::proto::extensions::simple_extension_declaration::MappingType;
 
 use object_store::ObjectMeta;
@@ -82,6 +81,7 @@ use tokio::runtime::Runtime;
 use std::result;
 use std::sync::atomic::AtomicU64;
 use datafusion::execution::RecordBatchStream;
+use datafusion::physical_plan::displayable;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use futures::TryStreamExt;
 
@@ -208,7 +208,8 @@ fn log_runtime_metrics(metrics: &tokio_metrics::RuntimeMetrics) {
     println!("  Workers: {}", metrics.workers_count);
     println!("  Global queue depth: {}", metrics.global_queue_depth);
     /**
-    // Uncomment this when debugging
+    //unstable tokio causes build failures, uncomment this when monitoring
+
     println!("  Worker overflow: {}", metrics.total_overflow_count);
     println!("  Remote schedule: {}", metrics.max_local_schedule_count);
     println!("  Worker steal ops: {}", metrics.total_steal_operations);
@@ -602,7 +603,7 @@ async fn execute_query_with_cross_rt_stream(
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
-        // .with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer))
+        //.with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer)) // TODO : uncomment this after fix
         .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer))
         .build();
 
@@ -678,6 +679,11 @@ async fn execute_query_with_cross_rt_stream(
         }
     };
 
+    // Get and display the physical plan
+//     let physical_plan = dataframe.clone().create_physical_plan().await?;
+//     let displayable_plan = displayable(physical_plan.as_ref()).indent(true);
+//     println!("Physical Plan:\n{}", displayable_plan);
+
     let df_stream = match dataframe.execute_stream().await {
         Ok(stream) => stream,
         Err(e) => {
@@ -736,13 +742,16 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
 
     let stream_ptr = stream;
     let io_runtime = manager.io_runtime.clone();
+
+    // TODO : this can be 'io_runtime.block_on' if we see rust workers getting overloaded
+    // benchmarks so far are good with spawn
     io_runtime.spawn(async move {
 
         let stream = unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
         // Poll the stream with monitoring
         let result = stream.try_next().await;
 
-        // Uncomemnt for monitoring stream next
+        // Uncomment for monitoring stream next
         // let result = STREAM_NEXT_MONITOR.instrument(async {
         //         stream.try_next().await
         // }).await;

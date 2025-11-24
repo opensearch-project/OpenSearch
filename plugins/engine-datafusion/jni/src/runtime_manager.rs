@@ -32,8 +32,8 @@ impl RuntimeManager {
         let io_handle = io_runtime.handle().clone();
 
         cpu_runtime_builder
-            //.worker_threads(cpu_threads) // TODO : Decide on CPU threads vs 1.5 * CPU threads
-            .worker_threads(((cpu_threads as f64) * 1.5 + 1.0) as usize)
+            .worker_threads(cpu_threads) // TODO : Decide on CPU threads vs 1.5 * CPU threads
+            //.worker_threads(((cpu_threads as f64) * 1.5 + 1.0) as usize)
             .thread_name("datafusion-cpu")
             .enable_time()
             .on_thread_start(move || {

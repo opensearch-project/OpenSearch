@@ -266,6 +266,9 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             datafusionSearcher.searchAsync(context.getDatafusionQuery(), datafusionService.getRuntimePointer()).whenCompleteAsync((streamPointer, error)-> {
                 Map<String, Object[]> finalRes = new HashMap<>();
                 List<Long> rowIdResult = new ArrayList<>();
+                if(streamPointer == null) {
+                    throw new RuntimeException(error);
+                }
                 RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
                 RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
                 SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
@@ -338,10 +341,10 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 }
             } else {
                 cleanup(stream, allocator);
-                logger.info("Final Results:");
-                for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
-                    logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
-                }
+//                logger.info("Final Results:");
+//                for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+//                    logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+//                }
                 context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(),
                     TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(),
                     Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
