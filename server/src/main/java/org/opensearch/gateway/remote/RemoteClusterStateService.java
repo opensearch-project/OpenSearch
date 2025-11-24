@@ -1296,7 +1296,8 @@ public class RemoteClusterStateService implements Closeable {
             remoteRoutingTableService.getAsyncIndexRoutingReadAction(
                 clusterUUID,
                 indexRouting.getUploadedFilename(),
-                routingTableLatchedActionListener
+                routingTableLatchedActionListener,
+                manifest.getOpensearchVersion()
             );
         }
 
@@ -1315,7 +1316,8 @@ public class RemoteClusterStateService implements Closeable {
             remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
                 clusterUUID,
                 manifest.getDiffManifest().getIndicesRoutingDiffPath(),
-                routingTableDiffLatchedActionListener
+                routingTableDiffLatchedActionListener,
+                manifest.getOpensearchVersion()
             );
         }
 
@@ -1392,7 +1394,8 @@ public class RemoteClusterStateService implements Closeable {
                 new RemoteDiscoveryNodes(
                     manifest.getDiscoveryNodesMetadata().getUploadedFilename(),
                     clusterUUID,
-                    blobStoreRepository.getCompressor()
+                    blobStoreRepository.getCompressor(),
+                    manifest.getOpensearchVersion()
                 ),
                 listener
             );
@@ -1404,7 +1407,8 @@ public class RemoteClusterStateService implements Closeable {
                 new RemoteClusterBlocks(
                     manifest.getClusterBlocksMetadata().getUploadedFilename(),
                     clusterUUID,
-                    blobStoreRepository.getCompressor()
+                    blobStoreRepository.getCompressor(),
+                    manifest.getOpensearchVersion()
                 ),
                 listener
             );
@@ -1416,7 +1420,8 @@ public class RemoteClusterStateService implements Closeable {
                 new RemoteHashesOfConsistentSettings(
                     manifest.getHashesOfConsistentSettings().getUploadedFilename(),
                     clusterUUID,
-                    blobStoreRepository.getCompressor()
+                    blobStoreRepository.getCompressor(),
+                    manifest.getOpensearchVersion()
                 ),
                 listener
             );
@@ -1431,7 +1436,8 @@ public class RemoteClusterStateService implements Closeable {
                     entry.getValue().getAttributeName(),
                     clusterUUID,
                     blobStoreRepository.getCompressor(),
-                    namedWriteableRegistry
+                    namedWriteableRegistry,
+                    manifest.getOpensearchVersion()
                 ),
                 listener
             );
