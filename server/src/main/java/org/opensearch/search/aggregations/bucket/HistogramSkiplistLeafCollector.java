@@ -220,6 +220,11 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
         }
     }
 
+    /**
+     * Call back for auto date histogram
+     *
+     * @opensearch.internal
+     */
     public interface IncreaseRoundingIfNeeded {
         void accept(long owningBucket, long rounded);
     }
