@@ -62,6 +62,7 @@ import org.opensearch.search.streaming.Streamable;
 import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -157,14 +158,10 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
-
+            final double[] valueBuffer = new double[512];
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= mins.size()) {
-                    long from = mins.size();
-                    mins = bigArrays.grow(mins, bucket + 1);
-                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
-                }
+                growMins(bucket);
                 if (values.advanceExact(doc)) {
                     final double value = values.doubleValue();
                     double min = mins.get(bucket);
@@ -175,18 +172,28 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
 
             @Override
             public void collect(DocIdStream stream, long bucket) throws IOException {
+                growMins(bucket);
+                int[] count = {0};
+                double[] min = { mins.get(bucket)};
+                stream.forEach((doc) -> {
+                    if (values.advanceExact(doc)) {
+                        if (count[0] == valueBuffer.length) {
+                            min[0] = Math.min(min[0], Arrays.stream(valueBuffer).min().orElse(Double.POSITIVE_INFINITY));
+                            count[0] = 0;
+                        }
+                        valueBuffer[count[0]++] = values.doubleValue();
+                    }
+                });
+                min[0] = Math.min(min[0], Arrays.stream(valueBuffer, 0, count[0]).min().orElse(Double.POSITIVE_INFINITY));
+                mins.set(bucket, min[0]);
+            }
+
+            private void growMins(long bucket) {
                 if (bucket >= mins.size()) {
                     long from = mins.size();
                     mins = bigArrays.grow(mins, bucket + 1);
                     mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
                 }
-                double[] min = {mins.get(bucket)};
-                stream.forEach((doc) -> {
-                    if (values.advanceExact(doc)) {
-                        min[0] = Math.min(min[0], values.doubleValue());
-                    }
-                });
-                mins.set(bucket, min[0]);
             }
         };
     }
