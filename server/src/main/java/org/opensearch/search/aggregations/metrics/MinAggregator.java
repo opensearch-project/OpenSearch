@@ -158,7 +158,6 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
-            final double[] valueBuffer = new double[512];
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 growMins(bucket);
@@ -173,19 +172,25 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             @Override
             public void collect(DocIdStream stream, long bucket) throws IOException {
                 growMins(bucket);
-                int[] count = {0};
-                double[] min = { mins.get(bucket)};
+                final double[] min = {mins.get(bucket)};
                 stream.forEach((doc) -> {
                     if (values.advanceExact(doc)) {
-                        if (count[0] == valueBuffer.length) {
-                            min[0] = Math.min(min[0], Arrays.stream(valueBuffer).min().orElse(Double.POSITIVE_INFINITY));
-                            count[0] = 0;
-                        }
-                        valueBuffer[count[0]++] = values.doubleValue();
+                        min[0] = Math.max(min[0], values.doubleValue());
                     }
                 });
-                min[0] = Math.min(min[0], Arrays.stream(valueBuffer, 0, count[0]).min().orElse(Double.POSITIVE_INFINITY));
                 mins.set(bucket, min[0]);
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                growMins(0);
+                double minimum = mins.get(0);
+                for (int docId = min; docId < max; docId++) {
+                    if (values.advanceExact(docId)) {
+                        minimum = Math.max(minimum, values.doubleValue());
+                    }
+                }
+                mins.set(0, minimum);
             }
 
             private void growMins(long bucket) {

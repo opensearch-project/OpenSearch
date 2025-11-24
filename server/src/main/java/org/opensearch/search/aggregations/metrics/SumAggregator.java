@@ -121,7 +121,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
-            final double[] valueBuffer = new double[512];
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
@@ -138,22 +137,29 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
             @Override
             public void collect(DocIdStream stream, long bucket) throws IOException {
                 setKahanSummation(bucket);
-                final int[] count = {0};
                 stream.forEach((doc) -> {
                     if (values.advanceExact(doc)) {
-                        final int valuesCount = values.docValueCount();
-                        for (int i = 0; i < valuesCount; i++) {
-                            if (count[0] == valueBuffer.length) {
-                                kahanSummation.add(valueBuffer, count[0]);
-                                count[0] = 0;
-                            }
-                            valueBuffer[count[0]++] = values.nextValue();
+                        for (int i = 0; i < values.docValueCount(); i++) {
+                            kahanSummation.add(values.nextValue());
                         }
                     }
                 });
-                kahanSummation.add(valueBuffer, count[0]);
                 compensations.set(bucket, kahanSummation.delta());
                 sums.set(bucket, kahanSummation.value());
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                setKahanSummation(0);
+                for (int docId = min; docId < max; docId++) {
+                    if (values.advanceExact(docId)) {
+                        for (int i = 0; i < values.docValueCount(); i++) {
+                            kahanSummation.add(values.nextValue());
+                        }
+                    }
+                }
+                sums.set(0, kahanSummation.value());
+                compensations.set(0, kahanSummation.delta());
             }
 
             private void setKahanSummation(long bucket) {

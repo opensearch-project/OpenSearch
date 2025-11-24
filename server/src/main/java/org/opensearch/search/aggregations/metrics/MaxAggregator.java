@@ -157,7 +157,6 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, values) {
-            final double[] valueBuffer = new double[512];
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 growMaxes(bucket);
@@ -172,19 +171,25 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
             @Override
             public void collect(DocIdStream stream, long bucket) throws IOException {
                 growMaxes(bucket);
-                int[] count = {0};
-                double[] max = {maxes.get(bucket)};
+                final double[] max = {maxes.get(bucket)};
                 stream.forEach((doc) -> {
                     if (values.advanceExact(doc)) {
-                        if (count[0] == valueBuffer.length) {
-                            max[0] = Math.max(max[0], Arrays.stream(valueBuffer).min().orElse(Double.NEGATIVE_INFINITY));
-                            count[0] = 0;
-                        }
-                        valueBuffer[count[0]++] = values.doubleValue();
+                        max[0] = Math.max(max[0], values.doubleValue());
                     }
                 });
-                max[0] = Math.min(max[0], Arrays.stream(valueBuffer, 0, count[0]).min().orElse(Double.POSITIVE_INFINITY));
                 maxes.set(bucket, max[0]);
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                growMaxes(0);
+                double maximum = maxes.get(0);
+                for (int docId = min; docId < max; docId++) {
+                    if (values.advanceExact(docId)) {
+                        maximum = Math.max(maximum, values.doubleValue());
+                    }
+                }
+                maxes.set(0, maximum);
             }
 
             private void growMaxes(long bucket) {

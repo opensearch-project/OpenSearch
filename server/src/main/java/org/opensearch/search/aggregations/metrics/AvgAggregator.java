@@ -132,7 +132,6 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
         return new LeafBucketCollectorBase(sub, values) {
-            final double[] valueBuffer = new double[512];
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
@@ -149,24 +148,37 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
             @Override
             public void collect(DocIdStream stream, long bucket) throws IOException {
                 setKahanSummation(bucket);
-                final int[] count = {0,0};
+                final int[] count = {0};
                 stream.forEach((doc) -> {
                     if (values.advanceExact(doc)) {
-                        final int valuesCount = values.docValueCount();
-                        for (int i = 0; i < valuesCount; i++) {
-                            if (count[0] == valueBuffer.length) {
-                                kahanSummation.add(valueBuffer, count[0]);
-                                count[0] = 0;
-                                count[1]++;
-                            }
-                            valueBuffer[count[0]++] = values.nextValue();
+                        int valueCount = values.docValueCount();
+                        count[0] += valueCount;
+                        for (int i = 0; i < valueCount; i++) {
+                            kahanSummation.add(values.nextValue());
                         }
                     }
                 });
-                kahanSummation.add(valueBuffer, count[0]);
-                counts.increment(bucket, ((long) count[1] * valueBuffer.length) + count[0]);
+                counts.increment(bucket, count[0]);
                 sums.set(bucket, kahanSummation.value());
                 compensations.set(bucket, kahanSummation.delta());
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                setKahanSummation(0);
+                int count = 0;
+                for (int docId = min; docId < max; docId++) {
+                    if (values.advanceExact(docId)) {
+                        int valueCount = values.docValueCount();
+                        count += valueCount;
+                        for (int i = 0; i < valueCount; i++) {
+                            kahanSummation.add(values.nextValue());
+                        }
+                    }
+                }
+                counts.increment(0, count);
+                sums.set(0, kahanSummation.value());
+                compensations.set(0, kahanSummation.delta());
             }
 
             private void setKahanSummation(long bucket) {
