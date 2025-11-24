@@ -419,7 +419,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile int maxSizeInRequestCache;
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
-    private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
 
     @Override
     protected void doStart() {
@@ -596,11 +595,6 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING, this::onDefaultMaxMergeAtOnceUpdate);
         this.statusCounterStats = new StatusCounterStats();
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
-                this::onClusterLevelForceMergeMBPerSecUpdate
-            );
 
     }
 
