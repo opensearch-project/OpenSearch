@@ -281,6 +281,26 @@ impl DedicatedExecutor {
             .boxed()
     }
 
+    /// Stops all subsequent task executions, and waits for the worker
+    /// thread to complete. Note this will shutdown all clones of this
+    /// `DedicatedExecutor` as well.
+    ///
+    /// Only the first call to `join` will actually wait for the
+    /// executing thread to complete. All other calls to join will
+    /// complete immediately.
+    pub fn join_blocking(&self) {
+        self.shutdown();
+
+        let thread_handle = {
+            let mut state = self.state.write();
+            state.thread.take()
+        };
+
+        if let Some(handle) = thread_handle {
+            let _ = handle.join();
+        }
+    }
+
     /// signals shutdown of this executor and any Clones
     pub fn shutdown(&self) {
         // hang up the channel which will cause the dedicated thread

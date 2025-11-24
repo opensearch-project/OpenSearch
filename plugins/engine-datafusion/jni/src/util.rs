@@ -62,45 +62,6 @@ pub fn set_error_message<Err: Error>(env: &mut JNIEnv, callback: JObject, result
     };
 }
 
-/// Call an ObjectResultCallback to return either a pointer to a newly created object or an error message
-pub fn set_object_result<T, Err: Error>(
-    env: &mut JNIEnv,
-    callback: JObject,
-    address: Result<*mut T, Err>,
-) {
-    match address {
-        Ok(address) => set_object_result_ok(env, callback, address),
-        Err(err) => set_object_result_error(env, callback, &err),
-    };
-}
-
-/// Set success result by calling an ObjectResultCallback
-pub fn set_object_result_ok<T>(env: &mut JNIEnv, callback: JObject, address: *mut T) {
-    let err_message = JObject::null();
-    env.call_method(
-        callback,
-        "callback",
-        "(Ljava/lang/String;J)V",
-        &[(&err_message).into(), (address as jlong).into()],
-    )
-    .expect("Failed to call object result callback with address");
-}
-
-/// Set error result by calling an ObjectResultCallback
-pub fn set_object_result_error<T: Error>(env: &mut JNIEnv, callback: JObject, error: &T) {
-    let err_message = env
-        .new_string(error.to_string())
-        .expect("Couldn't create java string for error message");
-    let address = -1 as jlong;
-    env.call_method(
-        callback,
-        "callback",
-        "(Ljava/lang/String;J)V",
-        &[(&err_message).into(), address.into()],
-    )
-    .expect("Failed to call object result callback with error");
-}
-
 /// Parse a string map from JNI arrays
 pub fn parse_string_map(
     env: &mut JNIEnv,
@@ -267,31 +228,68 @@ pub async fn construct_file_metadata(
         _ => Err(format!("Unsupported data format: {}", data_format).into())
     }
 }
-
-/// Set success result by calling an ObjectResultCallback with GlobalRef
-pub fn set_object_result_ok_global<T>(env: &mut JNIEnv, callback: &GlobalRef, address: *mut T) {
-    //println!("cross rt ptr addr : {}",  (address as i64));
-    let err_message = JObject::null();
+/// Set success result by calling an ActionListener
+pub fn set_action_listener_ok(env: &mut JNIEnv, listener: JObject, value: jlong) {
+    let long_obj = env.new_object("java/lang/Long", "(J)V", &[value.into()])
+        .expect("Failed to create Long object");
+    
     env.call_method(
-        callback.as_obj(),
-        "callback",
-        "(Ljava/lang/String;J)V",
-        &[(&err_message).into(), (address as jlong).into()],
+        listener,
+        "onResponse",
+        "(Ljava/lang/Object;)V",
+        &[(&long_obj).into()],
     )
-        .expect("Failed to call object result callback with address");
+    .expect("Failed to call ActionListener onResponse");
 }
 
-/// Set error result by calling an ObjectResultCallback with GlobalRef
-pub fn set_object_result_error_global<T: Error>(env: &mut JNIEnv, callback: &GlobalRef, error: &T) {
-    let err_message = env
-        .new_string(error.to_string())
-        .expect("Couldn't create java string for error message");
-    let address = -1 as jlong;
+/// Set error result by calling an ActionListener
+pub fn set_action_listener_error<T: Error>(env: &mut JNIEnv, listener: JObject, error: &T) {
+    let error_msg = env.new_string(error.to_string())
+        .expect("Failed to create error string");
+    let exception = env.new_object(
+        "java/lang/RuntimeException",
+        "(Ljava/lang/String;)V",
+        &[(&error_msg).into()],
+    ).expect("Failed to create exception");
+    
     env.call_method(
-        callback.as_obj(),
-        "callback",
-        "(Ljava/lang/String;J)V",
-        &[(&err_message).into(), address.into()],
+        listener,
+        "onFailure",
+        "(Ljava/lang/Exception;)V",
+        &[(&exception).into()],
     )
-        .expect("Failed to call object result callback with error");
+    .expect("Failed to call ActionListener onFailure");
+}
+
+/// Set success result by calling an ActionListener with GlobalRef
+pub fn set_action_listener_ok_global(env: &mut JNIEnv, listener: &GlobalRef, value: jlong) {
+    let long_obj = env.new_object("java/lang/Long", "(J)V", &[value.into()])
+        .expect("Failed to create Long object");
+    
+    env.call_method(
+        listener.as_obj(),
+        "onResponse",
+        "(Ljava/lang/Object;)V",
+        &[(&long_obj).into()],
+    )
+    .expect("Failed to call ActionListener onResponse");
+}
+
+/// Set error result by calling an ActionListener with GlobalRef
+pub fn set_action_listener_error_global<T: Error>(env: &mut JNIEnv, listener: &GlobalRef, error: &T) {
+    let error_msg = env.new_string(error.to_string())
+        .expect("Failed to create error string");
+    let exception = env.new_object(
+        "java/lang/RuntimeException",
+        "(Ljava/lang/String;)V",
+        &[(&error_msg).into()],
+    ).expect("Failed to create exception");
+    
+    env.call_method(
+        listener.as_obj(),
+        "onFailure",
+        "(Ljava/lang/Exception;)V",
+        &[(&exception).into()],
+    )
+    .expect("Failed to call ActionListener onFailure");
 }

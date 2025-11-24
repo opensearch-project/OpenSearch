@@ -8,6 +8,7 @@
 
 package org.opensearch.datafusion.jni;
 
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.datafusion.ObjectResultCallback;
 
 /**
@@ -34,12 +35,12 @@ public final class NativeBridge {
     public static native void shutdownTokioRuntimeManager();
 
     // Query execution
-    public static native void executeQueryPhaseAsync(long readerPtr, String tableName, byte[] plan, long runtimePtr, ObjectResultCallback callback);
+    public static native void executeQueryPhaseAsync(long readerPtr, String tableName, byte[] plan, long runtimePtr, ActionListener<Long> listener);
     public static native long executeFetchPhase(long readerPtr, long[] rowIds, String[] projections, long runtimePtr);
 
     // Stream operations
-    public static native void streamNext(long runtime, long stream, ObjectResultCallback callback);
-    public static native void streamGetSchema(long stream, ObjectResultCallback callback);
+    public static native void streamNext(long runtime, long stream, ActionListener<Long> listener);
+    public static native void streamGetSchema(long stream, ActionListener<Long> listener);
     public static native void streamClose(long stream);
 
     // Cache management

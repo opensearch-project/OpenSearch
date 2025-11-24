@@ -59,7 +59,7 @@ mod partial_agg_optimizer;
 
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::row_id_optimizer::ProjectRowIdOptimizer;
-use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_object_result_error, set_object_result_error_global, set_object_result_ok, set_object_result_ok_global};
+use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global};
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 use crate::partial_agg_optimizer::PartialAggregationOptimizer;
 
@@ -162,12 +162,13 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_initTokio
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_shutdownTokioRuntimeManager(
-    _env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
 ) {
-    if let Some(_mgr) = TOKIO_RUNTIME_MANAGER.get() {
-        // Runtimes will be dropped and shut down when RUNTIME_MANAGER is dropped
-        info!("Runtime manager shut down");
+    println!("Runtime manager shut down started");
+    if let Some(mgr) = TOKIO_RUNTIME_MANAGER.get() {
+        mgr.shutdown();
+        println!("Runtime manager shut down successfully");
     }
 }
 
@@ -480,13 +481,13 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     table_name: JString,
     substrait_bytes: jbyteArray,
     runtime_ptr: jlong,
-    callback: JObject,
+    listener: JObject,
 ) {
     let manager = match TOKIO_RUNTIME_MANAGER.get() {
         Some(m) => m,
         None => {
             error!("Runtime manager not initialized");
-            set_object_result_error(&mut env, callback,
+            set_action_listener_error(&mut env, listener,
                                     &DataFusionError::Execution("Runtime manager not initialized".to_string()));
             return;
         }
@@ -497,7 +498,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         Ok(s) => s.into(),
         Err(e) => {
             error!("Failed to get table name: {}", e);
-            set_object_result_error(&mut env, callback,
+            set_action_listener_error(&mut env, listener,
                                     &DataFusionError::Execution(format!("Failed to get table name: {}", e)));
             return;
         }
@@ -508,18 +509,18 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         Ok(bytes) => bytes,
         Err(e) => {
             error!("Failed to convert plan bytes: {}", e);
-            set_object_result_error(&mut env, callback,
+            set_action_listener_error(&mut env, listener,
                                     &DataFusionError::Execution(format!("Failed to convert plan bytes: {}", e)));
             return;
         }
     };
 
-    // Convert callback to GlobalRef (thread-safe)
-    let callback_ref = match env.new_global_ref(&callback) {
+    // Convert listener to GlobalRef (thread-safe)
+    let listener_ref = match env.new_global_ref(&listener) {
         Ok(r) => r,
         Err(e) => {
             error!("Failed to create global ref: {}", e);
-            set_object_result_error(&mut env, callback,
+            set_action_listener_error(&mut env, listener,
                                     &DataFusionError::Execution(format!("Failed to create global ref: {}", e)));
             return;
         }
@@ -548,13 +549,13 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         match result {
             Ok(stream_ptr) => {
                 with_jni_env(|env| {
-                    set_object_result_ok_global(env, &callback_ref, stream_ptr as *mut u8);
+                    set_action_listener_ok_global(env, &listener_ref, stream_ptr);
                 });
             }
             Err(e) => {
                 with_jni_env(|env| {
                     error!("Query execution failed: {}", e);
-                    set_object_result_error_global(env, &callback_ref, &e);
+                    set_action_listener_error_global(env, &listener_ref, &e);
                 });
             }
         }
@@ -715,26 +716,26 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
     _class: JClass,
     runtime_ptr: jlong,
     stream: jlong,
-    callback: JObject,
+    listener: JObject,
 ) {
     let manager = match TOKIO_RUNTIME_MANAGER.get() {
         Some(m) => m,
         None => {
-            set_object_result_error(
+            set_action_listener_error(
                 &mut env,
-                callback,
+                listener,
                 &DataFusionError::Execution("Runtime manager not initialized".to_string())
             );
             return;
         }
     };
 
-    // Convert callback to GlobalRef
-    let callback_ref = match env.new_global_ref(&callback) {
+    // Convert listener to GlobalRef
+    let listener_ref = match env.new_global_ref(&listener) {
         Ok(r) => r,
         Err(e) => {
             error!("Failed to create global ref: {}", e);
-            set_object_result_error(&mut env, callback,
+            set_action_listener_error(&mut env, listener,
                                     &DataFusionError::Execution(format!("Failed to create global ref: {}", e)));
             return;
         }
@@ -745,7 +746,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
 
     // TODO : this can be 'io_runtime.block_on' if we see rust workers getting overloaded
     // benchmarks so far are good with spawn
-    io_runtime.spawn(async move {
+    // TODO : Thread leaks in tests if its spawn
+    io_runtime.block_on(async move {
 
         let stream = unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
         // Poll the stream with monitoring
@@ -765,15 +767,15 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
                     let array_data = struct_array.into_data();
                     let ffi_array = FFI_ArrowArray::new(&array_data);
                     let ffi_array_ptr = Box::into_raw(Box::new(ffi_array));
-                    set_object_result_ok_global(env, &callback_ref, ffi_array_ptr);
+                    set_action_listener_ok_global(env, &listener_ref, ffi_array_ptr as jlong);
                 }
                 Ok(None) => {
                     // End of stream
-                    set_object_result_ok_global(env, &callback_ref, std::ptr::null_mut::<FFI_ArrowSchema>());
+                    set_action_listener_ok_global(env, &listener_ref, 0);
                 }
                 Err(err) => {
                     error!("Stream next failed: {}", err);
-                    set_object_result_error_global(env, &callback_ref, &err);
+                    set_action_listener_error_global(env, &listener_ref, &err);
                 }
             }
         });
@@ -786,12 +788,12 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamGet
     mut env: JNIEnv,
     _class: JClass,
     stream_ptr: jlong,
-    callback: JObject,
+    listener: JObject,
 ) {
     if stream_ptr == 0 {
-        set_object_result_error(
+        set_action_listener_error(
             &mut env,
-            callback,
+            listener,
             &DataFusionError::Execution("Invalid stream pointer".to_string())
         );
         return;
@@ -803,10 +805,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamGet
     let schema = stream.schema();
     match FFI_ArrowSchema::try_from(schema.as_ref()) {
         Ok(mut ffi_schema) => {
-            set_object_result_ok(&mut env, callback, addr_of_mut!(ffi_schema));
+            set_action_listener_ok(&mut env, listener, addr_of_mut!(ffi_schema) as jlong);
         }
         Err(err) => {
-            set_object_result_error(&mut env, callback, &DataFusionError::Execution(
+            set_action_listener_error(&mut env, listener, &DataFusionError::Execution(
                 format!("Schema conversion failed: {}", err)
             ));
         }
@@ -871,7 +873,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
         Some(m) => m,
         None => {
             error!("Runtime manager not initialized");
-            set_object_result_error(&mut env, callback,
+            set_action_listener_error(&mut env, callback,
                                     &DataFusionError::Execution("Runtime manager not initialized".to_string()));
             return 0;
         }

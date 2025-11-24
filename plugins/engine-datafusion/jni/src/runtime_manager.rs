@@ -7,7 +7,7 @@ use tokio::runtime::{Builder, Runtime};
 
 pub struct RuntimeManager {
     pub io_runtime: Arc<Runtime>,
-    cpu_executor: DedicatedExecutor,
+    pub(crate) cpu_executor: DedicatedExecutor,
 }
 
 impl RuntimeManager {
@@ -52,6 +52,7 @@ impl RuntimeManager {
     pub fn cpu_executor(&self) -> DedicatedExecutor {
         self.cpu_executor.clone()
     }
+
     pub async fn run<Fut, T>(&self, fut: Fut) -> Result<T, DataFusionError>
     where
         Fut: std::future::Future<Output = Result<T, DataFusionError>> + Send + 'static,
@@ -71,5 +72,18 @@ impl RuntimeManager {
                 Box::new(DataFusionError::Internal("Task execution failed".to_string())),
             ))
         })
+    }
+}
+impl RuntimeManager {
+    pub fn shutdown(&self) {
+        info!("Shutting down RuntimeManager");
+        self.cpu_executor.join_blocking();
+        // TODO: io_runtime spawned threads seem to have issue and are leaking
+    }
+}
+
+impl Drop for RuntimeManager {
+    fn drop(&mut self) {
+        self.shutdown();
     }
 }

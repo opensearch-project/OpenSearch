@@ -9,6 +9,7 @@
 package org.opensearch.datafusion.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.datafusion.ErrorUtil;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.index.engine.EngineSearcher;
@@ -54,14 +55,19 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
     @Override
     public CompletableFuture<Long> searchAsync(DatafusionQuery datafusionQuery, Long runtimePtr) {
         CompletableFuture<Long> result = new CompletableFuture<>();
-        NativeBridge.executeQueryPhaseAsync(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), runtimePtr, (errString, streamPointer) -> {
-            if (ErrorUtil.containsError(errString)) {
-                result.completeExceptionally(new RuntimeException(errString));
-            } else if (streamPointer == 0) {
-                // Reached end of stream
-                result.complete(0L);
-            } else {
-                result.complete(streamPointer);
+        NativeBridge.executeQueryPhaseAsync(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), runtimePtr, new ActionListener<Long>() {
+            @Override
+            public void onResponse(Long streamPointer) {
+                if (streamPointer == 0) {
+                    result.complete(0L);
+                } else {
+                    result.complete(streamPointer);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                result.completeExceptionally(e);
             }
         });
         return result;
