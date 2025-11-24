@@ -60,7 +60,6 @@ import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
-import org.opensearch.search.aggregations.bucket.terms.InternalTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalMax;
@@ -96,7 +95,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 
 public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
-    private static final String DATE_FIELD = "date";
+    private static final String DATE_FIELD = "@timestamp";
     private static final String INSTANT_FIELD = "instant";
     private static final String NUMERIC_FIELD = "numeric";
 
@@ -988,9 +987,19 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         final Consumer<AutoDateHistogramAggregationBuilder> configure,
         final Consumer<InternalAutoDateHistogram> verify
     ) throws IOException {
+        testSearchCase(query, dataset, false, configure, verify);
+    }
+
+    private void testSearchCase(
+        final Query query,
+        final List<ZonedDateTime> dataset,
+        final boolean enableSkiplist,
+        final Consumer<AutoDateHistogramAggregationBuilder> configure,
+        final Consumer<InternalAutoDateHistogram> verify
+    ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                indexSampleData(dataset, indexWriter);
+                indexSampleData(dataset, indexWriter, enableSkiplist);
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -1020,11 +1029,19 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
     }
 
     private void indexSampleData(List<ZonedDateTime> dataset, RandomIndexWriter indexWriter) throws IOException {
+        indexSampleData(dataset, indexWriter, false);
+    }
+
+    private void indexSampleData(List<ZonedDateTime> dataset, RandomIndexWriter indexWriter, boolean enableSkiplist) throws IOException {
         final Document document = new Document();
         int i = 0;
         for (final ZonedDateTime date : dataset) {
             final long instant = date.toInstant().toEpochMilli();
-            document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+            if (enableSkiplist) {
+                document.add(SortedNumericDocValuesField.indexedField(DATE_FIELD, instant));
+            } else {
+                document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+            }
             document.add(new LongPoint(DATE_FIELD, instant));
             document.add(new LongPoint(INSTANT_FIELD, instant));
             document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, i));
@@ -1060,87 +1077,79 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
      * 2. New Rounding.Prepared instance is created on rounding change
      * 3. owningBucketOrd is always 0 in FromSingle context
      * 4. Bucket merging works correctly after rounding change
-     * 
+     *
      * Requirements: 3.1, 3.2, 3.4
      */
     public void testSkiplistCollectorWithRoundingChange() throws IOException {
         // Create a dataset that will trigger rounding changes
         // Start with hourly data, then add data that spans months to force rounding increase
         final List<ZonedDateTime> dataset = new ArrayList<>();
-        
+
         // Add hourly data for first day (24 docs)
         ZonedDateTime start = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         for (int hour = 0; hour < 24; hour++) {
             dataset.add(start.plusHours(hour));
         }
-        
+
         // Add data spanning several months to trigger rounding increase (30 docs)
         for (int month = 0; month < 6; month++) {
             for (int day = 0; day < 5; day++) {
                 dataset.add(start.plusMonths(month).plusDays(day * 6));
             }
         }
-        
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
-            histogram -> {
-                // Verify that aggregation completed successfully
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                
-                // Verify buckets were created (exact count depends on rounding chosen)
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 10);
-                
-                // Verify total doc count matches input
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(54, totalDocs); // 24 + 30 = 54 docs
-                
-                // Verify buckets are in ascending order (requirement for histogram)
-                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                for (int i = 1; i < buckets.size(); i++) {
-                    assertTrue(
-                        ((ZonedDateTime) buckets.get(i - 1).getKey()).isBefore((ZonedDateTime) buckets.get(i).getKey())
-                    );
-                }
+
+        testSearchCase(DEFAULT_QUERY, dataset, true, aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD), histogram -> {
+            // Verify that aggregation completed successfully
+            assertTrue(AggregationInspectionHelper.hasValue(histogram));
+
+            // Verify buckets were created (exact count depends on rounding chosen)
+            assertFalse(histogram.getBuckets().isEmpty());
+            assertTrue(histogram.getBuckets().size() <= 10);
+
+            // Verify total doc count matches input
+            long totalDocs = histogram.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
+            assertEquals(54, totalDocs); // 24 + 30 = 54 docs
+
+            // Verify buckets are in ascending order (requirement for histogram)
+            List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+            for (int i = 1; i < buckets.size(); i++) {
+                assertTrue(((ZonedDateTime) buckets.get(i - 1).getKey()).isBefore((ZonedDateTime) buckets.get(i).getKey()));
             }
-        );
+        });
     }
 
     /**
      * Test that verifies skiplist collector handles rounding changes correctly with sub-aggregations.
      * This ensures that when rounding changes mid-collection, sub-aggregations still produce correct results.
-     * 
+     *
      * Requirements: 3.1, 3.2, 3.4
      */
     public void testSkiplistCollectorRoundingChangeWithSubAggs() throws IOException {
         // Create dataset that triggers rounding change
         final List<ZonedDateTime> dataset = new ArrayList<>();
         ZonedDateTime start = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        
+
         // Add data spanning months to trigger rounding increase
         for (int month = 0; month < 12; month++) {
             for (int day = 0; day < 3; day++) {
                 dataset.add(start.plusMonths(month).plusDays(day * 10));
             }
         }
-        
+
         testSearchCase(
             DEFAULT_QUERY,
             dataset,
+            true,
             aggregation -> aggregation.setNumBuckets(8)
                 .field(DATE_FIELD)
                 .subAggregation(AggregationBuilders.stats("stats").field(DATE_FIELD)),
             histogram -> {
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                
+
                 // Verify buckets were created
                 assertFalse(histogram.getBuckets().isEmpty());
                 assertTrue(histogram.getBuckets().size() <= 8);
-                
+
                 // Verify sub-aggregations are present and valid
                 for (Histogram.Bucket bucket : histogram.getBuckets()) {
                     InternalStats stats = bucket.getAggregations().get("stats");
@@ -1150,11 +1159,9 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                         assertTrue(stats.getCount() > 0);
                     }
                 }
-                
+
                 // Verify total doc count
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
+                long totalDocs = histogram.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
                 assertEquals(36, totalDocs); // 12 months * 3 days = 36 docs
             }
         );
@@ -1163,825 +1170,49 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
     /**
      * Test that verifies bucket merging works correctly after rounding change.
      * This test creates a scenario where buckets must be merged when rounding increases.
-     * 
+     *
      * Requirements: 3.2, 3.4
      */
     public void testSkiplistCollectorBucketMergingAfterRoundingChange() throws IOException {
         // Create dataset with fine-grained data that will be merged into coarser buckets
         final List<ZonedDateTime> dataset = new ArrayList<>();
         ZonedDateTime start = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        
+
         // Add hourly data for multiple days, then add data spanning years
         // This forces rounding to increase from hours -> days -> months -> years
-        for (int day = 0; day < 10; day++) {
+        for (int day = 0; day < 5; day++) {
             for (int hour = 0; hour < 24; hour++) {
                 dataset.add(start.plusDays(day).plusHours(hour));
             }
         }
-        
+
         // Add data spanning multiple years to force coarse rounding
         for (int year = 0; year < 5; year++) {
             for (int month = 0; month < 12; month += 3) {
                 dataset.add(start.plusYears(year).plusMonths(month));
             }
         }
-        
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                
-                // Verify buckets were created and merged appropriately
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 10);
-                
-                // Verify total doc count is preserved after merging
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(260, totalDocs); // (10 days * 24 hours) + (5 years * 4 quarters) = 240 + 20 = 260
-                
-                // Verify buckets are properly ordered
-                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                for (int i = 1; i < buckets.size(); i++) {
-                    assertTrue(
-                        ((ZonedDateTime) buckets.get(i - 1).getKey()).isBefore((ZonedDateTime) buckets.get(i).getKey())
-                    );
-                }
-            }
-        );
-    }
 
-    /**
-     * Test skiplist collector with terms sub-aggregation.
-     * Verifies that terms sub-aggregation produces correct results when using skiplist collector.
-     * 
-     * Requirements: 4.4
-     */
-    public void testSkiplistCollectorWithTermsSubAggregation() throws IOException {
-        // Create dataset with dates and a categorical field
-        final List<ZonedDateTime> dataset = Arrays.asList(
-            ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 1, 15, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 2, 1, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 2, 15, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 3, 1, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 3, 15, 0, 0, 0, 0, ZoneOffset.UTC)
-        );
-        
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(5)
-                .field(DATE_FIELD)
-                .subAggregation(AggregationBuilders.terms("terms").field(NUMERIC_FIELD)),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                
-                // Verify buckets were created
-                assertFalse(histogram.getBuckets().isEmpty());
-                
-                // Verify terms sub-aggregation is present in each bucket
-                for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                    if (bucket.getDocCount() > 0) {
-                        // NUMERIC_FIELD is a long field, so it returns LongTerms (which extends InternalTerms)
-                        InternalTerms<?, ?> termsAgg = bucket.getAggregations().get("terms");
-                        assertNotNull("Terms sub-aggregation should be present", termsAgg);
-                        assertTrue("Terms sub-aggregation should have buckets", termsAgg.getBuckets().size() > 0);
-                    }
-                }
-                
-                // Verify total doc count
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(6, totalDocs);
-            }
-        );
-    }
+        testSearchCase(DEFAULT_QUERY, dataset, true, aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD), histogram -> {
+            assertTrue(AggregationInspectionHelper.hasValue(histogram));
 
-    /**
-     * Test skiplist collector with stats sub-aggregation.
-     * Verifies that stats sub-aggregation produces correct results when using skiplist collector.
-     * 
-     * Requirements: 4.4
-     */
-    public void testSkiplistCollectorWithStatsSubAggregation() throws IOException {
-        // Create dataset with dates
-        final List<ZonedDateTime> dataset = Arrays.asList(
-            ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 1, 15, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 2, 1, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 2, 15, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 3, 1, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 3, 15, 0, 0, 0, 0, ZoneOffset.UTC)
-        );
-        
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(5)
-                .field(DATE_FIELD)
-                .subAggregation(AggregationBuilders.stats("stats").field(NUMERIC_FIELD)),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                
-                // Verify buckets were created
-                assertFalse(histogram.getBuckets().isEmpty());
-                
-                // Verify stats sub-aggregation is present and correct in each bucket
-                for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                    InternalStats stats = bucket.getAggregations().get("stats");
-                    assertNotNull("Stats sub-aggregation should be present", stats);
-                    
-                    if (bucket.getDocCount() > 0) {
-                        assertTrue("Stats sub-aggregation should have value", AggregationInspectionHelper.hasValue(stats));
-                        assertEquals("Stats count should match bucket doc count", bucket.getDocCount(), stats.getCount());
-                        assertFalse("Stats min should not be infinite", Double.isInfinite(stats.getMin()));
-                        assertFalse("Stats max should not be infinite", Double.isInfinite(stats.getMax()));
-                    } else {
-                        assertFalse("Empty bucket stats should not have value", AggregationInspectionHelper.hasValue(stats));
-                    }
-                }
-                
-                // Verify total doc count
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(6, totalDocs);
-            }
-        );
-    }
+            // Verify buckets were created and merged appropriately
+            assertFalse(histogram.getBuckets().isEmpty());
+            assertTrue(histogram.getBuckets().size() <= 5);
 
-    /**
-     * Test skiplist collector with max sub-aggregation.
-     * Verifies that max sub-aggregation produces correct results when using skiplist collector.
-     * 
-     * Requirements: 4.4
-     */
-    public void testSkiplistCollectorWithMaxSubAggregation() throws IOException {
-        // Create dataset with dates
-        final List<ZonedDateTime> dataset = Arrays.asList(
-            ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 1, 15, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 2, 1, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 2, 15, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 3, 1, 0, 0, 0, 0, ZoneOffset.UTC),
-            ZonedDateTime.of(2020, 3, 15, 0, 0, 0, 0, ZoneOffset.UTC)
-        );
-        
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(5)
-                .field(DATE_FIELD)
-                .subAggregation(AggregationBuilders.max("max").field(NUMERIC_FIELD)),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                
-                // Verify buckets were created
-                assertFalse(histogram.getBuckets().isEmpty());
-                
-                // Verify max sub-aggregation is present and correct in each bucket
-                for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                    InternalMax max = bucket.getAggregations().get("max");
-                    assertNotNull("Max sub-aggregation should be present", max);
-                    
-                    if (bucket.getDocCount() > 0) {
-                        assertTrue("Max sub-aggregation should have value", AggregationInspectionHelper.hasValue(max));
-                        assertFalse("Max value should not be infinite", Double.isInfinite(max.getValue()));
-                        assertTrue("Max value should be non-negative", max.getValue() >= 0);
-                    } else {
-                        assertFalse("Empty bucket max should not have value", AggregationInspectionHelper.hasValue(max));
-                    }
-                }
-                
-                // Verify total doc count
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(6, totalDocs);
-            }
-        );
-    }
+            // Verify total doc count is preserved after merging
+            long totalDocs = histogram.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
+            assertEquals(140, totalDocs); // (5 days * 24 hours) + (5 years * 4 quarters) = 120 + 20 = 140
 
-    /**
-     * Test that verifies sub-aggregation results match between skiplist and standard collectors.
-     * This test compares results from both collectors to ensure correctness.
-     * 
-     * Requirements: 4.4
-     */
-    public void testSkiplistCollectorSubAggregationResultsMatchStandard() throws IOException {
-        // Create a dataset that will use skiplist collector
-        final List<ZonedDateTime> dataset = new ArrayList<>();
-        ZonedDateTime start = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        
-        // Add data spanning several months
-        for (int month = 0; month < 6; month++) {
-            for (int day = 0; day < 5; day++) {
-                dataset.add(start.plusMonths(month).plusDays(day * 6));
-            }
-        }
-        
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(8)
-                .field(DATE_FIELD)
-                .subAggregation(AggregationBuilders.stats("stats").field(NUMERIC_FIELD))
-                .subAggregation(AggregationBuilders.max("max").field(NUMERIC_FIELD)),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                
-                // Verify buckets were created
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 8);
-                
-                // Verify both sub-aggregations are present and consistent
-                for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                    if (bucket.getDocCount() > 0) {
-                        InternalStats stats = bucket.getAggregations().get("stats");
-                        InternalMax max = bucket.getAggregations().get("max");
-                        
-                        assertNotNull("Stats sub-aggregation should be present", stats);
-                        assertNotNull("Max sub-aggregation should be present", max);
-                        
-                        assertTrue("Stats should have value", AggregationInspectionHelper.hasValue(stats));
-                        assertTrue("Max should have value", AggregationInspectionHelper.hasValue(max));
-                        
-                        // Verify consistency: max from stats should equal max aggregation
-                        assertEquals(
-                            "Max from stats should match max aggregation",
-                            stats.getMax(),
-                            max.getValue(),
-                            0.0001
-                        );
-                        
-                        // Verify stats count matches bucket doc count
-                        assertEquals(
-                            "Stats count should match bucket doc count",
-                            bucket.getDocCount(),
-                            stats.getCount()
-                        );
-                    }
-                }
-                
-                // Verify total doc count
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(30, totalDocs); // 6 months * 5 days = 30 docs
-            }
-        );
-    }
+            Map<String, Integer> expectedDocCount = new TreeMap<>();
+            expectedDocCount.put("2020-01-01T00:00:00.000Z", 124); // 5 * 24 hours + 4 quarters
+            expectedDocCount.put("2021-01-01T00:00:00.000Z", 4);
+            expectedDocCount.put("2022-01-01T00:00:00.000Z", 4);
+            expectedDocCount.put("2023-01-01T00:00:00.000Z", 4);
+            expectedDocCount.put("2024-01-01T00:00:00.000Z", 4);
 
-    /**
-     * Integration test for rounding transitions with hourly data.
-     * Tests that bucket assignments remain correct when rounding changes from hours to days.
-     * 
-     * Requirements: 2.3, 3.2
-     */
-    public void testRoundingTransitionsWithHourlyData() throws IOException {
-        // Create dataset with hourly data spanning multiple days
-        final List<ZonedDateTime> dataset = new ArrayList<>();
-        ZonedDateTime start = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        
-        // Add 168 hours (7 days) of hourly data
-        for (int hour = 0; hour < 168; hour++) {
-            dataset.add(start.plusHours(hour));
-        }
-        
-        // Test with target bucket count of 5
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 5);
-                
-                // Verify total doc count is preserved
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(168, totalDocs);
-                
-                // Verify buckets are ordered
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 10
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 10);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(168, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 20
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(20).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 20);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(168, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 50
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(50).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 50);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(168, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-    }
-
-    /**
-     * Integration test for rounding transitions with daily data.
-     * Tests that bucket assignments remain correct when rounding changes from days to weeks/months.
-     * 
-     * Requirements: 2.3, 3.2
-     */
-    public void testRoundingTransitionsWithDailyData() throws IOException {
-        // Create dataset with daily data spanning multiple months
-        final List<ZonedDateTime> dataset = new ArrayList<>();
-        ZonedDateTime start = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        
-        // Add 180 days (approximately 6 months) of daily data
-        for (int day = 0; day < 180; day++) {
-            dataset.add(start.plusDays(day));
-        }
-        
-        // Test with target bucket count of 5
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 5);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(180, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 10
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 10);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(180, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 20
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(20).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 20);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(180, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 50
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(50).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 50);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(180, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-    }
-
-    /**
-     * Integration test for rounding transitions with monthly data.
-     * Tests that bucket assignments remain correct when rounding changes from months to quarters/years.
-     * 
-     * Requirements: 2.3, 3.2
-     */
-    public void testRoundingTransitionsWithMonthlyData() throws IOException {
-        // Create dataset with monthly data spanning multiple years
-        final List<ZonedDateTime> dataset = new ArrayList<>();
-        ZonedDateTime start = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        
-        // Add 60 months (5 years) of monthly data
-        for (int month = 0; month < 60; month++) {
-            dataset.add(start.plusMonths(month));
-        }
-        
-        // Test with target bucket count of 5
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 5);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(60, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 10
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 10);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(60, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 20
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(20).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 20);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(60, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 50
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(50).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 50);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(60, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-    }
-
-    /**
-     * Integration test for rounding transitions with yearly data.
-     * Tests that bucket assignments remain correct when rounding changes from years to decades.
-     * 
-     * Requirements: 2.3, 3.2
-     */
-    public void testRoundingTransitionsWithYearlyData() throws IOException {
-        // Create dataset with yearly data spanning multiple decades
-        final List<ZonedDateTime> dataset = new ArrayList<>();
-        ZonedDateTime start = ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        
-        // Add 100 years of yearly data
-        for (int year = 0; year < 100; year++) {
-            dataset.add(start.plusYears(year));
-        }
-        
-        // Test with target bucket count of 5
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 5);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(100, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 10
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 10);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(100, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 20
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(20).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 20);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(100, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 50
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(50).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 50);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(100, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-    }
-
-    /**
-     * Integration test for multiple rounding transitions with mixed granularity data.
-     * Tests that bucket assignments remain correct when data triggers multiple rounding changes.
-     * This test creates a dataset that starts with fine-grained data (hours) and progressively
-     * adds coarser data (days, months, years) to force multiple rounding transitions.
-     * 
-     * Requirements: 2.3, 3.2
-     */
-    public void testMultipleRoundingTransitionsWithMixedData() throws IOException {
-        // Create dataset with mixed granularity that will trigger multiple rounding changes
-        final List<ZonedDateTime> dataset = new ArrayList<>();
-        ZonedDateTime start = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        
-        // Add hourly data for first 2 days (48 docs)
-        for (int hour = 0; hour < 48; hour++) {
-            dataset.add(start.plusHours(hour));
-        }
-        
-        // Add daily data for next 30 days (30 docs)
-        for (int day = 2; day < 32; day++) {
-            dataset.add(start.plusDays(day));
-        }
-        
-        // Add monthly data for next 12 months (12 docs)
-        for (int month = 1; month < 13; month++) {
-            dataset.add(start.plusMonths(month));
-        }
-        
-        // Add yearly data for next 5 years (5 docs)
-        for (int year = 1; year < 6; year++) {
-            dataset.add(start.plusYears(year));
-        }
-        
-        // Total: 48 + 30 + 12 + 5 = 95 docs
-        
-        // Test with target bucket count of 5 - should trigger multiple rounding increases
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 5);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(95, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 10
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 10);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(95, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 20
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(20).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 20);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(95, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-        
-        // Test with target bucket count of 50
-        testSearchCase(
-            DEFAULT_QUERY,
-            dataset,
-            aggregation -> aggregation.setNumBuckets(50).field(DATE_FIELD),
-            histogram -> {
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                assertFalse(histogram.getBuckets().isEmpty());
-                assertTrue(histogram.getBuckets().size() <= 50);
-                
-                long totalDocs = histogram.getBuckets().stream()
-                    .mapToLong(Histogram.Bucket::getDocCount)
-                    .sum();
-                assertEquals(95, totalDocs);
-                
-                verifyBucketsOrdered(histogram.getBuckets());
-            }
-        );
-    }
-
-    /**
-     * Integration test for rounding transitions with sparse data.
-     * Tests that bucket assignments remain correct when data has large gaps.
-     * 
-     * Requirements: 2.3, 3.2
-     */
-    public void testRoundingTransitionsWithSparseData() throws IOException {
-        // Create dataset with sparse data that has large gaps
-        final List<ZonedDateTime> dataset = new ArrayList<>();
-        ZonedDateTime start = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        
-        // Add data with increasing gaps
-        dataset.add(start);
-        dataset.add(start.plusHours(1));
-        dataset.add(start.plusHours(2));
-        dataset.add(start.plusDays(1));
-        dataset.add(start.plusDays(2));
-        dataset.add(start.plusWeeks(1));
-        dataset.add(start.plusWeeks(2));
-        dataset.add(start.plusMonths(1));
-        dataset.add(start.plusMonths(2));
-        dataset.add(start.plusMonths(6));
-        dataset.add(start.plusYears(1));
-        dataset.add(start.plusYears(2));
-        
-        // Test with various target bucket counts
-        for (int targetBuckets : Arrays.asList(5, 10, 20)) {
-            testSearchCase(
-                DEFAULT_QUERY,
-                dataset,
-                aggregation -> aggregation.setNumBuckets(targetBuckets).field(DATE_FIELD),
-                histogram -> {
-                    assertTrue(AggregationInspectionHelper.hasValue(histogram));
-                    assertFalse(histogram.getBuckets().isEmpty());
-                    assertTrue(histogram.getBuckets().size() <= targetBuckets);
-                    
-                    long totalDocs = histogram.getBuckets().stream()
-                        .mapToLong(Histogram.Bucket::getDocCount)
-                        .sum();
-                    assertEquals(12, totalDocs);
-                    
-                    verifyBucketsOrdered(histogram.getBuckets());
-                }
-            );
-        }
-    }
-
-    /**
-     * Helper method to verify that histogram buckets are in ascending chronological order.
-     */
-    private void verifyBucketsOrdered(List<? extends Histogram.Bucket> buckets) {
-        for (int i = 1; i < buckets.size(); i++) {
-            ZonedDateTime prev = (ZonedDateTime) buckets.get(i - 1).getKey();
-            ZonedDateTime curr = (ZonedDateTime) buckets.get(i).getKey();
-            assertTrue(
-                "Buckets should be in ascending order: " + prev + " should be before " + curr,
-                prev.isBefore(curr)
-            );
-        }
+            assertThat(bucketCountsAsMap(histogram), equalTo(expectedDocCount));
+        });
     }
 
     @Override

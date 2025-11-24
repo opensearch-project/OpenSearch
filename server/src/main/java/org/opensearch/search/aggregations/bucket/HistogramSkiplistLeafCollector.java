@@ -17,9 +17,13 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 
 import java.io.IOException;
+import java.util.function.LongFunction;
+import java.util.function.Supplier;
 
 /**
  * Histogram collection logic using skip list.
+ *
+ * Currently, it can only handle one owningBucketOrd at a time.
  *
  * @opensearch.internal
  */
@@ -27,15 +31,16 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
 
     private final NumericDocValues values;
     private final DocValuesSkipper skipper;
-    private final LongKeyedBucketOrds bucketOrds;
     private final LeafBucketCollector sub;
     private final BucketsAggregator aggregator;
-    
+
     /**
      * Supplier function to get the current preparedRounding from the parent aggregator.
      * This allows detection of rounding changes in AutoDateHistogramAggregator.
      */
-    private final java.util.function.Supplier<Rounding.Prepared> preparedRoundingSupplier;
+    private final LongFunction<Rounding.Prepared> preparedRoundingSupplier;
+    private final java.util.function.Supplier<LongKeyedBucketOrds> bucketOrdsSupplier;
+    private final IncreaseRoundingIfNeeded increaseRoundingIfNeeded;
 
     /**
      * Max doc ID (inclusive) up to which all docs values may map to the same
@@ -69,29 +74,32 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
     ) {
         this.values = values;
         this.skipper = skipper;
-        this.preparedRoundingSupplier = () -> preparedRounding;
-        this.bucketOrds = bucketOrds;
+        this.preparedRoundingSupplier = (owningBucketOrd) -> preparedRounding;
+        this.bucketOrdsSupplier = () -> bucketOrds;
         this.sub = sub;
         this.aggregator = aggregator;
+        this.increaseRoundingIfNeeded = (owningBucketOrd, rounded) -> {};
     }
-    
+
     /**
      * Constructor that accepts a supplier for dynamic rounding (used by AutoDateHistogramAggregator).
      */
     public HistogramSkiplistLeafCollector(
         NumericDocValues values,
         DocValuesSkipper skipper,
-        java.util.function.Supplier<Rounding.Prepared> preparedRoundingSupplier,
-        LongKeyedBucketOrds bucketOrds,
+        LongFunction<Rounding.Prepared> preparedRoundingSupplier,
+        Supplier<LongKeyedBucketOrds> bucketOrdsSupplier,
         LeafBucketCollector sub,
-        BucketsAggregator aggregator
+        BucketsAggregator aggregator,
+        IncreaseRoundingIfNeeded increaseRoundingIfNeeded
     ) {
         this.values = values;
         this.skipper = skipper;
         this.preparedRoundingSupplier = preparedRoundingSupplier;
-        this.bucketOrds = bucketOrds;
+        this.bucketOrdsSupplier = bucketOrdsSupplier;
         this.sub = sub;
         this.aggregator = aggregator;
+        this.increaseRoundingIfNeeded = increaseRoundingIfNeeded;
     }
 
     @Override
@@ -118,7 +126,7 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
         upToInclusive = skipper.maxDocID(0);
 
         // Get current rounding from supplier
-        Rounding.Prepared currentRounding = preparedRoundingSupplier.get();
+        Rounding.Prepared currentRounding = preparedRoundingSupplier.apply(owningBucketOrd);
 
         // Now find the highest level where all docs map to the same bucket.
         for (int level = 0; level < skipper.numLevels(); ++level) {
@@ -130,7 +138,7 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
                 // All docs at this level have a value, and all values map to the same bucket.
                 upToInclusive = skipper.maxDocID(level);
                 upToSameBucket = true;
-                upToBucketIndex = bucketOrds.add(owningBucketOrd, maxBucket);
+                upToBucketIndex = bucketOrdsSupplier.get().add(owningBucketOrd, maxBucket);
                 if (upToBucketIndex < 0) {
                     upToBucketIndex = -1 - upToBucketIndex;
                 }
@@ -142,13 +150,13 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
 
     @Override
     public void collect(int doc, long owningBucketOrd) throws IOException {
-        // Get current rounding from supplier
-        Rounding.Prepared currentRounding = preparedRoundingSupplier.get();
-        
+        Rounding.Prepared currentRounding = preparedRoundingSupplier.apply(owningBucketOrd);
+
         // Check if rounding changed (using reference equality)
         // AutoDateHistogramAggregator creates a new Rounding.Prepared instance when rounding changes
         if (currentRounding != lastPreparedRounding) {
             upToInclusive = -1;  // Invalidate cache
+            upToSameBucket = false;
             lastPreparedRounding = currentRounding;
         }
 
@@ -161,12 +169,14 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
             sub.collect(doc, upToBucketIndex);
         } else if (values.advanceExact(doc)) {
             final long value = values.longValue();
-            long bucketIndex = bucketOrds.add(owningBucketOrd, currentRounding.round(value));
+            long rounded = currentRounding.round(value);
+            long bucketIndex = bucketOrdsSupplier.get().add(owningBucketOrd, rounded);
             if (bucketIndex < 0) {
                 bucketIndex = -1 - bucketIndex;
                 aggregator.collectExistingBucket(sub, doc, bucketIndex);
             } else {
                 aggregator.collectBucket(sub, doc, bucketIndex);
+                increaseRoundingIfNeeded.accept(owningBucketOrd, rounded);
             }
         }
     }
@@ -179,7 +189,6 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
 
     @Override
     public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-        // This will only be called if its the sub aggregation
         for (;;) {
             int upToExclusive = upToInclusive + 1;
             if (upToExclusive < 0) { // overflow
@@ -209,5 +218,9 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
                 break;
             }
         }
+    }
+
+    public interface IncreaseRoundingIfNeeded {
+        void accept(long owningBucket, long rounded);
     }
 }
