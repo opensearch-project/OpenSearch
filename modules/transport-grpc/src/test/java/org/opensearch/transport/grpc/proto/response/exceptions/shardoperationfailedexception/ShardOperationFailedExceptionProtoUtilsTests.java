@@ -119,4 +119,14 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
             exception.getMessage().contains("Unsupported ShardOperationFailedException")
         );
     }
+
+    public void testToProtoWithNullShardOperationFailedException() {
+        // Call the method under test with null, should throw UnsupportedOperationException
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> ShardOperationFailedExceptionProtoUtils.toProto(null)
+        );
+
+        assertEquals("Unsupported ShardOperationFailedException [null] cannot be converted to proto.", exception.getMessage());
+    }
 }
