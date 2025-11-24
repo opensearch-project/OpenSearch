@@ -55,6 +55,7 @@ public class PruneFileCacheIT extends AbstractSnapshotIntegTestCase {
     /**
      * Tests file cache pruning with real data on single warm node.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/19724")
     public void testPruneCacheWithRealData() throws Exception {
         final String indexName = "test-idx";
         final String restoredIndexName = indexName + "-copy";
