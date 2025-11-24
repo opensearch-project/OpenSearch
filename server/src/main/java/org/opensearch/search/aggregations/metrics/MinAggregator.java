@@ -174,7 +174,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 final double[] min = { mins.get(bucket) };
                 stream.forEach((doc) -> {
                     if (values.advanceExact(doc)) {
-                        min[0] = Math.max(min[0], values.doubleValue());
+                        min[0] = Math.min(min[0], values.doubleValue());
                     }
                 });
                 mins.set(bucket, min[0]);
@@ -184,9 +184,9 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             public void collectRange(int min, int max) throws IOException {
                 growMins(0);
                 double minimum = mins.get(0);
-                for (int docId = min; docId < max; docId++) {
-                    if (values.advanceExact(docId)) {
-                        minimum = Math.max(minimum, values.doubleValue());
+                for (int doc = min; doc < max; doc++) {
+                    if (values.advanceExact(doc)) {
+                        minimum = Math.min(minimum, values.doubleValue());
                     }
                 }
                 mins.set(0, minimum);

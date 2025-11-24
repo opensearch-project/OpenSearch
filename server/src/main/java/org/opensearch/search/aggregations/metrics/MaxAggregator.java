@@ -184,8 +184,8 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
             public void collectRange(int min, int max) throws IOException {
                 growMaxes(0);
                 double maximum = maxes.get(0);
-                for (int docId = min; docId < max; docId++) {
-                    if (values.advanceExact(docId)) {
+                for (int doc = min; doc < max; doc++) {
+                    if (values.advanceExact(doc)) {
                         maximum = Math.max(maximum, values.doubleValue());
                     }
                 }
