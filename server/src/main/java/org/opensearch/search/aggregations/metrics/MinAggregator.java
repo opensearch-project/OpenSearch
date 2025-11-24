@@ -62,7 +62,6 @@ import org.opensearch.search.streaming.Streamable;
 import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -172,7 +171,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             @Override
             public void collect(DocIdStream stream, long bucket) throws IOException {
                 growMins(bucket);
-                final double[] min = {mins.get(bucket)};
+                final double[] min = { mins.get(bucket) };
                 stream.forEach((doc) -> {
                     if (values.advanceExact(doc)) {
                         min[0] = Math.max(min[0], values.doubleValue());

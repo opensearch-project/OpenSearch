@@ -33,7 +33,6 @@
 package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.DoubleValues;
 import org.opensearch.common.annotation.PublicApi;
 

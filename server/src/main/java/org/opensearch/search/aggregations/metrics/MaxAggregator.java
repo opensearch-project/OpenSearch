@@ -171,7 +171,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
             @Override
             public void collect(DocIdStream stream, long bucket) throws IOException {
                 growMaxes(bucket);
-                final double[] max = {maxes.get(bucket)};
+                final double[] max = { maxes.get(bucket) };
                 stream.forEach((doc) -> {
                     if (values.advanceExact(doc)) {
                         max[0] = Math.max(max[0], values.doubleValue());

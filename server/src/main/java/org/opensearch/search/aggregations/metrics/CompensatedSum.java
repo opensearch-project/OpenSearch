@@ -121,7 +121,7 @@ public class CompensatedSum {
         double sum = value;
         double c = delta; // Compensation for lost low-order bits
 
-        for (int i=0 ; i<count; i++) {
+        for (int i = 0; i < count; i++) {
             double y = values[i] - c;
             double t = sum + y;
             c = (t - sum) - y; // Calculate the lost part
