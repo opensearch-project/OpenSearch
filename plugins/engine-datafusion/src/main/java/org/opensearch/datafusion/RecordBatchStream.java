@@ -74,7 +74,7 @@ public class RecordBatchStream implements Closeable {
 
     /**
      * Closes the stream and releases all associated resources
-     * @throws Exception if an error occurs during cleanup
+     * @throws IOException if an error occurs during cleanup
      */
     @Override
     public void close() throws IOException {
