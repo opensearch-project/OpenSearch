@@ -80,6 +80,14 @@ public class DatafusionReader implements Closeable {
         readerHandle.close();
     }
 
+    /**
+     * Gets the reference count.
+     * @return the reference count
+     */
+    public int getRefCount() {
+        return readerHandle.getRefCount();
+    }
+
     @Override
     public void close() {
         readerHandle.close();
