@@ -221,9 +221,9 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Explanation should be set", hit.hasExplanation());
-        assertEquals("Explanation value should match", 1.0, hit.getExplanation().getValue(), 0.0);
-        assertEquals("Explanation description should match", "explanation", hit.getExplanation().getDescription());
+        assertTrue("Explanation should be set", hit.hasXExplanation());
+        assertEquals("Explanation value should match", 1.0, hit.getXExplanation().getValue(), 0.0);
+        assertEquals("Explanation description should match", "explanation", hit.getXExplanation().getDescription());
     }
 
     public void testToProtoWithInnerHits() throws IOException {

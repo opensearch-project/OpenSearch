@@ -260,7 +260,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.includes = includes;
         this.excludes = excludes;
         final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
-        this.filter = enabled && filtered ? XContentMapValues.filter(includes, excludes) : null;
+        this.filter = enabled && filtered ? XContentMapValues.filter(includes, excludes, true) : null;
         this.complete = enabled && CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes);
 
         // Set parameters for recovery source
@@ -270,7 +270,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final boolean recoverySourcefiltered = CollectionUtils.isEmpty(recoverySourceIncludes) == false
             || CollectionUtils.isEmpty(recoverySourceExcludes) == false;
         this.recoverySourceFilter = this.recoverySourceEnabled && recoverySourcefiltered
-            ? XContentMapValues.filter(recoverySourceIncludes, recoverySourceExcludes)
+            ? XContentMapValues.filter(recoverySourceIncludes, recoverySourceExcludes, true)
             : null;
     }
 

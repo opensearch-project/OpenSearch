@@ -42,7 +42,7 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify basic fields
         assertEquals("Index should match", "test-index", responseItem.getXIndex());
-        assertEquals("Id should match", "test-id", responseItem.getXId().getString());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
         assertEquals("Version should match", indexResponse.getVersion(), responseItem.getXVersion());
         assertEquals("Result should match", DocWriteResponse.Result.CREATED.getLowercase(), responseItem.getResult());
         assertTrue("ForcedRefresh should be true", responseItem.getForcedRefresh());
@@ -79,7 +79,7 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
         ResponseItem responseItem = responseItemBuilder.build();
 
         // Verify ID is set to null value
-        assertTrue("Id should be null value", responseItem.getXId().hasNullValue());
+        assertFalse("Id should not be set", responseItem.hasXId());
     }
 
     public void testToProtoWithNoSeqNo() throws IOException {

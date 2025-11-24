@@ -22,6 +22,7 @@ import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.suggest.SuggestBuilderProtoUtils;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.Map;
@@ -55,7 +56,7 @@ public class SearchSourceBuilderProtoUtils {
         AbstractQueryBuilderProtoUtils queryUtils
     ) throws IOException {
         // Parse all non-query fields
-        parseNonQueryFields(searchSourceBuilder, protoRequest);
+        parseNonQueryFields(searchSourceBuilder, protoRequest, queryUtils.getRegistry());
 
         // Handle queries using the instance-based approach
         if (protoRequest.hasQuery()) {
@@ -69,7 +70,11 @@ public class SearchSourceBuilderProtoUtils {
     /**
      * Parses all fields except queries from the protobuf SearchRequestBody.
      */
-    private static void parseNonQueryFields(SearchSourceBuilder searchSourceBuilder, SearchRequestBody protoRequest) throws IOException {
+    private static void parseNonQueryFields(
+        SearchSourceBuilder searchSourceBuilder,
+        SearchRequestBody protoRequest,
+        QueryBuilderProtoConverterRegistry registry
+    ) throws IOException {
         // TODO what to do about parser.getDeprecationHandler() for protos?
 
         if (protoRequest.hasFrom()) {
@@ -118,7 +123,7 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.storedFields(StoredFieldsContextProtoUtils.fromProto(protoRequest.getStoredFieldsList()));
         }
         if (protoRequest.getSortCount() > 0) {
-            for (SortBuilder<?> sortBuilder : SortBuilderProtoUtils.fromProto(protoRequest.getSortList())) {
+            for (SortBuilder<?> sortBuilder : SortBuilderProtoUtils.fromProto(protoRequest.getSortList(), registry)) {
                 searchSourceBuilder.sort(sortBuilder);
             }
         }
@@ -143,13 +148,8 @@ public class SearchSourceBuilderProtoUtils {
             }
         }
         if (protoRequest.getIndicesBoostCount() > 0) {
-            /**
-             * Similar to {@link SearchSourceBuilder.IndexBoost#IndexBoost(XContentParser)}
-             */
-            for (org.opensearch.protobufs.FloatMap floatMap : protoRequest.getIndicesBoostList()) {
-                for (Map.Entry<String, Float> entry : floatMap.getFloatMapMap().entrySet()) {
-                    searchSourceBuilder.indexBoost(entry.getKey(), entry.getValue());
-                }
+            for (Map.Entry<String, Float> entry : protoRequest.getIndicesBoostMap().entrySet()) {
+                searchSourceBuilder.indexBoost(entry.getKey(), entry.getValue());
             }
         }
 
@@ -159,7 +159,7 @@ public class SearchSourceBuilderProtoUtils {
         */
 
         if (protoRequest.hasHighlight()) {
-            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight()));
+            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), registry));
         }
         if (protoRequest.hasSuggest()) {
             searchSourceBuilder.suggest(SuggestBuilderProtoUtils.fromProto(protoRequest.getSuggest()));
@@ -178,7 +178,7 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.slice(SliceBuilderProtoUtils.fromProto(protoRequest.getSlice()));
         }
         if (protoRequest.hasCollapse()) {
-            searchSourceBuilder.collapse(CollapseBuilderProtoUtils.fromProto(protoRequest.getCollapse()));
+            searchSourceBuilder.collapse(CollapseBuilderProtoUtils.fromProto(protoRequest.getCollapse(), registry));
         }
         if (protoRequest.hasPit()) {
             searchSourceBuilder.pointInTimeBuilder(PointInTimeBuilderProtoUtils.fromProto(protoRequest.getPit()));
@@ -186,19 +186,38 @@ public class SearchSourceBuilderProtoUtils {
         if (protoRequest.getDerivedCount() > 0) {
             for (Map.Entry<String, DerivedField> entry : protoRequest.getDerivedMap().entrySet()) {
                 String name = entry.getKey();
-                DerivedField derivedField = entry.getValue();
-                searchSourceBuilder.derivedField(
-                    name,
-                    derivedField.getType(),
-                    ScriptProtoUtils.parseFromProtoRequest(derivedField.getScript())
-                );
+                DerivedField derivedFieldProto = entry.getValue();
+
+                // Convert protobuf DerivedField to OpenSearch DerivedField using the REST side pattern
+                // This uses simple constructor + conditional setters (matches DerivedFieldMapper.Builder.build())
+                org.opensearch.index.mapper.DerivedField derivedField = DerivedFieldProtoUtils.fromProto(name, derivedFieldProto);
+
+                // Add to SearchSourceBuilder - check if any optional fields are set to choose the right method
+                if (derivedField.getProperties() != null
+                    || derivedField.getPrefilterField() != null
+                    || derivedField.getFormat() != null
+                    || derivedField.getIgnoreMalformed()) {
+                    // Use full constructor when optional fields are present
+                    searchSourceBuilder.derivedField(
+                        derivedField.getName(),
+                        derivedField.getType(),
+                        derivedField.getScript(),
+                        derivedField.getProperties(),
+                        derivedField.getPrefilterField(),
+                        derivedField.getFormat(),
+                        derivedField.getIgnoreMalformed() ? Boolean.TRUE : null
+                    );
+                } else {
+                    // Use simple constructor when no optional fields
+                    searchSourceBuilder.derivedField(derivedField.getName(), derivedField.getType(), derivedField.getScript());
+                }
             }
         }
         if (protoRequest.getDocvalueFieldsCount() > 0) {
             for (FieldAndFormat fieldAndFormatProto : protoRequest.getDocvalueFieldsList()) {
                 /**
                  * Similar to {@link org.opensearch.search.fetch.subphase.FieldAndFormat#fromXContent(XContentParser)}
-                */
+                 */
                 searchSourceBuilder.docValueField(fieldAndFormatProto.getField(), fieldAndFormatProto.getFormat());
             }
 

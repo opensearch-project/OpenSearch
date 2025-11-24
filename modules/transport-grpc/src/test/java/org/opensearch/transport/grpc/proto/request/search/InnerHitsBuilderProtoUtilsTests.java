@@ -18,14 +18,24 @@ import org.opensearch.protobufs.SourceConfig;
 import org.opensearch.protobufs.SourceFilter;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
+
+    private QueryBuilderProtoConverterRegistry registry;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        registry = new QueryBuilderProtoConverterRegistryImpl();
+    }
 
     public void testFromProtoWithBasicFields() throws IOException {
         // Create a protobuf InnerHits with basic fields
@@ -41,7 +51,7 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(Collections.singletonList(innerHits));
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits, registry);
 
         // Verify the result
         assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
@@ -65,7 +75,7 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(Collections.singletonList(innerHits));
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits, registry);
 
         // Verify the result
         assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
@@ -85,7 +95,7 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(Collections.singletonList(innerHits));
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits, registry);
 
         // Verify the result
         assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
@@ -110,10 +120,14 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithFetchFields() throws IOException {
         // Create a protobuf InnerHits with fetch fields
-        InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").addFields("field1").addFields("field2").build();
+        InnerHits innerHits = InnerHits.newBuilder()
+            .setName("test_inner_hits")
+            .addFields(org.opensearch.protobufs.FieldAndFormat.newBuilder().setField("field1").build())
+            .addFields(org.opensearch.protobufs.FieldAndFormat.newBuilder().setField("field2").build())
+            .build();
 
         // Call the method under test
-        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(Collections.singletonList(innerHits));
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits, registry);
 
         // Verify the result
         assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
@@ -169,7 +183,7 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
         InnerHits innerHits = innerHitsBuilder.build();
 
         // Call the method under test
-        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(Collections.singletonList(innerHits));
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits, registry);
 
         // Verify the result
         assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
@@ -202,7 +216,7 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
         InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").setXSource(sourceContext).build();
 
         // Call the method under test
-        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(Collections.singletonList(innerHits));
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits, registry);
 
         // Verify the result
         assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
@@ -221,25 +235,86 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         List<InnerHits> innerHitsList = Arrays.asList(innerHits1, innerHits2);
 
-        // Call the method under test
-        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHitsList);
+        List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
+        for (InnerHits innerHits : innerHitsList) {
+            innerHitBuilders.add(InnerHitsBuilderProtoUtils.fromProto(innerHits, registry));
+        }
 
         // Verify the result
-        assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
-        // The last inner hits in the list should override previous ones
-        assertEquals("Name should match the last inner hits", "inner_hits2", innerHitBuilder.getName());
-        assertEquals("Size should match the last inner hits", 20, innerHitBuilder.getSize());
+        assertNotNull("InnerHitBuilder list should not be null", innerHitBuilders);
+        assertEquals("Should have 2 InnerHitBuilders", 2, innerHitBuilders.size());
+
+        // Check first InnerHitBuilder
+        InnerHitBuilder innerHitBuilder1 = innerHitBuilders.get(0);
+        assertEquals("First name should match", "inner_hits1", innerHitBuilder1.getName());
+        assertEquals("First size should match", 10, innerHitBuilder1.getSize());
+
+        // Check second InnerHitBuilder
+        InnerHitBuilder innerHitBuilder2 = innerHitBuilders.get(1);
+        assertEquals("Second name should match", "inner_hits2", innerHitBuilder2.getName());
+        assertEquals("Second size should match", 20, innerHitBuilder2.getSize());
     }
 
     public void testFromProtoWithEmptyList() throws IOException {
-        // Call the method under test with an empty list
-        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(Collections.emptyList());
+        List<InnerHits> emptyList = Arrays.asList();
+        List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
+        for (InnerHits innerHits : emptyList) {
+            innerHitBuilders.add(InnerHitsBuilderProtoUtils.fromProto(innerHits, registry));
+        }
+
+        // Verify the result
+        assertNotNull("InnerHitBuilder list should not be null", innerHitBuilders);
+        assertEquals("Should have 0 InnerHitBuilders", 0, innerHitBuilders.size());
+    }
+
+    public void testFromProtoWithNullInnerHits() {
+        // Test null input validation for single InnerHits
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> InnerHitsBuilderProtoUtils.fromProto((InnerHits) null, registry)
+        );
+
+        assertEquals("InnerHits cannot be null", exception.getMessage());
+    }
+
+    public void testFromProtoWithSort() throws IOException {
+        InnerHits innerHits = InnerHits.newBuilder()
+            .setName("test_inner_hits")
+            .addSort(org.opensearch.protobufs.SortCombinations.newBuilder().build())
+            .build();
+
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits, registry);
+
+        assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
+        assertNotNull("Sorts should not be null", innerHitBuilder.getSorts());
+        assertEquals("Name should match", "test_inner_hits", innerHitBuilder.getName());
+    }
+
+    public void testFromProtoWithHighlight() throws IOException {
+        org.opensearch.protobufs.Highlight highlightProto = org.opensearch.protobufs.Highlight.newBuilder().build();
+
+        InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").setHighlight(highlightProto).build();
+
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits, registry);
+
+        assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
+        assertNotNull("HighlightBuilder should not be null", innerHitBuilder.getHighlightBuilder());
+        assertEquals("Name should match", "test_inner_hits", innerHitBuilder.getName());
+    }
+
+    public void testFromProtoWithCollapse() throws IOException {
+        // Create a protobuf InnerHits with collapse
+        org.opensearch.protobufs.FieldCollapse collapseProto = org.opensearch.protobufs.FieldCollapse.newBuilder()
+            .setField("category")
+            .build();
+
+        InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").setCollapse(collapseProto).build();
+
+        // This should work and create the InnerHitBuilder with collapse
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits, registry);
 
         // Verify the result
         assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
-        // Should have default values
-        assertNull("Name should be null", innerHitBuilder.getName());
-        assertEquals("From should be default", 0, innerHitBuilder.getFrom());
-        assertEquals("Size should be default", 3, innerHitBuilder.getSize());
+        assertNotNull("InnerCollapseBuilder should not be null", innerHitBuilder.getInnerCollapseBuilder());
     }
 }

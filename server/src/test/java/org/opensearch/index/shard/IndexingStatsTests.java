@@ -96,9 +96,20 @@ public class IndexingStatsTests extends OpenSearchTestCase {
         long ts1 = randomLongBetween(0, 1000000);
         long ts2 = randomLongBetween(0, 1000000);
         long ts3 = randomLongBetween(0, 1000000);
-        IndexingStats.Stats stats1 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, ts1);
-        IndexingStats.Stats stats2 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, ts2);
-        IndexingStats.Stats stats3 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, ts3);
+
+        IndexingStats.Stats.Builder defaultStats = new IndexingStats.Stats.Builder().indexCount(1)
+            .indexTimeInMillis(2)
+            .indexCurrent(3)
+            .indexFailedCount(4)
+            .deleteCount(5)
+            .deleteTimeInMillis(6)
+            .deleteCurrent(7)
+            .noopUpdateCount(8)
+            .isThrottled(false)
+            .throttleTimeInMillis(9);
+        IndexingStats.Stats stats1 = defaultStats.maxLastIndexRequestTimestamp(ts1).build();
+        IndexingStats.Stats stats2 = defaultStats.maxLastIndexRequestTimestamp(ts2).build();
+        IndexingStats.Stats stats3 = defaultStats.maxLastIndexRequestTimestamp(ts3).build();
 
         // Aggregate stats1 + stats2
         stats1.add(stats2);
@@ -109,19 +120,31 @@ public class IndexingStatsTests extends OpenSearchTestCase {
         assertEquals(Math.max(Math.max(ts1, ts2), ts3), stats1.getMaxLastIndexRequestTimestamp());
 
         // Test with zero and negative values
-        IndexingStats.Stats statsZero = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, 0L);
-        IndexingStats.Stats statsNeg = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, -100L);
+        IndexingStats.Stats statsZero = defaultStats.maxLastIndexRequestTimestamp(0L).build();
+        IndexingStats.Stats statsNeg = defaultStats.maxLastIndexRequestTimestamp(-100L).build();
+
         statsZero.add(statsNeg);
         assertEquals(0L, statsZero.getMaxLastIndexRequestTimestamp());
 
-        IndexingStats.Stats statsNeg2 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, -50L);
+        IndexingStats.Stats statsNeg2 = defaultStats.maxLastIndexRequestTimestamp(-50L).build();
         statsNeg.add(statsNeg2);
         assertEquals(-50L, statsNeg.getMaxLastIndexRequestTimestamp());
     }
 
     public void testMaxLastIndexRequestTimestampBackwardCompatibility() throws IOException {
         long ts = randomLongBetween(0, 1000000);
-        IndexingStats.Stats stats = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, ts);
+        IndexingStats.Stats stats = new IndexingStats.Stats.Builder().indexCount(1)
+            .indexTimeInMillis(2)
+            .indexCurrent(3)
+            .indexFailedCount(4)
+            .deleteCount(5)
+            .deleteTimeInMillis(6)
+            .deleteCurrent(7)
+            .noopUpdateCount(8)
+            .isThrottled(false)
+            .throttleTimeInMillis(9)
+            .maxLastIndexRequestTimestamp(ts)
+            .build();
 
         // Serialize with V_3_1_0 (should include the field)
         BytesStreamOutput outNew = new BytesStreamOutput();
@@ -143,19 +166,18 @@ public class IndexingStatsTests extends OpenSearchTestCase {
     }
 
     private IndexingStats createTestInstance() {
-        IndexingStats.Stats stats = new IndexingStats.Stats(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomBoolean(),
-            randomNonNegativeLong(),
-            randomLong()
-        );
+        IndexingStats.Stats stats = new IndexingStats.Stats.Builder().indexCount(randomNonNegativeLong())
+            .indexTimeInMillis(randomNonNegativeLong())
+            .indexCurrent(randomNonNegativeLong())
+            .indexFailedCount(randomNonNegativeLong())
+            .deleteCount(randomNonNegativeLong())
+            .deleteTimeInMillis(randomNonNegativeLong())
+            .deleteCurrent(randomNonNegativeLong())
+            .noopUpdateCount(randomNonNegativeLong())
+            .isThrottled(randomBoolean())
+            .throttleTimeInMillis(randomNonNegativeLong())
+            .maxLastIndexRequestTimestamp(randomLong())
+            .build();
 
         return new IndexingStats(stats);
     }

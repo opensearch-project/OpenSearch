@@ -187,6 +187,26 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.maxLastIndexRequestTimestamp = builder.maxLastIndexRequestTimestamp;
         }
 
+        /**
+         * Private constructor that takes a builder.
+         * This is the sole entry point for creating a new Stats object.
+         * @param builder The builder instance containing all the values.
+         */
+        private Stats(Builder builder) {
+            this.indexCount = builder.indexCount;
+            this.indexTimeInMillis = builder.indexTimeInMillis;
+            this.indexCurrent = builder.indexCurrent;
+            this.indexFailedCount = builder.indexFailedCount;
+            this.deleteCount = builder.deleteCount;
+            this.deleteTimeInMillis = builder.deleteTimeInMillis;
+            this.deleteCurrent = builder.deleteCurrent;
+            this.noopUpdateCount = builder.noopUpdateCount;
+            this.throttleTimeInMillis = builder.throttleTimeInMillis;
+            this.isThrottled = builder.isThrottled;
+            this.docStatusStats = builder.docStatusStats;
+            this.maxLastIndexRequestTimestamp = builder.maxLastIndexRequestTimestamp;
+        }
+
         public Stats(StreamInput in) throws IOException {
             indexCount = in.readVLong();
             indexTimeInMillis = in.readVLong();

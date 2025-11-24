@@ -2582,4 +2582,22 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals(0, doc.rootDoc().getFields("nested.target_field").length);
     }
 
+    public void testGenerateGroupingCriteriaFromScript() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            contextAwareGrouping("status_code").accept(b);
+            properties(x -> {
+                x.startObject("status_code");
+                b.field("type", "integer");
+                b.endObject();
+            }).accept(b);
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("status_code", "300");
+            b.field("bar", 10);
+        }));
+
+        assertEquals("300", doc.docs().getFirst().getGroupingCriteria());
+    }
+
 }

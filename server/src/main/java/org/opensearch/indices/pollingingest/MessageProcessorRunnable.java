@@ -26,6 +26,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
@@ -48,10 +49,11 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  *  engine operation.
  */
 public class MessageProcessorRunnable implements Runnable, Closeable {
+    public static final String ID = "_id";
+    public static final String OP_TYPE = "_op_type";
+    public static final String SOURCE = "_source";
+
     private static final Logger logger = LogManager.getLogger(MessageProcessorRunnable.class);
-    private static final String ID = "_id";
-    private static final String OP_TYPE = "_op_type";
-    private static final String SOURCE = "_source";
     private static final int MIN_RETRY_COUNT = 2;
     private static final int WAIT_BEFORE_RETRY_DURATION_MS = 2000;
 
@@ -65,33 +67,50 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     private volatile boolean closed = false;
     private volatile IngestionErrorStrategy errorStrategy;
 
+    private final String indexName;
+    private final int shardId;
+
     /**
      * Constructor.
      *
      * @param blockingQueue the blocking queue to poll messages from
      * @param engine the ingestion engine
+     * @param errorStrategy the error strategy/policy to use
      */
     public MessageProcessorRunnable(
         BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
         IngestionEngine engine,
         IngestionErrorStrategy errorStrategy
     ) {
-        this(blockingQueue, new MessageProcessor(engine), errorStrategy);
+        this(
+            blockingQueue,
+            new MessageProcessor(engine),
+            errorStrategy,
+            engine.config().getShardId().getIndexName(),
+            engine.config().getShardId().getId()
+        );
     }
 
     /**
      * Constructor visible for testing.
      * @param blockingQueue the blocking queue to poll messages from
      * @param messageProcessor the message processor
+     * @param errorStrategy the error strategy/policy to use
+     * @param indexName the index name
+     * @param shardId the shard ID
      */
     MessageProcessorRunnable(
         BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
         MessageProcessor messageProcessor,
-        IngestionErrorStrategy errorStrategy
+        IngestionErrorStrategy errorStrategy,
+        String indexName,
+        int shardId
     ) {
         this.blockingQueue = Objects.requireNonNull(blockingQueue);
         this.messageProcessor = messageProcessor;
         this.errorStrategy = errorStrategy;
+        this.indexName = indexName;
+        this.shardId = shardId;
     }
 
     static class MessageProcessor {
@@ -309,9 +328,10 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
                     logger.debug("Dropping message due to version conflict. ShardPointer: " + shardUpdateMessage.pointer().asString(), e);
                     shardUpdateMessage = null;
                 } catch (Exception e) {
+                    logger.error("[Message Processor] Error processing message. Index={}, Shard={}, error={}", indexName, shardId, e);
                     messageProcessorMetrics.failedMessageCounter.inc();
                     errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.PROCESSING);
-                    boolean retriesExhausted = retryCount >= MIN_RETRY_COUNT || e instanceof IllegalArgumentException;
+                    boolean retriesExhausted = hasExhaustedRetries(e, retryCount);
                     if (retriesExhausted && errorStrategy.shouldIgnoreError(e, IngestionErrorStrategy.ErrorStage.PROCESSING)) {
                         logDroppedMessage(shardUpdateMessage);
                         shardUpdateMessage = null;
@@ -334,6 +354,15 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
             logger.debug("MessageProcessor thread interrupted while waiting for retry", e);
             Thread.currentThread().interrupt(); // Restore interrupt status
         }
+    }
+
+    private boolean hasExhaustedRetries(Exception e, int retryCount) {
+        if (retryCount >= MIN_RETRY_COUNT) {
+            return true;
+        }
+
+        // Don't retry validation/parsing errors
+        return e instanceof IllegalArgumentException || e instanceof MapperParsingException;
     }
 
     public MessageProcessorMetrics getMessageProcessorMetrics() {
@@ -365,7 +394,13 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
         String id = shardUpdateMessage.autoGeneratedIdTimestamp() == UNSET_AUTO_GENERATED_TIMESTAMP
             ? (String) shardUpdateMessage.parsedPayloadMap().get(ID)
             : "null";
-        logger.warn("Exhausted retries, dropping message: _id:{}, pointer:{}", id, shardUpdateMessage.pointer().asString());
+        logger.warn(
+            "Exhausted retries, dropping message: Index={}, Shard={}, _id:{}, pointer:{}",
+            indexName,
+            shardId,
+            id,
+            shardUpdateMessage.pointer().asString()
+        );
     }
 
     /**

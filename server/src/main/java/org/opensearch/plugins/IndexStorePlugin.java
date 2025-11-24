@@ -33,6 +33,7 @@
 package org.opensearch.plugins;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
@@ -49,6 +50,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -66,7 +68,6 @@ public interface IndexStorePlugin {
      *
      * @opensearch.api
      */
-    @FunctionalInterface
     @PublicApi(since = "1.0.0")
     interface DirectoryFactory {
         /**
@@ -77,6 +78,8 @@ public interface IndexStorePlugin {
          * @throws IOException if an IOException occurs while opening the directory
          */
         Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException;
+
+        Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException;
     }
 
     /**
@@ -164,7 +167,6 @@ public interface IndexStorePlugin {
      *
      * @opensearch.api
      */
-    @FunctionalInterface
     @ExperimentalApi
     interface StoreFactory {
         /**
@@ -184,6 +186,27 @@ public interface IndexStorePlugin {
             ShardLock shardLock,
             Store.OnClose onClose,
             ShardPath shardPath
+        ) throws IOException;
+
+        /**
+         * Creates a new Store per shard. This method is called once per shard on shard creation.
+         * @param shardId the shard id
+         * @param indexSettings the shard's index settings
+         * @param directory the Lucene directory selected for this shard
+         * @param shardLock the shard lock to associate with the store
+         * @param onClose listener invoked on store close
+         * @param shardPath the shard path
+         * @param directoryFactory the directory path.
+         * @return a new Store instance
+         */
+        Store newStore(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            Directory directory,
+            ShardLock shardLock,
+            Store.OnClose onClose,
+            ShardPath shardPath,
+            DirectoryFactory directoryFactory
         ) throws IOException;
     }
 

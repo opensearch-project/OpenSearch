@@ -24,7 +24,7 @@ dependencies {
 
   implementation 'commons-beanutils:commons-beanutils:1.11.0'
   implementation 'commons-logging:commons-logging:1.2'
-  implementation 'commons-lang:commons-lang:2.6'
+  implementation "org.apache.commons:commons-lang3:${versions.commonslang}"
 
   implementation 'org.passay:passay:1.6.3'
 
@@ -33,7 +33,7 @@ dependencies {
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
   testImplementation project(path: ':client:rest-high-level')
-  testImplementation 'junit:junit:4.13.2'
+  testImplementation "junit:junit:${versions.junit}"
 }
 
 /*

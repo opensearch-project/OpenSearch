@@ -12,6 +12,10 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.FixedExecutorBuilder;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.grpc.interceptor.GrpcInterceptorChain;
 import org.junit.After;
 import org.junit.Before;
 
@@ -20,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 
 import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 import io.grpc.StatusRuntimeException;
 import io.grpc.health.v1.HealthCheckResponse;
 
@@ -30,7 +35,10 @@ import static org.opensearch.transport.grpc.ssl.SecureSettingsHelpers.getServerC
 
 public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private NetworkService networkService;
+    private ThreadPool threadPool;
     private final List<BindableService> services = new ArrayList<>();
+
+    private ServerInterceptor serverInterceptor;
 
     static Settings createSettings() {
         return Settings.builder().put(SecureNetty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), getPortRange()).build();
@@ -39,10 +47,19 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     @Before
     public void setup() {
         networkService = new NetworkService(Collections.emptyList());
+
+        // Create a ThreadPool with the gRPC executor
+        Settings settings = Settings.builder().put("node.name", "test-node").put("grpc.netty.executor_count", 4).build();
+        ExecutorBuilder<?> grpcExecutorBuilder = new FixedExecutorBuilder(settings, "grpc", 4, 1000, "thread_pool.grpc");
+        threadPool = new ThreadPool(settings, grpcExecutorBuilder);
+        serverInterceptor = new GrpcInterceptorChain(threadPool.getThreadContext(), Collections.emptyList());
     }
 
     @After
     public void shutdown() {
+        if (threadPool != null) {
+            threadPool.shutdown();
+        }
         networkService = null;
     }
 
@@ -52,7 +69,9 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                getServerClientAuthNone()
+                threadPool,
+                getServerClientAuthNone(),
+                serverInterceptor
             )
         ) {
             transport.start();
@@ -70,7 +89,9 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                getServerClientAuthNone()
+                threadPool,
+                getServerClientAuthNone(),
+                serverInterceptor
             )
         ) {
             transport.start();
@@ -95,7 +116,9 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                getServerClientAuthOptional()
+                threadPool,
+                getServerClientAuthOptional(),
+                serverInterceptor
             )
         ) {
             transport.start();
@@ -125,7 +148,9 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                getServerClientAuthRequired()
+                threadPool,
+                getServerClientAuthRequired(),
+                serverInterceptor
             )
         ) {
             transport.start();

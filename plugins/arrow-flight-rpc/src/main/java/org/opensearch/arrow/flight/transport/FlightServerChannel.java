@@ -8,7 +8,6 @@
 
 package org.opensearch.arrow.flight.transport;
 
-import com.google.errorprone.annotations.ThreadSafe;
 import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
 import org.apache.arrow.flight.FlightRuntimeException;
@@ -30,15 +29,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCallStatus;
 
 /**
  * TcpChannel implementation for Arrow Flight. It is created per call in ArrowFlightProducer.
- *
+ * This implementation is not thread safe; consumer must ensure to invoke sendBatch serially and call completeStream() at the end
  */
-@ThreadSafe
 class FlightServerChannel implements TcpChannel {
     private static final String PROFILE_NAME = "flight";
 
@@ -53,12 +52,14 @@ class FlightServerChannel implements TcpChannel {
     private volatile Optional<VectorSchemaRoot> root = Optional.empty();
     private final FlightCallTracker callTracker;
     private volatile boolean cancelled = false;
+    private final ExecutorService executor;
 
     public FlightServerChannel(
         ServerStreamListener serverStreamListener,
         BufferAllocator allocator,
         ServerHeaderMiddleware middleware,
-        FlightCallTracker callTracker
+        FlightCallTracker callTracker,
+        ExecutorService executor
     ) {
         this.serverStreamListener = serverStreamListener;
         this.serverStreamListener.setUseZeroCopy(true);
@@ -73,6 +74,7 @@ class FlightServerChannel implements TcpChannel {
         this.allocator = allocator;
         this.middleware = middleware;
         this.callTracker = callTracker;
+        this.executor = executor;
         this.localAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
         this.remoteAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
     }
@@ -86,11 +88,18 @@ class FlightServerChannel implements TcpChannel {
     }
 
     /**
+     * Gets the executor for this channel
+     */
+    public ExecutorService getExecutor() {
+        return executor;
+    }
+
+    /**
      * Sends a batch of data as a VectorSchemaRoot.
      *
      * @param output StreamOutput for the response
      */
-    public synchronized void sendBatch(ByteBuffer header, VectorStreamOutput output) {
+    public void sendBatch(ByteBuffer header, VectorStreamOutput output) {
         if (cancelled) {
             throw StreamException.cancelled("Cannot flush more batches. Stream cancelled by the client");
         }
@@ -121,7 +130,7 @@ class FlightServerChannel implements TcpChannel {
      * Completes the streaming response and closes all pending roots.
      *
      */
-    public synchronized void completeStream() {
+    public void completeStream() {
         try {
             if (!open.get()) {
                 throw new IllegalStateException("FlightServerChannel already closed.");
@@ -137,14 +146,14 @@ class FlightServerChannel implements TcpChannel {
      *
      * @param error the error to send
      */
-    public synchronized void sendError(ByteBuffer header, Exception error) {
+    public void sendError(ByteBuffer header, Exception error) {
         FlightRuntimeException flightExc = null;
         try {
             if (!open.get()) {
                 throw new IllegalStateException("FlightServerChannel already closed.");
             }
-            if (error instanceof FlightRuntimeException) {
-                flightExc = (FlightRuntimeException) error;
+            if (error instanceof FlightRuntimeException fre) {
+                flightExc = fre;
             } else {
                 flightExc = CallStatus.INTERNAL.withCause(error)
                     .withDescription(error.getMessage() != null ? error.getMessage() : "Stream error")
@@ -196,7 +205,7 @@ class FlightServerChannel implements TcpChannel {
     }
 
     @Override
-    public synchronized void close() {
+    public void close() {
         if (!open.get()) {
             return;
         }
@@ -206,7 +215,7 @@ class FlightServerChannel implements TcpChannel {
     }
 
     @Override
-    public synchronized void addCloseListener(ActionListener<Void> listener) {
+    public void addCloseListener(ActionListener<Void> listener) {
         if (!open.get()) {
             listener.onResponse(null);
         } else {

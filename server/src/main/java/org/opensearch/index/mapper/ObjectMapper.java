@@ -768,10 +768,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
-        if (!(mergeWith instanceof ObjectMapper)) {
+        if (!(mergeWith instanceof ObjectMapper mergeWithObject)) {
             throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
-        ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
         merged.doMerge(mergeWithObject, reason);
         return merged;
@@ -798,8 +797,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Mapper merged;
             if (mergeIntoMapper == null) {
                 merged = mergeWithMapper;
-            } else if (mergeIntoMapper instanceof ObjectMapper) {
-                ObjectMapper objectMapper = (ObjectMapper) mergeIntoMapper;
+            } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                 merged = objectMapper.merge(mergeWithMapper, reason);
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
@@ -868,7 +866,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         Mapper[] sortedMappers = mappers.values()
             .stream()
-            .filter(m -> !(m instanceof DerivedFieldMapper))
+            .filter(m -> !(m instanceof DerivedFieldMapper || m instanceof ContextAwareGroupingFieldMapper))
             .toArray(size -> new Mapper[size]);
         Arrays.sort(sortedMappers, new Comparator<Mapper>() {
             @Override
@@ -897,8 +895,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 mapper.toXContent(builder, params);
             }
         }
+
         if (count > 0) {
             builder.endObject();
+        }
+
+        final Mapper contextAwareGroupingMapper = mappers.get(ContextAwareGroupingFieldMapper.CONTENT_TYPE);
+        if (contextAwareGroupingMapper != null) {
+            contextAwareGroupingMapper.toXContent(builder, params);
         }
         builder.endObject();
     }

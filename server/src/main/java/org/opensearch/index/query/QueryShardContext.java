@@ -652,6 +652,10 @@ public class QueryShardContext extends BaseQueryRewriteContext {
         return cacheable;
     }
 
+    public final void setIsCacheable(boolean isCacheable) {
+        this.cacheable = isCacheable;
+    }
+
     /**
      * Returns the shard ID this context was created for.
      */
