@@ -386,7 +386,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
-        .with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer))
+        // .with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer))
         .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer))
         .build();
 
