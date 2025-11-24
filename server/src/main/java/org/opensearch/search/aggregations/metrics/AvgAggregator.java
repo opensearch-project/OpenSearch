@@ -135,8 +135,10 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
+                    int valueCount = values.docValueCount();
                     setKahanSummation(bucket);
-                    for (int i = 0; i < values.docValueCount(); i++) {
+                    counts.increment(bucket, valueCount);
+                    for (int i = 0; i < valueCount; i++) {
                         double value = values.nextValue();
                         kahanSummation.add(value);
                     }
