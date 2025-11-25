@@ -80,6 +80,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.eq;
@@ -139,8 +140,8 @@ public class RestControllerTests extends OpenSearchTestCase {
         Iterator<MethodHandlers> handlers = restController.getAllHandlers();
         assertTrue(handlers.hasNext());
         MethodHandlers faviconHandler = handlers.next();
-        assertEquals(faviconHandler.getPath(), "/favicon.ico");
-        assertEquals(faviconHandler.getValidMethods(), Set.of(RestRequest.Method.GET));
+        assertEquals("/favicon.ico", faviconHandler.getPath());
+        assertEquals(Set.of(RestRequest.Method.GET), faviconHandler.getValidMethods());
         assertFalse(handlers.hasNext());
     }
 
@@ -154,13 +155,13 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         assertTrue(handlers.hasNext());
         MethodHandlers rootHandler = handlers.next();
-        assertEquals(rootHandler.getPath(), "/foo");
-        assertEquals(rootHandler.getValidMethods(), Set.of(RestRequest.Method.GET, RestRequest.Method.PATCH));
+        assertEquals("/foo", rootHandler.getPath());
+        assertEquals(Set.of(RestRequest.Method.GET, RestRequest.Method.PATCH), rootHandler.getValidMethods());
 
         assertTrue(handlers.hasNext());
         MethodHandlers faviconHandler = handlers.next();
-        assertEquals(faviconHandler.getPath(), "/favicon.ico");
-        assertEquals(faviconHandler.getValidMethods(), Set.of(RestRequest.Method.GET));
+        assertEquals("/favicon.ico", faviconHandler.getPath());
+        assertEquals(Set.of(RestRequest.Method.GET), faviconHandler.getValidMethods());
 
         assertFalse(handlers.hasNext());
     }
@@ -595,6 +596,18 @@ public class RestControllerTests extends OpenSearchTestCase {
         assertThat(channel.getRestResponse().content().utf8ToString(), containsString("invalid uri has been requested"));
     }
 
+    public void testHandleBadRequestWithInvalidCombinationForDetailedErrors() {
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/foo")
+            .withMethod(RestRequest.Method.GET)
+            .withParams(Map.of("error_trace", "true"))
+            .build();
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, false, RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
+        assertThat(channel.detailedErrorsEnabled(), equalTo(false));
+        assertThat(channel.detailedErrorStackTraceEnabled(), equalTo(true));
+        assertThat(channel.getRestResponse().content().utf8ToString(), containsString("error traces in responses are disabled."));
+    }
+
     public void testHandleBadInputWithCreateIndex() {
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/foo")
             .withMethod(RestRequest.Method.PUT)
@@ -604,9 +617,60 @@ public class RestControllerTests extends OpenSearchTestCase {
         restController.registerHandler(RestRequest.Method.PUT, "/foo", new RestCreateIndexAction());
         restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
         assertEquals(
-            channel.getRestResponse().content().utf8ToString(),
-            "{\"error\":{\"root_cause\":[{\"type\":\"not_x_content_exception\",\"reason\":\"Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes\"}],\"type\":\"not_x_content_exception\",\"reason\":\"Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes\"},\"status\":400}"
+            "{\"error\":{\"root_cause\":[{\"type\":\"not_x_content_exception\",\"reason\":\"Compressor detection can only be called on some xcontent bytes or"
+                + " compressed xcontent bytes\"}],\"type\":\"not_x_content_exception\",\"reason\":\"Compressor detection can only be called on some xcontent "
+                + "bytes or compressed xcontent bytes\"},\"status\":400}",
+            channel.getRestResponse().content().utf8ToString()
         );
+    }
+
+    public void testHandleBadInputWithCreateIndexReturnsDetailedErrorStackTraceWhenRequested() {
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/foo")
+            .withMethod(RestRequest.Method.PUT)
+            .withParams(new HashMap<>(Map.of("error_trace", "true")))
+            .withContent(new BytesArray("ddd"), MediaTypeRegistry.JSON)
+            .build();
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
+        restController.registerHandler(RestRequest.Method.PUT, "/foo", new RestCreateIndexAction());
+        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
+        String responseBodyString = channel.getRestResponse().content().utf8ToString();
+        assertThat(channel.detailedErrorStackTraceEnabled(), equalTo(true));
+        assertThat(
+            responseBodyString,
+            containsString(
+                "{\"error\":{\"root_cause\":[{\"type\":\"not_x_content_exception\",\"reason\":\"Compressor detection can only be called on some xcontent "
+                    + "bytes or compressed xcontent bytes\""
+            )
+        );
+        assertThat(
+            responseBodyString,
+            containsString(
+                "\"stack_trace\":\"OpenSearchException[Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes];"
+            )
+        );
+        assertThat(responseBodyString, containsString("\"status\":400"));
+    }
+
+    public void testHandleBadInputWithCreateIndexReturnsOnlyErrorSummaryWithDisabledErrorTrace() {
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/foo")
+            .withMethod(RestRequest.Method.PUT)
+            .withParams(new HashMap<>(Map.of("error_trace", "false")))
+            .withContent(new BytesArray("ddd"), MediaTypeRegistry.JSON)
+            .build();
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
+        restController.registerHandler(RestRequest.Method.PUT, "/foo", new RestCreateIndexAction());
+        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
+        String responseBodyString = channel.getRestResponse().content().utf8ToString();
+        assertThat(channel.detailedErrorStackTraceEnabled(), equalTo(false));
+        assertThat(responseBodyString, containsString("\"type\":\"not_x_content_exception\""));
+        assertThat(
+            responseBodyString,
+            containsString(
+                "\"reason\":\"Compressor detection can only be called on some xcontent bytes " + "or compressed xcontent bytes\""
+            )
+        );
+        assertThat(responseBodyString, not(containsString("stack_trace")));
+        assertThat(responseBodyString, containsString("\"status\":400"));
     }
 
     public void testDispatchUnsupportedHttpMethod() {

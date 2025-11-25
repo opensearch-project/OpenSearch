@@ -128,10 +128,8 @@ class S3RetryingInputStream extends InputStream {
             this.metadata = getObjectResponseInputStream.response().metadata();
             this.isStreamAborted.set(false);
         } catch (final SdkException e) {
-            if (e instanceof S3Exception) {
-                if (404 == ((S3Exception) e).statusCode()) {
-                    throw addSuppressedExceptions(new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage()));
-                }
+            if (e instanceof S3Exception s3e && 404 == s3e.statusCode()) {
+                throw addSuppressedExceptions(new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage()));
             }
             throw addSuppressedExceptions(e);
         }
