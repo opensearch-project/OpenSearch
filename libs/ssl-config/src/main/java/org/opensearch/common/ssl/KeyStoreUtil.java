@@ -32,7 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.common.Nullable;
 
 import javax.net.ssl.KeyManager;
@@ -56,23 +55,24 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * A variety of utility methods for working with or constructing {@link KeyStore} instances.
  */
 final class KeyStoreUtil {
 
-    public static final Supplier<Boolean> inFipsMode = () -> {
+    public static boolean IN_FIPS_MODE;
+
+    static {
         try {
             // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
             var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
             var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
-            return (Boolean) isApprovedOnlyMethod.invoke(null);
+            IN_FIPS_MODE = (Boolean) isApprovedOnlyMethod.invoke(null);
         } catch (ReflectiveOperationException e) {
-            return false;
+            IN_FIPS_MODE = false;
         }
-    };
+    }
 
     public static final Map<String, List<String>> TYPE_TO_EXTENSION_MAP = Map.of(
         "JKS",
@@ -83,8 +83,8 @@ final class KeyStoreUtil {
         List.of(".bcfks")
     );
     public static final List<String> FIPS_COMPLIANT_KEYSTORE_TYPES = List.of("PKCS11", "BCFKS");
-    public static final String STORE_PROVIDER = inFipsMode.get() ? "BCFIPS" : "SUN";
-    public static final String STORE_TYPE = inFipsMode.get() ? "BCFKS" : KeyStore.getDefaultType();
+    public static final String STORE_PROVIDER = IN_FIPS_MODE ? "BCFIPS" : "SUN";
+    public static final String STORE_TYPE = IN_FIPS_MODE ? "BCFKS" : KeyStore.getDefaultType();
 
     private KeyStoreUtil() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -116,7 +116,7 @@ final class KeyStoreUtil {
             );
         }
         try {
-            if (CryptoServicesRegistrar.isInApprovedOnlyMode() && !FIPS_COMPLIANT_KEYSTORE_TYPES.contains(type)) {
+            if (IN_FIPS_MODE && !FIPS_COMPLIANT_KEYSTORE_TYPES.contains(type)) {
                 throw new SslConfigException(
                     "cannot use a ["
                         + type.toUpperCase(Locale.ROOT)

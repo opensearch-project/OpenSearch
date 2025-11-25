@@ -84,7 +84,7 @@ import static org.opensearch.common.ssl.SslConfigurationKeys.VERIFICATION_MODE;
 public abstract class SslConfigurationLoader {
 
     static final List<String> FIPS_APPROVED_PROTOCOLS = List.of("TLSv1.3", "TLSv1.2");
-    static final List<String> DEFAULT_PROTOCOLS = KeyStoreUtil.inFipsMode.get()
+    static final List<String> DEFAULT_PROTOCOLS = KeyStoreUtil.IN_FIPS_MODE
         ? FIPS_APPROVED_PROTOCOLS
         : List.of("TLSv1.3", "TLSv1.2", "TLSv1.1");
     static final List<String> DEFAULT_CIPHERS = loadDefaultCiphers();

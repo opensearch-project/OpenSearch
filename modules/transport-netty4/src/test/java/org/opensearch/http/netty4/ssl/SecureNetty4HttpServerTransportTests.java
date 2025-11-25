@@ -123,10 +123,9 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase imp
         try {
             final KeyStore keyStore = KeyStore.getInstance(keyStoreType, jcaProvider);
 
-            keyStore.load(
-                SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-server-keystore" + fileExtension),
-                PASSWORD
-            );
+            try (var in = SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-server-keystore" + fileExtension)) {
+                keyStore.load(in, PASSWORD);
+            }
 
             final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(
                 KeyManagerFactory.getDefaultAlgorithm(),

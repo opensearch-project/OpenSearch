@@ -32,8 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
-
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
 
@@ -93,7 +91,7 @@ final class TrustEverythingConfig implements SslTrustConfig {
 
     @Override
     public X509ExtendedTrustManager createTrustManager() {
-        if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
+        if (KeyStoreUtil.IN_FIPS_MODE) {
             var message = String.format(
                 Locale.ROOT,
                 "The use of %s is not permitted in FIPS mode. This issue may be caused by the '%s' setting.",

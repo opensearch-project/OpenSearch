@@ -162,7 +162,7 @@ public class SslConfiguration {
      * {@link #getSupportedProtocols() configured protocols}.
      */
     private String contextProtocol() {
-        if (KeyStoreUtil.inFipsMode.get()) {
+        if (KeyStoreUtil.IN_FIPS_MODE) {
             if (SslConfigurationLoader.FIPS_APPROVED_PROTOCOLS.stream().noneMatch(supportedProtocols::contains)) {
                 throw new SslConfigException(
                     "in FIPS mode only the following SSL/TLS protocols are allowed: "

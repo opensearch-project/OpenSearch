@@ -8,7 +8,6 @@
 
 package org.opensearch.repositories.gcs;
 
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 
@@ -18,7 +17,6 @@ import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.T
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.TRUSTSTORE_PATH_SETTING;
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.TRUSTSTORE_TYPE_SETTING;
 
-@SuppressForbidden(reason = "use a http server")
 public class GoogleCloudStorageBlobContainerRetriesFipsTests extends GoogleCloudStorageBlobContainerRetriesTests {
 
     private final Path truststorePath = getDataPath("/google.bcfks");
