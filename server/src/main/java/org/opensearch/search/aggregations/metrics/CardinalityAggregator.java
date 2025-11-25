@@ -579,12 +579,34 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         @Override
         public void collect(int doc, long bucketOrd) throws IOException {
-            visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
-            BitArray bits = visitedOrds.get(bucketOrd);
+            collect(doc, getBitArray(bucketOrd));
+        }
+
+        @Override
+        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+            final BitArray bits = getBitArray(owningBucketOrd);
+            stream.forEach((doc) -> collect(doc, bits));
+        }
+
+        @Override
+        public void collectRange(int minDoc, int maxDoc) throws IOException {
+            final BitArray bits = getBitArray(0);
+            for (int doc = minDoc; doc < maxDoc; ++doc) {
+                collect(doc, bits);
+            }
+        }
+
+        private BitArray getBitArray(long bucket) {
+            visitedOrds = bigArrays.grow(visitedOrds, bucket + 1);
+            BitArray bits = visitedOrds.get(bucket);
             if (bits == null) {
                 bits = new BitArray(maxOrd, bigArrays);
-                visitedOrds.set(bucketOrd, bits);
+                visitedOrds.set(bucket, bits);
             }
+            return bits;
+        }
+
+        private void collect(final int doc, final BitArray bits) throws IOException {
             if (values.advanceExact(doc)) {
                 int count = values.docValueCount();
                 long ord;
@@ -592,16 +614,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     bits.set((int) ord);
                 }
             }
-        }
-
-        @Override
-        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-            super.collect(stream, owningBucketOrd);
-        }
-
-        @Override
-        public void collectRange(int min, int max) throws IOException {
-            super.collectRange(min, max);
         }
 
         @Override
