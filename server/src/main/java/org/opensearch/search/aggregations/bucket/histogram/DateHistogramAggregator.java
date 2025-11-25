@@ -304,7 +304,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private boolean canUseSkiplist(DocValuesSkipper skipper, NumericDocValues singleton) {
         if (skipper == null || singleton == null) return false;
         // TODO: add hard bounds support
-        if (hardBounds == null) return false;
+        if (hardBounds != null) return false;
 
         if (parent == null) return true;
 
