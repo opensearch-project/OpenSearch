@@ -165,7 +165,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
         Stats() {
             docStatusStats = new DocStatusStats();
-            //docStatusStats = null;
+            // docStatusStats = null;
         }
 
         /**
