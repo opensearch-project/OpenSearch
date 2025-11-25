@@ -9,6 +9,7 @@
 package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
@@ -25,6 +26,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -41,7 +43,12 @@ import org.opensearch.search.aggregations.bucket.histogram.InternalAutoDateHisto
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.opensearch.search.aggregations.bucket.range.InternalRange;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.InternalAvg;
+import org.opensearch.search.aggregations.metrics.InternalCardinality;
+import org.opensearch.search.aggregations.metrics.InternalMax;
+import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.search.aggregations.metrics.InternalStats;
+import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.internal.SearchContext;
 
@@ -59,27 +66,34 @@ import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKET
 public class FilterRewriteSubAggTests extends AggregatorTestCase {
     private final String longFieldName = "metric";
     private final String dateFieldName = "timestamp";
+    private final String nameFieldName = "name";
     private final Query matchAllQuery = new MatchAllDocsQuery();
     private final NumberFieldMapper.NumberFieldType longFieldType = new NumberFieldMapper.NumberFieldType(
         longFieldName,
         NumberFieldMapper.NumberType.LONG
     );
     private final DateFieldMapper.DateFieldType dateFieldType = aggregableDateFieldType(false, true);
+    private final KeywordFieldMapper.KeywordFieldType nameFieldType = new KeywordFieldMapper.KeywordFieldType(nameFieldName);
     private final NumberFieldMapper.NumberType numberType = longFieldType.numberType();
     private final String rangeAggName = "range";
     private final String autoDateAggName = "auto";
     private final String dateAggName = "date";
     private final String statsAggName = "stats";
+    private final String avgAggName = "avg";
+    private final String sumAggName = "sum";
+    private final String minAggName = "min";
+    private final String maxAggName = "max";
+    private final String cardinalityAggName = "cardinality";
     private final List<TestDoc> DEFAULT_DATA = List.of(
-        new TestDoc(0, Instant.parse("2020-03-01T00:00:00Z")),
-        new TestDoc(1, Instant.parse("2020-03-01T00:00:00Z")),
-        new TestDoc(1, Instant.parse("2020-03-01T00:00:01Z")),
-        new TestDoc(2, Instant.parse("2020-03-01T01:00:00Z")),
-        new TestDoc(3, Instant.parse("2020-03-01T02:00:00Z")),
-        new TestDoc(4, Instant.parse("2020-03-01T03:00:00Z")),
-        new TestDoc(4, Instant.parse("2020-03-01T04:00:00Z"), true),
-        new TestDoc(5, Instant.parse("2020-03-01T04:00:00Z")),
-        new TestDoc(6, Instant.parse("2020-03-01T04:00:00Z"))
+        new TestDoc(0, Instant.parse("2020-03-01T00:00:00Z"), "abc"),
+        new TestDoc(1, Instant.parse("2020-03-01T00:00:00Z"), "def"),
+        new TestDoc(1, Instant.parse("2020-03-01T00:00:01Z"), "ghi"),
+        new TestDoc(2, Instant.parse("2020-03-01T01:00:00Z"), "jkl"),
+        new TestDoc(3, Instant.parse("2020-03-01T02:00:00Z"), "jkl"),
+        new TestDoc(4, Instant.parse("2020-03-01T03:00:00Z"), "mno"),
+        new TestDoc(4, Instant.parse("2020-03-01T04:00:00Z"), "prq", true),
+        new TestDoc(5, Instant.parse("2020-03-01T04:00:00Z"), "stu"),
+        new TestDoc(6, Instant.parse("2020-03-01T04:00:00Z"), "stu")
     );
 
     public void testRange() throws IOException {
@@ -111,6 +125,151 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         assertEquals(3, thirdAuto.getBuckets().size());
     }
 
+    public void testRangeWithAvgAndSum() throws IOException {
+        // Test for sum metric aggregation
+        RangeAggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder(rangeAggName).field(longFieldName)
+            .addRange(1, 2)
+            .addRange(2, 4)
+            .addRange(4, 6)
+            .subAggregation(AggregationBuilders.sum(sumAggName).field(longFieldName));
+
+        InternalRange result = executeAggregation(DEFAULT_DATA, rangeAggregationBuilder, true);
+
+        // Verify results
+        List<? extends InternalRange.Bucket> buckets = result.getBuckets();
+        assertEquals(3, buckets.size());
+
+        InternalRange.Bucket firstBucket = buckets.get(0);
+        assertEquals(2, firstBucket.getDocCount());
+        InternalSum firstSum = firstBucket.getAggregations().get(sumAggName);
+        assertEquals(2, firstSum.getValue(), 0);
+
+        InternalRange.Bucket secondBucket = buckets.get(1);
+        assertEquals(2, secondBucket.getDocCount());
+        InternalSum secondSum = secondBucket.getAggregations().get(sumAggName);
+        assertEquals(5, secondSum.getValue(), 0);
+
+        InternalRange.Bucket thirdBucket = buckets.get(2);
+        assertEquals(2, thirdBucket.getDocCount());
+        InternalSum thirdSum = thirdBucket.getAggregations().get(sumAggName);
+        assertEquals(9, thirdSum.getValue(), 0);
+
+        // Test for average metric aggregation now
+        rangeAggregationBuilder = new RangeAggregationBuilder(rangeAggName).field(longFieldName)
+            .addRange(1, 2)
+            .addRange(2, 4)
+            .addRange(4, 6)
+            .subAggregation(AggregationBuilders.avg(avgAggName).field(longFieldName));
+
+        result = executeAggregation(DEFAULT_DATA, rangeAggregationBuilder, true);
+
+        // Verify results
+        buckets = result.getBuckets();
+        assertEquals(3, buckets.size());
+
+        firstBucket = buckets.get(0);
+        assertEquals(2, firstBucket.getDocCount());
+        InternalAvg firstAvg = firstBucket.getAggregations().get(avgAggName);
+        assertEquals(1, firstAvg.getValue(), 0);
+
+        secondBucket = buckets.get(1);
+        assertEquals(2, secondBucket.getDocCount());
+        InternalAvg secondAvg = secondBucket.getAggregations().get(avgAggName);
+        assertEquals(2.5, secondAvg.getValue(), 0);
+
+        thirdBucket = buckets.get(2);
+        assertEquals(2, thirdBucket.getDocCount());
+        InternalAvg thirdAvg = thirdBucket.getAggregations().get(avgAggName);
+        assertEquals(4.5, thirdAvg.getValue(), 0);
+    }
+
+    public void testRangeWithMinAndMax() throws IOException {
+        // Test for min metric aggregation
+        RangeAggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder(rangeAggName).field(longFieldName)
+            .addRange(1, 2)
+            .addRange(2, 4)
+            .addRange(4, 6)
+            .subAggregation(AggregationBuilders.min(minAggName).field(longFieldName));
+
+        InternalRange result = executeAggregation(DEFAULT_DATA, rangeAggregationBuilder, true);
+
+        // Verify results
+        List<? extends InternalRange.Bucket> buckets = result.getBuckets();
+        assertEquals(3, buckets.size());
+
+        InternalRange.Bucket firstBucket = buckets.get(0);
+        assertEquals(2, firstBucket.getDocCount());
+        InternalMin firstMin = firstBucket.getAggregations().get(minAggName);
+        assertEquals(1, firstMin.getValue(), 0);
+
+        InternalRange.Bucket secondBucket = buckets.get(1);
+        assertEquals(2, secondBucket.getDocCount());
+        InternalMin secondMin = secondBucket.getAggregations().get(minAggName);
+        assertEquals(2, secondMin.getValue(), 0);
+
+        InternalRange.Bucket thirdBucket = buckets.get(2);
+        assertEquals(2, thirdBucket.getDocCount());
+        InternalMin thirdMin = thirdBucket.getAggregations().get(minAggName);
+        assertEquals(4, thirdMin.getValue(), 0);
+
+        // Test for max metric aggregation now
+        rangeAggregationBuilder = new RangeAggregationBuilder(rangeAggName).field(longFieldName)
+            .addRange(1, 2)
+            .addRange(2, 4)
+            .addRange(4, 6)
+            .subAggregation(AggregationBuilders.max(maxAggName).field(longFieldName));
+
+        result = executeAggregation(DEFAULT_DATA, rangeAggregationBuilder, true);
+
+        // Verify results
+        buckets = result.getBuckets();
+        assertEquals(3, buckets.size());
+
+        firstBucket = buckets.get(0);
+        assertEquals(2, firstBucket.getDocCount());
+        InternalMax firstMax = firstBucket.getAggregations().get(maxAggName);
+        assertEquals(1, firstMax.getValue(), 0);
+
+        secondBucket = buckets.get(1);
+        assertEquals(2, secondBucket.getDocCount());
+        InternalMax secondMax = secondBucket.getAggregations().get(maxAggName);
+        assertEquals(3, secondMax.getValue(), 0);
+
+        thirdBucket = buckets.get(2);
+        assertEquals(2, thirdBucket.getDocCount());
+        InternalMax thirdMax = thirdBucket.getAggregations().get(maxAggName);
+        assertEquals(5, thirdMax.getValue(), 0);
+    }
+
+    public void testRangeWithCard() throws IOException {
+        RangeAggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder(rangeAggName).field(longFieldName)
+            .addRange(1, 2)
+            .addRange(2, 4)
+            .addRange(4, 6)
+            .subAggregation(AggregationBuilders.cardinality(cardinalityAggName).field(nameFieldName).executionHint("ordinals"));
+
+        InternalRange result = executeAggregation(DEFAULT_DATA, rangeAggregationBuilder, true);
+
+        // Verify results
+        List<? extends InternalRange.Bucket> buckets = result.getBuckets();
+        assertEquals(3, buckets.size());
+
+        InternalRange.Bucket firstBucket = buckets.get(0);
+        assertEquals(2, firstBucket.getDocCount());
+        InternalCardinality firstCardinality = firstBucket.getAggregations().get(cardinalityAggName);
+        assertEquals(2, firstCardinality.getValue(), 0);
+
+        InternalRange.Bucket secondBucket = buckets.get(1);
+        assertEquals(2, secondBucket.getDocCount());
+        InternalCardinality secondCardinality = secondBucket.getAggregations().get(cardinalityAggName);
+        assertEquals(1, secondCardinality.getValue(), 0);
+
+        InternalRange.Bucket thirdBucket = buckets.get(2);
+        assertEquals(2, thirdBucket.getDocCount());
+        InternalCardinality thirdCardinality = thirdBucket.getAggregations().get(cardinalityAggName);
+        assertEquals(2, thirdCardinality.getValue(), 0);
+    }
+
     public void testDateHisto() throws IOException {
         DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder(dateAggName).field(
             dateFieldName
@@ -129,6 +288,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         assertEquals(3, firstStats.getCount());
         assertEquals(1, firstStats.getMax(), 0);
         assertEquals(0, firstStats.getMin(), 0);
+        assertEquals(2, firstStats.getSum(), 0);
 
         InternalDateHistogram.Bucket secondBucket = buckets.get(1);
         assertEquals("2020-03-01T01:00:00.000Z", secondBucket.getKeyAsString());
@@ -137,6 +297,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         assertEquals(1, secondStats.getCount());
         assertEquals(2, secondStats.getMax(), 0);
         assertEquals(2, secondStats.getMin(), 0);
+        assertEquals(2, secondStats.getSum(), 0);
 
         InternalDateHistogram.Bucket thirdBucket = buckets.get(2);
         assertEquals("2020-03-01T02:00:00.000Z", thirdBucket.getKeyAsString());
@@ -145,6 +306,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         assertEquals(1, thirdStats.getCount());
         assertEquals(3, thirdStats.getMax(), 0);
         assertEquals(3, thirdStats.getMin(), 0);
+        assertEquals(3, thirdStats.getSum(), 0);
 
         InternalDateHistogram.Bucket fourthBucket = buckets.get(3);
         assertEquals("2020-03-01T03:00:00.000Z", fourthBucket.getKeyAsString());
@@ -153,6 +315,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         assertEquals(1, fourthStats.getCount());
         assertEquals(4, fourthStats.getMax(), 0);
         assertEquals(4, fourthStats.getMin(), 0);
+        assertEquals(4, fourthStats.getSum(), 0);
 
         InternalDateHistogram.Bucket fifthBucket = buckets.get(4);
         assertEquals("2020-03-01T04:00:00.000Z", fifthBucket.getKeyAsString());
@@ -161,6 +324,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         assertEquals(2, fifthStats.getCount());
         assertEquals(6, fifthStats.getMax(), 0);
         assertEquals(5, fifthStats.getMin(), 0);
+        assertEquals(11, fifthStats.getSum(), 0);
     }
 
     public void testAutoDateHisto() throws IOException {
@@ -389,7 +553,8 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
             matchAllQuery,
             bucketConsumer,
             longFieldType,
-            dateFieldType
+            dateFieldType,
+            nameFieldType
         );
         Aggregator aggregator = createAggregator(aggregationBuilder, searchContext);
         CountingAggregator countingAggregator = new CountingAggregator(new AtomicInteger(), aggregator);
@@ -441,15 +606,21 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
     private class TestDoc {
         private final long metric;
         private final Instant timestamp;
+        private final String name;
         private final boolean deleted;
 
         public TestDoc(long metric, Instant timestamp) {
-            this(metric, timestamp, false);
+            this(metric, timestamp, "abc", false);
         }
 
-        public TestDoc(long metric, Instant timestamp, boolean deleted) {
+        public TestDoc(long metric, Instant timestamp, String name) {
+            this(metric, timestamp, name, false);
+        }
+
+        public TestDoc(long metric, Instant timestamp, String name, boolean deleted) {
             this.metric = metric;
             this.timestamp = timestamp;
+            this.name = name;
             this.deleted = deleted;
         }
 
@@ -460,6 +631,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
             for (Field fld : fieldList)
                 doc.add(fld);
             doc.add(new LongField(dateFieldName, dateFieldType.parse(timestamp.toString()), Field.Store.NO));
+            doc.add(new KeywordField(nameFieldName, name, Field.Store.NO));
 
             return doc;
         }
