@@ -46,7 +46,6 @@ import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.admin.indices.create.AutoCreateAction;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-//import org.opensearch.action.admin.indices.stats.DocStatusStats;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.ingest.IngestActionForwarder;
 import org.opensearch.action.support.ActionFilters;
@@ -692,7 +691,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
 
             final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
-            //final DocStatusStats docStatusStats = new DocStatusStats();
+            // final DocStatusStats docStatusStats = new DocStatusStats();
             String nodeId = clusterService.localNode().getId();
 
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
@@ -730,7 +729,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                         bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
                                     }
 
-                                    //docStatusStats.inc(bulkItemResponse.status());
+                                    // docStatusStats.inc(bulkItemResponse.status());
                                     responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                                 }
 
@@ -751,7 +750,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                         new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
                                     );
 
-                                    //docStatusStats.inc(bulkItemResponse.status());
+                                    // docStatusStats.inc(bulkItemResponse.status());
                                     responses.set(request.id(), bulkItemResponse);
                                 }
 
@@ -761,7 +760,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
 
                             private void finishHim() {
-                                //indicesService.addDocStatusStats(docStatusStats);
+                                // indicesService.addDocStatusStats(docStatusStats);
                                 listener.onResponse(
                                     new BulkResponse(
                                         responses.toArray(new BulkItemResponse[responses.length()]),

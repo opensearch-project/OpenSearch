@@ -32,14 +32,12 @@
 
 package org.opensearch.action.update;
 
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-//import org.opensearch.action.admin.indices.stats.DocStatusStats;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexRequest;
@@ -65,7 +63,6 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -165,7 +162,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 request.index()
             );
 
-            //incDocStatusStats(e);
+            // incDocStatusStats(e);
             throw e;
         }
         // if we don't have a master, we don't have metadata, that's fine, let it find a cluster-manager using create index API
@@ -203,7 +200,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     private void innerExecute(final Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         super.doExecute(task, request, ActionListener.wrap(listener::onResponse, e -> {
-            //incDocStatusStats(e);
+            // incDocStatusStats(e);
             listener.onFailure(e);
         }));
     }

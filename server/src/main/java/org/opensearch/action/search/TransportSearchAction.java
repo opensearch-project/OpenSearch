@@ -32,7 +32,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -369,7 +368,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             });*/
         }
-        //executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);
+        // executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);
         executeRequest(task, searchRequest, this::searchAsyncAction, listener);
     }
 

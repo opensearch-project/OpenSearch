@@ -8,19 +8,10 @@
 
 package org.opensearch.search.msearch;
 
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.indices.stats.SearchResponseStatusStats;
-import org.opensearch.action.search.MultiSearchRequestBuilder;
-import org.opensearch.action.search.MultiSearchResponse;
-import org.opensearch.action.search.SearchResponse;
-import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.concurrent.atomic.LongAdder;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class MultiSearchStatsIT extends OpenSearchIntegTestCase {

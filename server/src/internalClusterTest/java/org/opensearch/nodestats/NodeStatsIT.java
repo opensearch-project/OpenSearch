@@ -41,13 +41,10 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.LongAdder;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
