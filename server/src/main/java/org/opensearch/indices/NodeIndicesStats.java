@@ -95,7 +95,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             statsByShard = readStatsByShard(in);
         }
 
-        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
             statusCounterStats = new StatusCounterStats(in);
         }
     }
@@ -104,7 +104,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
      * Without passing the information of the levels to the constructor, we return the Node-level aggregated stats as
      * {@link CommonStats} along with a hash-map containing Index to List of Shard Stats.
      */
-    @Deprecated(since = "3.3.0")
+    @Deprecated(since = "3.4.0")
     public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard, SearchRequestStats searchRequestStats) {
         this.statsByShard = statsByShard;
 
@@ -158,7 +158,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
      * passed and finally return the statsByShards map if `shards` level is passed. This allows us to reduce ser/de of
      * stats and return only the information that is required while returning to the client.
      */
-    @Deprecated(since = "3.3.0")
+    @Deprecated(since = "3.4.0")
     public NodeIndicesStats(
         CommonStats oldStats,
         Map<Index, List<IndexShardStats>> statsByShard,
@@ -379,7 +379,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             writeStatsByShards(out);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
             if (statusCounterStats != null) {
                 statusCounterStats.writeTo(out);
             }
