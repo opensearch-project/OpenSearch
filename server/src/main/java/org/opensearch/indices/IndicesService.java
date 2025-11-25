@@ -1409,7 +1409,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     @Deprecated(since = "3.4.0")
     public void addDocStatusStats(final org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats stats) {
-
+        oldShardsStats.indexingStats.getTotal().getDocStatusStats().add(stats);
     }
 
     /**
