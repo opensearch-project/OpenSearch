@@ -522,8 +522,3 @@ def getGitShaFromJar(String jarPath) {
     }
     return sha
 }
-
-tasks.named('internalClusterTest').configure {
-  enabled = false
-}
-

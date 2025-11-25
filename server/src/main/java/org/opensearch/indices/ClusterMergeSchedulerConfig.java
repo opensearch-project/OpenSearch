@@ -180,9 +180,16 @@ public class ClusterMergeSchedulerConfig {
     public static String getClusterMaxThreadCountDefault(Settings settings) {
         Logger logger;
         logger = LogManager.getLogger(ClusterMergeSchedulerConfig.class);
-        logger.info("getClusterMaxthreadCountDefault called." + (NODE_PROCESSORS_SETTING.exists(settings) == true) + " | " + (clusterMaxThreadCountDefault == null));
+        logger.info(
+            "getClusterMaxthreadCountDefault called."
+                + (NODE_PROCESSORS_SETTING.exists(settings) == true)
+                + " | "
+                + (clusterMaxThreadCountDefault == null)
+        );
         if (NODE_PROCESSORS_SETTING.exists(settings) || clusterMaxThreadCountDefault == null) {
-            logger.info(Thread.currentThread().getName() + "  | getClusterMaxthreadCountDefault NPSETTING: " +  NODE_PROCESSORS_SETTING.get(settings));
+            logger.info(
+                Thread.currentThread().getName() + "  | getClusterMaxthreadCountDefault NPSETTING: " + NODE_PROCESSORS_SETTING.get(settings)
+            );
             clusterMaxThreadCountDefault = Integer.toString(
                 Math.max(1, Math.min(4, OpenSearchExecutors.allocatedProcessors(settings) / 2))
             );
