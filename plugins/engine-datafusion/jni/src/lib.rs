@@ -8,36 +8,23 @@ use std::num::NonZeroUsize;
  * compatible open source license.
  */
 use std::ptr::addr_of_mut;
-use datafusion_datasource::PartitionedFile;
-use datafusion_datasource::file_groups::FileGroup;
-use datafusion_datasource::file_scan_config::FileScanConfigBuilder;
-use datafusion_datasource::source::DataSourceExec;
 use jni::objects::{JByteArray, JClass, JObject};
-use std::collections::{BTreeSet, HashMap};
 use jni::objects::JLongArray;
 use jni::sys::{jbyteArray, jint, jlong, jstring};
 use jni::{JNIEnv, JavaVM};
 use std::sync::{Arc, OnceLock};
 use arrow_array::{Array, StructArray};
 use arrow_array::ffi::FFI_ArrowArray;
-use arrow_schema::DataType;
 use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::{
-    common::DataFusionError
-    ,
-    datasource::file_format::parquet::ParquetFormat,
+    common::DataFusionError,
     datasource::listing::ListingTableUrl,
-    datasource::object_store::ObjectStoreUrl,
-    datasource::physical_plan::parquet::{ParquetAccessPlan, RowGroupAccess},
-    datasource::physical_plan::ParquetSource,
     execution::cache::cache_manager::CacheManagerConfig,
     execution::cache::cache_unit::{DefaultListFilesCache,DefaultFilesMetadataCache},
     execution::cache::CacheAccessor,
     execution::context::SessionContext,
     execution::runtime_env::{RuntimeEnv, RuntimeEnvBuilder},
-    execution::TaskContext,
-    parquet::arrow::arrow_reader::RowSelector,
-    physical_plan::{ExecutionPlan, SendableRecordBatchStream},
+    execution::RecordBatchStream,
     prelude::*,
     DATAFUSION_VERSION,
 };
@@ -56,39 +43,22 @@ mod io;
 mod runtime_manager;
 mod cache_jni;
 mod partial_agg_optimizer;
+mod query_executor;
 
 use crate::custom_cache_manager::CustomCacheManager;
-use crate::row_id_optimizer::ProjectRowIdOptimizer;
 use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global};
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
-use crate::partial_agg_optimizer::PartialAggregationOptimizer;
-
-use datafusion::catalog::TableProvider;
-use datafusion_expr::registry::FunctionRegistry;
-use datafusion_substrait::extensions::Extensions;
-use datafusion_substrait::logical_plan::consumer::{
-    from_substrait_plan, from_substrait_plan_with_consumer, DefaultSubstraitConsumer,
-    SubstraitConsumer,
-};
-use datafusion_substrait::substrait::proto::{
-    Expression, ExtensionLeafRel, ExtensionMultiRel, ExtensionSingleRel, Plan, PlanRel, ProjectRel,
-};
-use datafusion_substrait::substrait::proto::extensions::simple_extension_declaration::MappingType;
 
 use object_store::ObjectMeta;
-use prost::Message;
 use tokio::runtime::Runtime;
 use std::result;
-use std::sync::atomic::AtomicU64;
-use datafusion::execution::RecordBatchStream;
-use datafusion::physical_plan::displayable;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use futures::TryStreamExt;
 
 pub type Result<T, E = DataFusionError> = result::Result<T, E>;
 
 // NativeBridge JNI implementations
-use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
+use crate::listing_table::ListingOptions;
 use jni::objects::{JObjectArray, JString};
 use log::{error, info};
 use once_cell::sync::Lazy;
@@ -265,6 +235,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
 
         let runtime_env = RuntimeEnvBuilder::new().with_cache_manager(cache_manager_config)
             .with_memory_pool(memory_pool.clone())
+            .with_metadata_cache_limit(250 * 1024 * 1024) // 250 MB
             .build().unwrap();
 
         let runtime = DataFusionRuntime {
@@ -534,10 +505,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     let table_path = shard_view.table_path();
     let files_meta = shard_view.files_metadata();
 
-    // Spawn async task - TRULY NON-BLOCKING!
     io_runtime.block_on(async move {
 
-        let result = execute_query_with_cross_rt_stream(
+        let result = query_executor::execute_query_with_cross_rt_stream(
             table_path,
             files_meta,
             table_name,
@@ -562,153 +532,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     });
 }
 
-async fn execute_query_with_cross_rt_stream(
-    table_path: ListingTableUrl,
-    files_meta: Arc<Vec<CustomFileMeta>>,
-    table_name: String,
-    plan_bytes_vec: Vec<u8>,
-    runtime: &DataFusionRuntime,
-    cpu_executor: DedicatedExecutor,
-) -> Result<jlong, DataFusionError> {
-    let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
-        files_meta
-            .iter()
-            .map(|metadata| (*metadata.object_meta).clone())
-            .collect(),
-    );
 
-    let list_file_cache = Arc::new(DefaultListFilesCache::default());
-    list_file_cache.put(table_path.prefix(), object_meta);
-
-    let runtimeEnv = &runtime.runtime_env;
-
-    let runtime_env = match RuntimeEnvBuilder::from_runtime_env(runtimeEnv)
-        .with_cache_manager(
-            CacheManagerConfig::default()
-                .with_list_files_cache(Some(list_file_cache.clone()))
-                .with_file_metadata_cache(Some(runtimeEnv.cache_manager.get_file_metadata_cache())),
-        )
-        .build() {
-        Ok(env) => env,
-        Err(e) => {
-            error!("Failed to build runtime env: {}", e);
-            return Err(e);
-        }
-    };
-
-    let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = false;
-    config.options_mut().execution.target_partitions = 1;
-
-    let state = datafusion::execution::SessionStateBuilder::new()
-        .with_config(config)
-        .with_runtime_env(Arc::from(runtime_env))
-        .with_default_features()
-        //.with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer)) // TODO : uncomment this after fix
-        .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer))
-        .build();
-
-    let ctx = SessionContext::new_with_state(state);
-
-    // Register table
-    let file_format = ParquetFormat::new();
-    let listing_options = ListingOptions::new(Arc::new(file_format))
-        .with_file_extension(".parquet") // TODO: take this as parameter
-        .with_files_metadata(files_meta)
-        .with_table_partition_cols(vec![("row_base".to_string(), DataType::Int64)]);
-
-    let resolved_schema = match listing_options
-        .infer_schema(&ctx.state(), &table_path)
-        .await {
-        Ok(schema) => schema,
-        Err(e) => {
-            error!("Failed to infer schema: {}", e);
-            return Err(e);
-        }
-    };
-
-    let table_config = ListingTableConfig::new(table_path.clone())
-        .with_listing_options(listing_options)
-        .with_schema(resolved_schema);
-
-    let provider = match ListingTable::try_new(table_config) {
-        Ok(table) => Arc::new(table),
-        Err(e) => {
-            error!("Failed to create listing table: {}", e);
-            return Err(e);
-        }
-    };
-
-    if let Err(e) = ctx.register_table(&table_name, provider) {
-        error!("Failed to register table: {}", e);
-        return Err(e);
-    }
-
-    // Decode substrait
-    let substrait_plan = match Plan::decode(plan_bytes_vec.as_slice()) {
-        Ok(plan) => plan,
-        Err(e) => {
-            error!("Failed to decode Substrait plan: {}", e);
-            return Err(DataFusionError::Execution(format!("Failed to decode Substrait: {}", e)));
-        }
-    };
-
-    let mut modified_plan = substrait_plan.clone();
-        for ext in modified_plan.extensions.iter_mut() {
-            if let Some(mapping_type) = &mut ext.mapping_type {
-                if let MappingType::ExtensionFunction(func) = mapping_type {
-                    if func.name == "approx_count_distinct:any" {
-                        func.name = "approx_distinct:any".to_string();
-                    }
-                }
-            }
-        }
-
-        let logical_plan = match from_substrait_plan(&ctx.state(), &modified_plan).await {
-        Ok(plan) => plan,
-        Err(e) => {
-            error!("Failed to convert Substrait plan: {}", e);
-            return Err(e);
-        }
-    };
-
-    let dataframe = match ctx.execute_logical_plan(logical_plan).await {
-        Ok(df) => df,
-        Err(e) => {
-            error!("Failed to execute logical plan: {}", e);
-            return Err(e);
-        }
-    };
-
-    // Get and display the physical plan
-//     let physical_plan = dataframe.clone().create_physical_plan().await?;
-//     let displayable_plan = displayable(physical_plan.as_ref()).indent(true);
-//     println!("Physical Plan:\n{}", displayable_plan);
-
-    let df_stream = match dataframe.execute_stream().await {
-        Ok(stream) => stream,
-        Err(e) => {
-            error!("Failed to create execution stream: {}", e);
-            return Err(e);
-        }
-    };
-
-    Ok(get_cross_rt_stream(cpu_executor, df_stream))
-}
-
-fn get_cross_rt_stream(cpu_executor: DedicatedExecutor, df_stream: SendableRecordBatchStream) -> jlong {
-    let cross_rt_stream = CrossRtStream::new_with_df_error_stream(
-        df_stream,
-        cpu_executor,
-    );
-
-    let wrapped_stream = RecordBatchStreamAdapter::new(
-        cross_rt_stream.schema(),
-        cross_rt_stream,
-    );
-
-    Box::into_raw(Box::new(wrapped_stream)) as jlong
-}
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNext(
@@ -840,7 +664,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
         return 0;
     }
 
-    // 2. Get array length
+    // Get array length
     let array_length = match env.get_array_length(&values) {
         Ok(len) => len,
         Err(e) => {
@@ -852,10 +676,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
         }
     };
 
-    // 3. Allocate Rust buffer
+    // Allocate Rust buffer
     let mut row_ids: Vec<jlong> = vec![0; array_length as usize];
 
-    // 4. Copy Java array into Rust buffer
+    // Copy Java array into Rust buffer
     match env.get_long_array_region(values, 0, &mut row_ids[..]) {
         Ok(_) => {
             println!("Received array: {:?}", row_ids);
@@ -882,253 +706,25 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     let io_runtime = manager.io_runtime.clone();
     let cpu_executor = manager.cpu_executor();
 
-    let access_plans = create_access_plans(row_ids, files_metadata.clone());
-
-    let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
-        files_metadata
-            .iter()
-            .map(|metadata| (*metadata.object_meta).clone())
-            .collect(),
-    );
-
-    let list_file_cache = Arc::new(DefaultListFilesCache::default());
-    list_file_cache.put(table_path.prefix(), object_meta);
-
-    let runtime_env = RuntimeEnvBuilder::new()
-        .with_cache_manager(
-            CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(runtime.runtime_env.cache_manager.get_file_metadata_cache())),
-        )
-        .build()
-        .unwrap();
-    let ctx = SessionContext::new_with_config_rt(SessionConfig::new(), Arc::new(runtime_env));
-
-    // Create default parquet options
-    let file_format = ParquetFormat::new();
-    let listing_options =
-        ListingOptions::new(Arc::new(file_format)).with_file_extension(".parquet"); // TODO: take this as parameter
-                                                                                    // .with_table_partition_cols(vec![("row_base".to_string(), DataType::Int32)]); // TODO: enable only for query phase
-
-    // Ideally the executor will give this
-
     io_runtime.block_on(async {
-        let parquet_schema = match listing_options
-            .infer_schema(&ctx.state(), &table_path.clone())
-            .await
-        {
-            Ok(schema) => schema,
+        match query_executor::execute_fetch_phase(
+            table_path,
+            files_metadata,
+            row_ids,
+            projections,
+            runtime,
+            cpu_executor,
+        ).await {
+            Ok(stream_ptr) => stream_ptr,
             Err(e) => {
                 let _ = env.throw_new(
                     "java/lang/RuntimeException",
-                    format!("Failed to infer schema during fetch: {}", e),
+                    format!("Failed to execute fetch phase: {}", e),
                 );
-                return 0;
+                0 // return 0
             }
-        };
-
-        // let total_groups = files_metadata[0].row_group_row_counts.len();
-        // let mut access_plan = ParquetAccessPlan::new_all(total_groups);
-        // for i in 0..total_groups {
-        //     access_plan.skip(i);
-        // }
-
-        // let partitioned_files: Vec<PartitionedFile> = files_metadata
-        //     .iter()
-        //     .zip(access_plans.await.iter())
-        //     .map(|(meta, access_plan)| {
-        //         PartitionedFile::new(
-        //             format!("{}/{}",
-        //                     table_path.prefix().to_string().trim_end_matches('/'),
-        //                     meta.object_meta().location.to_string().trim_start_matches('/')
-        //             ),
-        //             meta.object_meta.size
-        //         ).with_extensions(Arc::new(access_plan.clone()))
-        //     })
-        //     .collect();
-
-        let access_plans = match access_plans.await {
-            Ok(plans) => plans,
-            Err(e) => {
-                let _ = env.throw_new(
-                    "java/lang/RuntimeException",
-                    format!("Failed to create access plans during fetch: {}", e),
-                );
-                return 0;
-            }
-        };
-
-        let partitioned_files: Vec<PartitionedFile> = files_metadata
-            .iter()
-            .zip(access_plans.iter())
-            .map(|(meta, access_plan)| {
-                PartitionedFile::new(
-                    meta.object_meta().location.to_string(),
-                    meta.object_meta.size,
-                )
-                .with_extensions(Arc::new(access_plan.clone()))
-            })
-            .collect();
-
-        let file_group = FileGroup::new(partitioned_files);
-
-        let file_source = Arc::new(
-            ParquetSource::default(), // provide the factory to create parquet reader without re-reading metadata
-                                      //.with_parquet_file_reader_factory(Arc::new(reader_factory)),
-        );
-
-        let mut projection_index = vec![];
-
-        for field_name in projections.iter() {
-            projection_index.push(
-                parquet_schema
-                    .index_of(field_name)
-                    .expect(format!("Projected field {} not found in Schema", field_name).as_str()),
-            );
         }
-
-        let file_scan_config = FileScanConfigBuilder::new(
-            ObjectStoreUrl::local_filesystem(),
-            parquet_schema.clone(),
-            file_source,
-        )
-        //.with_limit(limit)
-        .with_projection(Option::from(projection_index.clone()))
-        .with_file_group(file_group)
-        .build();
-
-        let parquet_exec = DataSourceExec::from_data_source(file_scan_config);
-
-        // IMPORTANT: Only get one reference to each pointer
-        // let liquid_ctx = unsafe { &mut *(context_ptr as *mut SessionContext) };
-        // let session_ctx = unsafe { Box::from_raw(context_ptr as *mut SessionContext) };
-        let optimized_plan: Arc<dyn ExecutionPlan> = parquet_exec.clone();
-
-        let task_ctx = Arc::new(TaskContext::default());
-
-        let stream = match optimized_plan.execute(0, task_ctx) {
-            Ok(s) => s,
-            Err(e) => {
-                let _ = env.throw_new(
-                    "java/lang/RuntimeException",
-                    format!("Failed to execute plan during fetch: {}", e),
-                );
-                return 0;
-            }
-        };
-
-        // Convert the stream to cross rt stream to execute in CPU executor while streaming
-        get_cross_rt_stream(cpu_executor, stream)
     })
-}
-
-async fn create_access_plans(
-    row_ids: Vec<jlong>,
-    files_metadata: Arc<Vec<CustomFileMeta>>,
-) -> Result<Vec<ParquetAccessPlan>, DataFusionError> {
-    let mut access_plans = Vec::new();
-
-    // Sort row_ids for better processing
-    let mut sorted_row_ids: Vec<i64> = row_ids.iter().map(|&id| id as i64).collect();
-    sorted_row_ids.sort_unstable();
-
-    // Process each file
-    for file_meta in files_metadata.iter() {
-        let row_base = *file_meta.row_base;
-        let total_row_groups = file_meta.row_group_row_counts.len();
-        let mut access_plan = ParquetAccessPlan::new_all(total_row_groups);
-
-        // Calculate file's row range
-        let file_total_rows: i64 = file_meta.row_group_row_counts.iter().map(|&x| x).sum();
-        let file_end_row: i64 = row_base + file_total_rows;
-        // Filter row IDs that belong to this file
-        let file_row_ids: Vec<i64> = sorted_row_ids
-            .iter()
-            .copied() // or .cloned() if it's not Copy
-            .filter(|&id| id >= row_base && id < file_end_row)
-            .map(|id| id - row_base)
-            .collect();
-
-        if file_row_ids.is_empty() {
-            // If no rows belong to this file, skip all row groups
-            for group_id in 0..total_row_groups {
-                access_plan.skip(group_id);
-            }
-        } else {
-            // Create cumulative row counts for row groups
-            let mut cumulative_group_rows: Vec<i64> = Vec::with_capacity(total_row_groups + 1);
-            cumulative_group_rows.push(0);
-            let mut current_sum = 0;
-            for &count in file_meta.row_group_row_counts.iter() {
-                current_sum += count;
-                cumulative_group_rows.push(current_sum);
-            }
-            // Group local row IDs by row group
-            let mut group_map: HashMap<usize, BTreeSet<i32>> = HashMap::new();
-            for &row_id in &file_row_ids {
-                // Find the appropriate row group using binary search
-                let group_id = cumulative_group_rows
-                    .windows(2)
-                    .position(|window| row_id >= window[0] as i64 && row_id < window[1] as i64)
-                    .unwrap();
-
-                // Calculate relative position within the row group
-                let relative_pos = row_id - cumulative_group_rows[group_id];
-                group_map
-                    .entry(group_id)
-                    .or_default()
-                    .insert(relative_pos as i32);
-            }
-
-            // Process each row group
-            for group_id in 0..total_row_groups {
-                let row_group_size = file_meta.row_group_row_counts[group_id] as usize;
-
-                if let Some(group_row_ids) = group_map.get(&group_id) {
-                    let mut relative_row_ids: Vec<usize> =
-                        group_row_ids.iter().map(|&x| x as usize).collect();
-                    relative_row_ids.sort_unstable();
-
-                    if relative_row_ids.is_empty() {
-                        access_plan.skip(group_id);
-                    } else if relative_row_ids.len() == row_group_size {
-                        access_plan.scan(group_id);
-                    } else {
-                        // Create selectors
-                        let mut selectors = Vec::new();
-                        let mut current_pos = 0;
-                        let mut i = 0;
-                        while i < relative_row_ids.len() {
-                            let mut target_pos = relative_row_ids[i];
-                            if target_pos > current_pos {
-                                selectors.push(RowSelector::skip(target_pos - current_pos));
-                            }
-                            let mut select_count = 1;
-                            while i + 1 < relative_row_ids.len()
-                                && relative_row_ids[i + 1] == relative_row_ids[i] + 1
-                            {
-                                select_count += 1;
-                                i += 1;
-                                target_pos = relative_row_ids[i];
-                            }
-                            selectors.push(RowSelector::select(select_count));
-                            current_pos = relative_row_ids[i] + 1;
-                            i += 1;
-                        }
-                        if current_pos < row_group_size {
-                            selectors.push(RowSelector::skip(row_group_size - current_pos));
-                        }
-                        access_plan.set(group_id, RowGroupAccess::Selection(selectors.into()));
-                    }
-                } else {
-                    access_plan.skip(group_id);
-                }
-            }
-        }
-
-        access_plans.push(access_plan);
-    }
-
-    Ok(access_plans)
 }
 
 #[no_mangle]

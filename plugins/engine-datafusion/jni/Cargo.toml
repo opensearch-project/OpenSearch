@@ -49,6 +49,9 @@ log ={ workspace = true }
 # Parquet support
 parquet = { workspace = true }
 
+# System info
+num_cpus = "1.16"
+
 
 # Object store for file access
 object_store = { workspace = true }

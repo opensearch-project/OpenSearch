@@ -956,6 +956,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context = createContext(readerContext, request, task, true, isStreamSearch, searchExecEngine);
 
             final Releasable finalRelease = readerContextRelease;
+            context.queryResult().from(context.from());
+            context.queryResult().size(context.size());
             final SearchContext finalContext = context;
 
             // Prevent cleanup in this try-catch, will be handled in callback
