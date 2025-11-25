@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 use datafusion::execution::cache::cache_manager::{FileMetadataCache, CacheManagerConfig};
-use datafusion::execution::cache::cache_unit::DefaultFilesMetadataCache;
+use datafusion::execution::cache::cache_unit::{DefaultFileStatisticsCache, DefaultFilesMetadataCache, DefaultListFilesCache};
 use datafusion::execution::cache::CacheAccessor;
 use tokio::runtime::Runtime;
 use crate::cache::MutexFileMetadataCache;
@@ -36,14 +36,13 @@ impl CustomCacheManager {
     /// Build a CacheManagerConfig from the caches stored in this CustomCacheManager
     pub fn build_cache_manager_config(&self) -> CacheManagerConfig {
         let mut config = CacheManagerConfig::default();
-
+        let file_static_cache = Arc::new(DefaultFileStatisticsCache::default());
         // Add file metadata cache if available
         if let Some(cache) = self.get_file_metadata_cache_for_datafusion() {
             config = config.with_file_metadata_cache(Some(cache));
         }
-
+        config = config.with_files_statistics_cache(Some(file_static_cache.clone()));
         // Future: Add stats cache when implemented
-
         config
     }
 

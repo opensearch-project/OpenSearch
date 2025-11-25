@@ -540,6 +540,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 final BucketOrder reduceOrder;
                 if (isKeyOrder(order) == false) {
                     reduceOrder = InternalOrder.key(true);
+                    buckets.sort(reduceOrder.comparator());
                 } else {
                     reduceOrder = order;
                 }

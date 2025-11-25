@@ -34,9 +34,9 @@ impl PhysicalOptimizerRule for PartialAggregationOptimizer {
 
 impl PartialAggregationOptimizer {
     pub fn optimize_plan(&self, plan: Arc<dyn ExecutionPlan>) -> Result<Arc<dyn ExecutionPlan>> {
-        println!("[DEBUG] Before: {}", displayable(plan.as_ref()).indent(true));
+//         println!("[DEBUG] Before: {}", displayable(plan.as_ref()).indent(true));
         let result = self.optimize_plan_with_alias(plan, None)?;
-        println!("[DEBUG] After: {}", displayable(result.as_ref()).indent(true));
+//         println!("[DEBUG] After: {}", displayable(result.as_ref()).indent(true));
         Ok(result)
     }
 

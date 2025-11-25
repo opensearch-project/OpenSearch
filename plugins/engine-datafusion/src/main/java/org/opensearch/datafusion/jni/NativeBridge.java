@@ -8,6 +8,7 @@
 
 package org.opensearch.datafusion.jni;
 
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.datafusion.ObjectResultCallback;
 
 /**
@@ -26,13 +27,20 @@ public final class NativeBridge {
     public static native long createGlobalRuntime(long limit, long cacheManagerPtr);
     public static native void closeGlobalRuntime(long ptr);
 
+    // Tokio runtime
+    public static native long startTokioRuntimeMonitoring();
+    // Initialize tokio runtime manager once on startup
+    public static native void initTokioRuntimeManager(int cpuThreads);
+    // Shutdown tokio runtime manager on datafusion service
+    public static native void shutdownTokioRuntimeManager();
+
     // Query execution
-    public static native long executeQueryPhase(long readerPtr, String tableName, byte[] plan, long runtimePtr);
+    public static native void executeQueryPhaseAsync(long readerPtr, String tableName, byte[] plan, long runtimePtr, ActionListener<Long> listener);
     public static native long executeFetchPhase(long readerPtr, long[] rowIds, String[] projections, long runtimePtr);
 
     // Stream operations
-    public static native void streamNext(long runtime, long stream, ObjectResultCallback callback);
-    public static native void streamGetSchema(long stream, ObjectResultCallback callback);
+    public static native void streamNext(long runtime, long stream, ActionListener<Long> listener);
+    public static native void streamGetSchema(long stream, ActionListener<Long> listener);
     public static native void streamClose(long stream);
 
     // Cache management

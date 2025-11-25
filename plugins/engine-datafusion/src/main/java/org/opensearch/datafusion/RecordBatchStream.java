@@ -17,6 +17,7 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.datafusion.jni.NativeBridge;
 
 import java.util.concurrent.CompletableFuture;
@@ -60,10 +61,9 @@ public class RecordBatchStream {
     private Schema getSchema() {
         // Native method is not async, but use a future to store the result for convenience
         CompletableFuture<Schema> result = new CompletableFuture<>();
-        getSchema(streamPointer, (errString, arrowSchemaAddress) -> {
-            if (ErrorUtil.containsError(errString)) {
-                result.completeExceptionally(new RuntimeException(errString));
-            } else {
+        getSchema(streamPointer, new ActionListener<Long>() {
+            @Override
+            public void onResponse(Long arrowSchemaAddress) {
                 try {
                     ArrowSchema arrowSchema = ArrowSchema.wrap(arrowSchemaAddress);
                     Schema schema = importSchema(allocator, arrowSchema, dictionaryProvider);
@@ -71,6 +71,11 @@ public class RecordBatchStream {
                 } catch (Exception e) {
                     result.completeExceptionally(e);
                 }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                result.completeExceptionally(e);
             }
         });
         return result.join();
@@ -100,20 +105,26 @@ public class RecordBatchStream {
         ensureInitialized();
         long runtimePointer = this.runtimePtr;
         CompletableFuture<Boolean> result = new CompletableFuture<>();
-        next(runtimePointer, streamPointer, (errString, arrowArrayAddress) -> {
-            if (ErrorUtil.containsError(errString)) {
-                result.completeExceptionally(new RuntimeException(errString));
-            } else if (arrowArrayAddress == 0) {
-                // Reached end of stream
-                result.complete(false);
-            } else {
-                try {
-                    ArrowArray arrowArray = ArrowArray.wrap(arrowArrayAddress);
-                    Data.importIntoVectorSchemaRoot(allocator, arrowArray, vectorSchemaRoot, dictionaryProvider);
-                    result.complete(true);
-                } catch (Exception e) {
-                    result.completeExceptionally(e);
+        next(runtimePointer, streamPointer, new ActionListener<Long>() {
+            @Override
+            public void onResponse(Long arrowArrayAddress) {
+                if (arrowArrayAddress == 0) {
+                    // Reached end of stream
+                    result.complete(false);
+                } else {
+                    try {
+                        ArrowArray arrowArray = ArrowArray.wrap(arrowArrayAddress);
+                        Data.importIntoVectorSchemaRoot(allocator, arrowArray, vectorSchemaRoot, dictionaryProvider);
+                        result.complete(true);
+                    } catch (Exception e) {
+                        result.completeExceptionally(e);
+                    }
                 }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                result.completeExceptionally(e);
             }
         });
         return result;
@@ -131,12 +142,12 @@ public class RecordBatchStream {
         }
     }
 
-    private static void next(long runtime, long pointer, ObjectResultCallback callback) {
-        NativeBridge.streamNext(runtime, pointer, callback);
+    private static void next(long runtime, long pointer, ActionListener<Long> listener) {
+        NativeBridge.streamNext(runtime, pointer, listener);
     }
 
-    private static void getSchema(long pointer, ObjectResultCallback callback) {
-        NativeBridge.streamGetSchema(pointer, callback);
+    private static void getSchema(long pointer, ActionListener<Long> listener) {
+        NativeBridge.streamGetSchema(pointer, listener);
     }
 
     private static void closeStream(long pointer) {

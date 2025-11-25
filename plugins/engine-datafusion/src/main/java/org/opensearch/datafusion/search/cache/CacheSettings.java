@@ -19,7 +19,7 @@ public class CacheSettings {
 
     public static final String METADATA_CACHE_SIZE_LIMIT_KEY = "datafusion.metadata.cache.size.limit";
     public static final Setting<ByteSizeValue> METADATA_CACHE_SIZE_LIMIT =
-        new Setting<>(METADATA_CACHE_SIZE_LIMIT_KEY, "50mb",
+        new Setting<>(METADATA_CACHE_SIZE_LIMIT_KEY, "250mb",
             (s) -> ByteSizeValue.parseBytesSizeValue(s, new ByteSizeValue(1000, ByteSizeUnit.KB),METADATA_CACHE_SIZE_LIMIT_KEY), Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     public static final Setting<String> METADATA_CACHE_EVICTION_TYPE = new Setting<String>(
