@@ -63,8 +63,9 @@ public class NodeIndicesStatsTests extends OpenSearchTestCase {
         CommonStats oldStats = new CommonStats();
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats requestStats = new SearchRequestStats(clusterSettings);
-        StatusCounterStats statusCounterStats = new StatusCounterStats();
-        final NodeIndicesStats stats = new NodeIndicesStats(oldStats, Collections.emptyMap(), requestStats, statusCounterStats);
+        final NodeIndicesStats stats = new NodeIndicesStats(oldStats, Collections.emptyMap(), requestStats);
+        //StatusCounterStats statusCounterStats = new StatusCounterStats();
+        //final NodeIndicesStats stats = new NodeIndicesStats(oldStats, Collections.emptyMap(), requestStats, statusCounterStats);
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContent(null, params));
@@ -74,7 +75,7 @@ public class NodeIndicesStatsTests extends OpenSearchTestCase {
         );
     }
 
-    public void testSerializationForStatusCounterStats() throws IOException {
+    /*public void testSerializationForStatusCounterStats() throws IOException {
         StatusCounterStats stats = createStatusCounters();
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -170,6 +171,6 @@ public class NodeIndicesStatsTests extends OpenSearchTestCase {
         }
 
         return statusCounters;
-    }
+    }*/
 
 }

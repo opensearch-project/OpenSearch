@@ -327,14 +327,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and set the
         // cancelAfterTimeInterval to NO_TIMEOUT and bypass this mechanism
         if (task instanceof CancellableTask) {
-            ActionListener<SearchResponse> cancellationListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
                 (CancellableTask) task,
                 clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING),
                 listener,
                 e -> {}
             );
-            searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
+            /*ActionListener<SearchResponse> cancellationListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+                client,
+                (CancellableTask) task,
+                clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING),
+                listener,
+                e -> {}
+            );*/
+            /*searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
                 try {
                     indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
                 } finally {
@@ -346,9 +353,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } finally {
                     cancellationListener.onFailure(e);
                 }
-            });
+            });*/
         } else {
-            searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
+            /*searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
                 try {
                     indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
                 } finally {
@@ -360,9 +367,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } finally {
                     listener.onFailure(e);
                 }
-            });
+            });*/
         }
-        executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);
+        //executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);
+        executeRequest(task, searchRequest, this::searchAsyncAction, listener);
     }
 
     /**

@@ -39,7 +39,7 @@ import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-import org.opensearch.action.admin.indices.stats.DocStatusStats;
+//import org.opensearch.action.admin.indices.stats.DocStatusStats;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexRequest;
@@ -165,7 +165,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 request.index()
             );
 
-            incDocStatusStats(e);
+            //incDocStatusStats(e);
             throw e;
         }
         // if we don't have a master, we don't have metadata, that's fine, let it find a cluster-manager using create index API
@@ -203,7 +203,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     private void innerExecute(final Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         super.doExecute(task, request, ActionListener.wrap(listener::onResponse, e -> {
-            incDocStatusStats(e);
+            //incDocStatusStats(e);
             listener.onFailure(e);
         }));
     }
@@ -352,10 +352,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     }
                 }
 
-                DocStatusStats stats = new DocStatusStats();
+                /*DocStatusStats stats = new DocStatusStats();
                 stats.inc(RestStatus.OK);
 
-                indicesService.addDocStatusStats(stats);
+                indicesService.addDocStatusStats(stats);*/
                 listener.onResponse(update);
 
                 break;
@@ -389,9 +389,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
     }
 
-    private void incDocStatusStats(final Exception e) {
+    /*private void incDocStatusStats(final Exception e) {
         DocStatusStats stats = new DocStatusStats();
         stats.inc(ExceptionsHelper.status(e));
         indicesService.addDocStatusStats(stats);
-    }
+    }*/
 }

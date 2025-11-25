@@ -272,7 +272,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
             CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
             commonStatsFlags.setIncludeIndicesStatsByLevel(true);
 
-            DocStatusStats docStatusStats = client().admin()
+            /*DocStatusStats docStatusStats = client().admin()
                 .cluster()
                 .prepareNodesStats()
                 .setIndices(commonStatsFlags)
@@ -290,7 +290,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                     expectedDocStatusStats.getDocStatusCounter(),
                     Comparator.comparingLong(LongAdder::longValue)
                 )
-            );
+            );*/
         }
     }
 
@@ -534,7 +534,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
     }
 
     private void assertDocStatusStats() {
-        DocStatusStats docStatusStats = client().admin()
+        /*DocStatusStats docStatusStats = client().admin()
             .cluster()
             .prepareNodesStats()
             .execute()
@@ -551,7 +551,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                 expectedDocStatusStats.getDocStatusCounter(),
                 Comparator.comparingLong(LongAdder::longValue)
             )
-        );
+        );*/
     }
 
     private void updateExpectedDocStatusCounter(DocWriteResponse r) {
