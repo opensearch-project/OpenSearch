@@ -157,7 +157,7 @@
 "Metric - indexing doc_status":
   - skip:
       version: " - 3.2.99"
-      #reason: "Doc Status Stats were introduced in v2.11.0 and moved to Status Counter in v3.3.0"
+      reason: "Doc Status Stats were introduced in v2.11.0 and moved to Status Counter in v3.3.0"
   - do:
       nodes.info: {}
   - set:
