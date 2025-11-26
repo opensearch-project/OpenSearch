@@ -78,6 +78,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix issue with updating core with a patch number other than 0 ([#19377](https://github.com/opensearch-project/OpenSearch/pull/19377))
 - [Java Agent] Allow JRT protocol URLs in protection domain extraction ([#19683](https://github.com/opensearch-project/OpenSearch/pull/19683))
 - Fix potential concurrent modification exception when updating allocation filters ([#19701])(https://github.com/opensearch-project/OpenSearch/pull/19701))
+- Fix wildcard query with escaped backslash followed by wildcard character ([#19719](https://github.com/opensearch-project/OpenSearch/pull/19719))
 - Fix file-based ingestion consumer to handle start point beyond max line number([#19757])(https://github.com/opensearch-project/OpenSearch/pull/19757))
 - Fix IndexOutOfBoundsException when running include/exclude on non-existent prefix in terms aggregations ([#19637](https://github.com/opensearch-project/OpenSearch/pull/19637))
 - Fixed assertion unsafe use of ClusterService.state() in ResourceUsageCollectorService ([#19775])(https://github.com/opensearch-project/OpenSearch/pull/19775))
@@ -121,7 +122,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.cloud:google-cloud-storage` from 2.55.0 to 2.60.0 ([#20023](https://github.com/opensearch-project/OpenSearch/pull/20023))
 - Bump `commons-cli:commons-cli` from 1.10.0 to 1.11.0 ([#20022](https://github.com/opensearch-project/OpenSearch/pull/20022))
 - Bump `com.squareup.okio:okio` from 3.16.0 to 3.16.3 ([#20025](https://github.com/opensearch-project/OpenSearch/pull/20025))
+- Bump `com.google.api:api-common` from 2.52.0 to 2.55.1 ([#20083](https://github.com/opensearch-project/OpenSearch/pull/20083))
 - Bump `actions/upload-artifact` from 4 to 5 ([#20081](https://github.com/opensearch-project/OpenSearch/pull/20081))
+- Bump `com.nimbusds:nimbus-jose-jwt` from 10.5 to 10.6 ([#20084](https://github.com/opensearch-project/OpenSearch/pull/20084))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
