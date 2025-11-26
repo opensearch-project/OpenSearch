@@ -32,6 +32,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -326,21 +327,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and set the
         // cancelAfterTimeInterval to NO_TIMEOUT and bypass this mechanism
         if (task instanceof CancellableTask) {
-            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+            ActionListener<SearchResponse> cancellationListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
                 (CancellableTask) task,
                 clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING),
                 listener,
                 e -> {}
             );
-            /*ActionListener<SearchResponse> cancellationListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
-                client,
-                (CancellableTask) task,
-                clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING),
-                listener,
-                e -> {}
-            );*/
-            /*searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
+            searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
                 try {
                     indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
                 } finally {
@@ -352,9 +346,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } finally {
                     cancellationListener.onFailure(e);
                 }
-            });*/
+            });
         } else {
-            /*searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
+            searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
                 try {
                     indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
                 } finally {
@@ -366,10 +360,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } finally {
                     listener.onFailure(e);
                 }
-            });*/
+            });
         }
-        // executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);
-        executeRequest(task, searchRequest, this::searchAsyncAction, listener);
+        executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);
     }
 
     /**

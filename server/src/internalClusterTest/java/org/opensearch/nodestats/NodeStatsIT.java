@@ -41,10 +41,13 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.LongAdder;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -269,7 +272,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
             CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
             commonStatsFlags.setIncludeIndicesStatsByLevel(true);
 
-            /*DocStatusStats docStatusStats = client().admin()
+            DocStatusStats docStatusStats = client().admin()
                 .cluster()
                 .prepareNodesStats()
                 .setIndices(commonStatsFlags)
@@ -287,7 +290,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                     expectedDocStatusStats.getDocStatusCounter(),
                     Comparator.comparingLong(LongAdder::longValue)
                 )
-            );*/
+            );
         }
     }
 
@@ -531,7 +534,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
     }
 
     private void assertDocStatusStats() {
-        /*DocStatusStats docStatusStats = client().admin()
+        DocStatusStats docStatusStats = client().admin()
             .cluster()
             .prepareNodesStats()
             .execute()
@@ -548,7 +551,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                 expectedDocStatusStats.getDocStatusCounter(),
                 Comparator.comparingLong(LongAdder::longValue)
             )
-        );*/
+        );
     }
 
     private void updateExpectedDocStatusCounter(DocWriteResponse r) {

@@ -164,7 +164,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long maxLastIndexRequestTimestamp;
 
         Stats() {
-            // docStatusStats = new DocStatusStats();
             docStatusStats = null;
         }
 

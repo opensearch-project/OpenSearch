@@ -33,13 +33,26 @@
 package org.opensearch.indices;
 
 import org.opensearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.action.admin.indices.stats.DocStatusStats;
+import org.opensearch.action.admin.indices.stats.SearchResponseStatusStats;
+import org.opensearch.action.admin.indices.stats.StatusCounterStats;
 import org.opensearch.action.search.SearchRequestStats;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.rest.StatusType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.concurrent.atomic.LongAdder;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -50,9 +63,8 @@ public class NodeIndicesStatsTests extends OpenSearchTestCase {
         CommonStats oldStats = new CommonStats();
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats requestStats = new SearchRequestStats(clusterSettings);
-        final NodeIndicesStats stats = new NodeIndicesStats(oldStats, Collections.emptyMap(), requestStats);
-        // StatusCounterStats statusCounterStats = new StatusCounterStats();
-        // final NodeIndicesStats stats = new NodeIndicesStats(oldStats, Collections.emptyMap(), requestStats, statusCounterStats);
+        StatusCounterStats statusCounterStats = new StatusCounterStats();
+        final NodeIndicesStats stats = new NodeIndicesStats(oldStats, Collections.emptyMap(), requestStats, statusCounterStats);
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContent(null, params));
@@ -62,7 +74,7 @@ public class NodeIndicesStatsTests extends OpenSearchTestCase {
         );
     }
 
-    /*public void testSerializationForStatusCounterStats() throws IOException {
+    public void testSerializationForStatusCounterStats() throws IOException {
         StatusCounterStats stats = createStatusCounters();
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -158,6 +170,6 @@ public class NodeIndicesStatsTests extends OpenSearchTestCase {
         }
 
         return statusCounters;
-    }*/
+    }
 
 }

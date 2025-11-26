@@ -8,7 +8,16 @@
 
 package org.opensearch.search.msearch;
 
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.concurrent.atomic.LongAdder;
+
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.indices.stats.SearchResponseStatusStats;
+import org.opensearch.action.search.MultiSearchRequestBuilder;
+import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
@@ -17,7 +26,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 public class MultiSearchStatsIT extends OpenSearchIntegTestCase {
     private final SearchResponseStatusStats expectedSearchResponseStatusStats = new SearchResponseStatusStats();
 
-    /*public void testNodeIndicesStatsDocStatusStatsIndexBulk() {
+    public void testNodeIndicesStatsDocStatusStatsIndexBulk() {
         createIndex("test");
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
@@ -74,5 +83,5 @@ public class MultiSearchStatsIT extends OpenSearchIntegTestCase {
 
     private void updateExpectedDocStatusCounter(SearchResponseStatusStats expectedSearchResponseStatusStats, Exception e) {
         expectedSearchResponseStatusStats.inc(ExceptionsHelper.status(e));
-    }*/
+    }
 }
