@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
@@ -45,6 +46,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -112,6 +114,32 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Return the sub aggregator with the provided name.
      */
     public abstract Aggregator subAggregator(String name);
+
+    /**
+     * Subclasses may override this method if they have an efficient way of computing their aggregation for the given
+     * segment (versus collecting matching documents). If this method returns true, collection for the given segment
+     * will be terminated, rather than executing normally.
+     * <p>
+     * If this method returns true, the aggregator's state should be identical to what it would be if matching
+     * documents from the segment were fully collected. If this method returns false, the aggregator's state should
+     * be unchanged from before this method is called.
+     * @param ctx the context for the given segment
+     * @return true if and only if results for this segment have been precomputed
+     */
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        return false;
+    }
+
+    /**
+     * Subclasses can choose to override this method to retrieve the leaf collected without precomputing the
+     * aggregation. Used in {@link ProfilingAggregator}
+     * @param ctx
+     * @return
+     * @throws IOException
+     */
+    public LeafBucketCollector getLeafCollectorWithoutPrecompute(LeafReaderContext ctx) throws IOException {
+        return null;
+    };
 
     /**
      * Resolve the next step of the sort path as though this aggregation

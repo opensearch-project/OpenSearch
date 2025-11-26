@@ -167,6 +167,22 @@ public class MetricAggregatorTests extends AggregatorTestCase {
                 ),
                 dimensionFieldDatum
             );
+            testStarTreeDocValuesInternalProfiling(
+                getCodec(
+                    maxLeafDocsSupplier,
+                    dimensionFieldDatum.stream()
+                        .collect(
+                            Collectors.toMap(
+                                df -> df.getDimension().getField(),
+                                DimensionFieldData::getFieldType,
+                                (v1, v2) -> v1,
+                                LinkedHashMap::new
+                            )
+                        ),
+                    StarTreeFilterTests.METRIC_TYPE_MAP
+                ),
+                dimensionFieldDatum
+            );
         }
     }
 
@@ -417,6 +433,253 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
+    private void testStarTreeDocValuesInternalProfiling(Codec codec, List<DimensionFieldData> dimensionFieldData) throws IOException {
+        Directory directory = newDirectory();
+        IndexWriterConfig conf = newIndexWriterConfig(null);
+        conf.setCodec(codec);
+        conf.setMergePolicy(newLogMergePolicy());
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
+
+        Random random = RandomizedTest.getRandom();
+        int totalDocs = 100;
+        int val;
+
+        // Index 100 random documents
+        for (int i = 0; i < totalDocs; i++) {
+            Document doc = new Document();
+            for (DimensionFieldData fieldData : dimensionFieldData) {
+                // FIXME: Reduce the frequency of nulls to be with at least some non-null docs like after every 1-2 ?
+                if (random.nextBoolean()) {
+                    doc.add(fieldData.getField());
+                }
+            }
+            if (random.nextBoolean()) {
+                val = random.nextInt(50); // Random long between 0 and 49
+                doc.add(new SortedNumericDocValuesField(FIELD_NAME, val));
+            }
+            iw.addDocument(doc);
+        }
+
+        if (randomBoolean()) {
+            iw.forceMerge(1);
+        }
+        iw.close();
+
+        DirectoryReader ir = DirectoryReader.open(directory);
+        initValuesSourceRegistry();
+        LeafReaderContext context = ir.leaves().get(0);
+
+        SegmentReader reader = Lucene.segmentReader(context.reader());
+        IndexSearcher indexSearcher = newSearcher(reader, false, false);
+        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+
+        MapperService mapperService = mapperServiceMock();
+        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        for (DimensionFieldData fieldData : dimensionFieldData) {
+            when(mapperService.fieldType(fieldData.fieldName)).thenReturn(fieldData.getMappedField());
+        }
+        QueryShardContext queryShardContext = queryShardContextMock(
+            indexSearcher,
+            mapperService,
+            createIndexSettings(),
+            circuitBreakerService,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking()
+        );
+        for (DimensionFieldData fieldData : dimensionFieldData) {
+            when(mapperService.fieldType(fieldData.fieldName)).thenReturn(fieldData.getMappedField());
+            when(queryShardContext.fieldMapper(fieldData.fieldName)).thenReturn(fieldData.getMappedField());
+        }
+
+        List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
+        CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
+
+        SumAggregationBuilder sumAggregationBuilder = sum("_name").field(FIELD_NAME);
+        MaxAggregationBuilder maxAggregationBuilder = max("_name").field(FIELD_NAME);
+        MinAggregationBuilder minAggregationBuilder = min("_name").field(FIELD_NAME);
+        ValueCountAggregationBuilder valueCountAggregationBuilder = count("_name").field(FIELD_NAME);
+        AvgAggregationBuilder avgAggregationBuilder = avg("_name").field(FIELD_NAME);
+
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = dimensionFieldData.stream()
+            .collect(
+                Collectors.toMap(DimensionFieldData::getDimension, DimensionFieldData::getMappedField, (v1, v2) -> v1, LinkedHashMap::new)
+            );
+
+        Query query = null;
+        QueryBuilder queryBuilder = null;
+
+        for (int cases = 0; cases < 15; cases++) {
+            // Get all types of queries (Term/Terms/Range) for all the given dimensions.
+            List<QueryBuilder> allFieldQueries = dimensionFieldData.stream()
+                .flatMap(
+                    x -> Stream.of(x.getTermQueryBuilder(), x.getTermsQueryBuilder(), x.getRangeQueryBuilder(), x.getBoolQueryBuilder())
+                )
+                .toList();
+
+            for (QueryBuilder qb : allFieldQueries) {
+                query = qb.toQuery(queryShardContext);
+                queryBuilder = qb;
+                testCaseProfiling(
+                    indexSearcher,
+                    query,
+                    qb,
+                    sumAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalSum::getValue)
+                );
+                testCaseProfiling(
+                    indexSearcher,
+                    query,
+                    qb,
+                    maxAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalMax::getValue)
+                );
+                testCaseProfiling(
+                    indexSearcher,
+                    query,
+                    qb,
+                    minAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalMin::getValue)
+                );
+                testCaseProfiling(
+                    indexSearcher,
+                    query,
+                    qb,
+                    valueCountAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalValueCount::getValue)
+                );
+                testCaseProfiling(
+                    indexSearcher,
+                    query,
+                    qb,
+                    avgAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalAvg::getValue)
+                );
+            }
+        }
+
+        MetricAggregatorFactory aggregatorFactory = mock(MetricAggregatorFactory.class);
+        when(aggregatorFactory.getSubFactories()).thenReturn(AggregatorFactories.EMPTY);
+        when(aggregatorFactory.getField()).thenReturn(FIELD_NAME);
+        when(aggregatorFactory.getMetricStat()).thenReturn(MetricStat.SUM);
+
+        // Case when field and metric type in aggregation are fully supported by star tree.
+        testCaseProfiling(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            aggregatorFactory,
+            true
+        );
+
+        // Case when the field is not supported by star tree
+        SumAggregationBuilder invalidFieldSumAggBuilder = sum("_name").field("hello");
+        testCaseProfiling(
+            indexSearcher,
+            query,
+            queryBuilder,
+            invalidFieldSumAggBuilder,
+            starTree,
+            supportedDimensions,
+            Collections.emptyList(),
+            verifyAggregation(InternalSum::getValue),
+            invalidFieldSumAggBuilder.build(queryShardContext, null),
+            false // Invalid fields will return null StarTreeQueryContext which will not cause early termination by leaf collector
+        );
+
+        // Case when metric type in aggregation is not supported by star tree but the field is supported.
+        testCaseProfiling(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric(FIELD_NAME, List.of(MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            aggregatorFactory,
+            false
+        );
+
+        // Case when field is not present in supported metrics
+        testCaseProfiling(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric("hello", List.of(MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            aggregatorFactory,
+            false
+        );
+
+        AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
+        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] { mock(MetricAggregatorFactory.class) });
+        when(aggregatorFactory.getSubFactories()).thenReturn(aggregatorFactories);
+
+        // Case when sub aggregations are present
+        testCaseProfiling(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric("hello", List.of(MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            aggregatorFactory,
+            false
+        );
+
+        // Case when aggregation factory is not metric aggregation
+        testCaseProfiling(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric("hello", List.of(MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            mock(ValuesSourceAggregatorFactory.class),
+            false
+        );
+
+        // Keyword Range query with missing Low Ordinal
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("keyword_field");
+        rangeQueryBuilder.from(Long.MAX_VALUE).includeLower(random().nextBoolean());
+        testCaseProfiling(
+            indexSearcher,
+            rangeQueryBuilder.toQuery(queryShardContext),
+            rangeQueryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            null,
+            true
+        );
+
+        ir.close();
+        directory.close();
+    }
+
     <T, R extends Number> BiConsumer<T, T> verifyAggregation(Function<T, R> valueExtractor) {
         return (expectedAggregation, actualAggregation) -> assertEquals(
             valueExtractor.apply(expectedAggregation).doubleValue(),
@@ -478,6 +741,77 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             false,
             aggregatorFactory,
             assertCollectorEarlyTermination,
+            DEFAULT_MAPPED_FIELD
+        );
+        verify.accept(expectedAggregation, starTreeAggregation);
+    }
+
+    private <T extends AggregationBuilder, V extends InternalAggregation> void testCaseProfiling(
+        IndexSearcher searcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        T aggBuilder,
+        CompositeIndexFieldInfo starTree,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
+        BiConsumer<V, V> verify
+    ) throws IOException {
+        testCaseProfiling(
+            searcher,
+            query,
+            queryBuilder,
+            aggBuilder,
+            starTree,
+            supportedDimensions,
+            Collections.emptyList(),
+            verify,
+            null,
+            true
+        );
+    }
+
+    private <T extends AggregationBuilder, V extends InternalAggregation> void testCaseProfiling(
+        IndexSearcher searcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        T aggBuilder,
+        CompositeIndexFieldInfo starTree,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions, // FIXME : Merge with the same input that goes to generating the
+        // codec.
+        List<Metric> supportedMetrics,
+        BiConsumer<V, V> verify,
+        AggregatorFactory aggregatorFactory,
+        boolean assertCollectorEarlyTermination
+    ) throws IOException {
+        V starTreeAggregation = searchAndReduceStarTreeProfiling(
+            createIndexSettings(),
+            searcher,
+            query,
+            queryBuilder,
+            aggBuilder,
+            starTree,
+            supportedDimensions,
+            supportedMetrics,
+            DEFAULT_MAX_BUCKETS,
+            false,
+            aggregatorFactory,
+            assertCollectorEarlyTermination,
+            false,
+            DEFAULT_MAPPED_FIELD
+        );
+        V expectedAggregation = searchAndReduceStarTreeProfiling(
+            createIndexSettings(),
+            searcher,
+            query,
+            queryBuilder,
+            aggBuilder,
+            null,
+            null,
+            null,
+            DEFAULT_MAX_BUCKETS,
+            false,
+            aggregatorFactory,
+            assertCollectorEarlyTermination,
+            false,
             DEFAULT_MAPPED_FIELD
         );
         verify.accept(expectedAggregation, starTreeAggregation);

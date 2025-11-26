@@ -15,6 +15,7 @@ package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.Timer;
+import org.opensearch.search.profile.aggregation.startree.StarTreeAggregationTimingType;
 
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -32,6 +33,9 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
     private static final String MIN_PREFIX = "min_";
     private static final String AVG_PREFIX = "avg_";
     private static final String START_TIME_KEY = AggregationTimingType.INITIALIZE + Timer.TIMING_TYPE_START_TIME_SUFFIX;
+    private static final String STAR_TREE_START_TIME_KEY = StarTreeAggregationTimingType.SCAN_STAR_TREE_SEGMENTS
+        + Timer.TIMING_TYPE_START_TIME_SUFFIX;
+    private static final String STAR_TREE_TYPE = "StarTree";
     private static final String[] breakdownCountStatsTypes = { "build_leaf_collector_count", "collect_count" };
 
     @Override
@@ -60,6 +64,91 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         Map<String, Long> countStatsMap = new HashMap<>();
         Map<String, Object> debug = new HashMap<>();
         List<ProfileResult> children = new LinkedList<>();
+        if (type.equals(STAR_TREE_TYPE)) {
+            for (ProfileResult profileResult : profileResultsAcrossSlices) {
+                long profileNodeTime = profileResult.getTime();
+                // long sliceStartTime = profileResult.getTimeBreakdown().get(START_TIME_KEY);
+                long sliceStartTime = profileResult.getTimeBreakdown().get(STAR_TREE_START_TIME_KEY);
+
+                // Profiled total time
+                maxSliceNodeEndTime = Math.max(maxSliceNodeEndTime, sliceStartTime + profileNodeTime);
+                minSliceNodeStartTime = Math.min(minSliceNodeStartTime, sliceStartTime);
+
+                // Profiled total time stats
+                maxSliceNodeTime = Math.max(maxSliceNodeTime, profileNodeTime);
+                minSliceNodeTime = Math.min(minSliceNodeTime, profileNodeTime);
+                avgSliceNodeTime += profileNodeTime;
+
+                // Profiled breakdown time stats
+                for (StarTreeAggregationTimingType timingType : StarTreeAggregationTimingType.values()) {
+                    buildBreakdownStatsMap(timeStatsMap, profileResult, timingType.toString());
+                }
+
+                // Profiled breakdown total time
+                for (StarTreeAggregationTimingType timingType : StarTreeAggregationTimingType.values()) {
+                    String breakdownTimingType = timingType.toString();
+                    Long startTime = profileResult.getTimeBreakdown().get(breakdownTimingType + Timer.TIMING_TYPE_START_TIME_SUFFIX);
+                    Long endTime = startTime + profileResult.getTimeBreakdown().get(breakdownTimingType);
+                    minSliceStartTimeMap.put(
+                        breakdownTimingType,
+                        Math.min(minSliceStartTimeMap.getOrDefault(breakdownTimingType, Long.MAX_VALUE), startTime)
+                    );
+                    maxSliceEndTimeMap.put(
+                        breakdownTimingType,
+                        Math.max(maxSliceEndTimeMap.getOrDefault(breakdownTimingType, Long.MIN_VALUE), endTime)
+                    );
+                }
+
+                // Profiled breakdown count
+                for (StarTreeAggregationTimingType timingType : StarTreeAggregationTimingType.values()) {
+                    String breakdownType = timingType.toString();
+                    String breakdownTypeCount = breakdownType + Timer.TIMING_TYPE_COUNT_SUFFIX;
+                    breakdown.put(
+                        breakdownTypeCount,
+                        breakdown.getOrDefault(breakdownTypeCount, 0L) + profileResult.getTimeBreakdown().get(breakdownTypeCount)
+                    );
+                }
+
+                debug = profileResult.getDebugInfo();
+                children.addAll(profileResult.getProfiledChildren());
+            }
+            // nodeTime
+            long nodeTime = maxSliceNodeEndTime - minSliceNodeStartTime;
+            avgSliceNodeTime /= profileResultsAcrossSlices.size();
+
+            // Profiled breakdown time stats
+            for (StarTreeAggregationTimingType breakdownTimingType : StarTreeAggregationTimingType.values()) {
+                buildBreakdownMap(profileResultsAcrossSlices.size(), breakdown, timeStatsMap, breakdownTimingType.toString());
+            }
+
+            // Profiled breakdown total time
+            for (StarTreeAggregationTimingType breakdownTimingType : StarTreeAggregationTimingType.values()) {
+                String breakdownType = breakdownTimingType.toString();
+                breakdown.put(breakdownType, maxSliceEndTimeMap.get(breakdownType) - minSliceStartTimeMap.get(breakdownType));
+            }
+
+            // children
+            List<ProfileResult> reducedChildrenTree = new LinkedList<>();
+            if (!children.isEmpty()) {
+                Map<String, List<ProfileResult>> sliceLevelAggregationMap = getSliceLevelAggregationMap(children);
+                for (List<ProfileResult> profileResults : sliceLevelAggregationMap.values()) {
+                    reducedChildrenTree.addAll(reduceProfileResultsTree(profileResults));
+                }
+            }
+
+            ProfileResult reducedResult = new ProfileResult(
+                type,
+                description,
+                breakdown,
+                debug,
+                nodeTime,
+                reducedChildrenTree,
+                maxSliceNodeTime,
+                minSliceNodeTime,
+                avgSliceNodeTime
+            );
+            return List.of(reducedResult);
+        }
 
         for (ProfileResult profileResult : profileResultsAcrossSlices) {
             long profileNodeTime = profileResult.getTime();

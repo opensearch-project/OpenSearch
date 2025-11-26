@@ -40,6 +40,7 @@ import java.util.Locale;
  * @opensearch.internal
  */
 public enum AggregationTimingType {
+    PRE_COMPUTE,
     INITIALIZE,
     BUILD_LEAF_COLLECTOR,
     COLLECT,

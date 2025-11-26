@@ -165,6 +165,93 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
+    public void testRangeAggregationProfiling() throws IOException {
+        Directory directory = newDirectory();
+        IndexWriterConfig conf = newIndexWriterConfig(null);
+        conf.setCodec(getCodec());
+        conf.setMergePolicy(newLogMergePolicy());
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
+
+        Random random = RandomizedTest.getRandom();
+        int totalDocs = 100;
+        List<Document> docs = new ArrayList<>();
+        long val;
+
+        // Index 100 random documents
+        for (int i = 0; i < totalDocs; i++) {
+            Document doc = new Document();
+            if (random.nextBoolean()) {
+                val = random.nextInt(100); // Random int between 0 and 99 for status
+                doc.add(new SortedNumericDocValuesField(STATUS, val));
+            }
+            if (random.nextBoolean()) {
+                val = NumericUtils.doubleToSortableLong(random.nextInt(100) + 0.5f);
+                doc.add(new SortedNumericDocValuesField(SIZE, val));
+            }
+            iw.addDocument(doc);
+            docs.add(doc);
+        }
+
+        if (randomBoolean()) {
+            iw.forceMerge(1);
+        }
+        iw.close();
+
+        DirectoryReader ir = DirectoryReader.open(directory);
+        LeafReaderContext context = ir.leaves().get(0);
+
+        SegmentReader reader = Lucene.segmentReader(context.reader());
+        IndexSearcher indexSearcher = newSearcher(reader, false, false);
+        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+
+        List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
+        CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
+
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = new LinkedHashMap<>();
+        supportedDimensions.put(new NumericDimension(STATUS), STATUS_FIELD_TYPE);
+        supportedDimensions.put(new NumericDimension(SIZE), SIZE_FIELD_NAME);
+
+        Query query = new MatchAllDocsQuery();
+        QueryBuilder queryBuilder = null;
+        RangeAggregationBuilder rangeAggregationBuilder = range("range_agg").field(STATUS).addRange(10, 30).addRange(30, 50);
+        // no sub-aggregation
+        testCaseProfiling(indexSearcher, query, queryBuilder, rangeAggregationBuilder, starTree, supportedDimensions);
+
+        ValuesSourceAggregationBuilder[] aggBuilders = {
+            sum("_sum").field(SIZE),
+            max("_max").field(SIZE),
+            min("_min").field(SIZE),
+            count("_count").field(SIZE),
+            avg("_avg").field(SIZE) };
+
+        for (ValuesSourceAggregationBuilder aggregationBuilder : aggBuilders) {
+            query = new MatchAllDocsQuery();
+            queryBuilder = null;
+            rangeAggregationBuilder = range("range_agg").field(STATUS).addRange(10, 30).addRange(30, 50).subAggregation(aggregationBuilder);
+            // sub-aggregation, no top level query
+            testCaseProfiling(indexSearcher, query, queryBuilder, rangeAggregationBuilder, starTree, supportedDimensions);
+
+            // Numeric-terms query with range aggregation
+            for (int cases = 0; cases < 100; cases++) {
+                // term query of status field
+                String queryField = SIZE;
+                long queryValue = NumericUtils.floatToSortableInt(random.nextInt(50) + 0.5f);
+                query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
+                queryBuilder = new TermQueryBuilder(queryField, queryValue);
+                testCaseProfiling(indexSearcher, query, queryBuilder, rangeAggregationBuilder, starTree, supportedDimensions);
+
+                // range query on same field as aggregation field
+                query = SortedNumericDocValuesField.newSlowRangeQuery(STATUS, 15, 35);
+                queryBuilder = new RangeQueryBuilder(STATUS).from(15).to(35);
+                testCaseProfiling(indexSearcher, query, queryBuilder, rangeAggregationBuilder, starTree, supportedDimensions);
+            }
+        }
+
+        ir.close();
+        reader.close();
+        directory.close();
+    }
+
     private void testCase(
         IndexSearcher indexSearcher,
         Query query,
@@ -202,6 +289,54 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             DEFAULT_MAX_BUCKETS,
             false,
             null,
+            false,
+            STATUS_FIELD_TYPE,
+            SIZE_FIELD_NAME
+        );
+
+        assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());
+        assertEquals(defaultAggregation.getBuckets(), starTreeAggregation.getBuckets());
+    }
+
+    private void testCaseProfiling(
+        IndexSearcher indexSearcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        RangeAggregationBuilder rangeAggregationBuilder,
+        CompositeIndexFieldInfo starTree,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions
+    ) throws IOException {
+        InternalRange starTreeAggregation = searchAndReduceStarTreeProfiling(
+            createIndexSettings(),
+            indexSearcher,
+            query,
+            queryBuilder,
+            rangeAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            null,
+            DEFAULT_MAX_BUCKETS,
+            false,
+            null,
+            true,
+            false,
+            STATUS_FIELD_TYPE,
+            SIZE_FIELD_NAME
+        );
+
+        InternalRange defaultAggregation = searchAndReduceStarTreeProfiling(
+            createIndexSettings(),
+            indexSearcher,
+            query,
+            queryBuilder,
+            rangeAggregationBuilder,
+            null,
+            null,
+            null,
+            DEFAULT_MAX_BUCKETS,
+            false,
+            null,
+            false,
             false,
             STATUS_FIELD_TYPE,
             SIZE_FIELD_NAME

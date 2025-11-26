@@ -246,7 +246,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     protected abstract LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) throws IOException;
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         return filterRewriteOptimizationContext.tryOptimize(
             ctx,
             this::incrementBucketDocCount,

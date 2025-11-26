@@ -114,6 +114,64 @@ public class StarTreeQueryHelper {
         finalConsumer.run();
     }
 
+    public static FixedBitSet scanStarTree(
+        SearchContext context,
+        ValuesSource valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric
+    ) throws IOException {
+        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
+        assert starTreeValues != null;
+        String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
+        String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, metric);
+
+        // Obtain a FixedBitSet of matched star tree document IDs
+        FixedBitSet filteredValues = getStarTreeFilteredValues(context, ctx, starTreeValues);
+        return filteredValues;
+    }
+
+    public static void buildBucketsFromStarTree(
+        SearchContext context,
+        ValuesSource valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric,
+        Consumer<Long> valueConsumer,
+        Runnable finalConsumer,
+        FixedBitSet filteredValues
+    ) throws IOException {
+        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
+        assert starTreeValues != null;
+        String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
+        String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, metric);
+
+        SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
+            metricName
+        );
+        int numBits = filteredValues.length();  // Get the number of the filtered values (matching docs)
+        if (numBits > 0) {
+            // Iterate over the filtered values
+            for (int bit = filteredValues.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
+                ? filteredValues.nextSetBit(bit + 1)
+                : DocIdSetIterator.NO_MORE_DOCS) {
+                // Advance to the entryId in the valuesIterator
+                if (valuesIterator.advanceExact(bit) == false) {
+                    continue;  // Skip if no more entries
+                }
+
+                // Iterate over the values for the current entryId
+                for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
+                    long value = valuesIterator.nextValue();
+                    valueConsumer.accept(value); // Apply the consumer operation (e.g., max, sum)
+                }
+            }
+        }
+
+        // Call the final consumer after processing all entries
+        finalConsumer.run();
+    }
+
     /**
      * Get the filtered values for the star-tree query
      * Cache the results in case of multiple aggregations (if cache is initialized)

@@ -31,9 +31,12 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
@@ -51,10 +54,13 @@ import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.AggregationProfileBreakdown;
+import org.opensearch.search.profile.aggregation.startree.StarTreeProfileBreakdown;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
@@ -64,6 +70,7 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  * @opensearch.internal
  */
 public class SumAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
+    private static final Logger logger = LogManager.getLogger(SumAggregator.class);
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
@@ -94,11 +101,13 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        logger.info("try pre-computing sum aggregation for leaf");
         if (valuesSource == null) {
             return false;
         }
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
+        logger.info("Supported star-tree for sum aggregation: {}", supportedStarTree);
         if (supportedStarTree != null) {
             if (parent != null && subAggregators.length == 0) {
                 // If this a child aggregator, then the parent will trigger star-tree pre-computation.
@@ -175,19 +184,73 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     }
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        String metric = MetricStat.SUM.getTypeName();
         final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), compensations.get(0));
 
-        StarTreeQueryHelper.precomputeLeafUsingStarTree(
+        Consumer<Long> valueConsumer = value -> kahanSummation.add(NumericUtils.sortableLongToDouble(value));
+        Runnable finalConsumer = () -> {
+            sums.set(0, kahanSummation.value());
+            compensations.set(0, kahanSummation.delta());
+        };
+        logger.info("precomputing sum aggregation using star-tree");
+
+        if (context.getProfilers() != null) {
+            StarTreeProfileBreakdown breakdown = context.getProfilers().getAggregationProfiler().getStarTreeProfileBreakdown(this);
+            logger.info("breakdown: " + breakdown.toString());
+            FixedBitSet filteredValues = scanStarTreeProfiling(context, valuesSource, ctx, starTree, metric, breakdown);
+            buildBucketsFromStarTreeProfiling(
+                context,
+                valuesSource,
+                ctx,
+                starTree,
+                metric,
+                valueConsumer,
+                finalConsumer,
+                filteredValues,
+                breakdown
+            );
+            AggregationProfileBreakdown aggregationProfileBreakdown = context.getProfilers()
+                .getAggregationProfiler()
+                .getQueryBreakdown(this);
+            aggregationProfileBreakdown.setStarTreeProfileBreakdown(breakdown);
+            aggregationProfileBreakdown.setStarTreePrecomputed();
+        } else {
+            FixedBitSet filteredValues = scanStarTree(context, valuesSource, ctx, starTree, metric);
+            buildBucketsFromStarTree(context, valuesSource, ctx, starTree, metric, valueConsumer, finalConsumer, filteredValues);
+        }
+    }
+
+    @Override
+    public FixedBitSet scanStarTree(
+        SearchContext context,
+        ValuesSource valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric
+    ) throws IOException {
+        return StarTreeQueryHelper.scanStarTree(context, valuesSource, ctx, starTree, metric);
+    }
+
+    @Override
+    public void buildBucketsFromStarTree(
+        SearchContext context,
+        ValuesSource valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric,
+        Consumer<Long> valueConsumer,
+        Runnable finalConsumer,
+        FixedBitSet filteredValues
+    ) throws IOException {
+        StarTreeQueryHelper.buildBucketsFromStarTree(
             context,
             valuesSource,
             ctx,
             starTree,
-            MetricStat.SUM.getTypeName(),
-            value -> kahanSummation.add(NumericUtils.sortableLongToDouble(value)),
-            () -> {
-                sums.set(0, kahanSummation.value());
-                compensations.set(0, kahanSummation.delta());
-            }
+            metric,
+            valueConsumer,
+            finalConsumer,
+            filteredValues
         );
     }
 

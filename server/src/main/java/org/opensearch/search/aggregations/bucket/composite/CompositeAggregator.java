@@ -582,7 +582,7 @@ public final class CompositeAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         finishLeaf(); // May need to wrap up previous leaf if it could not be precomputed
         return filterRewriteOptimizationContext.tryOptimize(
             ctx,

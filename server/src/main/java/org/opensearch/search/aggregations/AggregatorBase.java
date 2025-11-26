@@ -210,6 +210,13 @@ public abstract class AggregatorBase extends Aggregator {
         return getLeafCollector(ctx, sub);
     }
 
+    @Override
+    public final LeafBucketCollector getLeafCollectorWithoutPrecompute(LeafReaderContext ctx) throws IOException {
+        preGetSubLeafCollectors(ctx);
+        final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
+        return getLeafCollector(ctx, sub);
+    }
+
     /**
      * Can be overridden by aggregator implementations that like the perform an operation before the leaf collectors
      * of children aggregators are instantiated for the next segment.
@@ -220,21 +227,6 @@ public abstract class AggregatorBase extends Aggregator {
      * Can be overridden by aggregator implementation to be called back when the collection phase starts.
      */
     protected void doPreCollection() throws IOException {}
-
-    /**
-     * Subclasses may override this method if they have an efficient way of computing their aggregation for the given
-     * segment (versus collecting matching documents). If this method returns true, collection for the given segment
-     * will be terminated, rather than executing normally.
-     * <p>
-     * If this method returns true, the aggregator's state should be identical to what it would be if matching
-     * documents from the segment were fully collected. If this method returns false, the aggregator's state should
-     * be unchanged from before this method is called.
-     * @param ctx the context for the given segment
-     * @return true if and only if results for this segment have been precomputed
-     */
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-        return false;
-    }
 
     @Override
     public final void preCollection() throws IOException {

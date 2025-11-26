@@ -46,6 +46,8 @@ import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.AggregationProfileBreakdown;
+import org.opensearch.search.profile.aggregation.startree.StarTreeProfileBreakdown;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.MatchAllFilter;
@@ -243,7 +245,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             preComputeWithStarTree(ctx, supportedStarTree);
@@ -253,8 +255,19 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
     }
 
     private void preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
-        StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+        if (context.getProfilers() != null) {
+            StarTreeProfileBreakdown breakdown = context.getProfilers().getAggregationProfiler().getStarTreeProfileBreakdown(this);
+            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollectorProfiling(ctx, starTree, null, breakdown);
+            preComputeBucketsWithStarTreeProfiling(starTreeBucketCollector, breakdown);
+            AggregationProfileBreakdown aggregationProfileBreakdown = context.getProfilers()
+                .getAggregationProfiler()
+                .getQueryBreakdown(this);
+            aggregationProfileBreakdown.setStarTreeProfileBreakdown(breakdown);
+            aggregationProfileBreakdown.setStarTreePrecomputed();
+        } else {
+            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
+            preComputeBucketsWithStarTree(starTreeBucketCollector);
+        }
     }
 
     /**
@@ -262,6 +275,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
      * This collector generates the cartesian product of dimension values within a single star-tree entry
      * to form the composite keys for the multi-terms aggregation.
      */
+    @Override
     public StarTreeBucketCollector getStarTreeBucketCollector(
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,

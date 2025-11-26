@@ -57,10 +57,13 @@ import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.AggregationProfileBreakdown;
+import org.opensearch.search.profile.aggregation.startree.StarTreeProfileBreakdown;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.opensearch.search.startree.StarTreeQueryHelper.getStarTreeFilteredValues;
 import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
@@ -104,7 +107,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (valuesSource == null) {
             return false;
         }
@@ -197,6 +200,48 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        if (context.getProfilers() != null) {
+            StarTreeProfileBreakdown breakdown = context.getProfilers().getAggregationProfiler().getStarTreeProfileBreakdown(this);
+            FixedBitSet filteredValues = scanStarTreeProfiling(context, valuesSource, ctx, starTree, name, breakdown);
+            buildBucketsFromStarTreeProfiling(context, valuesSource, ctx, starTree, null, null, null, filteredValues, breakdown);
+            AggregationProfileBreakdown aggregationProfileBreakdown = context.getProfilers()
+                .getAggregationProfiler()
+                .getQueryBreakdown(this);
+            aggregationProfileBreakdown.setStarTreeProfileBreakdown(breakdown);
+            aggregationProfileBreakdown.setStarTreePrecomputed();
+        } else {
+            FixedBitSet filteredValues = scanStarTree(context, null, ctx, starTree, null);
+            buildBucketsFromStarTree(context, valuesSource, ctx, starTree, null, null, null, filteredValues);
+        }
+    }
+
+    @Override
+    public FixedBitSet scanStarTree(
+        SearchContext context,
+        ValuesSource valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric
+    ) throws IOException {
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        assert starTreeValues != null;
+
+        FixedBitSet matchedDocIds = getStarTreeFilteredValues(context, ctx, starTreeValues);
+        assert matchedDocIds != null;
+        return matchedDocIds;
+    }
+
+    @Override
+    public void buildBucketsFromStarTree(
+        SearchContext context,
+        ValuesSource valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric,
+        Consumer<Long> valueConsumer,
+        Runnable finalConsumer,
+        FixedBitSet filteredValues
+    ) throws IOException {
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
         assert starTreeValues != null;
 
@@ -217,14 +262,12 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
             .getMetricValuesIterator(sumMetricName);
         SortedNumericStarTreeValuesIterator countValueIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
             .getMetricValuesIterator(countMetricName);
-        FixedBitSet matchedDocIds = getStarTreeFilteredValues(context, ctx, starTreeValues);
-        assert matchedDocIds != null;
 
-        int numBits = matchedDocIds.length();  // Get the length of the FixedBitSet
+        int numBits = filteredValues.length();  // Get the length of the FixedBitSet
         if (numBits > 0) {
             // Iterate over the FixedBitSet
-            for (int bit = matchedDocIds.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = bit + 1 < numBits
-                ? matchedDocIds.nextSetBit(bit + 1)
+            for (int bit = filteredValues.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = bit + 1 < numBits
+                ? filteredValues.nextSetBit(bit + 1)
                 : DocIdSetIterator.NO_MORE_DOCS) {
                 // Advance to the bit (entryId) in the valuesIterator
                 if ((sumValuesIterator.advanceExact(bit) && countValueIterator.advanceExact(bit)) == false) {
