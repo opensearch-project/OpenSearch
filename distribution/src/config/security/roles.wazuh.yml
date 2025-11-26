@@ -172,3 +172,32 @@ ml_config_write:
     - "system:admin/system_index"
   tenant_permissions: []
   static: false
+
+# Roles for Content Manager plugin subscription management
+cm_subscription_read:
+  reserved: true
+  hidden: false
+  cluster_permissions:
+    - "plugin:content_manager/subscription_get"
+  index_permissions: []
+  tenant_permissions: []
+  static: true
+
+cm_subscription_write:
+  reserved: true
+  hidden: false
+  cluster_permissions:
+    - "plugin:content_manager/subscription_post"
+    - "plugin:content_manager/subscription_delete"
+  index_permissions: []
+  tenant_permissions: []
+  static: true
+
+cm_update:
+  reserved: true
+  hidden: false
+  cluster_permissions:
+    - "plugin:content_manager/update"
+  index_permissions: []
+  tenant_permissions: []
+  static: true

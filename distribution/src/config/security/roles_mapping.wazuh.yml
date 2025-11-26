@@ -120,3 +120,31 @@ notifications_full_access:
   users:
   - "kibanaserver"
   and_backend_roles: []
+
+# Roles for Content Manager plugin subscription management
+cm_subscription_read:
+  reserved: true
+  hidden: false
+  backend_roles: [ ]
+  hosts: [ ]
+  users:
+    - "wazuh-server"
+  and_backend_roles: [ ]
+
+cm_subscription_write:
+  reserved: true
+  hidden: false
+  backend_roles: [ ]
+  hosts: [ ]
+  users:
+    - "wazuh-dashboard"
+  and_backend_roles: [ ]
+
+cm_update:
+  reserved: true
+  hidden: false
+  backend_roles: [ ]
+  hosts: [ ]
+  users:
+    - "wazuh-dashboard"
+  and_backend_roles: [ ]
