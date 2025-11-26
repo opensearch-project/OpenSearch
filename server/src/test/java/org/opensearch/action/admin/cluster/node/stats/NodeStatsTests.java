@@ -1502,7 +1502,11 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 level
             );
         } else {
-            return new MockNodeIndicesStats(new CommonStats(commonStatsFlags), statsByShard, new SearchRequestStats(clusterSettings), new StatusCounterStats()
+            return new MockNodeIndicesStats(
+                new CommonStats(commonStatsFlags),
+                statsByShard,
+                new SearchRequestStats(clusterSettings),
+                new StatusCounterStats()
             );
         }
     }
