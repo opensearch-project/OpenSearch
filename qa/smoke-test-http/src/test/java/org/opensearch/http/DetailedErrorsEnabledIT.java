@@ -92,11 +92,10 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
         byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
         request.setEntity(new ByteArrayEntity(requestBody, ContentType.APPLICATION_JSON));
 
-        try (var restClient = getRestClient()) {
-            Response response = restClient.performRequest(request);
-            assertThat(EntityUtils.toString(response.getEntity()),
-                containsString("\"stack_trace\":\"[missing_index] IndexNotFoundException[no such index [missing_index]]"));
-        }
+        Response response = getRestClient().performRequest(request);
+
+        assertThat(EntityUtils.toString(response.getEntity()),
+            containsString("\"stack_trace\":\"[missing_index] IndexNotFoundException[no such index [missing_index]]"));
     }
 
 }

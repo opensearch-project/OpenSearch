@@ -92,10 +92,9 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
         byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
         request.setEntity(new ByteArrayEntity(requestBody, ContentType.APPLICATION_JSON));
 
-        try (var restClient = getRestClient()) {
-            Response response = restClient.performRequest(request);
-            assertThat(EntityUtils.toString(response.getEntity()), not(containsString("stack_trace")));
-        }
+        Response response = getRestClient().performRequest(request);
+
+        assertThat(EntityUtils.toString(response.getEntity()), not(containsString("stack_trace")));
     }
 
 }

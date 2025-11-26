@@ -10,6 +10,7 @@ package org.opensearch.http.reactor.netty4;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -19,12 +20,14 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.net.NetUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpReadTimeoutException;
+import org.opensearch.http.HttpResponse;
 import org.opensearch.http.HttpServerChannel;
 import org.opensearch.http.reactor.netty4.ssl.SslUtils;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
@@ -39,12 +42,14 @@ import org.opensearch.transport.reactor.netty4.Netty4Utils;
 import javax.net.ssl.KeyManagerFactory;
 
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.net.SocketOption;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
@@ -62,6 +67,8 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
+import reactor.netty.ChannelPipelineConfigurer;
+import reactor.netty.ConnectionObserver;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.server.HttpServer;
@@ -157,6 +164,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     /**
      * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
+     *
      * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
@@ -194,6 +202,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     /**
      * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
+     *
      * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
@@ -232,6 +241,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     /**
      * Binds the transport engine to the socket address
+     *
      * @param socketAddress socket address to bind to
      */
     @Override
@@ -261,6 +271,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     private HttpServer configure(final HttpServer server) throws Exception {
         HttpServer configured = server.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings))
+            .doOnChannelInit(new ChannelInitializer(this))
             .childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
 
         if (SETTING_HTTP_TCP_KEEP_ALIVE.get(settings)) {
@@ -347,6 +358,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     /**
      * Handles incoming Reactor Netty request
+     *
      * @param request request instance
      * @param response response instances
      * @return response publisher
@@ -457,4 +469,66 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
             super.onException(channel, cause);
         }
     }
+
+    /**
+     * A pipeline configurer to be added as a part of channel initialization process
+     * to register accepted channels with the transport. This allows the transport
+     * to properly track open channels.
+     */
+    private static class ChannelInitializer implements ChannelPipelineConfigurer {
+        private final ReactorNetty4HttpServerTransport transport;
+
+        private ChannelInitializer(ReactorNetty4HttpServerTransport transport) {
+            this.transport = transport;
+        }
+
+        @Override
+        public void onChannelInit(ConnectionObserver connectionObserver, Channel channel, SocketAddress remoteAddress) {
+            transport.serverAcceptedChannel(new ClosableHttpChannelWrapper(channel));
+        }
+    }
+
+    /**
+     * A wrapper to close the underlying Netty channel.
+     */
+    private static class ClosableHttpChannelWrapper implements HttpChannel {
+        private final Channel channel;
+        private final CompletableContext<Void> closeContext = new CompletableContext<>();
+
+        private ClosableHttpChannelWrapper(Channel channel) {
+            this.channel = channel;
+            Netty4Utils.addListener(this.channel.closeFuture(), closeContext);
+        }
+
+        @Override
+        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
+            channel.writeAndFlush(response, Netty4Utils.addPromise(listener, channel));
+        }
+
+        @Override
+        public InetSocketAddress getLocalAddress() {
+            return (InetSocketAddress) channel.localAddress();
+        }
+
+        @Override
+        public InetSocketAddress getRemoteAddress() {
+            return (InetSocketAddress) channel.remoteAddress();
+        }
+
+        @Override
+        public void close() {
+            channel.close();
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            closeContext.addListener(ActionListener.toBiConsumer(listener));
+        }
+
+        @Override
+        public boolean isOpen() {
+            return channel.isOpen();
+        }
+    }
+
 }
