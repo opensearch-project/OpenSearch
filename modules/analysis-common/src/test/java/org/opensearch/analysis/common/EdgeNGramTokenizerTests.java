@@ -49,10 +49,8 @@ import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Arrays;
 import java.util.Collections;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
 
 public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
 
@@ -99,7 +97,14 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
                 IllegalArgumentException.class,
                 () -> buildAnalyzers(VersionUtils.randomVersionBetween(random(), Version.V_3_0_0, Version.CURRENT), "edgeNGram")
             );
-            assertThat(e, hasToString(containsString("The [edgeNGram] tokenizer name was deprecated pre 1.0.")));
+
+            boolean found = Arrays.stream(e.getSuppressed())
+                .map(org.opensearch.ExceptionsHelper::unwrapCause)
+                .map(Throwable::getMessage)
+                .findFirst()
+                .get()
+                .contains("The [edgeNGram] tokenizer name was deprecated pre 1.0.");
+            assertTrue("expected deprecation message in suppressed causes", found);
         }
     }
 

@@ -120,7 +120,7 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             fail("fail! due to synonym word deleted by analyzer");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Failed to build synonyms"));
+            assertThat(e.getMessage(), startsWith("Failed to build analyzers: [synonymAnalyzerWithStopSynonymBeforeSynonym]"));
         }
     }
 
@@ -141,7 +141,7 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             fail("fail! due to synonym word deleted by analyzer");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Failed to build synonyms"));
+            assertThat(e.getMessage(), startsWith("Failed to build analyzers: [synonymAnalyzerExpandWithStopBeforeSynonym]"));
         }
     }
 
@@ -269,7 +269,7 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             TokenFilterFactory tff = plugin.getTokenFilters(analysisModule).get(factory).get(idxSettings, environment, factory, settings);
             TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, environment, "keyword", settings);
             SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, environment, "synonym", settings, analysisRegistry);
-            Analyzer analyzer = stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null);
+            Analyzer analyzer = stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null, null);
 
             try (TokenStream ts = analyzer.tokenStream("field", "text")) {
                 assertThat(ts, instanceOf(KeywordTokenizer.class));
@@ -350,7 +350,7 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 "Expected IllegalArgumentException for factory " + factory,
-                () -> stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null)
+                () -> stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null, null)
             );
 
             assertEquals(factory, "Token filter [" + factory + "] cannot be used to parse synonyms", e.getMessage());
@@ -442,5 +442,49 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
         try (TokenStream ts = analyzers.get("text_en_index").tokenStream("", "laptop")) {
             assertTokenStreamContents(ts, new String[] { "notebook" }, new int[] { 0 }, new int[] { 6 });
         }
+    }
+
+    /**
+     * Test the core dependency resolution issue from GitHub #18037:
+     * synonym_graph with custom synonym_analyzer should work even when
+     * the main analyzer contains word_delimiter_graph that would normally
+     * cause "cannot be used to parse synonyms" error.
+     */
+    public void testSynonymAnalyzerDependencyResolution() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+
+            // Main analyzer with word_delimiter. order=2
+            .put("index.analysis.analyzer.main_analyzer.type", "custom")
+            .put("index.analysis.analyzer.main_analyzer.order", "2")
+            .put("index.analysis.analyzer.main_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.main_analyzer.filter", "lowercase", "test_word_delimiter", "test_synonyms")
+
+            // Problematic filter for synonym parsing
+            .put("index.analysis.filter.test_word_delimiter.type", "word_delimiter_graph")
+            .put("index.analysis.filter.test_word_delimiter.generate_word_parts", true)
+
+            // Custom analyzer dependency. order=1 (built before main_analyzer whose order=2)
+            .put("index.analysis.analyzer.simple_synonym_analyzer.type", "custom")
+            .put("index.analysis.analyzer.simple_synonym_analyzer.order", "1")
+            .put("index.analysis.analyzer.simple_synonym_analyzer.tokenizer", "standard")
+
+            // Synonym filter that depends on custom analyzer
+            .put("index.analysis.filter.test_synonyms.type", "synonym_graph")
+            .putList("index.analysis.filter.test_synonyms.synonyms", "laptop,notebook")
+            .put("index.analysis.filter.test_synonyms.synonym_analyzer", "simple_synonym_analyzer")
+            .build();
+
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
+
+        // Should succeed with the fix (would fail before due to registration order)
+        IndexAnalyzers analyzers = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(new CommonAnalysisModulePlugin())
+        ).getAnalysisRegistry().build(idxSettings);
+
+        assertNotNull("main_analyzer should be created", analyzers.get("main_analyzer"));
+        assertNotNull("simple_synonym_analyzer should be created", analyzers.get("simple_synonym_analyzer"));
     }
 }
