@@ -77,7 +77,7 @@ public class DocStatusStats extends AbstractStatusStats {
         builder.startObject(Fields.DOC_STATUS);
 
         super.toXContent(builder, params);
-        return builder;
+        return builder.endObject();
     }
 
     @Override

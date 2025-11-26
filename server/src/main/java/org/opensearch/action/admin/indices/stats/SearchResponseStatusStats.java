@@ -76,7 +76,7 @@ public class SearchResponseStatusStats extends AbstractStatusStats {
         builder.startObject(Fields.SEARCH_RESPONSE_STATUS);
 
         super.toXContent(builder, params);
-        return builder;
+        return builder.endObject();
     }
 
     @Override

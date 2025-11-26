@@ -76,7 +76,15 @@ public class StatusCounterStats implements Writeable, ToXContentFragment {
     }
 
     public void add(StatusCounterStats stats) {
-        docStatusStats.add(stats.docStatusStats);
+        if (stats == null) {
+            return;
+        }
+        if (docStatusStats != null) {
+            docStatusStats.add(stats.docStatusStats);
+        }
+        if (searchResponseStatusStats != null) {
+            searchResponseStatusStats.add(stats.searchResponseStatusStats);
+        }
     }
 
     @Override

@@ -88,7 +88,7 @@ public abstract class AbstractStatusStats implements Writeable, ToXContentFragme
         builder.field(userFailureType, errorTypeCounts.getOrDefault(userFailureType, (long) 0));
         builder.field(systemErrorType, errorTypeCounts.getOrDefault(systemErrorType, (long) 0));
 
-        return builder.endObject();
+        return builder;
     }
 
     @Override

@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.LongAdder;
 public class MultiSearchStatsIT extends OpenSearchIntegTestCase {
     private final SearchResponseStatusStats expectedSearchResponseStatusStats = new SearchResponseStatusStats();
 
-    public void testNodeIndicesStatsDocStatusStatsIndexBulk() {
+    public void testNodeIndicesStatsSearchResponseStatusStatsMultiSearch() {
         createIndex("test");
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
@@ -70,10 +70,12 @@ public class MultiSearchStatsIT extends OpenSearchIntegTestCase {
             .getStatusCounterStats()
             .getSearchResponseStatusStats();
 
-        Arrays.equals(
-            searchResponseStatusStats.getSearchResponseStatusCounter(),
-            expectedSearchResponseStatusStats.getSearchResponseStatusCounter(),
-            Comparator.comparingLong(LongAdder::longValue)
+        assertTrue(
+            Arrays.equals(
+                searchResponseStatusStats.getSearchResponseStatusCounter(),
+                expectedSearchResponseStatusStats.getSearchResponseStatusCounter(),
+                Comparator.comparingLong(LongAdder::longValue)
+            )
         );
     }
 
