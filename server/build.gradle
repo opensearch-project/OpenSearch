@@ -169,6 +169,8 @@ tasks.named("testingConventions").configure {
     }
 }
 
+tasks.named('forbiddenApisInternalClusterTest').configure { forbidSleep() }
+
 // Set to current version by default
 def japicmpCompareTarget = System.getProperty("japicmp.compare.version")
 if (japicmpCompareTarget == null) { /* use latest released version */
