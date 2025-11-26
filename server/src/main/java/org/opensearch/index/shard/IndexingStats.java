@@ -204,7 +204,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             } else {
                 maxLastIndexRequestTimestamp = 0L;
             }
-            if (in.getVersion().onOrAfter(Version.V_2_11_0) && in.getVersion().onOrBefore(Version.V_3_3_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_11_0) && in.getVersion().before(Version.V_3_4_0)) {
                 docStatusStats = in.readOptionalWriteable(DocStatusStats::new);
             } else {
                 docStatusStats = null;
@@ -389,7 +389,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
                 out.writeLong(maxLastIndexRequestTimestamp);
             }
-            if (out.getVersion().onOrAfter(Version.V_2_11_0) && out.getVersion().onOrBefore(Version.V_3_3_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_11_0) && out.getVersion().before(Version.V_3_4_0)) {
                 out.writeOptionalWriteable(docStatusStats);
             }
         }
