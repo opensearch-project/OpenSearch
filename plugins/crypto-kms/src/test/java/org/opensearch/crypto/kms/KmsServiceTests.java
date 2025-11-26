@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.kms.KmsClient;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.secure_sm.AccessController;
 
 public class KmsServiceTests extends AbstractAwsTestCase {
     private final CryptoMetadata cryptoMetadata = new CryptoMetadata("kp1", "kp2", Settings.EMPTY);
@@ -38,11 +39,11 @@ public class KmsServiceTests extends AbstractAwsTestCase {
             assertNull(proxyConfiguration.password());
 
             // retry policy
-            RetryPolicy retryPolicyConfiguration = SocketAccess.doPrivileged(kmsService::buildRetryPolicy);
+            RetryPolicy retryPolicyConfiguration = AccessController.doPrivileged(kmsService::buildRetryPolicy);
 
             assertEquals(retryPolicyConfiguration.numRetries().intValue(), 10);
 
-            ClientOverrideConfiguration clientOverrideConfiguration = SocketAccess.doPrivileged(kmsService::buildOverrideConfiguration);
+            ClientOverrideConfiguration clientOverrideConfiguration = AccessController.doPrivileged(kmsService::buildOverrideConfiguration);
             assertTrue(clientOverrideConfiguration.retryPolicy().isPresent());
             assertEquals(clientOverrideConfiguration.retryPolicy().get().numRetries().intValue(), 10);
         }
@@ -63,7 +64,7 @@ public class KmsServiceTests extends AbstractAwsTestCase {
 
         try (KmsService kmsService = new KmsService()) {
             // proxy configuration
-            final ProxyConfiguration proxyConfiguration = SocketAccess.doPrivileged(
+            final ProxyConfiguration proxyConfiguration = AccessController.doPrivileged(
                 () -> kmsService.buildProxyConfiguration(KmsClientSettings.getClientSettings(settings))
             );
 
@@ -73,10 +74,10 @@ public class KmsServiceTests extends AbstractAwsTestCase {
             assertEquals(proxyConfiguration.password(), "aws_proxy_password");
 
             // retry policy
-            RetryPolicy retryPolicyConfiguration = SocketAccess.doPrivileged(kmsService::buildRetryPolicy);
+            RetryPolicy retryPolicyConfiguration = AccessController.doPrivileged(kmsService::buildRetryPolicy);
             assertEquals(retryPolicyConfiguration.numRetries().intValue(), 10);
 
-            ClientOverrideConfiguration clientOverrideConfiguration = SocketAccess.doPrivileged(kmsService::buildOverrideConfiguration);
+            ClientOverrideConfiguration clientOverrideConfiguration = AccessController.doPrivileged(kmsService::buildOverrideConfiguration);
             assertTrue(clientOverrideConfiguration.retryPolicy().isPresent());
             assertEquals(clientOverrideConfiguration.retryPolicy().get().numRetries().intValue(), 10);
         }
