@@ -116,7 +116,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
 
     /**
      * This constructor will be deprecated starting in version 3.4.0.
-     * Use {@link ShardStats} instead.
+     * Use {@link Builder} instead.
      */
     @Deprecated
     public ShardStats(
