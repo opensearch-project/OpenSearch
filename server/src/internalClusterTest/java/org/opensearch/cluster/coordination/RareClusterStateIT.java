@@ -53,6 +53,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -219,6 +220,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         assertHitCount(client().prepareSearch("test").get(), 0);
     }
 
+    @SuppressForbidden(reason = "Best effort sleep, not critical to test logic")
     public void testDelayedMappingPropagationOnPrimary() throws Exception {
         // Here we want to test that things go well if there is a first request
         // that adds mappings but before mappings are propagated to all nodes
@@ -309,6 +311,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         assertEquals(1, docIndexResponse.get(10, TimeUnit.SECONDS).getShardInfo().getTotal());
     }
 
+    @SuppressForbidden(reason = "Best effort sleep, not critical to test logic")
     public void testDelayedMappingPropagationOnReplica() throws Exception {
         // This is essentially the same thing as testDelayedMappingPropagationOnPrimary
         // but for replicas

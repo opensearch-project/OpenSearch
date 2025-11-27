@@ -12,6 +12,7 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.containsString;
@@ -76,7 +77,7 @@ public class GoogleCloudStorageServiceFipsTests extends GoogleCloudStorageServic
             final var settings = Settings.builder().setSecureSettings(secureSettings).build();
             service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
 
-            final var exception = expectThrows(IllegalStateException.class, () -> service.client("default", "repo", statsCollector));
+            final var exception = expectThrows(IOException.class, () -> service.client("default", "repo", statsCollector));
             assertThat(exception.getMessage(), containsString("FIPS mode is active but no custom truststore is configured"));
         }
 
