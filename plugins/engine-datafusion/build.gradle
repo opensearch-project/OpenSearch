@@ -17,6 +17,7 @@ def pluginDescription = 'OpenSearch plugin providing access to DataFusion via JN
 def projectPath = 'org.opensearch'
 def pathToPlugin = 'datafusion.DataFusionPlugin'
 def pluginClassName = 'DataFusionPlugin'
+def buildType = project.hasProperty('rustDebug') ? 'debug' : 'release'
 
 opensearchplugin {
     name = pluginName
@@ -25,6 +26,7 @@ opensearchplugin {
     licenseFile = rootProject.file('LICENSE.txt')
     noticeFile = rootProject.file('NOTICE.txt')
 }
+
 
 dependencies {
     api project(':libs:opensearch-vectorized-exec-spi')
@@ -69,8 +71,6 @@ task buildRustLibrary(type: Exec) {
     def libPrefix = osName.contains('windows') ? '' : 'lib'
     def libExtension = osName.contains('windows') ? '.dll' : (osName.contains('mac') ? '.dylib' : '.so')
 
-    // Use debug build for development, release for production
-    def buildType = project.hasProperty('rustRelease') ? 'release' : 'debug'
     def targetDir = "target/${buildType}"
 
   // Find cargo executable - try common locations
@@ -116,7 +116,6 @@ task copyNativeLibrary(type: Copy, dependsOn: buildRustLibrary) {
     def osName = System.getProperty('os.name').toLowerCase()
     def libPrefix = osName.contains('windows') ? '' : 'lib'
     def libExtension = osName.contains('windows') ? '.dll' : (osName.contains('mac') ? '.dylib' : '.so')
-    def buildType = project.hasProperty('rustRelease') ? 'release' : 'debug'
 
     from file("jni/target/${buildType}/${libPrefix}opensearch_datafusion_jni${libExtension}")
     into file('src/main/resources/native')
