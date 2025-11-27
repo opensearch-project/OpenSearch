@@ -45,6 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactor the ThreadPoolStats.Stats class to use the Builder pattern instead of constructors ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
 - Refactor the IndexingStats.Stats class to use the Builder pattern instead of constructors ([#19306](https://github.com/opensearch-project/OpenSearch/pull/19306))
 - Remove FeatureFlag.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG. ([#19715](https://github.com/opensearch-project/OpenSearch/pull/19715))
+- Replace java.security.AccessController with org.opensearch.secure_sm.AccessController in sub projects with SocketAccess class ([#19803](https://github.com/opensearch-project/OpenSearch/pull/19803))
 - Replace java.security.AccessController with org.opensearch.secure_sm.AccessController in discovery plugins ([#19802](https://github.com/opensearch-project/OpenSearch/pull/19802))
 - Change the default value of doc_values in WildcardFieldMapper to true. ([#19796](https://github.com/opensearch-project/OpenSearch/pull/19796))
 - Make Engine#loadHistoryUUID() protected and Origin#isFromTranslog() public ([#19753](https://github.com/opensearch-project/OpenSearch/pull/19752))
@@ -89,6 +90,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix GRPC Bulk ([#19937](https://github.com/opensearch-project/OpenSearch/pull/19937))
 - Fix node bootstrap error when enable stream transport and remote cluster state ([#19948](https://github.com/opensearch-project/OpenSearch/pull/19948))
 - Fix flaky DetailedErrorsDisabledIT and DetailedErrorsEnabledIT ([#20106](https://github.com/opensearch-project/OpenSearch/pull/20106))
+- Fix deletion failure/error of unused index template; case when an index template matches a data stream but has a lower priority. ([#20102](https://github.com/opensearch-project/OpenSearch/pull/20102))
 - Fix toBuilder method in EngineConfig to include mergedSegmentTransferTracker([20105](https://github.com/opensearch-project/OpenSearch/pull/20105))
 
 ### Dependencies
@@ -123,6 +125,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.cloud:google-cloud-storage` from 2.55.0 to 2.60.0 ([#20023](https://github.com/opensearch-project/OpenSearch/pull/20023))
 - Bump `commons-cli:commons-cli` from 1.10.0 to 1.11.0 ([#20022](https://github.com/opensearch-project/OpenSearch/pull/20022))
 - Bump `com.squareup.okio:okio` from 3.16.0 to 3.16.3 ([#20025](https://github.com/opensearch-project/OpenSearch/pull/20025))
+- Bump `org.tukaani:xz` from 1.10 to 1.11 ([#20082](https://github.com/opensearch-project/OpenSearch/pull/20082))
 - Bump `com.google.api:api-common` from 2.52.0 to 2.55.1 ([#20083](https://github.com/opensearch-project/OpenSearch/pull/20083))
 - Bump `actions/upload-artifact` from 4 to 5 ([#20081](https://github.com/opensearch-project/OpenSearch/pull/20081))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.5 to 10.6 ([#20084](https://github.com/opensearch-project/OpenSearch/pull/20084))

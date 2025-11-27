@@ -71,6 +71,7 @@ import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 import org.opensearch.repositories.s3.async.TransferSemaphoresHolder;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Assert;
@@ -137,7 +138,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     @Before
     public void setUp() throws Exception {
-        previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+        previousOpenSearchPathConf = AccessController.doPrivileged(
+            () -> System.setProperty("opensearch.path.conf", configPath().toString())
+        );
         scheduler = new ScheduledThreadPoolExecutor(1);
         service = new S3Service(configPath(), scheduler);
         asyncService = new S3AsyncService(configPath(), scheduler);
@@ -165,7 +168,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         normalPrioritySizeBasedBlockingQ.start();
         lowPrioritySizeBasedBlockingQ.start();
         // needed by S3AsyncService
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+        AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         super.setUp();
     }
 
@@ -179,9 +182,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         IOUtils.close(transferNIOGroup);
 
         if (previousOpenSearchPathConf != null) {
-            SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
+            AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
         } else {
-            SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+            AccessController.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
         }
         super.tearDown();
     }
