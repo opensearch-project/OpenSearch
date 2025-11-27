@@ -30,7 +30,11 @@ public class ReactorNetty4HttpChannel implements HttpChannel {
     private final ChannelPipeline inboundPipeline;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
-    ReactorNetty4HttpChannel(Channel channel) {
+    /**
+     * Construct a new {@link ReactorNetty4HttpChannel}
+     * @param channel the underlying Netty channel
+     */
+    public ReactorNetty4HttpChannel(Channel channel) {
         this.channel = channel;
         this.inboundPipeline = channel.pipeline();
         Netty4Utils.addListener(this.channel.closeFuture(), closeContext);
@@ -66,10 +70,18 @@ public class ReactorNetty4HttpChannel implements HttpChannel {
         return channel.isOpen();
     }
 
+    /**
+     * Get the inbound pipeline associated with this channel
+     * @return the inbound pipeline
+     */
     public ChannelPipeline inboundPipeline() {
         return inboundPipeline;
     }
 
+    /**
+     * Get the underlying Netty channel
+     * @return the Netty channel
+     */
     public Channel getNettyChannel() {
         return channel;
     }
