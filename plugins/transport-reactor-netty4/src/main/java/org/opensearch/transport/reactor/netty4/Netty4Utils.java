@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.concurrent.CompletableContext;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 
@@ -26,9 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelPromise;
 import io.netty.util.NettyRuntime;
 
 /**
@@ -141,30 +138,5 @@ public final class Netty4Utils {
                 }
             }
         });
-    }
-
-    /**
-     * Creates a {@link ChannelPromise} for the given {@link Channel} and adds a listener that invokes the given {@link ActionListener}
-     * on its completion.
-     * @param listener lister to invoke
-     * @param channel channel
-     * @return write promise
-     */
-    public static ChannelPromise addPromise(ActionListener<Void> listener, Channel channel) {
-        ChannelPromise writePromise = channel.newPromise();
-        writePromise.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(null);
-            } else {
-                final Throwable cause = f.cause();
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                if (cause instanceof Error) {
-                    listener.onFailure(new Exception(cause));
-                } else {
-                    listener.onFailure((Exception) cause);
-                }
-            }
-        });
-        return writePromise;
     }
 }
