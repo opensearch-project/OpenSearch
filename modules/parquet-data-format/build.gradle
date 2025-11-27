@@ -13,6 +13,8 @@ def pluginDescription = 'Parquet data format plugin'
 def packagePath = 'com.parquet'
 def pathToPlugin = 'parquetdataformat'
 def pluginClassName = 'ParquetDataFormatPlugin'
+def buildType = project.hasProperty('rustDebug') ? 'debug' : 'release'
+
 group = "ParquetDataFormatGroup"
 
 java {
@@ -168,7 +170,6 @@ tasks.register('buildRust', Exec) {
   def libExtension = osName.contains('windows') ? '.dll' : (osName.contains('mac') ? '.dylib' : '.so')
 
   // Use debug build for development, release for production
-  def buildType = project.hasProperty('rustRelease') ? 'release' : 'debug'
   def targetDir = file("${workingDir}/target/")
 
   // Find cargo executable - try common locations
@@ -187,9 +188,9 @@ tasks.register('buildRust', Exec) {
   }
 
   def cargoArgs = [cargoExecutable, 'build']
-//  if (buildType == 'release') {
-  cargoArgs.add('--release')
-//  }
+  if (buildType == 'release') {
+    cargoArgs.add('--release')
+  }
 
   if (osName.contains('windows')) {
     commandLine cargoArgs
@@ -202,15 +203,14 @@ tasks.register('buildRust', Exec) {
 
   inputs.files fileTree("${workingDir}/src")
   inputs.file "${workingDir}/Cargo.toml"
-//  outputs.files file("jni/${targetDir}/${libPrefix}opensearch_datafusion_jni${libExtension}")
-//  System.out.println("Building Rust library in ${buildType} mode");
-
+  outputs.files file("jni/${targetDir}/${libPrefix}opensearch_datafusion_jni${libExtension}")
+  System.out.println("Building Parquet plugin rust library in ${buildType} mode");
 
 }
 
 tasks.register('copyNativeLib', Copy) {
   dependsOn buildRust
-  from "src/main/rust/target/release"
+  from "src/main/rust/target/${buildType}"
   into "src/main/resources/native"
   include "libparquet_dataformat_jni.*"
   include "parquet_dataformat_jni.dll"
