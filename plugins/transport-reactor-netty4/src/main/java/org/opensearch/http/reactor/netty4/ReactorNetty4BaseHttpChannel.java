@@ -19,7 +19,8 @@ import reactor.netty.NettyPipeline;
 import reactor.netty.http.server.HttpServerRequest;
 
 final class ReactorNetty4BaseHttpChannel {
-    private static final String CHANNEL_PROPERTY = "channel";
+    static final String CHANNEL_PROPERTY = "channel";
+
     private static final String SSL_HANDLER_PROPERTY = "ssl_http";
     private static final String SSL_ENGINE_PROPERTY = "ssl_engine";
 

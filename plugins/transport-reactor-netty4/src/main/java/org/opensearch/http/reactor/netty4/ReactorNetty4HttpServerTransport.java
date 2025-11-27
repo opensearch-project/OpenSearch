@@ -10,7 +10,6 @@ package org.opensearch.http.reactor.netty4;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -20,14 +19,12 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.net.NetUtils;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpReadTimeoutException;
-import org.opensearch.http.HttpResponse;
 import org.opensearch.http.HttpServerChannel;
 import org.opensearch.http.reactor.netty4.ssl.SslUtils;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
@@ -484,50 +481,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
         @Override
         public void onChannelInit(ConnectionObserver connectionObserver, Channel channel, SocketAddress remoteAddress) {
-            transport.serverAcceptedChannel(new ClosableHttpChannelWrapper(channel));
-        }
-    }
-
-    /**
-     * A wrapper to close the underlying Netty channel.
-     */
-    private static class ClosableHttpChannelWrapper implements HttpChannel {
-        private final Channel channel;
-        private final CompletableContext<Void> closeContext = new CompletableContext<>();
-
-        private ClosableHttpChannelWrapper(Channel channel) {
-            this.channel = channel;
-            Netty4Utils.addListener(this.channel.closeFuture(), closeContext);
-        }
-
-        @Override
-        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-            channel.writeAndFlush(response, Netty4Utils.addPromise(listener, channel));
-        }
-
-        @Override
-        public InetSocketAddress getLocalAddress() {
-            return (InetSocketAddress) channel.localAddress();
-        }
-
-        @Override
-        public InetSocketAddress getRemoteAddress() {
-            return (InetSocketAddress) channel.remoteAddress();
-        }
-
-        @Override
-        public void close() {
-            channel.close();
-        }
-
-        @Override
-        public void addCloseListener(ActionListener<Void> listener) {
-            closeContext.addListener(ActionListener.toBiConsumer(listener));
-        }
-
-        @Override
-        public boolean isOpen() {
-            return channel.isOpen();
+            transport.serverAcceptedChannel(new ReactorNetty4HttpChannel(channel));
         }
     }
 
