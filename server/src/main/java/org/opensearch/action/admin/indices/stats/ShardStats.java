@@ -212,7 +212,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder seqNoStats(SeqNoStats seqNoStat) {
+        public Builder seqNoStats(SeqNoStats seqNoStats) {
             this.seqNoStats = seqNoStats;
             return this;
         }
