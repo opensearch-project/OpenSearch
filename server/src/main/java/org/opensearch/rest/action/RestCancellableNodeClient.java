@@ -83,7 +83,7 @@ public class RestCancellableNodeClient extends FilterClient {
     /**
      * Returns the number of tasks tracked globally.
      */
-    static int getNumTasks() {
+    public static int getNumTasks() {
         return httpChannels.values().stream().mapToInt(CloseListener::getNumTasks).sum();
     }
 
