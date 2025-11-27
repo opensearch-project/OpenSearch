@@ -39,14 +39,12 @@ import org.opensearch.transport.reactor.netty4.Netty4Utils;
 import javax.net.ssl.KeyManagerFactory;
 
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.net.SocketOption;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
@@ -64,8 +62,6 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
-import reactor.netty.ChannelPipelineConfigurer;
-import reactor.netty.ConnectionObserver;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.server.HttpServer;
@@ -268,7 +264,6 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     private HttpServer configure(final HttpServer server) throws Exception {
         HttpServer configured = server.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings))
-            .doOnChannelInit(new ChannelInitializer(this))
             .childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
 
         if (SETTING_HTTP_TCP_KEEP_ALIVE.get(settings)) {
@@ -354,6 +349,17 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     }
 
     /**
+     * An override to be able to keep track of accepted channels by the
+     * {@link ReactorNetty4NonStreamingRequestConsumer} and {@link ReactorNetty4StreamingRequestConsumer}
+     *
+     * @param httpChannel the accepted channel
+     */
+    @Override
+    public void serverAcceptedChannel(HttpChannel httpChannel) {
+        super.serverAcceptedChannel(httpChannel);
+    }
+
+    /**
      * Handles incoming Reactor Netty request
      *
      * @param request request instance
@@ -376,6 +382,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         );
         if (dispatchHandlerOpt.map(RestHandler::supportsStreaming).orElse(false)) {
             final ReactorNetty4StreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4StreamingRequestConsumer<>(
+                this,
                 request,
                 response
             );
@@ -464,24 +471,6 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
             super.onException(channel, new HttpReadTimeoutException(readTimeoutMillis, cause));
         } else {
             super.onException(channel, cause);
-        }
-    }
-
-    /**
-     * A pipeline configurer to be added as a part of channel initialization process
-     * to register accepted channels with the transport. This allows the transport
-     * to properly track open channels.
-     */
-    private static class ChannelInitializer implements ChannelPipelineConfigurer {
-        private final ReactorNetty4HttpServerTransport transport;
-
-        private ChannelInitializer(ReactorNetty4HttpServerTransport transport) {
-            this.transport = transport;
-        }
-
-        @Override
-        public void onChannelInit(ConnectionObserver connectionObserver, Channel channel, SocketAddress remoteAddress) {
-            transport.serverAcceptedChannel(new ReactorNetty4HttpChannel(channel));
         }
     }
 
