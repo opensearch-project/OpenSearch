@@ -22,8 +22,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.fips.KeyManagerFipsAwareTestCase;
-import org.opensearch.fips.TrustManagerFipsAwareTestCase;
+import org.opensearch.fips.FipsAwareSslProvider;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -56,6 +55,7 @@ import java.util.Collections;
 import java.util.Optional;
 
 import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 
 import static java.util.Collections.emptyMap;
@@ -66,73 +66,71 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ThreadLeakFilters(filters = { BouncyCastleThreadFilter.class })
-public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTestCase
-    implements
-        TrustManagerFipsAwareTestCase,
-        KeyManagerFipsAwareTestCase {
+public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
     private static final char[] PASSWORD = "password".toCharArray();
 
-    // Cached factories to avoid repeated keystore loading (especially slow in FIPS mode)
-    // TODO: Replace with @BeforeAll when migrating to JUnit 5.
-    private static volatile KeyManagerFactory cachedServerKeyManagerFactory;
-    private static volatile TrustManagerFactory cachedClientTrustManagerFactory;
+    // Cached contexts to avoid repeated keystore loading and SSL context creation
+    // (especially slow in FIPS mode with BCFKS).
+    private static volatile SslContext cachedClientSslContext;
+    private static volatile SslContext cachedServerSslContext;
 
-    private KeyManagerFactory getServerKeyManagerFactory() {
-        if (cachedServerKeyManagerFactory == null) {
-            synchronized (SimpleSecureNetty4TransportTests.class) {
-                if (cachedServerKeyManagerFactory == null) {
-                    cachedServerKeyManagerFactory = createKeyManagerFactory();
-                }
-            }
-        }
-        return cachedServerKeyManagerFactory;
-    }
-
-    private TrustManagerFactory getClientTrustManagerFactory() {
-        if (cachedClientTrustManagerFactory == null) {
-            synchronized (SimpleSecureNetty4TransportTests.class) {
-                if (cachedClientTrustManagerFactory == null) {
-                    cachedClientTrustManagerFactory = createTrustManagerFactory();
-                }
-            }
-        }
-        return cachedClientTrustManagerFactory;
-    }
-
-    @Override
-    public KeyManagerFactory createKeyManagerFactory(String keyStoreType, String fileExtension, String jcaProvider, String jsseProvider) {
-        try {
-            var keyStore = KeyStore.getInstance(keyStoreType, jcaProvider);
-            keyStore.load(SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-server-keystore" + fileExtension), PASSWORD);
-            var keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm(), jsseProvider);
-            keyManagerFactory.init(keyStore, PASSWORD);
-            return keyManagerFactory;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public TrustManagerFactory createTrustManagerFactory(
+    private static final FipsAwareSslProvider<SslContext> serverSslContextProvider = (
         String keyStoreType,
         String fileExtension,
         String jcaProvider,
-        String jsseProvider
-    ) {
-        try {
-            final KeyStore trustStore = KeyStore.getInstance(keyStoreType, jcaProvider);
-            trustStore.load(
-                SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-client-truststore" + fileExtension),
-                PASSWORD
-            );
-            var trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), jsseProvider);
-            trustManagerFactory.init(trustStore);
-            return trustManagerFactory;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        String jsseProvider) -> {
+        if (cachedServerSslContext == null) {
+            synchronized (SimpleSecureNetty4TransportTests.class) {
+                if (cachedServerSslContext == null) {
+                    try {
+                        var keyStore = KeyStore.getInstance(keyStoreType, jcaProvider);
+                        keyStore.load(
+                            SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-server-keystore" + fileExtension),
+                            PASSWORD
+                        );
+                        var keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm(), jsseProvider);
+                        keyManagerFactory.init(keyStore, PASSWORD);
+
+                        cachedServerSslContext = SslContextBuilder.forServer(keyManagerFactory).clientAuth(ClientAuth.NONE).build();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
         }
-    }
+        return cachedServerSslContext;
+    };
+
+    private static final FipsAwareSslProvider<SslContext> clientSslContextProvider = (
+        String keyStoreType,
+        String fileExtension,
+        String jcaProvider,
+        String jsseProvider) -> {
+        if (cachedClientSslContext == null) {
+            synchronized (SimpleSecureNetty4TransportTests.class) {
+                if (cachedClientSslContext == null) {
+                    try {
+                        final KeyStore trustStore = KeyStore.getInstance(keyStoreType, jcaProvider);
+                        trustStore.load(
+                            SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-client-truststore" + fileExtension),
+                            PASSWORD
+                        );
+                        var trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), jsseProvider);
+                        trustManagerFactory.init(trustStore);
+
+                        cachedClientSslContext = SslContextBuilder.forClient()
+                            .clientAuth(ClientAuth.NONE)
+                            .trustManager(trustManagerFactory)
+                            .build();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
+        return cachedClientSslContext;
+    };
 
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
@@ -145,23 +143,12 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
 
             @Override
             public Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, Transport transport) throws SSLException {
-                return Optional.of(
-                    SslContextBuilder.forServer(getServerKeyManagerFactory())
-                        .clientAuth(ClientAuth.NONE)
-                        .build()
-                        .newEngine(NettyAllocator.getAllocator())
-                );
+                return Optional.of(serverSslContextProvider.create().newEngine(NettyAllocator.getAllocator()));
             }
 
             @Override
             public Optional<SSLEngine> buildSecureClientTransportEngine(Settings settings, String hostname, int port) throws SSLException {
-                return Optional.of(
-                    SslContextBuilder.forClient()
-                        .clientAuth(ClientAuth.NONE)
-                        .trustManager(getClientTrustManagerFactory())
-                        .build()
-                        .newEngine(NettyAllocator.getAllocator(), hostname, port)
-                );
+                return Optional.of(clientSslContextProvider.create().newEngine(NettyAllocator.getAllocator(), hostname, port));
             }
         };
 

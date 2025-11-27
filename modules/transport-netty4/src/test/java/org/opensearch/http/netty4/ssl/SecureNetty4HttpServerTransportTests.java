@@ -23,7 +23,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.fips.KeyManagerFipsAwareTestCase;
+import org.opensearch.fips.FipsAwareSslProvider;
 import org.opensearch.http.BindHttpException;
 import org.opensearch.http.CorsHandler;
 import org.opensearch.http.HttpServerTransport;
@@ -79,6 +79,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
@@ -94,49 +95,56 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests for the {@link SecureNetty4HttpServerTransport} class.
  */
-public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase implements KeyManagerFipsAwareTestCase {
+public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
 
     private static final char[] PASSWORD = "password".toCharArray();
 
-    // Cached factory to avoid repeated keystore loading (especially slow in FIPS mode with BCFKS).
-    // TODO: Replace with @BeforeAll when migrating to JUnit 5.
-    private static volatile KeyManagerFactory cachedKeyManagerFactory;
+    // Cached contexts to avoid repeated keystore loading and SSL context creation
+    // (especially slow in FIPS mode with BCFKS).
+    private static volatile SslContext cachedServerSslContext;
 
-    private KeyManagerFactory getKeyManagerFactory() {
-        if (cachedKeyManagerFactory == null) {
+    private static final FipsAwareSslProvider<SslContext> serverSslContextProvider = (
+        String keyStoreType,
+        String fileExtension,
+        String jcaProvider,
+        String jsseProvider) -> {
+        if (cachedServerSslContext == null) {
             synchronized (SecureNetty4HttpServerTransportTests.class) {
-                if (cachedKeyManagerFactory == null) {
-                    cachedKeyManagerFactory = createKeyManagerFactory();
+                if (cachedServerSslContext == null) {
+                    try {
+                        final KeyStore keyStore = KeyStore.getInstance(keyStoreType, jcaProvider);
+
+                        try (
+                            var in = SecureNetty4HttpServerTransportTests.class.getResourceAsStream(
+                                "/netty4-server-keystore" + fileExtension
+                            )
+                        ) {
+                            keyStore.load(in, PASSWORD);
+                        }
+
+                        final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(
+                            KeyManagerFactory.getDefaultAlgorithm(),
+                            jsseProvider
+                        );
+                        keyManagerFactory.init(keyStore, PASSWORD);
+
+                        cachedServerSslContext = SslContextBuilder.forServer(keyManagerFactory)
+                            .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                            .build();
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
                 }
             }
         }
-        return cachedKeyManagerFactory;
-    }
+        return cachedServerSslContext;
+    };
 
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
     private ClusterSettings clusterSettings;
     private SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
-
-    public KeyManagerFactory createKeyManagerFactory(String keyStoreType, String fileExtension, String jcaProvider, String jsseProvider) {
-        try {
-            final KeyStore keyStore = KeyStore.getInstance(keyStoreType, jcaProvider);
-
-            try (var in = SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-server-keystore" + fileExtension)) {
-                keyStore.load(in, PASSWORD);
-            }
-
-            final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(
-                KeyManagerFactory.getDefaultAlgorithm(),
-                jsseProvider
-            );
-            keyManagerFactory.init(keyStore, PASSWORD);
-            return keyManagerFactory;
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
-    }
 
     @Before
     public void setup() throws Exception {
@@ -153,12 +161,7 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase imp
 
             @Override
             public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
-                return Optional.of(
-                    SslContextBuilder.forServer(getKeyManagerFactory())
-                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                        .build()
-                        .newEngine(NettyAllocator.getAllocator())
-                );
+                return Optional.of(serverSslContextProvider.create().newEngine(NettyAllocator.getAllocator()));
             }
         };
     }

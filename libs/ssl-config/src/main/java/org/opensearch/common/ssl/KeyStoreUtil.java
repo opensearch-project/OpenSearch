@@ -61,16 +61,16 @@ import java.util.Map;
  */
 final class KeyStoreUtil {
 
-    public static boolean IN_FIPS_MODE;
+    public static final boolean IN_FIPS_MODE = detectFipsMode();
 
-    static {
+    private static boolean detectFipsMode() {
         try {
             // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
             var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
             var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
-            IN_FIPS_MODE = (Boolean) isApprovedOnlyMethod.invoke(null);
+            return (Boolean) isApprovedOnlyMethod.invoke(null);
         } catch (ReflectiveOperationException e) {
-            IN_FIPS_MODE = false;
+            return false;
         }
     }
 
