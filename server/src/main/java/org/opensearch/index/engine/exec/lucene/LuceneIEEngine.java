@@ -22,10 +22,10 @@ import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.Writer;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.ParseContext;
-import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -51,7 +51,7 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
     }
 
     @Override
-    public void loadWriterFiles() {
+    public void loadWriterFiles(CatalogSnapshot catalogSnapshot) {
 
     }
 
@@ -80,7 +80,6 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
     public void close() throws IOException {
 
     }
-
 
     public static class LuceneDocumentInput implements DocumentInput<ParseContext.Document> {
 

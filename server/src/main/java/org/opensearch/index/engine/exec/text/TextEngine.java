@@ -65,7 +65,7 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
     }
 
     @Override
-    public void loadWriterFiles() {
+    public void loadWriterFiles(CatalogSnapshot catalogSnapshot) {
 
     }
 

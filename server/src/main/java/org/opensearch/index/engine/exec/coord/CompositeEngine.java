@@ -231,7 +231,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             committerRef = new LuceneCommitEngine(store, translogDeletionPolicy, translogManager::getLastSyncedGlobalCheckpoint);
             this.compositeEngineCommitter = committerRef;
             final AtomicLong lastCommittedWriterGeneration = new AtomicLong(-1);
-            Map<String,String> lastCommittedData =  this.compositeEngineCommitter.getLastCommittedData();
+            Map<String, String> lastCommittedData = this.compositeEngineCommitter.getLastCommittedData();
             if (lastCommittedData.containsKey(LAST_COMPOSITE_WRITER_GEN_KEY)) {
                 lastCommittedWriterGeneration.set(Long.parseLong(lastCommittedData.get(CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY)));
             }
@@ -247,7 +247,11 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             );
             //Initialize CatalogSnapshotManager before loadWriterFiles to ensure stale files are cleaned up before loading
             this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath);
-            this.engine.loadWriterFiles();
+            try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()) {
+                this.engine.loadWriterFiles(catalogSnapshotReleasableRef.getRef());
+            } catch (Exception e) {
+                failEngine("unable to close releasable catalog snapshot while bootstrapping composite engine", e);
+            }
 
             this.maxSeqNoOfUpdatesOrDeletes =
                 new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getMaxSeqNo()));
@@ -298,7 +302,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
                     if (newSearchEngine.getFileDeletionListener(Engine.SearcherScope.INTERNAL) != null) {
                         fileDeletionListeners.computeIfAbsent(dataFormat.getName(), k -> new ArrayList<>())
-                                .add(newSearchEngine.getFileDeletionListener(Engine.SearcherScope.INTERNAL));
+                            .add(newSearchEngine.getFileDeletionListener(Engine.SearcherScope.INTERNAL));
                     }
                 }
             }

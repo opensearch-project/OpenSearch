@@ -85,9 +85,9 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     @Override
-    public void loadWriterFiles() throws IOException {
+    public void loadWriterFiles(CatalogSnapshot catalogSnapshot) throws IOException {
         for (IndexingExecutionEngine<?> delegate : delegates) {
-            delegate.loadWriterFiles();
+            delegate.loadWriterFiles(catalogSnapshot);
         }
     }
 
