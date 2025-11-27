@@ -6,11 +6,14 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -29,6 +32,7 @@ public class ManagedVSR implements AutoCloseable {
     private final AtomicReference<VSRState> state;
     private final ReadWriteLock lock;
     private final long createdTime;
+    private final Map<String, Field> fields = new HashMap<>();
 
 
     public ManagedVSR(String id, VectorSchemaRoot vsr, BufferAllocator allocator) {
@@ -38,6 +42,9 @@ public class ManagedVSR implements AutoCloseable {
         this.state = new AtomicReference<>(VSRState.ACTIVE);
         this.lock = new ReentrantReadWriteLock();
         this.createdTime = System.currentTimeMillis();
+        for (Field field : vsr.getSchema().getFields()) {
+            fields.put(field.getName(), field);
+        }
     }
 
     /**
@@ -94,7 +101,7 @@ public class ManagedVSR implements AutoCloseable {
     public FieldVector getVector(String fieldName) {
         lock.readLock().lock();
         try {
-            return vsr.getVector(fieldName);
+            return vsr.getVector(fields.get(fieldName));
         } finally {
             lock.readLock().unlock();
         }
