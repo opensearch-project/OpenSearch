@@ -65,15 +65,16 @@ pub async fn execute_query_with_cross_rt_stream(
 
     let runtimeEnv = &runtime.runtime_env;
 
+    let file_metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
+
     let runtime_env = match RuntimeEnvBuilder::from_runtime_env(runtimeEnv)
         .with_cache_manager(
             CacheManagerConfig::default()
                 .with_list_files_cache(Some(list_file_cache.clone()))
-                .with_file_metadata_cache(Some(runtimeEnv.cache_manager.get_file_metadata_cache()))
+                .with_file_metadata_cache(Some(file_metadata_cache))
+                .with_metadata_cache_limit(file_metadata_cache.cache_limit())
                 .with_files_statistics_cache(runtimeEnv.cache_manager.get_file_statistic_cache()),
-        )
-        .with_metadata_cache_limit(250 * 1024 * 1024) // 250 MB
-        .build() {
+        ).build() {
         Ok(env) => env,
         Err(e) => {
             error!("Failed to build runtime env: {}", e);
@@ -211,13 +212,15 @@ pub async fn execute_fetch_phase(
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
     list_file_cache.put(table_path.prefix(), object_meta);
 
+    let file_metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
+
     let runtime_env = RuntimeEnvBuilder::new()
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(runtime.runtime_env.cache_manager.get_file_metadata_cache()))
-                .with_files_statistics_cache(runtime.runtime_env.cache_manager.get_file_statistic_cache()),
+                .with_file_metadata_cache(Some(file_metadata_cache))
+                .with_files_statistics_cache(runtime.runtime_env.cache_manager.get_file_statistic_cache())
+                .with_metadata_cache_limit(file_metadata_cache.cache_limit()),
         )
-        .with_metadata_cache_limit(250 * 1024 * 1024) // 250 MB
         .build()?;
     let ctx = SessionContext::new_with_config_rt(SessionConfig::new(), Arc::new(runtime_env));
 
