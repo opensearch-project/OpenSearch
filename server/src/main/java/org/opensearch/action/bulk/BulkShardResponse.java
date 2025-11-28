@@ -53,6 +53,11 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
     public static final long DEFAULT_SERVICE_TIME = 500000000L;
     private final ShardId shardId;
     private final BulkItemResponse[] responses;
+    /**
+     * The service time for the bulk requests on this shard.
+     * This algorithm is adapted from the search layer, so its parameter names are consistent with those on the query side.
+     * In query scenarios, it refers to returning the exponentially weighted moving average (EWMA) of task execution time.
+     */
     private final long serviceTimeEWMA;
     private final int nodeQueueSize;
 
@@ -70,6 +75,10 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
     }
 
     // NOTE: public for testing only
+    public BulkShardResponse(ShardId shardId, BulkItemResponse[] responses) {
+        this(shardId, responses, DEFAULT_SERVICE_TIME, DEFAULT_QUEUE_SIZE);
+    }
+
     public BulkShardResponse(ShardId shardId, BulkItemResponse[] responses, long serviceTimeEWMA, int nodeQueueSize) {
         this.shardId = shardId;
         this.responses = responses;
