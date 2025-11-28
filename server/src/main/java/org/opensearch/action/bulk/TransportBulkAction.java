@@ -737,9 +737,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 final long startTime = System.nanoTime();
                 final ShardRouting primary = routingTable.shardRoutingTable(shardId).primaryShard();
                 String targetNodeId = primary.currentNodeId();
-                if (targetNodeId != null) {
-                    clientConnections.compute(targetNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
-                }
                 IndexMetadata indexMetaData = clusterState.metadata().index(shardId.getIndexName());
                 boolean bulkAdaptiveShardSelectionEnabled = indexMetaData.isAppendOnlyIndex()
                     && indexMetaData.bulkAdaptiveShardSelectionEnabled();
@@ -754,6 +751,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                 final Span span = tracer.startSpan(SpanBuilder.from("bulkShardAction", nodeId, bulkShardRequest));
                 try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                    if (targetNodeId != null) {
+                        clientConnections.compute(targetNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+                    }
                     shardBulkAction.execute(
                         bulkShardRequest,
                         TraceableActionListener.create(
@@ -990,6 +990,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return indexRoutingTable.shards().get(0).shardId();
         }
 
+        // Two-stage selection: first rank nodes by metrics, then randomly pick a shard on the best node
         Tuple<List<ShardRouting>, Map<String, List<ShardRouting>>> shardInfos = getIndexPrimaryShards(indexRoutingTable);
         List<ShardRouting> shardRoutings = rankShardsAndUpdateStats(
             shardInfos.v1(),
