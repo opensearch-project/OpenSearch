@@ -496,10 +496,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     assert context.isInitial(); // either completed and moved to next or reset
                 }
                 // We're done, there's no more operations to execute so we resolve the wrapped listener
+                long serviceTimeNanos = System.nanoTime() - startTime;
                 if (executor instanceof OpenSearchThreadPoolExecutor) {
-                    finishRequest(System.nanoTime() - startTime, ((OpenSearchThreadPoolExecutor) executor).getQueue().size());
+                    finishRequest(serviceTimeNanos, ((OpenSearchThreadPoolExecutor) executor).getQueue().size());
                 } else {
-                    finishRequest(System.nanoTime() - startTime, 0);
+                    finishRequest(serviceTimeNanos, 0);
                 }
             }
 
