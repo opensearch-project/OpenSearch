@@ -29,9 +29,7 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTests {
