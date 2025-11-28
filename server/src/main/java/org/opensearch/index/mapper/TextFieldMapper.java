@@ -44,6 +44,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -395,7 +396,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             );
         }
 
-        protected TextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
+        protected TextFieldType buildFieldType(FieldType fieldType, MultiFields multiFields, BuilderContext context) {
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
@@ -416,6 +417,10 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             ft.setBoost(boost.getValue());
             if (fieldData.getValue()) {
                 ft.setFielddata(true, freqFilter.getValue());
+            }
+            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)) {
+                ft.setHasDerivedSourceSupportedKeyword(TextFieldMapper.DerivedSourceHelper.hasDerivedSourceSupportedKeyword(multiFields));
+                ft.setKeywordIgnoredLengthForDerivedSource(TextFieldMapper.DerivedSourceHelper.getIgnoredLengthForDerivedSourceSupportedKeyword(multiFields));
             }
             return ft;
         }
@@ -471,17 +476,15 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         @Override
         public TextFieldMapper build(BuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
-            TextFieldType tft = buildFieldType(fieldType, context);
-            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)) {
-                fieldType.setStored(true);
-            }
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+            TextFieldType tft = buildFieldType(fieldType, multiFields, context);
             return new TextFieldMapper(
                 name,
                 fieldType,
                 tft,
                 buildPrefixMapper(context, fieldType, tft),
                 buildPhraseMapper(fieldType, tft),
-                multiFieldsBuilder.build(this, context),
+                multiFields,
                 copyTo.build(),
                 this
             );
@@ -767,6 +770,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         private FielddataFrequencyFilter filter;
         private PrefixFieldType prefixFieldType;
         private boolean indexPhrases = false;
+        private boolean hasDerivedSourceSupportedKeyword = false;
+        private int keywordIgnoredLengthForDerivedSource = -1;
 
         public TextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
             super(name, indexed, stored, false, tsi, meta);
@@ -830,6 +835,22 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         public PrefixFieldType getPrefixFieldType() {
             return this.prefixFieldType;
+        }
+
+        public void setHasDerivedSourceSupportedKeyword(boolean hasDerivedSourceSupportedKeyword) {
+            this.hasDerivedSourceSupportedKeyword = hasDerivedSourceSupportedKeyword;
+        }
+
+        public boolean getHasDerivedSourceSupportedKeyword() {
+            return hasDerivedSourceSupportedKeyword;
+        }
+
+        public void setKeywordIgnoredLengthForDerivedSource(int keywordIgnoredLengthForDerivedSource) {
+            this.keywordIgnoredLengthForDerivedSource = keywordIgnoredLengthForDerivedSource;
+        }
+
+        public int getKeywordIgnoredLengthForDerivedSource() {
+            return keywordIgnoredLengthForDerivedSource;
         }
 
         @Override
@@ -1053,6 +1074,15 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 context.doc().add(new Field(phraseFieldMapper.fieldType().name(), value, phraseFieldMapper.fieldType));
             }
         }
+
+        // Explicitly add stored field, if there is no supporting sub keyword present or value length exceeds when
+        // compared to maximum value of ignore_above from derived source supporting keywords
+        if (context.indexSettings().isDerivedSourceEnabled()
+            && fieldType.stored() == false
+            && (fieldType().getHasDerivedSourceSupportedKeyword() == false
+            || fieldType().getKeywordIgnoredLengthForDerivedSource() < value.length())) {
+            context.doc().add(new StoredField(fieldType().derivedSourceIgnoreFieldName(), value));
+        }
     }
 
     @Override
@@ -1242,11 +1272,98 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
-        return new DerivedFieldGenerator(mappedFieldType, null, new StoredFieldFetcher(mappedFieldType, simpleName())) {
+        final List<FieldValueFetcher> fieldValueFetchers = TextFieldMapper.DerivedSourceHelper
+            .getDerivedSourceSupportedKeywordValueFetchers(multiFields, simpleName());
+
+        // Override to read from the special ignored value field
+        final MappedFieldType ignoredFieldType = new MappedFieldType(
+            fieldType().derivedSourceIgnoreFieldName(),
+            false,  // not searchable
+            true,   // stored
+            false,  // no doc values
+            TextSearchInfo.NONE,
+            Collections.emptyMap()
+        ) {
             @Override
-            public FieldValueType getDerivedFieldPreference() {
-                return FieldValueType.STORED;
+            public String typeName() {
+                return "text";
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                return null;
+            }
+
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                return null;
             }
         };
+
+        fieldValueFetchers.add(new StoredFieldFetcher(ignoredFieldType, simpleName()));
+        final FieldValueFetcher compositeFieldValueFetcher = new CompositeFieldValueFetcher(simpleName(),
+            fieldValueFetchers);
+
+        return new DerivedFieldGenerator(
+            mappedFieldType,
+            compositeFieldValueFetcher,
+            null
+        ) {
+            @Override
+            public FieldValueType getDerivedFieldPreference() {
+                return FieldValueType.DOC_VALUES;
+            }
+        };
+    }
+
+    private static final class DerivedSourceHelper {
+
+        private static boolean hasDerivedSourceSupportedKeyword(MultiFields multiFields) {
+            for (Mapper mapper : multiFields) {
+                if (mapper instanceof KeywordFieldMapper kw) {
+                    if (isDerivedSourceSupportedKeyword(kw)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private static boolean isDerivedSourceSupportedKeyword(KeywordFieldMapper keywordFieldMapper) {
+            return (keywordFieldMapper.fieldType().normalizer() == null || Lucene.KEYWORD_ANALYZER.equals(keywordFieldMapper.fieldType().normalizer()))
+                && (keywordFieldMapper.fieldType().isStored() || keywordFieldMapper.fieldType().hasDocValues());
+        }
+
+        private static int getIgnoredLengthForDerivedSourceSupportedKeyword(MultiFields multiFields) {
+            int ignoredLength = -1;
+            for (Mapper mapper : multiFields) {
+                if (mapper instanceof KeywordFieldMapper kw) {
+                    if (isDerivedSourceSupportedKeyword(kw)) {
+                        ignoredLength = Math.max(ignoredLength, kw.ignoreAbove());
+                    }
+                }
+            }
+            return ignoredLength;
+        }
+
+        private static List<FieldValueFetcher> getDerivedSourceSupportedKeywordValueFetchers(MultiFields multiFields,
+                                                                                             String textFieldName) {
+            List<FieldValueFetcher> fetchers = new ArrayList<>();
+            for (Mapper mapper : multiFields) {
+                if (mapper instanceof KeywordFieldMapper kw) {
+                    if (isDerivedSourceSupportedKeyword(kw)) {
+                        fetchers.add(getKeywordFieldValueFetcher(kw, textFieldName));
+                    }
+                }
+            }
+            return fetchers;
+        }
+
+        private static FieldValueFetcher getKeywordFieldValueFetcher(KeywordFieldMapper keywordFieldMapper,
+                                                                     String textFieldName) {
+             return keywordFieldMapper.fieldType().hasDocValues()
+                ? new SortedSetDocValuesFetcher(keywordFieldMapper.fieldType(), textFieldName)
+                : new StoredFieldFetcher(keywordFieldMapper.fieldType(), textFieldName);
+        }
     }
 }

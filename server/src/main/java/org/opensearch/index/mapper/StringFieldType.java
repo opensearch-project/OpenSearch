@@ -66,6 +66,7 @@ import static org.apache.lucene.search.FuzzyQuery.defaultRewriteMethod;
  */
 public abstract class StringFieldType extends TermBasedFieldType {
 
+    private static final String IGNORED_VALUE_FIELD_SUFFIX = ".ignored_value";
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
     public StringFieldType(
@@ -254,5 +255,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
             includeLower,
             includeUpper
         );
+    }
+
+    public String derivedSourceIgnoreFieldName() {
+        return name() + IGNORED_VALUE_FIELD_SUFFIX;
     }
 }
