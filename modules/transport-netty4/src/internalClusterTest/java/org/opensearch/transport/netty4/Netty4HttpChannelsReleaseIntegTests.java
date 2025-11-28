@@ -68,7 +68,6 @@ public class Netty4HttpChannelsReleaseIntegTests extends OpenSearchNetty4IntegTe
 
         // no channels get closed in this test, hence we expect as many channels as we created in the map
         assertEquals("All channels remain open", initialHttpChannels + numChannels, RestCancellableNodeClient.getNumChannels());
-        assertEquals(0, RestCancellableNodeClient.getNumTasks());
     }
 
     /**
