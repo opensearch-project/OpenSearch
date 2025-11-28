@@ -68,6 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactor the HttpStats, ScriptStats, AdaptiveSelectionStats and OsStats class to use the Builder pattern instead of constructors ([#20014](https://github.com/opensearch-project/OpenSearch/pull/20014))
 - Bump opensearch-protobufs dependency to 0.24.0 and update transport-grpc module compatibility ([#20059](https://github.com/opensearch-project/OpenSearch/pull/20059))
 
+- Refactor the ShardStats, WarmerStats and IndexingPressureStats class to use the Builder pattern instead of constructors ([#19966](https://github.com/opensearch-project/OpenSearch/pull/19966))
 
 ### Fixed
 - Fix Allocation and Rebalance Constraints of WeightFunction are incorrectly reset ([#19012](https://github.com/opensearch-project/OpenSearch/pull/19012))
@@ -142,6 +143,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Deprecated existing constructors in IndexPressutreStats, DeviceStats and TransportStats in favor of the new Builder ([#19991](https://github.com/opensearch-project/OpenSearch/pull/19991))
 - Deprecated existing constructors in Cache.CacheStats in favor of the new Builder ([#20015](https://github.com/opensearch-project/OpenSearch/pull/20015))
 - Deprecated existing constructors in HttpStats, ScriptStats, AdaptiveSelectionStats and OsStats in favor of the new Builder ([#20014](https://github.com/opensearch-project/OpenSearch/pull/20014))
+- Deprecated existing constructors in ShardStats, WarmerStats and IndexingPressureStats in favor of the new Builder ([#19966](https://github.com/opensearch-project/OpenSearch/pull/19966))
 
 ### Removed
 
