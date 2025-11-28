@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.exec.merge;
 
 import org.opensearch.index.engine.exec.DataFormat;
-import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
@@ -18,10 +17,12 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -35,7 +36,7 @@ public abstract class MergeHandler {
     private CompositeEngine compositeEngine;
     private Map<DataFormat, Merger> dataFormatMergerMap;
     private final Deque<OneMerge> mergingSegments = new ArrayDeque<>();
-    private final Set<String> mergingFileNames = new HashSet<>();
+    private final Set<CatalogSnapshot.Segment> currentlyMergingSegments = new HashSet<>();
 
     public MergeHandler(CompositeEngine compositeEngine, CompositeIndexingExecutionEngine compositeIndexingExecutionEngine, Any dataFormats) {
         this.compositeDataFormat = dataFormats;
@@ -58,15 +59,15 @@ public abstract class MergeHandler {
 
     public synchronized void updatePendingMerges() {
         Collection<OneMerge> oneMerges = findMerges();
-//        System.out.println("Found merges : " + oneMerges);
         for (OneMerge oneMerge : oneMerges) {
             boolean isValidMerge = true;
-            for(FileMetadata fileMetadata : oneMerge.getFilesToMerge()) {
-                if(mergingFileNames.contains(fileMetadata.directory()+"/"+fileMetadata.file())) {
+            for (CatalogSnapshot.Segment segment : oneMerge.getSegmentsToMerge()) {
+                if (currentlyMergingSegments.contains(segment)) {
                     isValidMerge = false;
+                    break;
                 }
             }
-            if(isValidMerge) {
+            if (isValidMerge) {
                 registerMerge(oneMerge);
             }
         }
@@ -74,27 +75,18 @@ public abstract class MergeHandler {
 
     public synchronized void registerMerge(OneMerge merge) {
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = compositeEngine.acquireSnapshot()) {
-            Set<FileMetadata> catalogFiles = new HashSet<>();
-            catalogSnapshotReleasableRef.getRef().getSearchableFiles(merge.getDataFormat().name())
-                .forEach(writerFileSet -> {
-                    for (String file : writerFileSet.getFiles()) {
-                        catalogFiles.add(new FileMetadata(writerFileSet.getDirectory(), file));
-                    }
-                });
-
-            for (FileMetadata mergeFile : merge.getFilesToMerge()) {
-                if (!catalogFiles.contains(mergeFile)) {
+            // Validate segments exist in catalog
+            List<CatalogSnapshot.Segment> catalogSegments = catalogSnapshotReleasableRef.getRef().getSegments();
+            for (CatalogSnapshot.Segment mergeSegment : merge.getSegmentsToMerge()) {
+                if (!catalogSegments.contains(mergeSegment)) {
                     return;
                 }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        System.out.println("Registering Merge : " + merge);
         mergingSegments.add(merge);
-        for(FileMetadata fileMetadata : merge.getFilesToMerge()) {
-            mergingFileNames.add(fileMetadata.directory()+"/"+fileMetadata.file());
-        }
+        currentlyMergingSegments.addAll(merge.getSegmentsToMerge());
     }
 
     public boolean hasPendingMerges() {
@@ -121,9 +113,7 @@ public abstract class MergeHandler {
 
     private synchronized void removeMergingSegments(OneMerge oneMerge) {
         mergingSegments.remove(oneMerge);
-        for(FileMetadata fileMetadata : oneMerge.getFilesToMerge()) {
-            mergingFileNames.remove(fileMetadata.directory()+"/"+fileMetadata.file());
-        }
+        currentlyMergingSegments.removeAll(oneMerge.getSegmentsToMerge());
     }
 
     public MergeResult doMerge(OneMerge oneMerge) {
@@ -132,7 +122,7 @@ public abstract class MergeHandler {
         Map<DataFormat, WriterFileSet> mergedWriterFileSet = new HashMap<>();
         try(CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot = compositeEngine.acquireSnapshot()) {
 
-            Collection<FileMetadata> filesToMerge = getFilesToMerge(oneMerge, compositeDataFormat.getPrimaryDataFormat(), catalogSnapshot.getRef());
+            List<WriterFileSet> filesToMerge = getFilesToMerge(oneMerge, compositeDataFormat.getPrimaryDataFormat());
 
             // Merging primary data format
             MergeResult primaryMergeResult = dataFormatMergerMap.get(compositeDataFormat.getPrimaryDataFormat()).merge(filesToMerge, mergedWriterGeneration);
@@ -142,7 +132,7 @@ public abstract class MergeHandler {
                     .filter(engine -> !engine.getDataFormat().equals(compositeDataFormat.getPrimaryDataFormat()))
                     .forEach(indexingExecutionEngine -> {
                         DataFormat dataFormat = indexingExecutionEngine.getDataFormat();
-                        Collection<FileMetadata> files = getFilesToMerge(oneMerge, dataFormat, catalogSnapshot.getRef());
+                        List<WriterFileSet> files = getFilesToMerge(oneMerge, dataFormat);
                         MergeResult secondaryMergeResult = dataFormatMergerMap.get(dataFormat).merge(files, primaryMergeResult.getRowIdMapping(), mergedWriterGeneration);
                         mergedWriterFileSet.put(dataFormat, secondaryMergeResult.getMergedWriterFileSetForDataformat(dataFormat));
                     });
@@ -153,17 +143,11 @@ public abstract class MergeHandler {
         }
     }
 
-    public Collection<FileMetadata> getFilesToMerge(OneMerge oneMerge, DataFormat dataFormat, CatalogSnapshot catalogSnapshot) {
-        if(oneMerge.getDataFormat().name().equalsIgnoreCase(dataFormat.name())) {
-            return oneMerge.getFilesToMerge();
+    public List<WriterFileSet> getFilesToMerge(OneMerge oneMerge, DataFormat dataFormat) {
+        List<WriterFileSet> writerFileSets = new ArrayList<>();
+        for (CatalogSnapshot.Segment segment : oneMerge.getSegmentsToMerge()) {
+            writerFileSets.add(segment.getDFGroupedSearchableFiles().get(dataFormat.name()));
         }
-
-        // TODO get file mapping for other data format from catalog snapshot
-        for(CatalogSnapshot.Segment segment : catalogSnapshot.getSegments()) {
-            if(segment.getSearchableFiles(oneMerge.getDataFormat().name()).equals(oneMerge.getFilesToMerge())) {
-                return segment.getSearchableFiles(dataFormat.name());
-            }
-        }
-        throw new RuntimeException("Couldn't find the file to merge for data format [" + dataFormat + "]");
+        return writerFileSets;
     }
 }
