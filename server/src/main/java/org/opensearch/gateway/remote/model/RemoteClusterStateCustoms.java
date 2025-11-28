@@ -73,10 +73,11 @@ public class RemoteClusterStateCustoms extends AbstractClusterMetadataWriteableB
         this.blobName = blobName;
         this.customType = customType;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.clusterStateCustomsFormat = new ChecksumWritableBlobStoreFormat<>("cluster-state-custom", is -> {
-            is.setVersion(version);
-            return readFrom(is, namedWriteableRegistry, customType);
-        });
+        this.clusterStateCustomsFormat = new ChecksumWritableBlobStoreFormat<>(
+            "cluster-state-custom",
+            is -> readFrom(is, namedWriteableRegistry, customType),
+            version
+        );
     }
 
     @Override

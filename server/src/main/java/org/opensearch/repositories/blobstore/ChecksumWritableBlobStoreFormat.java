@@ -50,10 +50,16 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
 
     private final String codec;
     private final CheckedFunction<StreamInput, T, IOException> reader;
+    private final Version opensearchVersion;
 
     public ChecksumWritableBlobStoreFormat(String codec, CheckedFunction<StreamInput, T, IOException> reader) {
+        this(codec, reader, Version.CURRENT);
+    }
+
+    public ChecksumWritableBlobStoreFormat(String codec, CheckedFunction<StreamInput, T, IOException> reader, Version opensearchVersion) {
         this.codec = codec;
         this.reader = reader;
+        this.opensearchVersion = opensearchVersion;
     }
 
     public BytesReference serialize(final T obj, final String blobName, final Compressor compressor) throws IOException {
@@ -102,6 +108,7 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
             BytesReference bytesReference = bytes.slice((int) filePointer, (int) contentSize);
             Compressor compressor = CompressorRegistry.compressorForWritable(bytesReference);
             try (StreamInput in = new InputStreamStreamInput(compressor.threadLocalInputStream(bytesReference.streamInput()))) {
+                in.setVersion(opensearchVersion);
                 return reader.apply(in);
             }
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {

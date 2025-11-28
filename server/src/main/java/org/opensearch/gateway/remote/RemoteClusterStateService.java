@@ -11,6 +11,7 @@ package org.opensearch.gateway.remote;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -1259,6 +1260,14 @@ public class RemoteClusterStateService implements Closeable {
         List<IndexRoutingTable> readIndexRoutingTableResults = Collections.synchronizedList(new ArrayList<>());
         AtomicReference<Diff<RoutingTable>> readIndexRoutingTableDiffResults = new AtomicReference<>();
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalReadTasks));
+
+        if (manifest.getOpensearchVersion() != Version.CURRENT) {
+            logger.info(
+                "Reading cluster state on version {} from manifest uploaded with version {}",
+                Version.CURRENT,
+                manifest.getOpensearchVersion()
+            );
+        }
 
         LatchedActionListener<RemoteReadResult> listener = new LatchedActionListener<>(ActionListener.wrap(response -> {
             logger.debug("Successfully read cluster state component from remote");

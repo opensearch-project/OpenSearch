@@ -59,10 +59,11 @@ public class RemoteHashesOfConsistentSettings extends AbstractClusterMetadataWri
     ) {
         super(clusterUUID, compressor, null);
         this.blobName = blobName;
-        this.hashesOfConsistentSettingsFormat = new ChecksumWritableBlobStoreFormat<>("hashes-of-consistent-settings", is -> {
-            is.setVersion(version);
-            return DiffableStringMap.readFrom(is);
-        });
+        this.hashesOfConsistentSettingsFormat = new ChecksumWritableBlobStoreFormat<>(
+            "hashes-of-consistent-settings",
+            DiffableStringMap::readFrom,
+            version
+        );
     }
 
     @Override

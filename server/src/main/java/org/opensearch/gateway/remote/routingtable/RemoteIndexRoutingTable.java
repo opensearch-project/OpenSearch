@@ -67,10 +67,11 @@ public class RemoteIndexRoutingTable extends AbstractClusterMetadataWriteableBlo
         this.term = -1;
         this.version = -1;
         this.blobName = blobName;
-        this.indexRoutingTableFormat = new ChecksumWritableBlobStoreFormat<>("index-routing-table", is -> {
-            is.setVersion(opensearchVersion);
-            return IndexRoutingTable.readFrom(is);
-        });
+        this.indexRoutingTableFormat = new ChecksumWritableBlobStoreFormat<>(
+            "index-routing-table",
+            IndexRoutingTable::readFrom,
+            opensearchVersion
+        );
     }
 
     @Override
