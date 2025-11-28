@@ -420,7 +420,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             }
             if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)) {
                 ft.setHasDerivedSourceSupportedKeyword(TextFieldMapper.DerivedSourceHelper.hasDerivedSourceSupportedKeyword(multiFields));
-                ft.setKeywordIgnoredLengthForDerivedSource(TextFieldMapper.DerivedSourceHelper.getIgnoredLengthForDerivedSourceSupportedKeyword(multiFields));
+                ft.setKeywordIgnoredLengthForDerivedSource(
+                    TextFieldMapper.DerivedSourceHelper.getIgnoredLengthForDerivedSourceSupportedKeyword(multiFields)
+                );
             }
             return ft;
         }
@@ -1080,7 +1082,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         if (context.indexSettings().isDerivedSourceEnabled()
             && fieldType.stored() == false
             && (fieldType().getHasDerivedSourceSupportedKeyword() == false
-            || fieldType().getKeywordIgnoredLengthForDerivedSource() < value.length())) {
+                || fieldType().getKeywordIgnoredLengthForDerivedSource() < value.length())) {
             context.doc().add(new StoredField(fieldType().derivedSourceIgnoreFieldName(), value));
         }
     }
@@ -1301,14 +1303,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         };
 
         fieldValueFetchers.add(new StoredFieldFetcher(ignoredFieldType, simpleName()));
-        final FieldValueFetcher compositeFieldValueFetcher = new CompositeFieldValueFetcher(simpleName(),
-            fieldValueFetchers);
+        final FieldValueFetcher compositeFieldValueFetcher = new CompositeFieldValueFetcher(simpleName(), fieldValueFetchers);
 
-        return new DerivedFieldGenerator(
-            mappedFieldType,
-            compositeFieldValueFetcher,
-            null
-        ) {
+        return new DerivedFieldGenerator(mappedFieldType, compositeFieldValueFetcher, null) {
             @Override
             public FieldValueType getDerivedFieldPreference() {
                 return FieldValueType.DOC_VALUES;
@@ -1330,7 +1327,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         private static boolean isDerivedSourceSupportedKeyword(KeywordFieldMapper keywordFieldMapper) {
-            return (keywordFieldMapper.fieldType().normalizer() == null || Lucene.KEYWORD_ANALYZER.equals(keywordFieldMapper.fieldType().normalizer()))
+            return (keywordFieldMapper.fieldType().normalizer() == null
+                || Lucene.KEYWORD_ANALYZER.equals(keywordFieldMapper.fieldType().normalizer()))
                 && (keywordFieldMapper.fieldType().isStored() || keywordFieldMapper.fieldType().hasDocValues());
         }
 
@@ -1346,8 +1344,10 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return ignoredLength;
         }
 
-        private static List<FieldValueFetcher> getDerivedSourceSupportedKeywordValueFetchers(MultiFields multiFields,
-                                                                                             String textFieldName) {
+        private static List<FieldValueFetcher> getDerivedSourceSupportedKeywordValueFetchers(
+            MultiFields multiFields,
+            String textFieldName
+        ) {
             List<FieldValueFetcher> fetchers = new ArrayList<>();
             for (Mapper mapper : multiFields) {
                 if (mapper instanceof KeywordFieldMapper kw) {
@@ -1359,9 +1359,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return fetchers;
         }
 
-        private static FieldValueFetcher getKeywordFieldValueFetcher(KeywordFieldMapper keywordFieldMapper,
-                                                                     String textFieldName) {
-             return keywordFieldMapper.fieldType().hasDocValues()
+        private static FieldValueFetcher getKeywordFieldValueFetcher(KeywordFieldMapper keywordFieldMapper, String textFieldName) {
+            return keywordFieldMapper.fieldType().hasDocValues()
                 ? new SortedSetDocValuesFetcher(keywordFieldMapper.fieldType(), textFieldName)
                 : new StoredFieldFetcher(keywordFieldMapper.fieldType(), textFieldName);
         }

@@ -24,10 +24,7 @@ public class CompositeFieldValueFetcher extends FieldValueFetcher {
 
     private final List<FieldValueFetcher> fieldValueFetchers;
 
-    public CompositeFieldValueFetcher(
-        String simpleName,
-        List<FieldValueFetcher> fieldValueFetchers
-    ) {
+    public CompositeFieldValueFetcher(String simpleName, List<FieldValueFetcher> fieldValueFetchers) {
         super(simpleName);
         this.fieldValueFetchers = fieldValueFetchers;
     }

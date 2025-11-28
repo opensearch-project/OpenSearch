@@ -273,9 +273,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected void canDeriveSourceInternal() {
         if (!(fieldType().normalizer() == null || Lucene.KEYWORD_ANALYZER.equals(fieldType().normalizer()))) {
-            throw new UnsupportedOperationException(
-                "Unable to derive source for [" + name() + "] with " + "normalizer set"
-            );
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with " + "normalizer set");
         }
         checkStoredAndDocValuesForDerivedSource();
     }
@@ -296,19 +294,13 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
-        final FieldValueFetcher primaryFieldValueFetcher = KeywordFieldMapper.DerivedSourceHelper
-            .getPrimaryFieldValueFetcher(this);
-        final FieldValueFetcher fallbackFieldValueFetcher = KeywordFieldMapper.DerivedSourceHelper
-            .getFallbackFieldValueFetcher(this);
-        final FieldValueFetcher compositeFieldValueFetcher = new CompositeFieldValueFetcher(simpleName(), List.of(
-            primaryFieldValueFetcher,
-            fallbackFieldValueFetcher
-        ));
-        return new DerivedFieldGenerator(
-            mappedFieldType,
-            compositeFieldValueFetcher,
-            null
-        ) {
+        final FieldValueFetcher primaryFieldValueFetcher = KeywordFieldMapper.DerivedSourceHelper.getPrimaryFieldValueFetcher(this);
+        final FieldValueFetcher fallbackFieldValueFetcher = KeywordFieldMapper.DerivedSourceHelper.getFallbackFieldValueFetcher(this);
+        final FieldValueFetcher compositeFieldValueFetcher = new CompositeFieldValueFetcher(
+            simpleName(),
+            List.of(primaryFieldValueFetcher, fallbackFieldValueFetcher)
+        );
+        return new DerivedFieldGenerator(mappedFieldType, compositeFieldValueFetcher, null) {
             @Override
             public FieldValueType getDerivedFieldPreference() {
                 return FieldValueType.DOC_VALUES;
@@ -1004,8 +996,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                     return binaryValue.utf8ToString();
                 }
             };
-            return new StoredFieldFetcher(ignoredFieldType,
-                mapper.simpleName());
+            return new StoredFieldFetcher(ignoredFieldType, mapper.simpleName());
         }
     }
 }
