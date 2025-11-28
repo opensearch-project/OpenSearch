@@ -1008,7 +1008,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         if (shardRoutings.isEmpty()) {
             return null;
         }
-        ShardRouting selectedShard = shardRoutings.getFirst();
+        ShardRouting selectedShard = shardRoutings.get(0);
         if (shardRoutings.size() == 1) {
             return selectedShard.shardId();
         }
