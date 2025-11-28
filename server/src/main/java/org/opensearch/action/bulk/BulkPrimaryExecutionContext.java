@@ -45,6 +45,9 @@ import org.opensearch.index.translog.Translog;
 
 import java.util.Arrays;
 
+import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_QUEUE_SIZE;
+import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_SERVICE_TIME;
+
 /**
  * This is a utility class that holds the per request state needed to perform bulk operations on the primary.
  * More specifically, it maintains an index to the current executing bulk item, which allows execution
@@ -358,6 +361,10 @@ class BulkPrimaryExecutionContext {
             serviceTimeEWMA,
             nodeQueueSize
         );
+    }
+
+    public BulkShardResponse buildShardResponse() {
+        return buildShardResponse(DEFAULT_SERVICE_TIME, DEFAULT_QUEUE_SIZE);
     }
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {
