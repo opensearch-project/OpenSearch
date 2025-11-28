@@ -69,8 +69,10 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RotationShardShuffler;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardShuffler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.ValidationException;
@@ -139,6 +141,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportIndicesResolvingAction<BulkRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
+    final static ShardShuffler shuffler = new RotationShardShuffler(Randomness.get().nextInt());;
 
     private final ThreadPool threadPool;
     private final AutoCreateIndex autoCreateIndex;
@@ -750,9 +753,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 );
 
                 final Span span = tracer.startSpan(SpanBuilder.from("bulkShardAction", nodeId, bulkShardRequest));
+                boolean incrementedConnections = false;
                 try (SpanScope spanScope = tracer.withSpanInScope(span)) {
                     if (targetNodeId != null) {
                         clientConnections.compute(targetNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+                        incrementedConnections = true;
                     }
                     shardBulkAction.execute(
                         bulkShardRequest,
@@ -825,6 +830,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         )
                     );
                 } catch (Exception e) {
+                    if (incrementedConnections && targetNodeId != null) {
+                        clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
+                    }
                     span.setError(e);
                     span.endSpan();
                     throw e;
@@ -993,14 +1001,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // Two-stage selection: first rank nodes by metrics, then randomly pick a shard on the best node
         Tuple<List<ShardRouting>, Map<String, List<ShardRouting>>> shardInfos = getIndexPrimaryShards(indexRoutingTable);
         List<ShardRouting> shardRoutings = rankShardsAndUpdateStats(
-            shardInfos.v1(),
+            shuffler.shuffle(shardInfos.v1(), shuffler.nextSeed()),
             nodeMetricsCollector,
             new HashMap<>(clientConnections)
         );
         if (shardRoutings.isEmpty()) {
             return null;
         }
-        ShardRouting selectedShard = shardRoutings.get(0);
+        ShardRouting selectedShard = shardRoutings.getFirst();
         if (shardRoutings.size() == 1) {
             return selectedShard.shardId();
         }

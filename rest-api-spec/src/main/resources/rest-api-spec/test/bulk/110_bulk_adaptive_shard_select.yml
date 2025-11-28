@@ -47,3 +47,18 @@ setup:
   - match: { items.0.index.error.type: validation_exception }
   - match: { items.0.index.error.reason: "Validation Failed: 1: Operation [INDEX] is not allowed with a custom document
   id 1 as setting `index.append_only.enabled` is enabled for this index: test;" }
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test1
+        body:
+          settings:
+            index:
+              append_only.enabled: false
+              bulk.adaptive_shard_selection.enabled: true
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "index [test1] is not append-only index, bulk adaptive shard selection is enabled, which is
+   not supported. Please disable bulk adaptive shard selection or set index to append-only index." }
