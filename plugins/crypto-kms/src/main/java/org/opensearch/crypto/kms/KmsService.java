@@ -12,7 +12,11 @@ import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.interceptor.Context;
+import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
+import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
 import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.http.SdkHttpRequest;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
@@ -36,7 +40,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -53,6 +59,8 @@ public class KmsService implements Closeable {
     static final Setting<String> ENC_CTX_SETTING = Setting.simpleString("kms.encryption_context", Setting.Property.NodeScope);
 
     static final Setting<String> KEY_ARN_SETTING = Setting.simpleString("kms.key_arn", Setting.Property.NodeScope);
+
+    static final Setting<String> GRANT_TOKENS_SETTING = Setting.simpleString("kms.grant_tokens", Setting.Property.NodeScope);
 
     private volatile Map<KmsClientSettings, AmazonKmsClientReference> clientsCache = emptyMap();
 
@@ -73,7 +81,7 @@ public class KmsService implements Closeable {
     private KmsClient buildClient(KmsClientSettings clientSettings) {
         AccessController.doPrivileged(KmsService::setDefaultAwsProfilePath);
         final AwsCredentialsProvider awsCredentialsProvider = buildCredentials(clientSettings);
-        final ClientOverrideConfiguration overrideConfiguration = buildOverrideConfiguration();
+        final ClientOverrideConfiguration overrideConfiguration = buildOverrideConfiguration(clientSettings);
         final ProxyConfiguration proxyConfiguration = AccessController.doPrivileged(() -> buildProxyConfiguration(clientSettings));
         return buildClient(
             awsCredentialsProvider,
@@ -131,6 +139,24 @@ public class KmsService implements Closeable {
         } else {
             return ProxyConfiguration.builder().build();
         }
+    }
+
+    ClientOverrideConfiguration buildOverrideConfiguration(KmsClientSettings clientSettings) {
+        ClientOverrideConfiguration.Builder builder = ClientOverrideConfiguration.builder().retryPolicy(buildRetryPolicy());
+
+        if (Strings.hasText(clientSettings.sourceContext)) {
+            Map<String, String> sourceHeaders = parseKeyValuePairs(clientSettings.sourceContext, "source_context");
+            builder.addExecutionInterceptor(new ExecutionInterceptor() {
+                @Override
+                public SdkHttpRequest modifyHttpRequest(Context.ModifyHttpRequest context, ExecutionAttributes executionAttributes) {
+                    SdkHttpRequest.Builder requestBuilder = context.httpRequest().toBuilder();
+                    sourceHeaders.forEach((key, value) -> { requestBuilder.putHeader(key, value); });
+                    return requestBuilder.build();
+                }
+            });
+        }
+
+        return builder.build();
     }
 
     ClientOverrideConfiguration buildOverrideConfiguration() {
@@ -252,22 +278,28 @@ public class KmsService implements Closeable {
         String kmsEncCtx = ENC_CTX_SETTING.get(cryptoSettings);
         Map<String, String> encCtx;
         if (Strings.hasText(kmsEncCtx)) {
-            try {
-                encCtx = Arrays.stream(kmsEncCtx.split(","))
-                    .map(s -> s.split("="))
-                    .collect(Collectors.toMap(e -> e[0].trim(), e -> e[1].trim()));
-            } catch (Exception ex) {
-                throw new IllegalArgumentException(ENC_CTX_SETTING.getKey() + " Format should be: Name1=Value1, Name2=Value2");
-            }
+            encCtx = parseKeyValuePairs(kmsEncCtx, ENC_CTX_SETTING.getKey());
         } else {
             encCtx = new HashMap<>();
         }
+
+        // Extract grant details
+        String grantTokensStr = GRANT_TOKENS_SETTING.get(cryptoSettings);
+        List<String> grantTokens = Strings.hasText(grantTokensStr) ? Arrays.asList(grantTokensStr.split(",")) : Collections.emptyList();
 
         // Verify client creation is successful to early detect any failure.
         try (AmazonKmsClientReference clientReference = client(cryptoMetadata)) {
             clientReference.get();
         }
 
-        return new KmsMasterKeyProvider(encCtx, keyArn, () -> client(cryptoMetadata));
+        return new KmsMasterKeyProvider(encCtx, keyArn, grantTokens, () -> client(cryptoMetadata));
+    }
+
+    private static Map<String, String> parseKeyValuePairs(String input, String settingName) {
+        try {
+            return Arrays.stream(input.split(",")).map(s -> s.split("=")).collect(Collectors.toMap(e -> e[0].trim(), e -> e[1].trim()));
+        } catch (Exception ex) {
+            throw new IllegalArgumentException(settingName + " Format should be: Name1=Value1, Name2=Value2");
+        }
     }
 }

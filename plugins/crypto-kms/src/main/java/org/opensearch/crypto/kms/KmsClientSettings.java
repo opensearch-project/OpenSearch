@@ -64,6 +64,9 @@ public class KmsClientSettings {
         Property.NodeScope
     );
 
+    /** Source context for grant-based access. */
+    static final Setting<String> SOURCE_CONTEXT_SETTING = Setting.simpleString("kms.source_context");
+
     private static final Logger logger = LogManager.getLogger(KmsClientSettings.class);
 
     /** Credentials to authenticate with kms. */
@@ -98,6 +101,9 @@ public class KmsClientSettings {
     /** The read timeout for the kms client. */
     final int readTimeoutMillis;
 
+    /** The source context for the kms client. */
+    final String sourceContext;
+
     protected KmsClientSettings(
         AwsCredentials credentials,
         String endpoint,
@@ -116,6 +122,29 @@ public class KmsClientSettings {
         this.proxyUsername = proxyUsername;
         this.proxyPassword = proxyPassword;
         this.readTimeoutMillis = readTimeoutMillis;
+        this.sourceContext = "";
+    }
+
+    protected KmsClientSettings(
+        AwsCredentials credentials,
+        String endpoint,
+        String region,
+        String proxyHost,
+        int proxyPort,
+        String proxyUsername,
+        String proxyPassword,
+        int readTimeoutMillis,
+        String sourceContext
+    ) {
+        this.credentials = credentials;
+        this.endpoint = endpoint;
+        this.region = region;
+        this.proxyHost = proxyHost;
+        this.proxyPort = proxyPort;
+        this.proxyUsername = proxyUsername;
+        this.proxyPassword = proxyPassword;
+        this.readTimeoutMillis = readTimeoutMillis;
+        this.sourceContext = sourceContext != null ? sourceContext : "";
     }
 
     static AwsCredentials loadCredentials(Settings settings) {
@@ -181,7 +210,8 @@ public class KmsClientSettings {
                 PROXY_PORT_SETTING.get(settings),
                 proxyUsername.toString(),
                 proxyPassword.toString(),
-                (int) READ_TIMEOUT_SETTING.get(settings).millis()
+                (int) READ_TIMEOUT_SETTING.get(settings).millis(),
+                SOURCE_CONTEXT_SETTING.get(settings)
             );
         }
     }
@@ -212,6 +242,7 @@ public class KmsClientSettings {
             normalizedSettings,
             TimeValue.timeValueMillis(this.readTimeoutMillis)
         );
+        String newSourceContext = getCryptoMetadataSettingOrExisting(SOURCE_CONTEXT_SETTING, normalizedSettings, this.sourceContext);
 
         return new KmsClientSettings(
             newCredentials,
@@ -221,7 +252,8 @@ public class KmsClientSettings {
             newProxyPort,
             newProxyUsername,
             newProxyPassword,
-            (int) newReadTimeout.millis()
+            (int) newReadTimeout.millis(),
+            newSourceContext
         );
     }
 
@@ -248,11 +280,22 @@ public class KmsClientSettings {
             && Objects.equals(proxyHost, that.proxyHost)
             && Objects.equals(proxyPort, that.proxyPort)
             && Objects.equals(proxyUsername, that.proxyUsername)
-            && Objects.equals(proxyPassword, that.proxyPassword);
+            && Objects.equals(proxyPassword, that.proxyPassword)
+            && Objects.equals(sourceContext, that.sourceContext);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(readTimeoutMillis, credentials, endpoint, region, proxyHost, proxyPort, proxyUsername, proxyPassword);
+        return Objects.hash(
+            readTimeoutMillis,
+            credentials,
+            endpoint,
+            region,
+            proxyHost,
+            proxyPort,
+            proxyUsername,
+            proxyPassword,
+            sourceContext
+        );
     }
 }

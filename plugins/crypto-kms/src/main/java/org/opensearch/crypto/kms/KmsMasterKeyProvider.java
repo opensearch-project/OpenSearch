@@ -21,12 +21,15 @@ import org.opensearch.common.crypto.DataKeyPair;
 import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.secure_sm.AccessController;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
 public class KmsMasterKeyProvider implements MasterKeyProvider {
     private final Map<String, String> encryptionContext;
     private final String keyArn;
+    private final List<String> grantTokens;
     private final Supplier<AmazonKmsClientReference> clientReferenceSupplier;
 
     private static final Logger logger = LogManager.getLogger(KmsMasterKeyProvider.class);
@@ -38,6 +41,19 @@ public class KmsMasterKeyProvider implements MasterKeyProvider {
     ) {
         this.encryptionContext = encryptionContext;
         this.keyArn = keyArn;
+        this.grantTokens = Collections.emptyList();
+        this.clientReferenceSupplier = clientReferenceSupplier;
+    }
+
+    public KmsMasterKeyProvider(
+        Map<String, String> encryptionContext,
+        String keyArn,
+        List<String> grantTokens,
+        Supplier<AmazonKmsClientReference> clientReferenceSupplier
+    ) {
+        this.encryptionContext = encryptionContext;
+        this.keyArn = keyArn;
+        this.grantTokens = grantTokens != null ? grantTokens : Collections.emptyList();
         this.clientReferenceSupplier = clientReferenceSupplier;
     }
 
@@ -45,14 +61,20 @@ public class KmsMasterKeyProvider implements MasterKeyProvider {
     public DataKeyPair generateDataPair() {
         logger.info("Generating new data key pair");
         try (AmazonKmsClientReference clientReference = clientReferenceSupplier.get()) {
-            GenerateDataKeyRequest request = GenerateDataKeyRequest.builder()
+            GenerateDataKeyRequest.Builder requestBuilder = GenerateDataKeyRequest.builder()
                 .encryptionContext(encryptionContext)
                 // Currently only 32 byte data key is supported. To add support for other key sizes add key providers
                 // in org.opensearch.encryption.CryptoManagerFactory.createCryptoProvider.
                 .keySpec(DataKeySpec.AES_256)
-                .keyId(keyArn)
-                .build();
-            GenerateDataKeyResponse dataKeyPair = AccessController.doPrivileged(() -> clientReference.get().generateDataKey(request));
+                .keyId(keyArn);
+
+            if (grantTokens != null && !grantTokens.isEmpty()) {
+                requestBuilder.grantTokens(grantTokens);
+            }
+
+            GenerateDataKeyResponse dataKeyPair = AccessController.doPrivileged(
+                () -> clientReference.get().generateDataKey(requestBuilder.build())
+            );
             return new DataKeyPair(dataKeyPair.plaintext().asByteArray(), dataKeyPair.ciphertextBlob().asByteArray());
         }
     }
@@ -60,11 +82,15 @@ public class KmsMasterKeyProvider implements MasterKeyProvider {
     @Override
     public byte[] decryptKey(byte[] encryptedKey) {
         try (AmazonKmsClientReference clientReference = clientReferenceSupplier.get()) {
-            DecryptRequest decryptRequest = DecryptRequest.builder()
+            DecryptRequest.Builder requestBuilder = DecryptRequest.builder()
                 .ciphertextBlob(SdkBytes.fromByteArray(encryptedKey))
-                .encryptionContext(encryptionContext)
-                .build();
-            DecryptResponse decryptResponse = AccessController.doPrivileged(() -> clientReference.get().decrypt(decryptRequest));
+                .encryptionContext(encryptionContext);
+
+            if (grantTokens != null && !grantTokens.isEmpty()) {
+                requestBuilder.grantTokens(grantTokens);
+            }
+
+            DecryptResponse decryptResponse = AccessController.doPrivileged(() -> clientReference.get().decrypt(requestBuilder.build()));
             return decryptResponse.plaintext().asByteArray();
         }
     }
@@ -81,4 +107,9 @@ public class KmsMasterKeyProvider implements MasterKeyProvider {
 
     @Override
     public void close() {}
+
+    @Override
+    public List<String> getGrantTokens() {
+        return grantTokens;
+    }
 }
