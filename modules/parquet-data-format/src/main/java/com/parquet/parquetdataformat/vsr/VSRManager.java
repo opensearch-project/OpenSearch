@@ -123,11 +123,8 @@ public class VSRManager implements Closeable {
             }
 
             // Transition VSR to FROZEN state before flushing
-            currentVSR.setState(VSRState.FROZEN);
+            currentVSR.moveToFrozen();
             logger.info("Flushing {} rows for {}", currentVSR.getRowCount(), fileName);
-
-            // Transition to FLUSHING state
-            currentVSR.setState(VSRState.FLUSHING);
 
             // Write through native writer handle
             try (ArrowExport export = currentVSR.exportToArrow()) {
@@ -181,7 +178,6 @@ public class VSRManager implements Closeable {
                         frozenVSR.getId(), frozenVSR.getRowCount(), fileName);
 
                     // Write the frozen VSR data immediately
-                    frozenVSR.setState(VSRState.FLUSHING);
                     try (ArrowExport export = frozenVSR.exportToArrow()) {
                         writer.write(export.getArrayAddress(), export.getSchemaAddress());
                     }

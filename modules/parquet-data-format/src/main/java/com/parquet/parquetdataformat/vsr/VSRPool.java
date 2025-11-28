@@ -28,7 +28,6 @@ public class VSRPool {
     // VSR lifecycle management
     private final AtomicReference<ManagedVSR> activeVSR;
     private final AtomicReference<ManagedVSR> frozenVSR;
-    private final ConcurrentHashMap<String, ManagedVSR> allVSRs;
     private final AtomicInteger vsrCounter;
 
     // Configuration
@@ -40,7 +39,6 @@ public class VSRPool {
         this.bufferPool = arrowBufferPool;
         this.activeVSR = new AtomicReference<>();
         this.frozenVSR = new AtomicReference<>();
-        this.allVSRs = new ConcurrentHashMap<>();
         this.vsrCounter = new AtomicInteger(0);
 
         // Configuration - could be made configurable
@@ -162,23 +160,12 @@ public class VSRPool {
     }
 
     /**
-     * Marks a VSR as flushing (being processed by Rust).
-     *
-     * @param vsr VSR being processed
-     */
-    public void markFlushing(ManagedVSR vsr) {
-        vsr.setState(VSRState.FLUSHING);
-    }
-
-    /**
      * Completes VSR processing and cleans up resources.
      *
      * @param vsr VSR that has been processed
      */
     public void completeVSR(ManagedVSR vsr) {
-        vsr.setState(VSRState.CLOSED);
         vsr.close();
-        allVSRs.remove(vsr.getId());
     }
 
     /**
@@ -190,25 +177,6 @@ public class VSRPool {
         if (current != null && current.getRowCount() > 0) {
             freezeVSR(current);
         }
-    }
-
-    /**
-     * Gets statistics about the VSR pool.
-     *
-     * @return PoolStats with current state
-     */
-    public PoolStats getStats() {
-        ManagedVSR active = activeVSR.get();
-        ManagedVSR frozen = frozenVSR.get();
-        int frozenCount = frozen != null ? 1 : 0;
-
-        return new PoolStats(
-            poolId,
-            active != null ? active.getRowCount() : 0,
-            frozenCount,
-            allVSRs.size(),
-            allVSRs.values().stream().mapToLong(ManagedVSR::getRowCount).sum()
-        );
     }
 
     /**
@@ -226,10 +194,6 @@ public class VSRPool {
         if (frozen != null) {
             frozen.close();
         }
-
-        // Close any remaining VSRs
-        allVSRs.values().forEach(ManagedVSR::close);
-        allVSRs.clear();
     }
 
     private void initializeActiveVSR() {
@@ -245,10 +209,7 @@ public class VSRPool {
 
         try {
             allocator = bufferPool.createChildAllocator(vsrId);
-            vsr = VectorSchemaRoot.create(schema, allocator);
-
-            ManagedVSR managedVSR = new ManagedVSR(vsrId, vsr, allocator);
-            allVSRs.put(vsrId, managedVSR);
+            ManagedVSR managedVSR = new ManagedVSR(vsrId, schema, allocator);
 
             // Success: ManagedVSR now owns the resources
             return managedVSR;
@@ -273,60 +234,33 @@ public class VSRPool {
     }
 
     private void freezeVSR(ManagedVSR vsr) {
-        vsr.setState(VSRState.FROZEN);
-
-        // CRITICAL FIX: Check if frozen slot is already occupied
+        // Check if frozen slot is already occupied
         ManagedVSR previousFrozen = frozenVSR.get();
         if (previousFrozen != null) {
-            // NEVER blindly overwrite a frozen VSR - this would cause data loss
+            // Never blindly overwrite a frozen VSR - this would cause data loss
             logger.error("Attempting to freeze VSR when frozen slot is occupied! " +
                         "Previous VSR: {} ({} rows), New VSR: {} ({} rows). " +
                         "This indicates a logic error - frozen VSR should be consumed before replacement.",
                         previousFrozen.getId(), previousFrozen.getRowCount(),
                         vsr.getId(), vsr.getRowCount());
 
-            // Return VSR to ACTIVE state to prevent state corruption
-            vsr.setState(VSRState.ACTIVE);
             throw new IllegalStateException("Cannot freeze VSR: frozen slot is occupied by unprocessed VSR " +
                                           previousFrozen.getId() + ". This would cause data loss.");
         }
 
-        // Safe to set frozen VSR since slot is empty
+        // First freeze the VSR (validates ACTIVE -> FROZEN transition)
+        vsr.moveToFrozen();
+
+        // Safe to set frozen VSR since slot is empty and VSR is now frozen
         boolean success = frozenVSR.compareAndSet(null, vsr);
         if (!success) {
             // Race condition: another thread set frozen VSR between our check and set
-            vsr.setState(VSRState.ACTIVE);
-            throw new IllegalStateException("Race condition detected: frozen slot was occupied during freeze operation");
+            // This is a critical error since we can't revert the freeze operation
+            throw new IllegalStateException("Race condition detected: frozen slot was occupied during freeze operation for VSR " + vsr.getId() + ", slot occupied by VSR " + frozenVSR.get().getId());
         }
     }
 
     private boolean shouldRotateVSR(ManagedVSR vsr) {
         return vsr.getRowCount() >= maxRowsPerVSR;
-    }
-
-    /**
-     * Statistics for the VSR pool.
-     */
-    public static class PoolStats {
-        private final String poolId;
-        private final long activeRowCount;
-        private final int frozenVSRCount;
-        private final int totalVSRCount;
-        private final long totalRowCount;
-
-        public PoolStats(String poolId, long activeRowCount, int frozenVSRCount,
-                        int totalVSRCount, long totalRowCount) {
-            this.poolId = poolId;
-            this.activeRowCount = activeRowCount;
-            this.frozenVSRCount = frozenVSRCount;
-            this.totalVSRCount = totalVSRCount;
-            this.totalRowCount = totalRowCount;
-        }
-
-        public String getPoolId() { return poolId; }
-        public long getActiveRowCount() { return activeRowCount; }
-        public int getFrozenVSRCount() { return frozenVSRCount; }
-        public int getTotalVSRCount() { return totalVSRCount; }
-        public long getTotalRowCount() { return totalRowCount; }
     }
 }
