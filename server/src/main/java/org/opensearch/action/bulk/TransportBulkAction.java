@@ -739,7 +739,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
                 final long startTime = System.nanoTime();
                 final ShardRouting primary = routingTable.shardRoutingTable(shardId).primaryShard();
-                String targetNodeId = primary.currentNodeId();
+                String targetNodeId = primary != null ? primary.currentNodeId() : null;
                 IndexMetadata indexMetaData = clusterState.metadata().index(shardId.getIndexName());
                 boolean bulkAdaptiveShardSelectionEnabled = indexMetaData.isAppendOnlyIndex()
                     && indexMetaData.bulkAdaptiveShardSelectionEnabled();
