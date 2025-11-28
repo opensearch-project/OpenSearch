@@ -1167,6 +1167,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.indexTotalRemoteCapablePrimaryShardsPerNodeLimit = indexTotalRemoteCapablePrimaryShardsPerNodeLimit;
         this.isAppendOnlyIndex = isAppendOnlyIndex;
         this.bulkAdaptiveShardSelectionEnabled = INDEX_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED.get(settings);
+        if (isAppendOnlyIndex == false && bulkAdaptiveShardSelectionEnabled) {
+            throw new IllegalArgumentException(
+                "index ["
+                    + index.getName()
+                    + "] is not append-only index, "
+                    + "bulk adaptive shard selection is enabled, "
+                    + "which is not supported. Please disable bulk adaptive shard selection or set index to append-only index."
+            );
+        }
         this.context = context;
         this.ingestionStatus = ingestionStatus;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
