@@ -11,7 +11,7 @@ package org.opensearch.index.engine.exec;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.RowIdMapping;
 
-import java.util.Collection;
+import java.util.List;
 
 public interface Merger {
     /**
@@ -19,7 +19,7 @@ public interface Merger {
      * @param fileMetadataList List of FileMetadata to merge
      * @return MergeResult - having RowIdMapping and mergedFileMetadata
      */
-    MergeResult merge(Collection<FileMetadata> fileMetadataList, long writerGeneration);
+    MergeResult merge(List<WriterFileSet> fileMetadataList, long writerGeneration);
 
     /**
      *
@@ -27,5 +27,5 @@ public interface Merger {
      * @param rowIdMapping Mapping of old segment + old rowId to new rowId
      * @return MergeResult - having mergedFileMetadata
      */
-    MergeResult merge(Collection<FileMetadata> fileMetadataList, RowIdMapping rowIdMapping, long writerGeneration);
+    MergeResult merge(List<WriterFileSet> fileMetadataList, RowIdMapping rowIdMapping, long writerGeneration);
 }

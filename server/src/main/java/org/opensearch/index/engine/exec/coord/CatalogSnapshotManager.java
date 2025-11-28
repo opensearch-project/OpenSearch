@@ -77,16 +77,14 @@ public class CatalogSnapshotManager {
         List<CatalogSnapshot.Segment> segmentList = latestCatalogSnapshot.getSegments();
 
         CatalogSnapshot.Segment segmentToAdd = getSegment(mergeResult.getMergedWriterFileSet());
-
-        Set<FileMetadata> filesToRemove = new HashSet<>();
-        oneMerge.getFilesToMerge().forEach(file -> filesToRemove.add(file));
+        Set<CatalogSnapshot.Segment> segmentsToRemove = new HashSet<>(oneMerge.getSegmentsToMerge());
 
         boolean inserted = false;
         int newSegIdx = 0;
         for (int segIdx = 0, cnt = segmentList.size(); segIdx < cnt; segIdx++) {
             assert segIdx >= newSegIdx;
             CatalogSnapshot.Segment currSegment = segmentList.get(segIdx);
-            if(filesToRemove.containsAll(currSegment.getSearchableFiles(oneMerge.getDataFormat().name()))) {
+            if(segmentsToRemove.contains(currSegment)) {
                 if (!inserted) {
                     segmentList.set(segIdx, segmentToAdd);
                     inserted = true;

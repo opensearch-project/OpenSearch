@@ -38,7 +38,7 @@ import org.opensearch.index.engine.exec.merge.MergeHandler;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.MergeScheduler;
 import org.opensearch.index.engine.exec.merge.OneMerge;
-import org.opensearch.index.engine.exec.merge.ParquetMergeHandler;
+import org.opensearch.index.engine.exec.merge.CompositeMergeHandler;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
@@ -268,7 +268,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             this.throttle = new IndexThrottle();
             this.historyUUID = loadHistoryUUID(userData);
             this.mergeHandler =
-                new ParquetMergeHandler(this, this.engine, this.engine.getDataFormat(), indexSettings);
+                new CompositeMergeHandler(this, this.engine, this.engine.getDataFormat(), indexSettings);
             this.mergeScheduler = new MergeScheduler(this.mergeHandler, this);
 
             // Refresh here so that catalog snapshot gets initialized
