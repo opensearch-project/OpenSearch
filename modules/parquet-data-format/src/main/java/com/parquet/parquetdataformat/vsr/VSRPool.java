@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * in the Project Mustang design. Each ParquetWriter maintains a single ACTIVE VSR
  * for writing and a single FROZEN VSR for Rust handoff.
  */
-public class VSRPool {
+public class VSRPool implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(VSRPool.class);
 
@@ -181,18 +181,45 @@ public class VSRPool {
 
     /**
      * Closes the pool and cleans up all resources.
+     * Uses defensive cleanup to ensure resources are not orphaned if close operations fail.
      */
+    @Override
     public void close() {
-        // Close active VSR
-        ManagedVSR active = activeVSR.getAndSet(null);
+        // Get references without clearing them yet - defensive cleanup approach
+        ManagedVSR active = activeVSR.get();
+        ManagedVSR frozen = frozenVSR.get();
+
+        Exception firstException = null;
+
+        // Try to close active VSR
         if (active != null) {
-            active.close();
+            try {
+                active.close();
+                activeVSR.set(null); // Only clear if successful
+            } catch (Exception e) {
+                firstException = e;
+                // Don't set to null - leave reference so subsequent close attempts can retry
+            }
         }
 
-        // Close frozen VSR
-        ManagedVSR frozen = frozenVSR.getAndSet(null);
+        // Try to close frozen VSR regardless of active VSR result
         if (frozen != null) {
-            frozen.close();
+            try {
+                frozen.close();
+                frozenVSR.set(null); // Only clear if successful
+            } catch (Exception e) {
+                if (firstException != null) {
+                    firstException.addSuppressed(e);
+                } else {
+                    firstException = e;
+                }
+                // Don't set to null - leave reference so subsequent close attempts can retry
+            }
+        }
+
+        // Throw the most relevant exception after attempting all cleanup
+        if (firstException != null) {
+            throw new RuntimeException("VSRPool cleanup failed", firstException);
         }
     }
 

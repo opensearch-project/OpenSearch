@@ -13,11 +13,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static org.apache.arrow.vector.BitVectorHelper.byteIndex;
 import org.apache.arrow.vector.types.pojo.Schema;
 
 /**
@@ -70,11 +66,16 @@ public class ManagedVSR implements AutoCloseable {
 
     /**
      * Gets a field vector by name.
+     * Only allowed when VSR is in ACTIVE state.
      *
      * @param fieldName Name of the field
      * @return FieldVector for the field, or null if not found
+     * @throws IllegalStateException if VSR is not in ACTIVE state
      */
     public FieldVector getVector(String fieldName) {
+        if (state != VSRState.ACTIVE) {
+            throw new IllegalStateException("Cannot access vector in VSR state: " + state + ". VSR must be ACTIVE to access vectors.");
+        }
         return vsr.getVector(fields.get(fieldName));
     }
 
