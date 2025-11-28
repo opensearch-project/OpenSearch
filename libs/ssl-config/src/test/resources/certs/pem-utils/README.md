@@ -183,6 +183,7 @@ and the respective certificates
 ```bash
 export KEY_PW='6!6428DQXwPpi7@$ggeg/='
 export LIB_PATH="/path/to/lib/folder"
+export STORE_PW='testnode'
 ```
 
 ```bash
@@ -197,6 +198,11 @@ for key_file in key*pbkdf2.pem; do
     fi
     # create a new P12 keystore with key + cert
     algo=$(echo "$key_file" | sed -n 's/key_\(.*\)_enc_pbkdf2.pem/\1/p')
+    if [ -z "$algo" ]; then
+        echo "Error: Failed to extract algorithm from filename: $key_file" >&2
+        echo "Expected pattern: key_<algorithm>_enc_pbkdf2.pem (e.g., key_rsa_enc_pbkdf2.pem)" >&2
+        exit 1
+    fi
     openssl pkcs12 -export -inkey "$key_file" -in ca_temp.pem -name "testnode_${algo}_pbkdf2" -out testnode.p12 \
         -passin pass:"$KEY_PW" \
         -passout pass:"$STORE_PW"

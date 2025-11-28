@@ -206,6 +206,9 @@ public class GceInstancesServiceImpl implements GceInstancesService {
                 if (inFipsMode.get()) {
                     var trustStore = KeyStore.getInstance("BCFKS");
                     try (var in = getClass().getResourceAsStream("/google.bcfks")) {
+                        if (in == null) {
+                            throw new IllegalStateException("FIPS mode requires /google.bcfks to be present on the classpath");
+                        }
                         trustStore.load(in, "notasecret".toCharArray());
                     }
                     gceHttpTransport = new NetHttpTransport.Builder().trustCertificates(trustStore).build();

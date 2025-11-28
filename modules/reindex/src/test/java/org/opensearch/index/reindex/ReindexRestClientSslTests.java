@@ -167,7 +167,7 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
         }
     }
 
-    public void testClientSucceedsWithVerificationDisabled() throws IOException {
+    public void testClientWithVerificationDisabled() throws IOException {
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())

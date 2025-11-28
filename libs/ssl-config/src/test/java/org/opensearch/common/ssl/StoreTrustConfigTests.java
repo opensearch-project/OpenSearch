@@ -76,7 +76,7 @@ public class StoreTrustConfigTests extends OpenSearchTestCase {
     public void testBadKeyStoreFormatFails() throws Exception {
         final Path ks = createTempFile("ca", ".p12");
         Files.write(ks, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, new char[0], randomFrom(PKCS12), DEFAULT_ALGORITHM);
+        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, new char[0], randomFrom(PKCS12, JKS), DEFAULT_ALGORITHM);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertInvalidFileFormat(trustConfig, ks);
     }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# This is README describes how the certificates in this directory were created.
-# This file can also be executed as a script
+# This README describes how the certificates in this directory were created.
+# The commands below document the manual steps to generate test certificates.
 #
 
 # 1. Create server & client certificate key
