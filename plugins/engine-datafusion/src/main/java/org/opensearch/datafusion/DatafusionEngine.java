@@ -25,6 +25,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -55,6 +56,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -223,10 +225,10 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
             collector.collect(new RecordBatchIterator(stream));
 
-            logger.info("Final Results:");
-            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
-                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
-            }
+//            logger.info("Final Results:");
+//            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+//                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+//            }
 
 
 //            logger.info("Memory Pool Allocation Post Query ShardID:{}", context.getQueryShardContext().getShardId());
@@ -253,6 +255,108 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
         context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(), TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(), Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
         return finalRes;
+    }
+
+    @Override
+    public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<Map<String, Object[]>> listener) {
+        try {
+            DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
+            datafusionSearcher.searchAsync(context.getDatafusionQuery(), datafusionService.getRuntimePointer()).whenCompleteAsync((streamPointer, error)-> {
+                Map<String, Object[]> finalRes = new HashMap<>();
+                List<Long> rowIdResult = new ArrayList<>();
+                if(streamPointer == null) {
+                    throw new RuntimeException(error);
+                }
+                RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+                RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
+                SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
+                    @Override
+                    public void collect(RecordBatchStream value) {
+                        VectorSchemaRoot root = value.getVectorSchemaRoot();
+                        for (Field field : root.getSchema().getFields()) {
+                            String fieldName = field.getName();
+                            FieldVector fieldVector = root.getVector(fieldName);
+                            Object[] fieldValues = new Object[fieldVector.getValueCount()];
+                            if (fieldName.equals(CompositeDataFormatWriter.ROW_ID)) {
+                                FieldVector rowIdVector = root.getVector(fieldName);
+                                for(int i=0; i<fieldVector.getValueCount(); i++) {
+                                    rowIdResult.add((long) rowIdVector.getObject(i));
+                                    fieldValues[i] = fieldVector.getObject(i);
+                                }
+                            }
+                            else {
+                                for (int i = 0; i < fieldVector.getValueCount(); i++) {
+                                    fieldValues[i] = fieldVector.getObject(i);
+                                }
+                            }
+                            finalRes.put(fieldName, fieldValues);
+                        }
+                    }
+                };
+                loadNextBatch(stream, executor, collector, finalRes, allocator, listener, context, rowIdResult);
+            });
+
+//            logger.info("Memory Pool Allocation Post Query ShardID:{}", context.getQueryShardContext().getShardId());
+//            printMemoryPoolAllocation(datafusionService.getRuntimePointer());
+
+
+//            logger.info("Final Results:");
+//            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+//                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+//            }
+
+        } catch (Exception exception) {
+            logger.error("Failed to execute Substrait query plan", exception);
+            throw new RuntimeException(exception);
+        }
+        //return finalRes;
+    }
+
+    private void loadNextBatch(
+        RecordBatchStream stream,
+        Executor executor,
+        SearchResultsCollector<RecordBatchStream> collector,
+        Map<String, Object[]> finalRes,
+        RootAllocator allocator,
+        ActionListener<Map<String, Object[]>> listener,
+        DatafusionContext context,
+        List<Long> rowIdResult
+    ) {
+        stream.loadNextBatch().whenCompleteAsync((hasMore, error) -> {
+            if (error != null) {
+                cleanup(stream, allocator);
+                listener.onFailure(new RuntimeException("Error loading batch", error));
+                return;
+            }
+            if (hasMore) {
+                try {
+                    collector.collect(stream);
+                    // Recursively load next batch - TODO : anyway to Change this to iteration ?
+                    loadNextBatch(stream, executor, collector, finalRes, allocator, listener, context, rowIdResult);
+                } catch (Exception e) {
+                    cleanup(stream, allocator);
+                    listener.onFailure(e);
+                }
+            } else {
+                cleanup(stream, allocator);
+//                logger.info("Final Results:");
+//                for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+//                    logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+//                }
+                context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(),
+                    TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(),
+                    Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
+                listener.onResponse(finalRes);
+            }
+        }, executor);
+    }
+    private void cleanup(RecordBatchStream stream, RootAllocator allocator) {
+        try {
+            if (stream != null) stream.close();
+            if (allocator != null) allocator.close();
+        } catch (Exception e) {
+            logger.error("Cleanup error", e);
+        }
     }
 
 

@@ -34,6 +34,7 @@ prost = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
 #tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros"] }
+tokio-metrics = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -47,6 +48,9 @@ thiserror = { workspace = true }
 log ={ workspace = true }
 # Parquet support
 parquet = { workspace = true }
+
+# System info
+num_cpus = "1.16"
 
 
 # Object store for file access
@@ -64,19 +68,21 @@ async-trait = { workspace = true }
 itertools = { workspace = true }
 rstest = { workspace = true }
 regex = { workspace = true }
-parking_lot = "0.12.5"
+
+once_cell = { workspace = true }
+tokio-stream = { workspace = true }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
 
 [build-dependencies]
 cbindgen = "0.27"
-[build]
-rustflags = ["-C", "force-frame-pointers=yes","symbol-mangling-version=v0"]
 
 [profile.release]
 lto = true
 codegen-units = 1
 panic = "abort"
 incremental = true
-debug = "full"
+debug = "line-tables-only"        #TODO : remove this
 strip = false
 
 [profile.dev]

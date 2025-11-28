@@ -16,7 +16,7 @@ import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -47,7 +47,7 @@ import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACH
 import static org.opensearch.index.engine.Engine.SearcherScope.INTERNAL;
 
 public class DataFusionReaderManagerTests extends OpenSearchTestCase {
-    private DataFusionService service;
+    private static DataFusionService service;
     Supplier<IndexFileDeleter> noOpFileDeleterSupplier;
 
     @Mock
@@ -82,10 +82,11 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         };
     }
 
-    @After
-    public void cleanUp(){
+    @AfterClass
+    public static void cleanUp(){
         service.doStop();
     }
+
     // ========== Test Cases ==========
 
     /** Test that a reader is created with correct file count and cache pointer after initial refresh */
@@ -251,12 +252,6 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         assertThrows(IllegalStateException.class, reader::decRef);
     }
 
-// R1 -> f1,f2,f3
-    // S1 -> f1, f2, f3
-    // S2 -> f1, f2, f3
-    //R2 -> f2,f3
-    //S3 -> f2,f3
-
     public void testReaderClosesAfterSearchRelease() throws IOException {
         Map<String, Object[]> finalRes = new HashMap<>();
         DatafusionSearcher datafusionSearcher = null;
@@ -328,7 +323,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
     }
 
     /** Test end-to-end search functionality with substrait plan execution and result verification */
-    public void testSearch() throws IOException {
+    public void testSearch() throws Exception {
 
         ShardPath shardPath = createShardPathWithResourceFiles("index-7", 0, "parquet_file_generation_0.parquet");
         DatafusionEngine engine = new DatafusionEngine(DataFormat.PARQUET, Collections.emptyList(), service, shardPath);
@@ -454,37 +449,41 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         return shardPath;
     }
 
-    private void verifySearchResults(DatafusionSearcher searcher, DatafusionQuery datafusionQuery, Map<String, Long> expectedResults) throws IOException {
+    private void verifySearchResults(DatafusionSearcher searcher, DatafusionQuery datafusionQuery, Map<String, Long> expectedResults) throws Exception {
         Map<String, Object[]> finalRes = new HashMap<>();
-        Long streamPointer = searcher.search(datafusionQuery, service.getRuntimePointer());
+        searcher.searchAsync(datafusionQuery, service.getRuntimePointer()).whenComplete((streamPointer, error)-> {
+            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+            RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer(), allocator);
 
-        RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-        RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer(), allocator);
-
-        SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
-            @Override
-            public void collect(RecordBatchStream value) {
-                VectorSchemaRoot root = value.getVectorSchemaRoot();
-                for (Field field : root.getSchema().getFields()) {
-                    String filedName = field.getName();
-                    FieldVector fieldVector = root.getVector(filedName);
-                    Object[] fieldValues = new Object[fieldVector.getValueCount()];
-                    for (int i = 0; i < fieldVector.getValueCount(); i++) {
-                        fieldValues[i] = fieldVector.getObject(i);
+            SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
+                @Override
+                public void collect(RecordBatchStream value) {
+                    VectorSchemaRoot root = value.getVectorSchemaRoot();
+                    for (Field field : root.getSchema().getFields()) {
+                        String filedName = field.getName();
+                        FieldVector fieldVector = root.getVector(filedName);
+                        Object[] fieldValues = new Object[fieldVector.getValueCount()];
+                        for (int i = 0; i < fieldVector.getValueCount(); i++) {
+                            fieldValues[i] = fieldVector.getObject(i);
+                        }
+                        finalRes.put(filedName, fieldValues);
                     }
-                    finalRes.put(filedName, fieldValues);
+                }
+            };
+
+            while (stream.loadNextBatch().join()) {
+                try {
+                    collector.collect(stream);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
             }
-        };
 
-        while (stream.loadNextBatch().join()) {
-            collector.collect(stream);
-        }
-
-        for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
-            logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
-            assertEquals(Long.valueOf(entry.getValue()[0].toString()), expectedResults.get(entry.getKey()));
-        }
+            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+                assertEquals(Long.valueOf(entry.getValue()[0].toString()), expectedResults.get(entry.getKey()));
+            }
+        }).join();
     }
 
     private byte[] readSubstraitPlanFromResources(String fileName) throws IOException {

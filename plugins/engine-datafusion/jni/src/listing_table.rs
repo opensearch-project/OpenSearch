@@ -1121,7 +1121,7 @@ impl ListingTable {
         let mut cumulative_row_base = 0;
         let mut file_row_bases: HashMap<String, i32> = HashMap::new();
 
-        println!("Options: {:?}",self.options.files_metadata);
+        //println!("Options: {:?}",self.options.files_metadata);
 
         // Process files in order to calculate cumulative row bases
         for group in &file_groups {

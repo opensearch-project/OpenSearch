@@ -3,8 +3,9 @@ package com.parquet.parquetdataformat.vsr;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import com.parquet.parquetdataformat.memory.ArrowBufferPool;
-import com.parquet.parquetdataformat.memory.MemoryPressureMonitor;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,9 +19,10 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class VSRPool {
 
+    private static final Logger logger = LogManager.getLogger(VSRPool.class);
+
     private final Schema schema;
     private final ArrowBufferPool bufferPool;
-    private final MemoryPressureMonitor memoryMonitor;
     private final String poolId;
 
     // VSR lifecycle management
@@ -32,12 +34,10 @@ public class VSRPool {
     // Configuration
     private final int maxRowsPerVSR;
 
-    public VSRPool(String poolId, Schema schema, MemoryPressureMonitor memoryMonitor, ArrowBufferPool arrowBufferPool) {
+    public VSRPool(String poolId, Schema schema, ArrowBufferPool arrowBufferPool) {
         this.poolId = poolId;
         this.schema = schema;
         this.bufferPool = arrowBufferPool;
-        this.memoryMonitor = memoryMonitor;
-
         this.activeVSR = new AtomicReference<>();
         this.frozenVSR = new AtomicReference<>();
         this.allVSRs = new ConcurrentHashMap<>();
@@ -212,16 +212,6 @@ public class VSRPool {
     }
 
     /**
-     * Checks if backpressure should be applied.
-     *
-     * @return true if frozen VSR slot is occupied or memory pressure is critical
-     */
-    public boolean shouldApplyBackpressure() {
-        return frozenVSR.get() != null ||
-               memoryMonitor.getCurrentPressureLevel() == MemoryPressureMonitor.PressureLevel.CRITICAL;
-    }
-
-    /**
      * Closes the pool and cleans up all resources.
      */
     public void close() {
@@ -236,8 +226,6 @@ public class VSRPool {
         if (frozen != null) {
             frozen.close();
         }
-
-        memoryMonitor.close();
 
         // Close any remaining VSRs
         allVSRs.values().forEach(ManagedVSR::close);
@@ -291,10 +279,11 @@ public class VSRPool {
         ManagedVSR previousFrozen = frozenVSR.get();
         if (previousFrozen != null) {
             // NEVER blindly overwrite a frozen VSR - this would cause data loss
-            System.err.println("[VSRPool] ERROR: Attempting to freeze VSR when frozen slot is occupied! " +
-                             "Previous VSR: " + previousFrozen.getId() + " (" + previousFrozen.getRowCount() + " rows), " +
-                             "New VSR: " + vsr.getId() + " (" + vsr.getRowCount() + " rows). " +
-                             "This indicates a logic error - frozen VSR should be consumed before replacement.");
+            logger.error("Attempting to freeze VSR when frozen slot is occupied! " +
+                        "Previous VSR: {} ({} rows), New VSR: {} ({} rows). " +
+                        "This indicates a logic error - frozen VSR should be consumed before replacement.",
+                        previousFrozen.getId(), previousFrozen.getRowCount(),
+                        vsr.getId(), vsr.getRowCount());
 
             // Return VSR to ACTIVE state to prevent state corruption
             vsr.setState(VSRState.ACTIVE);
@@ -312,8 +301,7 @@ public class VSRPool {
     }
 
     private boolean shouldRotateVSR(ManagedVSR vsr) {
-        return vsr.getRowCount() >= maxRowsPerVSR ||
-               memoryMonitor.shouldTriggerEarlyRefresh();
+        return vsr.getRowCount() >= maxRowsPerVSR;
     }
 
     /**

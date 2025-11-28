@@ -9,6 +9,8 @@
 package org.opensearch.datafusion.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.datafusion.ErrorUtil;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.index.engine.EngineSearcher;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
@@ -17,6 +19,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, RecordBatchStream> {
     private final String source;
@@ -46,7 +49,28 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
 
             return NativeBridge.executeFetchPhase(reader.getReaderPtr(), row_ids, projections, runtimePtr);
         }
-        return NativeBridge.executeQueryPhase(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), runtimePtr);
+        throw new RuntimeException("Can be only called for fetch phase");
+    }
+
+    @Override
+    public CompletableFuture<Long> searchAsync(DatafusionQuery datafusionQuery, Long runtimePtr) {
+        CompletableFuture<Long> result = new CompletableFuture<>();
+        NativeBridge.executeQueryPhaseAsync(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), runtimePtr, new ActionListener<Long>() {
+            @Override
+            public void onResponse(Long streamPointer) {
+                if (streamPointer == 0) {
+                    result.complete(0L);
+                } else {
+                    result.complete(streamPointer);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                result.completeExceptionally(e);
+            }
+        });
+        return result;
     }
 
     public DatafusionReader getReader() {

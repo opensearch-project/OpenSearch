@@ -8,30 +8,22 @@
 
 package org.opensearch.index.engine.exec.merge;
 
-import org.opensearch.index.engine.exec.DataFormat;
-import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
-import java.util.Collection;
 import java.util.List;
 
 public class OneMerge {
-    private final DataFormat dataFormat;
-    private final List<FileMetadata> filesToMerge; // Files to merge as per given data format
+    private final List<CatalogSnapshot.Segment> segmentsToMerge;
 
-    public OneMerge(DataFormat dataFormat, List<FileMetadata> filesToMerge) {
-        this.dataFormat = dataFormat;
-        this.filesToMerge = filesToMerge;
+    public OneMerge(List<CatalogSnapshot.Segment> segmentsToMerge) {
+        this.segmentsToMerge = segmentsToMerge;
     }
 
-    public DataFormat getDataFormat() {
-        return dataFormat;
-    }
-
-    public List<FileMetadata> getFilesToMerge() {
-        return filesToMerge;
+    public List<CatalogSnapshot.Segment> getSegmentsToMerge() {
+        return segmentsToMerge;
     }
 
     public String toString() {
-        return "Merge [dataFormat=" + dataFormat + ", filesToMerge=" + filesToMerge + "] ";
+        return "Merge [SegmentsToMerge=" + segmentsToMerge + "] ";
     }
 }

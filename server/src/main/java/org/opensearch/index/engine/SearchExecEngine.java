@@ -11,6 +11,7 @@ package org.opensearch.index.engine;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
@@ -18,6 +19,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Generic read engine interface that provides searcher operations and query phase execution
@@ -39,6 +41,8 @@ public abstract class SearchExecEngine<C extends SearchContext, S extends Engine
      * execute Query Phase
      */
     public abstract Map<String, Object[]> executeQueryPhase(C context) throws IOException;
+
+    public abstract void executeQueryPhaseAsync(C context, Executor executor, ActionListener<Map<String, Object[]>> listener);
 
     /**
      * execute Fetch Phase

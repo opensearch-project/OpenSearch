@@ -533,9 +533,9 @@ public final class SearchPhaseController {
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        if (aggregations != null) {
-            LOGGER.info("Final reduced aggregations: {}", aggregations.asMap());
-        }
+//        if (aggregations != null) {
+//            LOGGER.info("Final reduced aggregations: {}", aggregations.asMap());
+//        }
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
