@@ -830,6 +830,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         )
                     );
                 } catch (Exception e) {
+                    releasable.close();
                     if (incrementedConnections && targetNodeId != null) {
                         clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
                     }
