@@ -59,11 +59,16 @@ public class ManagedVSR implements AutoCloseable {
 
     /**
      * Gets a field vector by name.
+     * Only allowed when VSR is in ACTIVE state.
      *
      * @param fieldName Name of the field
      * @return FieldVector for the field, or null if not found
+     * @throws IllegalStateException if VSR is not in ACTIVE state
      */
     public FieldVector getVector(String fieldName) {
+        if (state != VSRState.ACTIVE) {
+            throw new IllegalStateException("Cannot access vector in VSR state: " + state + ". VSR must be ACTIVE to access vectors.");
+        }
         return vsr.getVector(fieldName);
     }
 
