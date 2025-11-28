@@ -618,21 +618,23 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         TestCapturingListener<Diff<RoutingTable>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
-            "cluster-uuid",
-            uploadedFileName,
-            new LatchedActionListener<>(listener, latch),
-            Version.CURRENT
-        );
-        latch.await();
+        for (Version version : List.of(Version.CURRENT, Version.V_3_1_0, Version.V_3_2_0)) {
+            remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
+                "cluster-uuid",
+                uploadedFileName,
+                new LatchedActionListener<>(listener, latch),
+                version
+            );
+            latch.await();
 
-        assertNull(listener.getFailure());
-        assertNotNull(listener.getResult());
-        Diff<RoutingTable> resultDiff = listener.getResult();
-        assertEquals(
-            currentState.getRoutingTable().getIndicesRouting(),
-            resultDiff.apply(previousState.getRoutingTable()).getIndicesRouting()
-        );
+            assertNull(listener.getFailure());
+            assertNotNull(listener.getResult());
+            Diff<RoutingTable> resultDiff = listener.getResult();
+            assertEquals(
+                currentState.getRoutingTable().getIndicesRouting(),
+                resultDiff.apply(previousState.getRoutingTable()).getIndicesRouting()
+            );
+        }
     }
 
     public void testGetAsyncIndexRoutingWriteAction() throws Exception {

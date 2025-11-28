@@ -50,6 +50,12 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
 
     private final String codec;
     private final CheckedFunction<StreamInput, T, IOException> reader;
+    /**
+     * opensearchVersion here corresponds to the version of the node which is/was used to
+     * serialize or deserialize the blob entity. Currently, it is just being referenced while
+     * deserializing, to ensure the deserialization is compatible with the current version.
+     * Remote entities can fetch the opensearchVersion version from manifest and pass it along.
+     */
     private final Version opensearchVersion;
 
     public ChecksumWritableBlobStoreFormat(String codec, CheckedFunction<StreamInput, T, IOException> reader) {
