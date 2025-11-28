@@ -5,7 +5,7 @@ use datafusion::execution::cache::CacheAccessor;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 use tokio::runtime::Runtime;
 use crate::cache::MutexFileMetadataCache;
-use crate::util::{create_object_meta_from_file, construct_file_metadata};
+use crate::util::{create_object_meta_from_file};
 
 /// Custom CacheManager that holds cache references directly
 pub struct CustomCacheManager {

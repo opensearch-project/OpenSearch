@@ -105,7 +105,7 @@ public final class CacheUtils {
                     type.getEvictionType(clusterSettings));
 
                 NativeBridge.createCache(cacheManagerPtr, type.cacheTypeName, type.getSizeLimit(clusterSettings).getBytes(), type.getEvictionType(clusterSettings));
-                clusterSettings.addSettingsUpdateConsumer(type.sizeLimitSetting,(v) -> NativeBridge.cacheManagerUpdateSizeLimitForCacheType(cacheManagerPtr, CacheType.METADATA.getCacheTypeName(),v.getBytes()));
+           //     clusterSettings.addSettingsUpdateConsumer(type.sizeLimitSetting,(v) -> NativeBridge.cacheManagerUpdateSizeLimitForCacheType(cacheManagerPtr, CacheType.METADATA.getCacheTypeName(),v.getBytes()));
             } else {
                 logger.debug("Cache type {} is disabled", type.getCacheTypeName());
             }

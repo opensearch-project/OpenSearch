@@ -71,7 +71,7 @@ pub async fn execute_query_with_cross_rt_stream(
         .with_cache_manager(
             CacheManagerConfig::default()
                 .with_list_files_cache(Some(list_file_cache.clone()))
-                .with_file_metadata_cache(Some(file_metadata_cache))
+                .with_file_metadata_cache(Some(file_metadata_cache.clone()))
                 .with_metadata_cache_limit(file_metadata_cache.cache_limit())
                 .with_files_statistics_cache(runtimeEnv.cache_manager.get_file_statistic_cache()),
         ).build() {
@@ -217,7 +217,7 @@ pub async fn execute_fetch_phase(
     let runtime_env = RuntimeEnvBuilder::new()
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(file_metadata_cache))
+                .with_file_metadata_cache(Some(file_metadata_cache.clone()))
                 .with_files_statistics_cache(runtime.runtime_env.cache_manager.get_file_statistic_cache())
                 .with_metadata_cache_limit(file_metadata_cache.cache_limit()),
         )
