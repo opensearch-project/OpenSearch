@@ -54,16 +54,12 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.script.Script;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -198,8 +194,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         if (request.upsertRequest() != null) {
             sizeInBytes += request.upsertRequest().source().length();
         }
-        if (request.script() != null) {
-            sizeInBytes += request.script().getIdOrCode().length() * 2;
+        Script script = request.script();
+        if (script != null) {
+            sizeInBytes += (long) script.getIdOrCode().length() * 2L;
+            sizeInBytes += script.getParams().toString().length();
         }
         indices.add(request.index());
         return this;
