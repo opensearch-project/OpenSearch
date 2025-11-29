@@ -11,15 +11,6 @@ package org.opensearch.datafusion;
 import org.apache.arrow.c.CDataDictionaryProvider;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.types.pojo.ArrowType;
-import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.arrow.vector.types.pojo.Schema;
-import org.opensearch.datafusion.jni.NativeBridge;
-import org.apache.arrow.vector.types.pojo.ArrowType;
-import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.arrow.vector.types.pojo.Schema;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.datafusion.jni.handle.StreamHandle;
 
 
@@ -55,13 +46,11 @@ public class RecordBatchStream implements Closeable {
 
     /**
      * Waits for schema initialization to complete
-     * @return true when initialized
      */
-    public boolean isInitialized() {
+    public void ensureInitialized() {
         if (vectorSchemaRoot == null) {
             vectorSchemaRoot = schemaFuture.join();
         }
-        return true;
     }
 
     /**
@@ -69,7 +58,7 @@ public class RecordBatchStream implements Closeable {
      * @return the VectorSchemaRoot containing the current batch
      */
     public VectorSchemaRoot getVectorSchemaRoot() {
-        isInitialized();
+        ensureInitialized();
         return vectorSchemaRoot;
     }
 
@@ -78,80 +67,8 @@ public class RecordBatchStream implements Closeable {
      * @return a CompletableFuture that completes with true if more data is available, false if end of stream
      */
     public CompletableFuture<Boolean> loadNextBatch() {
-        isInitialized();
-        return streamHandle.loadNextBatch(allocator, vectorSchemaRoot, dictionaryProvider);
-    }
-
-    private Schema getSchema() {
-        // Native method is not async, but use a future to store the result for convenience
-        CompletableFuture<Schema> result = new CompletableFuture<>();
-        getSchema(streamPointer, new ActionListener<Long>() {
-            @Override
-            public void onResponse(Long arrowSchemaAddress) {
-                try {
-                    ArrowSchema arrowSchema = ArrowSchema.wrap(arrowSchemaAddress);
-                    Schema schema = importSchema(allocator, arrowSchema, dictionaryProvider);
-                    result.complete(schema);
-                } catch (Exception e) {
-                    result.completeExceptionally(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                result.completeExceptionally(e);
-            }
-        });
-        return result.join();
-    }
-
-    private Schema importSchema(BufferAllocator allocator, ArrowSchema schema, CDataDictionaryProvider provider) {
-        Field structField = importField(allocator, schema, provider);
-        if (structField.getType().getTypeID() != ArrowType.ArrowTypeID.Struct) {
-            throw new IllegalArgumentException("Cannot import schema: ArrowSchema describes non-struct type");
-        }
-        return new Schema(structField.getChildren(), structField.getMetadata());
-    }
-
-    private void ensureInitialized() {
-        if (!initialized) {
-            Schema schema = getSchema();
-            this.vectorSchemaRoot = VectorSchemaRoot.create(schema, allocator);
-        }
-        initialized = true;
-    }
-
-    /**
-     * Loads the next batch of data from the stream
-     * @return a CompletableFuture that completes with true if more data is available, false if end of stream
-     */
-    public CompletableFuture<Boolean> loadNextBatch() {
         ensureInitialized();
-        long runtimePointer = this.runtimePtr;
-        CompletableFuture<Boolean> result = new CompletableFuture<>();
-        next(runtimePointer, streamPointer, new ActionListener<Long>() {
-            @Override
-            public void onResponse(Long arrowArrayAddress) {
-                if (arrowArrayAddress == 0) {
-                    // Reached end of stream
-                    result.complete(false);
-                } else {
-                    try {
-                        ArrowArray arrowArray = ArrowArray.wrap(arrowArrayAddress);
-                        Data.importIntoVectorSchemaRoot(allocator, arrowArray, vectorSchemaRoot, dictionaryProvider);
-                        result.complete(true);
-                    } catch (Exception e) {
-                        result.completeExceptionally(e);
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                result.completeExceptionally(e);
-            }
-        });
-        return result;
+        return streamHandle.loadNextBatch(allocator, vectorSchemaRoot, dictionaryProvider);
     }
 
     /**

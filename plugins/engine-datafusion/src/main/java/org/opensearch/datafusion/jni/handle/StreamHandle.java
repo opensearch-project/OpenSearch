@@ -17,6 +17,7 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.datafusion.ErrorUtil;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.vectorized.execution.jni.NativeHandle;
@@ -45,53 +46,60 @@ public final class StreamHandle extends NativeHandle {
     /**
      * Gets the Arrow schema for this stream.
      * @param allocator memory allocator for Arrow
-     * @param provider dictionary provider
+     * @param dictionaryProvider dictionary provider
      * @return CompletableFuture with the schema
      */
-    public CompletableFuture<Schema> getSchema(BufferAllocator allocator, CDataDictionaryProvider provider) {
+    public CompletableFuture<Schema> getSchema(BufferAllocator allocator, CDataDictionaryProvider dictionaryProvider) {
+        // Native method is not async, but use a future to store the result for convenience
         CompletableFuture<Schema> result = new CompletableFuture<>();
-        NativeBridge.streamGetSchema(getPointer(), (errString, arrowSchemaAddress) -> {
-            if (ErrorUtil.containsError(errString)) {
-                result.completeExceptionally(new RuntimeException(errString));
-            } else {
+        NativeBridge.streamGetSchema(ptr, new ActionListener<Long>() {
+            @Override
+            public void onResponse(Long arrowSchemaAddress) {
                 try {
                     ArrowSchema arrowSchema = ArrowSchema.wrap(arrowSchemaAddress);
-                    Schema schema = importSchema(allocator, arrowSchema, provider);
+                    Schema schema = importSchema(allocator, arrowSchema, dictionaryProvider);
                     result.complete(schema);
                 } catch (Exception e) {
                     result.completeExceptionally(e);
                 }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                result.completeExceptionally(e);
             }
         });
         return result;
     }
 
     /**
-     * Loads the next batch into the provided VectorSchemaRoot.
-     * @param allocator memory allocator
-     * @param root the VectorSchemaRoot to load data into
-     * @param provider dictionary provider
-     * @return CompletableFuture with true if more data available, false if end of stream
+     * Loads the next batch of data from the stream
+     * @return a CompletableFuture that completes with true if more data is available, false if end of stream
      */
-    public CompletableFuture<Boolean> loadNextBatch(
-        BufferAllocator allocator,
-        VectorSchemaRoot root,
-        CDataDictionaryProvider provider
-    ) {
+    public CompletableFuture<Boolean> loadNextBatch(BufferAllocator allocator, VectorSchemaRoot vectorSchemaRoot,
+                                                    CDataDictionaryProvider dictionaryProvider) {
+        long runtimePointer = this.runtimePtr;
         CompletableFuture<Boolean> result = new CompletableFuture<>();
-        NativeBridge.streamNext(runtimePtr, getPointer(), (errString, arrowArrayAddress) -> {
-            if (ErrorUtil.containsError(errString)) {
-                result.completeExceptionally(new RuntimeException(errString));
-            } else if (arrowArrayAddress == 0) {
-                result.complete(false);
-            } else {
-                try {
-                    ArrowArray arrowArray = ArrowArray.wrap(arrowArrayAddress);
-                    Data.importIntoVectorSchemaRoot(allocator, arrowArray, root, provider);
-                    result.complete(true);
-                } catch (Exception e) {
-                    result.completeExceptionally(e);
+        NativeBridge.streamNext(runtimePointer, ptr, new ActionListener<Long>() {
+            @Override
+            public void onResponse(Long arrowArrayAddress) {
+                if (arrowArrayAddress == 0) {
+                    // Reached end of stream
+                    result.complete(false);
+                } else {
+                    try {
+                        ArrowArray arrowArray = ArrowArray.wrap(arrowArrayAddress);
+                        Data.importIntoVectorSchemaRoot(allocator, arrowArray, vectorSchemaRoot, dictionaryProvider);
+                        result.complete(true);
+                    } catch (Exception e) {
+                        result.completeExceptionally(e);
+                    }
                 }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                result.completeExceptionally(e);
             }
         });
         return result;

@@ -30,6 +30,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.datafusion.search.*;
+import org.opensearch.datafusion.search.AsyncRecordBatchIterator;
 import org.opensearch.datafusion.search.cache.CacheManager;
 import org.opensearch.index.engine.*;
 import org.opensearch.index.engine.exec.FileMetadata;
@@ -322,12 +323,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         DatafusionContext context,
         List<Long> rowIdResult
     ) {
-        stream.loadNextBatch().whenCompleteAsync((hasMore, error) -> {
-            if (error != null) {
-                cleanup(stream, allocator);
-                listener.onFailure(new RuntimeException("Error loading batch", error));
-                return;
-            }
+        AsyncRecordBatchIterator iterator = new AsyncRecordBatchIterator(stream);
+        iterator.nextAsync(ActionListener.wrap(hasMore -> {
             if (hasMore) {
                 try {
                     collector.collect(stream);
@@ -339,16 +336,15 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 }
             } else {
                 cleanup(stream, allocator);
-//                logger.info("Final Results:");
-//                for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
-//                    logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
-//                }
                 context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(),
                     TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(),
                     Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
                 listener.onResponse(finalRes);
             }
-        }, executor);
+        }, error -> {
+            cleanup(stream, allocator);
+            listener.onFailure(new RuntimeException("Error loading batch", error));
+        }));
     }
     private void cleanup(RecordBatchStream stream, RootAllocator allocator) {
         try {
