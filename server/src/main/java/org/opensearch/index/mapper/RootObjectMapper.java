@@ -123,7 +123,7 @@ public class RootObjectMapper extends ObjectMapper {
             Explicit<Boolean> enabled,
             Nested nested,
             Dynamic dynamic,
-            Explicit<Boolean> preserveDots,
+            Explicit<Boolean> disableObjects,
             Map<String, Mapper> mappers,
             @Nullable Settings settings
         ) {
@@ -132,7 +132,7 @@ public class RootObjectMapper extends ObjectMapper {
                 name,
                 enabled,
                 dynamic,
-                preserveDots,
+                disableObjects,
                 mappers,
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -230,10 +230,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         protected boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode, ParserContext parserContext) {
-            if (fieldName.equals("preserve_dots")) {
-                builder.preserveDots(nodeBooleanValue(fieldNode, "preserve_dots"));
-                return true;
-            } else if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
+            if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 if (fieldNode instanceof List) {
                     List<DateFormatter> formatters = new ArrayList<>();
                     for (Object formatter : (List<?>) fieldNode) {
@@ -300,7 +297,7 @@ public class RootObjectMapper extends ObjectMapper {
         String name,
         Explicit<Boolean> enabled,
         Dynamic dynamic,
-        Explicit<Boolean> preserveDots,
+        Explicit<Boolean> disableObjects,
         Map<String, Mapper> mappers,
         Explicit<DateFormatter[]> dynamicDateTimeFormatters,
         Explicit<DynamicTemplate[]> dynamicTemplates,
@@ -308,7 +305,7 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<Boolean> numericDetection,
         Settings settings
     ) {
-        super(name, name, enabled, Nested.NO, dynamic, preserveDots, mappers, settings);
+        super(name, name, enabled, Nested.NO, dynamic, disableObjects, mappers, settings);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
@@ -428,10 +425,6 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected void doXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         final boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        if (preserveDotsExplicit().explicit() || includeDefaults) {
-            builder.field("preserve_dots", preserveDots());
-        }
 
         if (dynamicDateTimeFormatters.explicit() || includeDefaults) {
             builder.startArray("dynamic_date_formats");

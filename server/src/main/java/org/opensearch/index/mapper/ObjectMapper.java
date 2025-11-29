@@ -81,7 +81,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public static final boolean ENABLED = true;
         public static final Nested NESTED = Nested.NO;
         public static final Dynamic DYNAMIC = null; // not set, inherited from root
-        public static final Explicit<Boolean> PRESERVE_DOTS = new Explicit<>(false, false);
+        public static final Explicit<Boolean> DISABLE_OBJECTS = new Explicit<>(false, false);
     }
 
     /**
@@ -203,7 +203,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected Dynamic dynamic = Defaults.DYNAMIC;
 
-        protected Explicit<Boolean> preserveDots = Defaults.PRESERVE_DOTS;
+        protected Explicit<Boolean> disableObjects = Defaults.DISABLE_OBJECTS;
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
@@ -227,8 +227,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return builder;
         }
 
-        public T preserveDots(boolean preserveDots) {
-            this.preserveDots = new Explicit<>(preserveDots, true);
+        public T disableObjects(boolean disableObjects) {
+            this.disableObjects = new Explicit<>(disableObjects, true);
             return builder;
         }
 
@@ -258,10 +258,26 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 enabled,
                 nested,
                 dynamic,
-                preserveDots,
+                disableObjects,
                 mappers,
                 context.indexSettings()
             );
+
+            // Validate flat field compatibility during build
+            if (Boolean.TRUE.equals(disableObjects.value())) {
+                for (Mapper childMapper : mappers.values()) {
+                    if (childMapper instanceof ObjectMapper) {
+                        throw new MapperParsingException(
+                            "Field mapping conflict: Cannot add nested object field ["
+                                + childMapper.name()
+                                + "] when disable_objects is enabled for ["
+                                + name
+                                + "]. With disable_objects=true, all fields must use flat field notation (e.g., 'field.name' as a single field) "
+                                + "rather than nested object structures."
+                        );
+                    }
+                }
+            }
 
             return objectMapper;
         }
@@ -272,11 +288,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Explicit<Boolean> enabled,
             Nested nested,
             Dynamic dynamic,
-            Explicit<Boolean> preserveDots,
+            Explicit<Boolean> disableObjects,
             Map<String, Mapper> mappers,
             @Nullable Settings settings
         ) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, preserveDots, mappers, settings);
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, disableObjects, mappers, settings);
         }
     }
 
@@ -334,12 +350,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
-            } else if (fieldName.equals("preserve_dots")) {
+            } else if (fieldName.equals("disable_objects")) {
                 try {
-                    builder.preserveDots(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".preserve_dots"));
+                    builder.disableObjects(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".disable_objects"));
                 } catch (IllegalArgumentException e) {
                     throw new IllegalArgumentException(
-                        "Configuration error: Parameter [preserve_dots] must be a boolean value (true or false), but got ["
+                        "Configuration error: Parameter [disable_objects] must be a boolean value (true or false), but got ["
                             + fieldNode
                             + "]. "
                             + e.getMessage(),
@@ -599,19 +615,29 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
-                    String[] fieldNameParts = fieldName.split("\\.");
-                    // field name is just ".", which is invalid
-                    if (fieldNameParts.length < 1) {
-                        throw new MapperParsingException("Invalid field name " + fieldName);
+                    
+                    // When disable_objects is enabled, treat dotted field names as literal field names
+                    // and don't create intermediate object mappers
+                    if (Boolean.TRUE.equals(objBuilder.disableObjects.value())) {
+                        // Use the full field name as-is without splitting
+                        Mapper.Builder<?> fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
+                        objBuilder.add(fieldBuilder);
+                    } else {
+                        // Standard behavior: split dotted names and create intermediate object mappers
+                        String[] fieldNameParts = fieldName.split("\\.");
+                        // field name is just ".", which is invalid
+                        if (fieldNameParts.length < 1) {
+                            throw new MapperParsingException("Invalid field name " + fieldName);
+                        }
+                        String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                        Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                        for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                            ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
+                            intermediate.add(fieldBuilder);
+                            fieldBuilder = intermediate;
+                        }
+                        objBuilder.add(fieldBuilder);
                     }
-                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
-                    Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
-                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                        ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
-                        intermediate.add(fieldBuilder);
-                        fieldBuilder = intermediate;
-                    }
-                    objBuilder.add(fieldBuilder);
                     propNode.remove("type");
                     DocumentMapperParser.checkNoRemainingFields(fieldName, propNode, parserContext.indexVersionCreated());
                     iterator.remove();
@@ -646,7 +672,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private volatile Dynamic dynamic;
 
-    private Explicit<Boolean> preserveDots;
+    private Explicit<Boolean> disableObjects;
 
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
@@ -656,7 +682,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         Explicit<Boolean> enabled,
         Nested nested,
         Dynamic dynamic,
-        Explicit<Boolean> preserveDots,
+        Explicit<Boolean> disableObjects,
         Map<String, Mapper> mappers,
         Settings settings
     ) {
@@ -669,7 +695,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         this.enabled = enabled;
         this.nested = nested;
         this.dynamic = dynamic;
-        this.preserveDots = preserveDots;
+        this.disableObjects = disableObjects;
         if (mappers == null) {
             this.mappers = new CopyOnWriteHashMap<>();
         } else {
@@ -753,12 +779,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return dynamic;
     }
 
-    public boolean preserveDots() {
-        return preserveDots.value();
+    public boolean disableObjects() {
+        return disableObjects.value();
     }
 
-    public Explicit<Boolean> preserveDotsExplicit() {
-        return preserveDots;
+    public Explicit<Boolean> disableObjectsExplicit() {
+        return disableObjects;
     }
 
     /**
@@ -797,7 +823,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public void validate(MappingLookup mappers) {
-        // Validate flat field compatibility when preserve_dots is enabled
+        // Validate flat field compatibility when disable_objects is enabled
         validateFlatFieldCompatibility();
         
         for (Mapper mapper : this.mappers.values()) {
@@ -825,16 +851,16 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (mergeWith.enabled.explicit()) {
                 this.enabled = mergeWith.enabled;
             }
-            if (mergeWith.preserveDotsExplicit().explicit()) {
-                this.preserveDots = mergeWith.preserveDotsExplicit();
+            if (mergeWith.disableObjectsExplicit().explicit()) {
+                this.disableObjects = mergeWith.disableObjectsExplicit();
             }
         } else {
             if (isEnabled() != mergeWith.isEnabled()) {
                 throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
             }
-            // Validate preserve_dots immutability (except for MAPPING_RECOVERY)
+            // Validate disable_objects immutability (except for MAPPING_RECOVERY)
             if (reason != MergeReason.MAPPING_RECOVERY) {
-                validatePreserveDotsImmutability(mergeWith, reason);
+                validateDisableObjectsImmutability(mergeWith, reason);
             }
         }
 
@@ -843,7 +869,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
             Mapper merged;
             if (mergeIntoMapper == null) {
-                // Validate that we're not adding nested objects when preserve_dots is enabled
+                // Validate that we're not adding nested objects when disable_objects is enabled
                 if (reason != MergeReason.INDEX_TEMPLATE && reason != MergeReason.MAPPING_RECOVERY) {
                     validateNestedObjectRejection(mergeWithMapper);
                 }
@@ -871,66 +897,66 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Validates that preserve_dots parameter is not being modified after index creation.
+     * Validates that disable_objects parameter is not being modified after index creation.
      * Provides descriptive error message including the field name and attempted change.
      * 
      * @param mergeWith The ObjectMapper being merged
      * @param reason The reason for the merge
-     * @throws MapperException if preserve_dots is being changed
+     * @throws MapperException if disable_objects is being changed
      */
-    private void validatePreserveDotsImmutability(ObjectMapper mergeWith, MergeReason reason) {
-        if (this.preserveDotsExplicit().explicit() && mergeWith.preserveDotsExplicit().explicit()) {
-            if (this.preserveDots() != mergeWith.preserveDots()) {
+    private void validateDisableObjectsImmutability(ObjectMapper mergeWith, MergeReason reason) {
+        if (this.disableObjectsExplicit().explicit() && mergeWith.disableObjectsExplicit().explicit()) {
+            if (this.disableObjects() != mergeWith.disableObjects()) {
                 throw new MapperException(
-                    "Cannot update parameter [preserve_dots] from ["
-                        + this.preserveDots()
+                    "Cannot update parameter [disable_objects] from ["
+                        + this.disableObjects()
                         + "] to ["
-                        + mergeWith.preserveDots()
+                        + mergeWith.disableObjects()
                         + "] for object mapping ["
                         + name()
-                        + "]. The preserve_dots setting is immutable after index creation."
+                        + "]. The disable_objects setting is immutable after index creation."
                 );
             }
         }
     }
 
     /**
-     * Validates that nested objects are not being added when preserve_dots is enabled.
+     * Validates that nested objects are not being added when disable_objects is enabled.
      * Provides clear indication of flat vs nested conflict with field name.
      * 
      * @param newMapper The new mapper being added
-     * @throws MapperException if attempting to add nested object when preserve_dots=true
+     * @throws MapperException if attempting to add nested object when disable_objects=true
      */
     private void validateNestedObjectRejection(Mapper newMapper) {
-        if (this.preserveDots() && newMapper instanceof ObjectMapper) {
+        if (this.disableObjects() && newMapper instanceof ObjectMapper) {
             throw new MapperException(
                 "Field mapping conflict: Cannot add nested object field ["
                     + newMapper.name()
-                    + "] when preserve_dots is enabled for ["
+                    + "] when disable_objects is enabled for ["
                     + name()
-                    + "]. With preserve_dots=true, all fields must use flat field notation (e.g., 'field.name' as a single field) "
+                    + "]. With disable_objects=true, all fields must use flat field notation (e.g., 'field.name' as a single field) "
                     + "rather than nested object structures."
             );
         }
     }
 
     /**
-     * Validates that no nested object definitions exist when preserve_dots is enabled.
+     * Validates that no nested object definitions exist when disable_objects is enabled.
      * This is called during index creation to ensure compatibility.
      * Provides clear indication of flat vs nested conflict with field name.
      * 
-     * @throws MapperParsingException if nested objects are found when preserve_dots=true
+     * @throws MapperParsingException if nested objects are found when disable_objects=true
      */
     private void validateFlatFieldCompatibility() {
-        if (this.preserveDots()) {
+        if (this.disableObjects()) {
             for (Mapper childMapper : this.mappers.values()) {
                 if (childMapper instanceof ObjectMapper) {
                     throw new MapperParsingException(
-                        "Field mapping conflict: Cannot define nested object ["
+                        "Field mapping conflict: Cannot add nested object field ["
                             + childMapper.name()
-                            + "] when preserve_dots is enabled for parent ["
+                            + "] when disable_objects is enabled for ["
                             + name()
-                            + "]. With preserve_dots=true, all fields must use flat field notation (e.g., 'field.name' as a single field) "
+                            + "]. With disable_objects=true, all fields must use flat field notation (e.g., 'field.name' as a single field) "
                             + "rather than nested object structures."
                     );
                 }
@@ -964,8 +990,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (preserveDotsExplicit().explicit()) {
-            builder.field("preserve_dots", preserveDots.value());
+        if (disableObjectsExplicit().explicit()) {
+            builder.field("disable_objects", disableObjects.value());
         }
 
         if (custom != null) {

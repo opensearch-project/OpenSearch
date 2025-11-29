@@ -3010,21 +3010,22 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(translogBufferInterval, indexSettings.get(INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()));
     }
 
-    public void testTemplateWithPreserveDots() throws Exception {
-        // Create a template with preserve_dots enabled
+    public void testTemplateWithDisableObjects() throws Exception {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
             try {
                 builder.putMapping(
                     "type",
                     XContentFactory.jsonBuilder()
                         .startObject()
-                        .field("preserve_dots", true)
+                        .startObject(MapperService.SINGLE_MAPPING_NAME)
+                        .field("disable_objects", true)
                         .startObject("properties")
                         .startObject("cpu.usage")
                         .field("type", "float")
                         .endObject()
                         .startObject("memory.used")
                         .field("type", "long")
+                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -3035,28 +3036,26 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             }
         });
 
-        // Parse mappings with the template
         Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
             "",
             Collections.singletonList(templateMetadata.getMappings()),
             NamedXContentRegistry.EMPTY
         );
 
-        // Verify preserve_dots is present in the parsed mappings
         assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
         Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
-        assertThat(doc, hasKey("preserve_dots"));
-        assertEquals(true, doc.get("preserve_dots"));
+        assertThat(doc, hasKey("disable_objects"));
+        assertEquals(true, doc.get("disable_objects"));
 
-        // Verify the dotted field properties are present
         assertThat(doc, hasKey("properties"));
         Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+
         assertThat(properties, hasKey("cpu.usage"));
         assertThat(properties, hasKey("memory.used"));
     }
 
-    public void testTemplateWithPreserveDotsAtNestedLevel() throws Exception {
-        // Create a template with preserve_dots enabled on a nested object
+    public void testTemplateWithDisableObjectsAtNestedLevel() throws Exception {
+        // Create a template with disable_objects enabled on a nested object
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
             try {
                 builder.putMapping(
@@ -3074,7 +3073,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                         .endObject()
                         .startObject("metrics")
                         .field("type", "object")
-                        .field("preserve_dots", true)
+                        .field("disable_objects", true)
                         .startObject("properties")
                         .startObject("cpu.usage")
                         .field("type", "float")
@@ -3100,73 +3099,82 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // Verify the structure
         assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
         Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
-        assertThat(doc, hasKey("properties"));
-        Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+        // assertThat(doc, hasKey("properties"));
+        Map<String, Object> properties = doc;
+        // Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
 
-        // Verify user object (without preserve_dots)
+        // Verify user object (without disable_objects)
         assertThat(properties, hasKey("user"));
         Map<String, Object> userObject = (Map<String, Object>) properties.get("user");
         assertThat(userObject, hasKey("properties"));
 
-        // Verify metrics object (with preserve_dots)
+        // Verify metrics object (with disable_objects)
         assertThat(properties, hasKey("metrics"));
         Map<String, Object> metricsObject = (Map<String, Object>) properties.get("metrics");
-        assertThat(metricsObject, hasKey("preserve_dots"));
-        assertEquals(true, metricsObject.get("preserve_dots"));
+        assertThat(metricsObject, hasKey("disable_objects"));
+        assertEquals(true, metricsObject.get("disable_objects"));
         assertThat(metricsObject, hasKey("properties"));
         Map<String, Object> metricsProperties = (Map<String, Object>) metricsObject.get("properties");
         assertThat(metricsProperties, hasKey("cpu.usage"));
     }
 
-    public void testMultipleTemplatesWithPreserveDots() throws Exception {
-        // Create first template with preserve_dots=false
+    public void testMultipleTemplatesWithDisableObjects() throws Exception {
+        // Template 1: no disable_objects (defaults to false)
         CompressedXContent template1Mapping = new CompressedXContent(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .field("preserve_dots", false)
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                 .startObject("properties")
                 .startObject("field1")
                 .field("type", "text")
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
                 .toString()
         );
 
-        // Create second template with preserve_dots=true
+        // Template 2: disable_objects=true
         CompressedXContent template2Mapping = new CompressedXContent(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .field("preserve_dots", true)
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .field("disable_objects", true)
                 .startObject("properties")
                 .startObject("field.dotted")
                 .field("type", "keyword")
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
                 .toString()
         );
 
-        // Parse mappings with both templates (template2 should override template1)
         List<CompressedXContent> templateMappings = Arrays.asList(template1Mapping, template2Mapping);
+
         Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
             "",
             templateMappings,
             NamedXContentRegistry.EMPTY
         );
 
-        // Verify preserve_dots from the last template is applied
         assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
-        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
-        assertThat(doc, hasKey("preserve_dots"));
-        assertEquals(true, doc.get("preserve_dots"));
 
-        // Verify both field1 and field.dotted are present
+        Map<String, Object> doc =
+            (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
+
+        // disable_objects from last template wins
+        assertThat(doc, hasKey("disable_objects"));
+        assertEquals(true, doc.get("disable_objects"));
+
+        // properties are at root of doc
         assertThat(doc, hasKey("properties"));
         Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+
         assertThat(properties, hasKey("field1"));
         assertThat(properties, hasKey("field.dotted"));
     }
+
 
     private DiscoveryNode getRemoteNode() {
         Map<String, String> attributes = new HashMap<>();

@@ -232,6 +232,50 @@ final class DocumentParser {
         }
     }
 
+    /**
+     * Split a field path, respecting disable_objects settings on parent mappers.
+     * If a parent mapper has disable_objects=true, the path is not split beyond that parent.
+     */
+    private static String[] splitPathRespectingDisableObjects(String fieldPath, DocumentMapper docMapper) {
+        // First check if the root mapper has disable_objects=true
+        // If so, treat the entire field path as a single flat field
+        if (docMapper.mapping().root().disableObjects()) {
+            return new String[] { fieldPath };
+        }
+        
+        String[] allParts = splitAndValidatePath(fieldPath);
+        
+        // Check each level to see if we encounter a mapper with disable_objects=true
+        StringBuilder currentPath = new StringBuilder();
+        for (int i = 0; i < allParts.length - 1; i++) {
+            if (i > 0) {
+                currentPath.append(".");
+            }
+            currentPath.append(allParts[i]);
+            
+            ObjectMapper parentMapper = docMapper.objectMappers().get(currentPath.toString());
+            if (parentMapper != null && parentMapper.disableObjects()) {
+                // This parent has disable_objects=true, so don't split beyond this point
+                // Return: [parts up to parent, remaining path as single element]
+                String[] result = new String[i + 2];
+                System.arraycopy(allParts, 0, result, 0, i + 1);
+                // Join the remaining parts back together
+                StringBuilder remaining = new StringBuilder();
+                for (int j = i + 1; j < allParts.length; j++) {
+                    if (j > i + 1) {
+                        remaining.append(".");
+                    }
+                    remaining.append(allParts[j]);
+                }
+                result[i + 1] = remaining.toString();
+                return result;
+            }
+        }
+        
+        // No parent with disable_objects=true found, return the fully split path
+        return allParts;
+    }
+
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
     static Mapping createDynamicUpdate(Mapping mapping, DocumentMapper docMapper, List<Mapper> dynamicMappers) {
         if (dynamicMappers.isEmpty()) {
@@ -244,7 +288,7 @@ final class DocumentParser {
         Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
         List<ObjectMapper> parentMappers = new ArrayList<>();
         Mapper firstUpdate = dynamicMapperItr.next();
-        parentMappers.add(createUpdate(mapping.root(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
+        parentMappers.add(createUpdate(mapping.root(), splitPathRespectingDisableObjects(firstUpdate.name(), docMapper), 0, firstUpdate));
         Mapper previousMapper = null;
         while (dynamicMapperItr.hasNext()) {
             Mapper newMapper = dynamicMapperItr.next();
@@ -256,7 +300,7 @@ final class DocumentParser {
                 continue;
             }
             previousMapper = newMapper;
-            String[] nameParts = splitAndValidatePath(newMapper.name());
+            String[] nameParts = splitPathRespectingDisableObjects(newMapper.name(), docMapper);
 
             // We first need the stack to only contain mappers in common with the previously processed mapper
             // For example, if the first mapper processed was a.b.c, and we now have a.d, the stack will contain
@@ -442,13 +486,23 @@ final class DocumentParser {
             while (token != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                    paths = splitAndValidatePath(currentFieldName);
+                    // When disable_objects is enabled, treat dotted field names as literal field names
+                    if (mapper.disableObjects()) {
+                        paths = new String[] { currentFieldName };
+                    } else {
+                        paths = splitAndValidatePath(currentFieldName);
+                    }
                     if (containsDisabledObjectMapper(mapper, paths)) {
                         parser.nextToken();
                         parser.skipChildren();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    parseObject(context, mapper, currentFieldName, paths);
+                    // When disable_objects is enabled, flatten nested objects to dotted notation
+                    if (mapper.disableObjects()) {
+                        flattenObject(context, mapper, currentFieldName);
+                    } else {
+                        parseObject(context, mapper, currentFieldName, paths);
+                    }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     parseArray(context, mapper, currentFieldName, paths);
                 } else if (token == XContentParser.Token.VALUE_NULL) {
@@ -491,6 +545,80 @@ final class DocumentParser {
                     doc.setGroupingCriteria(criteria);
                 }
             }
+        }
+    }
+
+    /**
+     * Flattens a nested object structure to dotted field notation when disable_objects is enabled.
+     * For example, {"foo": {"bar": 6}} becomes "foo.bar": 6
+     * 
+     * @param context the parse context
+     * @param mapper the object mapper with disable_objects enabled
+     * @param prefix the current field name prefix
+     * @throws IOException if parsing fails
+     */
+    private static void flattenObject(ParseContext context, ObjectMapper mapper, String prefix) throws IOException {
+        XContentParser parser = context.parser();
+        XContentParser.Token token = parser.nextToken(); // Move to first field or END_OBJECT
+        
+        while (token != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                String fieldName = parser.currentName();
+                String flattenedFieldName = prefix + "." + fieldName;
+                token = parser.nextToken(); // Move to the value
+                
+                if (token == XContentParser.Token.START_OBJECT) {
+                    // Recursively flatten nested objects
+                    flattenObject(context, mapper, flattenedFieldName);
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    // Handle arrays by flattening each element
+                    flattenArray(context, mapper, flattenedFieldName);
+                } else if (token == XContentParser.Token.VALUE_NULL) {
+                    // Handle null values
+                    String[] paths = new String[] { flattenedFieldName };
+                    parseNullValue(context, mapper, flattenedFieldName, paths);
+                } else if (token.isValue()) {
+                    // Handle primitive values
+                    String[] paths = new String[] { flattenedFieldName };
+                    parseValue(context, mapper, flattenedFieldName, token, paths);
+                }
+            } else {
+                throw new MapperParsingException(
+                    "Unexpected token [" + token + "] while flattening object for field [" + prefix + "]"
+                );
+            }
+            token = parser.nextToken();
+        }
+    }
+
+    /**
+     * Flattens an array when disable_objects is enabled.
+     * Each array element is processed and flattened if it's an object.
+     * 
+     * @param context the parse context
+     * @param mapper the object mapper with disable_objects enabled
+     * @param fieldName the flattened field name
+     * @throws IOException if parsing fails
+     */
+    private static void flattenArray(ParseContext context, ObjectMapper mapper, String fieldName) throws IOException {
+        XContentParser parser = context.parser();
+        XContentParser.Token token = parser.nextToken(); // Move to first array element or END_ARRAY
+        
+        String[] paths = new String[] { fieldName };
+        
+        while (token != XContentParser.Token.END_ARRAY) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                // Flatten nested objects within the array
+                flattenObject(context, mapper, fieldName);
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                // Nested arrays - recursively flatten
+                flattenArray(context, mapper, fieldName);
+            } else if (token == XContentParser.Token.VALUE_NULL) {
+                parseNullValue(context, mapper, fieldName, paths);
+            } else if (token.isValue()) {
+                parseValue(context, mapper, fieldName, token, paths);
+            }
+            token = parser.nextToken();
         }
     }
 
@@ -548,8 +676,8 @@ final class DocumentParser {
 
     private static void parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper objectMapper) {
-            // Check if preserve_dots is enabled for this object mapper
-            if (objectMapper.preserveDots()) {
+            // Check if disable_objects is enabled for this object mapper
+            if (objectMapper.disableObjects()) {
                 // Parse as flat field - do not expand dots into nested objects
                 parseFieldWithDots(context, objectMapper);
             } else {
@@ -569,12 +697,12 @@ final class DocumentParser {
     }
 
     /**
-     * Parses fields with dots as literal field names when preserve_dots is enabled.
+     * Parses fields with dots as literal field names when disable_objects is enabled.
      * This method treats dotted field names (e.g., "user.name", "metrics.cpu.usage") as flat fields
      * rather than expanding them into nested object hierarchies.
      * 
      * @param context the parse context
-     * @param mapper the object mapper with preserve_dots enabled
+     * @param mapper the object mapper with disable_objects enabled
      * @throws IOException if parsing fails
      */
     private static void parseFieldWithDots(ParseContext context, ObjectMapper mapper) throws IOException {
@@ -598,7 +726,7 @@ final class DocumentParser {
                     + currentFieldName
                     + "] in object ["
                     + mapper.name()
-                    + "] is defined as an object with preserve_dots=true, but received a concrete value. "
+                    + "] is defined as an object with disable_objects=true, but received a concrete value. "
                     + "Expected format: an object containing flat dotted field names (e.g., {\"field.name\": \"value\"})."
             );
         }
@@ -620,7 +748,7 @@ final class DocumentParser {
             while (token != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                    // For preserve_dots, treat the entire field name (including dots) as a literal field name
+                    // For disable_objects, treat the entire field name (including dots) as a literal field name
                     // Do not split on dots - this is the key difference from normal object parsing
                     
                     // Look up the mapper using the complete dotted field name
@@ -633,7 +761,7 @@ final class DocumentParser {
                             fm.parse(context);
                             parseCopyFields(context, fm.copyTo().copyToFields());
                         } else if (fieldMapper instanceof ObjectMapper om) {
-                            // Even with preserve_dots, we can have nested ObjectMappers
+                            // Even with disable_objects, we can have nested ObjectMappers
                             // for explicitly defined sub-objects
                             parseObjectOrNested(context, om);
                         } else {
@@ -730,7 +858,7 @@ final class DocumentParser {
 
     /**
      * Determines the XContentFieldType based on the parser token.
-     * Used for dynamic field mapping when preserve_dots is enabled.
+     * Used for dynamic field mapping when disable_objects is enabled.
      */
     private static XContentFieldType getFieldType(XContentParser.Token token) {
         if (token == XContentParser.Token.START_OBJECT) {

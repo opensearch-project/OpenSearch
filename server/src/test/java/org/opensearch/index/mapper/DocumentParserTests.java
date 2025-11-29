@@ -2600,20 +2600,29 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals("300", doc.docs().getFirst().getGroupingCriteria());
     }
 
-    public void testPreserveDotsWithFlatFields() throws Exception {
-        // Test that when preserve_dots=true, dotted field names are treated as literal field names
+    public void testDisableObjectsWithFlatFields() throws Exception {
+        // Test that when disable_objects=true on an object, dotted field names are treated as literal field names
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.field("preserve_dots", true);
             b.startObject("properties");
             {
-                b.startObject("metrics.cpu.usage");
+                b.startObject("metrics");
                 {
-                    b.field("type", "float");
-                }
-                b.endObject();
-                b.startObject("metrics.memory.used");
-                {
-                    b.field("type", "long");
+                    b.field("type", "object");
+                    b.field("disable_objects", true);
+                    b.startObject("properties");
+                    {
+                        b.startObject("cpu.usage");
+                        {
+                            b.field("type", "float");
+                        }
+                        b.endObject();
+                        b.startObject("memory.used");
+                        {
+                            b.field("type", "long");
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
                 }
                 b.endObject();
             }
@@ -2621,8 +2630,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> {
-            b.field("metrics.cpu.usage", 75.5);
-            b.field("metrics.memory.used", 8589934592L);
+            b.startObject("metrics");
+            {
+                b.field("cpu.usage", 75.5);
+                b.field("memory.used", 8589934592L);
+            }
+            b.endObject();
         }));
 
         // Verify that fields are stored with their complete dotted names
@@ -2634,36 +2647,46 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull("Field 'metrics.memory.used' should exist", memoryField);
         assertEquals(8589934592L, memoryField.numericValue().longValue());
 
-        // Verify that no nested object structure was created
-        assertNull("No 'metrics' object should exist", doc.rootDoc().getField("metrics"));
+        // Verify that no intermediate nested object structure was created for cpu or memory
+        assertNull("No 'metrics.cpu' object should exist", doc.rootDoc().getField("metrics.cpu"));
+        assertNull("No 'metrics.memory' object should exist", doc.rootDoc().getField("metrics.memory"));
     }
 
-    public void testPreserveDotsWithDynamicFields() throws Exception {
-        // Test that dynamic fields work correctly with preserve_dots=true
+    public void testDisableObjectsWithDynamicFields() throws Exception {
+        // Test that dynamic fields work correctly with disable_objects=true
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.field("preserve_dots", true);
             b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("metrics");
+                {
+                    b.field("type", "object");
+                    b.field("disable_objects", true);
+                }
+                b.endObject();
+            }
+            b.endObject();
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> {
-            b.field("user.name", "John Doe");
-            b.field("user.age", 30);
-            b.field("metrics.response.time", 150);
+            b.startObject("metrics");
+            {
+                b.field("cpu.usage", 75.5);
+                b.field("memory.used", 8589934592L);
+            }
+            b.endObject();
         }));
 
-        // Verify that dynamic fields are created with dotted names
-        IndexableField nameField = doc.rootDoc().getField("user.name");
-        assertNotNull("Dynamic field 'user.name' should exist", nameField);
+        // Verify that dynamic fields are created with dotted names within the metrics object
+        IndexableField cpuField = doc.rootDoc().getField("metrics.cpu.usage");
+        assertNotNull("Dynamic field 'metrics.cpu.usage' should exist", cpuField);
 
-        IndexableField ageField = doc.rootDoc().getField("user.age");
-        assertNotNull("Dynamic field 'user.age' should exist", ageField);
-
-        IndexableField responseTimeField = doc.rootDoc().getField("metrics.response.time");
-        assertNotNull("Dynamic field 'metrics.response.time' should exist", responseTimeField);
+        IndexableField memoryField = doc.rootDoc().getField("metrics.memory.used");
+        assertNotNull("Dynamic field 'metrics.memory.used' should exist", memoryField);
     }
 
-    public void testPreserveDotsDefaultBehavior() throws Exception {
-        // Test that when preserve_dots is not set (default=false), normal nested object behavior is preserved
+    public void testDisableObjectsDefaultBehavior() throws Exception {
+        // Test that when disable_objects is not set (default=false), normal nested object behavior is preserved
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startObject("properties");
             {
@@ -2696,6 +2719,160 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // Verify that nested object structure is created (default behavior)
         IndexableField nameField = doc.rootDoc().getField("user.name");
         assertNotNull("Field 'user.name' should exist in nested structure", nameField);
+    }
+
+    public void testRootLevelDisableObjectsWithDynamicFields() throws Exception {
+        // Test that when disable_objects=true at root level, all dynamic fields are treated as flat fields
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("metrics.cpu.usage");
+                {
+                    b.field("type", "float");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // First document with a predefined field
+        ParsedDocument doc1 = mapper.parse(source(b -> {
+            b.field("metrics.cpu.usage", 55.5);
+        }));
+
+        IndexableField cpuUsageField = doc1.rootDoc().getField("metrics.cpu.usage");
+        assertNotNull("Field 'metrics.cpu.usage' should exist", cpuUsageField);
+
+        // Second document with a new dynamic field that shares a prefix
+        ParsedDocument doc2 = mapper.parse(source(b -> {
+            b.field("metrics.cpu", 99.1);
+        }));
+
+        IndexableField cpuField = doc2.rootDoc().getField("metrics.cpu");
+        assertNotNull("Dynamic field 'metrics.cpu' should exist as a flat field", cpuField);
+
+        // Verify the mapping update contains the new flat field
+        Mapping mappingUpdate = doc2.dynamicMappingsUpdate();
+        assertNotNull("Dynamic mapping update should be created", mappingUpdate);
+        
+        // The new field should be added as a flat field at root level
+        Mapper cpuMapper = mappingUpdate.root().getMapper("metrics.cpu");
+        assertNotNull("Mapper for 'metrics.cpu' should exist in dynamic update", cpuMapper);
+        assertThat("Mapper should be a FieldMapper", cpuMapper, instanceOf(FieldMapper.class));
+    }
+
+    public void testDisableObjectsAutomaticFlattening() throws Exception {
+        // Test that when disable_objects=true, nested object notation is automatically flattened
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("foo.bar");
+                {
+                    b.field("type", "long");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Test case 1: Flat notation (should work as before)
+        ParsedDocument doc1 = mapper.parse(source(b -> {
+            b.field("foo.bar", 5);
+        }));
+
+        IndexableField fooBarField1 = doc1.rootDoc().getField("foo.bar");
+        assertNotNull("Field 'foo.bar' should exist", fooBarField1);
+        assertEquals(5L, fooBarField1.numericValue().longValue());
+
+        // Test case 2: Nested object notation (should be automatically flattened)
+        ParsedDocument doc2 = mapper.parse(source(b -> {
+            b.startObject("foo");
+            {
+                b.field("bar", 6);
+            }
+            b.endObject();
+        }));
+
+        IndexableField fooBarField2 = doc2.rootDoc().getField("foo.bar");
+        assertNotNull("Field 'foo.bar' should exist after flattening", fooBarField2);
+        assertEquals(6L, fooBarField2.numericValue().longValue());
+
+        // Verify no intermediate 'foo' object was created
+        assertNull("No 'foo' object should exist", doc2.rootDoc().getField("foo"));
+    }
+
+    public void testDisableObjectsAutomaticFlatteningDeepNesting() throws Exception {
+        // Test automatic flattening with deeply nested objects
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("a");
+            {
+                b.startObject("b");
+                {
+                    b.startObject("c");
+                    {
+                        b.field("d", "value");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Verify the deeply nested structure was flattened to "a.b.c.d"
+        IndexableField field = doc.rootDoc().getField("a.b.c.d");
+        assertNotNull("Field 'a.b.c.d' should exist after flattening", field);
+        assertEquals("value", field.stringValue());
+
+        // Verify no intermediate objects were created
+        assertNull("No 'a' object should exist", doc.rootDoc().getField("a"));
+        assertNull("No 'a.b' object should exist", doc.rootDoc().getField("a.b"));
+        assertNull("No 'a.b.c' object should exist", doc.rootDoc().getField("a.b.c"));
+    }
+
+    public void testDisableObjectsAutomaticFlatteningWithMultipleFields() throws Exception {
+        // Test automatic flattening with multiple fields in nested objects
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("user");
+            {
+                b.field("name", "John");
+                b.field("age", 30);
+                b.startObject("address");
+                {
+                    b.field("city", "NYC");
+                    b.field("zip", "10001");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Verify all fields were flattened correctly
+        assertNotNull("Field 'user.name' should exist", doc.rootDoc().getField("user.name"));
+        assertEquals("John", doc.rootDoc().getField("user.name").stringValue());
+
+        assertNotNull("Field 'user.age' should exist", doc.rootDoc().getField("user.age"));
+        assertEquals(30L, doc.rootDoc().getField("user.age").numericValue().longValue());
+
+        assertNotNull("Field 'user.address.city' should exist", doc.rootDoc().getField("user.address.city"));
+        assertEquals("NYC", doc.rootDoc().getField("user.address.city").stringValue());
+
+        assertNotNull("Field 'user.address.zip' should exist", doc.rootDoc().getField("user.address.zip"));
+        assertEquals("10001", doc.rootDoc().getField("user.address.zip").stringValue());
     }
 
 }

@@ -45,36 +45,6 @@ import static org.hamcrest.Matchers.containsString;
 
 public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
 
-    public void testPreserveDots() throws Exception {
-        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .field("preserve_dots", false)
-            .endObject()
-            .endObject()
-            .toString();
-        MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        // update with a different explicit value
-        String mapping2 = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .field("preserve_dots", true)
-            .endObject()
-            .endObject()
-            .toString();
-        mapper = mapperService.merge("type", new CompressedXContent(mapping2), reason);
-        assertEquals(mapping2, mapper.mappingSource().toString());
-
-        // update with an implicit value: no change
-        String mapping3 = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().toString();
-        mapper = mapperService.merge("type", new CompressedXContent(mapping3), reason);
-        assertEquals(mapping2, mapper.mappingSource().toString());
-    }
-
     public void testNumericDetection() throws Exception {
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
         String mapping = XContentFactory.jsonBuilder()
