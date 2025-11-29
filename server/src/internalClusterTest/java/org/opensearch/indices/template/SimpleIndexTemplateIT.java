@@ -1078,8 +1078,8 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testIndexTemplateWithPreserveDots() throws Exception {
-        // Create an index template with preserve_dots enabled
+    public void testIndexTemplateWithdisableObjects() throws Exception {
+        // Create an index template with disable_objects enabled
         client().admin()
             .indices()
             .preparePutTemplate("metrics_template")
@@ -1087,7 +1087,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .field("preserve_dots", true)
+                    .field("disable_objects", true)
                     .startObject("properties")
                     .startObject("cpu.usage")
                     .field("type", "float")
@@ -1103,15 +1103,15 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         // Create an index that matches the template pattern
         assertAcked(prepareCreate("metrics-001"));
 
-        // Verify that preserve_dots setting was applied from the template
+        // Verify that disable_objects setting was applied from the template
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetadata indexMetadata = state.metadata().index("metrics-001");
         assertNotNull(indexMetadata);
 
-        // Get the mapping and verify preserve_dots is set
+        // Get the mapping and verify disable_objects is set
         String mapping = indexMetadata.mapping().source().toString();
-        assertTrue("Mapping should contain preserve_dots", mapping.contains("preserve_dots"));
-        assertTrue("preserve_dots should be set to true", mapping.contains("\"preserve_dots\":true"));
+        assertTrue("Mapping should contain disable_objects", mapping.contains("disable_objects"));
+        assertTrue("disable_objects should be set to true", mapping.contains("\"disable_objects\":true"));
 
         // Index a document with dotted field names
         client().prepareIndex("metrics-001")
@@ -1133,8 +1133,8 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 1);
     }
 
-    public void testIndexTemplateWithPreserveDotsAtNestedLevel() throws Exception {
-        // Create an index template with preserve_dots enabled on a nested object
+    public void testIndexTemplateWithdisableObjectsAtNestedLevel() throws Exception {
+        // Create an index template with disable_objects enabled on a nested object
         client().admin()
             .indices()
             .preparePutTemplate("mixed_template")
@@ -1153,7 +1153,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("metrics")
                     .field("type", "object")
-                    .field("preserve_dots", true)
+                    .field("disable_objects", true)
                     .startObject("properties")
                     .startObject("cpu.usage")
                     .field("type", "float")
@@ -1168,14 +1168,14 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         // Create an index that matches the template pattern
         assertAcked(prepareCreate("mixed-001"));
 
-        // Verify that preserve_dots setting was applied from the template
+        // Verify that disable_objects setting was applied from the template
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetadata indexMetadata = state.metadata().index("mixed-001");
         assertNotNull(indexMetadata);
 
-        // Get the mapping and verify preserve_dots is set on the metrics object
+        // Get the mapping and verify disable_objects is set on the metrics object
         String mapping = indexMetadata.mapping().source().toString();
-        assertTrue("Mapping should contain preserve_dots", mapping.contains("preserve_dots"));
+        assertTrue("Mapping should contain disable_objects", mapping.contains("disable_objects"));
 
         // Index a document with both nested and flat dotted fields
         client().prepareIndex("mixed-001")
@@ -1203,7 +1203,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 1);
     }
 
-    public void testMultipleTemplatesWithPreserveDots() throws Exception {
+    public void testMultipleTemplatesWithDisableObjects() throws Exception {
         // Create first template with lower order
         client().admin()
             .indices()
@@ -1213,7 +1213,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .field("preserve_dots", false)
+                    .field("disable_objects", false)
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -1223,7 +1223,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        // Create second template with higher order and preserve_dots enabled
+        // Create second template with higher order and disable_objects enabled
         client().admin()
             .indices()
             .preparePutTemplate("template_2")
@@ -1232,7 +1232,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .field("preserve_dots", true)
+                    .field("disable_objects", true)
                     .startObject("properties")
                     .startObject("field.dotted")
                     .field("type", "keyword")
@@ -1245,14 +1245,14 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         // Create an index that matches both templates
         assertAcked(prepareCreate("test-001"));
 
-        // Verify that preserve_dots from the higher order template was applied
+        // Verify that disable_objects from the higher order template was applied
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetadata indexMetadata = state.metadata().index("test-001");
         assertNotNull(indexMetadata);
 
         String mapping = indexMetadata.mapping().source().toString();
-        assertTrue("Mapping should contain preserve_dots", mapping.contains("preserve_dots"));
-        assertTrue("preserve_dots should be set to true from higher order template", mapping.contains("\"preserve_dots\":true"));
+        assertTrue("Mapping should contain disable_objects", mapping.contains("disable_objects"));
+        assertTrue("disable_objects should be set to true from higher order template", mapping.contains("\"disable_objects\":true"));
     }
 
 }
