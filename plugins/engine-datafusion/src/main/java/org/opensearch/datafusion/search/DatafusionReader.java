@@ -14,10 +14,8 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicInteger;
 /**
  * DataFusion reader for JNI operations.
  */
@@ -31,13 +29,9 @@ public class DatafusionReader implements Closeable {
      */
     public Collection<WriterFileSet> files;
     /**
-     * The cache pointer.
+     * The reader handle.
      */
     public ReaderHandle readerHandle;
-    /**
-     * The reference count.
-     */
-    private AtomicInteger refCount = new AtomicInteger(1);
     /**
      * The catalog snapshot reference.
      */
@@ -76,27 +70,26 @@ public class DatafusionReader implements Closeable {
      * Increments the reference count.
      */
     public void incRef() {
-        refCount.getAndIncrement();
+        readerHandle.retain();
     }
 
     /**
      * Decrements the reference count.
-     * @throws IOException if an I/O error occurs
      */
-    public void decRef() throws IOException {
-        if(refCount.get() == 0) {
-            throw new IllegalStateException("Listing table has been already closed");
-        }
+    public void decRef() {
+        readerHandle.close();
+    }
 
-        int currRefCount = refCount.decrementAndGet();
-        if(currRefCount == 0) {
-            this.close();
-        }
-
+    /**
+     * Gets the reference count.
+     * @return the reference count
+     */
+    public int getRefCount() {
+        return readerHandle.getRefCount();
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         readerHandle.close();
         try {
             if (catalogSnapshotRef != null)

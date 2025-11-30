@@ -43,7 +43,7 @@ public abstract class NativeHandle implements AutoCloseable {
      * Ensures the handle is still open.
      * @throws IllegalStateException if the handle has been closed
      */
-    protected void ensureOpen() {
+    public void ensureOpen() {
         if (closed.get()) {
             throw new IllegalStateException("Handle already closed");
         }

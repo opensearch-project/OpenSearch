@@ -30,8 +30,8 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.datafusion.search.*;
+import org.opensearch.datafusion.search.AsyncRecordBatchIterator;
 import org.opensearch.datafusion.search.cache.CacheManager;
-import org.opensearch.datafusion.search.cache.CacheUtils;
 import org.opensearch.index.engine.*;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
@@ -48,8 +48,8 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.vectorized.execution.search.DataFormat;
-import org.opensearch.search.query.GenericQueryPhaseSearcher;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.*;
@@ -63,7 +63,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 
 public class DatafusionEngine extends SearchExecEngine<DatafusionContext, DatafusionSearcher,
-    DatafusionReaderManager, DatafusionQuery> {
+    DatafusionReaderManager, DatafusionQuery> implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(DatafusionEngine.class);
 
@@ -71,6 +71,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     private DatafusionReaderManager datafusionReaderManager;
     private DataFusionService datafusionService;
     private CacheManager cacheManager;
+    private final RootAllocator rootAllocator;
 
     public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService, ShardPath shardPath) throws IOException {
         this.dataFormat = dataFormat;
@@ -78,7 +79,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         this.datafusionReaderManager = new DatafusionReaderManager(shardPath.getDataPath().toString(), formatCatalogSnapshot, dataFormat.getName());
         this.datafusionService = dataFusionService;
         this.cacheManager = datafusionService.getCacheManager();
-        if(this.cacheManager!=null) {
+        this.rootAllocator = new RootAllocator(Long.MAX_VALUE);
+        if (this.cacheManager != null) {
             datafusionReaderManager.setOnFilesAdded(files -> {
                 // Handle new files added during refresh
                 cacheManager.addFilesToCacheManager(files);
@@ -178,27 +180,29 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         return false;
     }
 
+    @Override
+    public void close() {
+        rootAllocator.close();
+    }
+
 
     @Override
     public Map<String, Object[]> executeQueryPhase(DatafusionContext context) {
         Map<String, Object[]> finalRes = new HashMap<>();
         List<Long> rowIdResult = new ArrayList<>();
-        RootAllocator allocator = null;
         RecordBatchStream stream = null;
 
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
             long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
-            allocator = new RootAllocator(Long.MAX_VALUE);
-            stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
+            stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator);
 
             // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
             // Is the possible? need to check
 
-            SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
-                @Override
-                public void collect(RecordBatchStream value) {
-                    VectorSchemaRoot root = value.getVectorSchemaRoot();
+            SearchResultsCollector<RecordBatchIterator> collector = iterator -> {
+                while (iterator.hasNext()) {
+                    VectorSchemaRoot root = iterator.next();
                     for (Field field : root.getSchema().getFields()) {
                         String fieldName = field.getName();
                         FieldVector fieldVector = root.getVector(fieldName);
@@ -220,9 +224,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 }
             };
 
-            while (stream.loadNextBatch().join()) {
-                collector.collect(stream);
-            }
+            collector.collect(new RecordBatchIterator(stream));
 
 //            logger.info("Final Results:");
 //            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
@@ -246,9 +248,6 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             try {
                 if (stream != null) {
                     stream.close();
-                }
-                if (allocator != null) {
-                    allocator.close();
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -324,12 +323,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         DatafusionContext context,
         List<Long> rowIdResult
     ) {
-        stream.loadNextBatch().whenCompleteAsync((hasMore, error) -> {
-            if (error != null) {
-                cleanup(stream, allocator);
-                listener.onFailure(new RuntimeException("Error loading batch", error));
-                return;
-            }
+        AsyncRecordBatchIterator iterator = new AsyncRecordBatchIterator(stream);
+        iterator.nextAsync(ActionListener.wrap(hasMore -> {
             if (hasMore) {
                 try {
                     collector.collect(stream);
@@ -341,16 +336,15 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 }
             } else {
                 cleanup(stream, allocator);
-//                logger.info("Final Results:");
-//                for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
-//                    logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
-//                }
                 context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(),
                     TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(),
                     Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
                 listener.onResponse(finalRes);
             }
-        }, executor);
+        }, error -> {
+            cleanup(stream, allocator);
+            listener.onFailure(new RuntimeException("Error loading batch", error));
+        }));
     }
     private void cleanup(RecordBatchStream stream, RootAllocator allocator) {
         try {
@@ -385,8 +379,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         context.getDatafusionQuery().setProjections(projections);
         DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
         long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
-        RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
+        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator);
 
         Map<Long, Integer> rowIdToIndex = new HashMap<>();
         for (int idx = 0; idx < rowIds.size(); idx++) {
@@ -395,12 +388,12 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
         MapperService mapperService = context.mapperService();
         MappingLookup mappingLookup = mapperService.documentMapper().mappers();
-        SearchResultsCollector<RecordBatchStream> collector = recordBatchStream -> {
+        SearchResultsCollector<RecordBatchIterator> collector = iterator -> {
             List<BytesReference> byteRefs = new ArrayList<>();
             SearchHit[] hits = new SearchHit[rowIds.size()];
             int totalHits = 0;
-            while (recordBatchStream.loadNextBatch().join()) {
-                VectorSchemaRoot vectorSchemaRoot = recordBatchStream.getVectorSchemaRoot();
+            while (iterator.hasNext()) {
+                VectorSchemaRoot vectorSchemaRoot = iterator.next();
                 List<FieldVector> fieldVectorList = vectorSchemaRoot.getFieldVectors();
                 for (int i = 0; i < vectorSchemaRoot.getRowCount(); i++) {
                     XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
@@ -451,14 +444,13 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         };
 
         try {
-            collector.collect(stream);
+            collector.collect(new RecordBatchIterator(stream));
         } catch (IOException exception) {
             logger.error("Failed to perform fetch phase", exception);
             throw new RuntimeException(exception);
         } finally {
             try {
                 stream.close();
-                allocator.close();
             } catch (Exception e) {
                 logger.error("Failed to close stream", e);
                 throw new RuntimeException(e);
