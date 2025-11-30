@@ -68,6 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactor the HttpStats, ScriptStats, AdaptiveSelectionStats and OsStats class to use the Builder pattern instead of constructors ([#20014](https://github.com/opensearch-project/OpenSearch/pull/20014))
 - Bump opensearch-protobufs dependency to 0.24.0 and update transport-grpc module compatibility ([#20059](https://github.com/opensearch-project/OpenSearch/pull/20059))
 
+- Refactor the ShardStats, WarmerStats and IndexingPressureStats class to use the Builder pattern instead of constructors ([#19966](https://github.com/opensearch-project/OpenSearch/pull/19966))
 
 ### Fixed
 - Fix Allocation and Rebalance Constraints of WeightFunction are incorrectly reset ([#19012](https://github.com/opensearch-project/OpenSearch/pull/19012))
@@ -89,6 +90,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix ClassCastException in FlightClientChannel for requests larger than 16KB ([#20010](https://github.com/opensearch-project/OpenSearch/pull/20010))
 - Fix GRPC Bulk ([#19937](https://github.com/opensearch-project/OpenSearch/pull/19937))
 - Fix node bootstrap error when enable stream transport and remote cluster state ([#19948](https://github.com/opensearch-project/OpenSearch/pull/19948))
+- Fix deletion failure/error of unused index template; case when an index template matches a data stream but has a lower priority. ([#20102](https://github.com/opensearch-project/OpenSearch/pull/20102))
 - Fix toBuilder method in EngineConfig to include mergedSegmentTransferTracker([20105](https://github.com/opensearch-project/OpenSearch/pull/20105))
 
 ### Dependencies
@@ -141,6 +143,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Deprecated existing constructors in IndexPressutreStats, DeviceStats and TransportStats in favor of the new Builder ([#19991](https://github.com/opensearch-project/OpenSearch/pull/19991))
 - Deprecated existing constructors in Cache.CacheStats in favor of the new Builder ([#20015](https://github.com/opensearch-project/OpenSearch/pull/20015))
 - Deprecated existing constructors in HttpStats, ScriptStats, AdaptiveSelectionStats and OsStats in favor of the new Builder ([#20014](https://github.com/opensearch-project/OpenSearch/pull/20014))
+- Deprecated existing constructors in ShardStats, WarmerStats and IndexingPressureStats in favor of the new Builder ([#19966](https://github.com/opensearch-project/OpenSearch/pull/19966))
 
 ### Removed
 

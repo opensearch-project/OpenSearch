@@ -748,14 +748,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             }
         ) {
             // In zero state, we have a random sleep duration
-            long sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            long sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             task.run();
             latch.await();
             // Since we have refresh taking up 2s, then the next refresh should have sleep duration of 3s. Here we check
             // the sleep duration to be non-zero since the sleep duration is calculated dynamically.
-            sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             assertEquals(0, latch.getCount());
             indexService.close("test", false);
             assertBusy(() -> { assertEquals(TimeValue.ZERO, task.getSleepDuration()); });
@@ -783,14 +783,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             }
         ) {
             // In zero state, we have a random sleep duration
-            long sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            long sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             task.run();
             latch.await();
             indexService.close("test", false);
             // Since we have refresh taking up 2s and refresh interval as 1s, then the next refresh should happen immediately.
-            sleepDurationMs = task.getSleepDuration().millis();
-            assertEquals(0, sleepDurationMs);
+            sleepDurationNanos = task.getSleepDuration().nanos();
+            assertEquals(0, sleepDurationNanos);
             assertEquals(0, latch.getCount());
         }
     }
