@@ -193,6 +193,10 @@ public class FetchPhase {
                     if (currentReaderContext.reader() instanceof SequentialStoredFieldsLeafReader lf
                         && hasSequentialDocs
                         && docs.length >= 10) {
+                        // All the docs to fetch are adjacent but Lucene stored fields are optimized
+                        // for random access and don't optimize for sequential access - except for merging.
+                        // So we do a little hack here and pretend we're going to do merges in order to
+                        // get better sequential access.
                         StoredFieldsReader sequentialReader;
                         // For scroll queries, try to get cached reader
                         if (context.scrollContext() != null) {
@@ -205,7 +209,6 @@ public class FetchPhase {
                         } else {
                             sequentialReader = lf.getSequentialStoredFieldsReader();
                         }
-
                         fieldReader = sequentialReader::document;
                     } else {
                         fieldReader = currentReaderContext.reader().storedFields()::document;
