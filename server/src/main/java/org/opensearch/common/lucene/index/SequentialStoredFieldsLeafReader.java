@@ -49,9 +49,6 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public abstract class SequentialStoredFieldsLeafReader extends FilterLeafReader {
-
-    private StoredFieldsReader cachedSequentialReader;
-
     /**
      * <p>Construct a StoredFieldsFilterLeafReader based on the specified base reader.
      * <p>Note that base reader is closed if this FilterLeafReader is closed.</p>
@@ -72,28 +69,14 @@ public abstract class SequentialStoredFieldsLeafReader extends FilterLeafReader 
      * Returns a {@link StoredFieldsReader} optimized for sequential access (adjacent doc ids).
      */
     public StoredFieldsReader getSequentialStoredFieldsReader() throws IOException {
-        if (cachedSequentialReader == null) {
-            if (in instanceof CodecReader) {
-                CodecReader reader = (CodecReader) in;
-                cachedSequentialReader = doGetSequentialStoredFieldsReader(reader.getFieldsReader().getMergeInstance());
-            } else if (in instanceof SequentialStoredFieldsLeafReader) {
-                SequentialStoredFieldsLeafReader reader = (SequentialStoredFieldsLeafReader) in;
-                cachedSequentialReader = doGetSequentialStoredFieldsReader(reader.getSequentialStoredFieldsReader());
-            } else {
-                throw new IOException("requires a CodecReader or a SequentialStoredFieldsLeafReader, got " + in.getClass());
-            }
-        }
-        return cachedSequentialReader;
-    }
-
-    @Override
-    protected void doClose() throws IOException {
-        try {
-            if (cachedSequentialReader != null) {
-                cachedSequentialReader.close();
-            }
-        } finally {
-            super.doClose();
+        if (in instanceof CodecReader) {
+            CodecReader reader = (CodecReader) in;
+            return doGetSequentialStoredFieldsReader(reader.getFieldsReader().getMergeInstance());
+        } else if (in instanceof SequentialStoredFieldsLeafReader) {
+            SequentialStoredFieldsLeafReader reader = (SequentialStoredFieldsLeafReader) in;
+            return doGetSequentialStoredFieldsReader(reader.getSequentialStoredFieldsReader());
+        } else {
+            throw new IOException("requires a CodecReader or a SequentialStoredFieldsLeafReader, got " + in.getClass());
         }
     }
 
