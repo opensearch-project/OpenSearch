@@ -50,7 +50,7 @@ import java.util.Map;
  */
 @PublicApi(since = "1.0.0")
 public final class ScrollContext implements Releasable {
-    public TotalHits totalHits;
+    public TotalHits totalHits = null;
     public float maxScore = Float.NaN;
     public ScoreDoc lastEmittedDoc;
     public Scroll scroll;
