@@ -541,10 +541,10 @@ public enum RestStatus {
         if (family <= 3) {
             return StatusType.SUCCESS.toString();
         } else if (family == 4) {
-            // 4xx errors correspond with erros on the client side
+            // 4xx errors correspond with errors on the client side
             return StatusType.USER_ERROR.toString();
         } else {
-            // 5xx errors correspond with erros on the systems side
+            // 5xx errors correspond with errors on the systems side
             return StatusType.SYSTEM_FAILURE.toString();
         }
     }
