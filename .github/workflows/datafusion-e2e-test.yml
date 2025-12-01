@@ -72,6 +72,10 @@ jobs:
         working-directory: OpenSearch
         run: ./gradlew :server:test --tests "org.opensearch.index.engine.exec.coord.IndexFileDeleterTests"
 
+      - name: Run Native(Rust) UTs for ParquetDataFormat plugin
+        working-directory: OpenSearch
+        run: ./gradlew runNativeUnitTests
+
       - name: Run OpenSearch with DataFusion Plugin
         working-directory: OpenSearch
         run: |
