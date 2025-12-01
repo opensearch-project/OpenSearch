@@ -327,41 +327,28 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and set the
         // cancelAfterTimeInterval to NO_TIMEOUT and bypass this mechanism
         if (task instanceof CancellableTask) {
-            ActionListener<SearchResponse> cancellationListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
                 (CancellableTask) task,
                 clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING),
                 listener,
                 e -> {}
             );
-            searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
-                try {
-                    indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
-                } finally {
-                    cancellationListener.onResponse(searchResponse);
-                }
-            }, (e) -> {
-                try {
-                    indicesService.getSearchResponseStatusStats().inc(ExceptionsHelper.status(e));
-                } finally {
-                    cancellationListener.onFailure(e);
-                }
-            });
-        } else {
-            searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
-                try {
-                    indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
-                } finally {
-                    listener.onResponse(searchResponse);
-                }
-            }, (e) -> {
-                try {
-                    indicesService.getSearchResponseStatusStats().inc(ExceptionsHelper.status(e));
-                } finally {
-                    listener.onFailure(e);
-                }
-            });
         }
+        final ActionListener<SearchResponse> finalListner = listener;
+        searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
+            try {
+                indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
+            } finally {
+                finalListner.onResponse(searchResponse);
+            }
+        }, (e) -> {
+            try {
+                indicesService.getSearchResponseStatusStats().inc(ExceptionsHelper.status(e));
+            } finally {
+                finalListner.onFailure(e);
+            }
+        });
         executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);
     }
 

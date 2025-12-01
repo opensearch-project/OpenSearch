@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.LongAdder;
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "3.4.0")
 public class DocStatusStats extends AbstractStatusStats {
 
     public DocStatusStats() {
