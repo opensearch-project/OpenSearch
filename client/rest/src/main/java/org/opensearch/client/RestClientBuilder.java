@@ -48,12 +48,13 @@ import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.apache.hc.core5.reactor.ssl.TlsDetails;
 import org.apache.hc.core5.util.Timeout;
-import org.opensearch.secure_sm.AccessController;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
+import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -268,7 +269,9 @@ public final class RestClientBuilder {
         if (failureListener == null) {
             failureListener = new RestClient.FailureListener();
         }
-        CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(this::createHttpClient);
+        CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
+            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient
+        );
 
         RestClient restClient = null;
 
@@ -338,7 +341,7 @@ public final class RestClientBuilder {
             }
 
             final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
-            return AccessController.doPrivileged(finalBuilder::build);
+            return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("could not create the default ssl context", e);
         }

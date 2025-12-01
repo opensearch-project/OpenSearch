@@ -35,8 +35,8 @@ apply plugin: 'opensearch.publish'
 apply from: "$rootDir/gradle/fips.gradle"
 
 java {
-  targetCompatibility = JavaVersion.VERSION_21
-  sourceCompatibility = JavaVersion.VERSION_21
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
 }
 
 base {
@@ -45,7 +45,6 @@ base {
 }
 
 dependencies {
-  api project(':libs:opensearch-secure-sm')
   api "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
   api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
   api "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"

@@ -32,8 +32,8 @@ apply plugin: 'opensearch.publish'
 apply from: "$rootDir/gradle/fips.gradle"
 
 java {
-  targetCompatibility = JavaVersion.VERSION_21
-  sourceCompatibility = JavaVersion.VERSION_21
+  targetCompatibility = JavaVersion.VERSION_11
+  sourceCompatibility = JavaVersion.VERSION_11
 }
 
 base {
