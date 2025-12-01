@@ -26,13 +26,9 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DefaultDerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedField;
 import org.opensearch.index.mapper.DerivedFieldResolverFactory;
-import org.opensearch.index.mapper.DerivedFieldSupportedTypes;
-import org.opensearch.index.mapper.DerivedFieldType;
-import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.query.QueryShardContext;
@@ -473,16 +469,5 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
         final Map<String, ScriptEngine> engines = singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
         return scriptService;
-    }
-
-    private DerivedFieldType createDerivedFieldType(String name, String type, String script) {
-        Mapper.BuilderContext context = mock(Mapper.BuilderContext.class);
-        when(context.path()).thenReturn(new ContentPath());
-        return new DerivedFieldType(
-            new DerivedField(name, type, new Script(ScriptType.INLINE, "mockscript", script, emptyMap())),
-            DerivedFieldSupportedTypes.getFieldMapperFromType(type, name, context, null),
-            DerivedFieldSupportedTypes.getIndexableFieldGeneratorType(type, name),
-            null
-        );
     }
 }

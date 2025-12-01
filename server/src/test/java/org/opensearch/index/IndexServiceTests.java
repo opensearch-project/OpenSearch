@@ -55,6 +55,7 @@ import org.opensearch.index.shard.IndexShard.AsyncShardRefreshTask;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -72,7 +73,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.util.FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG;
 import static org.opensearch.index.shard.IndexShardTestCase.getEngine;
 import static org.opensearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -618,7 +618,6 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1000, updatedTask.getInterval().millis());
     }
 
-    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     public void testPublishReferencedSegmentsTask() throws Exception {
         // create with docrep - task should not schedule
         IndexService indexService = createIndex(
@@ -630,6 +629,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         IndexService.AsyncPublishReferencedSegmentsTask task = indexService.getPublishReferencedSegmentsTask();
         assertFalse(task.isScheduled());
         assertFalse(task.mustReschedule());
+        assertFalse(task.shouldRun());
 
         // create for segrep - task should schedule
         indexService = createIndex(
@@ -639,12 +639,22 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
                 .put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), "5s")
                 .build()
         );
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            )
+            .get();
+
         final Index srIndex = indexService.index();
         ensureGreen(srIndex.getName());
         task = indexService.getPublishReferencedSegmentsTask();
         assertTrue(task.isScheduled());
         assertTrue(task.mustReschedule());
         assertEquals(5000, task.getInterval().millis());
+        assertTrue(task.shouldRun());
 
         // test update the refresh interval, AsyncPublishReferencedSegmentsTask should not be updated
         client().admin()
@@ -658,6 +668,15 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(task.isScheduled());
         assertTrue(task.mustReschedule());
         assertEquals(5000, task.getInterval().millis());
+        assertTrue(task.shouldRun());
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().putNull(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey())
+            )
+            .get();
 
         // test we can update the publishReferencedSegmentsInterval
         client().admin()
@@ -673,6 +692,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(updatedTask.isScheduled());
         assertTrue(updatedTask.mustReschedule());
         assertEquals(1000, updatedTask.getInterval().millis());
+        assertFalse(task.shouldRun());
     }
 
     public void testBaseAsyncTaskWithFixedIntervalDisabled() throws Exception {
@@ -728,14 +748,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             }
         ) {
             // In zero state, we have a random sleep duration
-            long sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            long sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             task.run();
             latch.await();
             // Since we have refresh taking up 2s, then the next refresh should have sleep duration of 3s. Here we check
             // the sleep duration to be non-zero since the sleep duration is calculated dynamically.
-            sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             assertEquals(0, latch.getCount());
             indexService.close("test", false);
             assertBusy(() -> { assertEquals(TimeValue.ZERO, task.getSleepDuration()); });
@@ -763,14 +783,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             }
         ) {
             // In zero state, we have a random sleep duration
-            long sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            long sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             task.run();
             latch.await();
             indexService.close("test", false);
             // Since we have refresh taking up 2s and refresh interval as 1s, then the next refresh should happen immediately.
-            sleepDurationMs = task.getSleepDuration().millis();
-            assertEquals(0, sleepDurationMs);
+            sleepDurationNanos = task.getSleepDuration().nanos();
+            assertEquals(0, sleepDurationNanos);
             assertEquals(0, latch.getCount());
         }
     }

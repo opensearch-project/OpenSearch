@@ -683,4 +683,10 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
         super.doClose();
     }
+
+    @Override
+    public boolean isSeverSideEncryptionEnabled() {
+        // s3 is always server side encrypted.
+        return true;
+    }
 }

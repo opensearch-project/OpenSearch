@@ -66,7 +66,7 @@ dependencies {
   runtimeOnly "com.optimaize.languagedetector:language-detector:0.6"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   // Other dependencies
-  api 'org.tukaani:xz:1.10'
+  api 'org.tukaani:xz:1.11'
   api "commons-io:commons-io:${versions.commonsio}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
@@ -143,13 +143,4 @@ thirdPartyAudit {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
-}
-
-if (BuildParams.inFipsJvm) {
-  // FIPS JVM includes many classes from bouncycastle which count as jar hell for the third party audit,
-  // rather than provide a long list of exclusions, disable the check on FIPS.
-  jarHell.enabled = false
-  test.enabled = false
-  yamlRestTest.enabled = false;
-  testingConventions.enabled = false;
 }

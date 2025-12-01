@@ -13,7 +13,6 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -44,14 +43,8 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
             .put(super.nodeSettings(nodeOrdinal))
             .put(remoteStoreClusterSettings("test-remote-store-repo", absolutePath))
             .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "1b")
             .build();
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        Settings.Builder featureSettings = Settings.builder();
-        featureSettings.put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true);
-        return featureSettings.build();
     }
 
     @Before

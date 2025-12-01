@@ -66,6 +66,9 @@ dependencies {
   testImplementation(project(':test:framework')) {
     exclude module: 'jakarta.annotation-api'
   }
+  fipsOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  fipsOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 war {
@@ -85,11 +88,16 @@ preProcessFixture {
   dependsOn war, opensearch_distributions.docker
 }
 
+tasks.named('spotlessJava').configure {
+  mustRunAfter preProcessFixture
+}
+
 dockerCompose {
-  useComposeFiles = ['docker-compose.yml']
-  if (BuildParams.inFipsJvm) {
-    environment.put("KEYSTORE_PASSWORD", "notarealpasswordphrase")
+  def composeFiles = ['docker-compose.yml']
+  if (BuildParams.isInFipsJvm()) {
+    composeFiles.add('docker-compose.fips.yml')
   }
+  useComposeFiles = composeFiles
 }
 
 tasks.register("integTest", TestTask) {

@@ -62,12 +62,12 @@ public final class ObjectPath {
             if (ctx == null) {
                 return null;
             }
-            if (ctx instanceof Map) {
-                ctx = ((Map) ctx).get(part);
-            } else if (ctx instanceof List) {
+            if (ctx instanceof Map<?, ?> map) {
+                ctx = map.get(part);
+            } else if (ctx instanceof List<?> list) {
                 try {
                     int index = Integer.parseInt(part);
-                    ctx = ((List) ctx).get(index);
+                    ctx = list.get(index);
                 } catch (NumberFormatException nfe) {
                     return null;
                 }

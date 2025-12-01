@@ -140,13 +140,13 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
-                    if (query instanceof SpanQueryBuilder == false) {
+                    if (!(query instanceof SpanQueryBuilder spanQuery)) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
                             "[" + SPAN_FIELD_MASKING_FIELD.getPreferredName() + "] query must be of type span query"
                         );
                     }
-                    inner = (SpanQueryBuilder) query;
+                    inner = spanQuery;
                     SpanQueryBuilderUtil.checkNoBoost(SPAN_FIELD_MASKING_FIELD.getPreferredName(), currentFieldName, parser, inner);
                 } else {
                     throw new ParsingException(

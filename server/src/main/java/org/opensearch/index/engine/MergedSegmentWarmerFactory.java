@@ -11,7 +11,6 @@ package org.opensearch.index.engine;
 import org.apache.lucene.index.IndexWriter;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.transport.TransportService;
@@ -35,12 +34,10 @@ public class MergedSegmentWarmerFactory {
     }
 
     public IndexWriter.IndexReaderWarmer get(IndexShard shard) {
-        if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG) == false
-            || shard.indexSettings().isDocumentReplication()) {
+        if (shard.indexSettings().isDocumentReplication()) {
             // MergedSegmentWarmerFactory#get is called by IndexShard#newEngineConfig on the initialization of a new indexShard and
-            // in cases of updates to shard state.
-            // 1. IndexWriter.IndexReaderWarmer should be null when IndexMetadata.INDEX_REPLICATION_TYPE_SETTING == ReplicationType.DOCUMENT
-            // 2. IndexWriter.IndexReaderWarmer should be null when the FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG == false
+            // in case of updates to shard state.
+            // - IndexWriter.IndexReaderWarmer should be null when IndexMetadata.INDEX_REPLICATION_TYPE_SETTING == ReplicationType.DOCUMENT
             return null;
         } else if (shard.indexSettings().isSegRepLocalEnabled() || shard.indexSettings().isRemoteStoreEnabled()) {
             return new MergedSegmentWarmer(transportService, recoverySettings, clusterService, shard);

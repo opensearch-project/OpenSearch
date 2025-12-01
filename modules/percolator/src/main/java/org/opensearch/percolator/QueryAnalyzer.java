@@ -122,8 +122,8 @@ final class QueryAnalyzer {
     );
 
     private static boolean isVerified(Query query) {
-        if (query instanceof FunctionScoreQuery) {
-            return ((FunctionScoreQuery) query).getMinScore() == null;
+        if (query instanceof FunctionScoreQuery functionScoreQuery) {
+            return functionScoreQuery.getMinScore() == null;
         }
         for (Class<?> cls : verifiedQueries) {
             if (cls.isAssignableFrom(query.getClass())) {
@@ -181,8 +181,8 @@ final class QueryAnalyzer {
 
         @Override
         public QueryVisitor getSubVisitor(Occur occur, Query parent) {
-            if (parent instanceof ApproximateScoreQuery
-                && ((ApproximateScoreQuery) parent).getOriginalQuery() instanceof DateRangeIncludingNowQuery) {
+            if (parent instanceof ApproximateScoreQuery approximateScoreQuery
+                && approximateScoreQuery.getOriginalQuery() instanceof DateRangeIncludingNowQuery) {
                 terms.add(Result.UNKNOWN);
                 return QueryVisitor.EMPTY_VISITOR;
             }
@@ -197,8 +197,7 @@ final class QueryAnalyzer {
                 return QueryVisitor.EMPTY_VISITOR;
             }
             int minimumShouldMatch = 0;
-            if (parent instanceof BooleanQuery) {
-                BooleanQuery bq = (BooleanQuery) parent;
+            if (parent instanceof BooleanQuery bq) {
                 if (bq.getMinimumNumberShouldMatch() == 0
                     && bq.clauses().stream().anyMatch(c -> c.occur() == Occur.MUST || c.occur() == Occur.FILTER)) {
                     return QueryVisitor.EMPTY_VISITOR;
@@ -213,14 +212,11 @@ final class QueryAnalyzer {
 
         @Override
         public void visitLeaf(Query query) {
-            if (query instanceof MatchAllDocsQuery) {
-                terms.add(new Result(true, true));
-            } else if (query instanceof MatchNoDocsQuery) {
-                terms.add(Result.MATCH_NONE);
-            } else if (query instanceof PointRangeQuery) {
-                terms.add(pointRangeQuery((PointRangeQuery) query));
-            } else {
-                terms.add(Result.UNKNOWN);
+            switch (query) {
+                case MatchAllDocsQuery ignored -> terms.add(new Result(true, true));
+                case MatchNoDocsQuery ignored -> terms.add(Result.MATCH_NONE);
+                case PointRangeQuery pointRangeQuery -> terms.add(pointRangeQuery(pointRangeQuery));
+                case null, default -> terms.add(Result.UNKNOWN);
             }
         }
 
@@ -235,9 +231,8 @@ final class QueryAnalyzer {
 
         @Override
         public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
-            if (query instanceof TermInSetQuery) {
+            if (query instanceof TermInSetQuery q) {
                 try {
-                    TermInSetQuery q = (TermInSetQuery) query;
                     BytesRefIterator ti = q.getBytesRefIterator();
                     BytesRef term;
                     Set<QueryExtraction> qe = new HashSet<>();

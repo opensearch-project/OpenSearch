@@ -1,32 +1,161 @@
-// Create isolated configurations for FIPS-specific dependencies.
-// These are used to isolate BC FIPS libraries from regular build classpaths,
-// avoiding accidental propagation to non-FIPS code paths.
-def fipsOnly = project.configurations.maybeCreate("fipsOnly")
-def fipsRuntimeOnly = configurations.maybeCreate("fipsRuntimeOnly")
-def testFipsOnly = configurations.maybeCreate("testFipsOnly")
-def testFipsRuntimeOnly = configurations.maybeCreate("testFipsRuntimeOnly")
+import org.opensearch.gradle.info.BuildParams
 
-// Map standard Gradle configurations to one or more custom FIPS configurations
-def fipsWiring = [
-    compileClasspath    : [fipsOnly],
-    runtimeClasspath    : [fipsOnly, fipsRuntimeOnly],
-    testCompileClasspath: [fipsOnly, testFipsOnly],
-    testRuntimeClasspath: [fipsOnly, fipsRuntimeOnly, testFipsOnly, testFipsRuntimeOnly]
-]
+// Configure FIPS dependencies for full Java projects
+plugins.withId('java') {
+  // Create isolated configurations for FIPS-specific dependencies.
+  // These are used to isolate BC FIPS libraries from regular build classpaths,
+  // avoiding accidental propagation to non-FIPS code paths.
+  def fipsOnly = project.configurations.maybeCreate("fipsOnly")
+  def fipsRuntimeOnly = configurations.maybeCreate("fipsRuntimeOnly")
+  def testFipsOnly = configurations.maybeCreate("testFipsOnly")
+  def testFipsRuntimeOnly = configurations.maybeCreate("testFipsRuntimeOnly")
 
-fipsWiring.each { configName, fipsConfigs ->
-  configurations.named(configName).configure {
-    extendsFrom(*fipsConfigs)
+  // Map standard Gradle configurations to one or more custom FIPS configurations
+  def fipsWiring = [
+      compileClasspath    : [fipsOnly],
+      runtimeClasspath    : [fipsOnly, fipsRuntimeOnly],
+      testCompileClasspath: [fipsOnly, testFipsOnly],
+      testRuntimeClasspath: [fipsOnly, fipsRuntimeOnly, testFipsOnly, testFipsRuntimeOnly]
+  ]
+
+  fipsWiring.each { configName, fipsConfigs ->
+    configurations.named(configName).configure {
+      extendsFrom(*fipsConfigs)
+    }
+  }
+
+  // This prevents unintended BC transitive dependencies (like bcutil, bc-fips) from being pulled in.
+  afterEvaluate {
+    def allFipsConfigs = fipsWiring.values().flatten().toSet();
+    allFipsConfigs.each { config ->
+      config.dependencies.configureEach { dep ->
+        if (dep.metaClass.hasProperty(dep, "transitive")) {
+          dep.transitive = false
+        }
+      }
+    }
   }
 }
 
-// This prevents unintended BC transitive dependencies (like bcutil, bc-fips) from being pulled in.
-afterEvaluate {
-  def allFipsConfigs = fipsWiring.values().flatten().toSet();
-  allFipsConfigs.each { config ->
-    config.dependencies.configureEach { dep ->
-      if (dep.metaClass.hasProperty(dep, "transitive")) {
-        dep.transitive = false
+// Configure FIPS dependencies for java-base projects (e.g., StandaloneRestTestPlugin)
+// JavaBasePlugin doesn't create all standard configurations, so we only create test-related FIPS configs
+plugins.withId('java-base') {
+  // Only create test FIPS configurations for java-base projects
+  def testFipsOnly = configurations.maybeCreate("testFipsOnly")
+  def testFipsRuntimeOnly = configurations.maybeCreate("testFipsRuntimeOnly")
+
+  // Wire FIPS configurations only if the target configurations exist
+  afterEvaluate {
+    def fipsWiring = [
+        testCompileClasspath: [testFipsOnly],
+        testRuntimeClasspath: [testFipsOnly, testFipsRuntimeOnly]
+    ]
+
+    fipsWiring.each { configName, fipsConfigs ->
+      def config = configurations.findByName(configName)
+      if (config != null) {
+        config.extendsFrom(*fipsConfigs)
+      }
+    }
+
+    // This prevents unintended BC transitive dependencies (like bcutil, bc-fips) from being pulled in.
+    [testFipsOnly, testFipsRuntimeOnly].each { config ->
+      config.dependencies.configureEach { dep ->
+        if (dep.metaClass.hasProperty(dep, "transitive")) {
+          dep.transitive = false
+        }
+      }
+    }
+  }
+}
+
+plugins.withId('opensearch.testclusters') {
+  testClusters.all { cluster ->
+    if (BuildParams.isInFipsJvm()) {
+      keystorePassword 'notarealpasswordphrase'
+      extraConfigFile 'opensearch-fips-truststore.bcfks',
+          file("${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks")
+      cluster.nodes.all { node ->
+        node.systemProperty 'javax.net.ssl.trustStore', '${OPENSEARCH_PATH_CONF}/opensearch-fips-truststore.bcfks'
+        node.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
+        node.systemProperty 'javax.net.ssl.trustStoreProvider', 'BCFIPS'
+        node.systemProperty 'javax.net.ssl.trustStorePassword', 'changeit'
+      }
+    }
+  }
+}
+
+// Configure regular test tasks (not using testclusters) for FIPS
+// This applies to both 'java' and 'java-base' plugins
+['java', 'java-base'].each { pluginId ->
+  plugins.withId(pluginId) {
+    // Exclude FipsTests and FipsIT source files from compilation when not in FIPS mode
+    if (!BuildParams.isInFipsJvm()) {
+      afterEvaluate {
+        sourceSets.matching { it.name == "test" }.configureEach {
+          java.exclude '**/*FipsTests.java'
+          java.exclude '**/*FipsIT.java'
+        }
+      }
+    }
+
+    tasks.withType(Test).configureEach { testTask ->
+      if (BuildParams.isInFipsJvm()) {
+        testTask.systemProperty 'javax.net.ssl.trustStore', "${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks"
+        testTask.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
+        testTask.systemProperty 'javax.net.ssl.trustStoreProvider', 'BCFIPS'
+        testTask.systemProperty 'javax.net.ssl.trustStorePassword', 'changeit'
+
+        // Exclude base test classes that have corresponding FipsTests or FipsIT
+        // Check if a FipsTests or FipsIT variant exists in the same directory
+        // Track logged exclusions to avoid duplicate log messages
+        def loggedExclusions = [] as Set
+
+        // Helper to check if a FIPS variant exists and should exclude the base test
+        def shouldExcludeForFipsVariant = { fileName, parent, suffix, fipsSuffix ->
+          if (!fileName.endsWith(suffix)) return false
+
+          def baseName = fileName.replace(suffix, '')
+          def fipsTestName = baseName + fipsSuffix
+          def fipsTestFile = new File(parent, fipsTestName)
+
+          if (fipsTestFile.exists()) {
+            if (!loggedExclusions.contains(baseName)) {
+              loggedExclusions.add(baseName)
+              def basePattern = suffix.replace('.class', '')
+              def fipsPattern = fipsSuffix.replace('.class', '')
+              testTask.logger.lifecycle("FIPS mode: Excluding ${baseName}${basePattern} in favor of ${baseName}${fipsPattern}")
+            }
+            return true
+          }
+          return false
+        }
+
+        testTask.exclude { fileTreeElement ->
+          def fileName = fileTreeElement.name
+          // Skip non-test classes and FIPS variants themselves
+          if (fileName.endsWith('FipsTests.class') || fileName.endsWith('FipsIT.class')) {
+            return false
+          }
+
+          def parent = fileTreeElement.file.parentFile
+          if (!parent) return false
+
+          // Check for *Tests -> *FipsTests pattern
+          if (shouldExcludeForFipsVariant(fileName, parent, 'Tests.class', 'FipsTests.class')) {
+            return true
+          }
+
+          // Check for *IT -> *FipsIT pattern
+          if (shouldExcludeForFipsVariant(fileName, parent, 'IT.class', 'FipsIT.class')) {
+            return true
+          }
+
+          return false
+        }
+      } else {
+        testTask.exclude '**/*FipsTests.class'
+        testTask.exclude '**/*FipsIT.class'
       }
     }
   }

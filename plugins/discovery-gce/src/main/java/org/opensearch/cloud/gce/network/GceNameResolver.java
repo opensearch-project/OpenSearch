@@ -33,9 +33,9 @@
 package org.opensearch.cloud.gce.network;
 
 import org.opensearch.cloud.gce.GceMetadataService;
-import org.opensearch.cloud.gce.util.Access;
 import org.opensearch.common.network.NetworkService.CustomNameResolver;
 import org.opensearch.core.common.Strings;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -120,13 +120,13 @@ public class GceNameResolver implements CustomNameResolver {
         }
 
         try {
-            String metadataResult = Access.doPrivilegedIOException(() -> gceMetadataService.metadata(gceMetadataPath));
+            String metadataResult = AccessController.doPrivilegedChecked(() -> gceMetadataService.metadata(gceMetadataPath));
             if (metadataResult == null || metadataResult.length() == 0) {
                 throw new IOException("no gce metadata returned from [" + gceMetadataPath + "] for [" + value + "]");
             }
             // only one address: because we explicitly ask for only one via the GceHostnameType
             return new InetAddress[] { InetAddress.getByName(metadataResult) };
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new IOException("IOException caught when fetching InetAddress from [" + gceMetadataPath + "]", e);
         }
     }
