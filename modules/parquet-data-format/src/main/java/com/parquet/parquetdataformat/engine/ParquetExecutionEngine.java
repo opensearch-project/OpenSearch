@@ -10,7 +10,6 @@ import com.parquet.parquetdataformat.writer.ParquetWriter;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
@@ -18,23 +17,17 @@ import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.Writer;
-import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.ShardPath;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.StreamSupport;
 
 import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DATA_FORMAT;
 
@@ -72,11 +65,9 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     private static final Logger logger = LogManager.getLogger(ParquetExecutionEngine.class);
 
     public static final String FILE_NAME_PREFIX = "_parquet_file_generation";
-    private static final Pattern FILE_PATTERN = Pattern.compile(".*_(\\d+)\\.parquet$", Pattern.CASE_INSENSITIVE);
     public static final String FILE_NAME_EXT = ".parquet";
 
     private final Supplier<Schema> schema;
-    private final List<WriterFileSet> filesWrittenAlready = new ArrayList<>();
     private final ShardPath shardPath;
     private final ParquetMerger parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH);
     private final ArrowBufferPool arrowBufferPool;
@@ -88,24 +79,12 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     }
 
     @Override
-    public void loadWriterFiles() throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(shardPath.getDataPath(), "*" + FILE_NAME_EXT)) {
-            StreamSupport.stream(stream.spliterator(), false)
-                .map(Path::getFileName)
-                .map(Path::toString)
-                .map(FILE_PATTERN::matcher)
-                .filter(Matcher::matches)
-                .map(m -> WriterFileSet.builder()
-                    .directory(shardPath.getDataPath())
-                    .writerGeneration(Long.parseLong(m.group(1)))
-                    .addFile(m.group(0))
-                    .build())
-                .forEach(filesWrittenAlready::add);
-        }
+    public void loadWriterFiles(CatalogSnapshot catalogSnapshot) {
+        // Noop, as refresh is handled in layers above
     }
 
     @Override
-    public void deleteFiles(Map<String,Collection<String>> filesToDelete) throws IOException {
+    public void deleteFiles(Map<String, Collection<String>> filesToDelete) {
         if (filesToDelete.get(PARQUET_DATA_FORMAT.name()) != null) {
             Collection<String> parquetFilesToDelete = filesToDelete.get(PARQUET_DATA_FORMAT.name());
             for (String fileName : parquetFilesToDelete) {
@@ -127,7 +106,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     }
 
     @Override
-    public Writer<ParquetDocumentInput> createWriter(long writerGeneration) throws IOException {
+    public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
         String fileName = Path.of(shardPath.getDataPath().toString(), FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT).toString();
         return new ParquetWriter(fileName, schema.get(), writerGeneration, arrowBufferPool);
     }
@@ -138,10 +117,9 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     }
 
     @Override
-    public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
-        RefreshResult refreshResult = new RefreshResult();
-        // NO-OP, as refresh is being handled at CompositeIndexingExecution Engin
-        return refreshResult;
+    public RefreshResult refresh(RefreshInput refreshInput) {
+        // NO-OP, as refresh is being handled at CompositeIndexingExecutionEngine
+        return new RefreshResult();
     }
 
     @Override

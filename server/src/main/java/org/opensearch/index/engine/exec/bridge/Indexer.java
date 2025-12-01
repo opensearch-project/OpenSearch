@@ -8,7 +8,12 @@
 
 package org.opensearch.index.engine.exec.bridge;
 
+import org.apache.logging.log4j.Logger;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
@@ -27,10 +32,32 @@ import static org.opensearch.index.engine.Engine.HISTORY_UUID_KEY;
 @PublicApi(since = "1.0.0")
 public interface Indexer {
 
+    /**
+     * Perform document index operation on the engine
+     * @param index operation to perform
+     * @return {@link Engine.IndexResult} containing updated translog location, version and
+     * document specific failures
+     *
+     * Note: engine level failures (i.e. persistent engine failures) are thrown
+     */
     Engine.IndexResult index(Engine.Index index) throws IOException;
 
+    /**
+     * Perform document delete operation on the engine
+     * @param delete operation to perform
+     * @return {@link Engine.DeleteResult} containing updated translog location, version and
+     * document specific failures
+     *
+     * Note: engine level failures (i.e. persistent engine failures) are thrown
+     */
     Engine.DeleteResult delete(Engine.Delete delete) throws IOException;
 
+    /**
+     * Perform a no-op equivalent operation on the engine.
+     * @param noOp
+     * @return
+     * @throws IOException
+     */
     Engine.NoOpResult noOp(Engine.NoOp noOp) throws IOException;
 
     /**
@@ -42,10 +69,22 @@ public interface Indexer {
      */
     int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNumber) throws IOException;
 
+    /**
+     * @param reason why is the history requested
+     * @param startingSeqNo sequence number beyond which history should exist
+     * @return tru iff minimum retained sequence number during indexing is not less than startingSeqNo
+     */
     boolean hasCompleteOperationHistory(String reason, long startingSeqNo);
 
+    /**
+     * Total amount of RAM bytes used for active indexing to buffer unflushed documents.
+     */
     long getIndexBufferRAMBytesUsed();
 
+    /**
+     * @param verbose unused param
+     * @return list of segments the indexer is aware of (previously created + new ones)
+     */
     List<Segment> segments(boolean verbose);
 
     /**
@@ -103,9 +142,22 @@ public interface Indexer {
      */
     void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary);
 
+    /**
+     * @return Time in nanos for last write through the indexer, always increasing.
+     */
+    long getLastWriteNanos();
+
+    /**
+     * Fills up the local checkpoints history with no-ops until the local checkpoint
+     * and the max seen sequence ID are identical.
+     * @param primaryTerm the shards primary term this indexer was created for
+     * @return the number of no-ops added
+     */
     int fillSeqNoGaps(long primaryTerm) throws IOException;
 
-    // File format methods follow below
+    /**
+     * Performs a force merge operation on this engine.
+     */
     void forceMerge(
         boolean flush,
         int maxNumSegments,
@@ -115,12 +167,35 @@ public interface Indexer {
         String forceMergeUUID
     ) throws EngineException, IOException;
 
+    /**
+     * Applies changes to input settings.
+     */
+    void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps);
+
+    /**
+     * Flushes active indexing buffer to disk.
+     */
     void writeIndexingBuffer() throws EngineException;
 
+    /**
+     * Creates segments for data in buffers, and make them available for search.
+     */
     void refresh(String source) throws EngineException;
 
+    /**
+     * Commits the data and state to disk, resulting in documents being persisted onto the underlying formats.
+     */
     void flush(boolean force, boolean waitIfOngoing) throws EngineException;
 
+    /**
+     * Checks if data should be committed to disk, mainly based on translog thresholds.
+     * @return true iff flush should trigger.
+     */
+    boolean shouldPeriodicallyFlush();
+
+    /**
+     * Returns info about the safe commit.
+     */
     SafeCommitInfo getSafeCommitInfo();
 
     // Translog methods follow below
@@ -134,6 +209,42 @@ public interface Indexer {
     String getHistoryUUID();
 
     void flushAndClose() throws IOException;
+
+    void failEngine(String reason, @Nullable Exception failure);
+
+    /**
+     * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
+     * that there are no catch statements that would catch an error in the stack as the fatal error here should go uncaught and be handled
+     * by the uncaught exception handler that we install during bootstrap. If the specified throwable does indeed contain a fatal error,
+     * the specified message will attempt to be logged before throwing the fatal error. If the specified throwable does not contain a fatal
+     * error, this method is a no-op.
+     *
+     * @param maybeMessage the message to maybe log
+     * @param maybeFatal   the throwable that maybe contains a fatal error
+     */
+    @SuppressWarnings("finally")
+    default void maybeDie(final Logger logger, final String maybeMessage, final Throwable maybeFatal) {
+        ExceptionsHelper.maybeError(maybeFatal).ifPresent(error -> {
+            try {
+                logger.error(maybeMessage, error);
+            } finally {
+                throw error;
+            }
+        });
+    }
+
+    /**
+     * Event listener for the engine
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "1.0.0")
+    public interface EventListener {
+        /**
+         * Called when a fatal exception occurred
+         */
+        default void onFailedEngine(String reason, @Nullable Exception e) {}
+    }
 
     /**
      * Reads the current stored history ID from commit data.

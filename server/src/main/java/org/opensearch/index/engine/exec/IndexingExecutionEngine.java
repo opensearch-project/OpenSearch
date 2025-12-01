@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec;
 
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.Closeable;
@@ -29,11 +30,12 @@ public interface IndexingExecutionEngine<T extends DataFormat> extends Closeable
 
     DataFormat getDataFormat();
 
-    void loadWriterFiles() throws IOException;
+    void loadWriterFiles(CatalogSnapshot catalogSnapshot)
+        throws IOException; // Bootstrap hook to make engine aware of previously written files from CatalogSnapshot
 
     default long getNativeBytesUsed() {
         return 0;
     }
 
-    void deleteFiles(Map<String,Collection<String>> filesToDelete) throws IOException;
+    void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException;
 }

@@ -61,7 +61,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         } catch (NullPointerException e) {
             delegates.add(new TextEngine());
         }
-        this.dataFormat = new Any(dataFormats, dataFormats.get(0));
+        this.dataFormat = new Any(dataFormats, dataFormats.getFirst());
         this.dataFormatWriterPool =
             new CompositeDataFormatWriterPool(
                 () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
@@ -85,17 +85,17 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     @Override
-    public void loadWriterFiles() throws IOException {
+    public void loadWriterFiles(CatalogSnapshot catalogSnapshot) throws IOException {
         for (IndexingExecutionEngine<?> delegate : delegates) {
-            delegate.loadWriterFiles();
+            delegate.loadWriterFiles(catalogSnapshot);
         }
     }
 
     @Override
-    public void deleteFiles(Map<String,Collection<String>> filesToDelete) throws IOException {
+    public void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
         for (IndexingExecutionEngine<?> delegate : delegates) {
             Map<String, Collection<String>> formatSpecificFilesToDelete = new HashMap<>();
-            formatSpecificFilesToDelete.put(delegate.getDataFormat().name(),filesToDelete.get(delegate.getDataFormat().name()));
+            formatSpecificFilesToDelete.put(delegate.getDataFormat().name(), filesToDelete.get(delegate.getDataFormat().name()));
             delegate.deleteFiles(formatSpecificFilesToDelete);
         }
     }
@@ -120,17 +120,16 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             for (CompositeDataFormatWriter dataFormatWriter : dataFormatWriters) {
                 CatalogSnapshot.Segment newSegment = new CatalogSnapshot.Segment(0);
                 FileInfos fileInfos = dataFormatWriter.flush(null);
-                fileInfos.getWriterFilesMap()
-                    .forEach((key, value) -> {
-                        newSegment.addSearchableFiles(key.name(), value);
-                    });
+                fileInfos.getWriterFilesMap().forEach((key, value) -> {
+                    newSegment.addSearchableFiles(key.name(), value);
+                });
                 dataFormatWriter.close();
-                if(!newSegment.getDFGroupedSearchableFiles().isEmpty()) {
+                if (!newSegment.getDFGroupedSearchableFiles().isEmpty()) {
                     newSegmentList.add(newSegment);
                 }
             }
 
-            if(newSegmentList.isEmpty()) {
+            if (newSegmentList.isEmpty()) {
                 return null;
             } else {
                 refreshedSegment.addAll(newSegmentList);

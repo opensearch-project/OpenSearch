@@ -14,7 +14,6 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
-import java.util.Optional;
 
 public interface Committer extends Closeable {
 
