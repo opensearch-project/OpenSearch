@@ -60,7 +60,13 @@ final class TransportSearchHelper {
         return new InternalScrollSearchRequest(request, id);
     }
 
+    public static final Version INDICES_IN_SCROLL_ID_VERSION = Version.V_3_3_2;
+
     static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Version version) {
+        return buildScrollId(searchPhaseResults, null, version);
+    }
+
+    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, String[] originalIndices, Version version) {
         try {
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeString(INCLUDE_CONTEXT_UUID);
@@ -76,6 +82,19 @@ final class TransportSearchHelper {
                     );
                 } else {
                     out.writeString(searchShardTarget.getNodeId());
+                }
+            }
+
+            if (version.onOrAfter(INDICES_IN_SCROLL_ID_VERSION)) {
+                // To keep autotagging consistent between the initial SearchRequest
+                // and subsequent SearchScrollRequests, we store exactly the same
+                // index targets that were visible to the indices attribute during
+                // the "search" phase
+                if (originalIndices != null && originalIndices.length > 0) {
+                    out.writeVInt(originalIndices.length);
+                    for (String index : originalIndices) {
+                        out.writeString(index);
+                    }
                 }
             }
             byte[] bytes = BytesReference.toBytes(out.bytes());
@@ -114,10 +133,22 @@ final class TransportSearchHelper {
                 }
                 context[i] = new SearchContextIdForNode(clusterAlias, target, new ShardSearchContextId(contextUUID, id));
             }
+
+            String[] originalIndices;
+            if (in.getPosition() < bytes.length) {
+                final int numOriginalIndices = in.readVInt();
+                originalIndices = new String[numOriginalIndices];
+                for (int i = 0; i < numOriginalIndices; i++) {
+                    originalIndices[i] = in.readString();
+                }
+            } else {
+                originalIndices = new String[0];
+            }
+
             if (in.getPosition() != bytes.length) {
                 throw new IllegalArgumentException("Not all bytes were read");
             }
-            return new ParsedScrollId(scrollId, type, context);
+            return new ParsedScrollId(scrollId, type, context, originalIndices);
         } catch (Exception e) {
             throw new IllegalArgumentException("Cannot parse scroll id", e);
         }
