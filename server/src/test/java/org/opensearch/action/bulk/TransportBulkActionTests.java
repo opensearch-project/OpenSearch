@@ -53,14 +53,11 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.MockBigArrays;
-import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
@@ -386,14 +383,11 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
 
     public void testSerializationDeserialization() throws Exception {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
-        MockBigArrays mockBigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-
-        try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(mockBigArrays)) {
-            bulkRequest.writeTo(out);
-            BulkRequest deserializedRequest = new BulkRequest(out.bytes().streamInput());
-            assertEquals(Set.of("index"), deserializedRequest.getIndices());
-
-        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_4_0);
+        bulkRequest.writeTo(out);
+        BulkRequest deserializedRequest = new BulkRequest(out.bytes().streamInput());
+        assertEquals(Set.of("index"), deserializedRequest.getIndices());
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {
