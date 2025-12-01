@@ -20,8 +20,8 @@ import picocli.CommandLine;
 
 public class UserInteractionServiceTests extends OpenSearchTestCase {
 
-    private CommandLine.Model.CommandSpec spec;
-    private StringWriter outputCapture;
+    protected CommandLine.Model.CommandSpec spec;
+    protected StringWriter outputCapture;
 
     @Override
     public void setUp() throws Exception {
@@ -109,16 +109,6 @@ public class UserInteractionServiceTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("Passwords do not match"));
     }
 
-    public void testGenerateSecurePassword() {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-
-        var service = UserInteractionService.getInstance();
-        var password = service.generateSecurePassword();
-
-        assertEquals(24, password.length()); // default password length
-        assertTrue(password.chars().allMatch(c -> Character.isLetterOrDigit(c) || "!@#$%^&*".indexOf(c) >= 0));
-    }
-
     public void testPromptForChoiceValidSelection() {
         var service = createService("2\n");
         assertEquals(2, service.promptForChoice(spec, 3, 1));
@@ -179,7 +169,7 @@ public class UserInteractionServiceTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("Default choice must be between 1 and 5"));
     }
 
-    private UserInteractionService createService(String input) {
+    protected UserInteractionService createService(String input) {
         // Cache scanner outside anonymous class to maintain stream position across multiple getScanner() calls
         var scanner = new Scanner(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8);
         return new UserInteractionService() {

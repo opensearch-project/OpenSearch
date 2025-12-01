@@ -10,6 +10,7 @@
 */
 
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 opensearchplugin {
   description = 'Pull-based ingestion plugin to consume from Kinesis'
@@ -95,6 +96,9 @@ dependencies {
   testImplementation "org.apache.commons:commons-compress:${versions.commonscompress}"
   testImplementation "commons-io:commons-io:${versions.commonsio}"
   testImplementation 'org.awaitility:awaitility:4.2.0'
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 internalClusterTest{

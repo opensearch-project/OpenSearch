@@ -32,7 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
@@ -68,7 +67,7 @@ public class DefaultJdkTrustConfigTests extends OpenSearchTestCase {
         }
         return defaultValue;
     };
-    private static final BiFunction<String, String, String> FIPS_AWARE_SYSTEM_PROPERTIES = CryptoServicesRegistrar.isInApprovedOnlyMode()
+    private static final BiFunction<String, String, String> FIPS_AWARE_SYSTEM_PROPERTIES = KeyStoreUtil.IN_FIPS_MODE
         ? BCFKS_SYSTEM_PROPERTIES
         : EMPTY_SYSTEM_PROPERTIES;
 
