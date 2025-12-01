@@ -32,15 +32,13 @@
 
 package org.opensearch.painless;
 
-import org.opensearch.painless.Compiler.Loader;
 import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupBuilder;
 import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.symbol.ScriptScope;
 import org.opensearch.script.ScriptContext;
+import org.opensearch.secure_sm.AccessController;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +46,6 @@ import java.util.Map;
 public class DocFieldsPhaseTests extends ScriptTestCase {
     PainlessLookup lookup = PainlessLookupBuilder.buildFromAllowlists(Allowlist.BASE_ALLOWLISTS);
 
-    @SuppressWarnings("removal")
     ScriptScope compile(String script) {
         Compiler compiler = new Compiler(
             MockDocTestScript.CONTEXT.instanceClazz,
@@ -58,12 +55,7 @@ public class DocFieldsPhaseTests extends ScriptTestCase {
         );
 
         // Create our loader (which loads compiled code with no permissions).
-        final Compiler.Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
-            @Override
-            public Compiler.Loader run() {
-                return compiler.createLoader(getClass().getClassLoader());
-            }
-        });
+        final Compiler.Loader loader = AccessController.doPrivileged(() -> compiler.createLoader(getClass().getClassLoader()));
 
         return compiler.compile(loader, "test", script, new CompilerSettings());
     }
