@@ -10,11 +10,9 @@ package org.opensearch.tools.cli.fips.truststore;
 
 import java.util.concurrent.Callable;
 
-public class FipsTrustStoreCommandTests extends FipsTrustStoreCommandTestCase {
+public class FipsTrustStoreCommandFipsTests extends FipsTrustStoreCommandTestCase {
 
     public void testWithUnmatchedArgs() throws Exception {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-
         var exitCode = commandLine.execute("--non-interactive", "--force", "-Ediscovery.type=single-node", "-Ehttp.port=9200");
 
         assertEquals(0, exitCode);
@@ -27,8 +25,6 @@ public class FipsTrustStoreCommandTests extends FipsTrustStoreCommandTestCase {
     }
 
     public void testWithEmptyUnmatchedArgs() throws Exception {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-
         var exitCode = commandLine.execute("--non-interactive", "--force");
 
         assertEquals(0, exitCode);
