@@ -1228,14 +1228,6 @@ public class IndicesService extends AbstractLifecycleComponent
     public synchronized void verifyIndexMetadata(IndexMetadata metadata, IndexMetadata metadataUpdate) throws IOException {
         final List<Closeable> closeables = new ArrayList<>();
         try {
-            // For FieldDataCache and QueryCache, we deliberately don't pass clusterService/clusterSettings to avoid registering dynamic
-            // setting each time this method is called. As otherwise, it will bloat up the settingUpdater list and cause memory exhaustion
-            // in cluster manager node. This is safe as eventually these are temporary objects and are closed eventually.
-            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            });
-            closeables.add(indicesFieldDataCache);
-            IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
-            closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service = createIndexService(
                 METADATA_VERIFICATION,
