@@ -88,7 +88,7 @@ pub async fn execute_query_with_cross_rt_stream(
     config.options_mut().execution.batch_size = 1024;
 
     let state = datafusion::execution::SessionStateBuilder::new()
-        .with_config(config)
+        .with_config(config.clone())
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
         //.with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer)) // TODO : uncomment this after fix
@@ -102,6 +102,7 @@ pub async fn execute_query_with_cross_rt_stream(
     let listing_options = ListingOptions::new(Arc::new(file_format))
         .with_file_extension(".parquet")
         .with_files_metadata(files_meta)
+        .with_session_config_options(&config)
         .with_table_partition_cols(vec![("row_base".to_string(), DataType::Int64)]);
 
     let resolved_schema = match listing_options
