@@ -26,10 +26,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.LongSupplier;
-
-import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNAPSHOT_KEY;
 
 public class LuceneCommitEngine implements Committer {
 
