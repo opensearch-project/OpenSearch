@@ -111,6 +111,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         if (in.getVersion().onOrAfter(Version.V_2_14_0) && in.getVersion().before(Version.V_3_0_0)) {
             in.readInt(); // formerly batch_size
         }
+        requests.stream().map(DocWriteRequest::index).forEach(indices::add);
     }
 
     public BulkRequest(@Nullable String globalIndex) {
