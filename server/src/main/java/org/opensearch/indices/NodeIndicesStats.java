@@ -96,7 +96,9 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
 
         if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
-            statusCounterStats = new StatusCounterStats(in);
+            if (in.readBoolean()) {
+                statusCounterStats = new StatusCounterStats(in);
+            }
         }
     }
 
@@ -380,6 +382,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
 
         if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+            out.writeBoolean(statusCounterStats != null);
             if (statusCounterStats != null) {
                 statusCounterStats.writeTo(out);
             }
