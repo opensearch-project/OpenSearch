@@ -272,7 +272,6 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
             if (settingToVerify.equals(key) && !seen) {
                 seen = true;
             } else if (settingToVerify.equals(key) && seen) {
-                System.out.println("here: " + key);
                 fail("Setting registered multiple times");
             }
         }
