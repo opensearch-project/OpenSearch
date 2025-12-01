@@ -115,7 +115,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
     private final String fieldName;
     private final boolean fieldIndexSort;
-    private boolean bfsMode = false;
 
     // Collector usage tracking fields
     private int noOpCollectorsUsed;
@@ -299,7 +298,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     /**
      * Skiplist is based as top level agg (null parent) or parent that will execute in sorted order
      *
-     * @return
      */
     private boolean canUseSkiplist(DocValuesSkipper skipper, NumericDocValues singleton) {
         if (skipper == null || singleton == null) return false;
