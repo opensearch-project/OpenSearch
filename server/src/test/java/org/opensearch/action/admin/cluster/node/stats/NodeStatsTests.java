@@ -644,23 +644,24 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             long memTotal = randomNonNegativeLong();
             long swapTotal = randomNonNegativeLong();
-            osStats = new OsStats(
-                System.currentTimeMillis(),
-                new OsStats.Cpu(randomShort(), loadAverages),
-                new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)),
-                new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
-                new OsStats.Cgroup(
-                    randomAlphaOfLength(8),
-                    randomNonNegativeLong(),
-                    randomAlphaOfLength(8),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-                    randomAlphaOfLength(8),
-                    Long.toString(randomNonNegativeLong()),
-                    Long.toString(randomNonNegativeLong())
+            osStats = new OsStats.Builder().timestamp(System.currentTimeMillis())
+                .cpu(new OsStats.Cpu(randomShort(), loadAverages))
+                .mem(new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)))
+                .swap(new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)))
+                .cgroup(
+                    new OsStats.Cgroup(
+                        randomAlphaOfLength(8),
+                        randomNonNegativeLong(),
+                        randomAlphaOfLength(8),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+                        randomAlphaOfLength(8),
+                        Long.toString(randomNonNegativeLong()),
+                        Long.toString(randomNonNegativeLong())
+                    )
                 )
-            );
+                .build();
         }
         ProcessStats processStats = frequently()
             ? new ProcessStats(
@@ -755,34 +756,32 @@ public class NodeStatsTests extends OpenSearchTestCase {
             for (int i = 0; i < numDeviceStats; i++) {
                 FsInfo.DeviceStats previousDeviceStats = randomBoolean()
                     ? null
-                    : new FsInfo.DeviceStats(
-                        randomInt(),
-                        randomInt(),
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        null
-                    );
-                deviceStatsArray[i] = new FsInfo.DeviceStats(
-                    randomInt(),
-                    randomInt(),
-                    randomAlphaOfLengthBetween(3, 10),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    previousDeviceStats
-                );
+                    : new FsInfo.DeviceStats.Builder().majorDeviceNumber(randomInt())
+                        .minorDeviceNumber(randomInt())
+                        .deviceName(randomAlphaOfLengthBetween(3, 10))
+                        .currentReadsCompleted(randomNonNegativeLong())
+                        .currentSectorsRead(randomNonNegativeLong())
+                        .currentWritesCompleted(randomNonNegativeLong())
+                        .currentSectorsWritten(randomNonNegativeLong())
+                        .currentReadTime(randomNonNegativeLong())
+                        .currentWriteTime(randomNonNegativeLong())
+                        .currentQueueSize(randomNonNegativeLong())
+                        .currentIOTime(randomNonNegativeLong())
+                        .previousDeviceStats(null)
+                        .build();
+                deviceStatsArray[i] = new FsInfo.DeviceStats.Builder().majorDeviceNumber(randomInt())
+                    .minorDeviceNumber(randomInt())
+                    .deviceName(randomAlphaOfLengthBetween(3, 10))
+                    .currentReadsCompleted(randomNonNegativeLong())
+                    .currentSectorsRead(randomNonNegativeLong())
+                    .currentWritesCompleted(randomNonNegativeLong())
+                    .currentSectorsWritten(randomNonNegativeLong())
+                    .currentReadTime(randomNonNegativeLong())
+                    .currentWriteTime(randomNonNegativeLong())
+                    .currentQueueSize(randomNonNegativeLong())
+                    .currentIOTime(randomNonNegativeLong())
+                    .previousDeviceStats(previousDeviceStats)
+                    .build();
             }
             FsInfo.IoStats ioStats = new FsInfo.IoStats(deviceStatsArray);
             int numPaths = randomIntBetween(0, 10);
@@ -799,16 +798,17 @@ public class NodeStatsTests extends OpenSearchTestCase {
             fsInfo = new FsInfo(randomNonNegativeLong(), ioStats, paths);
         }
         TransportStats transportStats = frequently()
-            ? new TransportStats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong()
-            )
+            ? new TransportStats.Builder().serverOpen(randomNonNegativeLong())
+                .totalOutboundConnections(randomNonNegativeLong())
+                .rxCount(randomNonNegativeLong())
+                .rxSize(randomNonNegativeLong())
+                .txCount(randomNonNegativeLong())
+                .txSize(randomNonNegativeLong())
+                .build()
             : null;
-        HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        HttpStats httpStats = frequently()
+            ? new HttpStats.Builder().serverOpen(randomNonNegativeLong()).totalOpen(randomNonNegativeLong()).build()
+            : null;
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
             int numCircuitBreakerStats = randomIntBetween(0, 10);
@@ -825,7 +825,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
         ScriptStats scriptStats = frequently()
-            ? new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+            ? new ScriptStats.Builder().compilations(randomNonNegativeLong())
+                .cacheEvictions(randomNonNegativeLong())
+                .compilationLimitTriggered(randomNonNegativeLong())
+                .build()
             : null;
         ClusterStateStats stateStats = new ClusterStateStats();
         RemotePersistenceStats remoteStateStats = new RemotePersistenceStats();
@@ -904,7 +907,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     nodeStats.put(nodeId, stats);
                 }
             }
-            adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
+            adaptiveSelectionStats = new AdaptiveSelectionStats.Builder().clientOutgoingConnections(nodeConnections)
+                .nodeComputedStats(nodeStats)
+                .build();
         }
         NodesResourceUsageStats nodesResourceUsageStats = null;
         if (frequently()) {
@@ -1413,15 +1418,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     .resolve(shardRouting.shardId().getIndex().getUUID())
                     .resolve(String.valueOf(shardRouting.shardId().id()));
 
-                ShardStats shardStats = new ShardStats(
-                    shardRouting,
-                    new ShardPath(false, path, path, shardRouting.shardId()),
-                    createRandomCommonStats(),
-                    null,
-                    null,
-                    null,
-                    null
-                );
+                ShardStats shardStats = new ShardStats.Builder().shardRouting(shardRouting)
+                    .shardPath(new ShardPath(false, path, path, shardRouting.shardId()))
+                    .commonStats(createRandomCommonStats())
+                    .commitStats(null)
+                    .seqNoStats(null)
+                    .retentionLeaseStats(null)
+                    .pollingIngestStats(null)
+                    .build();
                 List<ShardStats> shardStatsList = new ArrayList<>();
                 shardStatsList.add(shardStats);
                 IndexShardStats indexShardStats = new IndexShardStats(shardRouting.shardId(), shardStatsList.toArray(new ShardStats[0]));
@@ -1465,15 +1469,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 .resolve(shardRouting.shardId().getIndex().getUUID())
                 .resolve(String.valueOf(shardRouting.shardId().id()));
 
-            ShardStats shardStats = new ShardStats(
-                shardRouting,
-                new ShardPath(false, path, path, shardRouting.shardId()),
-                commonStats,
-                null,
-                null,
-                null,
-                null
-            );
+            ShardStats shardStats = new ShardStats.Builder().shardRouting(shardRouting)
+                .shardPath(new ShardPath(false, path, path, shardRouting.shardId()))
+                .commonStats(commonStats)
+                .commitStats(null)
+                .seqNoStats(null)
+                .retentionLeaseStats(null)
+                .pollingIngestStats(null)
+                .build();
             IndexShardStats indexShardStats = new IndexShardStats(shardRouting.shardId(), new ShardStats[] { shardStats });
             indexShardStatsList.add(indexShardStats);
         }

@@ -157,11 +157,11 @@ class TermsQueryBuilderProtoUtils {
         if (valueType == TermsQueryBuilder.ValueType.BITMAP) {
             if (values != null && values.size() == 1) {
                 Object v = values.get(0);
-                if (v instanceof BytesRef) {
-                    byte[] decoded = Base64.getDecoder().decode(((BytesRef) v).utf8ToString());
+                if (v instanceof BytesRef bytesRef) {
+                    byte[] decoded = Base64.getDecoder().decode(bytesRef.utf8ToString());
                     values.set(0, new BytesArray(decoded));
-                } else if (v instanceof String) {
-                    byte[] decoded = Base64.getDecoder().decode((String) v);
+                } else if (v instanceof String string) {
+                    byte[] decoded = Base64.getDecoder().decode(string);
                     values.set(0, new BytesArray(decoded));
                 } else {
                     throw new IllegalArgumentException("Invalid value for bitmap type");

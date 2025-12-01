@@ -469,10 +469,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 node.node.getId(),
                 new AggregateFileCacheStats(
                     0,
-                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
-                    new FileCacheStats(0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
-                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
-                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
+                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                    new FileCacheStats(0, 0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
+                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
                 )
             );
         }

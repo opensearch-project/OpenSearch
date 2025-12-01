@@ -51,49 +51,62 @@ public class GrpcErrorHandler {
         // Custom OpenSearch exceptions which extend {@link OpenSearchException}.
         // Uses {@link RestToGrpcStatusConverter} for REST -> gRPC status mapping and
         // follows {@link OpenSearchException#generateFailureXContent} unwrapping logic
-        if (e instanceof OpenSearchException) {
-            return handleOpenSearchException((OpenSearchException) e);
-        }
+        switch (e) {
+            case OpenSearchException ose -> {
+                return handleOpenSearchException(ose);
+            }
 
-        // ========== OpenSearch Core System Exceptions ==========
-        // Low-level OpenSearch exceptions that don't extend OpenSearchException - include full details
-        else if (e instanceof OpenSearchRejectedExecutionException) {
-            return Status.RESOURCE_EXHAUSTED.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
-        } else if (e instanceof NotXContentException) {
-            return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
-        } else if (e instanceof NotCompressedException) {
-            return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
-        }
+            // ========== OpenSearch Core System Exceptions ==========
+            // Low-level OpenSearch exceptions that don't extend OpenSearchException - include full details
+            case OpenSearchRejectedExecutionException osree -> {
+                return Status.RESOURCE_EXHAUSTED.withDescription(ExceptionsHelper.stackTrace(osree)).asRuntimeException();
+            }
+            case NotXContentException notXContentException -> {
+                return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(notXContentException)).asRuntimeException();
+            }
+            case NotCompressedException notCompressedException -> {
+                return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(notCompressedException)).asRuntimeException();
+            }
 
-        // ========== 3. Third-party Library Exceptions ==========
-        // External library exceptions (Jackson JSON parsing) - include full details
-        else if (e instanceof InputCoercionException) {
-            return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
-        } else if (e instanceof JsonParseException) {
-            return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
-        }
+            // ========== 3. Third-party Library Exceptions ==========
+            // External library exceptions (Jackson JSON parsing) - include full details
+            case InputCoercionException inputCoercionException -> {
+                return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(inputCoercionException)).asRuntimeException();
+            }
+            case JsonParseException jsonParseException -> {
+                return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(jsonParseException)).asRuntimeException();
+            }
 
-        // ========== 4. Standard Java Exceptions ==========
-        // Generic Java runtime exceptions - include full exception details for debugging
-        else if (e instanceof IllegalArgumentException) {
-            return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
-        } else if (e instanceof IllegalStateException) {
-            return Status.FAILED_PRECONDITION.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
-        } else if (e instanceof SecurityException) {
-            return Status.PERMISSION_DENIED.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
-        } else if (e instanceof TimeoutException) {
-            return Status.DEADLINE_EXCEEDED.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
-        } else if (e instanceof InterruptedException) {
-            return Status.CANCELLED.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
-        } else if (e instanceof IOException) {
-            return Status.INTERNAL.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
-        }
-
-        // ========== 5. Unknown/Unmapped Exceptions ==========
-        // Safety fallback for any unexpected exception to {@code Status.INTERNAL} with full debugging info
-        else {
-            logger.warn("Unmapped exception type: {}, treating as INTERNAL error", e.getClass().getSimpleName());
-            return Status.INTERNAL.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
+            // ========== 4. Standard Java Exceptions ==========
+            // Generic Java runtime exceptions - include full exception details for debugging
+            case IllegalArgumentException illegalArgumentException -> {
+                return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(illegalArgumentException)).asRuntimeException();
+            }
+            case IllegalStateException illegalStateException -> {
+                return Status.FAILED_PRECONDITION.withDescription(ExceptionsHelper.stackTrace(illegalStateException)).asRuntimeException();
+            }
+            case SecurityException securityException -> {
+                return Status.PERMISSION_DENIED.withDescription(ExceptionsHelper.stackTrace(securityException)).asRuntimeException();
+            }
+            case TimeoutException timeoutException -> {
+                return Status.DEADLINE_EXCEEDED.withDescription(ExceptionsHelper.stackTrace(timeoutException)).asRuntimeException();
+            }
+            case InterruptedException interruptedException -> {
+                return Status.CANCELLED.withDescription(ExceptionsHelper.stackTrace(interruptedException)).asRuntimeException();
+            }
+            case IOException ioException -> {
+                return Status.INTERNAL.withDescription(ExceptionsHelper.stackTrace(ioException)).asRuntimeException();
+            }
+            case null -> {
+                logger.warn("Unexpected null exception type, treating as INTERNAL error");
+                return Status.INTERNAL.withDescription("Unexpected null exception").asRuntimeException();
+            }
+            // ========== 5. Unknown/Unmapped Exceptions ==========
+            // Safety fallback for any unexpected exception to {@code Status.INTERNAL} with full debugging info
+            default -> {
+                logger.warn("Unmapped exception type: {}, treating as INTERNAL error", e.getClass().getSimpleName());
+                return Status.INTERNAL.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
+            }
         }
     }
 

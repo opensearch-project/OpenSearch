@@ -143,32 +143,37 @@ public class MoreTypes {
     }
 
     public static Class<?> getRawType(Type type) {
-        if (type instanceof Class<?>) {
-            // type is a normal class.
-            return (Class<?>) type;
-
-        } else if (type instanceof ParameterizedType parameterizedType) {
-
-            // I'm not exactly sure why getRawType() returns Type instead of Class.
-            // Neal isn't either but suspects some pathological case related
-            // to nested classes exists.
-            Type rawType = parameterizedType.getRawType();
-            if (!(rawType instanceof Class)) {
-                throw new IllegalArgumentException("Expected a Class, but <" + type + "> is of type " + type.getClass().getName());
+        switch (type) {
+            case Class<?> aClass -> {
+                // type is a normal class.
+                return aClass;
+                // type is a normal class.
             }
-            return (Class<?>) rawType;
+            case ParameterizedType parameterizedType -> {
 
-        } else if (type instanceof GenericArrayType) {
-            // TODO: Is this sufficient?
-            return Object[].class;
-
-        } else if (type instanceof TypeVariable) {
-            // we could use the variable's bounds, but that'll won't work if there are multiple.
-            // having a raw type that's more general than necessary is okay
-            return Object.class;
-
-        } else {
-            throw new IllegalArgumentException(
+                // I'm not exactly sure why getRawType() returns Type instead of Class.
+                // Neal isn't either but suspects some pathological case related
+                // to nested classes exists.
+                Type rawType = parameterizedType.getRawType();
+                if (!(rawType instanceof Class)) {
+                    throw new IllegalArgumentException("Expected a Class, but <" + type + "> is of type " + type.getClass().getName());
+                }
+                return (Class<?>) rawType;
+            }
+            case GenericArrayType ignored -> {
+                // TODO: Is this sufficient?
+                return Object[].class;
+                // TODO: Is this sufficient?
+            }
+            case TypeVariable<?> ignored -> {
+                // we could use the variable's bounds, but that'll won't work if there are multiple.
+                // having a raw type that's more general than necessary is okay
+                return Object.class;
+                // we could use the variable's bounds, but that'll won't work if there are multiple.
+                // having a raw type that's more general than necessary is okay
+            }
+            case null -> throw new IllegalArgumentException("Unsupported type [null]");
+            default -> throw new IllegalArgumentException(
                 "Expected a Class, ParameterizedType, or " + "GenericArrayType, but <" + type + "> is of type " + type.getClass().getName()
             );
         }
@@ -227,7 +232,7 @@ public class MoreTypes {
      */
     public static int hashCode(Type type) {
         return switch (type) {
-            case Class ignored ->
+            case Class<?> ignored ->
                 // Class specifies hashCode().
                 type.hashCode();
             case ParameterizedType p -> Arrays.hashCode(p.getActualTypeArguments()) ^ p.getRawType().hashCode() ^ hashCodeOrZero(
@@ -235,7 +240,7 @@ public class MoreTypes {
             );
             case GenericArrayType genericArrayType -> hashCode(genericArrayType.getGenericComponentType());
             case WildcardType w -> Arrays.hashCode(w.getLowerBounds()) ^ Arrays.hashCode(w.getUpperBounds());
-            default ->
+            case null, default ->
                 // This isn't a type we support. Probably a type variable
                 hashCodeOrZero(type);
         };
@@ -288,6 +293,7 @@ public class MoreTypes {
                     return "? extends " + toString(upperBounds[0]);
                 }
             }
+            case null -> throw new UnsupportedOperationException("Unsupported wildcard type [null]");
             default -> {
                 return type.toString();
             }
@@ -304,7 +310,7 @@ public class MoreTypes {
             case MemberImpl memberImpl -> memberImpl.memberType;
             case Field ignored -> Field.class;
             case Method ignored -> Method.class;
-            case Constructor ignored -> Constructor.class;
+            case Constructor<?> ignored -> Constructor.class;
             default -> throw new IllegalArgumentException("Unsupported implementation class for Member, " + member.getClass());
         };
     }

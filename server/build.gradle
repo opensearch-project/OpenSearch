@@ -122,6 +122,7 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
   }
+  internalClusterTestImplementation project(':libs:opensearch-secure-sm')
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
   }
@@ -168,6 +169,8 @@ tasks.named("testingConventions").configure {
         }
     }
 }
+
+tasks.named('forbiddenApisInternalClusterTest').configure { forbidSleep() }
 
 // Set to current version by default
 def japicmpCompareTarget = System.getProperty("japicmp.compare.version")

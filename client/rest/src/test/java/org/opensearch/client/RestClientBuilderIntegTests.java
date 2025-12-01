@@ -55,22 +55,22 @@ import java.net.InetSocketAddress;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 /**
  * Integration test to validate the builder builds a client with the correct configuration
  */
-public class RestClientBuilderIntegTests extends RestClientTestCase {
+public class RestClientBuilderIntegTests extends RestClientTestCase implements RestClientFipsAwareTestCase {
 
     private static HttpsServer httpsServer;
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext(true)));
+        httpsServer.setHttpsConfigurator(new HttpsConfigurator(new RestClientBuilderIntegTests().getSslContext(true)));
         httpsServer.createContext("/", new ResponseHandler());
         httpsServer.start();
     }
@@ -90,7 +90,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
@@ -117,24 +116,23 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         return RestClient.builder(new HttpHost("https", address.getHostString(), address.getPort())).build();
     }
 
-    private static SSLContext getSslContext(boolean server) throws Exception {
+    @Override
+    public SSLContext getSslContext(boolean server, String keyStoreType, SecureRandom secureRandom, String fileExtension) throws Exception {
         SSLContext sslContext;
         char[] password = "password".toCharArray();
-        SecureRandom secureRandom = SecureRandom.getInstanceStrong();
-        String fileExtension = ".jks";
 
         try (
             InputStream trustStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore" + fileExtension);
             InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/testks" + fileExtension)
         ) {
-            KeyStore keyStore = KeyStore.getInstance("JKS");
+            KeyStore keyStore = KeyStore.getInstance(keyStoreType);
             keyStore.load(keyStoreFile, password);
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance("PKIX");
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             kmf.init(keyStore, password);
 
-            KeyStore trustStore = KeyStore.getInstance("JKS");
+            KeyStore trustStore = KeyStore.getInstance(keyStoreType);
             trustStore.load(trustStoreFile, password);
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance("PKIX");
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             tmf.init(trustStore);
 
             SSLContextBuilder sslContextBuilder = SSLContextBuilder.create().setProtocol(getProtocol()).setSecureRandom(secureRandom);
