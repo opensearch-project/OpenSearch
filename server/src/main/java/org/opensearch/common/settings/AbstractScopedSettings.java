@@ -123,6 +123,10 @@ public abstract class AbstractScopedSettings {
         this.keySettings = keySettings;
     }
 
+    public List<SettingUpdater<?>> getSettingUpdaters() {
+        return settingUpdaters;
+    }
+
     protected void validateSettingKey(Setting<?> setting) {
         if (isValidKey(setting.getKey()) == false
             && (setting.isGroupSetting() && isValidGroupKey(setting.getKey()) || isValidAffixKey(setting.getKey())) == false
