@@ -54,6 +54,16 @@ public final class ScrollContext implements Releasable {
     public float maxScore = Float.NaN;
     public ScoreDoc lastEmittedDoc;
     public Scroll scroll;
+
+    /**
+     * Cache for sequential stored field readers per segment.
+     * These readers are optimized for sequential access and cache decompressed blocks.
+     *
+     * Thread-safety note: Scroll requests are serialized (client waits for response before
+     * sending next request), so while different threads may use this cache, they won't
+     * access it concurrently. The underlying StoredFieldsReader has mutable state (BlockState)
+     * but is safe for sequential single-threaded access across different threads.
+     */
     private Map<Object, StoredFieldsReader> sequentialReaderCache;
 
     public StoredFieldsReader getCachedSequentialReader(Object segmentKey) {

@@ -34,6 +34,7 @@ package org.opensearch.search.scroll;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -56,6 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
+@LuceneTestCase.SuppressCodecs("Asserting")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 0)
 public class SearchScrollWithFailingNodesIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public SearchScrollWithFailingNodesIT(Settings settings) {

@@ -34,6 +34,7 @@ package org.opensearch.search.scroll;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -91,6 +92,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Tests for scrolling.
  */
+@LuceneTestCase.SuppressCodecs("Asserting")
 public class SearchScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public SearchScrollIT(Settings settings) {
         super(settings);

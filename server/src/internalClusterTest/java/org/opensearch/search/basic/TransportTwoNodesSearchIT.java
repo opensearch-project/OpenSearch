@@ -34,6 +34,7 @@ package org.opensearch.search.basic;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -80,6 +81,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
+@LuceneTestCase.SuppressCodecs("Asserting")
 public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     public TransportTwoNodesSearchIT(Settings staticSettings) {

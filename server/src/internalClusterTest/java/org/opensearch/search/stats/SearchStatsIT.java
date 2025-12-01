@@ -34,6 +34,7 @@ package org.opensearch.search.stats;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -79,6 +80,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.SuppressCodecs("Asserting")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, minNumDataNodes = 2)
 public class SearchStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
