@@ -34,6 +34,7 @@ package org.opensearch.snapshots;
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -146,7 +147,8 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                         IndexShardSnapshotStatus snapshotStatus,
                         Version repositoryMetaVersion,
                         Map<String, Object> userMetadata,
-                        ActionListener<String> listener
+                        ActionListener<String> listener,
+                        IndexMetadata indexMetadata
                     ) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
                         super.snapshotShard(
@@ -159,7 +161,8 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                             snapshotStatus,
                             repositoryMetaVersion,
                             userMetadata,
-                            listener
+                            listener,
+                            indexMetadata
                         );
                     }
 

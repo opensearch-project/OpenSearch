@@ -24,6 +24,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.InternalApi;
@@ -592,12 +593,37 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * will be used, else, the legacy {@link RemoteSegmentStoreDirectory#copyFrom(Directory, String, String, IOContext)}
      * will be called.
      *
-     * @param from     The directory for the file to be uploaded
-     * @param src      File to be uploaded
-     * @param context  IOContext to be used to open IndexInput of file during remote upload
-     * @param listener Listener to handle upload callback events
+     * @param from              The directory for the file to be uploaded
+     * @param src               File to be uploaded
+     * @param context           IOContext to be used to open IndexInput of file during remote upload
+     * @param listener          Listener to handle upload callback events
+     * @param lowPriorityUpload Whether this is a low priority upload
      */
     public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener, boolean lowPriorityUpload) {
+        copyFrom(from, src, context, listener, lowPriorityUpload, null);
+    }
+
+    /**
+     * Copies a file from the source directory to a remote based on multi-stream upload support.
+     * If vendor plugin supports uploading multiple parts in parallel, <code>BlobContainer#writeBlobByStreams</code>
+     * will be used, else, the legacy {@link RemoteSegmentStoreDirectory#copyFrom(Directory, String, String, IOContext)}
+     * will be called.
+     *
+     * @param from              The directory for the file to be uploaded
+     * @param src               File to be uploaded
+     * @param context           IOContext to be used to open IndexInput of file during remote upload
+     * @param listener          Listener to handle upload callback events
+     * @param lowPriorityUpload Whether this is a low priority upload
+     * @param cryptoMetadata    CryptoMetadata for index-level encryption
+     */
+    public void copyFrom(
+        Directory from,
+        String src,
+        IOContext context,
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata
+    ) {
         try {
             final String remoteFileName = getNewRemoteSegmentFilename(src);
             boolean uploaded = false;
@@ -608,10 +634,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     } catch (IOException e) {
                         throw new RuntimeException("Exception in segment postUpload for file " + src, e);
                     }
-                }, listener, lowPriorityUpload);
+                }, listener, lowPriorityUpload, cryptoMetadata);
             }
             if (uploaded == false) {
-                copyFrom(from, src, src, context);
+                copyFrom(from, src, src, context, cryptoMetadata);
                 listener.onResponse(null);
             }
         } catch (Exception e) {
@@ -703,12 +729,23 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     /**
      * Copies an existing src file from directory from to a non-existent file dest in this directory.
      * Once the segment is uploaded to remote segment store, update the cache accordingly.
+     *
+     * @param from           Source directory
+     * @param src            Source filename
+     * @param dest           Destination filename
+     * @param context        IOContext
+     * @param cryptoMetadata CryptoMetadata for index-level encryption
      */
+    public void copyFrom(Directory from, String src, String dest, IOContext context, CryptoMetadata cryptoMetadata) throws IOException {
+        String remoteFilename = getNewRemoteSegmentFilename(dest);
+        remoteDataDirectory.copyFrom(from, src, remoteFilename, context, cryptoMetadata);
+        postUpload(from, src, remoteFilename, getChecksumOfLocalFile(from, src));
+    }
+
+    // delegates to crypto-aware version with null
     @Override
     public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
-        String remoteFilename = getNewRemoteSegmentFilename(dest);
-        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
-        postUpload(from, src, remoteFilename, getChecksumOfLocalFile(from, src));
+        copyFrom(from, src, dest, context, null);
     }
 
     /**
@@ -726,14 +763,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     /**
-     * Upload metadata file
+     * Upload metadata file with encryption support
      *
-     * @param segmentFiles         segment files that are part of the shard at the time of the latest refresh
-     * @param segmentInfosSnapshot SegmentInfos bytes to store as part of metadata file
-     * @param storeDirectory instance of local directory to temporarily create metadata file before upload
-     * @param translogGeneration translog generation
+     * @param segmentFiles          segment files that are part of the shard at the time of the latest refresh
+     * @param segmentInfosSnapshot  SegmentInfos bytes to store as part of metadata file
+     * @param storeDirectory        instance of local directory to temporarily create metadata file before upload
+     * @param translogGeneration    translog generation
      * @param replicationCheckpoint ReplicationCheckpoint of primary shard
-     * @param nodeId node id
+     * @param nodeId                node id
      * @throws IOException in case of I/O error while uploading the metadata file
      */
     public void uploadMetadata(
@@ -783,7 +820,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     );
                 }
                 storeDirectory.sync(Collections.singleton(metadataFilename));
-                remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
+                remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT, null);
             } finally {
                 tryAndDeleteLocalFile(metadataFilename, storeDirectory);
             }

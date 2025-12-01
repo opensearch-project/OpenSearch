@@ -11,6 +11,7 @@ package org.opensearch.index.store.remote.directory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.LockFactory;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
@@ -101,7 +102,8 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
             // hence the blobContainer. We have used a dummy name as it plays no relevance in the blobPath generation.
             final BlobContainer blobContainer = blobStoreRepository.shardContainer(
                 new IndexId("DUMMY", indexId, pathType.getCode()),
-                shardId
+                shardId,
+                (CryptoMetadata) null
             );
             final IndexShardSnapshot indexShardSnapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
             assert indexShardSnapshot instanceof BlobStoreIndexShardSnapshot
