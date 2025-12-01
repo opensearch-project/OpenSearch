@@ -275,6 +275,9 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
                 fail("Setting registered multiple times");
             }
         }
+        if (!seen) {
+            fail("Was not able to read this setting: " + settingToVerify);
+        }
     }
 
     private void createAndSearchIndices(int numIndices, int numFieldsPerIndex, String indexPrefix, String fieldPrefix) throws Exception {
