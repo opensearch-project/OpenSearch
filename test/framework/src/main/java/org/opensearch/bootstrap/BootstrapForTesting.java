@@ -150,6 +150,20 @@ public class BootstrapForTesting {
                 Security.addClasspathPermissions(perms);
                 // java.io.tmpdir
                 FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete", false);
+                // agent-sm libs - grant read access to avoid SecurityException with junit
+                for (URL url : JarHell.parseClassPath()) {
+                    Path path = PathUtils.get(url.toURI());
+                    if (path.toString().contains("agent-sm") && Files.isDirectory(path.getParent())) {
+                        Path agentSmRoot = path;
+                        while (agentSmRoot != null && !agentSmRoot.endsWith("agent-sm")) {
+                            agentSmRoot = agentSmRoot.getParent();
+                        }
+                        if (agentSmRoot != null && Files.exists(agentSmRoot)) {
+                            FilePermissionUtils.addDirectoryPath(perms, "agent-sm", agentSmRoot, "read,readlink", false);
+                            break;
+                        }
+                    }
+                }
                 String jacocoDir = System.getProperty("jacoco.dir");
                 if (jacocoDir != null) {
                     FilePermissionUtils.addDirectoryPath(
