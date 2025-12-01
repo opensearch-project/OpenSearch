@@ -346,7 +346,7 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 try {
                     latch.await();
                     // Add small random delay to reduce exact simultaneous operations
-                    Thread.sleep(randomIntBetween(0, 50));
+                    Thread.yield();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new AssertionError(e);
@@ -365,19 +365,16 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         latch.countDown();
 
         // Wait for all threads with timeout to prevent hanging
-        boolean allCompleted = true;
         for (Thread thread : threads) {
             thread.join(STANDARD_TIMEOUT.millis());
             if (thread.isAlive()) {
                 logger.warn("Thread {} did not complete in time, interrupting", thread.getName());
                 thread.interrupt();
-                allCompleted = false;
+                thread.join(1000L);
+                if (thread.isAlive()) {
+                    logger.warn("Thread {} still alive even after interrupting", thread.getName());
+                }
             }
-        }
-
-        if (!allCompleted) {
-            // Give interrupted threads a moment to clean up
-            Thread.sleep(1000);
         }
 
         // Wait for cluster state to stabilize after concurrent operations
@@ -573,8 +570,6 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         internalCluster().restartNode(dataNodes.get(1), new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                Thread.sleep(1000);
-
                 Client client = client(dataNodes.get(0));
                 try {
                     assertBusy(() -> {
@@ -733,49 +728,38 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
     }
 
     static void assertIndexIsClosed(final String... indices) {
-        for (int retry = 0; retry < 3; retry++) {
-            try {
+        try {
+            assertBusy(() -> {
                 final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-                boolean allClosed = true;
                 for (String index : indices) {
                     final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
-                    if (indexMetadata == null || indexMetadata.getState() != IndexMetadata.State.CLOSE) {
-                        allClosed = false;
-                        break;
-                    }
+                    assertNotNull(indexMetadata);
+                    assertThat(indexMetadata.getState(), equalTo(IndexMetadata.State.CLOSE));
                 }
-                if (!allClosed && retry < 2) {
-                    Thread.sleep(500);
-                    continue;
-                }
+            });
 
-                for (String index : indices) {
-                    final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
-                    assertThat(indexMetadata.getState(), is(IndexMetadata.State.CLOSE));
-                    final Settings indexSettings = indexMetadata.getSettings();
-                    assertThat(indexSettings.hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(true));
-                    assertThat(
-                        indexSettings.getAsBoolean(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), false),
-                        is(true)
-                    );
-                    assertThat(clusterState.routingTable().index(index), notNullValue());
-                    assertThat(clusterState.blocks().hasIndexBlock(index, MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
-                    assertThat(
-                        "Index " + index + " must have only 1 block with [id=" + MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
-                        clusterState.blocks()
-                            .indices()
-                            .getOrDefault(index, emptySet())
-                            .stream()
-                            .filter(clusterBlock -> clusterBlock.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID)
-                            .count(),
-                        equalTo(1L)
-                    );
-                }
-                break;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
+            final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            for (String index : indices) {
+                final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
+                assertThat(indexMetadata.getState(), is(IndexMetadata.State.CLOSE));
+                final Settings indexSettings = indexMetadata.getSettings();
+                assertThat(indexSettings.hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(true));
+                assertThat(indexSettings.getAsBoolean(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), false), is(true));
+                assertThat(clusterState.routingTable().index(index), notNullValue());
+                assertThat(clusterState.blocks().hasIndexBlock(index, MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
+                assertThat(
+                    "Index " + index + " must have only 1 block with [id=" + MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
+                    clusterState.blocks()
+                        .indices()
+                        .getOrDefault(index, emptySet())
+                        .stream()
+                        .filter(clusterBlock -> clusterBlock.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID)
+                        .count(),
+                    equalTo(1L)
+                );
             }
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
         }
     }
 
@@ -830,7 +814,6 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                     );
                 }
             }, STANDARD_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
-            Thread.sleep(100);
         } catch (Exception e) {
             logger.warn("Failed to wait for cluster state convergence", e);
         }

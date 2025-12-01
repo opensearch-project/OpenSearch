@@ -54,6 +54,10 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
+    protected String getPassword() {
+        return randomFrom("", "keystorepassword");
+    }
+
     public void testMissing() throws Exception {
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
@@ -61,7 +65,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testEmpty() throws Exception {
-        String password = randomFrom("", "keystorepassword");
+        String password = getPassword();
         createKeystore(password);
         terminal.addSecretInput(password);
         execute();
@@ -69,7 +73,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testOne() throws Exception {
-        String password = randomFrom("", "keystorepassword");
+        String password = getPassword();
         createKeystore(password, "foo", "bar");
         terminal.addSecretInput(password);
         execute();
@@ -77,7 +81,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMultiple() throws Exception {
-        String password = randomFrom("", "keystorepassword");
+        String password = getPassword();
         createKeystore(password, "foo", "1", "baz", "2", "bar", "3");
         terminal.addSecretInput(password);
         execute();
