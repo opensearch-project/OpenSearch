@@ -143,20 +143,6 @@ public class TraceUtilTests extends OpenSearchTestCase {
         assertEquals("trace_flags must be 2 hex digits", exception.getMessage());
     }
 
-    public void testWithValidHexVariations() {
-        // Test with lowercase hex
-        String traceparent1 = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
-        assertEquals("4bf92f3577b34da6a3ce929d0e0e4736", TraceUtil.extractTraceId(traceparent1));
-
-        // Test with uppercase hex
-        String traceparent2 = "FF-4BF92F3577B34DA6A3CE929D0E0E4736-00F067AA0BA902B7-FF";
-        assertEquals("4BF92F3577B34DA6A3CE929D0E0E4736", TraceUtil.extractTraceId(traceparent2));
-
-        // Test with mixed case hex
-        String traceparent3 = "aB-4bF92f3577B34dA6a3cE929d0E0e4736-00F067aa0Ba902B7-cD";
-        assertEquals("4bF92f3577B34dA6a3cE929d0E0e4736", TraceUtil.extractTraceId(traceparent3));
-    }
-
     public void testSomeEdgeCases() {
         // Minimum valid values (version 00, non-zero trace_id and parent_id, flags 00)
         String minValid = "00-00000000000000000000000000000001-0000000000000001-00";

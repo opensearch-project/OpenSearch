@@ -81,6 +81,6 @@ public class TraceUtil {
      * @return true if string contains only hex characters, false otherwise
      */
     private static boolean isValidHex(String str) {
-        return str.matches("[0-9a-fA-F]+");
+        return str.matches("[0-9a-f]+");
     }
 }
