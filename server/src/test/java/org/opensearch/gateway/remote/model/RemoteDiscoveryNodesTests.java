@@ -90,7 +90,7 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
         RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         assertNull(remoteObjectForUpload.getBlobFileName());
 
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(TEST_BLOB_NAME, clusterUUID, compressor, Version.CURRENT);
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(TEST_BLOB_NAME, clusterUUID, compressor, Version.CURRENT);
         assertEquals(remoteObjectForDownload.getBlobFileName(), TEST_BLOB_FILE_NAME);
     }
 
@@ -169,36 +169,28 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
         );
 
         // Serialize using 3.1.0 format
-        byte[] serializedData = serializeFormat.serialize(
-            (out, discoveryNode) -> {
-                out.setVersion(Version.V_3_1_0);
-                discoveryNode.writeToWithAttribute(out);
-            },
-            nodes,
-            "test-blob",
-            compressor
-        ).streamInput().readAllBytes();
+        byte[] serializedData = serializeFormat.serialize((out, discoveryNode) -> {
+            out.setVersion(Version.V_3_1_0);
+            discoveryNode.writeToWithAttribute(out);
+        }, nodes, "test-blob", compressor).streamInput().readAllBytes();
 
+        // Deserialize assuming serialization was performed using version 3.4.0, which should fail
+        RemoteDiscoveryNodes deserialize34 = new RemoteDiscoveryNodes("test-blob", clusterUUID, compressor, Version.V_3_4_0);
+        assertThrows(Exception.class, () -> {
+            try (InputStream inputStream = new ByteArrayInputStream(serializedData)) {
+                deserialize34.deserialize(inputStream);
+            }
+        });
 
-        // Deserialize on 3.2.0
-        RemoteDiscoveryNodes deserializeOn32 = new RemoteDiscoveryNodes("test-blob", clusterUUID, compressor, Version.V_3_2_0);
-        try (InputStream inputStream = new ByteArrayInputStream(serializedData)) {
-             deserializeOn32.deserialize(inputStream);
-             fail("De-serealizing assuming DiscoveryNodes were serialized using 3.4 should fail");
-        } catch (Exception e) {
-            assertTrue(e instanceof IllegalStateException);
-        }
-
-        // Deserialize on 3.4.0
-        RemoteDiscoveryNodes deserializeOn31 = new RemoteDiscoveryNodes("test-blob", clusterUUID, compressor, Version.V_3_1_0);
+        // Deserialize assuming serialization was performed using version 3.1.0, which should pass
+        RemoteDiscoveryNodes deserialize31 = new RemoteDiscoveryNodes("test-blob", clusterUUID, compressor, Version.V_3_1_0);
         DiscoveryNodes readNodes31;
         try (InputStream inputStream = new ByteArrayInputStream(serializedData)) {
-            readNodes31 = deserializeOn31.deserialize(inputStream);
+            readNodes31 = deserialize31.deserialize(inputStream);
         }
         assertEquals(nodes.getSize(), readNodes31.getSize());
         assertEquals(nodes.getClusterManagerNodeId(), readNodes31.getClusterManagerNodeId());
     }
-
 
     public static DiscoveryNodes getDiscoveryNodes() {
         return DiscoveryNodes.builder()
