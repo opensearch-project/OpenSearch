@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationPrimaryPromotionIT extends SegmentReplicationBaseIT {
@@ -118,7 +119,7 @@ public class SegmentReplicationPrimaryPromotionIT extends SegmentReplicationBase
         lockEnable = true;
         Thread writeThread = new Thread(() -> { client().prepareIndex(INDEX_NAME).setId("2").setSource("foo2", "bar2").get(); });
         writeThread.start();
-        flushLatch.await();
+        assertTrue("flushLatch timed out", flushLatch.await(30, TimeUnit.SECONDS));
 
         flush(INDEX_NAME);
 
@@ -139,7 +140,7 @@ public class SegmentReplicationPrimaryPromotionIT extends SegmentReplicationBase
         refresh(INDEX_NAME);
         waitForSearchableDocs(1, primary);
         indexLuceneLatch.countDown();
-        refreshLatch.await();
+        assertTrue("refreshLatch timed out", refreshLatch.await(30, TimeUnit.SECONDS));
         writeThread.join();
 
         logger.info("refresh index");
@@ -158,7 +159,7 @@ public class SegmentReplicationPrimaryPromotionIT extends SegmentReplicationBase
 
         refresh(INDEX_NAME);
         SearchResponse response = client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get();
-        assertTrue(response.getHits().getTotalHits().value() == 2);
+        assertEquals(2L, response.getHits().getTotalHits().value());
         replicaTransportService.clearAllRules();
     }
 }
