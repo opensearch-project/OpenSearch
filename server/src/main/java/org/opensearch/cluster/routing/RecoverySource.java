@@ -261,10 +261,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final Snapshot snapshot;
         private final IndexId index;
         private final Version version;
-        private final boolean isSearchableSnapshot;
-        private final boolean remoteStoreIndexShallowCopy;
-        private final String sourceRemoteStoreRepository;
-        private final String sourceRemoteTranslogRepository;
+        private final boolean is_searchable_snapshot;
+        private final boolean remote_store_index_shallow_copy;
+        private final String source_remote_store_repository;
+        private final String source_remote_translog_repository;
 
         private final long pinnedTimestamp;
 
@@ -277,18 +277,18 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             Snapshot snapshot,
             Version version,
             IndexId indexId,
-            boolean isSearchableSnapshot,
-            boolean remoteStoreIndexShallowCopy,
-            @Nullable String sourceRemoteStoreRepository
+            boolean is_searchable_snapshot,
+            boolean remote_store_index_shallow_copy,
+            @Nullable String source_remote_store_repository
         ) {
             this(
                 restoreUUID,
                 snapshot,
                 version,
                 indexId,
-                isSearchableSnapshot,
-                remoteStoreIndexShallowCopy,
-                sourceRemoteStoreRepository,
+                is_searchable_snapshot,
+                remote_store_index_shallow_copy,
+                source_remote_store_repository,
                 null,
                 0L
             );
@@ -299,20 +299,20 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             Snapshot snapshot,
             Version version,
             IndexId indexId,
-            boolean isSearchableSnapshot,
-            boolean remoteStoreIndexShallowCopy,
-            @Nullable String sourceRemoteStoreRepository,
-            @Nullable String sourceRemoteTranslogRepository,
+            boolean is_searchable_snapshot,
+            boolean remote_store_index_shallow_copy,
+            @Nullable String source_remote_store_repository,
+            @Nullable String source_remote_translog_repository,
             long pinnedTimestamp
         ) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
             this.index = Objects.requireNonNull(indexId);
-            this.isSearchableSnapshot = isSearchableSnapshot;
-            this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
-            this.sourceRemoteStoreRepository = sourceRemoteStoreRepository;
-            this.sourceRemoteTranslogRepository = sourceRemoteTranslogRepository;
+            this.is_searchable_snapshot = is_searchable_snapshot;
+            this.remote_store_index_shallow_copy = remote_store_index_shallow_copy;
+            this.source_remote_store_repository = source_remote_store_repository;
+            this.source_remote_translog_repository = source_remote_translog_repository;
             this.pinnedTimestamp = pinnedTimestamp;
         }
 
@@ -322,22 +322,22 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             version = in.readVersion();
             index = new IndexId(in);
             if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
-                isSearchableSnapshot = in.readBoolean();
+                is_searchable_snapshot = in.readBoolean();
             } else {
-                isSearchableSnapshot = false;
+                is_searchable_snapshot = false;
             }
             if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
-                remoteStoreIndexShallowCopy = in.readBoolean();
-                sourceRemoteStoreRepository = in.readOptionalString();
+                remote_store_index_shallow_copy = in.readBoolean();
+                source_remote_store_repository = in.readOptionalString();
             } else {
-                remoteStoreIndexShallowCopy = false;
-                sourceRemoteStoreRepository = null;
+                remote_store_index_shallow_copy = false;
+                source_remote_store_repository = null;
             }
             if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
-                sourceRemoteTranslogRepository = in.readOptionalString();
+                source_remote_translog_repository = in.readOptionalString();
                 pinnedTimestamp = in.readLong();
             } else {
-                sourceRemoteTranslogRepository = null;
+                source_remote_translog_repository = null;
                 pinnedTimestamp = 0L;
             }
         }
@@ -364,20 +364,20 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return version;
         }
 
-        public boolean isSearchableSnapshot() {
-            return isSearchableSnapshot;
+        public boolean is_searchable_snapshot() {
+            return is_searchable_snapshot;
         }
 
-        public String sourceRemoteStoreRepository() {
-            return sourceRemoteStoreRepository;
+        public String source_remote_store_repository() {
+            return source_remote_store_repository;
         }
 
-        public String sourceRemoteTranslogRepository() {
-            return sourceRemoteTranslogRepository;
+        public String source_remote_translog_repository() {
+            return source_remote_translog_repository;
         }
 
-        public boolean remoteStoreIndexShallowCopy() {
-            return remoteStoreIndexShallowCopy;
+        public boolean remote_store_index_shallow_copy() {
+            return remote_store_index_shallow_copy;
         }
 
         public long pinnedTimestamp() {
@@ -391,14 +391,14 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             out.writeVersion(version);
             index.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
-                out.writeBoolean(isSearchableSnapshot);
+                out.writeBoolean(is_searchable_snapshot);
             }
             if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
-                out.writeBoolean(remoteStoreIndexShallowCopy);
-                out.writeOptionalString(sourceRemoteStoreRepository);
+                out.writeBoolean(remote_store_index_shallow_copy);
+                out.writeOptionalString(source_remote_store_repository);
             }
             if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
-                out.writeOptionalString(sourceRemoteTranslogRepository);
+                out.writeOptionalString(source_remote_translog_repository);
                 out.writeLong(pinnedTimestamp);
             }
         }
@@ -415,10 +415,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 .field("version", version.toString())
                 .field("index", index.getName())
                 .field("restoreUUID", restoreUUID)
-                .field("isSearchableSnapshot", isSearchableSnapshot)
-                .field("remoteStoreIndexShallowCopy", remoteStoreIndexShallowCopy)
-                .field("sourceRemoteStoreRepository", sourceRemoteStoreRepository)
-                .field("sourceRemoteTranslogRepository", sourceRemoteTranslogRepository);
+                .field("is_searchable_snapshot", is_searchable_snapshot)
+                .field("remote_store_index_shallow_copy", remote_store_index_shallow_copy)
+                .field("source_remote_store_repository", source_remote_store_repository)
+                .field("source_remote_translog_repository", source_remote_translog_repository);
         }
 
         @Override
@@ -440,13 +440,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 && snapshot.equals(that.snapshot)
                 && index.equals(that.index)
                 && version.equals(that.version)
-                && isSearchableSnapshot == that.isSearchableSnapshot
-                && remoteStoreIndexShallowCopy == that.remoteStoreIndexShallowCopy
-                && sourceRemoteStoreRepository != null
-                ? sourceRemoteStoreRepository.equals(that.sourceRemoteStoreRepository)
-                : that.sourceRemoteStoreRepository == null && sourceRemoteTranslogRepository != null
-                    ? sourceRemoteTranslogRepository.equals(that.sourceRemoteTranslogRepository)
-                : that.sourceRemoteTranslogRepository == null && pinnedTimestamp == that.pinnedTimestamp;
+                && is_searchable_snapshot == that.is_searchable_snapshot
+                && remote_store_index_shallow_copy == that.remote_store_index_shallow_copy
+                && source_remote_store_repository != null
+                ? source_remote_store_repository.equals(that.source_remote_store_repository)
+                : that.source_remote_store_repository == null && source_remote_translog_repository != null
+                    ? source_remote_translog_repository.equals(that.source_remote_translog_repository)
+                : that.source_remote_translog_repository == null && pinnedTimestamp == that.pinnedTimestamp;
 
         }
 
@@ -457,10 +457,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 snapshot,
                 index,
                 version,
-                isSearchableSnapshot,
-                remoteStoreIndexShallowCopy,
-                sourceRemoteStoreRepository,
-                sourceRemoteTranslogRepository,
+                is_searchable_snapshot,
+                remote_store_index_shallow_copy,
+                source_remote_store_repository,
+                source_remote_translog_repository,
                 pinnedTimestamp
             );
         }
