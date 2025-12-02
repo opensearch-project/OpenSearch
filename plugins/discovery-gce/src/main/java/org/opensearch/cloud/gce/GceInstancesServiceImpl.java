@@ -59,6 +59,7 @@ import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -81,6 +82,17 @@ public class GceInstancesServiceImpl implements GceInstancesService {
         Function.identity(),
         Property.NodeScope
     );
+
+    private static final Supplier<Boolean> inFipsMode = () -> {
+        try {
+            // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
+            var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
+            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
+            return (Boolean) isApprovedOnlyMethod.invoke(null);
+        } catch (ReflectiveOperationException e) {
+            return false;
+        }
+    };
 
     private final String project;
     private final List<String> zones;
@@ -191,7 +203,18 @@ public class GceInstancesServiceImpl implements GceInstancesService {
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
         if (gceHttpTransport == null) {
             if (validateCerts) {
-                gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+                if (inFipsMode.get()) {
+                    var trustStore = KeyStore.getInstance("BCFKS");
+                    try (var in = getClass().getResourceAsStream("/google.bcfks")) {
+                        if (in == null) {
+                            throw new IllegalStateException("FIPS mode requires /google.bcfks to be present on the classpath");
+                        }
+                        trustStore.load(in, "notasecret".toCharArray());
+                    }
+                    gceHttpTransport = new NetHttpTransport.Builder().trustCertificates(trustStore).build();
+                } else {
+                    gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+                }
             } else {
                 // this is only used for testing - alternative we could use the defaul keystore but this requires special configs too..
                 gceHttpTransport = new NetHttpTransport.Builder().doNotValidateCertificate().build();
