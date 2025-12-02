@@ -1,3 +1,11 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
 package org.opensearch.indices.replication;
 
 import org.opensearch.action.search.SearchResponse;
@@ -27,7 +35,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationPrimaryPromotionIT extends SegmentReplicationBaseIT {
@@ -122,16 +129,10 @@ public class SegmentReplicationPrimaryPromotionIT extends SegmentReplicationBase
             TransportService.class,
             replica
         ));
-        AtomicBoolean mockReplicaReceivePublishCheckpointException = new AtomicBoolean(true);
         replicaTransportService.addRequestHandlingBehavior(
             PublishCheckpointAction.ACTION_NAME + TransportReplicationAction.REPLICA_ACTION_SUFFIX,
             (handler, request, channel, task) -> {
-                if (mockReplicaReceivePublishCheckpointException.get()) {
-                    logger.info("mock remote transport exception");
-                    throw new RemoteTransportException("mock remote transport exception", new OpenSearchRejectedExecutionException());
-                }
-                logger.info("replica receive publish checkpoint request");
-                handler.messageReceived(request, channel, task);
+                throw new RemoteTransportException("mock remote transport exception", new OpenSearchRejectedExecutionException());
             }
         );
 
