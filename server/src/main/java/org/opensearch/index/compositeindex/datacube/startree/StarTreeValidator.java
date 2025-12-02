@@ -30,7 +30,7 @@ import java.util.Set;
 @ExperimentalApi
 public class StarTreeValidator {
     public static void validate(MapperService mapperService, CompositeIndexSettings compositeIndexSettings, IndexSettings indexSettings) {
-        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
+        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeDataCubeFieldTypes();
         if (compositeFieldTypes.size() > StarTreeIndexSettings.STAR_TREE_MAX_FIELDS_SETTING.get(indexSettings.getSettings())) {
             throw new IllegalArgumentException(
                 String.format(

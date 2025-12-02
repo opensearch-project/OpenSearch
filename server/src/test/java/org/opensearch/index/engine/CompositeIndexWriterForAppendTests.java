@@ -21,7 +21,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.BucketedCompositeDirectory;
@@ -34,7 +33,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -161,30 +159,6 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
 
         assertTrue("Compute operations completed: " + computeCount.get(), computeCount.get() >= 100);
         assertTrue("Rotation operations completed: " + rotationCount.get(), rotationCount.get() >= 0);
-    }
-
-    public void testUnableToObtainLockOnActiveLookupWhenWriteLockDuringIndexing() throws IOException, InterruptedException {
-        CompositeIndexWriter.LiveIndexWriterDeletesMap map = new CompositeIndexWriter.LiveIndexWriterDeletesMap();
-        CountDownLatch writeLockAcquiredLatch = new CountDownLatch(1);
-        CountDownLatch releaseWriteLockLatch = new CountDownLatch(1);
-        Thread writer = new Thread(() -> {
-            try (ReleasableLock ignore = map.acquireCurrentWriteLock()) {
-                writeLockAcquiredLatch.countDown();
-                releaseWriteLockLatch.await();
-            } catch (InterruptedException ignored) {
-
-            }
-        });
-
-        writer.start();
-        writeLockAcquiredLatch.await(1, TimeUnit.SECONDS);
-
-        expectThrows(
-            LookupMapLockAcquisitionException.class,
-            () -> map.computeIndexWriterIfAbsentForCriteria("200", this::createChildWriterFactory, new ShardId("foo", "_na_", 1))
-        );
-        releaseWriteLockLatch.countDown();
-        writer.join();
     }
 
     public void testConcurrentIndexingDuringRefresh() throws IOException, InterruptedException {

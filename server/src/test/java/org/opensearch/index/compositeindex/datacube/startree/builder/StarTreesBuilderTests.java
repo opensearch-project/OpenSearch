@@ -93,7 +93,7 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
     }
 
     public void test_buildWithNoStarTreeFields() throws IOException {
-        when(mapperService.getCompositeFieldTypes()).thenReturn(new HashSet<>());
+        when(mapperService.getCompositeDataCubeFieldTypes()).thenReturn(new HashSet<>());
 
         StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService, new AtomicInteger());
         starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, mock(DocValuesConsumer.class));
@@ -102,7 +102,7 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
     }
 
     public void test_getStarTreeBuilder() throws IOException {
-        when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
+        when(mapperService.getCompositeDataCubeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
         StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService, new AtomicInteger());
         StarTreeBuilder starTreeBuilder = starTreesBuilder.getStarTreeBuilder(
             metaOut,
@@ -115,7 +115,7 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
     }
 
     public void test_getStarTreeBuilder_illegalArgument() throws IOException {
-        when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
+        when(mapperService.getCompositeDataCubeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
         StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
             1,
             new HashSet<>(),
@@ -142,7 +142,7 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
         );
         StarTreeField starTreeField = new StarTreeField("star_tree", new ArrayList<>(), new ArrayList<>(), starTreeFieldConfiguration);
         starTreeFieldType = new StarTreeMapper.StarTreeFieldType("star_tree", starTreeField);
-        when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
+        when(mapperService.getCompositeDataCubeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
         StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService, new AtomicInteger());
         starTreesBuilder.close();
 

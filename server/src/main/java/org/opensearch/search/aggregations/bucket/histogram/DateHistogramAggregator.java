@@ -312,7 +312,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
 
         CompositeDataCubeFieldType compositeMappedFieldType = (CompositeDataCubeFieldType) context.mapperService()
-            .getCompositeFieldTypes()
+            .getCompositeDataCubeFieldTypes()
             .iterator()
             .next();
         DateDimension starTreeDateDimension = (DateDimension) compositeMappedFieldType.getDimensions()

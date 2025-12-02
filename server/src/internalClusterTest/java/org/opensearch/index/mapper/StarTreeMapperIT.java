@@ -613,7 +613,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
             final Index index = resolveIndex("test");
             if (service.hasIndex(index)) {
                 IndexService indexService = service.indexService(index);
-                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
+                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeDataCubeFieldTypes();
 
                 for (CompositeMappedFieldType ft : fts) {
                     assertFalse(ft == null);
@@ -655,7 +655,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
             final Index index = resolveIndex("test");
             if (service.hasIndex(index)) {
                 IndexService indexService = service.indexService(index);
-                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
+                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeDataCubeFieldTypes();
 
                 for (CompositeMappedFieldType ft : fts) {
                     assertFalse(ft == null);
@@ -694,7 +694,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
             final Index index = resolveIndex("test");
             if (service.hasIndex(index)) {
                 IndexService indexService = service.indexService(index);
-                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
+                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeDataCubeFieldTypes();
 
                 for (CompositeMappedFieldType ft : fts) {
                     assertFalse(ft == null);
@@ -739,7 +739,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
             final Index index = resolveIndex("test");
             if (service.hasIndex(index)) {
                 IndexService indexService = service.indexService(index);
-                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
+                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeDataCubeFieldTypes();
 
                 for (CompositeMappedFieldType ft : fts) {
                     assertFalse(ft == null);
@@ -1127,7 +1127,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
             final Index index = resolveIndex("test");
             if (service.hasIndex(index)) {
                 IndexService indexService = service.indexService(index);
-                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
+                Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeDataCubeFieldTypes();
 
                 for (CompositeMappedFieldType ft : fts) {
                     assertFalse(ft == null);

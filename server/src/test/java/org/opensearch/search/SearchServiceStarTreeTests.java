@@ -592,7 +592,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         SearchContextAggregations searchContextAggregations = mock(SearchContextAggregations.class);
         AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
 
-        when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(compositeDataCubeFieldType));
+        when(mapperService.getCompositeDataCubeFieldTypes()).thenReturn(Set.of(compositeDataCubeFieldType));
         when(searchContext.mapperService()).thenReturn(mapperService);
         when(searchContext.indexShard()).thenReturn(indexShard);
         when(indexShard.segments(false)).thenReturn(List.of(segment, segment));

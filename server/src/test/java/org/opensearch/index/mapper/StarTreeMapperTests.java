@@ -65,7 +65,7 @@ public class StarTreeMapperTests extends MapperTestCase {
     public void testValidStarTree() throws IOException {
 
         MapperService mapperService = createMapperService(getExpandedMappingWithJustAvg("status", "size"));
-        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
+        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeDataCubeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
             assertEquals(3, starTreeFieldType.getDimensions().size());
@@ -137,7 +137,7 @@ public class StarTreeMapperTests extends MapperTestCase {
 
     public void testMetricsWithJustSum() throws IOException {
         MapperService mapperService = createMapperService(getExpandedMappingWithJustSum("status", "size"));
-        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
+        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeDataCubeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
             assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
@@ -172,7 +172,7 @@ public class StarTreeMapperTests extends MapperTestCase {
 
     public void testMetricsWithCountAndSum() throws IOException {
         MapperService mapperService = createMapperService(getExpandedMappingWithSumAndCount("status", "size"));
-        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
+        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeDataCubeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
             assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
@@ -207,7 +207,7 @@ public class StarTreeMapperTests extends MapperTestCase {
 
     public void testValidStarTreeWithNoDateDim() throws IOException {
         MapperService mapperService = createMapperService(getMinMappingWithDateDims(false, true, true));
-        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
+        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeDataCubeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
             assertEquals("status", starTreeFieldType.getDimensions().get(0).getField());
@@ -225,7 +225,7 @@ public class StarTreeMapperTests extends MapperTestCase {
 
     public void testValidStarTreeDefaults() throws IOException {
         MapperService mapperService = createMapperService(getMinMapping());
-        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
+        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeDataCubeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
             assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
@@ -260,7 +260,7 @@ public class StarTreeMapperTests extends MapperTestCase {
 
     public void testValidStarTreeDateDims() throws IOException {
         MapperService mapperService = createMapperService(getMinMappingWithDateDims(false, false, false));
-        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
+        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeDataCubeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
             assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
@@ -288,7 +288,7 @@ public class StarTreeMapperTests extends MapperTestCase {
 
     public void testValidStarTreeNestedFieldsAndMultiFields() throws IOException {
         MapperService mapperService = createMapperService(getMinMappingWithNestedField());
-        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
+        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeDataCubeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
             assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());

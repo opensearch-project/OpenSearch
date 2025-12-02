@@ -84,7 +84,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
         this.state = segmentWriteState;
         this.mapperService = mapperService;
         this.fieldNumberAcrossCompositeFields = new AtomicInteger();
-        this.compositeMappedFieldTypes = mapperService.getCompositeFieldTypes();
+        this.compositeMappedFieldTypes = mapperService.getCompositeDataCubeFieldTypes();
         compositeFieldSet = new HashSet<>();
         segmentFieldSet = new HashSet<>();
         addStarTreeSupportedFieldsFromSegment();
