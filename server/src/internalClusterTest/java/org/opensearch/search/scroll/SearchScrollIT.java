@@ -96,14 +96,10 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Tests for scrolling.
  *
- * <p>The {@code @SuppressCodecs("*")} annotation is required because scroll queries
- * cache StoredFieldsReader merge instances in ScrollContext to optimize sequential document
- * access across batches. Different scroll batches may execute on different threads from the
- * search thread pool, but access is always sequential (never concurrent). Lucene's
- * AssertingStoredFieldsFormat enforces strict thread affinity that doesn't account for this
- * legitimate sequential cross-thread usage pattern. The underlying Lucene implementation
- * (Lucene90CompressingStoredFieldsReader) is safe for sequential access from different threads
- * since there's no concurrent modification of internal state.
+ * <p>{@code @SuppressCodecs("*")} is needed because we cache StoredFieldsReader instances
+ * across scroll batches for sequential access. Different batches may run on different threads
+ * (but never concurrently). Lucene's AssertingStoredFieldsFormat enforces thread affinity
+ * that rejects this valid sequential cross-thread usage.
  *
  * @see org.opensearch.search.internal.ScrollContext#getCachedSequentialReader(Object)
  */
@@ -846,16 +842,13 @@ public class SearchScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTe
      */
     public void testScrollWithSequentialReaderCacheReturnsCorrectResults() throws Exception {
         int numDocs = randomIntBetween(100, 300);
-        // Size >= 10 triggers sequential reader optimization in FetchPhase
         int scrollSize = randomIntBetween(10, 35);
-
         client().admin()
             .indices()
             .prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
             .get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
-        // Index documents with stored fields
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test")
                 .setId(Integer.toString(i))
@@ -864,7 +857,6 @@ public class SearchScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         }
         client().admin().indices().prepareRefresh().get();
         indexRandomForConcurrentSearch("test");
-        // Execute scroll query with sorting to ensure deterministic order
         Set<Integer> retrievedIds = new HashSet<>();
         List<Integer> retrievedOrder = new ArrayList<>();
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -873,7 +865,6 @@ public class SearchScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             .setScroll(TimeValue.timeValueMinutes(2))
             .addSort("field", SortOrder.ASC)
             .get();
-
         try {
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
             int expectedValue = 0;
@@ -899,7 +890,6 @@ public class SearchScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 }
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
                 assertNoFailures(searchResponse);
-
             } while (searchResponse.getHits().getHits().length > 0);
             // Verify all documents retrieved
             assertThat("Not all documents retrieved", retrievedIds.size(), equalTo(numDocs));

@@ -68,7 +68,6 @@ public class ScrollStoredFieldsCacheIT extends ParameterizedStaticSettingsOpenSe
         }
         refresh("test");
         indexRandomForConcurrentSearch("test");
-        // Execute scroll query
         Set<String> retrievedIds = new HashSet<>();
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(matchAllQuery())
@@ -84,7 +83,7 @@ public class ScrollStoredFieldsCacheIT extends ParameterizedStaticSettingsOpenSe
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     // Verify no duplicate documents
                     assertTrue("Duplicate document id: " + hit.getId(), retrievedIds.add(hit.getId()));
-                    // Verify document content is correct
+                    // Verify document content is correct _source field
                     assertNotNull(hit.getSourceAsMap());
                     assertEquals(Integer.parseInt(hit.getId()), hit.getSourceAsMap().get("field"));
                 }
@@ -99,14 +98,14 @@ public class ScrollStoredFieldsCacheIT extends ParameterizedStaticSettingsOpenSe
     }
 
     /**
-     * Tests scroll queries across multiple segments to verify cache works
-     * correctly when switching between segments.
+     * Tests scroll queries across multiple segments with batch sizes that
+     * trigger the sequential reader optimization (>= 10 docs).
      */
     public void testScrollAcrossMultipleSegments() throws Exception {
         int docsPerSegment = randomIntBetween(20, 50);
         int numSegments = randomIntBetween(3, 5);
         int totalDocs = docsPerSegment * numSegments;
-        int scrollSize = randomIntBetween(5, 15);
+        int scrollSize = randomIntBetween(10, 50);
         int expectedBatches = (totalDocs + scrollSize - 1) / scrollSize;
         createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         ensureGreen("test");
@@ -119,10 +118,9 @@ public class ScrollStoredFieldsCacheIT extends ParameterizedStaticSettingsOpenSe
                     .setSource(jsonBuilder().startObject().field("field", docId).field("segment", seg).endObject())
                     .get();
             }
-            refresh("test"); // Create new segment
+            refresh("test");
         }
         indexRandomForConcurrentSearch("test");
-        // Execute scroll query
         Set<String> retrievedIds = new HashSet<>();
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(matchAllQuery())
@@ -146,46 +144,6 @@ public class ScrollStoredFieldsCacheIT extends ParameterizedStaticSettingsOpenSe
             assertThat(retrievedIds.size(), equalTo(totalDocs));
             // Verify exact batch count
             assertThat(batchCount, equalTo(expectedBatches));
-        } finally {
-            clearScroll(searchResponse.getScrollId());
-        }
-    }
-
-    /**
-     * Tests that large scroll batches (>=10 docs) trigger the sequential reader
-     * optimization and work correctly.
-     */
-    public void testLargeScrollBatchTriggersOptimization() throws Exception {
-        int numDocs = 200;
-        // Scroll size >= 10 triggers sequential reader optimization
-        int scrollSize = randomIntBetween(10, 50);
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
-        ensureGreen("test");
-        for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test")
-                .setId(Integer.toString(i))
-                .setSource(jsonBuilder().startObject().field("field", i).endObject())
-                .get();
-        }
-        refresh("test");
-        indexRandomForConcurrentSearch("test");
-        Set<String> retrievedIds = new HashSet<>();
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
-            .setSize(scrollSize)
-            .setScroll(TimeValue.timeValueMinutes(2))
-            .addSort("field", SortOrder.ASC)
-            .get();
-        try {
-            assertNoFailures(searchResponse);
-            do {
-                for (SearchHit hit : searchResponse.getHits().getHits()) {
-                    retrievedIds.add(hit.getId());
-                }
-                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
-                assertNoFailures(searchResponse);
-            } while (searchResponse.getHits().getHits().length > 0);
-            assertThat(retrievedIds.size(), equalTo(numDocs));
         } finally {
             clearScroll(searchResponse.getScrollId());
         }

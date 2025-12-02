@@ -200,6 +200,7 @@ public class FetchPhase {
                         StoredFieldsReader sequentialReader;
                         // For scroll queries, try to get cached reader
                         if (context.scrollContext() != null) {
+                            // To get a unique identifier for this segment to use as a cache key
                             Object segmentKey = lf.getCoreCacheHelper() != null ? lf.getCoreCacheHelper().getKey() : currentReaderContext;
                             sequentialReader = context.scrollContext().getCachedSequentialReader(segmentKey);
                             if (sequentialReader == null) {

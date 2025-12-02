@@ -27,7 +27,7 @@ import static org.mockito.Mockito.verify;
  */
 public class ScrollContextReaderCacheTests extends OpenSearchTestCase {
 
-    public void testCachePutAndGet() {
+    public void testCachePutAndGet() throws IOException {
         ScrollContext scrollContext = new ScrollContext();
         Object segmentKey1 = new Object();
         Object segmentKey2 = new Object();
@@ -44,17 +44,6 @@ public class ScrollContextReaderCacheTests extends OpenSearchTestCase {
         scrollContext.cacheSequentialReader(segmentKey2, reader2);
         assertSame(reader1, scrollContext.getCachedSequentialReader(segmentKey1));
         assertSame(reader2, scrollContext.getCachedSequentialReader(segmentKey2));
-        scrollContext.close();
-    }
-
-    public void testCloseReleasesAllReaders() throws IOException {
-        ScrollContext scrollContext = new ScrollContext();
-        Object segmentKey1 = new Object();
-        Object segmentKey2 = new Object();
-        StoredFieldsReader reader1 = mock(StoredFieldsReader.class);
-        StoredFieldsReader reader2 = mock(StoredFieldsReader.class);
-        scrollContext.cacheSequentialReader(segmentKey1, reader1);
-        scrollContext.cacheSequentialReader(segmentKey2, reader2);
         scrollContext.close();
         // Verify both readers were closed
         verify(reader1, times(1)).close();
@@ -88,34 +77,27 @@ public class ScrollContextReaderCacheTests extends OpenSearchTestCase {
         verify(reader2, times(1)).close();
     }
 
-    public void testCacheHitAcrossScrollBatches() {
-        ScrollContext scrollContext = new ScrollContext();
-        Object segmentKey = new Object();
-        StoredFieldsReader reader = mock(StoredFieldsReader.class);
-        // Simulate first batch - cache miss, then cache
-        assertNull(scrollContext.getCachedSequentialReader(segmentKey));
-        scrollContext.cacheSequentialReader(segmentKey, reader);
-        // Simulate subsequent batches - cache hits
-        for (int batch = 2; batch <= 5; batch++) {
-            assertSame("Batch " + batch + " should hit cache", reader, scrollContext.getCachedSequentialReader(segmentKey));
-        }
-        scrollContext.close();
-    }
-
     public void testMultipleSegmentsCached() throws IOException {
         ScrollContext scrollContext = new ScrollContext();
         int numSegments = randomIntBetween(3, 10);
         Object[] segmentKeys = new Object[numSegments];
         StoredFieldsReader[] readers = new StoredFieldsReader[numSegments];
-        // Cache readers for all segments
+        // Cache readers for all segments (simulates first batch per segment)
         for (int i = 0; i < numSegments; i++) {
             segmentKeys[i] = new Object();
             readers[i] = mock(StoredFieldsReader.class);
+            assertNull(scrollContext.getCachedSequentialReader(segmentKeys[i]));
             scrollContext.cacheSequentialReader(segmentKeys[i], readers[i]);
         }
-        // Verify all segments are cached
-        for (int i = 0; i < numSegments; i++) {
-            assertSame(readers[i], scrollContext.getCachedSequentialReader(segmentKeys[i]));
+        // Simulate multiple scroll batches - all should hit cache
+        for (int batch = 2; batch <= 5; batch++) {
+            for (int i = 0; i < numSegments; i++) {
+                assertSame(
+                    "Batch " + batch + ", segment " + i + " should hit cache",
+                    readers[i],
+                    scrollContext.getCachedSequentialReader(segmentKeys[i])
+                );
+            }
         }
         scrollContext.close();
         // Verify all readers were closed
