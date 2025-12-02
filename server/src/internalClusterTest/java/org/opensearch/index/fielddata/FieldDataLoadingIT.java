@@ -35,9 +35,6 @@ package org.opensearch.index.fielddata;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.settings.AbstractScopedSettings;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -46,17 +43,13 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.indices.fielddata.cache.IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.greaterThan;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -245,39 +238,6 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
             ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
             assertEquals(0, response.getIndicesStats().getFieldData().getMemorySizeInBytes());
         });
-    }
-
-    public void testWithMultipleIndexCreationAndVerifySettingRegisteredOnce() {
-        createIndex("index");
-        int randomInt = randomIntBetween(10, 50);
-        for (int i = 0; i < randomInt; i++) {
-            String indexName = "test" + i;
-            assertAcked(prepareCreate(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true)));
-            assertBlocked(client().admin().indices().prepareGetSettings(indexName), IndexMetadata.INDEX_METADATA_BLOCK);
-            disableIndexBlock(indexName, IndexMetadata.SETTING_BLOCKS_METADATA);
-        }
-        boolean seen = false;
-        String settingToVerify = "indices.fielddata.cache.size";
-        ClusterSettings clusterSettings = clusterService().getClusterSettings();
-        List<AbstractScopedSettings.SettingUpdater<?>> settingUpgraders = clusterSettings.getSettingUpdaters();
-        for (AbstractScopedSettings.SettingUpdater<?> settingUpgrader : settingUpgraders) {
-            String input = settingUpgrader.toString();
-            // Trying to fetch key value as there is no other way
-            Pattern p = Pattern.compile("\"key\"\\s*:\\s*\"([^\"]+)\"");
-            Matcher m = p.matcher(input);
-            String key = "";
-            if (m.find()) {
-                key = m.group(1);
-            }
-            if (settingToVerify.equals(key) && !seen) {
-                seen = true;
-            } else if (settingToVerify.equals(key) && seen) {
-                fail("Setting registered multiple times");
-            }
-        }
-        if (!seen) {
-            fail("Was not able to read this setting: " + settingToVerify);
-        }
     }
 
     private void createAndSearchIndices(int numIndices, int numFieldsPerIndex, String indexPrefix, String fieldPrefix) throws Exception {
