@@ -34,11 +34,11 @@ public class TraceUtil {
             throw new IllegalArgumentException("traceparent cannot be null");
         }
 
-        String[] parts = traceparent.split("-");
-
         if (traceparent.length() != 55) {
             throw new IllegalArgumentException("traceparent must be exactly 55 characters long");
         }
+
+        String[] parts = traceparent.split("-");
 
         if (parts.length != 4) {
             throw new IllegalArgumentException("traceparent must have exactly 4 parts separated by '-'");
