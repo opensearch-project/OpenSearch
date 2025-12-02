@@ -12,23 +12,34 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator;
@@ -268,6 +279,80 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         assertEquals(2, thirdBucket.getDocCount());
         InternalCardinality thirdCardinality = thirdBucket.getAggregations().get(cardinalityAggName);
         assertEquals(2, thirdCardinality.getValue(), 0);
+    }
+
+    /**
+     * Test that verifies skiplist-based collection works correctly with range aggregations
+     * that have date histogram sub-aggregations.
+     * - Index sort on date field to enable skiplist functionality
+     * - Multiple segments created via explicit commits
+     * - Searchable date field type
+     * - Documents distributed across multiple date ranges (2015-2017)
+     */
+    public void testRangeDate() throws IOException {
+        // Setup index with skiplist configuration
+        Settings settings = getSettingsWithIndexSort();
+        IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+
+        // Create searchable date field type (isSearchable=true) to enable skiplist
+        DateFieldMapper.DateFieldType searchableDateFieldType = aggregableDateFieldType(false, true);
+
+        // Use custom index setup instead of setupIndex() method
+        try (Directory directory = newDirectory()) {
+            // Index documents in batches with commits to create multiple segments
+            indexDocsForSkiplist(directory, searchableDateFieldType);
+
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                // Verify we have multiple segments (required for skiplist testing)
+                assertTrue("Should have multiple segments for skiplist testing", indexReader.leaves().size() > 1);
+
+                // Create IndexSearcher with the reader
+                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+
+                // Build RangeAggregationBuilder with DateHistogramAggregationBuilder sub-aggregation
+                // Use YEAR interval to align with our test data structure (2015, 2016, 2017)
+                RangeAggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder(rangeAggName).field(longFieldName)
+                    .addRange(1, 2)
+                    .addRange(2, 4)
+                    .addRange(4, 6)
+                    .subAggregation(
+                        new DateHistogramAggregationBuilder(dateAggName).field(dateFieldName).calendarInterval(DateHistogramInterval.YEAR)
+                    );
+
+                // Execute aggregation on reader with IndexSettings (enables skiplist)
+                InternalRange result = executeAggregationOnReader(indexReader, rangeAggregationBuilder, indexSettings);
+
+                // Verify results - this confirms skiplist collection worked correctly
+                List<? extends InternalRange.Bucket> buckets = result.getBuckets();
+                assertEquals(3, buckets.size());
+
+                // Range bucket 1: expect 5 docs, 1 date histogram bucket (2015)
+                InternalRange.Bucket firstBucket = buckets.get(0);
+                assertEquals(5, firstBucket.getDocCount());
+                InternalDateHistogram firstDate = firstBucket.getAggregations().get(dateAggName);
+                assertNotNull(firstDate);
+                assertEquals(1, firstDate.getBuckets().size());
+                assertEquals(5, firstDate.getBuckets().get(0).getDocCount());
+
+                // Range bucket 2: expect 8 docs, 2 date histogram buckets (2015, 2016)
+                InternalRange.Bucket secondBucket = buckets.get(1);
+                assertEquals(8, secondBucket.getDocCount());
+                InternalDateHistogram secondDate = secondBucket.getAggregations().get(dateAggName);
+                assertNotNull(secondDate);
+                assertEquals(2, secondDate.getBuckets().size());
+                assertEquals(5, secondDate.getBuckets().get(0).getDocCount());
+                assertEquals(3, secondDate.getBuckets().get(1).getDocCount());
+
+                // Range bucket 3: expect 7 docs, 1 date histogram bucket (2017)
+                InternalRange.Bucket thirdBucket = buckets.get(2);
+                assertEquals(7, thirdBucket.getDocCount());
+                InternalDateHistogram thirdDate = thirdBucket.getAggregations().get(dateAggName);
+                assertNotNull(thirdDate);
+                assertEquals(1, thirdDate.getBuckets().size());
+                assertEquals(7, thirdDate.getBuckets().get(0).getDocCount());
+            }
+        }
     }
 
     public void testDateHisto() throws IOException {
@@ -544,12 +629,20 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         DirectoryReader indexReader,
         AggregationBuilder aggregationBuilder
     ) throws IOException {
+        return executeAggregationOnReader(indexReader, aggregationBuilder, null);
+    }
+
+    private <IA extends InternalAggregation> IA executeAggregationOnReader(
+        DirectoryReader indexReader,
+        AggregationBuilder aggregationBuilder,
+        IndexSettings indexSettings
+    ) throws IOException {
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
         MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = createBucketConsumer();
         SearchContext searchContext = createSearchContext(
             indexSearcher,
-            createIndexSettings(),
+            indexSettings != null ? indexSettings : createIndexSettings(),
             matchAllQuery,
             bucketConsumer,
             longFieldType,
@@ -645,7 +738,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
 
     protected final DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {
         return new DateFieldMapper.DateFieldType(
-            "timestamp",
+            dateFieldName,
             isSearchable,
             false,
             true,
@@ -654,5 +747,98 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
             null,
             Collections.emptyMap()
         );
+    }
+
+    /**
+     * Helper method to create Settings with index sort on date field for skiplist testing
+     */
+    private Settings getSettingsWithIndexSort() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .putList("index.sort.field", dateFieldName)
+            .build();
+    }
+
+    /**
+     * Helper method to index documents in batches with commits for skiplist structure
+     */
+    private void indexDocsForSkiplist(Directory directory, DateFieldMapper.DateFieldType dateFieldType) throws IOException {
+        IndexWriterConfig config = new IndexWriterConfig();
+        config.setMergePolicy(NoMergePolicy.INSTANCE);
+
+        // Create sort field for index sort
+        IndexNumericFieldData fieldData = (IndexNumericFieldData) dateFieldType.fielddataBuilder("index", () -> {
+            throw new UnsupportedOperationException();
+        }).build(null, null);
+        SortField sortField = fieldData.sortField(null, MultiValueMode.MIN, null, false);
+        config.setIndexSort(new Sort(sortField));
+
+        try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
+            // First commit - documents for range bucket 1 (metric values 1-2)
+            // Dates: 2015 (5 docs with metric=1)
+            for (int i = 0; i < 5; i++) {
+                org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
+                long timestamp = asLong("2015-02-13T13:09:32Z", dateFieldType);
+                doc.add(SortedNumericDocValuesField.indexedField(dateFieldName, timestamp));
+                doc.add(new LongPoint(dateFieldName, timestamp));
+                doc.add(new NumericDocValuesField(longFieldName, 1));
+                doc.add(new LongPoint(longFieldName, 1));
+                indexWriter.addDocument(doc);
+            }
+            indexWriter.commit();
+
+            // Second commit - documents for range bucket 2 (metric values 2-4)
+            // Dates: 2015-2016 (5 docs with metric=2, 3 docs with metric=3)
+            for (int i = 0; i < 5; i++) {
+                org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
+                long timestamp = asLong("2015-11-13T16:14:34Z", dateFieldType);
+                doc.add(SortedNumericDocValuesField.indexedField(dateFieldName, timestamp));
+                doc.add(new LongPoint(dateFieldName, timestamp));
+                doc.add(new NumericDocValuesField(longFieldName, 2));
+                doc.add(new LongPoint(longFieldName, 2));
+                indexWriter.addDocument(doc);
+            }
+            for (int i = 0; i < 3; i++) {
+                org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
+                long timestamp = asLong("2016-03-04T17:09:50Z", dateFieldType);
+                doc.add(SortedNumericDocValuesField.indexedField(dateFieldName, timestamp));
+                doc.add(new LongPoint(dateFieldName, timestamp));
+                doc.add(new NumericDocValuesField(longFieldName, 3));
+                doc.add(new LongPoint(longFieldName, 3));
+                indexWriter.addDocument(doc);
+            }
+            indexWriter.commit();
+
+            // Third commit - documents for range bucket 3 (metric values 4-6)
+            // Dates: 2017 (4 docs with metric=4, 3 docs with metric=5)
+            for (int i = 0; i < 4; i++) {
+                org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
+                long timestamp = asLong("2017-12-12T22:55:46Z", dateFieldType);
+                doc.add(SortedNumericDocValuesField.indexedField(dateFieldName, timestamp));
+                doc.add(new LongPoint(dateFieldName, timestamp));
+                doc.add(new NumericDocValuesField(longFieldName, 4));
+                doc.add(new LongPoint(longFieldName, 4));
+                indexWriter.addDocument(doc);
+            }
+            for (int i = 0; i < 3; i++) {
+                org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
+                long timestamp = asLong("2017-12-12T22:55:46Z", dateFieldType);
+                doc.add(SortedNumericDocValuesField.indexedField(dateFieldName, timestamp));
+                doc.add(new LongPoint(dateFieldName, timestamp));
+                doc.add(new NumericDocValuesField(longFieldName, 5));
+                doc.add(new LongPoint(longFieldName, 5));
+                indexWriter.addDocument(doc);
+            }
+            indexWriter.commit();
+        }
+    }
+
+    /**
+     * Helper method to parse date strings to long values
+     */
+    private long asLong(String dateTime, DateFieldMapper.DateFieldType fieldType) {
+        return fieldType.parse(dateTime);
     }
 }

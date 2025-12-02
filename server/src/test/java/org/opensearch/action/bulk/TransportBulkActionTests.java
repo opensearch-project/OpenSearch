@@ -56,6 +56,7 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -83,6 +84,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -385,6 +387,15 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         } finally {
             threadPool.stopForcingRejections();
         }
+    }
+
+    public void testSerializationDeserialization() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_4_0);
+        bulkRequest.writeTo(out);
+        BulkRequest deserializedRequest = new BulkRequest(out.bytes().streamInput());
+        assertEquals(Set.of("index"), deserializedRequest.getIndices());
     }
 
     public void testBulkAdaptedSelectShard() {

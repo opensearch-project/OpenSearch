@@ -10,11 +10,9 @@ package org.opensearch.tools.cli.fips.truststore;
 
 import java.util.concurrent.Callable;
 
-public class GeneratedTrustStoreCommandTests extends FipsTrustStoreCommandTestCase {
+public class GeneratedTrustStoreCommandFipsTests extends FipsTrustStoreCommandTestCase {
 
     public void testNonInteractiveModeAutoGeneratesPassword() throws Exception {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-
         int exitCode = commandLine.execute("--non-interactive", "--force");
 
         assertEquals(0, exitCode);
@@ -25,8 +23,6 @@ public class GeneratedTrustStoreCommandTests extends FipsTrustStoreCommandTestCa
     }
 
     public void testNonInteractiveModeWithPasswordOption() throws Exception {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-
         int exitCode = commandLine.execute("--non-interactive", "--force", "--password", "MyPassword");
 
         assertEquals(0, exitCode);
@@ -37,8 +33,6 @@ public class GeneratedTrustStoreCommandTests extends FipsTrustStoreCommandTestCa
     }
 
     public void testCommandWithEmptyPassword() throws Exception {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-
         int exitCode = commandLine.execute("--non-interactive", "--force", "--password", "");
 
         assertEquals(0, exitCode);

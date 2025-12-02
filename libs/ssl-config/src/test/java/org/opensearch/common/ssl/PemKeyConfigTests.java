@@ -89,7 +89,6 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
     }
 
     public void testBuildKeyConfigFromPkcs8PemFilesWithPassword() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
         final Path cert = getDataPath("/certs/cert2/cert2.crt");
         final Path key = getDataPath("/certs/cert2/cert2.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, STRONG_PRIVATE_SECRET.get());
@@ -128,7 +127,7 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
         final Path cert = createTempFile("cert", ".crt");
         final Path key = createTempFile("cert", ".key");
 
-        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0]);
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "wrong-password".toCharArray());
 
         Files.copy(cert1, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key1, key, StandardCopyOption.REPLACE_EXISTING);
