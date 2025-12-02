@@ -17,11 +17,6 @@ public enum VSRState {
     FROZEN,
     
     /**
-     * Currently being processed by Rust - VSR is in the handoff process.
-     */
-    FLUSHING,
-    
-    /**
      * Completed and cleaned up - VSR processing is complete and resources freed.
      */
     CLOSED
