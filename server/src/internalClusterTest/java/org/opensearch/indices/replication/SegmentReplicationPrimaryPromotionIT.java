@@ -39,13 +39,17 @@ import java.util.concurrent.TimeUnit;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationPrimaryPromotionIT extends SegmentReplicationBaseIT {
-    public static boolean lockEnable = false;
-    public static CountDownLatch indexLuceneLatch = new CountDownLatch(1);
-    public static CountDownLatch flushLatch = new CountDownLatch(1);
-    public static CountDownLatch refreshLatch = new CountDownLatch(1);
+    private static boolean lockEnable;
+    private static CountDownLatch indexLuceneLatch;
+    private static CountDownLatch flushLatch;
+    private static CountDownLatch refreshLatch;
 
     @Before
     public void setup() {
+        lockEnable = false;
+        indexLuceneLatch = new CountDownLatch(1);
+        flushLatch = new CountDownLatch(1);
+        refreshLatch = new CountDownLatch(1);
         internalCluster().startClusterManagerOnlyNode();
     }
 
