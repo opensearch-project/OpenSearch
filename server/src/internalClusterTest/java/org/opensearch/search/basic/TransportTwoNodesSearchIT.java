@@ -81,7 +81,19 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.SuppressCodecs("Asserting")
+/**
+ * <p>The {@code @SuppressCodecs("*")} annotation is required because scroll queries
+ * cache StoredFieldsReader merge instances in ScrollContext to optimize sequential document
+ * access across batches. Different scroll batches may execute on different threads from the
+ * search thread pool, but access is always sequential (never concurrent). Lucene's
+ * AssertingStoredFieldsFormat enforces strict thread affinity that doesn't account for this
+ * legitimate sequential cross-thread usage pattern. The underlying Lucene implementation
+ * (Lucene90CompressingStoredFieldsReader) is safe for sequential access from different threads
+ * since there's no concurrent modification of internal state.
+ *
+ * @see org.opensearch.search.internal.ScrollContext#getCachedSequentialReader(Object)
+ */
+@LuceneTestCase.SuppressCodecs("*")
 public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     public TransportTwoNodesSearchIT(Settings staticSettings) {
