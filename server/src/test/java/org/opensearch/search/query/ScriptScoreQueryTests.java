@@ -44,8 +44,10 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
@@ -214,6 +216,64 @@ public class ScriptScoreQueryTests extends OpenSearchTestCase {
             }
         }
         assertTrue("Expected to find at least one matching document", foundMatchingDoc);
+    }
+
+    public void testNullScorerSupplier() throws IOException {
+        Script script = new Script("script using explain");
+        ScoreScript.LeafFactory factory = newFactory(script, true, explanation -> {
+            assertNotNull(explanation);
+            explanation.set("this explains the score");
+            return 1.0;
+        });
+
+        ScriptScoreQuery query = new ScriptScoreQuery(new NullScorerSupplierQuery(), script, factory, null, "index", 0, Version.CURRENT);
+        Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
+        ScorerSupplier scorerSupplier = weight.scorerSupplier(null);
+        assertNull(scorerSupplier);
+    }
+
+    private static class NullScorerSupplierQuery extends Query {
+
+        @Override
+        public String toString(String field) {
+            return getClass().getSimpleName();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj;
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new Weight(this) {
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    return null;
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+            };
+        }
     }
 
     private ScoreScript.LeafFactory newFactory(

@@ -26,17 +26,16 @@ public class RestThreadPoolActionTests extends OpenSearchTestCase {
 
     public void testForkJoinPoolTypeStatsAreReported() {
         // Setup for ForkJoinPool stats
-        ThreadPoolStats.Stats fjStats = new ThreadPoolStats.Stats(
-            "fork_join", // name
-            42,          // active
-            84,          // rejected
-            21,          // largest
-            64,          // completed
-            -1,          // queue (should be -1 for FJ)
-            1,           // threads
-            0,           // taskTimeNanos (or whatever the last arg is)
-            8            // parallelism (for example: 8, or whatever is appropriate for your test)
-        );
+        ThreadPoolStats.Stats fjStats = new ThreadPoolStats.Stats.Builder().name("fork_join")
+            .threads(1)
+            .queue(-1) // should be -1 for FJ
+            .active(42)
+            .rejected(84)
+            .largest(21)
+            .completed(64)
+            .waitTimeNanos(0) // or whatever the last arg is
+            .parallelism(8) // for example: 8, or whatever is appropriate for your test
+            .build();
 
         List<ThreadPoolStats.Stats> statsList = Collections.singletonList(fjStats);
 

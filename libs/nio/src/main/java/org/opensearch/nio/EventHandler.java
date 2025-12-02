@@ -98,8 +98,8 @@ public class EventHandler {
      */
     protected void handleActive(ChannelContext<?> context) throws IOException {
         context.channelActive();
-        if (context instanceof SocketChannelContext) {
-            if (((SocketChannelContext) context).readyForFlush()) {
+        if (context instanceof SocketChannelContext socketChannelContext) {
+            if (socketChannelContext.readyForFlush()) {
                 SelectionKeyUtils.setConnectReadAndWriteInterested(context.getSelectionKey());
             } else {
                 SelectionKeyUtils.setConnectAndReadInterested(context.getSelectionKey());

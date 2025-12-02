@@ -76,6 +76,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.repositories.s3.utils.Protocol;
+import org.opensearch.secure_sm.AccessController;
 
 import javax.net.ssl.SSLContext;
 
@@ -251,7 +252,7 @@ class S3Service implements Closeable {
         if (clientSettings.legacyMd5ChecksumCalculation) {
             builder.addPlugin(LegacyMd5Plugin.create());
         }
-        final S3Client client = SocketAccess.doPrivileged(builder::build);
+        final S3Client client = AccessController.doPrivileged(builder::build);
         return AmazonS3WithCredentials.create(client, credentials);
     }
 
@@ -260,7 +261,7 @@ class S3Service implements Closeable {
     @SuppressForbidden(reason = "Need to provide this override to v2 SDK so that path does not default to home path")
     static void setDefaultAwsProfilePath() {
         if (ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.getStringValue().isEmpty()) {
-            SocketAccess.doPrivileged(
+            AccessController.doPrivileged(
                 () -> System.setProperty(
                     ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.property(),
                     System.getProperty("opensearch.path.conf")
@@ -268,7 +269,7 @@ class S3Service implements Closeable {
             );
         }
         if (ProfileFileSystemSetting.AWS_CONFIG_FILE.getStringValue().isEmpty()) {
-            SocketAccess.doPrivileged(
+            AccessController.doPrivileged(
                 () -> System.setProperty(ProfileFileSystemSetting.AWS_CONFIG_FILE.property(), System.getProperty("opensearch.path.conf"))
             );
         }
@@ -279,7 +280,7 @@ class S3Service implements Closeable {
 
         if (!clientSettings.proxySettings.equals(ProxySettings.NO_PROXY_SETTINGS)) {
             if (clientSettings.proxySettings.getType() == ProxySettings.ProxyType.SOCKS) {
-                SocketAccess.doPrivilegedVoid(() -> {
+                AccessController.doPrivileged(() -> {
                     if (clientSettings.proxySettings.isAuthenticated()) {
                         Authenticator.setDefault(new Authenticator() {
                             @Override
@@ -351,7 +352,7 @@ class S3Service implements Closeable {
                 AwsRequestSigner.fromSignerName(clientSettings.signerOverride).getSigner()
             );
         }
-        RetryPolicy.Builder retryPolicy = SocketAccess.doPrivileged(
+        RetryPolicy.Builder retryPolicy = AccessController.doPrivileged(
             () -> RetryPolicy.builder().numRetries(clientSettings.maxRetries).retryCapacityCondition(null)
         );
         if (!clientSettings.throttleRetries) {
@@ -387,7 +388,7 @@ class S3Service implements Closeable {
         if (irsaCredentials != null) {
             logger.debug("Using IRSA credentials");
 
-            StsClient stsClient = SocketAccess.doPrivileged(() -> {
+            StsClient stsClient = AccessController.doPrivileged(() -> {
                 StsClientBuilder builder = StsClient.builder();
                 if (Strings.hasText(clientSettings.region)) {
                     builder.region(Region.of(clientSettings.region));
@@ -417,7 +418,7 @@ class S3Service implements Closeable {
                             .build()
                     );
 
-                final StsAssumeRoleCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                final StsAssumeRoleCredentialsProvider stsCredentialsProvider = AccessController.doPrivileged(
                     stsCredentialsProviderBuilder::build
                 );
 
@@ -430,7 +431,7 @@ class S3Service implements Closeable {
                         .roleSessionName(irsaCredentials.getRoleSessionName())
                         .webIdentityTokenFile(Path.of(irsaCredentials.getIdentityTokenFile()));
 
-                final StsWebIdentityTokenFileCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                final StsWebIdentityTokenFileCredentialsProvider stsCredentialsProvider = AccessController.doPrivileged(
                     stsCredentialsProviderBuilder::build
                 );
 
@@ -498,7 +499,7 @@ class S3Service implements Closeable {
 
         @Override
         public AwsCredentials resolveCredentials() {
-            return SocketAccess.doPrivileged(credentials::resolveCredentials);
+            return AccessController.doPrivileged(credentials::resolveCredentials);
         }
     }
 
@@ -516,18 +517,21 @@ class S3Service implements Closeable {
 
         @Override
         public void close() throws IOException {
-            SocketAccess.doPrivilegedIOException(() -> {
-                credentials.close();
-                if (stsClient != null) {
-                    stsClient.close();
-                }
-                return null;
-            });
+            try {
+                AccessController.doPrivilegedChecked(() -> {
+                    credentials.close();
+                    if (stsClient != null) {
+                        stsClient.close();
+                    }
+                });
+            } catch (Exception e) {
+                throw new IOException(e);
+            }
         }
 
         @Override
         public AwsCredentials resolveCredentials() {
-            return SocketAccess.doPrivileged(credentials::resolveCredentials);
+            return AccessController.doPrivileged(credentials::resolveCredentials);
         }
     }
 

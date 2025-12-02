@@ -8,15 +8,16 @@
 
 package org.opensearch.tools.cli.fips.truststore;
 
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.ByteArrayInputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Provider;
 import java.security.Security;
@@ -28,30 +29,18 @@ import static org.opensearch.tools.cli.fips.truststore.ConfigureSystemTrustStore
 
 public class TrustStoreServiceTests extends OpenSearchTestCase {
 
-    private static Path sharedTempDir;
+    protected static Path sharedTempDir;
 
-    private CommandLine.Model.CommandSpec spec;
-    private StringWriter outputCapture;
-    private Path confPath;
+    protected CommandLine.Model.CommandSpec spec;
+    protected StringWriter outputCapture;
+
+    @ClassRule
+    public static TemporaryFolder tempFolder = new TemporaryFolder();
 
     @BeforeClass
+    @SuppressForbidden(reason = "TemporaryFolder does not support Path-based APIs")
     public static void setUpClass() throws Exception {
-        sharedTempDir = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")), "truststore-test-");
-    }
-
-    @AfterClass
-    public static void tearDownClass() throws Exception {
-        if (sharedTempDir != null && Files.exists(sharedTempDir)) {
-            try (var walk = Files.walk(sharedTempDir)) {
-                walk.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                });
-            }
-        }
+        sharedTempDir = tempFolder.newFolder("config-test").toPath();
     }
 
     @Override
@@ -65,8 +54,6 @@ public class TrustStoreServiceTests extends OpenSearchTestCase {
         var commandLine = new CommandLine(new TestCommand());
         commandLine.setOut(new PrintWriter(outputCapture, true));
         spec = commandLine.getCommandSpec();
-
-        confPath = Files.createTempDirectory(sharedTempDir, "conf-");
     }
 
     public void testUseSystemTrustStoreUserCancels() {
@@ -75,7 +62,7 @@ public class TrustStoreServiceTests extends OpenSearchTestCase {
         var service = new TrustStoreService(userInteraction);
 
         // when
-        var result = service.useSystemTrustStore(spec, new CommonOptions(), null, confPath);
+        var result = service.useSystemTrustStore(spec, new CommonOptions(), null, sharedTempDir);
 
         // then
         assertEquals(Integer.valueOf(0), result);
@@ -91,7 +78,7 @@ public class TrustStoreServiceTests extends OpenSearchTestCase {
         var service = new TrustStoreService(userInteraction);
 
         // when
-        var ex = assertThrows(IllegalStateException.class, () -> service.useSystemTrustStore(spec, options, null, confPath));
+        var ex = assertThrows(IllegalStateException.class, () -> service.useSystemTrustStore(spec, options, null, sharedTempDir));
 
         // then
         assertTrue(ex.getMessage().contains("No PKCS11 provider found"));
@@ -116,7 +103,7 @@ public class TrustStoreServiceTests extends OpenSearchTestCase {
             var service = new TrustStoreService(userInteraction);
 
             // when
-            var result = service.useSystemTrustStore(spec, options, null, confPath);
+            var result = service.useSystemTrustStore(spec, options, null, sharedTempDir);
 
             // then
             assertEquals(Integer.valueOf(0), result);
@@ -126,23 +113,6 @@ public class TrustStoreServiceTests extends OpenSearchTestCase {
         }
     }
 
-    public void testExecuteInteractiveSelectionNonInteractiveMode() {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-
-        // given
-        var options = new CommonOptions();
-        options.nonInteractive = true;
-        var userInteraction = createUserInteractionService("password123\npassword123\n");
-        var service = new TrustStoreService(userInteraction);
-
-        // when
-        var result = service.executeInteractiveSelection(spec, options, confPath);
-
-        // then
-        assertTrue(outputCapture.toString().contains("Non-interactive mode: Using generated trust store (default)"));
-        assertNotNull(result);
-    }
-
     public void testExecuteInteractiveSelectionUserSelectsGenerate() {
         // given
         var options = new CommonOptions();
@@ -150,7 +120,7 @@ public class TrustStoreServiceTests extends OpenSearchTestCase {
         var service = new TrustStoreService(userInteraction);
 
         // when
-        var result = service.executeInteractiveSelection(spec, options, confPath);
+        var result = service.executeInteractiveSelection(spec, options, sharedTempDir);
 
         // then
         var output = outputCapture.toString();
@@ -168,7 +138,7 @@ public class TrustStoreServiceTests extends OpenSearchTestCase {
         var service = new TrustStoreService(userInteraction);
 
         // when
-        var result = service.executeInteractiveSelection(spec, options, confPath);
+        var result = service.executeInteractiveSelection(spec, options, sharedTempDir);
 
         // then
         var output = outputCapture.toString();
@@ -180,7 +150,7 @@ public class TrustStoreServiceTests extends OpenSearchTestCase {
      * Creates a test UserInteractionService with simulated user input.
      * Uses the same pattern as UserInteractionServiceTests.
      */
-    private UserInteractionService createUserInteractionService(String input) {
+    protected UserInteractionService createUserInteractionService(String input) {
         // Cache scanner outside anonymous class to maintain stream position across multiple getScanner() calls
         var scanner = new Scanner(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8);
         return new UserInteractionService() {

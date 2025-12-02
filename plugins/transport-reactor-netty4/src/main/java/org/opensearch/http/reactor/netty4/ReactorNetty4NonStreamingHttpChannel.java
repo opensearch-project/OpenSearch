@@ -46,7 +46,13 @@ class ReactorNetty4NonStreamingHttpChannel implements HttpChannel {
 
     @Override
     public void close() {
-        request.withConnection(connection -> connection.channel().close());
+        request.withConnection(connection -> {
+            if (closeContext.isDone() == false) {
+                Netty4Utils.addListener(connection.channel().close(), closeContext);
+            } else {
+                connection.channel().close();
+            }
+        });
     }
 
     @Override

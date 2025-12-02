@@ -1,7 +1,9 @@
 ---
 "Metric - blank":
   - skip:
+      version: " - 3.3.99"
       features: [arbitrary_key]
+      reason: "Status Counter was introduced in v3.4.0"
   - do:
       nodes.info: {}
   - set:
@@ -25,11 +27,14 @@
   - is_true:  nodes.$node_id.indices.segments
   - is_true:  nodes.$node_id.indices.translog
   - is_true:  nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.status_counter
 
 ---
 "Metric - _all":
   - skip:
       features: [arbitrary_key]
+      version: " - 3.3.99"
+      reason: "Status Counter was introduced in v3.4.0"
   - do:
       nodes.info: {}
   - set:
@@ -53,11 +58,14 @@
   - is_true:  nodes.$node_id.indices.segments
   - is_true:  nodes.$node_id.indices.translog
   - is_true:  nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.status_counter
 
 ---
 "Metric - indices _all":
   - skip:
       features: [arbitrary_key]
+      version: " - 3.3.99"
+      reason: "Status Counter was introduced in v3.4.0"
   - do:
       nodes.info: {}
   - set:
@@ -81,11 +89,14 @@
   - is_true:  nodes.$node_id.indices.segments
   - is_true:  nodes.$node_id.indices.translog
   - is_true:  nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.status_counter
 
 ---
 "Metric - one":
   - skip:
       features: [arbitrary_key]
+      version: " - 3.3.99"
+      reason: "Status Counter was introduced in v3.4.0"
   - do:
       nodes.info: {}
   - set:
@@ -109,11 +120,14 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
+  - is_true:   nodes.$node_id.indices.status_counter
 
 ---
 "Metric - multi":
   - skip:
       features: [arbitrary_key]
+      version: " - 3.3.99"
+      reason: "Status Counter was introduced in v3.4.0"
   - do:
       nodes.info: {}
   - set:
@@ -137,12 +151,13 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
+  - is_true:   nodes.$node_id.indices.status_counter
 
 ---
 "Metric - indexing doc_status":
   - skip:
-      version: " - 2.10.99"
-      reason: "Doc Status Stats were introduced in v2.11.0"
+      version: " - 3.3.99"
+      reason: "Doc Status Stats were introduced in v2.11.0 and moved to Status Counter in v3.4.0"
   - do:
       nodes.info: {}
   - set:
@@ -154,7 +169,6 @@
   - is_false: nodes.$node_id.indices.docs
   - is_false: nodes.$node_id.indices.store
   - is_true: nodes.$node_id.indices.indexing
-  - is_true: nodes.$node_id.indices.indexing.doc_status
   - is_false: nodes.$node_id.indices.get
   - is_false: nodes.$node_id.indices.search
   - is_false: nodes.$node_id.indices.merges
@@ -167,6 +181,9 @@
   - is_false: nodes.$node_id.indices.segments
   - is_false: nodes.$node_id.indices.translog
   - is_false: nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.status_counter
+  - is_true:  nodes.$node_id.indices.status_counter.doc_status
+  - is_true:  nodes.$node_id.indices.status_counter.search_response_status
 
 ---
 "Metric - recovery":

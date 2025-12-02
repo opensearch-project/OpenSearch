@@ -7,11 +7,14 @@
  */
 package org.opensearch.transport.grpc.proto.request.search.query;
 
+import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.Operator;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.protobufs.MultiMatchQuery;
+import org.opensearch.transport.grpc.proto.request.search.OperatorProtoUtils;
+import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -43,6 +46,7 @@ class MultiMatchQueryBuilderProtoUtils {
         MultiMatchQueryBuilder.Type type = MultiMatchQueryBuilder.DEFAULT_TYPE;
         String analyzer = null;
         int slop = MultiMatchQueryBuilder.DEFAULT_PHRASE_SLOP;
+        Fuzziness fuzziness = null;
         int prefixLength = MultiMatchQueryBuilder.DEFAULT_PREFIX_LENGTH;
         int maxExpansions = MultiMatchQueryBuilder.DEFAULT_MAX_EXPANSIONS;
         Operator operator = MultiMatchQueryBuilder.DEFAULT_OPERATOR;
@@ -100,6 +104,15 @@ class MultiMatchQueryBuilderProtoUtils {
             slop = multiMatchQueryProto.getSlop();
         }
 
+        if (multiMatchQueryProto.hasFuzziness()) {
+            org.opensearch.protobufs.Fuzziness fuzzinessProto = multiMatchQueryProto.getFuzziness();
+            if (fuzzinessProto.hasString()) {
+                fuzziness = Fuzziness.build(fuzzinessProto.getString());
+            } else if (fuzzinessProto.hasInt32()) {
+                fuzziness = Fuzziness.fromEdits(fuzzinessProto.getInt32());
+            }
+        }
+
         if (multiMatchQueryProto.hasPrefixLength()) {
             prefixLength = multiMatchQueryProto.getPrefixLength();
         }
@@ -108,17 +121,9 @@ class MultiMatchQueryBuilderProtoUtils {
             maxExpansions = multiMatchQueryProto.getMaxExpansions();
         }
 
-        if (multiMatchQueryProto.hasOperator()) {
-            switch (multiMatchQueryProto.getOperator()) {
-                case OPERATOR_AND:
-                    operator = Operator.AND;
-                    break;
-                case OPERATOR_OR:
-                    operator = Operator.OR;
-                    break;
-                default:
-                    // Keep default
-            }
+        if (multiMatchQueryProto.hasOperator()
+            && multiMatchQueryProto.getOperator() != org.opensearch.protobufs.Operator.OPERATOR_UNSPECIFIED) {
+            operator = OperatorProtoUtils.fromEnum(multiMatchQueryProto.getOperator());
         }
 
         if (multiMatchQueryProto.hasMinimumShouldMatch()) {
@@ -129,8 +134,10 @@ class MultiMatchQueryBuilderProtoUtils {
             }
         }
 
-        if (multiMatchQueryProto.hasFuzzyRewrite()) {
-            fuzzyRewrite = multiMatchQueryProto.getFuzzyRewrite();
+        if (multiMatchQueryProto.hasFuzzyRewrite()
+            && multiMatchQueryProto
+                .getFuzzyRewrite() != org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED) {
+            fuzzyRewrite = ProtobufEnumUtils.convertToString(multiMatchQueryProto.getFuzzyRewrite());
         }
 
         if (multiMatchQueryProto.hasTieBreaker()) {
@@ -177,6 +184,7 @@ class MultiMatchQueryBuilderProtoUtils {
         MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder(value).fields(fieldsBoosts)
             .type(type)
             .analyzer(analyzer)
+            .fuzziness(fuzziness)
             .fuzzyRewrite(fuzzyRewrite)
             .maxExpansions(maxExpansions)
             .minimumShouldMatch(minimumShouldMatch)

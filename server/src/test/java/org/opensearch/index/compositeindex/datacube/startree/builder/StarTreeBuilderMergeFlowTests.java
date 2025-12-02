@@ -2306,47 +2306,6 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         return starTreeValues;
     }
 
-    private StarTreeValues getStarTreeValuesWithKeywords(
-        SortedSetDocValues dimList,
-        SortedSetDocValues dimList2,
-        SortedSetDocValues dimList4,
-        SortedSetDocValues dimList3,
-        SortedNumericDocValues metricsList,
-        SortedNumericDocValues metricsList1,
-        StarTreeField sf,
-        String number
-    ) {
-        Map<String, Supplier<StarTreeValuesIterator>> dimDocIdSetIterators = Map.of(
-            "field1_minute",
-            () -> new SortedSetStarTreeValuesIterator(dimList),
-            "field1_half-hour",
-            () -> new SortedSetStarTreeValuesIterator(dimList4),
-            "field1_hour",
-            () -> new SortedSetStarTreeValuesIterator(dimList2),
-            "field3",
-            () -> new SortedSetStarTreeValuesIterator(dimList3)
-        );
-        Map<String, Supplier<StarTreeValuesIterator>> metricDocIdSetIterators = new LinkedHashMap<>();
-
-        metricDocIdSetIterators.put(
-            fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-                sf.getName(),
-                "field2",
-                sf.getMetrics().get(0).getMetrics().get(0).getTypeName()
-            ),
-            () -> new SortedNumericStarTreeValuesIterator(metricsList)
-        );
-        metricDocIdSetIterators.put(
-            fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-                sf.getName(),
-                "field2",
-                sf.getMetrics().get(0).getMetrics().get(1).getTypeName()
-            ),
-            () -> new SortedNumericStarTreeValuesIterator(metricsList1)
-        );
-        return new StarTreeValues(sf, null, dimDocIdSetIterators, metricDocIdSetIterators, Map.of(SEGMENT_DOCS_COUNT, number), null);
-    }
-
     private StarTreeValues getStarTreeValues(
         List<Long> dimList1,
         List<Integer> docsWithField1,

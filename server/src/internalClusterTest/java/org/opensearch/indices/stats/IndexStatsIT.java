@@ -380,7 +380,6 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0L));
 
         client().admin().indices().prepareClearCache().execute().actionGet();
-        Thread.sleep(100); // Make sure the filter cache entries have been removed...
         assertBusy(() -> {
             NodesStatsResponse postClearNodesStats = client().admin()
                 .cluster()

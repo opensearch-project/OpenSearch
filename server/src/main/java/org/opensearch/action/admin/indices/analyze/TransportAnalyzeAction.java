@@ -46,6 +46,7 @@ import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -149,6 +150,19 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             : indexService.getIndexSettings().getMaxTokenCount();
 
         return analyze(request, indicesService.getAnalysis(), indexService, maxTokenCount);
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(AnalyzeAction.Request request) {
+        if (request.index() == null) {
+            // The analyze action has one special property that distinguishes it from all other actions extending
+            // TransportSingleShardAction: it can be executed without an index. This is a bit surprising, as we do
+            // not have a shard, while being in a class called "SingleShardAction". For this, the TransportAnalyzeAction
+            // does use a number of special cases. Thus, we also need to add a special case for the index resolution here.
+            return ResolvedIndices.of(ResolvedIndices.Local.of());
+        } else {
+            return super.resolveIndices(request);
+        }
     }
 
     public static AnalyzeAction.Response analyze(

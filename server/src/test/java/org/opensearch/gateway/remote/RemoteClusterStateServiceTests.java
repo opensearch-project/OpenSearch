@@ -3919,30 +3919,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         when(blobStoreRepository.getCompressor()).thenReturn(compressor);
     }
 
-    private ClusterMetadataManifest generateV1ClusterMetadataManifest(
-        String clusterUUID,
-        String previousClusterUUID,
-        String stateUUID,
-        List<UploadedIndexMetadata> uploadedIndexMetadata,
-        String globalMetadataFileName,
-        Boolean isUUIDCommitted
-    ) {
-        return ClusterMetadataManifest.builder()
-            .indices(uploadedIndexMetadata)
-            .clusterTerm(1L)
-            .stateVersion(1L)
-            .stateUUID(stateUUID)
-            .clusterUUID(clusterUUID)
-            .nodeId("nodeA")
-            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
-            .previousClusterUUID(previousClusterUUID)
-            .committed(true)
-            .clusterUUIDCommitted(isUUIDCommitted)
-            .globalMetadataFileName(globalMetadataFileName)
-            .codecVersion(CODEC_V1)
-            .build();
-    }
-
     private ClusterMetadataManifest generateClusterMetadataManifest(
         String clusterUUID,
         String previousClusterUUID,

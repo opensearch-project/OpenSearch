@@ -37,9 +37,7 @@ import org.opensearch.Version;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.compress.CompressorRegistry;
 
 import java.io.IOException;
 
@@ -174,17 +172,5 @@ public final class TransportLogger {
             }
         }
         return sb.toString();
-    }
-
-    private static StreamInput decompressingStream(byte status, StreamInput streamInput) throws IOException {
-        if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
-            try {
-                return new InputStreamStreamInput(CompressorRegistry.defaultCompressor().threadLocalInputStream(streamInput));
-            } catch (IllegalArgumentException e) {
-                throw new IllegalStateException("stream marked as compressed, but is missing deflate header");
-            }
-        } else {
-            return streamInput;
-        }
     }
 }

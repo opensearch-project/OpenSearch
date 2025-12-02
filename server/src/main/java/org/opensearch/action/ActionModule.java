@@ -596,7 +596,7 @@ public class ActionModule extends AbstractModule {
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         for (ActionPlugin plugin : actionPlugins) {
-            UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
+            UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext(), headers);
             if (newRestWrapper != null) {
                 logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
                 if (restWrapper != null) {
@@ -848,11 +848,11 @@ public class ActionModule extends AbstractModule {
         List<AbstractCatAction> catActions = new ArrayList<>();
         List<AbstractListAction> listActions = new ArrayList<>();
         Consumer<RestHandler> registerHandler = handler -> {
-            if (handler instanceof AbstractCatAction) {
-                if (handler instanceof AbstractListAction && ((AbstractListAction) handler).isActionPaginated()) {
-                    listActions.add((AbstractListAction) handler);
+            if (handler instanceof AbstractCatAction abstractCatAction) {
+                if (handler instanceof AbstractListAction abstractListAction && abstractListAction.isActionPaginated()) {
+                    listActions.add(abstractListAction);
                 } else {
-                    catActions.add((AbstractCatAction) handler);
+                    catActions.add(abstractCatAction);
                 }
             }
             restController.registerHandler(handler);
@@ -1266,8 +1266,8 @@ public class ActionModule extends AbstractModule {
          * @return the corresponding {@link RestSendToExtensionAction} if it is registered, null otherwise.
          */
         public RestSendToExtensionAction get(RestHandler.Route route) {
-            if (route instanceof NamedRoute) {
-                return routeRegistry.get((NamedRoute) route);
+            if (route instanceof NamedRoute namedRoute) {
+                return routeRegistry.get(namedRoute);
             }
             // Only NamedRoutes are map keys so any other route is not in the map
             return null;
