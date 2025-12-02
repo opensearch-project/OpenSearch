@@ -76,7 +76,7 @@ public class TraceUtil {
     }
 
     /**
-     * Checks if a string contains only valid hexadecimal characters (0-9, a-f, A-F)
+     * Checks if a string contains only valid hexadecimal characters (0-9, a-f)
      * @param str string to validate
      * @return true if string contains only hex characters, false otherwise
      */
