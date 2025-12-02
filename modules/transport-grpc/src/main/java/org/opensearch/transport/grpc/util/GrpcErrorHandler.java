@@ -97,7 +97,10 @@ public class GrpcErrorHandler {
             case IOException ioException -> {
                 return Status.INTERNAL.withDescription(ExceptionsHelper.stackTrace(ioException)).asRuntimeException();
             }
-
+            case null -> {
+                logger.warn("Unexpected null exception type, treating as INTERNAL error");
+                return Status.INTERNAL.withDescription("Unexpected null exception").asRuntimeException();
+            }
             // ========== 5. Unknown/Unmapped Exceptions ==========
             // Safety fallback for any unexpected exception to {@code Status.INTERNAL} with full debugging info
             default -> {

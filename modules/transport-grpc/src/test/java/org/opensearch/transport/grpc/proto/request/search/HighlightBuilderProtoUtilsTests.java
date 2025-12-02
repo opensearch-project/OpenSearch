@@ -128,7 +128,7 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setNoMatchSize(200)
             .setForceSource(true)
             .setPhraseLimit(10)
-            .setMaxAnalyzedOffset(1000)
+            .setMaxAnalyzerOffset(1000)
             .build();
 
         HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
@@ -237,7 +237,7 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setOptions(
                 ObjectMap.newBuilder().putFields("field_key", ObjectMap.Value.newBuilder().setString("field_value").build()).build()
             )
-            .setMaxAnalyzedOffset(500)
+            .setMaxAnalyzerOffset(500)
             .setHighlightQuery(QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build())
             .build();
 

@@ -179,3 +179,64 @@ and the respective certificates
 ```bash
     openssl genpkey -algorithm EC -out key_EC_enc_pbkdf2.pem -pkeyopt ec_paramgen_curve:secp384r1 -pkeyopt ec_param_enc:named_curve -pass stdin
 ```
+
+```bash
+export KEY_PW='6!6428DQXwPpi7@$ggeg/='
+export LIB_PATH="/path/to/lib/folder"
+export STORE_PW='testnode'
+```
+
+```bash
+for key_file in key*pbkdf2.pem; do
+    # generate self-signed certificate
+    openssl req -x509 -key "$key_file" -sha256 -days 3650 -subj "/CN=OpenSearch Test Node" -passin pass:"$KEY_PW" \
+        -addext "subjectAltName=DNS:localhost,DNS:localhost.localdomain,DNS:localhost4,DNS:localhost4.localdomain4,DNS:localhost6,DNS:localhost6.localdomain6,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1" \
+        -out ca_temp.pem
+    if [ $? -ne 0 ]; then
+        echo "An error occurred while generating cert for $key_file"
+        exit 1
+    fi
+    # create a new P12 keystore with key + cert
+    algo=$(echo "$key_file" | sed -n 's/key_\(.*\)_enc_pbkdf2.pem/\1/p')
+    if [ -z "$algo" ]; then
+        echo "Error: Failed to extract algorithm from filename: $key_file" >&2
+        echo "Expected pattern: key_<algorithm>_enc_pbkdf2.pem (e.g., key_rsa_enc_pbkdf2.pem)" >&2
+        exit 1
+    fi
+    openssl pkcs12 -export -inkey "$key_file" -in ca_temp.pem -name "testnode_${algo}_pbkdf2" -out testnode.p12 \
+        -passin pass:"$KEY_PW" \
+        -passout pass:"$STORE_PW"
+    if [ $? -ne 0 ]; then
+        echo "An error occurred while adding key + cert to P12 keystore for $key_file"
+        exit 1
+    fi
+    # migrate from P12 to BCFKS keystore (keytool 21.0.2)
+    keytool -importkeystore -noprompt \
+        -srckeystore testnode.p12 \
+        -srcstoretype PKCS12 \
+        -srcstorepass "$STORE_PW" \
+        -destkeystore testnode.bcfks \
+        -deststoretype BCFKS \
+        -deststorepass "$STORE_PW" \
+        -providername BCFIPS \
+        -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
+        -providerpath $LIB_PATH/bc-fips-2.0.0.jar
+    if [ $? -ne 0 ]; then
+        echo "An error occurred while migrating to BCFKS for $key_file"
+        exit 1
+    fi
+    # import from P12 to JKS keystore (keytool 21.0.2)
+    keytool -importkeystore -noprompt \
+        -srckeystore testnode.p12 \
+        -srcstoretype PKCS12 \
+        -srcstorepass "$STORE_PW" \
+        -destkeystore testnode.jks \
+        -deststoretype JKS \
+        -deststorepass "$STORE_PW"
+    if [ $? -ne 0 ]; then
+        echo "An error occurred while migrating to JKS for $key_file"
+        exit 1
+    fi
+done
+rm ca_temp.pem testnode.p12
+```
