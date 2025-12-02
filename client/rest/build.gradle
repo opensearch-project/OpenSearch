@@ -112,7 +112,6 @@ thirdPartyAudit {
       'org.apache.log4j.Level',
       'org.apache.log4j.Logger',
       'org.apache.log4j.Priority',
-      //commons-logging provided dependencies
       'org.apache.logging.log4j.Level',
       'org.apache.logging.log4j.LogManager',
       'org.apache.logging.log4j.Marker',
@@ -123,6 +122,7 @@ thirdPartyAudit {
       'org.apache.logging.log4j.spi.LoggerContext',
       'org.apache.logging.log4j.spi.LoggerContextFactory',
       'org.apache.logging.log4j.util.StackLocatorUtil',
+      //commons-logging provided dependencies
       'javax.servlet.ServletContextEvent',
       'javax.servlet.ServletContextListener',
       'io.micrometer.context.ContextAccessor',
