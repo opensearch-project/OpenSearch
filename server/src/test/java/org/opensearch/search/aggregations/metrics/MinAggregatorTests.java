@@ -835,4 +835,109 @@ public class MinAggregatorTests extends AggregatorTestCase {
         indexReader.close();
         directory.close();
     }
+
+    /**
+     * Property test for result equivalence between skiplist and standard collectors.
+     * Feature: min-aggregator-skiplist, Property 19: Result equivalence
+     * Validates: Requirements 6.2, 6.3, 6.4
+     *
+     * For any set of documents and bucket configuration, the minimum values computed by the
+     * skiplist collector should equal the minimum values computed by the standard collector.
+     */
+    public void testSkiplistResultEquivalence() throws IOException {
+        // Run the property test multiple times with different random data
+        int iterations = 100;
+        for (int iter = 0; iter < iterations; iter++) {
+            // Generate random test parameters
+            int numDocs = randomIntBetween(10, 500);
+            boolean includeNegatives = randomBoolean();
+            boolean includeMissingValues = randomBoolean();
+            double missingValueProbability = includeMissingValues ? randomDoubleBetween(0.1, 0.3, true) : 0.0;
+
+            // Generate random document values
+            List<Long> docValues = new ArrayList<>();
+            for (int i = 0; i < numDocs; i++) {
+                if (random().nextDouble() < missingValueProbability) {
+                    // Skip this document (no value)
+                    docValues.add(null);
+                } else {
+                    long value;
+                    if (includeNegatives) {
+                        value = randomLongBetween(-10000, 10000);
+                    } else {
+                        value = randomLongBetween(0, 10000);
+                    }
+                    docValues.add(value);
+                }
+            }
+
+            // Test with skiplist-enabled field (single-valued with doc values and points)
+            Directory skiplistDir = newDirectory();
+            IndexWriterConfig skiplistConfig = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+            IndexWriter skiplistWriter = new IndexWriter(skiplistDir, skiplistConfig);
+
+            for (Long value : docValues) {
+                Document doc = new Document();
+                if (value != null) {
+                    doc.add(SortedNumericDocValuesField.indexedField("number", value));
+                    doc.add(new LongPoint("number", value));
+                }
+                skiplistWriter.addDocument(doc);
+            }
+            skiplistWriter.close();
+
+            // Test with standard field (multi-valued, no points - forces standard collector)
+            Directory standardDir = newDirectory();
+            IndexWriterConfig standardConfig = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+            IndexWriter standardWriter = new IndexWriter(standardDir, standardConfig);
+
+            for (Long value : docValues) {
+                Document doc = new Document();
+                if (value != null) {
+                    // Use SortedNumericDocValuesField to force multi-valued collector
+                    doc.add(new SortedNumericDocValuesField("number", value));
+                }
+                standardWriter.addDocument(doc);
+            }
+            standardWriter.close();
+
+            try (
+                IndexReader skiplistReader = DirectoryReader.open(skiplistDir);
+                IndexReader standardReader = DirectoryReader.open(standardDir)
+            ) {
+                IndexSearcher skiplistSearcher = newSearcher(skiplistReader, true, true);
+                IndexSearcher standardSearcher = newSearcher(standardReader, true, true);
+
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
+                    "number",
+                    NumberFieldMapper.NumberType.LONG
+                );
+                MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number");
+
+                // Execute aggregation with skiplist optimization
+                InternalMin skiplistResult = searchAndReduce(skiplistSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+
+                // Execute aggregation with standard collector
+                InternalMin standardResult = searchAndReduce(standardSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+
+                // Verify results are equivalent
+                assertEquals(
+                    "Iteration " + iter + ": Skiplist and standard collectors should produce the same minimum value",
+                    standardResult.getValue(),
+                    skiplistResult.getValue(),
+                    0.0
+                );
+
+                // Verify both have the same "has value" status
+                assertEquals(
+                    "Iteration " + iter + ": Skiplist and standard collectors should have the same 'has value' status",
+                    AggregationInspectionHelper.hasValue(standardResult),
+                    AggregationInspectionHelper.hasValue(skiplistResult)
+                );
+            }
+
+            skiplistDir.close();
+            standardDir.close();
+        }
+    }
 }
