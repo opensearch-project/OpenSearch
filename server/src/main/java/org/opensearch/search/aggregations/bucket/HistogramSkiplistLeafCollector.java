@@ -35,6 +35,7 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
     private final NumericDocValues values;
     private final DocValuesSkipper skipper;
     private final LeafBucketCollector sub;
+    private final boolean isSubNoOp;
     private final BucketsAggregator aggregator;
 
     /**
@@ -42,7 +43,7 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
      * This allows detection of rounding changes in AutoDateHistogramAggregator.
      */
     private final LongFunction<Rounding.Prepared> preparedRoundingSupplier;
-    private final java.util.function.Supplier<LongKeyedBucketOrds> bucketOrdsSupplier;
+    private final Supplier<LongKeyedBucketOrds> bucketOrdsSupplier;
     private final IncreaseRoundingIfNeeded increaseRoundingIfNeeded;
 
     /**
@@ -75,13 +76,7 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
         LeafBucketCollector sub,
         BucketsAggregator aggregator
     ) {
-        this.values = values;
-        this.skipper = skipper;
-        this.preparedRoundingSupplier = (owningBucketOrd) -> preparedRounding;
-        this.bucketOrdsSupplier = () -> bucketOrds;
-        this.sub = sub;
-        this.aggregator = aggregator;
-        this.increaseRoundingIfNeeded = (owningBucketOrd, rounded) -> {};
+        this(values, skipper, (owningBucketOrd) -> preparedRounding, () -> bucketOrds, sub, aggregator, (owningBucketOrd, rounded) -> {});
     }
 
     /**
@@ -101,6 +96,7 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
         this.preparedRoundingSupplier = preparedRoundingSupplier;
         this.bucketOrdsSupplier = bucketOrdsSupplier;
         this.sub = sub;
+        this.isSubNoOp = (sub == NO_OP_COLLECTOR);
         this.aggregator = aggregator;
         this.increaseRoundingIfNeeded = increaseRoundingIfNeeded;
     }
@@ -199,7 +195,7 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
             }
 
             if (upToSameBucket) {
-                if (sub == NO_OP_COLLECTOR) {
+                if (isSubNoOp) {
                     // stream.count maybe faster when we don't need to handle sub-aggs
                     long count = stream.count(upToExclusive);
                     aggregator.incrementBucketDocCount(upToBucketIndex, count);

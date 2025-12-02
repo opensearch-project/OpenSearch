@@ -438,7 +438,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     sub,
                     FromSingle.this,
                     (owningBucket, rounded) -> increaseRoundingIfNeeded(rounded)  // Pass supplier to allow rounding change
-                                                                                  // detectionincreaseRoundingIfNeeded
                 );
             }
 
