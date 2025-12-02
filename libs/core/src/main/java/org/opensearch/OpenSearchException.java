@@ -328,8 +328,8 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
         if (getCause() != null) {
             StringBuilder sb = new StringBuilder();
             sb.append(toString()).append("; ");
-            if (getCause() instanceof OpenSearchException) {
-                sb.append(((OpenSearchException) getCause()).getDetailedMessage());
+            if (getCause() instanceof OpenSearchException ose) {
+                sb.append(ose.getDetailedMessage());
             } else {
                 sb.append(getCause());
             }
@@ -409,8 +409,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
             headerToXContent(builder, entry.getKey().substring(OPENSEARCH_PREFIX_KEY.length()), entry.getValue());
         }
 
-        if (throwable instanceof OpenSearchException) {
-            OpenSearchException exception = (OpenSearchException) throwable;
+        if (throwable instanceof OpenSearchException exception) {
             exception.metadataToXContent(builder, params);
         }
 
@@ -602,8 +601,8 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
     public static void generateThrowableXContent(XContentBuilder builder, ToXContent.Params params, Throwable t) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
-        if (t instanceof OpenSearchException) {
-            ((OpenSearchException) t).toXContent(builder, params);
+        if (t instanceof OpenSearchException ose) {
+            ose.toXContent(builder, params);
         } else {
             innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
         }
@@ -674,8 +673,8 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
      */
     public OpenSearchException[] guessRootCauses() {
         final Throwable cause = getCause();
-        if (cause != null && cause instanceof OpenSearchException) {
-            return ((OpenSearchException) cause).guessRootCauses();
+        if (cause instanceof OpenSearchException ose) {
+            return ose.guessRootCauses();
         }
         return new OpenSearchException[] { this };
     }
@@ -687,9 +686,9 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
      */
     public static OpenSearchException[] guessRootCauses(Throwable t) {
         Throwable ex = ExceptionsHelper.unwrapCause(t);
-        if (ex instanceof OpenSearchException) {
+        if (ex instanceof OpenSearchException ose) {
             // OpenSearchException knows how to guess its own root cause
-            return ((OpenSearchException) ex).guessRootCauses();
+            return ose.guessRootCauses();
         }
         if (ex instanceof XContentParseException) {
             /*

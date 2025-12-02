@@ -241,8 +241,8 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
         }
 
         private static Double mapValueAsDouble(Object value) {
-            if (value instanceof Double) {
-                return (Double) value;
+            if (value instanceof Double doubleValue) {
+                return doubleValue;
             }
             return Double.valueOf(Objects.toString(value));
         }

@@ -122,4 +122,13 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
         assertFalse("Node should not be set", shardFailure.hasNode());
         assertNotNull("Reason should not be null", shardFailure.getReason());
     }
+
+    public void testToProtoWithNull() throws IOException {
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(null);
+        assertNotNull("ShardFailure should not be null", shardFailure);
+        assertFalse("Index should not be set", shardFailure.hasIndex());
+        assertFalse("Status should not be set", shardFailure.hasStatus());
+        assertFalse("Node should not be set", shardFailure.hasNode());
+        assertFalse("Reason should not be set", shardFailure.hasReason());
+    }
 }

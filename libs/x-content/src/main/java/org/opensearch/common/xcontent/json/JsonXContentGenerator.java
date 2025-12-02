@@ -91,8 +91,8 @@ public class JsonXContentGenerator implements XContentGenerator {
         Objects.requireNonNull(includes, "Including filters must not be null");
         Objects.requireNonNull(excludes, "Excluding filters must not be null");
         this.os = os;
-        if (jsonGenerator instanceof GeneratorBase) {
-            this.base = (GeneratorBase) jsonGenerator;
+        if (jsonGenerator instanceof GeneratorBase generatorBase) {
+            this.base = generatorBase;
         } else {
             this.base = null;
         }
@@ -145,9 +145,9 @@ public class JsonXContentGenerator implements XContentGenerator {
     private JsonGenerator getLowLevelGenerator() {
         if (isFiltered()) {
             JsonGenerator delegate = filter.getDelegate();
-            if (delegate instanceof JsonGeneratorDelegate) {
+            if (delegate instanceof JsonGeneratorDelegate jsonGeneratorDelegate) {
                 // In case of combined inclusion and exclusion filters, we have one and only one another delegating level
-                delegate = ((JsonGeneratorDelegate) delegate).getDelegate();
+                delegate = jsonGeneratorDelegate.getDelegate();
                 assert delegate instanceof JsonGeneratorDelegate == false;
             }
             return delegate;
@@ -439,8 +439,8 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        if (parser instanceof JsonXContentParser) {
-            generator.copyCurrentStructure(((JsonXContentParser) parser).parser);
+        if (parser instanceof JsonXContentParser jsonXContentParser) {
+            generator.copyCurrentStructure(jsonXContentParser.parser);
         } else {
             copyCurrentStructure(this, parser);
         }

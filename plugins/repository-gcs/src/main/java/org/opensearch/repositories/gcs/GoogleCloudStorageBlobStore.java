@@ -57,6 +57,7 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.Streams;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -165,7 +166,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     Map<String, BlobMetadata> listBlobsByPrefix(String path, String prefix) throws IOException {
         final String pathPrefix = buildKey(path, prefix);
         final MapBuilder<String, BlobMetadata> mapBuilder = MapBuilder.newMapBuilder();
-        SocketAccess.doPrivilegedVoidIOException(
+        AccessController.doPrivilegedChecked(
             () -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix))
                 .iterateAll()
                 .forEach(blob -> {
@@ -182,7 +183,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     Map<String, BlobContainer> listChildren(BlobPath path) throws IOException {
         final String pathStr = path.buildAsString();
         final MapBuilder<String, BlobContainer> mapBuilder = MapBuilder.newMapBuilder();
-        SocketAccess.doPrivilegedVoidIOException(
+        AccessController.doPrivilegedChecked(
             () -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr))
                 .iterateAll()
                 .forEach(blob -> {
@@ -208,7 +209,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     boolean blobExists(String blobName) throws IOException {
         final BlobId blobId = BlobId.of(bucketName, blobName);
-        final Blob blob = SocketAccess.doPrivilegedIOException(() -> client().get(blobId));
+        final Blob blob = AccessController.doPrivilegedChecked(() -> client().get(blobId));
         return blob != null;
     }
 
@@ -251,7 +252,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     /**
      * Writes a blob in the specific bucket
-     *  @param inputStream content of the blob to be written
+     * @param inputStream content of the blob to be written
      * @param blobSize    expected size of the blob to be written
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
@@ -290,7 +291,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             : new Storage.BlobWriteOption[0];
         for (int retry = 0; retry < 3; ++retry) {
             try {
-                final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
+                final WriteChannel writeChannel = AccessController.doPrivilegedChecked(() -> client().writer(blobInfo, writeOptions));
                 /*
                  * It is not enough to wrap the call to Streams#copy, we have to wrap the privileged calls too; this is because Streams#copy
                  * is in the stacktrace and is not granted the permissions needed to close and write the channel.
@@ -301,7 +302,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     @Override
                     public int write(final ByteBuffer src) throws IOException {
                         try {
-                            return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                            return AccessController.doPrivilegedChecked(() -> writeChannel.write(src));
                         } catch (final IOException ioe) {
                             final StorageException storageException = (StorageException) ExceptionsHelper.unwrap(
                                 ioe,
@@ -321,7 +322,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
                     @Override
                     public void close() throws IOException {
-                        SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+                        AccessController.doPrivilegedChecked(writeChannel::close);
                     }
                 }), buffer);
                 // We don't track this operation on the http layer as
@@ -369,7 +370,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             final Storage.BlobTargetOption[] targetOptions = failIfAlreadyExists
                 ? new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() }
                 : new Storage.BlobTargetOption[0];
-            SocketAccess.doPrivilegedVoidIOException(() -> client().create(blobInfo, buffer, targetOptions));
+            AccessController.doPrivilegedChecked(() -> client().create(blobInfo, buffer, targetOptions));
             // We don't track this operation on the http layer as
             // we do with the GET/LIST operations since this operations
             // can trigger multiple underlying http requests but only one
@@ -389,7 +390,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param pathStr Name of path to delete
      */
     DeleteResult deleteDirectory(String pathStr) throws IOException {
-        return SocketAccess.doPrivilegedIOException(() -> {
+        return AccessController.doPrivilegedChecked(() -> {
             DeleteResult deleteResult = DeleteResult.ZERO;
             Page<Blob> page = client().list(bucketName, BlobListOption.prefix(pathStr));
             do {
@@ -421,7 +422,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
         final List<BlobId> failedBlobs = Collections.synchronizedList(new ArrayList<>());
         try {
-            SocketAccess.doPrivilegedVoidIOException(() -> {
+            AccessController.doPrivilegedChecked(() -> {
                 final AtomicReference<StorageException> ioe = new AtomicReference<>();
                 final StorageBatch batch = client().batch();
                 for (BlobId blob : blobIdsToDelete) {

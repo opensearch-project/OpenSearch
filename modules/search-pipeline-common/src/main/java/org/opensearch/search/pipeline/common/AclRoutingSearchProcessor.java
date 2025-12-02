@@ -91,16 +91,10 @@ public class AclRoutingSearchProcessor extends AbstractProcessor implements Sear
         query.visit(new QueryBuilderVisitor() {
             @Override
             public void accept(QueryBuilder qb) {
-                if (qb instanceof TermQueryBuilder) {
-                    TermQueryBuilder termQuery = (TermQueryBuilder) qb;
-                    if (aclField.equals(termQuery.fieldName())) {
-                        aclValues.add(termQuery.value().toString());
-                    }
-                } else if (qb instanceof TermsQueryBuilder) {
-                    TermsQueryBuilder termsQuery = (TermsQueryBuilder) qb;
-                    if (aclField.equals(termsQuery.fieldName())) {
-                        termsQuery.values().forEach(value -> aclValues.add(value.toString()));
-                    }
+                if (qb instanceof TermQueryBuilder termQuery && aclField.equals(termQuery.fieldName())) {
+                    aclValues.add(termQuery.value().toString());
+                } else if (qb instanceof TermsQueryBuilder termsQuery && aclField.equals(termsQuery.fieldName())) {
+                    termsQuery.values().forEach(value -> aclValues.add(value.toString()));
                 }
             }
 

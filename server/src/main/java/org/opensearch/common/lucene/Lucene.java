@@ -91,6 +91,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.codec.CriteriaBasedCodec;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.NonPruningSortedSetOrdinalsIndexFieldData.NonPruningSortField;
 import org.opensearch.search.sort.SortedWiderNumericSortField;
@@ -939,9 +940,22 @@ public class Lucene {
                     // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
                     // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
                     // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
-                    final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+
+                    // With CAS enabled segments, hard deletes can also be present, so correcting numDocs.
+                    // We are using attribute value here to identify whether segment has CAS enabled or not.
+                    int numDocs;
+                    if (isContextAwareEnabled(segmentReader)) {
+                        numDocs = popCount(hardLiveDocs);
+                    } else {
+                        numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+                    }
+
                     assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
                     return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+                }
+
+                private boolean isContextAwareEnabled(SegmentReader reader) {
+                    return reader.getSegmentInfo().info.getAttribute(CriteriaBasedCodec.BUCKET_NAME) != null;
                 }
             });
         }

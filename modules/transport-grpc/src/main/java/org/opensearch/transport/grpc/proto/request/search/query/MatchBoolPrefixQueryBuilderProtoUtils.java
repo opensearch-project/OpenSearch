@@ -57,7 +57,8 @@ class MatchBoolPrefixQueryBuilderProtoUtils {
             analyzer = matchBoolPrefixQueryProto.getAnalyzer();
         }
 
-        if (matchBoolPrefixQueryProto.getOperator() != org.opensearch.protobufs.Operator.OPERATOR_UNSPECIFIED) {
+        if (matchBoolPrefixQueryProto.hasOperator()
+            && matchBoolPrefixQueryProto.getOperator() != org.opensearch.protobufs.Operator.OPERATOR_UNSPECIFIED) {
             operator = OperatorProtoUtils.fromEnum(matchBoolPrefixQueryProto.getOperator());
         }
 

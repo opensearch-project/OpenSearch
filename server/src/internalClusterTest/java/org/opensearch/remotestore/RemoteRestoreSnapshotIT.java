@@ -26,6 +26,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
@@ -99,6 +100,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+@SuppressForbidden(reason = "Need to fix: https://github.com/opensearch-project/OpenSearch/issues/14324")
 public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     public RemoteRestoreSnapshotIT(Settings nodeSettings) {

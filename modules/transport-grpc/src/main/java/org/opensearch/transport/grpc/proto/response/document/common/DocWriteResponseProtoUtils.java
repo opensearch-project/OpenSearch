@@ -10,8 +10,6 @@ package org.opensearch.transport.grpc.proto.response.document.common;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.protobufs.Id;
-import org.opensearch.protobufs.NullValue;
 import org.opensearch.protobufs.ResponseItem;
 import org.opensearch.protobufs.ShardInfo;
 
@@ -43,10 +41,8 @@ public class DocWriteResponseProtoUtils {
         responseItem.setXIndex(response.getIndex());
 
         // Handle document ID (can be null in some cases)
-        if (response.getId().isEmpty()) {
-            responseItem.setXId(Id.newBuilder().setNullValue(NullValue.NULL_VALUE_NULL).build());
-        } else {
-            responseItem.setXId(Id.newBuilder().setString(response.getId()).build());
+        if (response.getId() != null && !response.getId().isEmpty()) {
+            responseItem.setXId(response.getId());
         }
 
         // Set document version

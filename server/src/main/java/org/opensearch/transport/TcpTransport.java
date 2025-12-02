@@ -970,14 +970,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final long messagesSent = statsTracker.getMessagesSent();
         final long messagesReceived = statsTracker.getMessagesReceived();
         final long bytesRead = statsTracker.getBytesRead();
-        return new TransportStats(
-            acceptedChannels.size(),
-            outboundConnectionCount.get(),
-            messagesReceived,
-            bytesRead,
-            messagesSent,
-            bytesWritten
-        );
+        return new TransportStats.Builder().serverOpen(acceptedChannels.size())
+            .totalOutboundConnections(outboundConnectionCount.get())
+            .rxCount(messagesReceived)
+            .rxSize(bytesRead)
+            .txCount(messagesSent)
+            .txSize(bytesWritten)
+            .build();
     }
 
     /**

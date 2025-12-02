@@ -909,13 +909,29 @@ public class RestoreService implements ClusterStateApplier {
                             .routingTable()
                             .allShardsSatisfyingPredicate(isRemoteSnapshotShard);
 
-                        long totalRestoredRemoteIndexesSize = shardsIterator.getShardRoutings()
-                            .stream()
-                            .map(clusterInfo::getShardSize)
-                            .mapToLong(Long::longValue)
-                            .sum();
+                        long totalRestoredRemoteIndicesSize = 0;
+                        int missingSizeCount = 0;
+                        List<ShardRouting> routings = shardsIterator.getShardRoutings();
 
-                        if (totalRestoredRemoteIndexesSize + totalRestorableRemoteIndexesSize > remoteDataToFileCacheRatio
+                        for (ShardRouting shardRouting : routings) {
+                            Long shardSize = clusterInfo.getShardSize(shardRouting);
+                            if (shardSize != null) {
+                                totalRestoredRemoteIndicesSize += shardSize;
+                            } else {
+                                missingSizeCount++;
+                            }
+                        }
+
+                        if (missingSizeCount > 0) {
+                            logger.warn(
+                                "Size information unavailable for {} out of {} remote snapshot shards. "
+                                    + "File cache validation will use available data only.",
+                                missingSizeCount,
+                                routings.size()
+                            );
+                        }
+
+                        if (totalRestoredRemoteIndicesSize + totalRestorableRemoteIndexesSize > remoteDataToFileCacheRatio
                             * totalNodeFileCacheSize) {
                             throw new SnapshotRestoreException(
                                 snapshot,

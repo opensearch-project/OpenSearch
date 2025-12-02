@@ -58,12 +58,28 @@ public class FlushStats implements Writeable, ToXContentFragment {
 
     }
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new FlushStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private FlushStats(Builder builder) {
+        this.total = builder.total;
+        this.periodic = builder.periodic;
+        this.totalTimeInMillis = builder.totalTimeInMillis;
+    }
+
     public FlushStats(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
         periodic = in.readVLong();
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public FlushStats(long total, long periodic, long totalTimeInMillis) {
         this.total = total;
         this.periodic = periodic;
@@ -115,6 +131,42 @@ public class FlushStats implements Writeable, ToXContentFragment {
      */
     public TimeValue getTotalTime() {
         return new TimeValue(totalTimeInMillis);
+    }
+
+    /**
+     * Builder for the {@link FlushStats} class.
+     * Provides a fluent API for constructing a FlushStats object.
+     */
+    public static class Builder {
+        private long total = 0;
+        private long periodic = 0;
+        private long totalTimeInMillis = 0;
+
+        public Builder() {}
+
+        public Builder total(long total) {
+            this.total = total;
+            return this;
+        }
+
+        public Builder periodic(long periodic) {
+            this.periodic = periodic;
+            return this;
+        }
+
+        public Builder totalTimeInMillis(long time) {
+            this.totalTimeInMillis = time;
+            return this;
+        }
+
+        /**
+         * Creates a {@link FlushStats} object from the builder's current state.
+         *
+         * @return A new FlushStats instance.
+         */
+        public FlushStats build() {
+            return new FlushStats(this);
+        }
     }
 
     @Override

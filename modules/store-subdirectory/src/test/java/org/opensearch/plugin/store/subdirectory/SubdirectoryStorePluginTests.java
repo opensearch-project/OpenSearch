@@ -20,6 +20,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -67,7 +68,8 @@ public class SubdirectoryStorePluginTests extends OpenSearchTestCase {
             SubdirectoryStorePluginTests.newFSDirectory(path.resolve("index")),
             new DummyShardLock(shardId),
             Store.OnClose.EMPTY,
-            new ShardPath(false, path, path, shardId)
+            new ShardPath(false, path, path, shardId),
+            new FsDirectoryFactory()
         );
 
         long initialStoreSize = 0;

@@ -101,7 +101,86 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
         final String url = "/stream/";
 
         final ToXContent[] chunks = newChunks(responseString);
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+        final HttpServerTransport.Dispatcher dispatcher = createStreamingDispatcher(url, responseString);
+
+        try (
+            ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(Settings.EMPTY),
+                NoopTracer.INSTANCE
+            )
+        ) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+
+            try (ReactorHttpClient client = ReactorHttpClient.create(false)) {
+                HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
+                final FullHttpResponse response = client.stream(remoteAddress.address(), request, Arrays.stream(chunks));
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.OK));
+                    byte[] bytes = new byte[response.content().readableBytes()];
+                    response.content().readBytes(bytes);
+                    assertThat(new String(bytes, StandardCharsets.UTF_8), equalTo(Arrays.stream(newChunks(responseString)).map(s -> {
+                        try (XContentBuilder builder = XContentType.JSON.contentBuilder()) {
+                            return s.toXContent(builder, ToXContent.EMPTY_PARAMS).toString();
+                        } catch (final IOException ex) {
+                            throw new UncheckedIOException(ex);
+                        }
+                    }).collect(Collectors.joining("\r\n", "", "\r\n"))));
+                } finally {
+                    response.release();
+                }
+            }
+        }
+    }
+
+    public void testConnectionsGettingClosedForStreamingRequests() throws InterruptedException {
+        final String responseString = randomAlphaOfLength(4 * 1024);
+        final String url = "/stream/";
+
+        final ToXContent[] chunks = newChunks(responseString);
+        final HttpServerTransport.Dispatcher dispatcher = createStreamingDispatcher(url, responseString);
+
+        try (
+            ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(Settings.EMPTY),
+                NoopTracer.INSTANCE
+            );
+            ReactorHttpClient client = ReactorHttpClient.create(false)
+        ) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
+            long numRequests = randomLongBetween(5L, 15L);
+            for (int i = 0; i < numRequests; i++) {
+                logger.info("Sending request {}/{}", i + 1, numRequests);
+                final FullHttpResponse response = client.stream(remoteAddress.address(), request, Arrays.stream(chunks));
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.OK));
+                } finally {
+                    response.release();
+                }
+            }
+            assertThat(transport.stats().getServerOpen(), equalTo(0L));
+            assertThat(transport.stats().getTotalOpen(), equalTo(numRequests));
+        }
+    }
+
+    private HttpServerTransport.Dispatcher createStreamingDispatcher(String url, String responseString) {
+        return new HttpServerTransport.Dispatcher() {
             @Override
             public Optional<RestHandler> dispatchHandler(String uri, String rawPath, Method method, Map<String, String> params) {
                 return Optional.of(new RestHandler() {
@@ -161,42 +240,6 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
             }
 
         };
-
-        try (
-            ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
-                Settings.EMPTY,
-                networkService,
-                bigArrays,
-                threadPool,
-                xContentRegistry(),
-                dispatcher,
-                clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY),
-                NoopTracer.INSTANCE
-            )
-        ) {
-            transport.start();
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-
-            try (ReactorHttpClient client = ReactorHttpClient.create(false)) {
-                HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
-                final FullHttpResponse response = client.stream(remoteAddress.address(), request, Arrays.stream(chunks));
-                try {
-                    assertThat(response.status(), equalTo(HttpResponseStatus.OK));
-                    byte[] bytes = new byte[response.content().readableBytes()];
-                    response.content().readBytes(bytes);
-                    assertThat(new String(bytes, StandardCharsets.UTF_8), equalTo(Arrays.stream(newChunks(responseString)).map(s -> {
-                        try (XContentBuilder builder = XContentType.JSON.contentBuilder()) {
-                            return s.toXContent(builder, ToXContent.EMPTY_PARAMS).toString();
-                        } catch (final IOException ex) {
-                            throw new UncheckedIOException(ex);
-                        }
-                    }).collect(Collectors.joining("\r\n", "", "\r\n"))));
-                } finally {
-                    response.release();
-                }
-            }
-        }
     }
 
     private static ToXContent[] newChunks(final String responseString) {

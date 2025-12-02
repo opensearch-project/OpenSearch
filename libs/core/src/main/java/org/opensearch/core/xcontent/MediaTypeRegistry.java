@@ -291,8 +291,7 @@ public final class MediaTypeRegistry {
      */
     @Deprecated
     public static MediaType xContentType(BytesReference bytes) {
-        if (bytes instanceof BytesArray) {
-            final BytesArray array = (BytesArray) bytes;
+        if (bytes instanceof BytesArray array) {
             return mediaTypeFromBytes(array.array(), array.offset(), array.length());
         }
         try {

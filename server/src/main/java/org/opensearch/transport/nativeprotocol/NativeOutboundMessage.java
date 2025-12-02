@@ -96,12 +96,11 @@ public abstract class NativeOutboundMessage extends NetworkMessage {
 
     protected BytesReference writeMessage(CompressibleBytesOutputStream stream) throws IOException {
         final BytesReference zeroCopyBuffer;
-        if (message instanceof BytesTransportRequest) {
-            BytesTransportRequest bRequest = (BytesTransportRequest) message;
-            bRequest.writeThin(stream);
-            zeroCopyBuffer = bRequest.bytes();
-        } else if (message instanceof RemoteTransportException) {
-            stream.writeException((RemoteTransportException) message);
+        if (message instanceof BytesTransportRequest bytesTransportRequest) {
+            bytesTransportRequest.writeThin(stream);
+            zeroCopyBuffer = bytesTransportRequest.bytes();
+        } else if (message instanceof RemoteTransportException remoteTransportException) {
+            stream.writeException(remoteTransportException);
             zeroCopyBuffer = BytesArray.EMPTY;
         } else {
             message.writeTo(stream);

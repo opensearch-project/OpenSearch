@@ -502,6 +502,77 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testParseProtoWithDerivedFieldsWithOptionalProperties() throws IOException {
+        // Create a protobuf SearchRequestBody with derived fields including optional properties
+        ObjectMap properties = ObjectMap.newBuilder()
+            .putFields("nested_field1", ObjectMap.Value.newBuilder().setString("text").build())
+            .putFields("nested_field2", ObjectMap.Value.newBuilder().setString("keyword").build())
+            .build();
+
+        Map<String, DerivedField> derivedFieldsMap = new HashMap<>();
+        derivedFieldsMap.put(
+            "derived_field_with_properties",
+            DerivedField.newBuilder()
+                .setType("object")
+                .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("emit(doc['field'].value)").build()).build())
+                .setProperties(properties)
+                .setPrefilterField("source_field")
+                .setFormat("yyyy-MM-dd")
+                .setIgnoreMalformed(true)
+                .build()
+        );
+        derivedFieldsMap.put(
+            "simple_derived_field",
+            DerivedField.newBuilder()
+                .setType("number")
+                .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
+                .build()
+        );
+
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().putAllDerived(derivedFieldsMap).build();
+
+        // Create a SearchSourceBuilder to populate
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        // Call the method under test
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        // Verify the result
+        assertNotNull("DerivedFields should not be null", searchSourceBuilder.getDerivedFields());
+        assertEquals("Should have 2 derived fields", 2, searchSourceBuilder.getDerivedFields().size());
+
+        // Find the derived field with properties
+        org.opensearch.index.mapper.DerivedField fieldWithProps = searchSourceBuilder.getDerivedFields()
+            .stream()
+            .filter(f -> f.getName().equals("derived_field_with_properties"))
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull("Should find derived_field_with_properties", fieldWithProps);
+        assertEquals("Type should match", "object", fieldWithProps.getType());
+        assertNotNull("Properties should not be null", fieldWithProps.getProperties());
+        assertEquals("Should have 2 properties", 2, fieldWithProps.getProperties().size());
+        assertEquals("nested_field1 type should match", "text", fieldWithProps.getProperties().get("nested_field1"));
+        assertEquals("nested_field2 type should match", "keyword", fieldWithProps.getProperties().get("nested_field2"));
+        assertEquals("Prefilter field should match", "source_field", fieldWithProps.getPrefilterField());
+        assertEquals("Format should match", "yyyy-MM-dd", fieldWithProps.getFormat());
+        assertTrue("Ignore malformed should be true", fieldWithProps.getIgnoreMalformed());
+
+        // Find the simple derived field
+        org.opensearch.index.mapper.DerivedField simpleField = searchSourceBuilder.getDerivedFields()
+            .stream()
+            .filter(f -> f.getName().equals("simple_derived_field"))
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull("Should find simple_derived_field", simpleField);
+        assertEquals("Type should match", "number", simpleField.getType());
+        assertNull("Properties should be null", simpleField.getProperties());
+        assertNull("Prefilter field should be null", simpleField.getPrefilterField());
+        assertNull("Format should be null", simpleField.getFormat());
+        assertFalse("Ignore malformed should be false", simpleField.getIgnoreMalformed());
+    }
+
     public void testParseProtoWithSearchAfter() throws IOException {
         // Create a protobuf SearchRequestBody with searchAfter
         SearchRequestBody protoRequest = SearchRequestBody.newBuilder()

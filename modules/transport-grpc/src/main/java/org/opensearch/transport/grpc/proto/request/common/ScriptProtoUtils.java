@@ -76,7 +76,7 @@ public class ScriptProtoUtils {
 
         ScriptType type = ScriptType.INLINE;
 
-        String lang = parseScriptLanguage(inlineScript.getLang(), defaultLang);
+        String lang = inlineScript.hasLang() ? parseScriptLanguage(inlineScript.getLang(), defaultLang) : defaultLang;
         String idOrCode = inlineScript.getSource();
 
         Map<String, String> options = inlineScript.getOptionsMap();

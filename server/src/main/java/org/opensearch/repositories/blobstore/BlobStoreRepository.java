@@ -4426,6 +4426,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
     }
 
+    public InputStream maybeRateLimitRemoteDownloadTransfersForWarm(InputStream inputStream) {
+        return maybeRateLimit(
+            inputStream,
+            () -> remoteDownloadRateLimiter,
+            remoteDownloadRateLimitingTimeInNanos,
+            BlobStoreTransferContext.REMOTE_DOWNLOAD
+        );
+    }
+
     public InputStream maybeRateLimitLowPriorityDownloadTransfers(InputStream inputStream) {
         return maybeRateLimit(
             maybeRateLimit(

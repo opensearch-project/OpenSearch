@@ -42,7 +42,7 @@ public class ShiroSubject implements UserSubject {
     public Principal getPrincipal() {
         final Object o = shiroSubject.getPrincipal();
         if (o == null) return null;
-        if (o instanceof Principal) return (Principal) o;
+        if (o instanceof Principal principal) return principal;
         return () -> o.toString();
     }
 

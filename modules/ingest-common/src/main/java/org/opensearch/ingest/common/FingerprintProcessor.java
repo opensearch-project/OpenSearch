@@ -139,7 +139,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
             }
 
             final Object value = document.getFieldValue(field, Object.class);
-            if (value instanceof Map) {
+            if (value instanceof Map<?, ?>) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> flattenedMap = toFlattenedMap((Map<String, Object>) value);
                 flattenedMap.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
@@ -197,7 +197,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
     private Map<String, Object> toFlattenedMap(Map<String, Object> map) {
         Map<String, Object> flattenedMap = new HashMap<>();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
-            if (entry.getValue() instanceof Map) {
+            if (entry.getValue() instanceof Map<?, ?>) {
                 toFlattenedMap((Map<String, Object>) entry.getValue()).forEach(
                     (key, value) -> flattenedMap.put(entry.getKey() + "." + key, value)
                 );

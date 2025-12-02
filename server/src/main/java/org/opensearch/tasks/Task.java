@@ -206,7 +206,7 @@ public class Task {
      * Build a proper {@link TaskInfo} for this task.
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status, TaskResourceStats resourceStats) {
-        boolean cancelled = this instanceof CancellableTask && ((CancellableTask) this).isCancelled();
+        boolean cancelled = this instanceof CancellableTask cancellableTask && cancellableTask.isCancelled();
         Long cancellationStartTime = null;
         if (cancelled) {
             cancellationStartTime = ((CancellableTask) this).getCancellationStartTime();
@@ -528,8 +528,8 @@ public class Task {
     }
 
     public TaskResult result(final String nodeId, ActionResponse response) throws IOException {
-        if (response instanceof ToXContent) {
-            return new TaskResult(taskInfo(nodeId, true, true), (ToXContent) response);
+        if (response instanceof ToXContent toXContent) {
+            return new TaskResult(taskInfo(nodeId, true, true), toXContent);
         } else {
             throw new IllegalStateException("response has to implement ToXContent to be able to store the results");
         }

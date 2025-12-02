@@ -501,7 +501,16 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
                 stats.get = new GetStats();
                 stats.flush = new FlushStats();
                 stats.warmer = new WarmerStats();
-                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, null));
+                shardStats.add(
+                    new ShardStats.Builder().shardRouting(shardRouting)
+                        .shardPath(new ShardPath(false, path, path, shardId))
+                        .commonStats(stats)
+                        .commitStats(null)
+                        .seqNoStats(null)
+                        .retentionLeaseStats(null)
+                        .pollingIngestStats(null)
+                        .build()
+                );
             }
         }
         return IndicesStatsTests.newIndicesStatsResponse(

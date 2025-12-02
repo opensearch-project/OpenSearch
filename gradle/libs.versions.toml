@@ -1,6 +1,6 @@
 [versions]
 opensearch        = "3.4.0"
-lucene            = "10.3.1"
+lucene            = "10.3.2"
 
 bundled_jdk_vendor = "adoptium"
 bundled_jdk = "25.0.1+8"
@@ -22,7 +22,7 @@ kotlin            = "1.7.10"
 antlr4            = "4.13.1"
 guava             = "33.2.1-jre"
 gson              = "2.13.2"
-opensearchprotobufs = "0.23.0"
+opensearchprotobufs = "0.24.0"
 protobuf          = "3.25.8"
 jakarta_annotation = "1.3.5"
 google_http_client = "1.44.1"
@@ -35,13 +35,13 @@ json_smart        = "2.5.2"
 # when updating the JNA version, also update the version in buildSrc/build.gradle
 jna               = "5.16.0"
 
-netty             = "4.1.125.Final"
+netty             = "4.2.7.Final"
 joda              = "2.12.7"
 roaringbitmap     = "1.3.0"
 
 # project reactor
-reactor_netty     = "1.2.9"
-reactor           = "3.7.5"
+reactor_netty     = "1.3.0"
+reactor           = "3.8.0"
 
 # client dependencies
 httpclient5       = "5.4.4"
@@ -59,7 +59,7 @@ commonscollections4 = "4.5.0"
 aws               = "2.32.29"
 awscrt            = "0.35.0"
 reactivestreams   = "1.0.4"
-hadoop3           = "3.3.6"
+hadoop3           = "3.4.2"
 
 # when updating this version, you need to ensure compatibility with:
 #  - plugins/ingest-attachment (transitive dependency, check the upstream POM)
@@ -143,15 +143,19 @@ lucene-spatial3d = { group = "org.apache.lucene", name = "lucene-spatial3d", ver
 lucene-suggest = { group = "org.apache.lucene", name = "lucene-suggest", version.ref = "lucene" }
 netty-buffer = { group = "io.netty", name = "netty-buffer", version.ref = "netty" }
 netty-codec = { group = "io.netty", name = "netty-codec", version.ref = "netty" }
+netty-codec-base = { group = "io.netty", name = "netty-codec-base", version.ref = "netty" }
+netty-codec-compression = { group = "io.netty", name = "netty-codec-compression", version.ref = "netty" }
 netty-codec-dns = { group = "io.netty", name = "netty-codec-dns", version.ref = "netty" }
 netty-codec-http = { group = "io.netty", name = "netty-codec-http", version.ref = "netty" }
 netty-codec-http2 = { group = "io.netty", name = "netty-codec-http2", version.ref = "netty" }
+netty-codec-http3 = { group = "io.netty", name = "netty-codec-http3", version.ref = "netty" }
 netty-common = { group = "io.netty", name = "netty-common", version.ref = "netty" }
 netty-handler = { group = "io.netty", name = "netty-handler", version.ref = "netty" }
 netty-resolver-dns = { group = "io.netty", name = "netty-resolver-dns", version.ref = "netty" }
 netty-resolver = { group = "io.netty", name = "netty-resolver", version.ref = "netty" }
 netty-transport = { group = "io.netty", name = "netty-transport", version.ref = "netty" }
 netty-transport-native-unix-common = { group = "io.netty", name = "netty-transport-native-unix-common", version.ref = "netty" }
+netty-pkitesting = { group = "io.netty", name = "netty-pkitesting", version.ref = "netty" }
 protobuf = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
 reactivestreams = { group = "org.reactivestreams", name = "reactive-streams", version.ref = "reactivestreams" }
 reactor-core = { group = "io.projectreactor", name = "reactor-core", version.ref = "reactor" }
@@ -190,7 +194,9 @@ lucene = [
 
 netty = [
     "netty-buffer",
+    "netty-codec-base",
     "netty-codec",
+    "netty-codec-compression",
     "netty-codec-dns",
     "netty-codec-http",
     "netty-codec-http2",

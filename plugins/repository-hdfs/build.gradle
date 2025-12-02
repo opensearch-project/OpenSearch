@@ -66,7 +66,7 @@ dependencies {
   api "com.google.code.gson:gson:${versions.gson}"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api 'commons-cli:commons-cli:1.10.0'
+  api 'commons-cli:commons-cli:1.11.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'commons-collections:commons-collections:3.2.2'
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
@@ -175,12 +175,6 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 }
 
 Set disabledIntegTestTaskNames = []
-
-// Temporarily disable xxxSecure tests for JDK-24 and above, the krb5 does not play well
-if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_24) {
-  disabledIntegTestTaskNames += ['integTestSecure', 'integTestSecureHa']
-  testingConventions.enabled = false
-}
 
 for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
   task "${integTestTaskName}"(type: RestIntegTestTask) {
@@ -371,7 +365,6 @@ thirdPartyAudit {
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$1',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$Cell',
@@ -383,7 +376,9 @@ thirdPartyAudit {
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$1',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
-
+    'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
     'org.apache.hadoop.shaded.com.google.common.cache.Striped64',
     'org.apache.hadoop.shaded.com.google.common.cache.Striped64$1',
     'org.apache.hadoop.shaded.com.google.common.cache.Striped64$Cell',

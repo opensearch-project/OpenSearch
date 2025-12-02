@@ -527,10 +527,10 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     private static double objectToDouble(Object value) {
         double doubleValue;
 
-        if (value instanceof Number) {
-            doubleValue = ((Number) value).doubleValue();
-        } else if (value instanceof BytesRef) {
-            doubleValue = Double.parseDouble(((BytesRef) value).utf8ToString());
+        if (value instanceof Number number) {
+            doubleValue = number.doubleValue();
+        } else if (value instanceof BytesRef bytesRef) {
+            doubleValue = Double.parseDouble(bytesRef.utf8ToString());
         } else {
             doubleValue = Double.parseDouble(value.toString());
         }

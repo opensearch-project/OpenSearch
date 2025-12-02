@@ -105,8 +105,8 @@ public class OpenSearchRealm extends AuthenticatingRealm {
      */
     @Override
     protected AuthenticationInfo doGetAuthenticationInfo(final AuthenticationToken token) throws AuthenticationException {
-        if (token instanceof UsernamePasswordToken) {
-            final String username = ((UsernamePasswordToken) token).getUsername();
+        if (token instanceof UsernamePasswordToken t) {
+            final String username = t.getUsername();
             // Look up the user by the provide username
             final User userRecord = getInternalUser(username);
             // TODO: Check for other things, like a locked account, expired password, etc.

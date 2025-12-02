@@ -46,8 +46,8 @@ class MetricsTrackingResponseHandler<T extends TransportResponse> implements Tra
     @Override
     public void handleException(TransportException exp) {
         try {
-            if (exp instanceof StreamException) {
-                callTracker.recordCallEnd(((StreamException) exp).getErrorCode().name());
+            if (exp instanceof StreamException se) {
+                callTracker.recordCallEnd(se.getErrorCode().name());
             } else {
                 callTracker.recordCallEnd(StreamErrorCode.INTERNAL.name());
             }
@@ -75,8 +75,8 @@ class MetricsTrackingResponseHandler<T extends TransportResponse> implements Tra
             delegate.handleStreamResponse(wrappedResponse);
             callTracker.recordCallEnd(StreamErrorCode.OK.name());
         } catch (Exception e) {
-            if (e instanceof StreamException) {
-                callTracker.recordCallEnd(((StreamException) e).getErrorCode().name());
+            if (e instanceof StreamException se) {
+                callTracker.recordCallEnd(se.getErrorCode().name());
             } else {
                 callTracker.recordCallEnd(StreamErrorCode.INTERNAL.name());
             }

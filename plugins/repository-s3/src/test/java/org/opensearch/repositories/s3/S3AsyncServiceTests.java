@@ -18,6 +18,7 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -36,7 +37,7 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
     @Before
     @SuppressForbidden(reason = "Need to set opensearch.path.conf for async client")
     public void setUp() throws Exception {
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+        AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         super.setUp();
     }
 
@@ -67,19 +68,19 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
         final S3ClientSettings clientSettings = s3AsyncService.settings(metadata2);
         final S3ClientSettings otherClientSettings = s3AsyncService.settings(metadata2);
         assertSame(clientSettings, otherClientSettings);
-        final AmazonAsyncS3Reference reference = SocketAccess.doPrivileged(
+        final AmazonAsyncS3Reference reference = AccessController.doPrivileged(
             () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
 
-        final AmazonAsyncS3Reference reference2 = SocketAccess.doPrivileged(
+        final AmazonAsyncS3Reference reference2 = AccessController.doPrivileged(
             () -> s3AsyncService.client(metadata2, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
 
-        final AmazonAsyncS3Reference reference3 = SocketAccess.doPrivileged(
+        final AmazonAsyncS3Reference reference3 = AccessController.doPrivileged(
             () -> s3AsyncService.client(metadata3, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
 
-        final AmazonAsyncS3Reference reference4 = SocketAccess.doPrivileged(
+        final AmazonAsyncS3Reference reference4 = AccessController.doPrivileged(
             () -> s3AsyncService.client(metadata4, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
 
@@ -89,7 +90,7 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
 
         reference.close();
         s3AsyncService.close();
-        final AmazonAsyncS3Reference referenceReloaded = SocketAccess.doPrivileged(
+        final AmazonAsyncS3Reference referenceReloaded = AccessController.doPrivileged(
             () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
         assertNotSame(referenceReloaded, reference);
@@ -119,12 +120,12 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
         final S3ClientSettings clientSettings = s3AsyncService.settings(metadata2);
         final S3ClientSettings otherClientSettings = s3AsyncService.settings(metadata2);
         assertSame(clientSettings, otherClientSettings);
-        final AmazonAsyncS3Reference reference = SocketAccess.doPrivileged(
+        final AmazonAsyncS3Reference reference = AccessController.doPrivileged(
             () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
         reference.close();
         s3AsyncService.close();
-        final AmazonAsyncS3Reference referenceReloaded = SocketAccess.doPrivileged(
+        final AmazonAsyncS3Reference referenceReloaded = AccessController.doPrivileged(
             () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
         assertNotSame(referenceReloaded, reference);

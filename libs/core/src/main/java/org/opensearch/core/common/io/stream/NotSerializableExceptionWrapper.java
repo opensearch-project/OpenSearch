@@ -60,8 +60,7 @@ public final class NotSerializableExceptionWrapper extends OpenSearchException {
         for (Throwable otherSuppressed : other.getSuppressed()) {
             addSuppressed(otherSuppressed);
         }
-        if (other instanceof OpenSearchException) {
-            OpenSearchException ex = (OpenSearchException) other;
+        if (other instanceof OpenSearchException ex) {
             for (String key : ex.getHeaderKeys()) {
                 this.addHeader(key, ex.getHeader(key));
             }

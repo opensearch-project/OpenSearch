@@ -152,7 +152,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final CounterMetric totalUnreferencedFileCleanUpsPerformed = new CounterMetric();
-    private final CountDownLatch closedLatch = new CountDownLatch(1);
+    protected final CountDownLatch closedLatch = new CountDownLatch(1);
     protected final EventListener eventListener;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -686,11 +686,11 @@ public abstract class Engine implements LifecycleAware, Closeable {
     @PublicApi(since = "1.0.0")
     public static class NoOpResult extends Result {
 
-        NoOpResult(long term, long seqNo) {
+        public NoOpResult(long term, long seqNo) {
             super(Operation.TYPE.NO_OP, 0, term, seqNo);
         }
 
-        NoOpResult(long term, long seqNo, Exception failure) {
+        public NoOpResult(long term, long seqNo, Exception failure) {
             super(Operation.TYPE.NO_OP, failure, 0, term, seqNo);
         }
 
@@ -2115,7 +2115,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         awaitPendingClose();
     }
 
-    private void awaitPendingClose() {
+    protected void awaitPendingClose() {
         try {
             closedLatch.await();
         } catch (InterruptedException e) {

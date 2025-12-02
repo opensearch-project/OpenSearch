@@ -138,7 +138,6 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
             client().prepareIndex(INDEX_NAME).setSource(source, MediaTypeRegistry.JSON).get();
             refresh(INDEX_NAME);
         }
-        Thread.sleep(250);
         client().prepareIndex(INDEX_NAME).setSource(source, MediaTypeRegistry.JSON).get();
     }
 

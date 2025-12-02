@@ -186,12 +186,31 @@ public class SearchSourceBuilderProtoUtils {
         if (protoRequest.getDerivedCount() > 0) {
             for (Map.Entry<String, DerivedField> entry : protoRequest.getDerivedMap().entrySet()) {
                 String name = entry.getKey();
-                DerivedField derivedField = entry.getValue();
-                searchSourceBuilder.derivedField(
-                    name,
-                    derivedField.getType(),
-                    ScriptProtoUtils.parseFromProtoRequest(derivedField.getScript())
-                );
+                DerivedField derivedFieldProto = entry.getValue();
+
+                // Convert protobuf DerivedField to OpenSearch DerivedField using the REST side pattern
+                // This uses simple constructor + conditional setters (matches DerivedFieldMapper.Builder.build())
+                org.opensearch.index.mapper.DerivedField derivedField = DerivedFieldProtoUtils.fromProto(name, derivedFieldProto);
+
+                // Add to SearchSourceBuilder - check if any optional fields are set to choose the right method
+                if (derivedField.getProperties() != null
+                    || derivedField.getPrefilterField() != null
+                    || derivedField.getFormat() != null
+                    || derivedField.getIgnoreMalformed()) {
+                    // Use full constructor when optional fields are present
+                    searchSourceBuilder.derivedField(
+                        derivedField.getName(),
+                        derivedField.getType(),
+                        derivedField.getScript(),
+                        derivedField.getProperties(),
+                        derivedField.getPrefilterField(),
+                        derivedField.getFormat(),
+                        derivedField.getIgnoreMalformed() ? Boolean.TRUE : null
+                    );
+                } else {
+                    // Use simple constructor when no optional fields
+                    searchSourceBuilder.derivedField(derivedField.getName(), derivedField.getType(), derivedField.getScript());
+                }
             }
         }
         if (protoRequest.getDocvalueFieldsCount() > 0) {

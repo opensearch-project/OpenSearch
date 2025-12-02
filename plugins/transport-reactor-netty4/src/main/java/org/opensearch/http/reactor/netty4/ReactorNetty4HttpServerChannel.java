@@ -48,6 +48,6 @@ class ReactorNetty4HttpServerChannel implements HttpServerChannel {
 
     @Override
     public String toString() {
-        return "ReactorNetty4HttpChannel{localAddress=" + getLocalAddress() + "}";
+        return "ReactorNetty4HttpServerChannel{localAddress=" + getLocalAddress() + "}";
     }
 }

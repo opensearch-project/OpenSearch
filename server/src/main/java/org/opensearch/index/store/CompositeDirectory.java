@@ -56,7 +56,7 @@ import static org.apache.lucene.index.IndexFileNames.SEGMENTS;
 @ExperimentalApi
 public class CompositeDirectory extends FilterDirectory {
     private static final Logger logger = LogManager.getLogger(CompositeDirectory.class);
-    protected final FSDirectory localDirectory;
+    protected final Directory localDirectory;
     protected final RemoteSegmentStoreDirectory remoteDirectory;
     protected final FileCache fileCache;
     protected final TransferManager transferManager;
@@ -71,7 +71,7 @@ public class CompositeDirectory extends FilterDirectory {
     public CompositeDirectory(Directory localDirectory, Directory remoteDirectory, FileCache fileCache, ThreadPool threadPool) {
         super(localDirectory);
         validate(localDirectory, remoteDirectory, fileCache);
-        this.localDirectory = (FSDirectory) localDirectory;
+        this.localDirectory = localDirectory;
         this.remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectory;
         this.fileCache = fileCache;
         this.threadPool = threadPool;
@@ -345,7 +345,7 @@ public class CompositeDirectory extends FilterDirectory {
                 new StoreFileMetadata(name, uploadedSegmentMetadata.getLength(), uploadedSegmentMetadata.getChecksum(), Version.LATEST),
                 null
             );
-            return new OnDemandBlockSnapshotIndexInput(fileInfo, localDirectory, transferManager);
+            return new OnDemandBlockSnapshotIndexInput(fileInfo, getLocalFSDirectory(), transferManager);
         }
     }
 
@@ -393,7 +393,19 @@ public class CompositeDirectory extends FilterDirectory {
 
     // Visibility public since we need it in IT tests
     public Path getFilePath(String name) {
-        return localDirectory.getDirectory().resolve(name);
+        return getLocalFSDirectory().getDirectory().resolve(name);
+    }
+
+    private FSDirectory getLocalFSDirectory() {
+        FSDirectory localFSDirectory;
+        if (localDirectory instanceof FSDirectory) {
+            localFSDirectory = (FSDirectory) localDirectory;
+        } else {
+            // In this case it should be a FilterDirectory wrapped over FSDirectory as per above validation.
+            localFSDirectory = (FSDirectory) (((FilterDirectory) localDirectory).getDelegate());
+        }
+
+        return localFSDirectory;
     }
 
     /**
@@ -411,9 +423,9 @@ public class CompositeDirectory extends FilterDirectory {
         if (fileCache == null) throw new IllegalStateException(
             "File Cache not initialized on this Node, cannot create Composite Directory without FileCache"
         );
-        if (localDirectory instanceof FSDirectory == false) throw new IllegalStateException(
-            "For Composite Directory, local directory must be of type FSDirectory"
-        );
+        if (localDirectory instanceof FSDirectory == false
+            && !(localDirectory instanceof FilterDirectory && ((FilterDirectory) localDirectory).getDelegate() instanceof FSDirectory))
+            throw new IllegalStateException("For Composite Directory, local directory must be of type FSDirectory");
         if (remoteDirectory instanceof RemoteSegmentStoreDirectory == false) throw new IllegalStateException(
             "For Composite Directory, remote directory must be of type RemoteSegmentStoreDirectory"
         );

@@ -728,12 +728,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         for (Tuple<Processor, OperationMetrics> processorWithMetric : compoundProcessor.getProcessorsWithMetrics()) {
             Processor processor = processorWithMetric.v1();
             OperationMetrics metric = processorWithMetric.v2();
-            if (processor instanceof CompoundProcessor) {
-                getProcessorMetrics((CompoundProcessor) processor, processorMetrics);
+            if (processor instanceof CompoundProcessor compoundProc) {
+                getProcessorMetrics(compoundProc, processorMetrics);
             } else {
                 // Prefer the conditional's metric since it only includes metrics when the conditional evaluated to true.
-                if (processor instanceof ConditionalProcessor) {
-                    metric = ((ConditionalProcessor) processor).getMetric();
+                if (processor instanceof ConditionalProcessor conditionalProc) {
+                    metric = conditionalProc.getMetric();
                 }
                 processorMetrics.add(new Tuple<>(processor, metric));
             }
@@ -1335,14 +1335,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     // package private for testing
     static String getProcessorName(Processor processor) {
         // conditionals are implemented as wrappers around the real processor, so get the real processor for the correct type for the name
-        if (processor instanceof ConditionalProcessor) {
-            processor = ((ConditionalProcessor) processor).getInnerProcessor();
+        if (processor instanceof ConditionalProcessor conditionalProc) {
+            processor = conditionalProc.getInnerProcessor();
         }
         StringBuilder sb = new StringBuilder(5);
         sb.append(processor.getType());
 
-        if (processor instanceof PipelineProcessor) {
-            String pipelineName = ((PipelineProcessor) processor).getPipelineTemplate().newInstance(Collections.emptyMap()).execute();
+        if (processor instanceof PipelineProcessor pipelineProc) {
+            String pipelineName = pipelineProc.getPipelineTemplate().newInstance(Collections.emptyMap()).execute();
             sb.append(":");
             sb.append(pipelineName);
         }
@@ -1610,8 +1610,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 processors.add(clazz.cast(processor));
             }
 
-            while (processor instanceof WrappingProcessor) {
-                WrappingProcessor wrappingProcessor = (WrappingProcessor) processor;
+            while (processor instanceof WrappingProcessor wrappingProcessor) {
                 if (clazz.isAssignableFrom(wrappingProcessor.getInnerProcessor().getClass())) {
                     processors.add(clazz.cast(wrappingProcessor.getInnerProcessor()));
                 }

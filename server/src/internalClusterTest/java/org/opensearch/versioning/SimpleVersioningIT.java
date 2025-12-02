@@ -40,6 +40,7 @@ import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionResponse;
@@ -172,6 +173,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         assertThat(deleteResponse.getVersion(), equalTo(18L));
     }
 
+    @SuppressForbidden(reason = "Fixed sleeps are prone to flakiness but no documented failures here")
     public void testExternalVersioning() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -801,6 +803,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         }
     }
 
+    @SuppressForbidden(reason = "Fixed sleeps are prone to flakiness but no documented failures here")
     public void testDeleteNotLost() throws Exception {
 
         // We require only one shard for this test, so that the 2nd delete provokes pruning the deletes map:

@@ -38,6 +38,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -55,6 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.awaitility.Awaitility.await;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterServiceIT extends OpenSearchIntegTestCase {
@@ -350,6 +353,7 @@ public class ClusterServiceIT extends OpenSearchIntegTestCase {
         final CountDownLatch invoked1 = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("1", new ClusterStateUpdateTask() {
             @Override
+            @SuppressForbidden(reason = "Sleeping to guarantee a >0 time metric calculation")
             public ClusterState execute(ClusterState currentState) {
                 try {
                     Thread.sleep(50);
@@ -458,10 +462,11 @@ public class ClusterServiceIT extends OpenSearchIntegTestCase {
                 }
             });
         }
-        Thread.sleep(100);
 
-        pendingClusterTasks = clusterService.getClusterManagerService().pendingTasks();
-        assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(5));
+        pendingClusterTasks = await().until(
+            () -> clusterService.getClusterManagerService().pendingTasks(),
+            hasSize(greaterThanOrEqualTo(5))
+        );
         controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
         for (PendingClusterTask task : pendingClusterTasks) {
             controlSources.remove(task.getSource().string());

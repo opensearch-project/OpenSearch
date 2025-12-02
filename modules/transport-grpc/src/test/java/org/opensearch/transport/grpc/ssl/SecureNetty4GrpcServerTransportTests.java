@@ -52,7 +52,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put("node.name", "test-node").put("grpc.netty.executor_count", 4).build();
         ExecutorBuilder<?> grpcExecutorBuilder = new FixedExecutorBuilder(settings, "grpc", 4, 1000, "thread_pool.grpc");
         threadPool = new ThreadPool(settings, grpcExecutorBuilder);
-        serverInterceptor = new GrpcInterceptorChain(Collections.emptyList());
+        serverInterceptor = new GrpcInterceptorChain(threadPool.getThreadContext(), Collections.emptyList());
     }
 
     @After

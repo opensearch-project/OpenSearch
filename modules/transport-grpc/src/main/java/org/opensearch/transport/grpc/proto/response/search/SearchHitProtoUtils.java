@@ -285,7 +285,7 @@ public class SearchHitProtoUtils {
         if (hit.getExplanation() != null) {
             org.opensearch.protobufs.Explanation.Builder explanationBuilder = org.opensearch.protobufs.Explanation.newBuilder();
             buildExplanation(hit.getExplanation(), explanationBuilder);
-            hitBuilder.setExplanation(explanationBuilder.build());
+            hitBuilder.setXExplanation(explanationBuilder.build());
         }
     }
 
@@ -321,7 +321,7 @@ public class SearchHitProtoUtils {
         org.apache.lucene.search.Explanation explanation,
         org.opensearch.protobufs.Explanation.Builder protoExplanationBuilder
     ) throws IOException {
-        protoExplanationBuilder.setValue(explanation.getValue().doubleValue());
+        protoExplanationBuilder.setValue(explanation.getValue().floatValue());
         protoExplanationBuilder.setDescription(explanation.getDescription());
 
         org.apache.lucene.search.Explanation[] innerExps = explanation.getDetails();

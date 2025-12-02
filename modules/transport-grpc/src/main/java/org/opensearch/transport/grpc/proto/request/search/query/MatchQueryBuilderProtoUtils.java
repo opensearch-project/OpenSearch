@@ -87,7 +87,7 @@ class MatchQueryBuilderProtoUtils {
             maxExpansions = matchQueryProto.getMaxExpansions();
         }
 
-        if (matchQueryProto.getOperator() != org.opensearch.protobufs.Operator.OPERATOR_UNSPECIFIED) {
+        if (matchQueryProto.hasOperator() && matchQueryProto.getOperator() != org.opensearch.protobufs.Operator.OPERATOR_UNSPECIFIED) {
             operator = OperatorProtoUtils.fromEnum(matchQueryProto.getOperator());
         }
 

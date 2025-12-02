@@ -143,8 +143,8 @@ final class RemoteResponseParsers {
             Object reason = a[i++];
 
             Throwable reasonThrowable;
-            if (reason instanceof String) {
-                reasonThrowable = new RuntimeException("Unknown remote exception with reason=[" + (String) reason + "]");
+            if (reason instanceof String reasonString) {
+                reasonThrowable = new RuntimeException("Unknown remote exception with reason=[" + reasonString + "]");
             } else {
                 reasonThrowable = (Throwable) reason;
             }

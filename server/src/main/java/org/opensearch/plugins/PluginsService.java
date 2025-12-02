@@ -623,9 +623,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             .flatMap(t -> t.v1().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.v2())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
         for (Tuple<PluginInfo, Plugin> pluginTuple : plugins) {
-            if (pluginTuple.v2() instanceof ExtensiblePlugin) {
+            if (pluginTuple.v2() instanceof ExtensiblePlugin extensiblePlugin) {
                 loadExtensionsForPlugin(
-                    (ExtensiblePlugin) pluginTuple.v2(),
+                    extensiblePlugin,
                     extendingPluginsByName.getOrDefault(pluginTuple.v1().getName(), Collections.emptyList())
                 );
             }

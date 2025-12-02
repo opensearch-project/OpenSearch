@@ -14,6 +14,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
@@ -21,6 +22,7 @@ import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.IngestionEngine;
+import org.opensearch.indices.pollingingest.mappers.DefaultIngestionMessageMapper;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -28,6 +30,7 @@ import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -91,7 +94,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         partitionedBlockingQueueContainer.startProcessorThreads();
     }
@@ -164,7 +168,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         CountDownLatch latch = new CountDownLatch(2);
         doAnswer(invocation -> {
@@ -180,6 +185,10 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     }
 
     public void testResetStateLatest() throws InterruptedException {
+        // Clear messages first and add them after poller starts
+        // This ensures latestPointer() returns the correct value at initialization time
+        messages.clear();
+
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             fakeConsumerFactory,
@@ -193,15 +202,32 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
+
+        // Set up latch to wait for 2 messages to be processed
+        CountDownLatch latch = new CountDownLatch(2);
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
 
         poller.start();
         waitUntil(() -> poller.getState() == DefaultStreamPoller.State.POLLING, awaitTime, TimeUnit.MILLISECONDS);
-        // no messages processed
-        verify(processor, never()).process(any(), any());
-        // reset to the latest
-        assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(2), poller.getBatchStartPointer());
+
+        // Verify batch start pointer was set to latest (which is 0 since messages list was empty)
+        assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(0), poller.getBatchStartPointer());
+
+        // Now add messages after poller has started with LATEST reset
+        messages.add("{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
+        messages.add("{\"_id\":\"2\",\"_source\":{\"name\":\"alice\", \"age\": 21}}".getBytes(StandardCharsets.UTF_8));
+
+        // Wait for messages to be processed
+        latch.await();
+
+        // Verify that the messages added after starting from latest are processed
+        verify(processor, times(2)).process(any(), any());
     }
 
     public void testResetStateRewindByOffset() throws InterruptedException {
@@ -218,7 +244,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         CountDownLatch latch = new CountDownLatch(1);
         doAnswer(invocation -> {
@@ -303,7 +330,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -365,7 +393,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -401,7 +430,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -473,7 +503,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -542,7 +573,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             1000,
             10000,
-            indexSettings
+            indexSettings,
+            new DefaultIngestionMessageMapper()
         );
 
         poller.start();
@@ -555,5 +587,140 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Verify the consumer factory was called twice (once for failure, once for success)
         verify(mockConsumerFactory, times(2)).createShardConsumer(anyString(), anyInt());
         assertNotNull(poller.getConsumer());
+    }
+
+    public void testConsumerReinitializationAfterProcessingMessages() throws Exception {
+        // Initially publish 2 messages, and later publish 3rd message after consumer reinitialization
+        messages.clear();
+        messages.add("{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
+        messages.add("{\"_id\":\"2\",\"_source\":{\"name\":\"alice\", \"age\": 21}}".getBytes(StandardCharsets.UTF_8));
+
+        FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
+
+        CountDownLatch initialLatch = new CountDownLatch(2);
+        doAnswer(invocation -> {
+            initialLatch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
+
+        poller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            consumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper()
+        );
+
+        // Start and wait for 2 messages to be processed
+        poller.start();
+        initialLatch.await();
+        verify(processor, times(2)).process(any(), any());
+
+        // Request consumer reinitialization
+        CountDownLatch reinitLatch = new CountDownLatch(2);  // Expect 2 more messages: message 2 (reprocessed) and message 3 (new)
+        doAnswer(invocation -> {
+            reinitLatch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
+
+        // Create a mock ingestion source for reinitialization
+        IngestionSource mockIngestionSource = new IngestionSource.Builder("test").build();
+        poller.requestConsumerReinitialization(mockIngestionSource);
+
+        // Add a 3rd message
+        messages.add("{\"_id\":\"3\",\"_source\":{\"name\":\"charlie\", \"age\": 30}}".getBytes(StandardCharsets.UTF_8));
+
+        // Wait for reprocessing of message 2 and processing of message 3
+        reinitLatch.await();
+
+        // Expect total 4 messages, as 2nd message is processed twice due to consumer reinitialization
+        verify(processor, times(4)).process(any(), any());
+    }
+
+    public void testConsumerReinitializationWithNoInitialMessages() throws Exception {
+        // Start with no messages
+        messages.clear();
+
+        // Set up latch to wait for message processing
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
+
+        FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
+
+        poller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            consumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper()
+        );
+
+        // Start poller
+        poller.start();
+        Thread.sleep(sleepTime);
+
+        // Verify no messages processed
+        verify(processor, never()).process(any(), any());
+
+        // Request consumer reinitialization
+        IngestionSource mockIngestionSource = new IngestionSource.Builder("test").build();
+        poller.requestConsumerReinitialization(mockIngestionSource);
+
+        // Add a message
+        messages.add("{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
+
+        // Wait for the message to be processed
+        assertTrue("Message should be processed within timeout", latch.await(30, TimeUnit.SECONDS));
+
+        // Verify 1 message was processed
+        verify(processor, times(1)).process(any(), any());
+    }
+
+    public void testGetBatchStartPointerWithNullInitialPointer() {
+        // Create a mock blocking queue container that returns null pointers
+        PartitionedBlockingQueueContainer mockContainer = mock(PartitionedBlockingQueueContainer.class);
+        when(mockContainer.getCurrentShardPointers()).thenReturn(Arrays.asList(null, null, null));
+
+        // Create poller with null initial batch start pointer
+        poller = new DefaultStreamPoller(
+            null,
+            fakeConsumerFactory,
+            "",
+            0,
+            mockContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper()
+        );
+
+        // When all queues return null and initialBatchStartPointer is null, getBatchStartPointer should return null
+        assertNull(poller.getBatchStartPointer());
     }
 }

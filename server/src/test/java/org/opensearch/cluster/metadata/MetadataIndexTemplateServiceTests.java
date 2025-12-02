@@ -625,6 +625,72 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         assertNull(updatedState.metadata().templatesV2().get("foo"));
     }
 
+    public void testRemoveIndexTemplateV2ForDataStream() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        // Create two templates with different priorities that match the same data stream
+        ComposableIndexTemplate lowPriorityTemplate = new ComposableIndexTemplate(
+            List.of("logs-*"),
+            null,
+            null,
+            10L,
+            1L,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate()
+        );
+
+        ComposableIndexTemplate highPriorityTemplate = new ComposableIndexTemplate(
+            List.of("logs-*"),
+            null,
+            null,
+            20L,
+            1L,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate()
+        );
+
+        state = service.addIndexTemplateV2(state, true, "low-priority-template", lowPriorityTemplate);
+        state = service.addIndexTemplateV2(state, true, "high-priority-template", highPriorityTemplate);
+
+        // Add a data stream
+        state = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .put(
+                        new DataStream(
+                            "logs-mysql",
+                            new DataStream.TimestampField("@timestamp"),
+                            Collections.singletonList(new Index(".ds-logs-mysql-000001", "uuid"))
+                        )
+                    )
+                    .put(
+                        IndexMetadata.builder(".ds-logs-mysql-000001")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        // Test that only the high priority template reports the data stream as using it
+        Set<String> lowPriorityDataStreams = MetadataIndexTemplateService.dataStreamsUsingTemplate(state, "low-priority-template");
+        Set<String> highPriorityDataStreams = MetadataIndexTemplateService.dataStreamsUsingTemplate(state, "high-priority-template");
+
+        assertThat(lowPriorityDataStreams, empty());
+        assertThat(highPriorityDataStreams, contains("logs-mysql"));
+
+        // Test remove the low priority template
+        ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "low-priority-template");
+        assertNull(updatedState.metadata().templatesV2().get("low-priority-template"));
+    }
+
     /**
      * Test that if we have a pre-existing v1 template and put a v2 template that would match the same indices, we generate a warning
      */
