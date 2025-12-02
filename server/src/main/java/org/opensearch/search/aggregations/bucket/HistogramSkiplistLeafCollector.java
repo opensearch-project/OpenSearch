@@ -158,7 +158,7 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
         // Check if rounding changed (using reference equality)
         // AutoDateHistogramAggregator creates a new Rounding.Prepared instance when rounding changes
         if (currentRounding != lastPreparedRounding) {
-            upToInclusive = -1;  // Invalidate cache
+            upToInclusive = -1;  // Invalidate
             upToSameBucket = false;
             lastPreparedRounding = currentRounding;
         }
