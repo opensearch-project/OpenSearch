@@ -13,6 +13,7 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -21,6 +22,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 
 /**
  * An Opensearch-specific version of Lucene's CopyState class that
@@ -38,15 +41,23 @@ public class CopyState implements Closeable {
 
     public CopyState(IndexShard shard) throws IOException {
         this.shard = shard;
+        long lastRefreshedCheckpoint = shard.getLastRefreshedCheckpoint();
         final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> latestSegmentInfosAndCheckpoint = shard
             .getLatestSegmentInfosAndCheckpoint();
         this.segmentInfosRef = latestSegmentInfosAndCheckpoint.v1();
         this.replicationCheckpoint = latestSegmentInfosAndCheckpoint.v2();
         SegmentInfos segmentInfos = this.segmentInfosRef.get();
+
+        SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
+        Map<String, String> userData = segmentInfosSnapshot.getUserData();
+        userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(lastRefreshedCheckpoint));
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(lastRefreshedCheckpoint));
+        segmentInfosSnapshot.setUserData(userData, false);
+
         ByteBuffersDataOutput buffer = new ByteBuffersDataOutput();
         // resource description and name are not used, but resource description cannot be null
         try (ByteBuffersIndexOutput indexOutput = new ByteBuffersIndexOutput(buffer, "", null)) {
-            segmentInfos.write(indexOutput);
+            segmentInfosSnapshot.write(indexOutput);
         }
         this.infosBytes = buffer.toArrayCopy();
     }
