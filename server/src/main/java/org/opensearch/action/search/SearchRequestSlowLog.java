@@ -221,7 +221,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             if (context.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
                 sb.append("id[").append(context.getTask().getHeader(Task.X_OPAQUE_ID)).append("]");
             } else {
-                sb.append("id[]");
+                sb.append("id[], ");
             }
             if (context.getTask().getHeader(Task.TRACE_ID) != null) {
                 sb.append("trace-id[").append(context.getTask().getHeader(Task.TRACE_ID)).append("]");

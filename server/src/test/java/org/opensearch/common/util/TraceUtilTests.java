@@ -63,6 +63,12 @@ public class TraceUtilTests extends OpenSearchTestCase {
             TraceUtil.extractTraceId("0g-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
         });
         assertEquals("version must be 2 hex digits", exception.getMessage());
+
+        // Version passed "ff"
+        exception = expectThrows(IllegalArgumentException.class, () -> {
+            TraceUtil.extractTraceId("ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+        });
+        assertEquals("version cannot be set to ff", exception.getMessage());
     }
 
     public void testWithInvalidTraceId() {

@@ -49,6 +49,10 @@ public class TraceUtil {
             throw new IllegalArgumentException("version must be 2 hex digits");
         }
 
+        if (parts[0].equals("ff")) {
+            throw new IllegalArgumentException("version cannot be set to ff");
+        }
+
         // Validate trace_id (32 hex digits, cannot be all zeros)
         if (parts[1].length() != 32 || !isValidHex(parts[1])) {
             throw new IllegalArgumentException("trace_id must be 32 hex digits");
