@@ -19,9 +19,7 @@ public class TraceUtilTests extends OpenSearchTestCase {
     }
 
     public void testWithNullTraceparent() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            TraceUtil.extractTraceId(null);
-        });
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { TraceUtil.extractTraceId(null); });
         assertEquals("traceparent cannot be null", exception.getMessage());
     }
 
