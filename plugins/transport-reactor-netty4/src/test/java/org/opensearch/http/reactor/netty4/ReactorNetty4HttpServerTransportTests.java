@@ -132,6 +132,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
 
     /**
      * Test that {@link ReactorNetty4HttpServerTransport} supports the "Expect: 100-continue" HTTP header
+     *
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectContinueHeader() throws InterruptedException {
@@ -144,6 +145,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
      * Test that {@link ReactorNetty4HttpServerTransport} responds to a
      * 100-continue expectation with too large a content-length
      * with a 413 status.
+     *
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectContinueHeaderContentLengthTooLong() throws InterruptedException {
@@ -156,6 +158,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
 
     /**
      * Test that {@link ReactorNetty4HttpServerTransport} responds to an unsupported expectation with a 417 status.
+     *
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectUnsupportedExpectation() throws InterruptedException {
@@ -434,6 +437,64 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             numOfHugAllocations = metric.heapArenas().stream().mapToLong(PoolArenaMetric::numHugeAllocations).sum();
         }
         return numOfHugAllocations;
+    }
+
+    public void testConnectionsGettingClosed() throws InterruptedException {
+        final String responseString = "ok";
+        final String url = "/thing/";
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                if (url.equals(request.uri())) {
+                    channel.sendResponse(new BytesRestResponse(OK, responseString));
+                } else {
+                    logger.error("--> Unexpected successful uri [{}]", request.uri());
+                    throw new AssertionError();
+                }
+            }
+
+            @Override
+            public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                logger.error(
+                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    cause
+                );
+                throw new AssertionError(cause);
+            }
+        };
+
+        try (
+            ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(Settings.EMPTY),
+                NoopTracer.INSTANCE
+            );
+            ReactorHttpClient client = ReactorHttpClient.create()
+        ) {
+            transport.start();
+            TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            long numRequests = randomLongBetween(5L, 15L);
+
+            for (int i = 0; i < numRequests; i++) {
+                DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
+                logger.info("Sending request {}/{}", i + 1, numRequests);
+                final FullHttpResponse response = client.send(remoteAddress.address(), request);
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.OK));
+                } finally {
+                    response.release();
+                }
+            }
+
+            assertThat(transport.stats().getServerOpen(), equalTo(0L));
+            assertThat(transport.stats().getTotalOpen(), equalTo(numRequests));
+        }
     }
 
     public void testCorsRequest() throws InterruptedException {
