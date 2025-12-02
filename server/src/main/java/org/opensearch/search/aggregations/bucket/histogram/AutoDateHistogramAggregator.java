@@ -427,22 +427,19 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             throws IOException {
             // Check if skiplist optimization is available
             final NumericDocValues singleton = DocValues.unwrapSingleton(values);
-            if (singleton != null && skipper != null) {
-                // FIXME: replace isTryPrecomputePath with collector mode
-                if (parent == null || isTryPrecomputePath()) {
-                    // Increment skiplist collector count
-                    skiplistCollectorCount++;
-                    return new HistogramSkiplistLeafCollector(
-                        singleton,
-                        skipper,
-                        (owningBucketOrd) -> preparedRounding,  // for FromSingle there will be no parent/
-                        () -> bucketOrds,
-                        sub,
-                        FromSingle.this,
-                        (owningBucket, rounded) -> increaseRoundingIfNeeded(rounded)  // Pass supplier to allow rounding change
-                                                                                      // detectionincreaseRoundingIfNeeded
-                    );
-                }
+            if (HistogramSkiplistLeafCollector.canUseSkiplist(null, parent, skipper, singleton)) {
+                // Increment skiplist collector count
+                skiplistCollectorCount++;
+                return new HistogramSkiplistLeafCollector(
+                    singleton,
+                    skipper,
+                    (owningBucketOrd) -> preparedRounding,  // for FromSingle there will be no parent/
+                    () -> bucketOrds,
+                    sub,
+                    FromSingle.this,
+                    (owningBucket, rounded) -> increaseRoundingIfNeeded(rounded)  // Pass supplier to allow rounding change
+                                                                                  // detectionincreaseRoundingIfNeeded
+                );
             }
 
             // Fall back to standard LeafBucketCollectorBase when skiplist unavailable
@@ -712,8 +709,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             throws IOException {
 
             final NumericDocValues singleton = DocValues.unwrapSingleton(values);
-            if (singleton != null && skipper != null) {
-                // FIXME: replace isTryPrecomputePath with collector mode
+            if (HistogramSkiplistLeafCollector.canUseSkiplist(null, parent, skipper, singleton)) {
                 /**
                  * HistogramSkiplistLeafCollector in its current state can only handle one owningBucketOrd at a time.
                  * When parent is null, i.e. then ForSingle class will get used. ForMany is used when auto date is sub agg.
@@ -723,25 +719,22 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                  * In the future we can enhance HistogramSkiplistLeafCollector to handle multiple owningBucketOrd,
                  * similar to FromMany.
                  */
-                if (isTryPrecomputePath()) {
-                    // Increment skiplist collector count
-                    skiplistCollectorCount++;
+                skiplistCollectorCount++;
 
-                    return new HistogramSkiplistLeafCollector(
-                        singleton,
-                        skipper,
-                        (owningBucketOrd) -> preparedRoundings[roundingIndexFor(owningBucketOrd)],
-                        () -> bucketOrds,
-                        sub,
-                        FromMany.this,
-                        (owningBucketOrd, rounded) -> {
-                            int roundingIdx = roundingIndexFor(owningBucketOrd);
-                            liveBucketCountUnderestimate = context.bigArrays().grow(liveBucketCountUnderestimate, owningBucketOrd + 1);
-                            int estimatedBucketCount = liveBucketCountUnderestimate.increment(owningBucketOrd, 1);
-                            increaseRoundingIfNeeded(owningBucketOrd, estimatedBucketCount, rounded, roundingIdx);
-                        }
-                    );
-                }
+                return new HistogramSkiplistLeafCollector(
+                    singleton,
+                    skipper,
+                    (owningBucketOrd) -> preparedRoundings[roundingIndexFor(owningBucketOrd)],
+                    () -> bucketOrds,
+                    sub,
+                    FromMany.this,
+                    (owningBucketOrd, rounded) -> {
+                        int roundingIdx = roundingIndexFor(owningBucketOrd);
+                        liveBucketCountUnderestimate = context.bigArrays().grow(liveBucketCountUnderestimate, owningBucketOrd + 1);
+                        int estimatedBucketCount = liveBucketCountUnderestimate.increment(owningBucketOrd, 1);
+                        increaseRoundingIfNeeded(owningBucketOrd, estimatedBucketCount, rounded, roundingIdx);
+                    }
+                );
             }
 
             return new LeafBucketCollectorBase(sub, values) {

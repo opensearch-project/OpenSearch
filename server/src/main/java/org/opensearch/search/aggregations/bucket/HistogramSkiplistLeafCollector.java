@@ -13,7 +13,10 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.common.Rounding;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.AggregatorBase;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 
 import java.io.IOException;
@@ -227,5 +230,22 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
      */
     public interface IncreaseRoundingIfNeeded {
         void accept(long owningBucket, long rounded);
+    }
+
+    /**
+     * Skiplist is based as top level agg (null parent) or parent that will execute in sorted order
+     *
+     */
+    public static boolean canUseSkiplist(LongBounds hardBounds, Aggregator parent, DocValuesSkipper skipper, NumericDocValues singleton) {
+        if (skipper == null || singleton == null) return false;
+        // TODO: add hard bounds support
+        if (hardBounds != null) return false;
+
+        if (parent == null) return true;
+
+        if (parent instanceof AggregatorBase base) {
+            return base.getLeafCollectorMode() == AggregatorBase.LeafCollectionMode.FILTER_REWRITE;
+        }
+        return false;
     }
 }
