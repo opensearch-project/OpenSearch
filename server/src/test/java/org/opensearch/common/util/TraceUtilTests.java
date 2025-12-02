@@ -163,7 +163,7 @@ public class TraceUtilTests extends OpenSearchTestCase {
         assertEquals("00000000000000000000000000000001", TraceUtil.extractTraceId(minValid));
 
         // Maximum valid values
-        String maxValid = "ff-ffffffffffffffffffffffffffffffff-ffffffffffffffff-ff";
+        String maxValid = "fe-ffffffffffffffffffffffffffffffff-ffffffffffffffff-ff";
         assertEquals("ffffffffffffffffffffffffffffffff", TraceUtil.extractTraceId(maxValid));
     }
 }
