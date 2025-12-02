@@ -45,7 +45,7 @@ public class SegmentReplicationPrimaryPromotionIT extends SegmentReplicationBase
     public static CountDownLatch refreshLatch = new CountDownLatch(1);
 
     @Before
-    private void setup() {
+    public void setup() {
         internalCluster().startClusterManagerOnlyNode();
     }
 
