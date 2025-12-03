@@ -673,6 +673,7 @@ public final class S3ClientSettings {
             && connectionTimeoutMillis == that.connectionTimeoutMillis
             && connectionTTLMillis == that.connectionTTLMillis
             && maxConnections == that.maxConnections
+            && maxSyncConnections == that.maxSyncConnections       // fixed here
             && connectionAcquisitionTimeoutMillis == that.connectionAcquisitionTimeoutMillis
             && maxRetries == that.maxRetries
             && throttleRetries == that.throttleRetries
@@ -680,11 +681,12 @@ public final class S3ClientSettings {
             && Objects.equals(endpoint, that.endpoint)
             && protocol == that.protocol
             && proxySettings.equals(that.proxySettings)
-            && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
+            && disableChunkedEncoding == that.disableChunkedEncoding
             && Objects.equals(region, that.region)
             && Objects.equals(signerOverride, that.signerOverride)
             && Objects.equals(irsaCredentials, that.irsaCredentials);
     }
+
 
     @Override
     public int hashCode() {
@@ -698,6 +700,7 @@ public final class S3ClientSettings {
             connectionTimeoutMillis,
             connectionTTLMillis,
             maxConnections,
+            maxSyncConnections,                  // fixed here
             connectionAcquisitionTimeoutMillis,
             maxRetries,
             throttleRetries,
@@ -706,6 +709,7 @@ public final class S3ClientSettings {
             signerOverride
         );
     }
+
 
     private static <T> T getConfigValue(Settings settings, String clientName, Setting.AffixSetting<T> clientSetting) {
         final Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);

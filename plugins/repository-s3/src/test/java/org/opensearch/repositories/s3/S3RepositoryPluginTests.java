@@ -75,6 +75,9 @@ public class S3RepositoryPluginTests extends OpenSearchTestCase {
                 );
             }
             assertTrue(plugin.getSettings().contains(S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE));
+            // New assertion for your bug fix
+            assertTrue(plugin.getSettings().contains(S3ClientSettings.DISABLE_CHUNKED_ENCODING));
+
         } finally {
             if (threadPool != null) {
                 terminate(threadPool);
