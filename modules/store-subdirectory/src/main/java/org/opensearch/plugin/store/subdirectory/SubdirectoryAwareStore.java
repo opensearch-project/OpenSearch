@@ -10,6 +10,7 @@ package org.opensearch.plugin.store.subdirectory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
@@ -19,6 +20,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.Version;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.ShardLock;
@@ -122,31 +124,46 @@ public class SubdirectoryAwareStore extends Store {
         Map<String, String> commitUserDataBuilder = new HashMap<>(regularMetadata.userData);
         totalNumDocs += regularMetadata.numDocs;
 
-        // Load subdirectory files metadata from segments_N files in subdirectories
-        totalNumDocs += this.loadSubdirectoryMetadataFromSegments(commit, builder);
+        // Load subdirectory files metadata (both segment files and non-segment files like custom metadata file)
+        totalNumDocs += this.loadSubdirectoryMetadata(commit, builder);
 
         return new MetadataSnapshot(Collections.unmodifiableMap(builder), Collections.unmodifiableMap(commitUserDataBuilder), totalNumDocs);
     }
 
     /**
-     * Load subdirectory file metadata by reading segments_N files from any subdirectories.
-     * This leverages the same approach as Store.loadMetadata but for files in subdirectories.
+     * Load subdirectory file metadata by reading segments_N files from any subdirectories,
+     * and also compute metadata for non-segment files.
      *
      * @return the total number of documents in all subdirectory segments
      */
-    private long loadSubdirectoryMetadataFromSegments(IndexCommit commit, Map<String, StoreFileMetadata> builder) throws IOException {
-        // Find all segments_N files in subdirectories from the commit
-        Set<String> subdirectorySegmentFiles = new HashSet<>();
+    private long loadSubdirectoryMetadata(IndexCommit commit, Map<String, StoreFileMetadata> builder) throws IOException {
+        // Categorize subdirectory files into segment info files (segments_N) and non-segment-info files
+        Set<String> subdirectorySegmentInfoFiles = new HashSet<>();
+        Set<String> subdirectoryNonSegmentInfoFiles = new HashSet<>();
+
         for (String fileName : commit.getFileNames()) {
-            if (Path.of(fileName).getParent() != null && fileName.contains(IndexFileNames.SEGMENTS)) {
-                subdirectorySegmentFiles.add(fileName);
+            Path filePath = Path.of(fileName);
+            // Only process subdirectory files (files with a parent path)
+            if (filePath.getParent() != null) {
+                if (fileName.contains(IndexFileNames.SEGMENTS)) {
+                    subdirectorySegmentInfoFiles.add(fileName);
+                } else {
+                    subdirectoryNonSegmentInfoFiles.add(fileName);
+                }
             }
         }
 
         long totalSubdirectoryNumDocs = 0;
         // Process each subdirectory segments_N file
-        for (String segmentsFilePath : subdirectorySegmentFiles) {
-            totalSubdirectoryNumDocs += this.loadMetadataFromSubdirectorySegmentsFile(segmentsFilePath, builder);
+        for (String segmentInfoFilePath : subdirectorySegmentInfoFiles) {
+            totalSubdirectoryNumDocs += this.loadMetadataFromSubdirectorySegmentsFile(segmentInfoFilePath, builder);
+        }
+
+        // Process non-segment files that weren't loaded by segmentInfo
+        for (String nonSegmentInfoFile : subdirectoryNonSegmentInfoFiles) {
+            if (!builder.containsKey(nonSegmentInfoFile)) {
+                computeFileMetadata(nonSegmentInfoFile, builder);
+            }
         }
 
         return totalSubdirectoryNumDocs;
@@ -210,6 +227,26 @@ public class SubdirectoryAwareStore extends Store {
                 metadata.hash()
             );
             builder.put(prefixedName, prefixedMetadata);
+        }
+    }
+
+    /**
+     * Compute and store metadata for a single file.
+     *
+     * @param fileName the relative file path
+     * @param builder the map to add metadata to
+     * @throws IOException if reading file fails
+     */
+    private void computeFileMetadata(String fileName, Map<String, StoreFileMetadata> builder) throws IOException {
+        Path filePath = shardPath().getDataPath().resolve(fileName);
+        try (Directory dir = FSDirectory.open(filePath.getParent())) {
+            String localFileName = filePath.getFileName().toString();
+            try (IndexInput in = dir.openInput(localFileName, IOContext.READONCE)) {
+                long length = in.length();
+                String checksum = Store.digestToString(CodecUtil.checksumEntireFile(in));
+                Version version = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+                builder.put(fileName, new StoreFileMetadata(fileName, length, checksum, version, null));
+            }
         }
     }
 
