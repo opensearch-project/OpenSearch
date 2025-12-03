@@ -10,6 +10,7 @@ package org.opensearch.plugin.store.subdirectory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
@@ -19,6 +20,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.Version;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.ShardLock;
@@ -111,6 +113,15 @@ public class SubdirectoryAwareStore extends Store {
         );
     }
 
+    /**
+     * Build a MetadataSnapshot that includes file metadata and user data from the commit and from files located in shard subdirectories.
+     *
+     * Aggregates metadata read from the commit's SegmentInfos and augments it with metadata discovered in subdirectories; the snapshot's document count includes documents found in subdirectory segment files.
+     *
+     * @param commit the Lucene index commit to read metadata from
+     * @return a MetadataSnapshot containing an immutable map of file metadata, an immutable map of commit user data, and the total document count across root and subdirectory files
+     * @throws IOException if reading segment information or subdirectory files fails
+     */
     @Override
     public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
         long totalNumDocs = 0;
@@ -122,31 +133,49 @@ public class SubdirectoryAwareStore extends Store {
         Map<String, String> commitUserDataBuilder = new HashMap<>(regularMetadata.userData);
         totalNumDocs += regularMetadata.numDocs;
 
-        // Load subdirectory files metadata from segments_N files in subdirectories
-        totalNumDocs += this.loadSubdirectoryMetadataFromSegments(commit, builder);
+        // Load subdirectory files metadata (both segment files and non-segment files like custom metadata file)
+        totalNumDocs += this.loadSubdirectoryMetadata(commit, builder);
 
         return new MetadataSnapshot(Collections.unmodifiableMap(builder), Collections.unmodifiableMap(commitUserDataBuilder), totalNumDocs);
     }
 
     /**
-     * Load subdirectory file metadata by reading segments_N files from any subdirectories.
-     * This leverages the same approach as Store.loadMetadata but for files in subdirectories.
+     * Load metadata for files located in shard subdirectories, reading segment files (segments_*)
+     * to collect per-segment document counts and computing metadata for other subdirectory files when missing.
      *
-     * @return the total number of documents in all subdirectory segments
+     * @param commit the index commit whose file list may include subdirectory paths
+     * @param builder a mutable map to populate with discovered StoreFileMetadata keyed by file path
+     * @return the total number of documents contained in all discovered subdirectory segment files
+     * @throws IOException if reading subdirectory segment or file contents fails
      */
-    private long loadSubdirectoryMetadataFromSegments(IndexCommit commit, Map<String, StoreFileMetadata> builder) throws IOException {
-        // Find all segments_N files in subdirectories from the commit
-        Set<String> subdirectorySegmentFiles = new HashSet<>();
+    private long loadSubdirectoryMetadata(IndexCommit commit, Map<String, StoreFileMetadata> builder) throws IOException {
+        // Categorize subdirectory files into segment info files (segments_N) and non-segment-info files
+        Set<String> subdirectorySegmentInfoFiles = new HashSet<>();
+        Set<String> subdirectoryNonSegmentInfoFiles = new HashSet<>();
+
         for (String fileName : commit.getFileNames()) {
-            if (Path.of(fileName).getParent() != null && fileName.contains(IndexFileNames.SEGMENTS)) {
-                subdirectorySegmentFiles.add(fileName);
+            Path filePath = Path.of(fileName);
+            // Only process subdirectory files (files with a parent path)
+            if (filePath.getParent() != null) {
+                if (fileName.contains(IndexFileNames.SEGMENTS)) {
+                    subdirectorySegmentInfoFiles.add(fileName);
+                } else {
+                    subdirectoryNonSegmentInfoFiles.add(fileName);
+                }
             }
         }
 
         long totalSubdirectoryNumDocs = 0;
         // Process each subdirectory segments_N file
-        for (String segmentsFilePath : subdirectorySegmentFiles) {
-            totalSubdirectoryNumDocs += this.loadMetadataFromSubdirectorySegmentsFile(segmentsFilePath, builder);
+        for (String segmentInfoFilePath : subdirectorySegmentInfoFiles) {
+            totalSubdirectoryNumDocs += this.loadMetadataFromSubdirectorySegmentsFile(segmentInfoFilePath, builder);
+        }
+
+        // Process non-segment files that weren't loaded by segmentInfo
+        for (String nonSegmentInfoFile : subdirectoryNonSegmentInfoFiles) {
+            if (!builder.containsKey(nonSegmentInfoFile)) {
+                computeFileMetadata(nonSegmentInfoFile, builder);
+            }
         }
 
         return totalSubdirectoryNumDocs;
@@ -183,7 +212,15 @@ public class SubdirectoryAwareStore extends Store {
     }
 
     /**
-     * Load metadata from SegmentInfos by reusing Store.MetadataSnapshot.loadMetadata
+     * Load file metadata from the given SegmentInfos and insert entries into the provided builder
+     * with each file name prefixed by the given path prefix.
+     *
+     * @param segmentInfos the SegmentInfos to read metadata from
+     * @param directory the Directory that contains the segment files
+     * @param builder a map into which prefixed StoreFileMetadata entries will be inserted; existing
+     *                entries with the same prefixed name will be overwritten
+     * @param pathPrefix the relative path prefix to prepend to each file name when creating map keys
+     * @throws IOException if reading segment metadata from the directory fails
      */
     private static void loadMetadataFromSegmentInfos(
         SegmentInfos segmentInfos,
@@ -210,6 +247,26 @@ public class SubdirectoryAwareStore extends Store {
                 metadata.hash()
             );
             builder.put(prefixedName, prefixedMetadata);
+        }
+    }
+
+    /**
+     * Computes metadata for a single file under the shard data path and inserts it into the provided builder map.
+     *
+     * @param fileName the file path relative to the shard data path
+     * @param builder  map to receive the computed StoreFileMetadata keyed by the relative file path
+     * @throws IOException if reading the file fails
+     */
+    private void computeFileMetadata(String fileName, Map<String, StoreFileMetadata> builder) throws IOException {
+        Path filePath = shardPath().getDataPath().resolve(fileName);
+        try (Directory dir = FSDirectory.open(filePath.getParent())) {
+            String localFileName = filePath.getFileName().toString();
+            try (IndexInput in = dir.openInput(localFileName, IOContext.READONCE)) {
+                long length = in.length();
+                String checksum = Store.digestToString(CodecUtil.checksumEntireFile(in));
+                Version version = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+                builder.put(fileName, new StoreFileMetadata(fileName, length, checksum, version, null));
+            }
         }
     }
 
