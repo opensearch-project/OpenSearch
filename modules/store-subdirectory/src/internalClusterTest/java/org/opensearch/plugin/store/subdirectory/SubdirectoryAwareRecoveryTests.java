@@ -151,8 +151,7 @@ public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
             }
 
             // Additional verification: ensure non-segment files are present
-            boolean hasNonSegmentFiles = referenceFiles.stream()
-                .anyMatch(f -> f.startsWith(TestEngine.NON_SEGMENT_FILE_PREFIX));
+            boolean hasNonSegmentFiles = referenceFiles.stream().anyMatch(f -> f.startsWith(TestEngine.NON_SEGMENT_FILE_PREFIX));
             assertTrue("Non-segment files should be present in subdirectory", hasNonSegmentFiles);
         }
     }
