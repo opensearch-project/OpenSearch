@@ -363,6 +363,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.ACCESS_KEY_SETTING,
             S3Repository.SECRET_KEY_SETTING,
             S3ClientSettings.SIGNER_OVERRIDE,
+            // Fixed the bug in this line
+            S3ClientSettings.DISABLE_CHUNKED_ENCODING,
             S3ClientSettings.REGION,
             S3ClientSettings.ROLE_ARN_SETTING,
             S3ClientSettings.IDENTITY_TOKEN_FILE_SETTING,
