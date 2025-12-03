@@ -87,7 +87,7 @@ public class SegmentReplicationPrimaryPromotionIT extends SegmentReplicationBase
             try {
                 if (lockEnable) {
                     flushLatch.countDown();
-                    indexLuceneLatch.await();
+                    assertTrue("indexLuceneLatch timed out", indexLuceneLatch.await(30, TimeUnit.SECONDS));
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -129,7 +129,8 @@ public class SegmentReplicationPrimaryPromotionIT extends SegmentReplicationBase
 
         waitForSearchableDocs(1, replica);
 
-        // mock network exception
+        // The exception is thrown unconditionally to simulate persistent publish-checkpoint failures
+        // until the primary is stopped and the replica is promoted.
         MockTransportService replicaTransportService = ((MockTransportService) internalCluster().getInstance(
             TransportService.class,
             replica
@@ -145,7 +146,8 @@ public class SegmentReplicationPrimaryPromotionIT extends SegmentReplicationBase
         waitForSearchableDocs(1, primary);
         indexLuceneLatch.countDown();
         assertTrue("refreshLatch timed out", refreshLatch.await(30, TimeUnit.SECONDS));
-        writeThread.join();
+        writeThread.join(TimeUnit.SECONDS.toMillis(30));
+        assertFalse("writeThread did not complete in time", writeThread.isAlive());
 
         logger.info("refresh index");
         refresh(INDEX_NAME);
