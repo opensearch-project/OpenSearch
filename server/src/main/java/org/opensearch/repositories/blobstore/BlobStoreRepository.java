@@ -55,6 +55,7 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.RepositoryCleanupInProgress;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
@@ -74,6 +75,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.EncryptedBlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.blobstore.transfer.stream.RateLimitingOffsetRangeInputStream;
@@ -778,7 +780,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         executor.execute(ActionRunnable.supply(listener, () -> {
             final long startTime = threadPool.absoluteTimeInMillis();
-            final BlobContainer shardContainer = shardContainer(index, shardNum);
+            final BlobContainer shardContainer = shardContainer(index, shardNum, (CryptoMetadata) null);
             final String newGen;
             final BlobStoreIndexShardSnapshots existingSnapshots;
             final String existingShardGen;
@@ -875,7 +877,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         executor.execute(ActionRunnable.supply(listener, () -> {
             final long startTime = threadPool.relativeTimeInMillis();
-            final BlobContainer shardContainer = shardContainer(index, shardNum);
+            final BlobContainer shardContainer = shardContainer(index, shardNum, (CryptoMetadata) null);
             // We don't need to check if there exists a shallow/full copy snapshot with the same name as we have the check before starting
             // the clone operation ensuring that the snapshot name is available by checking the repository data. Also, the new clone shallow
             // snapshot would have a different UUID and hence a new unique shallow-snap-N file will be created.
@@ -1852,7 +1854,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     executor.execute(new AbstractRunnable() {
                         @Override
                         protected void doRun() throws Exception {
-                            final BlobContainer shardContainer = shardContainer(indexId, finalShardId);
+                            final BlobContainer shardContainer = shardContainer(indexId, finalShardId, (CryptoMetadata) null);
                             final Set<String> blobs = shardContainer.listBlobs().keySet();
                             final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots;
                             final long newGen;
@@ -2503,7 +2505,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             Map<String, BlobContainer> shardContainers = new HashMap<>(shardInfo.getShardCount());
             for (int i = 0; i < shardInfo.getShardCount(); i++) {
-                shardContainers.put(String.valueOf(i), shardContainer(shardInfo.getIndexId(), i));
+                shardContainers.put(String.valueOf(i), shardContainer(shardInfo.getIndexId(), i, (CryptoMetadata) null));
             }
             releaseRemoteStoreLocksAndCleanup(shardContainers, remoteStoreLockManagerFactory);
         }
@@ -2554,7 +2556,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Iterate over the shards and delete each shard's data
         for (int i = 0; i < shardInfo.getShardCount(); i++) {
             // Call the delete method on the shardContainer and accumulate the result
-            deleteResult = deleteResult.add(deleteContainer(shardContainer(shardInfo.getIndexId(), i)));
+            deleteResult = deleteResult.add(deleteContainer(shardContainer(shardInfo.getIndexId(), i, (CryptoMetadata) null)));
         }
 
         // Return the accumulated DeleteResult
@@ -2969,11 +2971,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return indicesPath().add(indexId.getId());
     }
 
-    private BlobContainer shardContainer(IndexId indexId, ShardId shardId) {
-        return shardContainer(indexId, shardId.getId());
+    private BlobContainer shardContainer(IndexId indexId, ShardId shardId, IndexMetadata indexMetadata) {
+        return shardContainer(indexId, shardId.getId(), indexMetadata);
     }
 
-    public BlobContainer shardContainer(IndexId indexId, int shardId) {
+    private BlobContainer shardContainer(IndexId indexId, ShardId shardId, CryptoMetadata cryptoMetadata) {
+        return shardContainer(indexId, shardId.getId(), cryptoMetadata);
+    }
+
+    public BlobContainer shardContainer(IndexId indexId, int shardId, IndexMetadata indexMetadata) {
+        CryptoMetadata cryptoMetadata = resolveCryptoMetadata(indexMetadata);
+        return shardContainer(indexId, shardId, cryptoMetadata);
+    }
+
+    public BlobContainer shardContainer(IndexId indexId, int shardId, CryptoMetadata cryptoMetadata) {
+        if (cryptoMetadata != null && (blobStore() instanceof EncryptedBlobStore)) {
+            return ((EncryptedBlobStore) blobStore()).blobContainer(shardPath(indexId, shardId), cryptoMetadata);
+        }
         return blobStore().blobContainer(shardPath(indexId, shardId));
     }
 
@@ -3875,7 +3889,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try {
             final String generation = snapshotStatus.generation();
             logger.info("[{}] [{}] shallow copy snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
-            final BlobContainer shardContainer = shardContainer(indexId, shardId);
+            final BlobContainer shardContainer = shardContainer(indexId, shardId, (CryptoMetadata) null);
 
             long indexTotalFileSize = 0;
             List<String> fileNames;
@@ -3956,7 +3970,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
-        ActionListener<String> listener
+        ActionListener<String> listener,
+        IndexMetadata indexMetadata
     ) {
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
@@ -3967,7 +3982,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try {
             final String generation = snapshotStatus.generation();
             logger.debug("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
-            final BlobContainer shardContainer = shardContainer(indexId, shardId);
+            final BlobContainer shardContainer = shardContainer(indexId, shardId, indexMetadata);
             final Set<String> blobs;
             if (generation == null) {
                 try {
@@ -4141,12 +4156,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;
             }
+
+            // Resolve CryptoMetadata once for all file uploads
+            final CryptoMetadata cryptoMetadata = resolveCryptoMetadata(indexMetadata);
+
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
             // Start as many workers as fit into the snapshot pool at once at the most
             final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), indexIncrementalFileCount);
             final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, workers, allFilesUploadedListener);
             for (int i = 0; i < workers; ++i) {
-                executeOneFileSnapshot(store, snapshotId, indexId, snapshotStatus, filesToSnapshot, executor, filesListener);
+                executeOneFileSnapshot(
+                    store,
+                    snapshotId,
+                    indexId,
+                    snapshotStatus,
+                    filesToSnapshot,
+                    executor,
+                    filesListener,
+                    indexMetadata,
+                    cryptoMetadata
+                );
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -4160,7 +4189,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         IndexShardSnapshotStatus snapshotStatus,
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot,
         Executor executor,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        IndexMetadata indexMetadata,
+        CryptoMetadata cryptoMetadata
     ) throws InterruptedException {
         final ShardId shardId = store.shardId();
         final BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
@@ -4169,8 +4200,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             executor.execute(ActionRunnable.wrap(listener, l -> {
                 try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
-                    snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
-                    executeOneFileSnapshot(store, snapshotId, indexId, snapshotStatus, filesToSnapshot, executor, l);
+                    snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store, cryptoMetadata);
+                    executeOneFileSnapshot(
+                        store,
+                        snapshotId,
+                        indexId,
+                        snapshotStatus,
+                        filesToSnapshot,
+                        executor,
+                        l,
+                        indexMetadata,
+                        cryptoMetadata
+                    );
                 }
             }));
         }
@@ -4214,7 +4255,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e))
         );
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        final BlobContainer container = shardContainer(indexId, snapshotShardId);
+
+        IndexMetadata indexMetadata = clusterService.state().metadata().index(indexId.getName());
+        final BlobContainer container = shardContainer(indexId, snapshotShardId, indexMetadata);
         executor.execute(ActionRunnable.wrap(restoreListener, l -> {
             IndexShardSnapshot indexShardSnapshot = loadShardSnapshot(container, snapshotId);
             assert indexShardSnapshot instanceof BlobStoreIndexShardSnapshot
@@ -4489,7 +4532,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         IndexId indexId,
         ShardId snapshotShardId
     ) {
-        final BlobContainer container = shardContainer(indexId, snapshotShardId);
+        final BlobContainer container = shardContainer(indexId, snapshotShardId, (CryptoMetadata) null);
         IndexShardSnapshot indexShardSnapshot = loadShardSnapshot(container, snapshotId);
         assert indexShardSnapshot instanceof RemoteStoreShardShallowCopySnapshot
             : "indexShardSnapshot should be an instance of RemoteStoreShardShallowCopySnapshot";
@@ -4498,12 +4541,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        IndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
+        IndexMetadata indexMetadata = clusterService.state().metadata().index(indexId.getName());
+        IndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId, indexMetadata), snapshotId);
         return snapshot.getIndexShardSnapshotStatus();
     }
 
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotInfo snapshotInfo, IndexId indexId, ShardId shardId) {
-        IndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotInfo);
+        IndexMetadata indexMetadata = clusterService.state().metadata().index(indexId.getName());
+        IndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId, indexMetadata), snapshotInfo);
         return snapshot.getIndexShardSnapshotStatus();
     }
 
@@ -4797,7 +4842,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     /**
      * Snapshot individual file
-     * @param fileInfo file to be snapshotted
+     *
+     * @param fileInfo      file to be snapshotted
      */
     private void snapshotFile(
         BlobStoreIndexShardSnapshot.FileInfo fileInfo,
@@ -4805,9 +4851,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardId shardId,
         SnapshotId snapshotId,
         IndexShardSnapshotStatus snapshotStatus,
-        Store store
+        Store store,
+        CryptoMetadata cryptoMetadata
     ) throws IOException {
-        final BlobContainer shardContainer = shardContainer(indexId, shardId);
+        final BlobContainer shardContainer = shardContainer(indexId, shardId, cryptoMetadata);
+
         final String file = fileInfo.physicalName();
         try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.DEFAULT, fileInfo.metadata())) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
@@ -4838,7 +4886,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 };
                 final String partName = fileInfo.partName(i);
                 logger.trace(() -> new ParameterizedMessage("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path()));
-                shardContainer.writeBlob(partName, inputStream, partBytes, false);
+                // Use writeBlobWithMetadata to pass CryptoMetadata for index-level SSE-KMS override
+                shardContainer.writeBlobWithMetadata(partName, inputStream, partBytes, false, null, cryptoMetadata);
             }
             Store.verify(indexInput);
             snapshotStatus.addProcessedFile(fileInfo.length());
@@ -4933,5 +4982,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         public String toString() {
             return name;
         }
+    }
+
+    private CryptoMetadata resolveCryptoMetadata(IndexMetadata indexMetadata) {
+        if (indexMetadata == null) {
+            return null;
+        }
+        Settings indexSettings = indexMetadata.getSettings();
+        return CryptoMetadata.fromIndexSettings(indexSettings);
     }
 }

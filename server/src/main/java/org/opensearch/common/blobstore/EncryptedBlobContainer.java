@@ -123,6 +123,53 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
     }
 
     @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        Map<String, String> metadata
+    ) throws IOException {
+        executeWrite(
+            inputStream,
+            blobSize,
+            (encryptedStream, encryptedLength) -> blobContainer.writeBlobWithMetadata(
+                blobName,
+                encryptedStream,
+                encryptedLength,
+                failIfAlreadyExists,
+                metadata
+            )
+        );
+    }
+
+    @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        Map<String, String> metadata,
+        org.opensearch.cluster.metadata.CryptoMetadata cryptoMetadata
+    ) throws IOException {
+        // Note: cryptoMetadata parameter is for SSE-KMS settings (different from client-side encryption)
+        // Client-side encryption is handled by this.cryptoHandler (already configured)
+        // SSE-KMS settings are passed through to underlying container
+        executeWrite(
+            inputStream,
+            blobSize,
+            (encryptedStream, encryptedLength) -> blobContainer.writeBlobWithMetadata(
+                blobName,
+                encryptedStream,
+                encryptedLength,
+                failIfAlreadyExists,
+                metadata,
+                cryptoMetadata
+            )
+        );
+    }
+
+    @Override
     public DeleteResult delete() throws IOException {
         return blobContainer.delete();
     }

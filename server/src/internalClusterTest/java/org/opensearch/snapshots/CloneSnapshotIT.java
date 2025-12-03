@@ -38,6 +38,7 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
@@ -807,7 +808,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
                     ActionRunnable.supply(
                         f,
                         () -> BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(
-                            repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
+                            repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId(), (CryptoMetadata) null),
                             generation,
                             NamedXContentRegistry.EMPTY
                         )
@@ -823,7 +824,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     ) {
         return PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.supply(f, () -> {
             IndexShardSnapshot indexShardSnapshot = repository.loadShardSnapshot(
-                repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
+                repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId(), (CryptoMetadata) null),
                 snapshotId
             );
             assert indexShardSnapshot instanceof BlobStoreIndexShardSnapshot

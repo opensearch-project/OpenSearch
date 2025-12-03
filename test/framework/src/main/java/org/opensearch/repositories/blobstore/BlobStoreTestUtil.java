@@ -39,6 +39,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
@@ -196,7 +197,7 @@ public final class BlobStoreTestUtil {
         final Map<String, BlobContainer> shardContainers = new HashMap<>();
         int shardCount = repositoryData.shardGenerations().getGens(indexId).size();
         for (int i = 0; i < shardCount; i++) {
-            final BlobContainer shardContainer = repository.shardContainer(indexId, i);
+            final BlobContainer shardContainer = repository.shardContainer(indexId, i, (CryptoMetadata) null);
             shardContainers.put(String.valueOf(i), shardContainer);
         }
         return shardContainers;

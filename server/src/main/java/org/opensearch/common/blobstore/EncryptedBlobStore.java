@@ -13,6 +13,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.crypto.CryptoHandlerRegistry;
 import org.opensearch.crypto.CryptoRegistryException;
+import org.opensearch.repositories.blobstore.EncryptionContextUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -27,6 +28,7 @@ public class EncryptedBlobStore implements BlobStore {
 
     private final BlobStore blobStore;
     private final CryptoHandler<?, ?> cryptoHandler;
+    private final CryptoMetadata repositoryCryptoMetadata;  // Store for merging with index metadata
 
     /**
      * Constructs an EncryptedBlobStore that wraps the provided BlobStore with encryption capabilities based on the
@@ -48,6 +50,7 @@ public class EncryptedBlobStore implements BlobStore {
             );
         }
         this.blobStore = blobStore;
+        this.repositoryCryptoMetadata = cryptoMetadata;
     }
 
     /**
@@ -64,6 +67,23 @@ public class EncryptedBlobStore implements BlobStore {
             return new AsyncMultiStreamEncryptedBlobContainer<>((AsyncMultiStreamBlobContainer) blobContainer, cryptoHandler);
         }
         return new EncryptedBlobContainer<>(blobContainer, cryptoHandler);
+    }
+
+    // overloadded method to get blob container with the new crypto metadata
+    public BlobContainer blobContainer(BlobPath path, CryptoMetadata cryptoMetadata) {
+
+        // Merge index metadata with repository metadata for context merging
+        CryptoMetadata merged = (cryptoMetadata != null) ? mergeCryptoMetadata(cryptoMetadata) : this.repositoryCryptoMetadata;
+
+        CryptoHandlerRegistry cryptoHandlerRegistry = CryptoHandlerRegistry.getInstance();
+        assert cryptoHandlerRegistry != null : "CryptoManagerRegistry is not initialized";
+        CryptoHandler IndexCryptoHandler = cryptoHandlerRegistry.fetchCryptoHandler(merged);
+
+        BlobContainer blobContainer = blobStore.blobContainer(path);
+        if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
+            return new AsyncMultiStreamEncryptedBlobContainer<>((AsyncMultiStreamBlobContainer) blobContainer, IndexCryptoHandler);
+        }
+        return new EncryptedBlobContainer<>(blobContainer, IndexCryptoHandler);
     }
 
     /**
@@ -98,6 +118,19 @@ public class EncryptedBlobStore implements BlobStore {
     @Override
     public boolean isBlobMetadataEnabled() {
         return blobStore.isBlobMetadataEnabled();
+    }
+
+    /**
+     * Merges index-level and repository-level CryptoMetadata.
+     * Priority: Index key provider if present, else repository
+     * Context: Index context merged with repository context (EncA + EncB)
+     *
+     * @param indexMetadata The index-level CryptoMetadata
+     * @return Merged CryptoMetadata with combined key and context
+     */
+    private CryptoMetadata mergeCryptoMetadata(CryptoMetadata indexMetadata) {
+        // Delegate to centralized utility class
+        return EncryptionContextUtils.mergeCryptoMetadata(indexMetadata, this.repositoryCryptoMetadata);
     }
 
     /**

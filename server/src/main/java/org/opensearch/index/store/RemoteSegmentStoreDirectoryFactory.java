@@ -144,7 +144,9 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                     ? blobStoreRepository::maybeRateLimitRemoteDownloadTransfersForWarm
                     : blobStoreRepository::maybeRateLimitRemoteDownloadTransfers,
                 blobStoreRepository::maybeRateLimitLowPriorityDownloadTransfers,
-                pendingDownloadMergedSegments
+                pendingDownloadMergedSegments,
+                blobStoreRepository.blobStore(),
+                dataPath
             );
 
             RemoteStorePathStrategy.ShardDataPathInput mdPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
