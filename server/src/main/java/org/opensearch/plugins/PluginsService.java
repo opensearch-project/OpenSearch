@@ -728,8 +728,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 Set<URL> intersection = new HashSet<>(urls);
                 intersection.retainAll(pluginUrls);
                 if (intersection.isEmpty() == false) {
-                    throw new IllegalStateException(
-                        "jar hell! extended plugins " + exts + " have duplicate codebases with each other: " + intersection
+                    logger.info(
+                        "Plugin [{}] extends multiple plugins/modules that share common dependencies: {}. "
+                            + "This is expected when extended plugins share common ancestors.",
+                        bundle.plugin.getName(),
+                        intersection
                     );
                 }
 
