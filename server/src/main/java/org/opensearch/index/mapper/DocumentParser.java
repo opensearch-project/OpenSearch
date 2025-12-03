@@ -490,7 +490,8 @@ final class DocumentParser {
                     if (mapper.disableObjects()) {
                         paths = new String[] { currentFieldName };
                     } else {
-                        paths = splitAndValidatePath(currentFieldName);
+                        // Use splitPathRespectingDisableObjects to handle cases where child mappers have disable_objects=true
+                        paths = splitPathRespectingDisableObjects(currentFieldName, context.docMapper());
                     }
                     if (containsDisabledObjectMapper(mapper, paths)) {
                         parser.nextToken();
@@ -776,68 +777,71 @@ final class DocumentParser {
                     } else {
                         // No existing mapper - handle dynamic mapping
                         token = parser.nextToken();
-                        ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context);
                         
-                        switch (dynamic) {
-                            case STRICT:
-                                throw new StrictDynamicMappingException(
-                                    dynamic.name().toLowerCase(Locale.ROOT),
-                                    mapper.fullPath(),
-                                    currentFieldName
-                                );
-                            case TRUE:
-                            case STRICT_ALLOW_TEMPLATES:
-                            case FALSE_ALLOW_TEMPLATES:
-                                // Determine the field type based on the token
-                                XContentFieldType fieldType = getFieldType(token);
-                                
-                                Mapper.Builder builder = findTemplateBuilder(
-                                    context,
-                                    currentFieldName,
-                                    fieldType,
-                                    dynamic,
-                                    mapper.fullPath()
-                                );
-                                
-                                if (builder == null) {
-                                    if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
-                                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-                                            parser.skipChildren();
-                                        }
-                                        break;
-                                    }
-                                    // Create a default field mapper based on the value type
-                                    builder = createBuilderFromDynamicValue(
+                        // When disable_objects is enabled and we encounter a nested object, flatten it
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            flattenObject(context, mapper, currentFieldName);
+                        } else if (token == XContentParser.Token.START_ARRAY) {
+                            flattenArray(context, mapper, currentFieldName);
+                        } else {
+                            // Handle primitive values with dynamic mapping
+                            ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context);
+                            
+                            switch (dynamic) {
+                                case STRICT:
+                                    throw new StrictDynamicMappingException(
+                                        dynamic.name().toLowerCase(Locale.ROOT),
+                                        mapper.fullPath(),
+                                        currentFieldName
+                                    );
+                                case TRUE:
+                                case STRICT_ALLOW_TEMPLATES:
+                                case FALSE_ALLOW_TEMPLATES:
+                                    // Determine the field type based on the token
+                                    XContentFieldType fieldType = getFieldType(token);
+                                    
+                                    Mapper.Builder builder = findTemplateBuilder(
                                         context,
-                                        token,
                                         currentFieldName,
+                                        fieldType,
                                         dynamic,
                                         mapper.fullPath()
                                     );
-                                }
-                                
-                                if (builder != null) {
-                                    Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
-                                        context.indexSettings().getSettings(),
-                                        context.path()
-                                    );
-                                    Mapper dynamicMapper = builder.build(builderContext);
-                                    context.addDynamicMapper(dynamicMapper);
                                     
-                                    if (dynamicMapper instanceof FieldMapper fm) {
-                                        fm.parse(context);
-                                        parseCopyFields(context, fm.copyTo().copyToFields());
-                                    } else if (dynamicMapper instanceof ObjectMapper om) {
-                                        parseObjectOrNested(context, om);
+                                    if (builder == null) {
+                                        if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                                            break;
+                                        }
+                                        // Create a default field mapper based on the value type
+                                        builder = createBuilderFromDynamicValue(
+                                            context,
+                                            token,
+                                            currentFieldName,
+                                            dynamic,
+                                            mapper.fullPath()
+                                        );
                                     }
-                                }
-                                break;
-                            case FALSE:
-                                // Dynamic mapping is disabled, skip the field
-                                if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-                                    parser.skipChildren();
-                                }
-                                break;
+                                    
+                                    if (builder != null) {
+                                        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
+                                            context.indexSettings().getSettings(),
+                                            context.path()
+                                        );
+                                        Mapper dynamicMapper = builder.build(builderContext);
+                                        context.addDynamicMapper(dynamicMapper);
+                                        
+                                        if (dynamicMapper instanceof FieldMapper fm) {
+                                            fm.parse(context);
+                                            parseCopyFields(context, fm.copyTo().copyToFields());
+                                        } else if (dynamicMapper instanceof ObjectMapper om) {
+                                            parseObjectOrNested(context, om);
+                                        }
+                                    }
+                                    break;
+                                case FALSE:
+                                    // Dynamic mapping is disabled, skip the field
+                                    break;
+                            }
                         }
                     }
                 } else if (token == null) {
