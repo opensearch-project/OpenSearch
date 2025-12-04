@@ -64,6 +64,7 @@ use futures::{future, stream, Stream, StreamExt, TryStreamExt};
 use itertools::Itertools;
 use object_store::ObjectStore;
 use regex::Regex;
+use crate::absolute_row_id_optimizer::ROW_ID_FIELD_NAME;
 use std::fs::File;
 use std::{any::Any, collections::HashMap, str::FromStr, sync::Arc};
 
@@ -302,7 +303,7 @@ impl ListingTableConfig {
     /// # Errors
     /// * if `self.options` is not set. See [`Self::with_listing_options`]
     pub async fn infer_schema(self, state: &dyn Session) -> Result<Self> {
-          match self.options {
+        match self.options {
             Some(options) => {
                 let ListingTableConfig {
                     table_paths,
@@ -1144,7 +1145,7 @@ impl ListingTable {
         }
         let row_id_field_datatype = self
             .file_schema
-            .field_with_name("___row_id")
+            .field_with_name(ROW_ID_FIELD_NAME)
             .expect("Field ___row_id not found")
             .data_type();
         if !(row_id_field_datatype.equals_datatype(&DataType::Int32)
