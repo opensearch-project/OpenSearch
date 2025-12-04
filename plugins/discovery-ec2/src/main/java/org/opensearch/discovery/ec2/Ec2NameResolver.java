@@ -124,7 +124,7 @@ class Ec2NameResolver implements CustomNameResolver {
                 logger.debug("obtained ec2 hostname from ec2 meta-data url {}: {}", url, metadataResult);
                 // only one address: because we explicitly ask for only one via the Ec2HostnameType
                 return new InetAddress[] { InetAddress.getByName(metadataResult) };
-            } catch (Exception e) {
+            } catch (IOException e) {
                 throw new IOException("IOException caught when fetching InetAddress from [" + metadataUrl + "]", e);
             } finally {
                 IOUtils.closeWhileHandlingException(in);

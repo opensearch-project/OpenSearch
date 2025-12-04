@@ -237,7 +237,6 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         if (client == null || queryRegistry == null) {
             throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
-
         return Collections.singletonMap(GRPC_SECURE_TRANSPORT_SETTING_KEY, () -> {
             GrpcParamsHandler.initialize(settings);
             List<BindableService> grpcServices = new ArrayList<>(

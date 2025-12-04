@@ -38,6 +38,7 @@ import org.opensearch.gradle.test.InternalClusterTestPlugin
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 // The transport-netty4 plugin is published to maven
 apply plugin: 'opensearch.publish'
@@ -67,6 +68,9 @@ dependencies {
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 restResources {

@@ -989,7 +989,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         key -> new Setting<>(key, "", (value) -> {
             // TODO: add ingestion source params validation
             return value;
-        }, Property.IndexScope)
+        }, Property.IndexScope, Property.Dynamic)
     );
 
     /**

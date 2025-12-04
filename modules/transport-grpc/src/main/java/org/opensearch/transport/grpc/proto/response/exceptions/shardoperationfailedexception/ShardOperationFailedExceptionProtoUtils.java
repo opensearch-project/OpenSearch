@@ -42,6 +42,9 @@ public class ShardOperationFailedExceptionProtoUtils {
             case SnapshotShardFailure ssf -> SnapshotShardFailureProtoUtils.toProto(ssf, params);
             case DefaultShardOperationFailedException dsofe -> DefaultShardOperationFailedExceptionProtoUtils.toProto(dsofe, params);
             case ReplicationResponse.ShardInfo.Failure sf -> ReplicationResponseShardInfoFailureProtoUtils.toProto(sf, params);
+            case null -> throw new UnsupportedOperationException(
+                "Unsupported ShardOperationFailedException [null] cannot be converted to proto."
+            );
             default -> throw new UnsupportedOperationException(
                 "Unsupported ShardOperationFailedException " + exception.getClass().getName() + "cannot be converted to proto."
             );

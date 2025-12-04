@@ -58,6 +58,23 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     private final long cacheEvictions;
     private final long compilationLimitTriggered;
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new ScriptStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private ScriptStats(Builder builder) {
+        this.contextStats = builder.contextStats;
+        this.compilations = builder.compilations;
+        this.cacheEvictions = builder.cacheEvictions;
+        this.compilationLimitTriggered = builder.compilationLimitTriggered;
+    }
+
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link ScriptStats#aggregate(List)} instead.
+     */
+    @Deprecated
     public ScriptStats(List<ScriptContextStats> contextStats) {
         ArrayList<ScriptContextStats> ctxStats = new ArrayList<>(contextStats.size());
         ctxStats.addAll(contextStats);
@@ -76,6 +93,11 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         this.compilationLimitTriggered = compilationLimitTriggered;
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public ScriptStats(long compilations, long cacheEvictions, long compilationLimitTriggered) {
         this.contextStats = Collections.emptyList();
         this.compilations = compilations;
@@ -83,6 +105,11 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         this.compilationLimitTriggered = compilationLimitTriggered;
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public ScriptStats(ScriptContextStats context) {
         this(context.getCompilations(), context.getCacheEvictions(), context.getCompilationLimitTriggered());
     }
@@ -100,6 +127,30 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         out.writeVLong(cacheEvictions);
         out.writeVLong(compilationLimitTriggered);
         out.writeList(contextStats);
+    }
+
+    /**
+     * Aggregates a list of {@link ScriptContextStats} into a {@link ScriptStats}.
+     * Sums all metrics across contexts and returns an immutable, sorted, and aggregated result.
+     */
+    public static ScriptStats aggregate(List<ScriptContextStats> contextStats) {
+        ArrayList<ScriptContextStats> ctxStats = new ArrayList<>(contextStats);
+        ctxStats.sort(ScriptContextStats::compareTo);
+
+        long compilations = 0;
+        long cacheEvictions = 0;
+        long compilationLimitTriggered = 0;
+        for (ScriptContextStats stat : ctxStats) {
+            compilations += stat.getCompilations();
+            cacheEvictions += stat.getCacheEvictions();
+            compilationLimitTriggered += stat.getCompilationLimitTriggered();
+        }
+
+        return new Builder().contextStats(Collections.unmodifiableList(new ArrayList<>(ctxStats)))
+            .compilations(compilations)
+            .cacheEvictions(cacheEvictions)
+            .compilationLimitTriggered(compilationLimitTriggered)
+            .build();
     }
 
     public List<ScriptContextStats> getContextStats() {
@@ -122,11 +173,59 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         if (contextStats.isEmpty()) {
             return new ScriptCacheStats(this);
         }
+
         Map<String, ScriptStats> contexts = new HashMap<>(contextStats.size());
         for (ScriptContextStats contextStats : contextStats) {
-            contexts.put(contextStats.getContext(), new ScriptStats(contextStats));
+            contexts.put(
+                contextStats.getContext(),
+                new ScriptStats.Builder().compilations(contextStats.getCompilations())
+                    .cacheEvictions(contextStats.getCacheEvictions())
+                    .compilationLimitTriggered(contextStats.getCompilationLimitTriggered())
+                    .build()
+            );
         }
         return new ScriptCacheStats(contexts);
+    }
+
+    /**
+     * Builder for the {@link ScriptStats} class.
+     * Provides a fluent API for constructing a ScriptStats object.
+     */
+    public static class Builder {
+        private List<ScriptContextStats> contextStats = Collections.emptyList();
+        private long compilations = 0;
+        private long cacheEvictions = 0;
+        private long compilationLimitTriggered = 0;
+
+        public Builder() {}
+
+        public Builder contextStats(List<ScriptContextStats> contextStats) {
+            this.contextStats = contextStats;
+            return this;
+        }
+
+        public Builder compilations(long compilations) {
+            this.compilations = compilations;
+            return this;
+        }
+
+        public Builder cacheEvictions(long cacheEvictions) {
+            this.cacheEvictions = cacheEvictions;
+            return this;
+        }
+
+        public Builder compilationLimitTriggered(long compilationLimitTriggered) {
+            this.compilationLimitTriggered = compilationLimitTriggered;
+            return this;
+        }
+
+        /**
+         * Creates a {@link ScriptStats} object from the builder's current state.
+         * @return A new ScriptStats instance.
+         */
+        public ScriptStats build() {
+            return new ScriptStats(this);
+        }
     }
 
     @Override

@@ -183,7 +183,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     public void testParseSearchSourceWithSource() throws IOException {
         // Create a protobuf SearchRequest with source context
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setXSource(org.opensearch.protobufs.SourceConfigParam.newBuilder().setBool(true).build())
+            .setXSource(org.opensearch.protobufs.SourceConfigParam.newBuilder().setFetch(true).build())
             .addXSourceIncludes("include1")
             .addXSourceIncludes("include2")
             .addXSourceExcludes("exclude1")

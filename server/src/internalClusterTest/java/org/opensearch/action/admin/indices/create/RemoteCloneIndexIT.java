@@ -49,6 +49,7 @@ import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -227,6 +228,7 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
         createRepository(repoName, rmd.type(), settings);
     }
 
+    @SuppressForbidden(reason = "Waiting longer than timeout")
     public void testCreateCloneIndexFailure() throws ExecutionException, InterruptedException {
         asyncUploadMockFsRepo = false;
         Version version = VersionUtils.randomIndexCompatibleVersion(random());

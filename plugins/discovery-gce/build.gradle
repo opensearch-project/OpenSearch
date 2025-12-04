@@ -11,6 +11,7 @@
 
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 opensearchplugin {
   description = 'The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.'
@@ -34,6 +35,9 @@ dependencies {
   api 'io.opencensus:opencensus-api:0.31.1'
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 restResources {
@@ -88,6 +92,12 @@ thirdPartyAudit {
     'javax.servlet.ServletContextListener',
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
-    'org.apache.log.Logger'
+    'org.apache.log.Logger',
+    'org.slf4j.ILoggerFactory',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.Marker',
+    'org.slf4j.MarkerFactory',
+    'org.slf4j.spi.LocationAwareLogger'
   )
 }

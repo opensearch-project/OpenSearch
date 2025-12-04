@@ -82,7 +82,7 @@ public class ConstantNode extends ExpressionNode {
             case Short shortValue -> methodWriter.push(shortValue);
             case Byte byteValue -> methodWriter.push(byteValue);
             case Boolean boolValue -> methodWriter.push(boolValue);
-            default -> throw new IllegalStateException("unexpected constant [" + constant + "]");
+            case null, default -> throw new IllegalStateException("unexpected constant [" + constant + "]");
         }
     }
 }

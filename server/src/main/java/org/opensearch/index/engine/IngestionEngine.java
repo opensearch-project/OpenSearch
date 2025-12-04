@@ -165,6 +165,11 @@ public class IngestionEngine extends InternalEngine {
                 .indexBlocked(ClusterBlockLevel.WRITE, engineConfig.getIndexSettings().getIndex().getName());
             streamPoller.setWriteBlockEnabled(isWriteBlockEnabled);
         }
+
+        // Register listener for dynamic ingestion source params updates
+        engineConfig.getIndexSettings()
+            .getScopedSettings()
+            .addAffixMapUpdateConsumer(IndexMetadata.INGESTION_SOURCE_PARAMS_SETTING, this::updateIngestionSourceParams, (x, y) -> {});
     }
 
     private void unregisterStreamPollerListener() {
@@ -517,6 +522,28 @@ public class IngestionEngine extends InternalEngine {
             engineConfig.getIndexSettings().getIndexMetadata().getIngestionSource().getType()
         );
         streamPoller.updateErrorStrategy(updatedIngestionErrorStrategy);
+    }
+
+    /**
+     * Handler for updating ingestion source params on dynamic index settings update.
+     * This will reinitialize the streamPoller's consumer with new configurations.
+     */
+    private void updateIngestionSourceParams(Map<String, Object> updatedParams) {
+        if (streamPoller.getConsumer() == null) {
+            logger.debug("Consumer not yet initialized, skipping consumer reinitialization for ingestion source params update");
+            return;
+        }
+
+        logger.info("Ingestion source params updated, reinitializing consumer");
+
+        // Get current ingestion source with updated params from index metadata
+        IndexMetadata indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
+        assert indexMetadata != null;
+        IngestionSource updatedIngestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
+
+        // Request consumer reinitialization in the poller
+        streamPoller.requestConsumerReinitialization(updatedIngestionSource);
+        logger.info("Successfully processed ingestion source params update");
     }
 
     /**
