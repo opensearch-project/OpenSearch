@@ -55,7 +55,7 @@ public class DatafusionReader implements Closeable {
         }
         System.out.println("File names: " + Arrays.toString(fileNames));
         System.out.println("Directory path: " + directoryPath);
-        this.readerHandle = new ReaderHandle(directoryPath, fileNames);
+        this.readerHandle = new ReaderHandle(directoryPath, fileNames, this::releaseCatalogSnapshot);
     }
 
     /**
@@ -91,6 +91,9 @@ public class DatafusionReader implements Closeable {
     @Override
     public void close() {
         readerHandle.close();
+    }
+
+    private void releaseCatalogSnapshot() {
         try {
             if (catalogSnapshotRef != null)
                 catalogSnapshotRef.close();
