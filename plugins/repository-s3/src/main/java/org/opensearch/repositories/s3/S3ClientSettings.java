@@ -443,6 +443,7 @@ public final class S3ClientSettings {
             && newConnectionTTLMillis == connectionTTLMillis
             && newMaxConnections == maxConnections
             && newConnectionAcquisitionTimeoutMillis == connectionAcquisitionTimeoutMillis
+            && newMaxSyncConnections == maxSyncConnections // added maxSyncConnections
             && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries
             && Objects.equals(credentials, newCredentials)
