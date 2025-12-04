@@ -356,37 +356,18 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.PROXY_PORT_SETTING,
             S3ClientSettings.PROXY_USERNAME_SETTING,
             S3ClientSettings.PROXY_PASSWORD_SETTING,
-            S3ClientSettings.READ_TIMEOUT_SETTING,
-            S3ClientSettings.MAX_RETRIES_SETTING,
             S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
             S3ClientSettings.USE_PATH_STYLE_ACCESS,
             S3Repository.ACCESS_KEY_SETTING,
             S3Repository.SECRET_KEY_SETTING,
             S3ClientSettings.SIGNER_OVERRIDE,
 
-            // additional s3 client configuration settings
-            S3ClientSettings.REQUEST_TIMEOUT_SETTING,
-            S3ClientSettings.CONNECTION_TIMEOUT_SETTING,
-            S3ClientSettings.CONNECTION_TTL_SETTING,
-            S3ClientSettings.MAX_CONNECTIONS_SETTING,
+// additional s3 client configuration settings added in this PR
             S3ClientSettings.MAX_SYNC_CONNECTIONS_SETTING,
             S3ClientSettings.CONNECTION_ACQUISITION_TIMEOUT,
             S3ClientSettings.MAX_PENDING_CONNECTION_ACQUIRES,
-            S3ClientSettings.DISABLE_CHUNKED_ENCODING,
-            S3ClientSettings.MAX_RETRIES_SETTING,
-            S3ClientSettings.REGION,
-            S3ClientSettings.ROLE_ARN_SETTING,
-            S3ClientSettings.IDENTITY_TOKEN_FILE_SETTING,
-            S3ClientSettings.ROLE_SESSION_NAME_SETTING,
-            S3ClientSettings.LEGACY_MD5_CHECKSUM_CALCULATION,
-            S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING,
-            S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING,
-            S3Repository.REDIRECT_LARGE_S3_UPLOAD,
-            S3Repository.UPLOAD_RETRY_ENABLED,
-            S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT,
-            S3Repository.PERMIT_BACKED_TRANSFER_ENABLED,
-            S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE
-        );
+            S3ClientSettings.DISABLE_CHUNKED_ENCODING
+            );
     }
 
     @Override
