@@ -687,7 +687,6 @@ public final class S3ClientSettings {
             && Objects.equals(irsaCredentials, that.irsaCredentials);
     }
 
-
     @Override
     public int hashCode() {
         return Objects.hash(
@@ -709,7 +708,6 @@ public final class S3ClientSettings {
             signerOverride
         );
     }
-
 
     private static <T> T getConfigValue(Settings settings, String clientName, Setting.AffixSetting<T> clientSetting) {
         final Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
