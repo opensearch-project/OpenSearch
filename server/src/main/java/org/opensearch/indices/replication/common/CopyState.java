@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
 
-import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
-
 /**
  * An Opensearch-specific version of Lucene's CopyState class that
  * holds incRef'd file level details for one point-in-time segment infos.
@@ -50,8 +48,8 @@ public class CopyState implements Closeable {
 
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
-        userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(lastRefreshedCheckpoint));
-        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(lastRefreshedCheckpoint));
+        long maxSeqNo = Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO));
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(Math.min(maxSeqNo, lastRefreshedCheckpoint)));
         segmentInfosSnapshot.setUserData(userData, false);
 
         ByteBuffersDataOutput buffer = new ByteBuffersDataOutput();
