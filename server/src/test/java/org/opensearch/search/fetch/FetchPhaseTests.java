@@ -169,5 +169,4 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         TaskCancelledException ex = expectThrows(TaskCancelledException.class, () -> fetchPhase.execute(context));
         assertEquals("cancelled task with reason: test reason", ex.getMessage());
     }
-
 }

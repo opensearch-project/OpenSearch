@@ -599,4 +599,13 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
+    /**
+     * Returns whether document prefetching is enabled during the fetch phase.
+     * Subclasses should override this method to respect the index-level setting.
+     * @return true by default; subclasses may return a value based on index settings
+     */
+    @ExperimentalApi
+    public boolean isPrefetchDocsEnabled() {
+        return true;
+    }
 }
