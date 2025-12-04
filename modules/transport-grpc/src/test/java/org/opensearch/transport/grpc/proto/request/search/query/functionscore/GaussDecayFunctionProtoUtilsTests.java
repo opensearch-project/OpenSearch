@@ -191,4 +191,81 @@ public class GaussDecayFunctionProtoUtilsTests extends OpenSearchTestCase {
 
         assertThat(exception.getMessage(), containsString("Unsupported decay placement type"));
     }
+
+    public void testFromProtoWithMultiValueModeMin() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(20.0).setScale(10.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("rating", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_MIN)
+            .build();
+
+        ScoreFunctionBuilder<?> result = GaussDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(GaussDecayFunctionBuilder.class));
+        GaussDecayFunctionBuilder gaussFunction = (GaussDecayFunctionBuilder) result;
+
+        assertEquals("rating", gaussFunction.getFieldName());
+        assertEquals(org.opensearch.search.MultiValueMode.MIN, gaussFunction.getMultiValueMode());
+    }
+
+    public void testFromProtoWithMultiValueModeMax() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(50.0).setScale(25.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("price", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_MAX)
+            .build();
+
+        ScoreFunctionBuilder<?> result = GaussDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(GaussDecayFunctionBuilder.class));
+        GaussDecayFunctionBuilder gaussFunction = (GaussDecayFunctionBuilder) result;
+
+        assertEquals("price", gaussFunction.getFieldName());
+        assertEquals(org.opensearch.search.MultiValueMode.MAX, gaussFunction.getMultiValueMode());
+    }
+
+    public void testFromProtoWithMultiValueModeAvg() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(100.0).setScale(10.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("score", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_AVG)
+            .build();
+
+        ScoreFunctionBuilder<?> result = GaussDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(GaussDecayFunctionBuilder.class));
+        GaussDecayFunctionBuilder gaussFunction = (GaussDecayFunctionBuilder) result;
+
+        assertEquals("score", gaussFunction.getFieldName());
+        assertEquals(org.opensearch.search.MultiValueMode.AVG, gaussFunction.getMultiValueMode());
+    }
+
+    public void testFromProtoWithMultiValueModeUnspecified() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(20.0).setScale(10.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("rating", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_UNSPECIFIED)
+            .build();
+
+        ScoreFunctionBuilder<?> result = GaussDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(GaussDecayFunctionBuilder.class));
+        GaussDecayFunctionBuilder gaussFunction = (GaussDecayFunctionBuilder) result;
+
+        assertEquals("rating", gaussFunction.getFieldName());
+        // When UNSPECIFIED, multi_value_mode should remain at default (MIN)
+        assertEquals(org.opensearch.search.MultiValueMode.MIN, gaussFunction.getMultiValueMode());
+    }
 }
