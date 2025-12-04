@@ -48,7 +48,7 @@ public class CopyState implements Closeable {
 
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
-        long maxSeqNo = Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO));
+        long maxSeqNo = Long.parseLong(userData.getOrDefault(SequenceNumbers.MAX_SEQ_NO, "-1"));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(Math.min(maxSeqNo, lastRefreshedCheckpoint)));
         segmentInfosSnapshot.setUserData(userData, false);
 
