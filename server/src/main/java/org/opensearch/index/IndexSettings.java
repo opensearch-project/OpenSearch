@@ -866,6 +866,13 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> PREFETCH_DOCS_DURING_FETCH_ENABLED = Setting.boolSetting(
+            "index.prefetch_docs.fetch_phase.enabled",
+            true,
+            Property.IndexScope,
+            Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -1013,6 +1020,11 @@ public final class IndexSettings {
      * Denotes whether search via star tree index is enabled for this index
      */
     private volatile boolean isStarTreeIndexEnabled;
+
+    /**
+     * Denotes whether prefetch of docs during fetch phase is enabled for this index
+     */
+    private volatile boolean prefetchDocsEnabled;
 
     /**
      * Returns the default search fields for this index.
@@ -1185,6 +1197,8 @@ public final class IndexSettings {
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
         );
+        prefetchDocsEnabled = scopedSettings.get(PREFETCH_DOCS_DURING_FETCH_ENABLED);
+        scopedSettings.addSettingsUpdateConsumer(PREFETCH_DOCS_DURING_FETCH_ENABLED, this::setPrefetchDocsEnabled);
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
             tieredMergePolicyProvider::setDeletesPctAllowed
@@ -2279,5 +2293,13 @@ public final class IndexSettings {
 
     public boolean isDerivedSourceEnabled() {
         return derivedSourceEnabled;
+    }
+
+    public boolean isPrefetchDocsEnabled() {
+        return this.prefetchDocsEnabled;
+    }
+
+    private void setPrefetchDocsEnabled(boolean prefetchDocsEnabled) {
+        this.prefetchDocsEnabled = prefetchDocsEnabled;
     }
 }
