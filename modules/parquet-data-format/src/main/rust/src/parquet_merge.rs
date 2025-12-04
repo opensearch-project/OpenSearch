@@ -60,18 +60,24 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
     input_files: JObject,
     output_file: JString,
 ) -> jint {
+
+    let output_path_string = match env.get_string(&output_file) {
+        Ok(s) => s.to_str().unwrap_or("").to_string(),
+        Err(e) => {
+            let error_msg = format!("Failed to get output file string: {}", e);
+            log_error(&error_msg);
+            let _ = env.throw_new("java/lang/RuntimeException", &error_msg);
+            return -1;
+        }
+    };
+
     let result = catch_unwind(|| {
         let input_files_vec = convert_java_list_to_vec(&mut env, input_files)
             .map_err(|e| format!("Failed to convert Java list: {}", e))?;
 
-        let output_path: String = env
-            .get_string(&output_file)
-            .map_err(|e| format!("Failed to get output file string: {}", e))?
-            .into();
+        log_info(&format!("Starting merge of {} files to {}", input_files_vec.len(), output_path_string));
 
-        log_info(&format!("Starting merge of {} files to {}", input_files_vec.len(), output_path));
-
-        process_parquet_files(&input_files_vec, &output_path)?;
+        process_parquet_files(&input_files_vec, &output_path_string)?;
 
         log_info("Merge completed successfully");
         Ok(())
@@ -82,12 +88,14 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
         Ok(Err(e)) => {
             let error_msg = format!("Error processing Parquet files: {}", e);
             log_error(&error_msg);
+            cleanup_output_file(&output_path_string);
             let _ = env.throw_new("java/lang/RuntimeException", &error_msg);
             -1
         }
         Err(e) => {
             let error_msg = format!("Rust panic occurred: {:?}", e);
             log_error(&error_msg);
+            cleanup_output_file(&output_path_string);
             let _ = env.throw_new("java/lang/RuntimeException", &error_msg);
             -1
         }
@@ -119,6 +127,16 @@ pub fn process_parquet_files(input_files: &[String], output_path: &str) -> Resul
     ));
 
     Ok(())
+}
+
+// Cleanup function to delete stale output file on error
+fn cleanup_output_file(output_path: &str) {
+    if std::path::Path::new(output_path).exists() {
+        match std::fs::remove_file(output_path) {
+            Ok(_) => log_info(&format!("Cleaned up partial output file: {}", output_path)),
+            Err(e) => log_error(&format!("Failed to clean up output file {}: {}", output_path, e)),
+        }
+    }
 }
 
 // Validation functions
@@ -277,12 +295,3 @@ fn log_info(message: &str) {
 fn log_error(message: &str) {
     rust_log_error!("{}", message);
 }
-
-// Close function
-// #[no_mangle]
-// pub extern "system" fn Java_org_opensearch_arrow_bridge_ArrowRustBridge_close(
-//     _env: JNIEnv,
-//     _class: JClass,
-// ) {
-//     log_info("Closing ArrowRustBridge");
-// }
