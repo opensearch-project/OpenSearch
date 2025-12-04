@@ -196,6 +196,24 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+    /**
+     * Controls whether translog operations are read in forward order (oldest to newest) or backward order (newest to oldest).
+     * Default is false (backward reading), which is the traditional behavior that naturally handles sequence number collisions
+     * by prioritizing operations from newer generations.
+     * <p>
+     * <b>Note:</b> Enabling forward reading is safe for most use cases. However, in rare edge cases, it may replay stale
+     * translog operations. Stale operation trimming (via
+     * {@link org.opensearch.index.shard.IndexShard#trimOperationOfPreviousPrimaryTerms(long)}) occurs during the recovery
+     * finalization phase. If a replica fails before completing
+     * {@link org.opensearch.indices.recovery.RecoveryTarget#finalizeRecovery(long, long, org.opensearch.core.action.ActionListener)}
+     * (leaving untrimmed stale operations) and no in-sync copies are available, we force-allocate this recovering replica as primary.
+     * In this scenario, forward reading could return outdated operations from previous primary terms.
+     */
+    public static final Setting<Boolean> INDEX_TRANSLOG_READ_FORWARD_SETTING = Setting.boolSetting(
+        "index.translog.read_forward",
+        false,
+        Property.IndexScope
+    );
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING = Setting.boolSetting(
         "index.warmer.enabled",
         true,
@@ -892,6 +910,7 @@ public final class IndexSettings {
     private final boolean queryStringAllowLeadingWildcard;
     private final boolean defaultAllowUnmappedFields;
     private volatile Translog.Durability durability;
+    private final boolean translogReadForward;
     private volatile TimeValue syncInterval;
     private volatile TimeValue publishReferencedSegmentsInterval;
     private volatile TimeValue refreshInterval;
@@ -1112,6 +1131,7 @@ public final class IndexSettings {
         this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
         this.allowDerivedField = scopedSettings.get(ALLOW_DERIVED_FIELDS);
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
+        this.translogReadForward = INDEX_TRANSLOG_READ_FORWARD_SETTING.get(settings);
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         publishReferencedSegmentsInterval = INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.get(settings);
@@ -2076,6 +2096,13 @@ public final class IndexSettings {
      */
     public boolean isSoftDeleteEnabled() {
         return softDeleteEnabled;
+    }
+
+    /**
+     * Returns <code>true</code> if translog read-forward is enabled.
+     */
+    public boolean isTranslogReadForward() {
+        return translogReadForward;
     }
 
     public boolean isContextAwareEnabled() {
