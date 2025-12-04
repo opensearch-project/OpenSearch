@@ -364,7 +364,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.SECRET_KEY_SETTING,
             S3ClientSettings.SIGNER_OVERRIDE,
 
-            // required new settings
+            // additional s3 client configuration settings
             S3ClientSettings.REQUEST_TIMEOUT_SETTING,
             S3ClientSettings.CONNECTION_TIMEOUT_SETTING,
             S3ClientSettings.CONNECTION_TTL_SETTING,
