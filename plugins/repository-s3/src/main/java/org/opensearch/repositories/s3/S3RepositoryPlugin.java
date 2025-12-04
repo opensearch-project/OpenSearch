@@ -373,7 +373,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.CONNECTION_ACQUISITION_TIMEOUT,
             S3ClientSettings.MAX_PENDING_CONNECTION_ACQUIRES,
             S3ClientSettings.DISABLE_CHUNKED_ENCODING,
-
+            S3ClientSettings.MAX_RETRIES_SETTING,
             S3ClientSettings.REGION,
             S3ClientSettings.ROLE_ARN_SETTING,
             S3ClientSettings.IDENTITY_TOKEN_FILE_SETTING,
