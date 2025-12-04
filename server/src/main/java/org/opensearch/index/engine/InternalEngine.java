@@ -269,7 +269,8 @@ public class InternalEngine extends Engine {
 
                     @Override
                     public void onAfterTranslogRecovery() {
-                        flush(false, true);
+                        boolean isForceFlush = engineConfig.getIndexSettings().isSegRepLocalEnabled();
+                        flush(isForceFlush, true);
                         translogManager.trimUnreferencedTranslogFiles();
                     }
 
