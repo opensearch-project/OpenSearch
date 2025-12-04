@@ -91,7 +91,8 @@ final class MaxTargetSliceSupplier {
             totalDocs += leaf.reader().maxDoc();
         }
 
-        // Threshold: max docs per partition = total / target_slices Threshold - Global Level, Decision threshold - determines WHICH segments to partition
+        // Threshold: max docs per partition = total / target_slices Threshold - Global Level, Decision threshold - determines WHICH
+        // segments to partition
         // long maxDocsPerPartition = totalDocs / targetMaxSlice;
 
         // With Double
@@ -99,14 +100,13 @@ final class MaxTargetSliceSupplier {
 
         logger.info("");
         logger.info("Total docs: {}, Threshold (max docs per partition): {}", totalDocs, maxDocsPerPartition);
-        logger.info("The targetMaxSlice is  {}", targetMaxSlice );
+        logger.info("The targetMaxSlice is  {}", targetMaxSlice);
         logger.info("--- Analyzing Segments and Creating Partitions ---");
 
         // Step 2: Create partitions - split only segments that exceed threshold
         List<LeafReaderContextPartition> partitions = new ArrayList<>();
 
-
-        //COmment below 2
+        // COmment below 2
         int segmentsPartitioned = 0;
         int segmentsKeptWhole = 0;
 
@@ -172,10 +172,7 @@ final class MaxTargetSliceSupplier {
      * Distribute partitions using LPT algorithm while respecting Lucene's constraint
      * that same-segment partitions must be in different slices.
      */
-    private static IndexSearcher.LeafSlice[] distributePartitionsWithLPT(
-        List<LeafReaderContextPartition> partitions,
-        int targetMaxSlice
-    ) {
+    private static IndexSearcher.LeafSlice[] distributePartitionsWithLPT(List<LeafReaderContextPartition> partitions, int targetMaxSlice) {
         if (partitions.isEmpty()) {
             return new IndexSearcher.LeafSlice[0];
         }
@@ -251,7 +248,10 @@ final class MaxTargetSliceSupplier {
      * Distribute partitions using LPT algorithm while respecting Lucene's constraint
      * that same-segment partitions must be in different slices.
      */
-    private static IndexSearcher.LeafSlice[] distributePartitionsWithLPTLogger(List<LeafReaderContextPartition> partitions, int targetMaxSlice) {
+    private static IndexSearcher.LeafSlice[] distributePartitionsWithLPTLogger(
+        List<LeafReaderContextPartition> partitions,
+        int targetMaxSlice
+    ) {
         if (partitions.isEmpty()) {
             return new IndexSearcher.LeafSlice[0];
         }
@@ -394,7 +394,6 @@ final class MaxTargetSliceSupplier {
         logger.info("Min docs in a slice: {}", minDocs);
         logger.info("Max docs in a slice: {}", maxDocs);
         logger.info("Imbalance: {}", String.format("%.2f%%", imbalancePercentage));
-
 
         logger.info("=== End of Distribution ===");
         logger.info("");
