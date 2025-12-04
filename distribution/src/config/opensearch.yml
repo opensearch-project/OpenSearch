@@ -121,3 +121,5 @@ ${path.logs}
 # Once there is no observed impact on performance, this feature flag can be removed.
 #
 #opensearch.experimental.optimization.datetime_formatter_caching.enabled: false
+aux.transport.types: [transport-grpc]
+aux.transport.transport-grpc.port: 9400

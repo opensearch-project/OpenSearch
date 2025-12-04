@@ -32,6 +32,9 @@
 
 package org.opensearch.action.admin.indices.create;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -88,6 +91,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
 
+@TimeoutSuite(millis = 2 * TimeUnits.MINUTE)
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends OpenSearchIntegTestCase {
 
