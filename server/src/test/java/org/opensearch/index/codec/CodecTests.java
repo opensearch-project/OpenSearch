@@ -210,7 +210,8 @@ public class CodecTests extends OpenSearchTestCase {
             mapperRegistry,
             () -> null,
             () -> false,
-            null
+            null,
+            null  // pluginsService
         );
         return new CodecService(service, indexSettings, LogManager.getLogger("test"));
     }

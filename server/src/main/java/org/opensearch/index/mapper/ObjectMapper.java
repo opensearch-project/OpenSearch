@@ -47,6 +47,7 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -59,6 +60,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Field mapper for object field types
@@ -571,7 +573,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                             throw new MapperParsingException("No type specified for field [" + fieldName + "]");
                         }
                     }
-
+                    
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
@@ -606,9 +608,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 parserContext.indexVersionCreated(),
                 "DocType mapping definition has unsupported parameters: "
             );
-
         }
-
     }
 
     private final String fullPath;
@@ -914,6 +914,23 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         for (final Mapper mapper : this.mappers.values()) {
             mapper.canDeriveSource();
+        }
+    }
+
+    @Override
+    public void checkDataFormat(BuilderContext context) {
+        List<String> allErrors = new ArrayList<>();
+
+        for (final Mapper mapper : this.mappers.values()) {
+            try {
+                mapper.checkDataFormat(context);
+            } catch (MapperParsingException e) {
+                allErrors.add(e.getMessage());
+            }
+        }
+
+        if (!allErrors.isEmpty()) {
+            throw new MapperParsingException(String.join("; ", allErrors));
         }
     }
 
