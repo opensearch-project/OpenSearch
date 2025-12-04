@@ -269,6 +269,8 @@ public class InternalEngine extends Engine {
 
                     @Override
                     public void onAfterTranslogRecovery() {
+                        // In the scenario of vanilla segment replication, the force parameter is used to ensure that the
+                        // SegmentInfos#version of the primary shard is greater than or equal to that of the replicas.
                         boolean isForceFlush = engineConfig.getIndexSettings().isSegRepLocalEnabled();
                         flush(isForceFlush, true);
                         translogManager.trimUnreferencedTranslogFiles();
