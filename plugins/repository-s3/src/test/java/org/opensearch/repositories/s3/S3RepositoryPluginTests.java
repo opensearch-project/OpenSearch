@@ -77,6 +77,14 @@ public class S3RepositoryPluginTests extends OpenSearchTestCase {
             assertTrue(plugin.getSettings().contains(S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE));
             // New assertion for your bug fix
             assertTrue(plugin.getSettings().contains(S3ClientSettings.DISABLE_CHUNKED_ENCODING));
+            // settings added to expose missing s3.client.* configs
+            assertTrue(plugin.getSettings().contains(S3ClientSettings.REQUEST_TIMEOUT_SETTING));
+            assertTrue(plugin.getSettings().contains(S3ClientSettings.CONNECTION_TIMEOUT_SETTING));
+            assertTrue(plugin.getSettings().contains(S3ClientSettings.CONNECTION_TTL_SETTING));
+            assertTrue(plugin.getSettings().contains(S3ClientSettings.MAX_CONNECTIONS_SETTING));
+            assertTrue(plugin.getSettings().contains(S3ClientSettings.MAX_SYNC_CONNECTIONS_SETTING));
+            assertTrue(plugin.getSettings().contains(S3ClientSettings.CONNECTION_ACQUISITION_TIMEOUT));
+            assertTrue(plugin.getSettings().contains(S3ClientSettings.MAX_PENDING_CONNECTION_ACQUIRES));
 
         } finally {
             if (threadPool != null) {
