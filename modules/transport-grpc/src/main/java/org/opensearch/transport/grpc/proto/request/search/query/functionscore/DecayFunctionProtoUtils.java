@@ -32,6 +32,7 @@ class DecayFunctionProtoUtils {
             case MULTI_VALUE_MODE_AVG -> org.opensearch.search.MultiValueMode.AVG;
             case MULTI_VALUE_MODE_MAX -> org.opensearch.search.MultiValueMode.MAX;
             case MULTI_VALUE_MODE_MIN -> org.opensearch.search.MultiValueMode.MIN;
+            case MULTI_VALUE_MODE_SUM -> org.opensearch.search.MultiValueMode.SUM;
             default -> throw new IllegalArgumentException("Unsupported multi value mode: " + multiValueMode);
         };
     }
