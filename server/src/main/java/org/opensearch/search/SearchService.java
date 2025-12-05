@@ -354,7 +354,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Integer> INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE = Setting.intSetting(
         "search.intra_segment_search.min_segment_size",
         // 10000, // Only partition segments with 10k+ docs
-        1000000,
+        500_000,
         1000,
         Property.Dynamic,
         Property.NodeScope

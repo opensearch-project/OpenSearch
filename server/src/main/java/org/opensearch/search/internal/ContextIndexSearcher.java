@@ -301,7 +301,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector) throws IOException {
-        // logger.info("ContextIndexSearcher.search(LeafReaderContextPartition[]) called with {} partitions", partitions.length);
         searchContext.indexShard().getSearchOperationListener().onPreSliceExecution(searchContext);
         try {
             // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
@@ -309,28 +308,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
             // reader order here.
             if (searchContext.shouldUseTimeSeriesDescSortOptimization()) {
-                // logger.info("Using time series desc optimization - searching {} partitions in reverse order", partitions.length);
                 for (int i = partitions.length - 1; i >= 0; i--) {
-                    /*logger.info(
-                        "Searching partition {}: segment {} docs [{}-{}]",
-                        (partitions.length - 1 - i),
-                        partitions[i].ctx.ord,
-                        partitions[i].minDocId,
-                        partitions[i].maxDocId
-                    );*/
                     searchLeaf(partitions[i].ctx, partitions[i].minDocId, partitions[i].maxDocId, weight, collector);
                 }
             } else {
-                // logger.info("Using normal order - searching {} partitions", partitions.length);
-                int partitionIndex = 0;
                 for (LeafReaderContextPartition partition : partitions) {
-                    /*logger.info(
-                        "Searching partition {}: segment {} docs [{}-{}]",
-                        partitionIndex++,
-                        partition.ctx.ord,
-                        partition.minDocId,
-                        partition.maxDocId
-                    );*/
                     searchLeaf(partition.ctx, partition.minDocId, partition.maxDocId, weight, collector);
                 }
             }
@@ -607,13 +589,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // For now, be conservative and disable intra-segment search when aggregations are present
         // This can be enhanced later to support specific types of aggregations
         return searchContext.aggregations() != null && searchContext.aggregations().factories() != null;
-
-        /*if (searchContext.aggregations() == null || searchContext.aggregations().factories() == null) {
-            logger.info("No aggregations present in search request");
-            return false;
-        }
-        logger.info("aggregations present in search request");
-        return true;*/
     }
 
     /**
@@ -621,20 +596,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private boolean getIntraSegmentSearchEnabled() {
         return searchContext.getIntraSegmentSearchEnabled();
-    }
-
-    /**
-     * Get number of partitions per segment from search context
-     */
-    private int getIntraSegmentPartitionsPerSegment() {
-        return searchContext.getIntraSegmentPartitionsPerSegment();
-    }
-
-    /**
-     * Get minimum segment size for intra-segment partitioning from search context
-     */
-    private int getIntraSegmentMinSegmentSize() {
-        return searchContext.getIntraSegmentMinSegmentSize();
     }
 
     /**
@@ -651,7 +612,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (!shouldUseIntraSegmentSearch()) {
             return MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
         }
-        return MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, targetMaxSlice);
+        return MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, targetMaxSlice, searchContext.getIntraSegmentMinSegmentSize());
     }
 
     public DirectoryReader getDirectoryReader() {
