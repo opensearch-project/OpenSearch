@@ -11,8 +11,10 @@ package org.opensearch.plugin.wlm;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.action.support.ActionRequestMetadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
@@ -91,6 +93,25 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         autoTaggingActionFilter.apply(mock(Task.class), "Test", request, ActionRequestMetadata.empty(), null, mockFilterChain);
 
         verify(ruleProcessingService, times(0)).evaluateLabel(anyList());
+    }
+
+    public void testApplyForScrollRequestWithResolvedIndices() {
+        SearchScrollRequest request = mock(SearchScrollRequest.class);
+        ActionFilterChain<ActionRequest, ActionResponse> mockFilterChain = mock(TestActionFilterChain.class);
+
+        @SuppressWarnings("unchecked")
+        ActionRequestMetadata<ActionRequest, ActionResponse> metadata = mock(ActionRequestMetadata.class);
+        ResolvedIndices resolved = ResolvedIndices.of("logs-scroll-index");
+        when(metadata.resolvedIndices()).thenReturn(resolved);
+
+        try (ThreadContext.StoredContext context = threadPool.getThreadContext().stashContext()) {
+            when(ruleProcessingService.evaluateLabel(anyList())).thenReturn(Optional.of("ScrollQG_ID"));
+
+            autoTaggingActionFilter.apply(mock(Task.class), "Test", request, metadata, null, mockFilterChain);
+
+            assertEquals("ScrollQG_ID", threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER));
+            verify(ruleProcessingService, times(1)).evaluateLabel(anyList());
+        }
     }
 
     public enum WLMFeatureType implements FeatureType {
