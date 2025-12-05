@@ -389,7 +389,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         );
     }
 
-
     @Override
     public void reload(Settings settings) {
         // secure settings should be readable
