@@ -31,6 +31,10 @@
  */
 
 package org.opensearch.repositories.azure;
+import org.junit.Before;
+import static org.opensearch.test.OpenSearchTestCase.assertBusy;
+import java.util.concurrent.TimeUnit;
+
 
 import com.azure.core.util.Context;
 import com.azure.storage.blob.BlobContainerClient;
@@ -64,6 +68,40 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     public static void shutdownSchedulers() {
         Schedulers.shutdownNow();
     }
+
+    @Before
+    public void waitForAzureFixtureReady() throws Exception {
+        ensureGreen();
+
+        assertBusy(() -> {
+            assertThat(
+                System.getProperty("test.azure.container"),
+                not(blankOrNullString())
+            );
+            assertThat(
+                System.getProperty("test.azure.base"),
+                not(blankOrNullString())
+            );
+        }, 60, TimeUnit.SECONDS);
+    }
+
+
+
+    @Override
+    public void tearDown() throws Exception {
+        try {
+            client().admin().indices().prepareDelete("*").get();
+            client().admin().cluster().prepareDeleteRepository("_all").get();
+        } finally {
+            super.tearDown();
+        }
+    }
+
+
+
+
+
+
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
