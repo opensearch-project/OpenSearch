@@ -32,7 +32,9 @@
 
 package org.opensearch.search.profile.aggregation;
 
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Scorable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.profile.Timer;
 
@@ -58,6 +60,26 @@ public class ProfilingLeafBucketCollector extends LeafBucketCollector {
         collectTimer.start();
         try {
             delegate.collect(doc, bucket);
+        } finally {
+            collectTimer.stop();
+        }
+    }
+
+    @Override
+    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+        collectTimer.start();
+        try {
+            delegate.collect(stream, owningBucketOrd);
+        } finally {
+            collectTimer.stop();
+        }
+    }
+
+    @Override
+    public void collectRange(int min, int max) throws IOException {
+        collectTimer.start();
+        try {
+            delegate.collectRange(min, max);
         } finally {
             collectTimer.stop();
         }
