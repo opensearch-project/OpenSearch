@@ -197,7 +197,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     /**
      * Creates new HTTP transport implementations based on Netty 4
-     * @param settings seetings
+     * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
      * @param threadPool thread pool instance

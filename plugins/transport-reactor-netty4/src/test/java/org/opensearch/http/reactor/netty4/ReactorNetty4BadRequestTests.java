@@ -97,7 +97,7 @@ public class ReactorNetty4BadRequestTests extends OpenSearchTestCase {
             httpServerTransport.start();
             final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create()) {
+            try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create(settings)) {
                 final List<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), "/_cluster/settings?pretty=%");
 
                 try {
