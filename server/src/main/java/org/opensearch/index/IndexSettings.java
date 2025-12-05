@@ -206,7 +206,8 @@ public final class IndexSettings {
      * {@link org.opensearch.index.shard.IndexShard#trimOperationOfPreviousPrimaryTerms(long)}) occurs during the recovery
      * finalization phase. If a replica fails before completing
      * {@link org.opensearch.indices.recovery.RecoveryTarget#finalizeRecovery(long, long, org.opensearch.core.action.ActionListener)}
-     * (leaving untrimmed stale operations) and no in-sync copies are available, we force-allocate this recovering replica as primary.
+     * and there are duplicates of the same translog operations with different primary terms in the translog (could happen during primary failover with newwork isolation, leaving untrimmed stale operations)
+     * and no in-sync copies are available, we force-allocate this recovering replica as primary.
      * In this scenario, forward reading could return outdated operations from previous primary terms.
      */
     public static final Setting<Boolean> INDEX_TRANSLOG_READ_FORWARD_SETTING = Setting.boolSetting(
