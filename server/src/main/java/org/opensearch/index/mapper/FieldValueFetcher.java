@@ -51,7 +51,7 @@ public abstract class FieldValueFetcher {
      * @param builder - builder to store the field value(s) in
      */
     void write(XContentBuilder builder, List<Object> values) throws IOException {
-        if (values.isEmpty()) {
+        if (values == null || values.isEmpty()) {
             return;
         }
         if (values.size() == 1) {
