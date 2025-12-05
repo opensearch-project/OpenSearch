@@ -301,7 +301,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector) throws IOException {
-        logger.info("ContextIndexSearcher.search(LeafReaderContextPartition[]) called with {} partitions", partitions.length);
+        // logger.info("ContextIndexSearcher.search(LeafReaderContextPartition[]) called with {} partitions", partitions.length);
         searchContext.indexShard().getSearchOperationListener().onPreSliceExecution(searchContext);
         try {
             // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
@@ -309,28 +309,28 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
             // reader order here.
             if (searchContext.shouldUseTimeSeriesDescSortOptimization()) {
-                logger.info("Using time series desc optimization - searching {} partitions in reverse order", partitions.length);
+                // logger.info("Using time series desc optimization - searching {} partitions in reverse order", partitions.length);
                 for (int i = partitions.length - 1; i >= 0; i--) {
-                    logger.info(
+                    /*logger.info(
                         "Searching partition {}: segment {} docs [{}-{}]",
                         (partitions.length - 1 - i),
                         partitions[i].ctx.ord,
                         partitions[i].minDocId,
                         partitions[i].maxDocId
-                    );
+                    );*/
                     searchLeaf(partitions[i].ctx, partitions[i].minDocId, partitions[i].maxDocId, weight, collector);
                 }
             } else {
-                logger.info("Using normal order - searching {} partitions", partitions.length);
+                // logger.info("Using normal order - searching {} partitions", partitions.length);
                 int partitionIndex = 0;
                 for (LeafReaderContextPartition partition : partitions) {
-                    logger.info(
+                    /*logger.info(
                         "Searching partition {}: segment {} docs [{}-{}]",
                         partitionIndex++,
                         partition.ctx.ord,
                         partition.minDocId,
                         partition.maxDocId
-                    );
+                    );*/
                     searchLeaf(partition.ctx, partition.minDocId, partition.maxDocId, weight, collector);
                 }
             }

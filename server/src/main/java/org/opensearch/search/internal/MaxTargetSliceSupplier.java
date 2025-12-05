@@ -82,8 +82,8 @@ final class MaxTargetSliceSupplier {
             return new IndexSearcher.LeafSlice[0];
         }
 
-        logger.info("=== Starting Automatic Threshold-Based Partitioning ===");
-        logger.info("Input: {} segments, target {} slices", leaves.size(), targetMaxSlice);
+        // logger.info("=== Starting Automatic Threshold-Based Partitioning ===");
+        // logger.info("Input: {} segments, target {} slices", leaves.size(), targetMaxSlice);
 
         // Step 1: Calculate total documents and threshold
         long totalDocs = 0;
@@ -98,17 +98,17 @@ final class MaxTargetSliceSupplier {
         // With Double
         long maxDocsPerPartition = (long) Math.ceil((double) totalDocs / targetMaxSlice);
 
-        logger.info("");
+        /*logger.info("");
         logger.info("Total docs: {}, Threshold (max docs per partition): {}", totalDocs, maxDocsPerPartition);
         logger.info("The targetMaxSlice is  {}", targetMaxSlice);
-        logger.info("--- Analyzing Segments and Creating Partitions ---");
+        logger.info("--- Analyzing Segments and Creating Partitions ---");*/
 
         // Step 2: Create partitions - split only segments that exceed threshold
         List<LeafReaderContextPartition> partitions = new ArrayList<>();
 
         // COmment below 2
-        int segmentsPartitioned = 0;
-        int segmentsKeptWhole = 0;
+        // int segmentsPartitioned = 0;
+        // int segmentsKeptWhole = 0;
 
         for (LeafReaderContext leaf : leaves) {
             int segmentSize = leaf.reader().maxDoc();
@@ -123,14 +123,14 @@ final class MaxTargetSliceSupplier {
                 // Actual partition size - determines HOW to split a specific segment
                 int docsPerPartition = segmentSize / numPartitions;
 
-                logger.info(
+                /*logger.info(
                     "Segment {}: {} docs > {} threshold → PARTITION into {} pieces ({} docs each)",
                     leaf.ord,
                     segmentSize,
                     maxDocsPerPartition,
                     numPartitions,
                     docsPerPartition
-                );
+                );*/
 
                 for (int i = 0; i < numPartitions; i++) {
                     int startDoc = i * docsPerPartition;
@@ -139,33 +139,33 @@ final class MaxTargetSliceSupplier {
                     int actualDocs = endDoc - startDoc;
 
                     partitions.add(LeafReaderContextPartition.createFromAndTo(leaf, startDoc, endDoc));
-                    logger.info(
+                    /*logger.info(
                         "  → Created partition {} for segment {}: docs [{} to {}), {} docs",
                         i,
                         leaf.ord,
                         startDoc,
                         endDoc,
                         actualDocs
-                    );
+                    );*/
                 }
-                segmentsPartitioned++;
+                // segmentsPartitioned++;
             } else {
                 // Segment is small enough - keep whole
                 partitions.add(LeafReaderContextPartition.createForEntireSegment(leaf));
-                logger.info("Segment {}: {} docs ≤ {} threshold → Keep WHOLE", leaf.ord, segmentSize, maxDocsPerPartition);
-                segmentsKeptWhole++;
+                // logger.info("Segment {}: {} docs ≤ {} threshold → Keep WHOLE", leaf.ord, segmentSize, maxDocsPerPartition);
+                // segmentsKeptWhole++;
             }
         }
 
-        logger.info("");
+        /*logger.info("");
         logger.info("Partitioning Summary:");
         logger.info("  Segments partitioned: {}", segmentsPartitioned);
         logger.info("  Segments kept whole: {}", segmentsKeptWhole);
         logger.info("  Total partitions created: {}", partitions.size());
-        logger.info("");
+        logger.info("");*/
 
         // Step 3: Distribute partitions using LPT
-        return distributePartitionsWithLPTLogger(partitions, targetMaxSlice);
+        return distributePartitionsWithLPT(partitions, targetMaxSlice);
     }
 
     /**
