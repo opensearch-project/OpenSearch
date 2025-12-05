@@ -41,6 +41,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIndexWriterBaseTests {
 
@@ -66,7 +69,12 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
             CompositeIndexWriter.DisposableIndexWriter disposableIndexWriter;
             while (numOps > 0) {
                 disposableIndexWriter = liveIndexWriterDeletesMap.get()
-                    .computeIndexWriterIfAbsentForCriteria("200", this::createChildWriterFactory, new ShardId("foo", "_na_", 1));
+                    .computeIndexWriterIfAbsentForCriteria(
+                        "200",
+                        this::createChildWriterFactory,
+                        new ShardId("foo", "_na_", 1),
+                        MAX_NUMBER_OF_RETRIES
+                    );
                 assertNotNull(disposableIndexWriter);
                 assertFalse(disposableIndexWriter.getLookupMap().isClosed());
                 disposableIndexWriter.getIndexWriter().close();
@@ -130,7 +138,12 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
             while (stopped.get() == false) {
                 try {
                     CompositeIndexWriter.LiveIndexWriterDeletesMap currentMap = mapRef.get();
-                    currentMap.computeIndexWriterIfAbsentForCriteria("test-criteria", supplier, new ShardId("foo", "_na_", 1));
+                    currentMap.computeIndexWriterIfAbsentForCriteria(
+                        "test-criteria",
+                        supplier,
+                        new ShardId("foo", "_na_", 1),
+                        MAX_NUMBER_OF_RETRIES
+                    );
                     computeCount.incrementAndGet();
                     indexedDocs.release();
                 } catch (Exception e) {
@@ -181,10 +194,36 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
 
         expectThrows(
             LookupMapLockAcquisitionException.class,
-            () -> map.computeIndexWriterIfAbsentForCriteria("200", this::createChildWriterFactory, new ShardId("foo", "_na_", 1))
+            () -> map.computeIndexWriterIfAbsentForCriteria(
+                "200",
+                this::createChildWriterFactory,
+                new ShardId("foo", "_na_", 1),
+                MAX_NUMBER_OF_RETRIES
+            )
         );
         releaseWriteLockLatch.countDown();
         writer.join();
+    }
+
+    public void testMaxRetryCountWhenWriteLockDuringIndexing() throws IOException, InterruptedException {
+        CompositeIndexWriter.LiveIndexWriterDeletesMap map = new CompositeIndexWriter.LiveIndexWriterDeletesMap();
+        map.current = mock(CompositeIndexWriter.CriteriaBasedIndexWriterLookup.class);
+        CompositeIndexWriter.CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock writerLock = mock(
+            CompositeIndexWriter.CriteriaBasedIndexWriterLookup.CriteriaBasedWriterLock.class
+        );
+        map.current.mapReadLock = writerLock;
+        when(map.current.mapReadLock.tryAcquire()).thenReturn(null);
+        expectThrows(
+            LookupMapLockAcquisitionException.class,
+            () -> map.computeIndexWriterIfAbsentForCriteria(
+                "200",
+                this::createChildWriterFactory,
+                new ShardId("foo", "_na_", 1),
+                MAX_NUMBER_OF_RETRIES
+            )
+        );
+
+        verify(writerLock, times(MAX_NUMBER_OF_RETRIES)).tryAcquire();
     }
 
     public void testConcurrentIndexingDuringRefresh() throws IOException, InterruptedException {

@@ -103,6 +103,7 @@ public class CriteriaBasedCompositeIndexWriterBaseTests extends OpenSearchTestCa
     protected final AllocationId allocationId = AllocationId.newInitializing();
     protected final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
     public static final String DEFAULT_CRITERIA = "testGroupingCriteria";
+    public static final int MAX_NUMBER_OF_RETRIES = 20;
     protected IndexWriterFactory indexWriterFactory;
 
     protected static ParsedDocument createParsedDoc(String id, String routing, String groupingCriteria) {
