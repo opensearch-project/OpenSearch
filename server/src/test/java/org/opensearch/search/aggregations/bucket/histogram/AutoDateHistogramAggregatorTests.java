@@ -1049,7 +1049,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             document.add(new LongPoint(DATE_FIELD, instant));
             document.add(new LongPoint(INSTANT_FIELD, instant));
             document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, i));
-            document.add(new StringField("filterField", "a", Field.Store.NO));
             indexWriter.addDocument(document);
             document.clear();
             i += 1;
