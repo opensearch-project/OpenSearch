@@ -11,8 +11,8 @@
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
  * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
+ * the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -24,6 +24,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
@@ -31,8 +32,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
@@ -46,7 +45,10 @@ import org.opensearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+
+import picocli.CommandLine.Parameters;
 
 /**
  * Removes custom settings
@@ -56,26 +58,29 @@ import java.util.List;
 public class RemoveSettingsCommand extends OpenSearchNodeCommand {
 
     static final String SETTINGS_REMOVED_MSG = "Settings were successfully removed from the cluster state";
-    static final String CONFIRMATION_MSG = DELIMITER
-        + "\n"
-        + "You should only run this tool if you have incompatible settings in the\n"
-        + "cluster state that prevent the cluster from forming.\n"
-        + "This tool can cause data loss and its use should be your last resort.\n"
-        + "\n"
-        + "Do you want to proceed?\n";
 
-    private final OptionSpec<String> arguments;
+    static final String CONFIRMATION_MSG = DELIMITER + """
+
+        You should only run this tool if you have incompatible settings in the
+        cluster state that prevent the cluster from forming.
+        This tool can cause data loss and its use should be your last resort.
+
+        Do you want to proceed?
+        """;
+
+    /** Positional arguments: one or more setting names (supports simple globbing) */
+    @Parameters(arity = "1..", paramLabel = "SETTING", description = "Persistent cluster setting keys to remove (supports simple globbing).")
+    private List<String> settingsToRemove = new ArrayList<>();
 
     public RemoveSettingsCommand() {
         super("Removes persistent settings from the cluster state");
-        arguments = parser.nonOptions("setting names");
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
+    protected void processNodePaths(final Terminal terminal, final Path[] dataPaths, final int nodeLockId, final Environment env)
         throws IOException, UserException {
-        final List<String> settingsToRemove = arguments.values(options);
-        if (settingsToRemove.isEmpty()) {
+
+        if (settingsToRemove == null || settingsToRemove.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Must supply at least one setting to remove");
         }
 
@@ -85,11 +90,14 @@ public class RemoveSettingsCommand extends OpenSearchNodeCommand {
         final Tuple<Long, ClusterState> termAndClusterState = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = termAndClusterState.v2();
         final Settings oldPersistentSettings = oldClusterState.metadata().persistentSettings();
+
         terminal.println(Terminal.Verbosity.VERBOSE, "persistent settings: " + oldPersistentSettings);
+
         final Settings.Builder newPersistentSettingsBuilder = Settings.builder().put(oldPersistentSettings);
-        for (String settingToRemove : settingsToRemove) {
+
+        for (final String settingToRemove : settingsToRemove) {
             boolean matched = false;
-            for (String settingKey : oldPersistentSettings.keySet()) {
+            for (final String settingKey : oldPersistentSettings.keySet()) {
                 if (Regex.simpleMatch(settingToRemove, settingKey)) {
                     newPersistentSettingsBuilder.remove(settingKey);
                     if (matched == false) {
@@ -106,9 +114,11 @@ public class RemoveSettingsCommand extends OpenSearchNodeCommand {
                 );
             }
         }
+
         final ClusterState newClusterState = ClusterState.builder(oldClusterState)
             .metadata(Metadata.builder(oldClusterState.metadata()).persistentSettings(newPersistentSettingsBuilder.build()).build())
             .build();
+
         terminal.println(
             Terminal.Verbosity.VERBOSE,
             "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
