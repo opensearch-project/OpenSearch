@@ -31,10 +31,6 @@
  */
 
 package org.opensearch.repositories.azure;
-import org.junit.Before;
-import static org.opensearch.test.OpenSearchTestCase.assertBusy;
-import java.util.concurrent.TimeUnit;
-
 
 import com.azure.core.util.Context;
 import com.azure.storage.blob.BlobContainerClient;
@@ -53,13 +49,16 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.AfterClass;
+import org.junit.Before;
 
 import java.net.HttpURLConnection;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import reactor.core.scheduler.Schedulers;
 
+import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
@@ -74,18 +73,10 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         ensureGreen();
 
         assertBusy(() -> {
-            assertThat(
-                System.getProperty("test.azure.container"),
-                not(blankOrNullString())
-            );
-            assertThat(
-                System.getProperty("test.azure.base"),
-                not(blankOrNullString())
-            );
+            assertThat(System.getProperty("test.azure.container"), not(blankOrNullString()));
+            assertThat(System.getProperty("test.azure.base"), not(blankOrNullString()));
         }, 60, TimeUnit.SECONDS);
     }
-
-
 
     @Override
     public void tearDown() throws Exception {
@@ -96,12 +87,6 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             super.tearDown();
         }
     }
-
-
-
-
-
-
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
