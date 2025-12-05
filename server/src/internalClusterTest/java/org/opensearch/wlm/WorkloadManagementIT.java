@@ -112,6 +112,7 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17154")
     public void testHighCPUInEnforcedMode() throws InterruptedException {
         Settings request = Settings.builder().put(WorkloadManagementSettings.WLM_MODE_SETTING.getKey(), ENABLED).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get());
