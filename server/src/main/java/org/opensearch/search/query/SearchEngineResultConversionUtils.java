@@ -15,6 +15,8 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.ShardResultConvertor;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator;
+import org.opensearch.search.aggregations.metrics.InternalCardinality;
 import org.opensearch.search.aggregations.metrics.InternalValueCount;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
 import org.opensearch.search.internal.SearchContext;
@@ -34,6 +36,11 @@ public class SearchEngineResultConversionUtils {
     public static void convertDFResultGeneric(SearchContext searchContext) {
         if (searchContext.aggregations() != null) {
             Map<String, Object[]> dfResult = searchContext.getDFResults();
+
+//            LOGGER.info("DF Results at convertDFResultGeneric:");
+//            for (Map.Entry<String, Object[]> entry : dfResult.entrySet()) {
+//                LOGGER.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+//            }
 
             // Create aggregators which will process the result from DataFusion
             try {
@@ -76,6 +83,9 @@ public class SearchEngineResultConversionUtils {
                 if (aggregator instanceof ValueCountAggregator) {
                     docCount = ((InternalValueCount) subAgg).getValue();
                 }
+//                if (aggregator instanceof CardinalityAggregator) {
+//                    docCount = ((InternalCardinality) subAgg).getValue();
+//                }
                 subAggs.add(subAgg);
             }
         }

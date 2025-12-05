@@ -79,6 +79,7 @@ import org.opensearch.search.aggregations.bucket.filterrewrite.CompositeAggregat
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.metrics.InternalValueCount;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
 import org.opensearch.search.internal.SearchContext;
@@ -739,10 +740,13 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
         List<CompositeKey> compositeKeys = new ArrayList<>(shardResult.size());
         for (int i = 0; i < shardResult.get(shardResult.keySet().stream().findFirst().get()).length; i++) {
             for (CompositeValuesSourceConfig sourceConfig : sourceConfigs) {
-                if (sourceConfig.fieldType() == null) {
-                    throw new UnsupportedOperationException("Composite aggregation does not support script field types");
-                }
-                Object[] values = shardResult.get(sourceConfig.fieldType().name());
+//                if (sourceConfig.fieldType() == null) {
+//                    throw new UnsupportedOperationException("Composite aggregation does not support script field types");
+//                }
+                // source=hits | eval m = extract(minute from EventTime) | stats count() by UserID, m, SearchPhrase | sort - \`count()\` | head 10
+                // for above query without this change it will fail above
+                // We can get the name directly from sourceConfig
+                Object[] values = shardResult.get(sourceConfig.name());
                 // TODO : Would require conversion for certain types,
                 currentCompositeKey.add(searchContext.convertToComparable(values[i]));
             }
