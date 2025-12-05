@@ -33,18 +33,22 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -95,6 +99,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 
 public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
+    // @timestamp field name by default uses skip_list
     private static final String DATE_FIELD = "@timestamp";
     private static final String INSTANT_FIELD = "instant";
     private static final String NUMERIC_FIELD = "numeric";
@@ -1004,7 +1009,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
                 final AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name");
                 if (configure != null) {
                     configure.accept(aggregationBuilder);
@@ -1045,9 +1049,17 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             document.add(new LongPoint(DATE_FIELD, instant));
             document.add(new LongPoint(INSTANT_FIELD, instant));
             document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, i));
+            document.add(new StringField("filterField", "a", Field.Store.NO));
             indexWriter.addDocument(document);
             document.clear();
             i += 1;
+        }
+        // delete a doc to avoid approx optimization
+        if (enableSkiplist) {
+            document.add(new StringField("someField", "a", Field.Store.NO));
+            indexWriter.addDocument(document);
+            indexWriter.commit();
+            indexWriter.deleteDocuments(new TermQuery(new Term("someField", "a")));
         }
     }
 
@@ -1078,7 +1090,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
      * 3. owningBucketOrd is always 0 in FromSingle context
      * 4. Bucket merging works correctly after rounding change
      *
-     * Requirements: 3.1, 3.2, 3.4
      */
     public void testSkiplistCollectorWithRoundingChange() throws IOException {
         // Create a dataset that will trigger rounding changes
@@ -1122,7 +1133,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
      * Test that verifies skiplist collector handles rounding changes correctly with sub-aggregations.
      * This ensures that when rounding changes mid-collection, sub-aggregations still produce correct results.
      *
-     * Requirements: 3.1, 3.2, 3.4
      */
     public void testSkiplistCollectorRoundingChangeWithSubAggs() throws IOException {
         // Create dataset that triggers rounding change
@@ -1171,7 +1181,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
      * Test that verifies bucket merging works correctly after rounding change.
      * This test creates a scenario where buckets must be merged when rounding increases.
      *
-     * Requirements: 3.2, 3.4
      */
     public void testSkiplistCollectorBucketMergingAfterRoundingChange() throws IOException {
         // Create dataset with fine-grained data that will be merged into coarser buckets
@@ -1213,6 +1222,88 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
             assertThat(bucketCountsAsMap(histogram), equalTo(expectedDocCount));
         });
+    }
+
+    /**
+     * Test that verifies skiplist and non-skiplist collectors produce identical results.
+     * Uses random number of documents (20-200) and random date distribution.
+     */
+    public void testSkiplistEquivalence() throws IOException {
+        // Generate random number of documents between 20 and 200
+        final int numDocs = randomIntBetween(20, 200);
+        final List<ZonedDateTime> dataset = new ArrayList<>(numDocs);
+
+        // Generate random dates spanning a year
+        final ZonedDateTime startDate = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        final long yearInMillis = 365L * 24 * 60 * 60 * 1000;
+
+        for (int i = 0; i < numDocs; i++) {
+            long randomOffset = randomLongBetween(0, yearInMillis);
+            dataset.add(startDate.plusSeconds(randomOffset / 1000));
+        }
+
+        // Sort dataset to ensure consistent ordering
+        dataset.sort(ZonedDateTime::compareTo);
+
+        // Test with random number of buckets
+        final int numBuckets = randomIntBetween(5, 20);
+
+        // Run aggregation without skiplist
+        final InternalAutoDateHistogram histogramWithoutSkiplist = runAggregation(dataset, false, numBuckets);
+
+        // Run aggregation with skiplist
+        final InternalAutoDateHistogram histogramWithSkiplist = runAggregation(dataset, true, numBuckets);
+
+        // Verify both produce identical results
+        assertEquals(
+            "Bucket count mismatch between skiplist and non-skiplist",
+            histogramWithoutSkiplist.getBuckets().size(),
+            histogramWithSkiplist.getBuckets().size()
+        );
+
+        // Verify each bucket matches
+        for (int i = 0; i < histogramWithoutSkiplist.getBuckets().size(); i++) {
+            InternalAutoDateHistogram.Bucket bucketWithout = histogramWithoutSkiplist.getBuckets().get(i);
+            InternalAutoDateHistogram.Bucket bucketWith = histogramWithSkiplist.getBuckets().get(i);
+
+            assertEquals("Bucket key mismatch at index " + i, bucketWithout.getKey(), bucketWith.getKey());
+
+            assertEquals(
+                "Doc count mismatch at index " + i + " for key " + bucketWithout.getKeyAsString(),
+                bucketWithout.getDocCount(),
+                bucketWith.getDocCount()
+            );
+        }
+
+        // Verify total doc counts match
+        long totalDocsWithout = histogramWithoutSkiplist.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
+        long totalDocsWith = histogramWithSkiplist.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
+
+        assertEquals("Total doc count mismatch", totalDocsWithout, totalDocsWith);
+        assertEquals("Total doc count should match input", numDocs, totalDocsWithout);
+    }
+
+    private InternalAutoDateHistogram runAggregation(List<ZonedDateTime> dataset, boolean enableSkiplist, int numBuckets)
+        throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                indexSampleData(dataset, indexWriter, enableSkiplist);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                final AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name")
+                    .setNumBuckets(numBuckets)
+                    .field(DATE_FIELD);
+
+                final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
+                MappedFieldType instantFieldType = new NumberFieldMapper.NumberFieldType(INSTANT_FIELD, NumberFieldMapper.NumberType.LONG);
+                MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
+
+                return searchAndReduce(indexSearcher, DEFAULT_QUERY, aggregationBuilder, fieldType, instantFieldType, numericFieldType);
+            }
+        }
     }
 
     @Override
