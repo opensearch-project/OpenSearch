@@ -209,7 +209,8 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
-        ActionListener<String> listener
+        ActionListener<String> listener,
+        IndexMetadata indexMetadata
     ) {}
 
     @Override
