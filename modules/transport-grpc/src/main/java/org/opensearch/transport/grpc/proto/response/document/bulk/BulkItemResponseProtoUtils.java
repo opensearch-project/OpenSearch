@@ -14,6 +14,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.protobufs.ErrorCause;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ResponseItem;
 import org.opensearch.transport.grpc.proto.response.document.common.DocWriteResponseProtoUtils;
 import org.opensearch.transport.grpc.proto.response.document.get.GetResultProtoUtils;
@@ -39,16 +40,17 @@ public class BulkItemResponseProtoUtils {
      *
      *
      * @param response The BulkItemResponse to convert
+     * @param params The global gRPC request parameters
      * @return A Protocol Buffer ResponseItem representation
      * @throws IOException if there's an error during conversion
      *
      */
-    public static ResponseItem toProto(BulkItemResponse response) throws IOException {
+    public static ResponseItem toProto(BulkItemResponse response, GlobalParams params) throws IOException {
         ResponseItem.Builder responseItemBuilder;
 
         if (response.isFailed() == false) {
             DocWriteResponse docResponse = response.getResponse();
-            responseItemBuilder = DocWriteResponseProtoUtils.toProto(docResponse);
+            responseItemBuilder = DocWriteResponseProtoUtils.toProto(docResponse, params);
 
             int grpcStatusCode = RestToGrpcStatusConverter.getGrpcStatusCode(docResponse.status());
             responseItemBuilder.setStatus(grpcStatusCode);
@@ -63,7 +65,7 @@ public class BulkItemResponseProtoUtils {
             int grpcStatusCode = RestToGrpcStatusConverter.getGrpcStatusCode(failure.getStatus());
             responseItemBuilder.setStatus(grpcStatusCode);
 
-            ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(failure.getCause());
+            ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(failure.getCause(), params);
             responseItemBuilder.setError(errorCause);
         }
 
