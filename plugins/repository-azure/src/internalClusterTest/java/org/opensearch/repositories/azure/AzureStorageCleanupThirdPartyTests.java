@@ -124,6 +124,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         return secureSettings;
     }
 
+    private <T> T eventually(Supplier<T> supplier) throws Exception {
+        final AtomicReference<T> result = new AtomicReference<>();
+        assertBusy(() -> result.set(supplier.get()), 30, TimeUnit.SECONDS);
+        return result.get();
+    }
+
     @Override
     protected void createRepository(String repoName) {
         Settings.Builder settings = Settings.builder()
