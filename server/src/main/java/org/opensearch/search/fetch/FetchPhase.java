@@ -34,6 +34,7 @@ package org.opensearch.search.fetch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -196,7 +197,20 @@ public class FetchPhase {
                         // for random access and don't optimize for sequential access - except for merging.
                         // So we do a little hack here and pretend we're going to do merges in order to
                         // get better sequential access.
-                        fieldReader = lf.getSequentialStoredFieldsReader()::document;
+                        StoredFieldsReader sequentialReader;
+                        // For scroll queries, try to get cached reader
+                        if (context.scrollContext() != null) {
+                            // To get a unique identifier for this segment to use as a cache key
+                            Object segmentKey = lf.getCoreCacheHelper() != null ? lf.getCoreCacheHelper().getKey() : currentReaderContext;
+                            sequentialReader = context.scrollContext().getCachedSequentialReader(segmentKey);
+                            if (sequentialReader == null) {
+                                sequentialReader = lf.getSequentialStoredFieldsReader();
+                                context.scrollContext().cacheSequentialReader(segmentKey, sequentialReader);
+                            }
+                        } else {
+                            sequentialReader = lf.getSequentialStoredFieldsReader();
+                        }
+                        fieldReader = sequentialReader::document;
                     } else {
                         fieldReader = currentReaderContext.reader().storedFields()::document;
                     }
