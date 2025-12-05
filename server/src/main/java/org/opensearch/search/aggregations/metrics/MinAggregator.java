@@ -95,7 +95,6 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
     MinAggregator(String name, ValuesSourceConfig config, SearchContext context, Aggregator parent, Map<String, Object> metadata)
         throws IOException {
         super(name, context, parent, metadata);
-        skipUpTo = null;
         // TODO: Stop using nulls here
         this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
         if (valuesSource != null) {
@@ -362,12 +361,14 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             long upToInclusive = skipUpToValue >= 0 ? skipUpToValue : -skipUpToValue - 1;
 
             // If doc > upToInclusive, we need to advance the skipper
-            // TODO: on 1st iter, upToInclusive will be 0 so won't advance
+            // TODO: check if it should be doc >= or doc >
             if (doc >= upToInclusive) {
                 advanceSkipper(doc, owningBucketOrd);
                 skipUpToValue = skipUpTo.get(owningBucketOrd);
             }
-
+            if (!isSubNoOp) {
+                sub.collect(doc, owningBucketOrd);
+            }
             // If skipUpTo >= 0, we can skip this document
             if (skipUpToValue >= 0) {
                 return;
@@ -379,13 +380,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 double min = mins.get(owningBucketOrd);
                 if (value < min) {
                     mins.set(owningBucketOrd, value);
-                    System.out.println("(Old, New)min: \t"  + min + "\t" + value);
                 }
-            }
-
-            // Delegate to sub-aggregator for non-skipped documents
-            if (!isSubNoOp) {
-                sub.collect(doc, owningBucketOrd);
             }
         }
     }
@@ -425,8 +420,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
 
     @Override
     public void doClose() {
-        Releasables.close(mins);
-        Releasables.close(skipUpTo);
+        Releasables.close(mins, skipUpTo);
     }
 
     /**
