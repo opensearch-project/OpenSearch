@@ -49,9 +49,9 @@ public class CopyState implements Closeable {
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
         long maxSeqNo = Long.parseLong(userData.getOrDefault(SequenceNumbers.MAX_SEQ_NO, "-1"));
-        // In the scenario of vanilla segment replication. We need to ensure that after the primary promotion,
-        // the SegmentInfos#version of the primary shard is always greater than or equal to that of the replicas.
-        // At the same time, it is also necessary to ensure that there is no risk of data loss.
+        // In the scenario of primary promotion. We need to ensure that the SegmentInfos#version of the new primary shard
+        // is greater than or equal to that of the replicas, and also need to ensure that the local_checkpoint of the new
+        // primary shard is less than or equal to the checkpoint of the Lucene commit.
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(Math.min(maxSeqNo, lastRefreshedCheckpoint)));
         segmentInfosSnapshot.setUserData(userData, false);
 
