@@ -83,9 +83,9 @@ public class SearchEngineResultConversionUtils {
                 if (aggregator instanceof ValueCountAggregator) {
                     docCount = ((InternalValueCount) subAgg).getValue();
                 }
-                if (aggregator instanceof CardinalityAggregator) {
-                    docCount = ((InternalCardinality) subAgg).getValue();
-                }
+//                if (aggregator instanceof CardinalityAggregator) {
+//                    docCount = ((InternalCardinality) subAgg).getValue();
+//                }
                 subAggs.add(subAgg);
             }
         }
