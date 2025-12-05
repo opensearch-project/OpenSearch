@@ -259,7 +259,7 @@ pub async fn execute_fetch_phase(
         parquet_schema.clone(),
         file_source,
     )
-    .with_projection(Option::from(projection_index.clone()))
+    .with_projection_indices(Some(projection_index.clone()))
     .with_file_group(file_group)
     .build();
 
