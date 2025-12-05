@@ -27,3 +27,4 @@ Optional environment variables:
 
 - `amazon_s3_path_style_access`: Possible values true or false. Default is false.
 - `amazon_s3_endpoint`: s3 custom endpoint url if aws s3 default endpoint is not being used.
+
