@@ -15,6 +15,7 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,6 +30,17 @@ public class TestLogsAppender extends AbstractAppender {
         super("TestAppender", null, PatternLayout.createDefaultLayout(), false, Property.EMPTY_ARRAY);
         this.messagesToCapture = messagesToCapture;
         start();
+    }
+
+    public void addMessagesToCapture(Set<String> messagesToCapture) {
+        messagesToCapture.forEach(this::addMessageToCapture);
+    }
+
+    public void addMessageToCapture(String message) {
+        boolean shouldCaptureMessage = shouldCaptureMessage(message);
+        if (shouldCaptureMessage == false) {
+            messagesToCapture.add(message);
+        }
     }
 
     @Override
