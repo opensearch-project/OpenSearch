@@ -611,6 +611,24 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Exception message should mention ext param", exception.getMessage().contains("ext param is not supported yet"));
     }
 
+    public void testParseProtoWithAggregationsThrowsUnsupportedOperationException() throws IOException {
+        // Create a protobuf SearchRequestBody with aggregations
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .putAggregations("test_agg", org.opensearch.protobufs.AggregationContainer.newBuilder().build())
+            .build();
+
+        // Create a SearchSourceBuilder to populate
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        // Call the method under test, should throw UnsupportedOperationException
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils)
+        );
+
+        assertEquals("aggregations param is not supported yet", exception.getMessage());
+    }
+
     public void testScriptFieldProtoUtilsFromProto() throws IOException {
         // Create a protobuf ScriptField
         ScriptField scriptFieldProto = ScriptField.newBuilder()
@@ -732,9 +750,12 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
-
-        assertNotNull("SuggestBuilder should not be null", searchSourceBuilder.suggest());
+        // suggest is not yet implemented, should throw UnsupportedOperationException
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils)
+        );
+        assertEquals("suggest param is not supported yet", exception.getMessage());
     }
 
     public void testParseProtoWithXSourceIncludes() throws IOException {

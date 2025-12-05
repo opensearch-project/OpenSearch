@@ -54,8 +54,11 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
+import org.opensearch.gateway.remote.model.RemoteClusterBlocks;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
 import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
+import org.opensearch.gateway.remote.model.RemoteDiscoveryNodes;
+import org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings;
 import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
 import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
@@ -123,7 +126,6 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.FORMAT_PARAMS;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.getFormattedIndexFileName;
 import static org.opensearch.gateway.remote.RemoteGlobalMetadataManager.GLOBAL_METADATA_UPLOAD_TIMEOUT_DEFAULT;
-import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS_FORMAT;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocksTests.randomClusterBlocks;
 import static org.opensearch.gateway.remote.model.RemoteClusterStateCustoms.CLUSTER_STATE_CUSTOM;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
@@ -131,11 +133,9 @@ import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COO
 import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.CUSTOM_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.readFrom;
 import static org.opensearch.gateway.remote.model.RemoteDiscoveryNodes.DISCOVERY_NODES;
-import static org.opensearch.gateway.remote.model.RemoteDiscoveryNodes.DISCOVERY_NODES_FORMAT;
 import static org.opensearch.gateway.remote.model.RemoteDiscoveryNodesTests.getDiscoveryNodes;
 import static org.opensearch.gateway.remote.model.RemoteGlobalMetadata.GLOBAL_METADATA_FORMAT;
 import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings.HASHES_OF_CONSISTENT_SETTINGS;
-import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings.HASHES_OF_CONSISTENT_SETTINGS_FORMAT;
 import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettingsTests.getHashesOfConsistentSettings;
 import static org.opensearch.gateway.remote.model.RemoteIndexMetadata.INDEX;
 import static org.opensearch.gateway.remote.model.RemoteIndexMetadata.INDEX_METADATA_FORMAT;
@@ -1173,7 +1173,13 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 new UploadedMetadataAttribute(HASHES_OF_CONSISTENT_SETTINGS, HASHES_OF_CONSISTENT_SETTINGS_FILENAME)
             );
             when(blobContainer.readBlob(HASHES_OF_CONSISTENT_SETTINGS_FILENAME)).thenAnswer(i -> {
-                BytesReference bytes = HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(
+                RemoteHashesOfConsistentSettings remoteHashesOfConsistentSettings = new RemoteHashesOfConsistentSettings(
+                    HASHES_OF_CONSISTENT_SETTINGS_FILENAME,
+                    clusterState.stateUUID(),
+                    compressor,
+                    Version.CURRENT
+                );
+                BytesReference bytes = remoteHashesOfConsistentSettings.hashesOfConsistentSettingsFormat.serialize(
                     hashesOfConsistentSettings,
                     HASHES_OF_CONSISTENT_SETTINGS_FILENAME,
                     compressor
@@ -1215,7 +1221,13 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             diffManifestBuilder.discoveryNodesUpdated(true);
             manifestBuilder.discoveryNodesMetadata(new UploadedMetadataAttribute(DISCOVERY_NODES, DISCOVERY_NODES_FILENAME));
             when(blobContainer.readBlob(DISCOVERY_NODES_FILENAME)).thenAnswer(invocationOnMock -> {
-                BytesReference bytes = DISCOVERY_NODES_FORMAT.serialize(
+                RemoteDiscoveryNodes remoteDiscoveryNodes = new RemoteDiscoveryNodes(
+                    DISCOVERY_NODES_FILENAME,
+                    clusterState.stateUUID(),
+                    compressor,
+                    Version.CURRENT
+                );
+                BytesReference bytes = remoteDiscoveryNodes.discoveryNodesFormat.serialize(
                     (out, nodes) -> nodes.writeToWithAttribute(out),
                     nodesBuilder.build(),
                     DISCOVERY_NODES_FILENAME,
@@ -1231,7 +1243,17 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             diffManifestBuilder.clusterBlocksUpdated(true);
             manifestBuilder.clusterBlocksMetadata(new UploadedMetadataAttribute(CLUSTER_BLOCKS, CLUSTER_BLOCKS_FILENAME));
             when(blobContainer.readBlob(CLUSTER_BLOCKS_FILENAME)).thenAnswer(invocationOnMock -> {
-                BytesReference bytes = CLUSTER_BLOCKS_FORMAT.serialize(newClusterBlock, CLUSTER_BLOCKS_FILENAME, compressor);
+                RemoteClusterBlocks remoteClusterBlocks = new RemoteClusterBlocks(
+                    CLUSTER_BLOCKS_FILENAME,
+                    clusterState.stateUUID(),
+                    compressor,
+                    Version.CURRENT
+                );
+                BytesReference bytes = remoteClusterBlocks.clusterBlocksFormat.serialize(
+                    newClusterBlock,
+                    CLUSTER_BLOCKS_FILENAME,
+                    compressor
+                );
                 return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
             });
 
@@ -1243,6 +1265,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .stateVersion(clusterState.version())
             .metadataVersion(clusterState.metadata().version())
             .clusterUUID(clusterState.getMetadata().clusterUUID())
+            .opensearchVersion(Version.CURRENT)
             .routingTableVersion(clusterState.getRoutingTable().version());
 
         remoteClusterStateService.start();
