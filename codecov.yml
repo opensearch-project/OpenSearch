@@ -15,3 +15,13 @@ coverage:
       default:
         target: 70%    # the required coverage value
         threshold: 1%  # the leniency in hitting the target
+      unit-tests:
+        target: 60%
+        threshold: 1%
+        flags:
+          - unit
+      integration-tests:
+        target: 50%
+        threshold: 1%
+        flags:
+          - integration
