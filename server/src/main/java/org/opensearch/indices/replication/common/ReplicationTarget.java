@@ -243,7 +243,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         final RateLimiter rateLimiter,
         final ActionListener<Void> listener
     ) throws IOException {
-
+        replicationTarget.setLastAccessTime();
         if (listener == null) {
             return;
         }
