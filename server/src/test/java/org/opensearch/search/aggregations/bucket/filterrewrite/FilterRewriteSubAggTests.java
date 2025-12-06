@@ -284,6 +284,13 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
     /**
      * Test that verifies skiplist-based collection works correctly with range aggregations
      * that have date histogram sub-aggregations.
+     *
+     * This test exercises the following code paths:
+     * 1. HistogramSkiplistLeafCollector.collect() - skiplist-based document collection
+     * 2. HistogramSkiplistLeafCollector.advanceSkipper() - skiplist advancement with upToBucket logic
+     * 3. SubAggRangeCollector.collect() - sub-aggregation collection path
+     *
+     * The test uses:
      * - Index sort on date field to enable skiplist functionality
      * - Multiple segments created via explicit commits
      * - Searchable date field type
@@ -331,7 +338,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
                 InternalRange.Bucket firstBucket = buckets.get(0);
                 assertEquals(5, firstBucket.getDocCount());
                 InternalDateHistogram firstDate = firstBucket.getAggregations().get(dateAggName);
-                assertNotNull(firstDate);
+                assertNotNull("Sub-aggregation should be present (verifies SubAggRangeCollector.collect() was called)", firstDate);
                 assertEquals(1, firstDate.getBuckets().size());
                 assertEquals(5, firstDate.getBuckets().get(0).getDocCount());
 
@@ -339,7 +346,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
                 InternalRange.Bucket secondBucket = buckets.get(1);
                 assertEquals(8, secondBucket.getDocCount());
                 InternalDateHistogram secondDate = secondBucket.getAggregations().get(dateAggName);
-                assertNotNull(secondDate);
+                assertNotNull("Sub-aggregation should be present (verifies SubAggRangeCollector.collect() was called)", secondDate);
                 assertEquals(2, secondDate.getBuckets().size());
                 assertEquals(5, secondDate.getBuckets().get(0).getDocCount());
                 assertEquals(3, secondDate.getBuckets().get(1).getDocCount());
@@ -348,7 +355,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
                 InternalRange.Bucket thirdBucket = buckets.get(2);
                 assertEquals(7, thirdBucket.getDocCount());
                 InternalDateHistogram thirdDate = thirdBucket.getAggregations().get(dateAggName);
-                assertNotNull(thirdDate);
+                assertNotNull("Sub-aggregation should be present (verifies SubAggRangeCollector.collect() was called)", thirdDate);
                 assertEquals(1, thirdDate.getBuckets().size());
                 assertEquals(7, thirdDate.getBuckets().get(0).getDocCount());
             }

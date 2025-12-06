@@ -13,13 +13,20 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.common.Rounding;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.AggregatorBase;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 
 import java.io.IOException;
+import java.util.function.LongFunction;
+import java.util.function.Supplier;
 
 /**
  * Histogram collection logic using skip list.
+ *
+ * Currently, it can only handle one owningBucketOrd at a time.
  *
  * @opensearch.internal
  */
@@ -27,10 +34,17 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
 
     private final NumericDocValues values;
     private final DocValuesSkipper skipper;
-    private final Rounding.Prepared preparedRounding;
-    private final LongKeyedBucketOrds bucketOrds;
     private final LeafBucketCollector sub;
+    private final boolean isSubNoOp;
     private final BucketsAggregator aggregator;
+
+    /**
+     * Supplier function to get the current preparedRounding from the parent aggregator.
+     * This allows detection of rounding changes in AutoDateHistogramAggregator.
+     */
+    private final LongFunction<Rounding.Prepared> preparedRoundingSupplier;
+    private final Supplier<LongKeyedBucketOrds> bucketOrdsSupplier;
+    private final IncreaseRoundingIfNeeded increaseRoundingIfNeeded;
 
     /**
      * Max doc ID (inclusive) up to which all docs values may map to the same
@@ -48,6 +62,12 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
      */
     private long upToBucketIndex;
 
+    /**
+     * Tracks the last preparedRounding reference to detect rounding changes.
+     * Used for cache invalidation when AutoDateHistogramAggregator changes rounding.
+     */
+    private Rounding.Prepared lastPreparedRounding;
+
     public HistogramSkiplistLeafCollector(
         NumericDocValues values,
         DocValuesSkipper skipper,
@@ -56,12 +76,29 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
         LeafBucketCollector sub,
         BucketsAggregator aggregator
     ) {
+        this(values, skipper, (owningBucketOrd) -> preparedRounding, () -> bucketOrds, sub, aggregator, (owningBucketOrd, rounded) -> {});
+    }
+
+    /**
+     * Constructor that accepts a supplier for dynamic rounding (used by AutoDateHistogramAggregator).
+     */
+    public HistogramSkiplistLeafCollector(
+        NumericDocValues values,
+        DocValuesSkipper skipper,
+        LongFunction<Rounding.Prepared> preparedRoundingSupplier,
+        Supplier<LongKeyedBucketOrds> bucketOrdsSupplier,
+        LeafBucketCollector sub,
+        BucketsAggregator aggregator,
+        IncreaseRoundingIfNeeded increaseRoundingIfNeeded
+    ) {
         this.values = values;
         this.skipper = skipper;
-        this.preparedRounding = preparedRounding;
-        this.bucketOrds = bucketOrds;
+        this.preparedRoundingSupplier = preparedRoundingSupplier;
+        this.bucketOrdsSupplier = bucketOrdsSupplier;
         this.sub = sub;
+        this.isSubNoOp = (sub == NO_OP_COLLECTOR);
         this.aggregator = aggregator;
+        this.increaseRoundingIfNeeded = increaseRoundingIfNeeded;
     }
 
     @Override
@@ -87,17 +124,20 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
 
         upToInclusive = skipper.maxDocID(0);
 
+        // Get current rounding from supplier
+        Rounding.Prepared currentRounding = preparedRoundingSupplier.apply(owningBucketOrd);
+
         // Now find the highest level where all docs map to the same bucket.
         for (int level = 0; level < skipper.numLevels(); ++level) {
             int totalDocsAtLevel = skipper.maxDocID(level) - skipper.minDocID(level) + 1;
-            long minBucket = preparedRounding.round(skipper.minValue(level));
-            long maxBucket = preparedRounding.round(skipper.maxValue(level));
+            long minBucket = currentRounding.round(skipper.minValue(level));
+            long maxBucket = currentRounding.round(skipper.maxValue(level));
 
             if (skipper.docCount(level) == totalDocsAtLevel && minBucket == maxBucket) {
                 // All docs at this level have a value, and all values map to the same bucket.
                 upToInclusive = skipper.maxDocID(level);
                 upToSameBucket = true;
-                upToBucketIndex = bucketOrds.add(owningBucketOrd, maxBucket);
+                upToBucketIndex = bucketOrdsSupplier.get().add(owningBucketOrd, maxBucket);
                 if (upToBucketIndex < 0) {
                     upToBucketIndex = -1 - upToBucketIndex;
                 }
@@ -109,6 +149,16 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
 
     @Override
     public void collect(int doc, long owningBucketOrd) throws IOException {
+        Rounding.Prepared currentRounding = preparedRoundingSupplier.apply(owningBucketOrd);
+
+        // Check if rounding changed (using reference equality)
+        // AutoDateHistogramAggregator creates a new Rounding.Prepared instance when rounding changes
+        if (currentRounding != lastPreparedRounding) {
+            upToInclusive = -1;  // Invalidate
+            upToSameBucket = false;
+            lastPreparedRounding = currentRounding;
+        }
+
         if (doc > upToInclusive) {
             advanceSkipper(doc, owningBucketOrd);
         }
@@ -118,12 +168,14 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
             sub.collect(doc, upToBucketIndex);
         } else if (values.advanceExact(doc)) {
             final long value = values.longValue();
-            long bucketIndex = bucketOrds.add(owningBucketOrd, preparedRounding.round(value));
+            long rounded = currentRounding.round(value);
+            long bucketIndex = bucketOrdsSupplier.get().add(owningBucketOrd, rounded);
             if (bucketIndex < 0) {
                 bucketIndex = -1 - bucketIndex;
                 aggregator.collectExistingBucket(sub, doc, bucketIndex);
             } else {
                 aggregator.collectBucket(sub, doc, bucketIndex);
+                increaseRoundingIfNeeded.accept(owningBucketOrd, rounded);
             }
         }
     }
@@ -136,7 +188,6 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
 
     @Override
     public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-        // This will only be called if its the sub aggregation
         for (;;) {
             int upToExclusive = upToInclusive + 1;
             if (upToExclusive < 0) { // overflow
@@ -144,7 +195,7 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
             }
 
             if (upToSameBucket) {
-                if (sub == NO_OP_COLLECTOR) {
+                if (isSubNoOp) {
                     // stream.count maybe faster when we don't need to handle sub-aggs
                     long count = stream.count(upToExclusive);
                     aggregator.incrementBucketDocCount(upToBucketIndex, count);
@@ -166,5 +217,31 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
                 break;
             }
         }
+    }
+
+    /**
+     * Call back for auto date histogram
+     *
+     * @opensearch.internal
+     */
+    public interface IncreaseRoundingIfNeeded {
+        void accept(long owningBucket, long rounded);
+    }
+
+    /**
+     * Skiplist is based as top level agg (null parent) or parent that will execute in sorted order
+     *
+     */
+    public static boolean canUseSkiplist(LongBounds hardBounds, Aggregator parent, DocValuesSkipper skipper, NumericDocValues singleton) {
+        if (skipper == null || singleton == null) return false;
+        // TODO: add hard bounds support
+        if (hardBounds != null) return false;
+
+        if (parent == null) return true;
+
+        if (parent instanceof AggregatorBase base) {
+            return base.getLeafCollectorMode() == AggregatorBase.LeafCollectionMode.FILTER_REWRITE;
+        }
+        return false;
     }
 }
