@@ -47,7 +47,7 @@ public class ParquetDataFormat implements DataFormat {
 
     @Override
     public boolean isDataFormatSupported(String fieldTypeName) {
-        return ArrowFieldRegistry.getRegisteredFieldNames().contains(fieldTypeName);
+        return ArrowFieldRegistry.isFieldTypeSupported(fieldTypeName);
     }
 
     public static ParquetDataFormat PARQUET_DATA_FORMAT = new ParquetDataFormat();

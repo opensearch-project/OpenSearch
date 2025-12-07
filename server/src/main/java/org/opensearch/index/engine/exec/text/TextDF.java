@@ -36,6 +36,6 @@ public class TextDF implements DataFormat {
 
     @Override
     public boolean isDataFormatSupported(String fieldTypeName) {
-        return true;
+        return false;
     }
 }
