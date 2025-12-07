@@ -14,9 +14,11 @@ import org.apache.arrow.c.Data;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.Closeable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -26,7 +28,7 @@ import static org.apache.arrow.vector.BitVectorHelper.byteIndex;
  * Managed wrapper around VectorSchemaRoot that handles state transitions
  * and provides thread-safe access for the ACTIVE/FROZEN lifecycle.
  */
-public class ManagedVSR implements AutoCloseable {
+public class ManagedVSR implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ManagedVSR.class);
 
@@ -34,7 +36,8 @@ public class ManagedVSR implements AutoCloseable {
     private final VectorSchemaRoot vsr;
     private final BufferAllocator allocator;
     private final AtomicReference<VSRState> state;
-    private final ReadWriteLock lock;
+    private final Lock readLock;
+    private final Lock writeLock;
     private final long createdTime;
     private final Map<String, Field> fields = new HashMap<>();
 
@@ -44,7 +47,9 @@ public class ManagedVSR implements AutoCloseable {
         this.vsr = vsr;
         this.allocator = allocator;
         this.state = new AtomicReference<>(VSRState.ACTIVE);
-        this.lock = new ReentrantReadWriteLock();
+        ReadWriteLock rwLock = new ReentrantReadWriteLock();
+        this.readLock = rwLock.readLock();
+        this.writeLock = rwLock.writeLock();
         this.createdTime = System.currentTimeMillis();
         for (Field field : vsr.getSchema().getFields()) {
             fields.put(field.getName(), field);
@@ -68,11 +73,11 @@ public class ManagedVSR implements AutoCloseable {
      * @return Number of rows currently in the VSR
      */
     public int getRowCount() {
-        lock.readLock().lock();
+        readLock.lock();
         try {
             return vsr.getRowCount();
         } finally {
-            lock.readLock().unlock();
+            readLock.unlock();
         }
     }
 
@@ -84,14 +89,14 @@ public class ManagedVSR implements AutoCloseable {
      * @throws IllegalStateException if VSR is not active or is immutable
      */
     public void setRowCount(int rowCount) {
-        lock.writeLock().lock();
+        writeLock.lock();
         try {
             if (state.get() != VSRState.ACTIVE) {
                 throw new IllegalStateException("Cannot modify VSR in state: " + state.get());
             }
             vsr.setRowCount(rowCount);
         } finally {
-            lock.writeLock().unlock();
+            writeLock.unlock();
         }
     }
 
@@ -103,24 +108,20 @@ public class ManagedVSR implements AutoCloseable {
      * @return FieldVector for the field, or null if not found
      */
     public FieldVector getVector(String fieldName) {
-        lock.readLock().lock();
+        readLock.lock();
         try {
             return vsr.getVector(fields.get(fieldName));
         } finally {
-            lock.readLock().unlock();
+            readLock.unlock();
         }
     }
 
-    /**
-     * Changes the state of this VSR.
-     * Handles state transition logic and immutability.
-     *
-     * @param newState New state to transition to
-     */
     public void setState(VSRState newState) {
-        VSRState oldState = state.getAndSet(newState);
-
-        logger.debug("State transition: {} -> {} for VSR {}", oldState, newState, id);
+        VSRState oldState;
+        do {
+            oldState = state.get();
+            oldState.validateTransition(newState);
+        } while (!state.compareAndSet(oldState, newState));
     }
 
     /**
@@ -146,7 +147,7 @@ public class ManagedVSR implements AutoCloseable {
             throw new IllegalStateException("Cannot export VSR in state: " + currentState);
         }
 
-        lock.readLock().lock();
+        readLock.lock();
         try {
             ArrowArray arrowArray = ArrowArray.allocateNew(allocator);
             ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
@@ -156,12 +157,12 @@ public class ManagedVSR implements AutoCloseable {
 
             return new ArrowExport(arrowArray, arrowSchema);
         } finally {
-            lock.readLock().unlock();
+            readLock.unlock();
         }
     }
 
     public ArrowExport exportSchema() {
-        lock.readLock().lock();
+        readLock.lock();
         try {
             ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
 
@@ -170,7 +171,7 @@ public class ManagedVSR implements AutoCloseable {
 
             return new ArrowExport(null, arrowSchema);
         } finally {
-            lock.readLock().unlock();
+            readLock.unlock();
         }
     }
 
@@ -217,7 +218,7 @@ public class ManagedVSR implements AutoCloseable {
      */
     @Override
     public void close() {
-        lock.writeLock().lock();
+        writeLock.lock();
         try {
             if (state.get() != VSRState.CLOSED) {
                 state.set(VSRState.CLOSED);
@@ -225,7 +226,7 @@ public class ManagedVSR implements AutoCloseable {
                 allocator.close();
             }
         } finally {
-            lock.writeLock().unlock();
+            writeLock.unlock();
         }
     }
 
