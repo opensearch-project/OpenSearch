@@ -81,34 +81,23 @@ final class MultiSnapshot implements Translog.Snapshot {
 
     @Override
     public Translog.Operation next() throws IOException {
-        if (readForward) {
-            // Read forward: from index 0 to translogs.length - 1
-            for (; index < translogs.length; index++) {
-                final TranslogSnapshot current = translogs[index];
-                Translog.Operation op;
-                while ((op = current.next()) != null) {
-                    if (op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
-                        return op;
-                    } else {
-                        overriddenOperations++;
-                    }
+        while (hasMore()) {
+            final TranslogSnapshot current = translogs[index];
+            Translog.Operation op;
+            while ((op = current.next()) != null) {
+                if (op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
+                    return op;
+                } else {
+                    overriddenOperations++;
                 }
             }
-        } else {
-            // Read backward (original behavior): from translogs.length - 1 to 0
-            for (; index >= 0; index--) {
-                final TranslogSnapshot current = translogs[index];
-                Translog.Operation op;
-                while ((op = current.next()) != null) {
-                    if (op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
-                        return op;
-                    } else {
-                        overriddenOperations++;
-                    }
-                }
-            }
+            index = readForward ? index + 1 : index - 1;
         }
         return null;
+    }
+
+    private boolean hasMore() {
+        return readForward ? index < translogs.length : index >= 0;
     }
 
     @Override
