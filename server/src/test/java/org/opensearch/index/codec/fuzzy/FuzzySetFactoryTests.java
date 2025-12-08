@@ -13,7 +13,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.test.OpenSearchTestCase;
-
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -264,7 +264,7 @@ public class FuzzySetFactoryTests extends OpenSearchTestCase {
                 int length = readByte();
                 byte[] bytes = new byte[length];
                 readBytes(bytes, 0, length);
-                return new String(bytes);
+                return new String(bytes, StandardCharsets.UTF_8);
             }
         };
     }
