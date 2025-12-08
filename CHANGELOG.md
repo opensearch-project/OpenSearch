@@ -140,6 +140,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `actions/upload-artifact` from 4 to 5 ([#20081](https://github.com/opensearch-project/OpenSearch/pull/20081))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.5 to 10.6 ([#20084](https://github.com/opensearch-project/OpenSearch/pull/20084))
 - Bump `commons-logging` from 1.2 to 1.3.5 ([#20156](https://github.com/opensearch-project/OpenSearch/pull/20156))
+- Bump `com.google.auth:google-auth-library-oauth2-http` from 1.38.0 to 1.41.0 ([#20183](https://github.com/opensearch-project/OpenSearch/pull/20183))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
