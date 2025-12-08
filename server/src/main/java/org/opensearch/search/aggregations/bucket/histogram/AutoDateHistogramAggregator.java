@@ -280,23 +280,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             skipper = ctx.reader().getDocValuesSkipper(this.fieldName);
         }
 
-        final LeafBucketCollector iteratingCollector = getLeafCollector(values, skipper, sub);
-        return new LeafBucketCollectorBase(sub, values) {
-            @Override
-            public void collect(int doc, long owningBucketOrd) throws IOException {
-                iteratingCollector.collect(doc, owningBucketOrd);
-            }
-
-            @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                iteratingCollector.collect(stream, owningBucketOrd);
-            }
-
-            @Override
-            public void collectRange(int min, int max) throws IOException {
-                iteratingCollector.collectRange(min, max);
-            }
-        };
+        return getLeafCollector(values, skipper, sub);
     }
 
     protected final InternalAggregation[] buildAggregations(
