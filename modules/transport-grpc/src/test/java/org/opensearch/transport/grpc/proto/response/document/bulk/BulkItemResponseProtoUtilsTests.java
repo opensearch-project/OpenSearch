@@ -20,7 +20,6 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.get.GetResult;
-import org.opensearch.protobufs.Item;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -47,16 +46,15 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Create a BulkItemResponse with the IndexResponse
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, indexResponse);
 
-        // Convert to protobuf Item
-        Item item = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        // Convert to protobuf ResponseItem
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
 
         // Verify the result
-        assertNotNull("Item should not be null", item);
-        assertTrue("Item should have index field set", item.hasIndex());
-        assertEquals("Index should match", "test-index", item.getIndex().getIndex());
-        assertEquals("Id should match", "test-id", item.getIndex().getId().getString());
-        assertEquals("Version should match", indexResponse.getVersion(), item.getIndex().getVersion());
-        assertEquals("Result should match", DocWriteResponse.Result.CREATED.getLowercase(), item.getIndex().getResult());
+        assertNotNull("ResponseItem should not be null", responseItem);
+        assertEquals("Index should match", "test-index", responseItem.getXIndex());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
+        assertEquals("Version should match", indexResponse.getVersion(), responseItem.getXVersion());
+        assertEquals("Result should match", DocWriteResponse.Result.CREATED.getLowercase(), responseItem.getResult());
     }
 
     public void testToProtoWithCreateResponse() throws IOException {
@@ -73,16 +71,15 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Create a BulkItemResponse with the IndexResponse and CREATE op type
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.CREATE, indexResponse);
 
-        // Convert to protobuf Item
-        Item item = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        // Convert to protobuf ResponseItem
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
 
         // Verify the result
-        assertNotNull("Item should not be null", item);
-        assertTrue("Item should have create field set", item.hasCreate());
-        assertEquals("Index should match", "test-index", item.getCreate().getIndex());
-        assertEquals("Id should match", "test-id", item.getCreate().getId().getString());
-        assertEquals("Version should match", indexResponse.getVersion(), item.getCreate().getVersion());
-        assertEquals("Result should match", DocWriteResponse.Result.CREATED.getLowercase(), item.getCreate().getResult());
+        assertNotNull("ResponseItem should not be null", responseItem);
+        assertEquals("Index should match", "test-index", responseItem.getXIndex());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
+        assertEquals("Version should match", indexResponse.getVersion(), responseItem.getXVersion());
+        assertEquals("Result should match", DocWriteResponse.Result.CREATED.getLowercase(), responseItem.getResult());
     }
 
     public void testToProtoWithDeleteResponse() throws IOException {
@@ -99,16 +96,15 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         // Create a BulkItemResponse with the DeleteResponse
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.DELETE, deleteResponse);
 
-        // Convert to protobuf Item
-        Item item = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        // Convert to protobuf ResponseItem
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
 
         // Verify the result
-        assertNotNull("Item should not be null", item);
-        assertTrue("Item should have delete field set", item.hasDelete());
-        assertEquals("Index should match", "test-index", item.getDelete().getIndex());
-        assertEquals("Id should match", "test-id", item.getDelete().getId().getString());
-        assertEquals("Version should match", deleteResponse.getVersion(), item.getDelete().getVersion());
-        assertEquals("Result should match", DocWriteResponse.Result.DELETED.getLowercase(), item.getDelete().getResult());
+        assertNotNull("ResponseItem should not be null", responseItem);
+        assertEquals("Index should match", "test-index", responseItem.getXIndex());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
+        assertEquals("Version should match", deleteResponse.getVersion(), responseItem.getXVersion());
+        assertEquals("Result should match", DocWriteResponse.Result.DELETED.getLowercase(), responseItem.getResult());
     }
 
     public void testToProtoWithUpdateResponse() throws IOException {
@@ -126,15 +122,14 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE, updateResponse);
 
         // Convert to protobuf Item
-        Item item = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
 
         // Verify the result
-        assertNotNull("Item should not be null", item);
-        assertTrue("Item should have update field set", item.hasUpdate());
-        assertEquals("Index should match", "test-index", item.getUpdate().getIndex());
-        assertEquals("Id should match", "test-id", item.getUpdate().getId().getString());
-        assertEquals("Version should match", updateResponse.getVersion(), item.getUpdate().getVersion());
-        assertEquals("Result should match", DocWriteResponse.Result.UPDATED.getLowercase(), item.getUpdate().getResult());
+        assertNotNull("ResponseItem should not be null", responseItem);
+        assertEquals("Index should match", "test-index", responseItem.getXIndex());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
+        assertEquals("Version should match", updateResponse.getVersion(), responseItem.getXVersion());
+        assertEquals("Result should match", DocWriteResponse.Result.UPDATED.getLowercase(), responseItem.getResult());
     }
 
     public void testToProtoWithUpdateResponseAndGetResult() throws IOException {
@@ -170,21 +165,20 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE, updateResponse);
 
         // Convert to protobuf Item
-        Item item = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
 
         // Verify the result
-        assertNotNull("Item should not be null", item);
-        assertTrue("Item should have update field set", item.hasUpdate());
-        assertEquals("Index should match", "test-index", item.getUpdate().getIndex());
-        assertEquals("Id should match", "test-id", item.getUpdate().getId().getString());
-        assertEquals("Version should match", 1, item.getUpdate().getVersion());
-        assertEquals("Result should match", DocWriteResponse.Result.UPDATED.getLowercase(), item.getUpdate().getResult());
+        assertNotNull("ResponseItem should not be null", responseItem);
+        assertEquals("Index should match", "test-index", responseItem.getXIndex());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
+        assertEquals("Version should match", 1, responseItem.getXVersion());
+        assertEquals("Result should match", DocWriteResponse.Result.UPDATED.getLowercase(), responseItem.getResult());
 
         // Verify GetResult fields
-        assertTrue("Get field should be set", item.getUpdate().hasGet());
-        assertEquals("Get index should match", "test-index", item.getUpdate().getIndex());
-        assertEquals("Get id should match", "test-id", item.getUpdate().getId().getString());
-        assertTrue("Get found should be true", item.getUpdate().getGet().getFound());
+        assertTrue("Get field should be set", responseItem.hasGet());
+        assertEquals("Get index should match", "test-index", responseItem.getXIndex());
+        assertEquals("Get id should match", "test-id", responseItem.getXId());
+        assertTrue("Get found should be true", responseItem.getGet().getFound());
     }
 
     public void testToProtoWithFailure() throws IOException {
@@ -201,18 +195,17 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         BulkItemResponse bulkItemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, failure);
 
         // Convert to protobuf Item
-        Item item = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+        org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
 
         // Verify the result
-        assertNotNull("Item should not be null", item);
-        assertTrue("Item should have index field set", item.hasIndex());
-        assertEquals("Index should match", "test-index", item.getIndex().getIndex());
-        assertEquals("Id should match", "test-id", item.getIndex().getId().getString());
-        assertEquals("Status should match", Status.INTERNAL.getCode().value(), item.getIndex().getStatus());
+        assertNotNull("ResponseItem should not be null", responseItem);
+        assertEquals("Index should match", "test-index", responseItem.getXIndex());
+        assertEquals("Id should match", "test-id", responseItem.getXId());
+        assertEquals("Status should match", Status.INTERNAL.getCode().value(), responseItem.getStatus());
 
         // Verify error
-        assertTrue("Error should be set", item.getIndex().hasError());
-        assertTrue("Error reason should contain exception message", item.getIndex().getError().getReason().contains("Test IO exception"));
+        assertTrue("Error should be set", responseItem.hasError());
+        assertTrue("Error reason should contain exception message", responseItem.getError().getReason().contains("Test IO exception"));
     }
 
     public void testToProtoWithNullResponse() throws IOException {

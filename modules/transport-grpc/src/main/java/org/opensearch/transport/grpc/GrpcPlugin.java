@@ -7,6 +7,8 @@
  */
 package org.opensearch.transport.grpc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
@@ -25,28 +27,38 @@ import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.grpc.interceptor.GrpcInterceptorChain;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
-import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverter;
-import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistry;
+import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.services.DocumentServiceImpl;
 import org.opensearch.transport.grpc.services.SearchServiceImpl;
+import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider;
+import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInterceptor;
+import org.opensearch.transport.grpc.spi.GrpcServiceFactory;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import io.grpc.BindableService;
 
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
+import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_KEEPALIVE_TIMEOUT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS;
@@ -64,11 +76,18 @@ import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.
  * Main class for the gRPC plugin.
  */
 public final class GrpcPlugin extends Plugin implements NetworkPlugin, ExtensiblePlugin {
+    private static final Logger logger = LogManager.getLogger(GrpcPlugin.class);
 
-    private Client client;
+    /** The name of the gRPC thread pool */
+    public static final String GRPC_THREAD_POOL_NAME = "grpc";
+
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
-    private QueryBuilderProtoConverterRegistry queryRegistry;
+    private final List<GrpcServiceFactory> servicesFactory = new ArrayList<>();
+    private QueryBuilderProtoConverterRegistryImpl queryRegistry;
     private AbstractQueryBuilderProtoUtils queryUtils;
+    private GrpcInterceptorChain serverInterceptor; // Initialized in createComponents
+    private List<GrpcInterceptorProvider> interceptorProviders = new ArrayList<>();
+    private Client client;
 
     /**
      * Creates a new GrpcPlugin instance.
@@ -85,8 +104,32 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
     public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
         // Load query converters from other plugins
         List<QueryBuilderProtoConverter> extensions = loader.loadExtensions(QueryBuilderProtoConverter.class);
-        if (extensions != null) {
-            queryConverters.addAll(extensions);
+        if (extensions != null && !extensions.isEmpty()) {
+            logger.info("Loading {} QueryBuilderProtoConverter extensions from other plugins", extensions.size());
+            for (QueryBuilderProtoConverter converter : extensions) {
+                logger.info(
+                    "Discovered QueryBuilderProtoConverter extension: {} (handles: {})",
+                    converter.getClass().getName(),
+                    converter.getHandledQueryCase()
+                );
+                queryConverters.add(converter);
+            }
+            logger.info("Successfully loaded {} QueryBuilderProtoConverter extensions", extensions.size());
+        } else {
+            logger.info("No QueryBuilderProtoConverter extensions found from other plugins");
+        }
+        List<GrpcInterceptorProvider> providers = loader.loadExtensions(GrpcInterceptorProvider.class);
+        if (providers != null) {
+            // Note: ThreadContext will be provided during component creation
+            // For now, we collect providers to be initialized later with ThreadContext
+            this.interceptorProviders = providers;
+            logger.info("Found {} gRPC interceptor providers, will initialize during component creation", providers.size());
+        }
+        // Load discovered gRPC service factories
+        List<GrpcServiceFactory> services = loader.loadExtensions(GrpcServiceFactory.class);
+        if (services != null) {
+            servicesFactory.addAll(services);
+            logger.info("Successfully loaded {} GrpcServiceFactory extensions", services.size());
         }
     }
 
@@ -134,22 +177,31 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
-        if (client == null) {
-            throw new RuntimeException("client cannot be null");
+        if (client == null || queryRegistry == null) {
+            throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
 
-        if (queryRegistry == null) {
-            throw new IllegalStateException("createComponents must be called before getAuxTransports to initialize the registry");
-        }
-
-        List<BindableService> grpcServices = registerGRPCServices(
-            new DocumentServiceImpl(client),
-            new SearchServiceImpl(client, queryUtils)
-        );
-        return Collections.singletonMap(
-            GRPC_TRANSPORT_SETTING_KEY,
-            () -> new Netty4GrpcServerTransport(settings, grpcServices, networkService)
-        );
+        return Collections.singletonMap(GRPC_TRANSPORT_SETTING_KEY, () -> {
+            List<BindableService> grpcServices = new ArrayList<>(
+                List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
+            );
+            for (GrpcServiceFactory serviceFac : servicesFactory) {
+                List<BindableService> pluginServices = serviceFac.initClient(client)
+                    .initSettings(settings)
+                    .initClusterSettings(clusterSettings)
+                    .initThreadPool(threadPool)
+                    .build();
+                for (BindableService pluginService : pluginServices) {
+                    logger.info(
+                        "{} gRPC services loaded from plugin: {}",
+                        pluginService.bindService().getServiceDescriptor().getName(),
+                        serviceFac.plugin()
+                    );
+                }
+                grpcServices.addAll(pluginServices);
+            }
+            return new Netty4GrpcServerTransport(settings, grpcServices, networkService, threadPool, serverInterceptor);
+        });
     }
 
     /**
@@ -177,32 +229,37 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         SecureAuxTransportSettingsProvider secureAuxTransportSettingsProvider,
         Tracer tracer
     ) {
-        if (client == null) {
-            throw new RuntimeException("client cannot be null");
+        if (client == null || queryRegistry == null) {
+            throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
-
-        if (queryRegistry == null) {
-            throw new IllegalStateException("createComponents must be called before getSecureAuxTransports to initialize the registry");
-        }
-
-        List<BindableService> grpcServices = registerGRPCServices(
-            new DocumentServiceImpl(client),
-            new SearchServiceImpl(client, queryUtils)
-        );
-        return Collections.singletonMap(
-            GRPC_SECURE_TRANSPORT_SETTING_KEY,
-            () -> new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider)
-        );
-    }
-
-    /**
-     * Registers gRPC services to be exposed by the transport.
-     *
-     * @param services The gRPC services to register
-     * @return A list of registered bindable services
-     */
-    private List<BindableService> registerGRPCServices(BindableService... services) {
-        return List.of(services);
+        return Collections.singletonMap(GRPC_SECURE_TRANSPORT_SETTING_KEY, () -> {
+            List<BindableService> grpcServices = new ArrayList<>(
+                List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
+            );
+            for (GrpcServiceFactory serviceFac : servicesFactory) {
+                List<BindableService> pluginServices = serviceFac.initClient(client)
+                    .initSettings(settings)
+                    .initClusterSettings(clusterSettings)
+                    .initThreadPool(threadPool)
+                    .build();
+                for (BindableService pluginService : pluginServices) {
+                    logger.info(
+                        "{} gRPC services loaded from plugin: {}",
+                        pluginService.bindService().getServiceDescriptor().getName(),
+                        serviceFac.plugin()
+                    );
+                }
+                grpcServices.addAll(pluginServices);
+            }
+            return new SecureNetty4GrpcServerTransport(
+                settings,
+                grpcServices,
+                networkService,
+                threadPool,
+                secureAuxTransportSettingsProvider,
+                serverInterceptor
+            );
+        });
     }
 
     /**
@@ -220,11 +277,28 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             SETTING_GRPC_PUBLISH_HOST,
             SETTING_GRPC_BIND_HOST,
             SETTING_GRPC_WORKER_COUNT,
+            SETTING_GRPC_EXECUTOR_COUNT,
             SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS,
             SETTING_GRPC_MAX_MSG_SIZE,
             SETTING_GRPC_MAX_CONNECTION_AGE,
             SETTING_GRPC_MAX_CONNECTION_IDLE,
             SETTING_GRPC_KEEPALIVE_TIMEOUT
+        );
+    }
+
+    /**
+     * Returns the executor builders for this plugin's custom thread pools.
+     * Creates a dedicated thread pool for gRPC request processing that integrates
+     * with OpenSearch's thread pool monitoring and management system.
+     *
+     * @param settings the current settings
+     * @return executor builders for this plugin's custom thread pools
+     */
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        final int executorCount = SETTING_GRPC_EXECUTOR_COUNT.get(settings);
+        return List.of(
+            new FixedExecutorBuilder(settings, GRPC_THREAD_POOL_NAME, executorCount, 1000, "thread_pool." + GRPC_THREAD_POOL_NAME)
         );
     }
 
@@ -261,15 +335,83 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
     ) {
         this.client = client;
 
+        // Initialize the interceptor chain with ThreadContext
+        this.serverInterceptor = new GrpcInterceptorChain(threadPool.getThreadContext());
+
+        List<OrderedGrpcInterceptor> orderedList = new ArrayList<>();
+
+        // Then add plugin-provided interceptors
+        if (!interceptorProviders.isEmpty()) {
+            for (GrpcInterceptorProvider provider : interceptorProviders) {
+                orderedList.addAll(provider.getOrderedGrpcInterceptors(threadPool.getThreadContext()));
+            }
+
+            // Validate that no two interceptors have the same order
+            Map<Integer, List<OrderedGrpcInterceptor>> orderMap = new HashMap<>();
+            for (OrderedGrpcInterceptor interceptor : orderedList) {
+                int order = interceptor.order();
+                orderMap.computeIfAbsent(order, k -> new ArrayList<>()).add(interceptor);
+            }
+
+            // Check for duplicates and throw exception if found
+            for (Map.Entry<Integer, List<OrderedGrpcInterceptor>> entry : orderMap.entrySet()) {
+                if (entry.getValue().size() > 1) {
+                    String conflictingInterceptors = entry.getValue()
+                        .stream()
+                        .map(i -> i.getInterceptor().getClass().getName())
+                        .collect(Collectors.joining(", "));
+                    throw new IllegalArgumentException(
+                        "Multiple gRPC interceptors have the same order value ["
+                            + entry.getKey()
+                            + "]: "
+                            + conflictingInterceptors
+                            + ". Each interceptor must have a unique order value."
+                    );
+                }
+            }
+
+            // Sort by order and create a chain - similar to OpenSearch's ActionFilter pattern
+            orderedList.sort(Comparator.comparingInt(OrderedGrpcInterceptor::order));
+
+            if (!orderedList.isEmpty()) {
+                // Create a single chain interceptor that manages the execution
+                // This ensures proper ordering and exception handling
+                serverInterceptor.addInterceptors(orderedList);
+
+                logger.info("Loaded {} gRPC interceptors into chain", orderedList.size());
+            }
+        }
+
         // Create the registry
-        this.queryRegistry = new QueryBuilderProtoConverterRegistry();
+        this.queryRegistry = new QueryBuilderProtoConverterRegistryImpl();
 
         // Create the query utils instance
         this.queryUtils = new AbstractQueryBuilderProtoUtils(queryRegistry);
 
-        // Register external converters
-        for (QueryBuilderProtoConverter converter : queryConverters) {
-            queryRegistry.registerConverter(converter);
+        // Inject registry into external converters and register them
+        if (!queryConverters.isEmpty()) {
+            logger.info("Injecting registry and registering {} external QueryBuilderProtoConverter(s)", queryConverters.size());
+            for (QueryBuilderProtoConverter converter : queryConverters) {
+                logger.info(
+                    "Processing external converter: {} (handles: {})",
+                    converter.getClass().getName(),
+                    converter.getHandledQueryCase()
+                );
+
+                // Inject the populated registry into the converter
+                converter.setRegistry(queryRegistry);
+                logger.info("Injected registry into converter: {}", converter.getClass().getName());
+
+                // Register the converter
+                queryRegistry.registerConverter(converter);
+            }
+            logger.info("Successfully injected registry and registered all {} external converters", queryConverters.size());
+
+            // Update the registry on all converters (including built-in ones) so they can access external converters
+            queryRegistry.updateRegistryOnAllConverters();
+            logger.info("Updated registry on all converters to include external converters");
+        } else {
+            logger.info("No external QueryBuilderProtoConverter(s) to register");
         }
 
         return super.createComponents(

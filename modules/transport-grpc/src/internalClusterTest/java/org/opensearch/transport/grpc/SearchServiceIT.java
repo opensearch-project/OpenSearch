@@ -43,7 +43,7 @@ public class SearchServiceIT extends GrpcTransportBaseIT {
 
             SearchRequest searchRequest = SearchRequest.newBuilder()
                 .addIndex(indexName)
-                .setRequestBody(requestBody)
+                .setSearchRequestBody(requestBody)
                 .setQ("field1:value1")
                 .build();
 
@@ -52,12 +52,9 @@ public class SearchServiceIT extends GrpcTransportBaseIT {
 
             // Verify the response
             assertNotNull("Search response should not be null", searchResponse);
-            assertTrue(
-                "Search response should have hits",
-                searchResponse.getResponseBody().getHits().getTotal().getTotalHits().getValue() > 0
-            );
-            assertEquals("Search response should have one hit", 1, searchResponse.getResponseBody().getHits().getHitsCount());
-            assertEquals("Hit should have correct ID", "1", searchResponse.getResponseBody().getHits().getHits(0).getId());
+            assertTrue("Search response should have hits", searchResponse.getHits().getTotal().getTotalHits().getValue() > 0);
+            assertEquals("Search response should have one hit", 1, searchResponse.getHits().getHitsCount());
+            assertEquals("Hit should have correct ID", "1", searchResponse.getHits().getHits(0).getXId());
         }
     }
 }

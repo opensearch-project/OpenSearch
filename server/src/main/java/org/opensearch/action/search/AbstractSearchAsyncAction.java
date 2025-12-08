@@ -359,6 +359,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             public void innerOnResponse(Result result) {
                 try {
                     onShardResult(result, shardIt);
+                } catch (Exception e) {
+                    logger.trace("Failed to consume the shard {} result: {}", shard.getShardId(), e);
                 } finally {
                     executeNext(pendingExecutions, thread);
                 }

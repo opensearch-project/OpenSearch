@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.index.IndexSettings;
@@ -21,12 +22,12 @@ import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
+import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -49,7 +50,12 @@ public class DefaultStreamPoller implements StreamPoller {
     // indicates if a local or global cluster write block is in effect
     private volatile boolean isWriteBlockEnabled;
 
+    // flag to indicate if consumer needs to be reinitialized
+    private volatile boolean reinitializeConsumer;
+
     private volatile long lastPolledMessageTimestamp = 0;
+    private volatile long cachedPointerBasedLag = 0;
+    private volatile long lastPointerBasedLagUpdateTime = 0;
 
     @Nullable
     private IngestionShardConsumer consumer;
@@ -61,15 +67,15 @@ public class DefaultStreamPoller implements StreamPoller {
 
     // start of the batch, inclusive
     private IngestionShardPointer initialBatchStartPointer;
-    private boolean includeBatchStartPointer = false;
 
     private ResetState resetState;
     private final String resetValue;
 
     private long maxPollSize;
     private int pollTimeout;
+    private long pointerBasedLagUpdateIntervalMs;
+    private final IngestionMessageMapper messageMapper;
 
-    private Set<IngestionShardPointer> persistedPointers;
     private final String indexName;
 
     private final CounterMetric totalPolledCount = new CounterMetric();
@@ -77,18 +83,14 @@ public class DefaultStreamPoller implements StreamPoller {
     private final CounterMetric totalPollerMessageFailureCount = new CounterMetric();
     // indicates number of messages dropped due to error
     private final CounterMetric totalPollerMessageDroppedCount = new CounterMetric();
-    // indicates number of duplicate messages that are already processed, and hence skipped
-    private final CounterMetric totalDuplicateMessageSkippedCount = new CounterMetric();
-
-    // A pointer to the max persisted pointer for optimizing the check
-    @Nullable
-    private IngestionShardPointer maxPersistedPointer;
 
     private PartitionedBlockingQueueContainer blockingQueueContainer;
 
+    // Force the consumer to start reading from this pointer. This is used in case of failures, or during initialization/reinitialization.
+    private IngestionShardPointer forcedShardPointer = null;
+
     private DefaultStreamPoller(
         IngestionShardPointer startPointer,
-        Set<IngestionShardPointer> persistedPointers,
         IngestionConsumerFactory consumerFactory,
         String consumerClientId,
         int shardId,
@@ -100,11 +102,12 @@ public class DefaultStreamPoller implements StreamPoller {
         long maxPollSize,
         int pollTimeout,
         int numProcessorThreads,
-        int blockingQueueSize
+        int blockingQueueSize,
+        long pointerBasedLagUpdateIntervalMs,
+        IngestionMessageMapper.MapperType mapperType
     ) {
         this(
             startPointer,
-            persistedPointers,
             consumerFactory,
             consumerClientId,
             shardId,
@@ -115,7 +118,9 @@ public class DefaultStreamPoller implements StreamPoller {
             initialState,
             maxPollSize,
             pollTimeout,
-            ingestionEngine.config().getIndexSettings()
+            pointerBasedLagUpdateIntervalMs,
+            ingestionEngine.config().getIndexSettings(),
+            IngestionMessageMapper.create(mapperType.getName(), shardId)
         );
     }
 
@@ -124,7 +129,6 @@ public class DefaultStreamPoller implements StreamPoller {
      */
     DefaultStreamPoller(
         IngestionShardPointer startPointer,
-        Set<IngestionShardPointer> persistedPointers,
         IngestionConsumerFactory consumerFactory,
         String consumerClientId,
         int shardId,
@@ -135,7 +139,9 @@ public class DefaultStreamPoller implements StreamPoller {
         State initialState,
         long maxPollSize,
         int pollTimeout,
-        IndexSettings indexSettings
+        long pointerBasedLagUpdateIntervalMs,
+        IndexSettings indexSettings,
+        IngestionMessageMapper messageMapper
     ) {
         this.consumerFactory = Objects.requireNonNull(consumerFactory);
         this.consumerClientId = Objects.requireNonNull(consumerClientId);
@@ -144,19 +150,19 @@ public class DefaultStreamPoller implements StreamPoller {
         this.resetValue = resetValue;
         this.initialBatchStartPointer = startPointer;
         this.state = initialState;
-        this.persistedPointers = persistedPointers;
         this.maxPollSize = maxPollSize;
         this.pollTimeout = pollTimeout;
-        if (!this.persistedPointers.isEmpty()) {
-            maxPersistedPointer = this.persistedPointers.stream().max(IngestionShardPointer::compareTo).get();
-        }
+        this.pointerBasedLagUpdateIntervalMs = pointerBasedLagUpdateIntervalMs;
         this.blockingQueueContainer = blockingQueueContainer;
         this.consumerThread = Executors.newSingleThreadExecutor(
             r -> new Thread(r, String.format(Locale.ROOT, "stream-poller-consumer-%d-%d", shardId, System.currentTimeMillis()))
         );
         this.errorStrategy = errorStrategy;
         this.indexName = indexSettings.getIndex().getName();
+        this.messageMapper = Objects.requireNonNull(messageMapper);
 
+        // handle initial poller states
+        this.paused = initialState == State.PAUSED;
     }
 
     @Override
@@ -170,8 +176,6 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         started = true;
-        // when we start, we need to include the batch start pointer in the read for the first read
-        includeBatchStartPointer = true;
         consumerThread.submit(this::startPoll);
         blockingQueueContainer.startProcessorThreads();
     }
@@ -188,22 +192,22 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         logger.info("Starting poller for shard {}", shardId);
 
-        IngestionShardPointer failedShardPointer = null;
         while (true) {
             try {
                 if (closed) {
                     state = State.CLOSED;
+                    closeConsumer();
                     break;
                 }
 
-                // Initialize consumer if not already initialized
-                if (this.consumer == null) {
-                    initializeConsumer(CONSUMER_INIT_RETRY_INTERVAL_MS);
+                // Initialize/reinitialization consumer
+                if (this.consumer == null || reinitializeConsumer) {
+                    handleConsumerInitialization();
                     continue;
                 }
 
-                // reset the consumer offset
-                handleResetState();
+                // Update lag periodically. Lag is updated even if the poller is paused.
+                updatePointerBasedLagIfNeeded();
 
                 if (paused || isWriteBlockEnabled) {
                     state = State.PAUSED;
@@ -218,29 +222,31 @@ public class DefaultStreamPoller implements StreamPoller {
                 state = State.POLLING;
                 List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results;
 
-                if (includeBatchStartPointer) {
-                    results = consumer.readNext(initialBatchStartPointer, true, maxPollSize, pollTimeout);
-                    includeBatchStartPointer = false;
-                } else if (failedShardPointer != null) {
-                    results = consumer.readNext(failedShardPointer, true, maxPollSize, pollTimeout);
-                    failedShardPointer = null;
+                // Force the consumer to start from forcedShardPointer if available
+                if (forcedShardPointer != null) {
+                    results = consumer.readNext(forcedShardPointer, true, maxPollSize, pollTimeout);
+                    forcedShardPointer = null;
                 } else {
                     results = consumer.readNext(maxPollSize, pollTimeout);
                 }
 
                 if (results.isEmpty()) {
                     // no new records
+                    setLastPolledMessageTimestamp(0);
+                    Thread.sleep(DEFAULT_POLLER_SLEEP_PERIOD_MS);
                     continue;
                 }
 
                 state = State.PROCESSING;
-                failedShardPointer = processRecords(results);
+                // processRecords returns failed shard pointers. Update forcedShardPointer to the failed pointer to retry on next iteration
+                // in case of failures
+                forcedShardPointer = processRecords(results);
             } catch (Exception e) {
                 // Pause ingestion when an error is encountered while polling the streaming source.
                 // Currently we do not have a good way to skip past the failing messages.
                 // The user will have the option to manually update the offset and resume ingestion.
                 // todo: support retry?
-                logger.error("Pausing ingestion. Fatal error occurred in polling the shard {}: {}", shardId, e);
+                logger.error("Pausing ingestion. Fatal error occurred in polling the shard {} for index {}: {}", shardId, indexName, e);
                 totalConsumerErrorCount.inc();
                 pause();
             }
@@ -257,22 +263,26 @@ public class DefaultStreamPoller implements StreamPoller {
 
         for (IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> result : results) {
             try {
-                // check if the message is already processed
-                if (isProcessed(result.getPointer())) {
-                    logger.debug("Skipping message with pointer {} as it is already processed", result.getPointer().asString());
-                    totalDuplicateMessageSkippedCount.inc();
-                    continue;
-                }
                 totalPolledCount.inc();
-                blockingQueueContainer.add(result);
-                lastPolledMessageTimestamp = result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp();
+
+                // Use mapper to create ShardUpdateMessage
+                ShardUpdateMessage shardUpdateMessage = messageMapper.mapAndProcess(result.getPointer(), result.getMessage());
+
+                blockingQueueContainer.add(shardUpdateMessage);
+                setLastPolledMessageTimestamp(result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp());
                 logger.debug(
                     "Put message {} with pointer {} to the blocking queue",
                     String.valueOf(result.getMessage().getPayload()),
                     result.getPointer().asString()
                 );
             } catch (Exception e) {
-                logger.error("Error in processing a record. Shard {}, pointer {}: {}", shardId, result.getPointer().asString(), e);
+                logger.error(
+                    "[Default Poller] Error processing record. Index={}, Shard={}, pointer={}: error={}",
+                    indexName,
+                    shardId,
+                    result.getPointer().asString(),
+                    e
+                );
                 errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.POLLING);
                 totalPollerMessageFailureCount.inc();
 
@@ -288,24 +298,6 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         return failedShardPointer;
-    }
-
-    private boolean isProcessed(IngestionShardPointer pointer) {
-        if (maxPersistedPointer == null) {
-            return false;
-        }
-        if (pointer.compareTo(maxPersistedPointer) > 0) {
-            return false;
-        }
-        return persistedPointers.contains(pointer);
-    }
-
-    /**
-     * Visible for testing. Get the max persisted pointer
-     * @return the max persisted pointer
-     */
-    protected IngestionShardPointer getMaxPersistedPointer() {
-        return maxPersistedPointer;
     }
 
     @Override
@@ -392,16 +384,49 @@ public class DefaultStreamPoller implements StreamPoller {
         builder.setTotalConsumerErrorCount(totalConsumerErrorCount.count());
         builder.setTotalPollerMessageFailureCount(totalPollerMessageFailureCount.count());
         builder.setTotalPollerMessageDroppedCount(totalPollerMessageDroppedCount.count());
-        builder.setTotalDuplicateMessageSkippedCount(totalDuplicateMessageSkippedCount.count());
-        builder.setLagInMillis(computeLag());
+        builder.setLagInMillis(computeTimeBasedLag());
+        builder.setPointerBasedLag(cachedPointerBasedLag);
         return builder.build();
     }
 
     /**
      * Returns the lag in milliseconds since the last polled message
      */
-    private long computeLag() {
+    private long computeTimeBasedLag() {
+        if (lastPolledMessageTimestamp == 0 || paused) {
+            return 0;
+        }
+
         return System.currentTimeMillis() - lastPolledMessageTimestamp;
+    }
+
+    private void setLastPolledMessageTimestamp(long timestamp) {
+        if (lastPolledMessageTimestamp != timestamp) {
+            lastPolledMessageTimestamp = timestamp;
+        }
+    }
+
+    /**
+     * Update the cached pointer-based lag if enough time has elapsed since the last update.
+     * {@code consumer.getPointerBasedLag()} is called from the poller thread, so it's safe to access the consumer.
+     * If pointerBasedLagUpdateIntervalMs is 0, pointer-based lag calculation is disabled.
+     */
+    private void updatePointerBasedLagIfNeeded() {
+        // If interval is 0, pointer-based lag is disabled
+        if (pointerBasedLagUpdateIntervalMs == 0) {
+            return;
+        }
+
+        long currentTime = System.currentTimeMillis();
+        if (consumer != null && (currentTime - lastPointerBasedLagUpdateTime >= pointerBasedLagUpdateIntervalMs)) {
+            try {
+                // update the lastPointerBasedLagUpdateTime first, to avoid load on streaming source in case of errors
+                lastPointerBasedLagUpdateTime = currentTime;
+                cachedPointerBasedLag = consumer.getPointerBasedLag(initialBatchStartPointer);
+            } catch (Exception e) {
+                logger.warn("Failed to update lag for index {} shard {}: {}", indexName, shardId, e.getMessage());
+            }
+        }
     }
 
     public State getState() {
@@ -435,6 +460,24 @@ public class DefaultStreamPoller implements StreamPoller {
         return consumer;
     }
 
+    /**
+     * Mark the poller's consumer for reinitialization. A new consumer will be initialized and start consuming from the
+     * latest batchStartPointer. This method also reinitializes the consumer factory with the updated ingestion source.
+     * @param updatedIngestionSource the updated ingestion source with new configuration parameters
+     */
+    @Override
+    public synchronized void requestConsumerReinitialization(IngestionSource updatedIngestionSource) {
+        if (closed) {
+            logger.warn("Cannot reinitialize consumer for closed poller of shard {}", shardId);
+            return;
+        }
+
+        // Reinitialize the consumer factory with updated configuration
+        consumerFactory.initialize(updatedIngestionSource);
+        logger.info("Configuration parameters updated for index {} shard {}, requesting consumer reinitialization", indexName, shardId);
+        reinitializeConsumer = true;
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
@@ -452,51 +495,92 @@ public class DefaultStreamPoller implements StreamPoller {
     }
 
     /**
-     * Handles the reset state logic, updating the initialBatchStartPointer based on the reset state.
+     * Handles the reset state logic.
+     * Returns the resulting IngestionShardPointer for reset or null if no reset required.
      */
-    private void handleResetState() {
-        if (resetState != ResetState.NONE) {
+    private IngestionShardPointer getResetShardPointer() {
+        IngestionShardPointer resetPointer = null;
+        if (resetState != ResetState.NONE && consumer != null) {
             switch (resetState) {
                 case EARLIEST:
-                    initialBatchStartPointer = consumer.earliestPointer();
-                    logger.info("Resetting pointer by seeking to earliest pointer {}", initialBatchStartPointer.asString());
+                    resetPointer = consumer.earliestPointer();
+                    logger.info("Resetting pointer by seeking to earliest pointer {}", resetPointer.asString());
                     break;
                 case LATEST:
-                    initialBatchStartPointer = consumer.latestPointer();
-                    logger.info("Resetting pointer by seeking to latest pointer {}", initialBatchStartPointer.asString());
+                    resetPointer = consumer.latestPointer();
+                    logger.info("Resetting pointer by seeking to latest pointer {}", resetPointer.asString());
                     break;
                 case RESET_BY_OFFSET:
-                    initialBatchStartPointer = consumer.pointerFromOffset(resetValue);
-                    logger.info("Resetting pointer by seeking to pointer {}", initialBatchStartPointer.asString());
+                    resetPointer = consumer.pointerFromOffset(resetValue);
+                    logger.info("Resetting pointer by seeking to pointer {}", resetPointer.asString());
                     break;
                 case RESET_BY_TIMESTAMP:
-                    initialBatchStartPointer = consumer.pointerFromTimestampMillis(Long.parseLong(resetValue));
+                    resetPointer = consumer.pointerFromTimestampMillis(Long.parseLong(resetValue));
                     logger.info(
                         "Resetting pointer by seeking to timestamp {}, corresponding pointer {}",
                         resetValue,
-                        initialBatchStartPointer.asString()
+                        resetPointer.asString()
                     );
                     break;
             }
             resetState = ResetState.NONE;
         }
+
+        return resetPointer;
+    }
+
+    /**
+     * Handles consumer initialization and reinitialization logic. Closes existing consumer if available and clears the
+     * blocking queues before initializing a new consumer. Also forces the consumer to start reading from the initial
+     * batchStartPointer if first time initialization, or from the latest available batchStartPointer on reinitialization.
+     */
+    private void handleConsumerInitialization() {
+        closeConsumer();
+        blockingQueueContainer.clearAllQueues();
+        initializeConsumer();
+
+        // Handle consumer offset reset the first time an index is created. The reset offset takes precedence if available.
+        IngestionShardPointer resetShardPointer = getResetShardPointer();
+        if (resetShardPointer != null) {
+            initialBatchStartPointer = resetShardPointer;
+        }
+
+        // Force the consumer to start from the batchStartPointer. This will be the initialBatchStartPointer for first
+        // time initialization, or the latest batchStartPointer based on processed messages.
+        forcedShardPointer = getBatchStartPointer();
     }
 
     /**
      * Initializes the consumer using the provided consumerFactory. If an error is encountered during initialization,
      * the poller thread sleeps for the provided duration before retrying/proceeding with the polling loop.
      */
-    private void initializeConsumer(int sleepDurationOnError) {
+    private synchronized void initializeConsumer() {
         try {
+            reinitializeConsumer = false;
             this.consumer = consumerFactory.createShardConsumer(consumerClientId, shardId);
             logger.info("Successfully initialized consumer for shard {}", shardId);
         } catch (Exception e) {
             logger.warn("Failed to create consumer for shard {}: {}", shardId, e.getMessage());
             totalConsumerErrorCount.inc();
             try {
-                Thread.sleep(sleepDurationOnError);
+                Thread.sleep(CONSUMER_INIT_RETRY_INTERVAL_MS);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    /**
+     * Closes the consumer gracefully. This should be called when reinitializing or shutting down the poller.
+     */
+    private void closeConsumer() {
+        if (this.consumer != null) {
+            try {
+                logger.info("Closing consumer for index {} shard {}", indexName, shardId);
+                this.consumer.close();
+                this.consumer = null;
+            } catch (Exception e) {
+                logger.warn("Error closing consumer for index {} shard {}: {}", indexName, shardId, e.getMessage());
             }
         }
     }
@@ -506,7 +590,6 @@ public class DefaultStreamPoller implements StreamPoller {
      */
     public static class Builder {
         private IngestionShardPointer startPointer;
-        private Set<IngestionShardPointer> persistedPointers;
         private IngestionConsumerFactory consumerFactory;
         private String consumerClientId;
         private int shardId;
@@ -519,20 +602,20 @@ public class DefaultStreamPoller implements StreamPoller {
         private int pollTimeout = 1000;
         private int numProcessorThreads = 1;
         private int blockingQueueSize = 100;
+        private long pointerBasedLagUpdateIntervalMs = 10000;
+        private IngestionMessageMapper.MapperType mapperType = IngestionMessageMapper.MapperType.DEFAULT;
 
         /**
          * Initialize the builder with mandatory parameters
          */
         public Builder(
             IngestionShardPointer startPointer,
-            Set<IngestionShardPointer> persistedPointers,
             IngestionConsumerFactory consumerFactory,
             String consumerClientId,
             int shardId,
             IngestionEngine ingestionEngine
         ) {
             this.startPointer = startPointer;
-            this.persistedPointers = Objects.requireNonNull(persistedPointers);
             this.consumerFactory = Objects.requireNonNull(consumerFactory);
             this.consumerClientId = Objects.requireNonNull(consumerClientId);
             this.shardId = shardId;
@@ -605,12 +688,27 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
+         * Set pointer-based lag update interval in milliseconds
+         */
+        public Builder pointerBasedLagUpdateInterval(long pointerBasedLagUpdateInterval) {
+            this.pointerBasedLagUpdateIntervalMs = pointerBasedLagUpdateInterval;
+            return this;
+        }
+
+        /**
+         * Set mapper type
+         */
+        public Builder mapperType(IngestionMessageMapper.MapperType mapperType) {
+            this.mapperType = mapperType;
+            return this;
+        }
+
+        /**
          * Build the DefaultStreamPoller instance
          */
         public DefaultStreamPoller build() {
             return new DefaultStreamPoller(
                 startPointer,
-                persistedPointers,
                 consumerFactory,
                 consumerClientId,
                 shardId,
@@ -622,7 +720,9 @@ public class DefaultStreamPoller implements StreamPoller {
                 maxPollSize,
                 pollTimeout,
                 numProcessorThreads,
-                blockingQueueSize
+                blockingQueueSize,
+                pointerBasedLagUpdateIntervalMs,
+                mapperType
             );
         }
     }

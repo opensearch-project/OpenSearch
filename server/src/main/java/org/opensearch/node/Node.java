@@ -161,6 +161,7 @@ import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.autoforcemerge.AutoForceMergeManager;
+import org.opensearch.index.autoforcemerge.AutoForceMergeMetrics;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
@@ -629,7 +630,7 @@ public class Node implements Closeable {
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(repositoriesServiceReference::get, threadPool);
-            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService);
+            localNodeFactory = new RemoteStoreVerifyingLocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService);
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
@@ -803,8 +804,8 @@ public class Node implements Closeable {
                 pluginCircuitBreakers,
                 settingsModule.getClusterSettings()
             );
-            // File cache will be initialized by the node once circuit breakers are in place.
-            initializeFileCache(settings, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+
+            initializeFileCache(settings);
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
                 CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
@@ -938,6 +939,12 @@ public class Node implements Closeable {
                 .flatMap(m -> m.entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
+            final Map<String, IndexStorePlugin.StoreFactory> storeFactories = pluginsService.filterPlugins(IndexStorePlugin.class)
+                .stream()
+                .map(IndexStorePlugin::getStoreFactories)
+                .flatMap(m -> m.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
             final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
             rerouteServiceReference.set(rerouteService);
             clusterService.setRerouteService(rerouteService);
@@ -991,6 +998,7 @@ public class Node implements Closeable {
                 Map.copyOf(compositeDirectoryFactories),
                 searchModule.getValuesSourceRegistry(),
                 recoveryStateFactories,
+                storeFactories,
                 remoteDirectoryFactory,
                 repositoriesServiceReference::get,
                 searchRequestStats,
@@ -1201,7 +1209,14 @@ public class Node implements Closeable {
                 workloadGroupService
             );
 
-            this.autoForceMergeManager = new AutoForceMergeManager(threadPool, monitorService, indicesService, clusterService);
+            final AutoForceMergeMetrics autoForceMergeMetrics = new AutoForceMergeMetrics(metricsRegistry);
+            this.autoForceMergeManager = new AutoForceMergeManager(
+                threadPool,
+                monitorService,
+                indicesService,
+                clusterService,
+                autoForceMergeMetrics
+            );
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
                 .stream()
@@ -1277,7 +1292,7 @@ public class Node implements Closeable {
                         streamTransport,
                         threadPool,
                         networkModule.getTransportInterceptor(),
-                        new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService),
+                        new LocalNodeFactory(settings, nodeEnvironment.nodeId()),
                         settingsModule.getClusterSettings(),
                         transportService.getTaskManager(),
                         transportService.getRemoteClusterService(),
@@ -1580,6 +1595,11 @@ public class Node implements Closeable {
                 b.bind(PersistedClusterStateService.class).toInstance(lucenePersistedStateFactory);
                 b.bind(IndicesService.class).toInstance(indicesService);
                 b.bind(RemoteStoreStatsTrackerFactory.class).toInstance(remoteStoreStatsTrackerFactory);
+                if (fileCache != null) {
+                    b.bind(FileCache.class).toInstance(fileCache);
+                } else {
+                    b.bind(FileCache.class).toProvider(Providers.of(null));
+                }
                 b.bind(AliasValidator.class).toInstance(aliasValidator);
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                 b.bind(AwarenessReplicaBalance.class).toInstance(awarenessReplicaBalance);
@@ -1662,16 +1682,10 @@ public class Node implements Closeable {
                 b.bind(MergedSegmentWarmerFactory.class).toInstance(mergedSegmentWarmerFactory);
                 b.bind(MappingTransformerRegistry.class).toInstance(mappingTransformerRegistry);
                 b.bind(AutoForceMergeManager.class).toInstance(autoForceMergeManager);
-                if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)) {
-                    if (isRemoteDataAttributePresent(settings)) {
-                        b.bind(MergedSegmentPublisher.PublishAction.class)
-                            .to(RemoteStorePublishMergedSegmentAction.class)
-                            .asEagerSingleton();
-                    } else {
-                        b.bind(MergedSegmentPublisher.PublishAction.class).to(PublishMergedSegmentAction.class).asEagerSingleton();
-                    }
+                if (isRemoteDataAttributePresent(settings)) {
+                    b.bind(MergedSegmentPublisher.PublishAction.class).to(RemoteStorePublishMergedSegmentAction.class).asEagerSingleton();
                 } else {
-                    b.bind(MergedSegmentPublisher.PublishAction.class).toInstance((shard, checkpoint) -> {});
+                    b.bind(MergedSegmentPublisher.PublishAction.class).to(PublishMergedSegmentAction.class).asEagerSingleton();
                 }
                 b.bind(MergedSegmentPublisher.class).asEagerSingleton();
 
@@ -2306,16 +2320,17 @@ public class Node implements Closeable {
         return networkModule.getAuxServerTransportList();
     }
 
+    /**
+     * Base factory for creating DiscoveryNode instances during node initialization.
+     */
     private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {
         private final SetOnce<DiscoveryNode> localNode = new SetOnce<>();
         private final String persistentNodeId;
-        private final Settings settings;
-        private final RemoteStoreNodeService remoteStoreNodeService;
+        protected final Settings settings;
 
-        private LocalNodeFactory(Settings settings, String persistentNodeId, RemoteStoreNodeService remoteStoreNodeService) {
+        private LocalNodeFactory(Settings settings, String persistentNodeId) {
             this.persistentNodeId = persistentNodeId;
             this.settings = settings;
-            this.remoteStoreNodeService = remoteStoreNodeService;
         }
 
         @Override
@@ -2325,11 +2340,6 @@ public class Node implements Closeable {
                 boundTransportAddress.publishAddress(),
                 persistentNodeId
             );
-
-            if (isRemoteStoreAttributePresent(settings)) {
-                remoteStoreNodeService.createAndVerifyRepositories(discoveryNode);
-            }
-
             localNode.set(discoveryNode);
             return localNode.get();
         }
@@ -2341,12 +2351,40 @@ public class Node implements Closeable {
     }
 
     /**
+     * Extended factory that verifies remote store repositories during node creation.
+     */
+    private static class RemoteStoreVerifyingLocalNodeFactory extends LocalNodeFactory {
+
+        private final RemoteStoreNodeService remoteStoreNodeService;
+
+        private RemoteStoreVerifyingLocalNodeFactory(
+            Settings settings,
+            String persistentNodeId,
+            RemoteStoreNodeService remoteStoreNodeService
+        ) {
+            super(settings, persistentNodeId);
+            this.remoteStoreNodeService = remoteStoreNodeService;
+        }
+
+        @Override
+        public DiscoveryNode apply(BoundTransportAddress boundTransportAddress) {
+            final DiscoveryNode discoveryNode = super.apply(boundTransportAddress);
+
+            if (isRemoteStoreAttributePresent(settings)) {
+                remoteStoreNodeService.createAndVerifyRepositories(discoveryNode);
+            }
+
+            return discoveryNode;
+        }
+    }
+
+    /**
      * Initializes the warm cache with a defined capacity.
      * The capacity of the cache is based on user configuration for {@link Node#NODE_SEARCH_CACHE_SIZE_SETTING}.
      * If the user doesn't configure the cache size, it fails if the node is a data + warm node.
      * Else it configures the size to 80% of total capacity for a dedicated warm node, if not explicitly defined.
      */
-    private void initializeFileCache(Settings settings, CircuitBreaker circuitBreaker) throws IOException {
+    private void initializeFileCache(Settings settings) throws IOException {
         if (DiscoveryNode.isWarmNode(settings) == false) {
             return;
         }
@@ -2371,7 +2409,7 @@ public class Node implements Closeable {
             throw new SettingsException("Cache size must be larger than zero and less than total capacity");
         }
 
-        this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
+        this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity);
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
         ForkJoinPool loadFileCacheThreadpool = new ForkJoinPool(
             Runtime.getRuntime().availableProcessors(),

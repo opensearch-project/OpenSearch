@@ -14,6 +14,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Represents a feature type within the auto-tagging feature. Feature types define different categories of
@@ -42,10 +43,18 @@ public interface FeatureType extends Writeable {
     String getName();
 
     /**
+     * Returns a map of top-level attributes sorted by priority, with 1 representing the highest priority.
+     * Subfields within each attribute are managed separately here {@link Attribute#getWeightedSubfields()}.
+     */
+    Map<Attribute, Integer> getOrderedAttributes();
+
+    /**
      * Returns the registry of allowed attributes for this feature type.
      * Implementations must ensure that access to this registry is thread-safe.
      */
-    Map<String, Attribute> getAllowedAttributesRegistry();
+    default Map<String, Attribute> getAllowedAttributesRegistry() {
+        return getOrderedAttributes().keySet().stream().collect(Collectors.toUnmodifiableMap(Attribute::getName, attribute -> attribute));
+    }
 
     /**
      * returns the validator for feature value

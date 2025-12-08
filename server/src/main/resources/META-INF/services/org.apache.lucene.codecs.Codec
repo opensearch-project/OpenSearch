@@ -1,2 +1,4 @@
 org.opensearch.index.codec.composite.composite912.Composite912Codec
-org.opensearch.index.codec.composite.composite101.Composite101Codec
+org.opensearch.index.codec.composite.composite103.Composite103Codec
+org.opensearch.index.codec.composite.backward_codecs.composite101.Composite101Codec
+org.opensearch.index.codec.CriteriaBasedCodec

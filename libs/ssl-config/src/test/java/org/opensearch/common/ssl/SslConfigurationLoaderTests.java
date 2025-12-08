@@ -32,9 +32,12 @@
 
 package org.opensearch.common.ssl;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.settings.SecureString;
+import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.OpenSearchTestCase;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -51,14 +54,14 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class SslConfigurationLoaderTests extends OpenSearchTestCase {
 
     private final String STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/=";
-    private final Path certRoot = getDataPath("/certs/ca1/ca.crt").getParent().getParent();
-
-    private Settings settings;
-    private MockSecureSettings secureSettings = new MockSecureSettings();
-    private SslConfigurationLoader loader = new SslConfigurationLoader("test.ssl.") {
+    protected final Path certRoot = getDataPath("/certs/ca1/ca.crt").getParent().getParent();
+    protected Settings settings;
+    protected MockSecureSettings secureSettings = new MockSecureSettings();
+    protected SslConfigurationLoader loader = new SslConfigurationLoader("test.ssl.") {
         @Override
         protected String getSettingAsString(String key) throws Exception {
             return settings.get(key);
@@ -111,6 +114,23 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
             trustConfig.getDependentFiles(),
             containsInAnyOrder(getDataPath("/certs/ca1/ca.crt"), getDataPath("/certs/ca2/ca.crt"), getDataPath("/certs/ca3/ca.crt"))
         );
+        assertThat(trustConfig.createTrustManager(), notNullValue());
+    }
+
+    public void testLoadTrustFromPkcs12WithoutMAC() {
+        final Settings.Builder builder = Settings.builder().put("test.ssl.truststore.path", "ca-all/ca_nomac.p12");
+        if (randomBoolean()) {
+            // If this is not set, the loader will guess from the extension
+            builder.put("test.ssl.truststore.type", "PKCS12");
+        }
+        if (randomBoolean()) {
+            builder.put("test.ssl.truststore.algorithm", TrustManagerFactory.getDefaultAlgorithm());
+        }
+        settings = builder.build();
+        final SslConfiguration configuration = loader.load(certRoot);
+        final SslTrustConfig trustConfig = configuration.getTrustConfig();
+        assertThat(trustConfig, instanceOf(StoreTrustConfig.class));
+        assertThat(trustConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/ca-all/ca_nomac.p12")));
         assertThat(trustConfig.createTrustManager(), notNullValue());
     }
 
@@ -209,7 +229,6 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
     }
 
     public void testLoadKeysFromJKS() {
-        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Settings.Builder builder = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.jks");
         if (randomBoolean()) {
             builder.put("test.ssl.keystore.password", "jks-pass");

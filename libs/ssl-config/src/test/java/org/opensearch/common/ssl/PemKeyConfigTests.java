@@ -32,6 +32,9 @@
 
 package org.opensearch.common.ssl;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -55,6 +58,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class PemKeyConfigTests extends OpenSearchTestCase {
     private static final int IP_NAME = 7;
     private static final int DNS_NAME = 2;
@@ -85,7 +89,6 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
     }
 
     public void testBuildKeyConfigFromPkcs8PemFilesWithPassword() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
         final Path cert = getDataPath("/certs/cert2/cert2.crt");
         final Path key = getDataPath("/certs/cert2/cert2.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, STRONG_PRIVATE_SECRET.get());
@@ -124,7 +127,7 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
         final Path cert = createTempFile("cert", ".crt");
         final Path key = createTempFile("cert", ".key");
 
-        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0]);
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "wrong-password".toCharArray());
 
         Files.copy(cert1, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key1, key, StandardCopyOption.REPLACE_EXISTING);
@@ -154,8 +157,8 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
         assertThat(chain, notNullValue());
         assertThat(chain, arrayWithSize(1));
         final X509Certificate certificate = chain[0];
-        assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
-        assertThat(certificate.getSubjectDN().getName(), is(expectedDN));
+        assertThat(certificate.getIssuerX500Principal().getName(), is("CN=Test CA 1"));
+        assertThat(certificate.getSubjectX500Principal().getName(), is(expectedDN));
         assertThat(certificate.getSubjectAlternativeNames(), iterableWithSize(2));
         assertThat(
             certificate.getSubjectAlternativeNames(),

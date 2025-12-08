@@ -284,6 +284,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public void parse(ParseContext context) throws IOException {
         try {
             parseCreateField(context);
+            extractGroupingCriteriaParams(context);
         } catch (Exception e) {
 
             boolean ignoreMalformed = shouldIgnoreMalformed(context.indexSettings());
@@ -330,6 +331,35 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * current failing token
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
+
+    private void extractGroupingCriteriaParams(ParseContext context) throws IOException {
+        if (context.docMapper() != null && context.docMapper().mappers() != null) {
+            final Mapper mapper = context.docMapper().mappers().getMapper(ContextAwareGroupingFieldMapper.CONTENT_TYPE);
+            if (mapper != null) {
+                final ContextAwareGroupingFieldMapper contextAwareMapper = (ContextAwareGroupingFieldMapper) mapper;
+                if (contextAwareMapper.fieldType().fields().contains(name())) {
+                    Object value = getFieldValue(context);
+                    if (value == null) {
+                        throw new IllegalArgumentException(
+                            "field ["
+                                + name()
+                                + "] of type ["
+                                + fieldType().typeName()
+                                + "] cannot be null"
+                                + " when context-aware-grouping is set on that field"
+                        );
+                    }
+                    context.doc().addGroupingCriteriaParams(name(), value);
+                }
+            }
+        }
+    }
+
+    protected Object getFieldValue(ParseContext context) throws IOException {
+        throw new UnsupportedOperationException(
+            "getFieldValue not implemented for the field mapper [" + this.getClass().getSimpleName() + "]"
+        );
+    }
 
     protected final void createFieldNamesField(ParseContext context) {
         assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
@@ -406,7 +436,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public FieldMapper merge(Mapper mergeWith) {
         FieldMapper merged = clone();
         List<String> conflicts = new ArrayList<>();
-        if (mergeWith instanceof FieldMapper == false) {
+        if (!(mergeWith instanceof FieldMapper toMerge)) {
             throw new IllegalArgumentException(
                 "mapper ["
                     + mappedFieldType.name()
@@ -417,7 +447,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     + "]"
             );
         }
-        FieldMapper toMerge = (FieldMapper) mergeWith;
         merged.mergeSharedOptions(toMerge, conflicts);
         merged.mergeOptions(toMerge, conflicts);
         if (conflicts.isEmpty() == false) {
@@ -642,7 +671,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Validates if doc values is enabled for a field or not
      */
-    void checkDocValuesForDerivedSource() {
+    protected void checkDocValuesForDerivedSource() {
         if (!mappedFieldType.hasDocValues()) {
             throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with doc values disabled");
         }
@@ -651,7 +680,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Validates if stored field is enabled for a field or not
      */
-    void checkStoredForDerivedSource() {
+    protected void checkStoredForDerivedSource() {
         if (!mappedFieldType.isStored()) {
             throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with store disabled");
         }
@@ -660,7 +689,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Validates if doc_values or stored field is enabled for a field or not
      */
-    void checkStoredAndDocValuesForDerivedSource() {
+    protected void checkStoredAndDocValuesForDerivedSource() {
         if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
             throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored and " + "docValues disabled");
         }

@@ -242,6 +242,9 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuset.cpus.effective", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu,cpuacct", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu,cpuacct/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpuset/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/user.slice/-", "read";
@@ -250,6 +253,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory.max", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.current", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/system.slice/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/init.scope/-", "read";
 
   // needed by RestClientBuilder
   permission java.io.FilePermission "${java.home}/lib/security/cacerts", "read";
@@ -266,4 +270,7 @@ grant {
   permission java.security.SecurityPermission "insertProvider.BCJSSE";
 
   permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
+
+  // allow to access krb5.conf
+  permission java.io.FilePermission "${{java.security.krb5.conf}}", "read";
 };

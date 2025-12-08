@@ -50,15 +50,15 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
         ResponseItem.Builder result = GetResultProtoUtils.toProto(getResult, responseItemBuilder);
 
         // Verify the conversion
-        assertEquals("Should have the correct index", index, result.getIndex());
-        assertEquals("Should have the correct id", id, result.getId().getString());
-        assertEquals("Should have the correct version", version, result.getVersion());
+        assertEquals("Should have the correct index", index, result.getXIndex());
+        assertEquals("Should have the correct id", id, result.getXId());
+        assertEquals("Should have the correct version", version, result.getXVersion());
 
         InlineGetDictUserDefined get = result.getGet();
         assertTrue("Should be found", get.getFound());
-        assertEquals("Should have the correct sequence number", seqNo, get.getSeqNo());
-        assertEquals("Should have the correct primary term", primaryTerm, get.getPrimaryTerm());
-        assertEquals("Should have the correct source", ByteString.copyFrom(sourceBytes), get.getSource());
+        assertEquals("Should have the correct sequence number", seqNo, get.getXSeqNo());
+        assertEquals("Should have the correct primary term", primaryTerm, get.getXPrimaryTerm());
+        assertEquals("Should have the correct source", ByteString.copyFrom(sourceBytes), get.getXSource());
     }
 
     public void testToProtoWithNonExistingDocument() throws IOException {
@@ -83,8 +83,8 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
         ResponseItem.Builder result = GetResultProtoUtils.toProto(getResult, responseItemBuilder);
 
         // Verify the conversion
-        assertEquals("Should have the correct index", index, result.getIndex());
-        assertEquals("Should have the correct id", id, result.getId().getString());
+        assertEquals("Should have the correct index", index, result.getXIndex());
+        assertEquals("Should have the correct id", id, result.getXId());
         assertFalse("Should not be found", result.getGet().getFound());
     }
 
@@ -105,9 +105,9 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the conversion
         assertTrue("Should be found", builder.getFound());
-        assertEquals("Should have the correct sequence number", seqNo, builder.getSeqNo());
-        assertEquals("Should have the correct primary term", primaryTerm, builder.getPrimaryTerm());
-        assertEquals("Should have the correct source", ByteString.copyFrom(sourceBytes), builder.getSource());
+        assertEquals("Should have the correct sequence number", seqNo, builder.getXSeqNo());
+        assertEquals("Should have the correct primary term", primaryTerm, builder.getXPrimaryTerm());
+        assertEquals("Should have the correct source", ByteString.copyFrom(sourceBytes), builder.getXSource());
     }
 
     public void testToProtoEmbeddedWithoutSequenceNumber() throws IOException {
@@ -135,11 +135,11 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the conversion
         assertTrue("Should be found", builder.getFound());
-        assertEquals("Should have the correct source", ByteString.copyFrom(source.toBytesRef().bytes), builder.getSource());
+        assertEquals("Should have the correct source", ByteString.copyFrom(source.toBytesRef().bytes), builder.getXSource());
 
         // Sequence number and primary term should not be set
-        assertFalse("Should not have sequence number", builder.hasSeqNo());
-        assertFalse("Should not have primary term", builder.hasPrimaryTerm());
+        assertFalse("Should not have sequence number", builder.hasXSeqNo());
+        assertFalse("Should not have primary term", builder.hasXPrimaryTerm());
     }
 
     public void testToProtoEmbeddedWithoutSource() throws IOException {
@@ -167,6 +167,6 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Should be found", builder.getFound());
 
         // Source should not be set
-        assertFalse("Should not have source", builder.hasSource());
+        assertFalse("Should not have source", builder.hasXSource());
     }
 }

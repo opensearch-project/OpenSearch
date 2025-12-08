@@ -11,6 +11,11 @@ on:
         type: string
         required: false
         default: 'main'
+      java_version:
+        description: 'Java version to use'
+        type: string
+        required: false
+        default: '25'
 
 jobs:
   publish-snapshots:
@@ -23,31 +28,26 @@ jobs:
 
     steps:
       - name: Checkout Lucene ref:${{ github.event.inputs.ref }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: 'apache/lucene'
           ref: ${{ github.event.inputs.ref }}
 
-      - name: Get Java Min Version and Lucene Revision from Lucene Repository
+      - name: Get Lucene Revision
         run: |
-          java_version=`cat build.gradle | grep minJavaVersion | head -1 | grep -Eo '_[0-9]+$' | tr -d '_'`
-          echo "JAVA_VERSION=$java_version" >> $GITHUB_ENV
           echo "REVISION=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup JDK ${{ github.event.inputs.java_version }}
+        uses: actions/setup-java@v5
         with:
-          java-version: ${{ env.JAVA_VERSION }}
+          java-version: ${{ github.event.inputs.java_version }}
           distribution: 'temurin'
 
-      - name: Initialize gradle settings
-        run: ./gradlew localSettings
-
       - name: Publish Lucene to local maven repo.
-        run: ./gradlew publishJarsPublicationToMavenLocal -Pversion.suffix=snapshot-${{ env.REVISION }}
+        run: ./gradlew publishJarsPublicationToMavenLocal -Pversion.suffix=snapshot-${{ env.REVISION }} -x javadoc
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_SECRET_ROLE }}
           aws-region: us-east-1
@@ -60,7 +60,7 @@ jobs:
           echo "LUCENE_SNAPSHOTS_BUCKET=$lucene_snapshots_bucket" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_S3_ROLE }}
           aws-region: us-east-1
@@ -70,7 +70,7 @@ jobs:
           aws s3 cp ~/.m2/repository/org/apache/lucene/ s3://${{ steps.get_s3_bucket.outputs.LUCENE_SNAPSHOTS_BUCKET }}/snapshots/lucene/org/apache/lucene/  --recursive --no-progress
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_ROLE }}
           aws-region: us-west-2

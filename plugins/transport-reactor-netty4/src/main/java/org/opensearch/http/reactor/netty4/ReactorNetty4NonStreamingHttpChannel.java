@@ -15,6 +15,7 @@ import org.opensearch.http.HttpResponse;
 import org.opensearch.transport.reactor.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -45,7 +46,13 @@ class ReactorNetty4NonStreamingHttpChannel implements HttpChannel {
 
     @Override
     public void close() {
-        request.withConnection(connection -> connection.channel().close());
+        request.withConnection(connection -> {
+            if (closeContext.isDone() == false) {
+                Netty4Utils.addListener(connection.channel().close(), closeContext);
+            } else {
+                connection.channel().close();
+            }
+        });
     }
 
     @Override
@@ -73,6 +80,11 @@ class ReactorNetty4NonStreamingHttpChannel implements HttpChannel {
     @Override
     public InetSocketAddress getLocalAddress() {
         return (InetSocketAddress) response.hostAddress();
+    }
+
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        return ReactorNetty4BaseHttpChannel.get(request, name, clazz);
     }
 
     FullHttpResponse createResponse(HttpResponse response) {

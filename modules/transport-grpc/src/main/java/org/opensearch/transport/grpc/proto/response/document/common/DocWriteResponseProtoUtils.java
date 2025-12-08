@@ -10,7 +10,6 @@ package org.opensearch.transport.grpc.proto.response.document.common;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.protobufs.NullValue;
 import org.opensearch.protobufs.ResponseItem;
 import org.opensearch.protobufs.ShardInfo;
 
@@ -39,17 +38,15 @@ public class DocWriteResponseProtoUtils {
         ResponseItem.Builder responseItem = ResponseItem.newBuilder();
 
         // Set the index name
-        responseItem.setIndex(response.getIndex());
+        responseItem.setXIndex(response.getIndex());
 
         // Handle document ID (can be null in some cases)
-        if (response.getId().isEmpty()) {
-            responseItem.setId(ResponseItem.Id.newBuilder().setNullValue(NullValue.NULL_VALUE_NULL).build());
-        } else {
-            responseItem.setId(ResponseItem.Id.newBuilder().setString(response.getId()).build());
+        if (response.getId() != null && !response.getId().isEmpty()) {
+            responseItem.setXId(response.getId());
         }
 
         // Set document version
-        responseItem.setVersion(response.getVersion());
+        responseItem.setXVersion(response.getVersion());
 
         // Set operation result (CREATED, UPDATED, DELETED, NOT_FOUND, NOOP)
         responseItem.setResult(response.getResult().getLowercase());
@@ -60,12 +57,12 @@ public class DocWriteResponseProtoUtils {
         }
         // Handle shard information
         ShardInfo shardInfo = ShardInfoProtoUtils.toProto(response.getShardInfo());
-        responseItem.setShards(shardInfo);
+        responseItem.setXShards(shardInfo);
 
         // Set sequence number and primary term if available
         if (response.getSeqNo() >= 0) {
-            responseItem.setSeqNo(response.getSeqNo());
-            responseItem.setPrimaryTerm(response.getPrimaryTerm());
+            responseItem.setXSeqNo(response.getSeqNo());
+            responseItem.setXPrimaryTerm(response.getPrimaryTerm());
         }
 
         return responseItem;

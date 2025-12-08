@@ -35,6 +35,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
@@ -57,6 +58,8 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.streaming.Streamable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.Map;
@@ -70,7 +73,7 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  *
  * @opensearch.internal
  */
-class MinAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
+class MinAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector, Streamable {
     private static final int MAX_BKD_LOOKUPS = 1024;
 
     final ValuesSource.Numeric valuesSource;
@@ -154,19 +157,46 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
-
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= mins.size()) {
-                    long from = mins.size();
-                    mins = bigArrays.grow(mins, bucket + 1);
-                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
-                }
+                growMins(bucket);
                 if (values.advanceExact(doc)) {
                     final double value = values.doubleValue();
                     double min = mins.get(bucket);
                     min = Math.min(min, value);
                     mins.set(bucket, min);
+                }
+            }
+
+            @Override
+            public void collect(DocIdStream stream, long bucket) throws IOException {
+                growMins(bucket);
+                final double[] min = { mins.get(bucket) };
+                stream.forEach((doc) -> {
+                    if (values.advanceExact(doc)) {
+                        min[0] = Math.min(min[0], values.doubleValue());
+                    }
+                });
+                mins.set(bucket, min[0]);
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                growMins(0);
+                double minimum = mins.get(0);
+                for (int doc = min; doc < max; doc++) {
+                    if (values.advanceExact(doc)) {
+                        minimum = Math.min(minimum, values.doubleValue());
+                    }
+                }
+                mins.set(0, minimum);
+            }
+
+            private void growMins(long bucket) {
+                if (bucket >= mins.size()) {
+                    long from = mins.size();
+                    mins = bigArrays.grow(mins, bucket + 1);
+                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
                 }
             }
         };
@@ -270,5 +300,15 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             },
             (bucket, metricValue) -> mins.set(bucket, Math.min(mins.get(bucket), NumericUtils.sortableLongToDouble(metricValue)))
         );
+    }
+
+    @Override
+    public void doReset() {
+        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
+    }
+
+    @Override
+    public StreamingCostMetrics getStreamingCostMetrics() {
+        return new StreamingCostMetrics(true, 1, 1, 1, 1);
     }
 }

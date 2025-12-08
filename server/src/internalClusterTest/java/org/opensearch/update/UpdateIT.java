@@ -44,6 +44,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateRequestBuilder;
 import org.opensearch.action.update.UpdateResponse;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -739,6 +740,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
             }
 
             @Override
+            @SuppressForbidden(reason = "Sleeping in a loop")
             public void run() {
                 try {
                     startLatch.await();

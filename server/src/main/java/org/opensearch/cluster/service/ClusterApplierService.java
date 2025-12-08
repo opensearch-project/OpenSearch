@@ -616,6 +616,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         logger.debug("completed calling listeners of cluster state for version {}", newClusterState.version());
     }
 
+    public ClusterSettings clusterSettings() {
+        return clusterSettings;
+    }
+
     protected void connectToNodesAndWait(ClusterState newClusterState) {
         // can't wait for an ActionFuture on the cluster applier thread, but we do want to block the thread here, so use a CountDownLatch.
         final CountDownLatch countDownLatch = new CountDownLatch(1);

@@ -38,8 +38,8 @@ opensearchplugin {
 }
 
 versions << [
-  'tika'  : '2.9.2',
-  'pdfbox': '2.0.31',
+  'tika'  : '3.2.2',
+  'pdfbox': '3.0.5',
   'poi'   : '5.4.1',
   'mime4j': '0.8.11'
 ]
@@ -66,7 +66,7 @@ dependencies {
   runtimeOnly "com.optimaize.languagedetector:language-detector:0.6"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   // Other dependencies
-  api 'org.tukaani:xz:1.10'
+  api 'org.tukaani:xz:1.11'
   api "commons-io:commons-io:${versions.commonsio}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
@@ -75,10 +75,11 @@ dependencies {
 
   // external parser libraries
   // HTML
-  api 'org.ccil.cowan.tagsoup:tagsoup:1.2.1'
+  api 'org.jsoup:jsoup:1.21.2'
   // Adobe PDF
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
+  api "org.apache.pdfbox:pdfbox-io:${versions.pdfbox}"
   api "org.apache.pdfbox:jempbox:1.8.17"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   // OpenOffice
@@ -121,6 +122,7 @@ forbiddenPatterns {
   exclude '**/*.pdf'
   exclude '**/*.epub'
   exclude '**/*.vsdx'
+  exclude '**/*.ttf'
 }
 
 thirdPartyAudit {
@@ -141,13 +143,4 @@ thirdPartyAudit {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
-}
-
-if (BuildParams.inFipsJvm) {
-  // FIPS JVM includes many classes from bouncycastle which count as jar hell for the third party audit,
-  // rather than provide a long list of exclusions, disable the check on FIPS.
-  jarHell.enabled = false
-  test.enabled = false
-  yamlRestTest.enabled = false;
-  testingConventions.enabled = false;
 }

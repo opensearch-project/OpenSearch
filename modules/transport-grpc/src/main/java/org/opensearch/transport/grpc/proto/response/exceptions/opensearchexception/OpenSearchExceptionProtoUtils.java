@@ -89,8 +89,8 @@ public class OpenSearchExceptionProtoUtils {
     public static ErrorCause generateThrowableProto(Throwable t) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
-        if (t instanceof OpenSearchException) {
-            return toProto((OpenSearchException) t);
+        if (t instanceof OpenSearchException ose) {
+            return toProto(ose);
         } else {
             return innerToProto(t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
         }
@@ -127,22 +127,29 @@ public class OpenSearchExceptionProtoUtils {
             errorCauseBuilder.setReason(message);
         }
 
+        // Build metadata ObjectMap
+        ObjectMap.Builder metadataBuilder = ObjectMap.newBuilder();
+
         // Add custom metadata fields propogated by the child classes of OpenSearchException
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             Map.Entry<String, ObjectMap.Value> protoEntry = headerToValueProto(
                 entry.getKey().substring(OPENSEARCH_PREFIX_KEY.length()),
                 entry.getValue()
             );
-            errorCauseBuilder.putMetadata(protoEntry.getKey(), protoEntry.getValue());
+            metadataBuilder.putFields(protoEntry.getKey(), protoEntry.getValue());
         }
 
         // Add metadata if the throwable is an OpenSearchException
-        if (throwable instanceof OpenSearchException) {
-            OpenSearchException exception = (OpenSearchException) throwable;
-            Map<String, ObjectMap.Value> moreMetadata = metadataToProto(exception);
+        if (throwable instanceof OpenSearchException ose) {
+            Map<String, ObjectMap.Value> moreMetadata = metadataToProto(ose);
             for (Map.Entry<String, ObjectMap.Value> entry : moreMetadata.entrySet()) {
-                errorCauseBuilder.putMetadata(entry.getKey(), entry.getValue());
+                metadataBuilder.putFields(entry.getKey(), entry.getValue());
             }
+        }
+
+        // Set the metadata if any fields were added
+        if (metadataBuilder.getFieldsCount() > 0) {
+            errorCauseBuilder.setMetadata(metadataBuilder.build());
         }
 
         if (cause != null) {
@@ -184,7 +191,7 @@ public class OpenSearchExceptionProtoUtils {
             if (values.size() == 1) {
                 return new AbstractMap.SimpleEntry<String, StringOrStringArray>(
                     key,
-                    StringOrStringArray.newBuilder().setStringValue(values.get(0)).build()
+                    StringOrStringArray.newBuilder().setString(values.get(0)).build()
                 );
             } else {
                 StringArray.Builder stringArrayBuilder = StringArray.newBuilder();
@@ -239,24 +246,16 @@ public class OpenSearchExceptionProtoUtils {
      * @return A map containing the exception's metadata as ObjectMap.Value objects
      */
     public static Map<String, ObjectMap.Value> metadataToProto(OpenSearchException exception) {
-        if (exception instanceof CircuitBreakingException) {
-            return CircuitBreakingExceptionProtoUtils.metadataToProto((CircuitBreakingException) exception);
-        } else if (exception instanceof FailedNodeException) {
-            return FailedNodeExceptionProtoUtils.metadataToProto((FailedNodeException) exception);
-        } else if (exception instanceof ParsingException) {
-            return ParsingExceptionProtoUtils.metadataToProto((ParsingException) exception);
-        } else if (exception instanceof ResponseLimitBreachedException) {
-            return ResponseLimitBreachedExceptionProtoUtils.metadataToProto((ResponseLimitBreachedException) exception);
-        } else if (exception instanceof ScriptException) {
-            return ScriptExceptionProtoUtils.metadataToProto((ScriptException) exception);
-        } else if (exception instanceof SearchParseException) {
-            return SearchParseExceptionProtoUtils.metadataToProto((SearchParseException) exception);
-        } else if (exception instanceof SearchPhaseExecutionException) {
-            return SearchPhaseExecutionExceptionProtoUtils.metadataToProto((SearchPhaseExecutionException) exception);
-        } else if (exception instanceof MultiBucketConsumerService.TooManyBucketsException) {
-            return TooManyBucketsExceptionProtoUtils.metadataToProto((MultiBucketConsumerService.TooManyBucketsException) exception);
-        } else {
-            return new HashMap<>();
-        }
+        return switch (exception) {
+            case CircuitBreakingException cbe -> CircuitBreakingExceptionProtoUtils.metadataToProto(cbe);
+            case FailedNodeException fne -> FailedNodeExceptionProtoUtils.metadataToProto(fne);
+            case ParsingException pe -> ParsingExceptionProtoUtils.metadataToProto(pe);
+            case ResponseLimitBreachedException rlbe -> ResponseLimitBreachedExceptionProtoUtils.metadataToProto(rlbe);
+            case ScriptException se -> ScriptExceptionProtoUtils.metadataToProto(se);
+            case SearchParseException spe -> SearchParseExceptionProtoUtils.metadataToProto(spe);
+            case SearchPhaseExecutionException spee -> SearchPhaseExecutionExceptionProtoUtils.metadataToProto(spee);
+            case MultiBucketConsumerService.TooManyBucketsException tmbe -> TooManyBucketsExceptionProtoUtils.metadataToProto(tmbe);
+            case null, default -> new HashMap<>();
+        };
     }
 }

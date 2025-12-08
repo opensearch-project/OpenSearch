@@ -39,6 +39,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.NetworkService.CustomNameResolver;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -111,9 +112,9 @@ class Ec2NameResolver implements CustomNameResolver {
             try {
                 URL url = new URL(metadataUrl);
                 logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
-                URLConnection urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
+                URLConnection urlConnection = AccessController.doPrivilegedChecked(() -> url.openConnection());
                 urlConnection.setConnectTimeout(2000);
-                in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
+                in = AccessController.doPrivilegedChecked(urlConnection::getInputStream);
                 BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
                 String metadataResult = urlReader.readLine();

@@ -56,7 +56,30 @@ class FlightTransportChannel extends TcpTransportChannel {
 
     @Override
     public void sendResponse(Exception exception) throws IOException {
-        super.sendResponse(exception);
+        if (!streamOpen.get()) {
+            throw new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed for requestId [" + requestId + "]");
+        }
+        try {
+            ((FlightOutboundHandler) outboundHandler).sendErrorResponse(
+                version,
+                features,
+                getChannel(),
+                this,
+                requestId,
+                action,
+                exception
+            );
+        } catch (StreamException e) {
+            if (e.getErrorCode() == StreamErrorCode.CANCELLED) {
+                release(true);
+                throw e;
+            }
+            release(true);
+            throw e;
+        } catch (Exception e) {
+            release(true);
+            throw new StreamException(StreamErrorCode.INTERNAL, "Error sending response batch", e);
+        }
     }
 
     @Override
@@ -72,6 +95,7 @@ class FlightTransportChannel extends TcpTransportChannel {
                 version,
                 features,
                 getChannel(),
+                this,
                 requestId,
                 action,
                 response,
@@ -95,12 +119,11 @@ class FlightTransportChannel extends TcpTransportChannel {
     public void completeStream() {
         if (streamOpen.compareAndSet(true, false)) {
             try {
-                ((FlightOutboundHandler) outboundHandler).completeStream(version, features, getChannel(), requestId, action);
-                release(false);
+                ((FlightOutboundHandler) outboundHandler).completeStream(version, features, getChannel(), this, requestId, action);
             } catch (Exception e) {
                 release(true);
-                if (e instanceof StreamException) {
-                    throw (StreamException) e;
+                if (e instanceof StreamException se) {
+                    throw se;
                 }
                 throw new StreamException(StreamErrorCode.INTERNAL, "Error completing stream", e);
             }
@@ -120,5 +143,9 @@ class FlightTransportChannel extends TcpTransportChannel {
     @Override
     public String getChannelType() {
         return "stream-transport";
+    }
+
+    public void releaseChannel(boolean isExceptionResponse) {
+        release(isExceptionResponse);
     }
 }

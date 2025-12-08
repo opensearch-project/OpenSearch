@@ -35,7 +35,6 @@ package org.opensearch.index.reindex.remote;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.Request;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -74,7 +73,7 @@ final class RemoteRequestBuilders {
 
     private RemoteRequestBuilders() {}
 
-    static Request initialSearch(SearchRequest searchRequest, BytesReference query, Version remoteVersion) {
+    static Request initialSearch(SearchRequest searchRequest, BytesReference query, RemoteVersion remoteVersion) {
         // It is nasty to build paths with StringBuilder but we'll be careful....
         StringBuilder path = new StringBuilder("/");
         addIndices(path, searchRequest.indices());
@@ -84,7 +83,7 @@ final class RemoteRequestBuilders {
         if (searchRequest.scroll() != null) {
             TimeValue keepAlive = searchRequest.scroll().keepAlive();
             // V_5_0_0
-            if (remoteVersion.before(Version.fromId(5000099))) {
+            if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_5_0_0)) {
                 /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
                  * so we toss out that resolution, rounding up because more scroll
                  * timeout seems safer than less. */
@@ -103,14 +102,11 @@ final class RemoteRequestBuilders {
         if (searchRequest.source().sorts() != null) {
             boolean useScan = false;
             // Detect if we should use search_type=scan rather than a sort
-            if (remoteVersion.before(Version.fromId(2010099))) {
+            if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_2_1_0)) {
                 for (SortBuilder<?> sort : searchRequest.source().sorts()) {
-                    if (sort instanceof FieldSortBuilder) {
-                        FieldSortBuilder f = (FieldSortBuilder) sort;
-                        if (f.getFieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)) {
-                            useScan = true;
-                            break;
-                        }
+                    if (sort instanceof FieldSortBuilder f && f.getFieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)) {
+                        useScan = true;
+                        break;
                     }
                 }
             }
@@ -124,10 +120,10 @@ final class RemoteRequestBuilders {
                 request.addParameter("sort", sorts.toString());
             }
         }
-        if (remoteVersion.before(Version.fromId(2000099))) {
+        if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_2_0_0)) {
             // Versions before 2.0.0 need prompting to return interesting fields. Note that timestamp isn't available at all....
             searchRequest.source().storedField("_parent").storedField("_routing").storedField("_ttl");
-            if (remoteVersion.before(Version.fromId(1000099))) {
+            if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_1_0_0)) {
                 // Versions before 1.0.0 don't support `"_source": true` so we have to ask for the _source in a funny way.
                 if (false == searchRequest.source().storedFields().fieldNames().contains("_source")) {
                     searchRequest.source().storedField("_source");
@@ -140,11 +136,11 @@ final class RemoteRequestBuilders {
                 fields.append(',').append(searchRequest.source().storedFields().fieldNames().get(i));
             }
             // V_5_0_0
-            String storedFieldsParamName = remoteVersion.before(Version.fromId(5000099)) ? "fields" : "stored_fields";
+            String storedFieldsParamName = remoteVersion.before(RemoteVersion.ELASTICSEARCH_5_0_0) ? "fields" : "stored_fields";
             request.addParameter(storedFieldsParamName, fields.toString());
         }
 
-        if (remoteVersion.onOrAfter(Version.fromId(6030099))) {
+        if (remoteVersion.onOrAfter(RemoteVersion.ELASTICSEARCH_6_3_0)) {
             // allow_partial_results introduced in 6.3, running remote reindex against earlier versions still silently discards RED shards.
             request.addParameter("allow_partial_search_results", "false");
         }
@@ -173,7 +169,7 @@ final class RemoteRequestBuilders {
             if (searchRequest.source().fetchSource() != null) {
                 entity.field("_source", searchRequest.source().fetchSource());
             } else {
-                if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
+                if (remoteVersion.onOrAfter(RemoteVersion.ELASTICSEARCH_1_0_0)) {
                     // Versions before 1.0 don't support `"_source": true` so we have to ask for the source as a stored field.
                     entity.field("_source", true);
                 }
@@ -218,18 +214,16 @@ final class RemoteRequestBuilders {
     }
 
     private static String sortToUri(SortBuilder<?> sort) {
-        if (sort instanceof FieldSortBuilder) {
-            FieldSortBuilder f = (FieldSortBuilder) sort;
+        if (sort instanceof FieldSortBuilder f) {
             return f.getFieldName() + ":" + f.order();
         }
         throw new IllegalArgumentException("Unsupported sort [" + sort + "]");
     }
 
-    static Request scroll(String scroll, TimeValue keepAlive, Version remoteVersion) {
+    static Request scroll(String scroll, TimeValue keepAlive, RemoteVersion remoteVersion) {
         Request request = new Request("POST", "/_search/scroll");
 
-        // V_5_0_0
-        if (remoteVersion.before(Version.fromId(5000099))) {
+        if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_5_0_0)) {
             /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
              * so we toss out that resolution, rounding up so we shouldn't end up
              * with 0s. */
@@ -237,7 +231,7 @@ final class RemoteRequestBuilders {
         }
         request.addParameter("scroll", keepAlive.getStringRep());
 
-        if (remoteVersion.before(Version.fromId(2000099))) {
+        if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_2_0_0)) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
             request.setEntity(new StringEntity(scroll, ContentType.TEXT_PLAIN));
             return request;
@@ -252,10 +246,10 @@ final class RemoteRequestBuilders {
         return request;
     }
 
-    static Request clearScroll(String scroll, Version remoteVersion) {
+    static Request clearScroll(String scroll, RemoteVersion remoteVersion) {
         Request request = new Request("DELETE", "/_search/scroll");
 
-        if (remoteVersion.before(Version.fromId(2000099))) {
+        if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_2_0_0)) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
             request.setEntity(new StringEntity(scroll, ContentType.TEXT_PLAIN));
             return request;

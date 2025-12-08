@@ -23,8 +23,8 @@ dependencies {
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
 
   implementation 'commons-beanutils:commons-beanutils:1.11.0'
-  implementation 'commons-logging:commons-logging:1.2'
-  implementation 'commons-lang:commons-lang:2.6'
+  implementation "commons-logging:commons-logging:${versions.commonslogging}"
+  implementation "org.apache.commons:commons-lang3:${versions.commonslang}"
 
   implementation 'org.passay:passay:1.6.3'
 
@@ -33,7 +33,7 @@ dependencies {
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
   testImplementation project(path: ':client:rest-high-level')
-  testImplementation 'junit:junit:4.13.2'
+  testImplementation "junit:junit:${versions.junit}"
 }
 
 /*
@@ -66,9 +66,6 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log4j.Logger',
   'org.apache.log4j.Priority',
   'org.cryptacular.bean.HashBean',
-  'org.slf4j.impl.StaticLoggerBinder',
-  'org.slf4j.impl.StaticMDCBinder',
-  'org.slf4j.impl.StaticMarkerBinder',
   'org.springframework.context.MessageSource',
   'org.springframework.context.support.MessageSourceAccessor'
 )

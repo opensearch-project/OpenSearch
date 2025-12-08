@@ -37,12 +37,15 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
 
     private final RemoteStoreSettings remoteStoreSettings;
 
+    private final boolean isServerSideEncryptionEnabled;
+
     public RemoteBlobStoreInternalTranslogFactory(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
         String repositoryName,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isServerSideEncryptionEnabled
     ) {
         Repository repository;
         try {
@@ -54,6 +57,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         this.threadPool = threadPool;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         this.remoteStoreSettings = remoteStoreSettings;
+        this.isServerSideEncryptionEnabled = isServerSideEncryptionEnabled;
     }
 
     @Override
@@ -107,7 +111,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 startedPrimarySupplier,
                 remoteTranslogTransferTracker,
                 remoteStoreSettings,
-                translogOperationHelper
+                translogOperationHelper,
+                isServerSideEncryptionEnabled
             );
         } else {
             return new RemoteFsTranslog(
@@ -122,7 +127,9 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 startedPrimarySupplier,
                 remoteTranslogTransferTracker,
                 remoteStoreSettings,
-                translogOperationHelper
+                translogOperationHelper,
+                null,
+                isServerSideEncryptionEnabled
             );
         }
     }

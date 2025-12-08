@@ -30,6 +30,7 @@ import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.util.NettyRuntime;
 
 /**
  * Configuration class for OpenSearch Flight server settings.
@@ -87,6 +88,13 @@ public class ServerConfig {
         Setting.Property.NodeScope
     );
 
+    static final Setting<Integer> FLIGHT_EVENT_LOOP_THREADS = Setting.intSetting(
+        "flight.event_loop.threads",
+        Math.max(1, NettyRuntime.availableProcessors() * 2),
+        1,
+        Setting.Property.NodeScope
+    );
+
     static final Setting<Boolean> ARROW_SSL_ENABLE = Setting.boolSetting(
         "flight.ssl.enable",
         false, // TODO: get default from security enabled
@@ -112,6 +120,7 @@ public class ServerConfig {
     private static int threadPoolMin;
     private static int threadPoolMax;
     private static TimeValue keepAlive;
+    private static int eventLoopThreads;
 
     /**
      * Initializes the server configuration with the provided settings.
@@ -134,6 +143,7 @@ public class ServerConfig {
         threadPoolMin = FLIGHT_THREAD_POOL_MIN_SIZE.get(settings);
         threadPoolMax = FLIGHT_THREAD_POOL_MAX_SIZE.get(settings);
         keepAlive = FLIGHT_THREAD_POOL_KEEP_ALIVE.get(settings);
+        eventLoopThreads = FLIGHT_EVENT_LOOP_THREADS.get(settings);
     }
 
     /**
@@ -173,6 +183,15 @@ public class ServerConfig {
     }
 
     /**
+     * Gets the configured number of event loop threads.
+     *
+     * @return The number of event loop threads
+     */
+    public static int getEventLoopThreads() {
+        return eventLoopThreads;
+    }
+
+    /**
      * Returns a list of all settings managed by this configuration class.
      *
      * @return List of Setting instances
@@ -184,7 +203,8 @@ public class ServerConfig {
                 ARROW_ENABLE_NULL_CHECK_FOR_GET,
                 ARROW_ENABLE_DEBUG_ALLOCATOR,
                 ARROW_ENABLE_UNSAFE_MEMORY_ACCESS,
-                ARROW_SSL_ENABLE
+                ARROW_SSL_ENABLE,
+                FLIGHT_EVENT_LOOP_THREADS
             )
         );
     }
@@ -218,7 +238,10 @@ public class ServerConfig {
 
         @SuppressForbidden(reason = "required for netty allocator configuration")
         public static void init(Settings settings) {
-            checkSystemProperty("io.netty.allocator.numDirectArenas", "1");
+            int numArenas = Integer.parseInt(System.getProperty("io.netty.allocator.numDirectArenas"));
+            if (numArenas <= 0) {
+                throw new IllegalStateException("io.netty.allocator.numDirectArenas must be > 0");
+            }
             checkSystemProperty("io.netty.noUnsafe", "false");
             checkSystemProperty("io.netty.tryUnsafe", "true");
             checkSystemProperty("io.netty.tryReflectionSetAccessible", "true");

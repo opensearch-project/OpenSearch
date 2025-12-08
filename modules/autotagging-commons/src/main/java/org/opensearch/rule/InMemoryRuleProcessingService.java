@@ -11,9 +11,11 @@ package org.opensearch.rule;
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.Rule;
+import org.opensearch.rule.labelresolver.FeatureValueResolver;
 import org.opensearch.rule.storage.AttributeValueStore;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,13 +34,23 @@ public class InMemoryRuleProcessingService {
      */
     public static final String WILDCARD = "*";
     private final AttributeValueStoreFactory attributeValueStoreFactory;
+    /**
+     * Map of prioritized attributes
+     */
+    private final Map<Attribute, Integer> prioritizedAttributes;
 
     /**
-     *  Constructor
-     * @param attributeValueStoreFactory
+     * Constructs an InMemoryRuleProcessingService with the given
+     * attribute value store factory and a prioritized list of attributes.
+     * @param attributeValueStoreFactory Factory to create attribute value stores.
+     * @param prioritizedAttributes      Map of prioritized attributes
      */
-    public InMemoryRuleProcessingService(AttributeValueStoreFactory attributeValueStoreFactory) {
+    public InMemoryRuleProcessingService(
+        AttributeValueStoreFactory attributeValueStoreFactory,
+        Map<Attribute, Integer> prioritizedAttributes
+    ) {
         this.attributeValueStoreFactory = attributeValueStoreFactory;
+        this.prioritizedAttributes = prioritizedAttributes;
     }
 
     /**
@@ -58,15 +70,21 @@ public class InMemoryRuleProcessingService {
     }
 
     private void perform(Rule rule, BiConsumer<Map.Entry<Attribute, Set<String>>, Rule> ruleOperation) {
-        for (Map.Entry<Attribute, Set<String>> attributeEntry : rule.getAttributeMap().entrySet()) {
-            ruleOperation.accept(attributeEntry, rule);
+        for (Attribute attribute : rule.getFeatureType().getAllowedAttributesRegistry().values()) {
+            Set<String> attributeValues;
+            if (rule.getAttributeMap().containsKey(attribute)) {
+                attributeValues = rule.getAttributeMap().get(attribute);
+            } else {
+                attributeValues = Set.of("");
+            }
+            ruleOperation.accept(Map.entry(attribute, attributeValues), rule);
         }
     }
 
     private void removeOperation(Map.Entry<Attribute, Set<String>> attributeEntry, Rule rule) {
         AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
         for (String value : attributeEntry.getValue()) {
-            valueStore.remove(value.replace(WILDCARD, ""));
+            valueStore.remove(value.replace(WILDCARD, ""), rule.getFeatureValue());
         }
     }
 
@@ -78,36 +96,14 @@ public class InMemoryRuleProcessingService {
     }
 
     /**
-     * Evaluates the label for the current request. It finds the matches for each attribute value and then it is an
-     * intersection of all the matches
-     * @param attributeExtractors list of extractors which are used to get the attribute values to find the
-     *                           matching rule
-     * @return a label if there is unique label otherwise empty
+     * Determines the final feature value for the given request
+     * @param attributeExtractors list of attribute extractors
      */
     public Optional<String> evaluateLabel(List<AttributeExtractor<String>> attributeExtractors) {
-        assert attributeValueStoreFactory != null;
-        Optional<String> result = Optional.empty();
-        for (AttributeExtractor<String> attributeExtractor : attributeExtractors) {
-            AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(
-                attributeExtractor.getAttribute()
-            );
-            for (String value : attributeExtractor.extract()) {
-                Optional<String> possibleMatch = valueStore.get(value);
-
-                if (possibleMatch.isEmpty()) {
-                    return Optional.empty();
-                }
-
-                if (result.isEmpty()) {
-                    result = possibleMatch;
-                } else {
-                    boolean isThePossibleMatchEqualResult = possibleMatch.get().equals(result.get());
-                    if (!isThePossibleMatchEqualResult) {
-                        return Optional.empty();
-                    }
-                }
-            }
-        }
-        return result;
+        attributeExtractors.sort(
+            Comparator.comparingInt(extractor -> prioritizedAttributes.getOrDefault(extractor.getAttribute(), Integer.MAX_VALUE))
+        );
+        FeatureValueResolver featureValueResolver = new FeatureValueResolver(attributeValueStoreFactory, attributeExtractors);
+        return featureValueResolver.resolve();
     }
 }

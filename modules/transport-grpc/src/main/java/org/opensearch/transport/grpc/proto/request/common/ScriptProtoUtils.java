@@ -56,10 +56,10 @@ public class ScriptProtoUtils {
     private static Script parseFromProtoRequest(org.opensearch.protobufs.Script script, String defaultLang) {
         Objects.requireNonNull(defaultLang);
 
-        if (script.hasInlineScript()) {
-            return parseInlineScript(script.getInlineScript(), defaultLang);
-        } else if (script.hasStoredScriptId()) {
-            return parseStoredScriptId(script.getStoredScriptId());
+        if (script.hasInline()) {
+            return parseInlineScript(script.getInline(), defaultLang);
+        } else if (script.hasStored()) {
+            return parseStoredScriptId(script.getStored());
         } else {
             throw new UnsupportedOperationException("No valid script type detected");
         }
@@ -76,7 +76,7 @@ public class ScriptProtoUtils {
 
         ScriptType type = ScriptType.INLINE;
 
-        String lang = parseScriptLanguage(inlineScript.getLang(), defaultLang);
+        String lang = inlineScript.hasLang() ? parseScriptLanguage(inlineScript.getLang(), defaultLang) : defaultLang;
         String idOrCode = inlineScript.getSource();
 
         Map<String, String> options = inlineScript.getOptionsMap();
@@ -118,10 +118,10 @@ public class ScriptProtoUtils {
      * @throws UnsupportedOperationException if no language was specified
      */
     public static String parseScriptLanguage(ScriptLanguage language, String defaultLang) {
-        if (language.hasStringValue()) {
-            return language.getStringValue();
+        if (language.hasCustom()) {
+            return language.getCustom();
         }
-        switch (language.getBuiltinScriptLanguage()) {
+        switch (language.getBuiltin()) {
             case BUILTIN_SCRIPT_LANGUAGE_EXPRESSION:
                 return "expression";
             case BUILTIN_SCRIPT_LANGUAGE_JAVA:

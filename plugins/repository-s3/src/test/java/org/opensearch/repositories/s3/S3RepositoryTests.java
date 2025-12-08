@@ -33,8 +33,10 @@
 package org.opensearch.repositories.s3;
 
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -154,6 +156,35 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
             assertTrue(restrictedSettings.contains(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY));
             assertTrue(restrictedSettings.contains(S3Repository.BUCKET_SETTING));
             assertTrue(restrictedSettings.contains(S3Repository.BASE_PATH_SETTING));
+        }
+    }
+
+    public void testValidateHttpLClientType_Valid_Values() {
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        try (S3Repository s3Repo = createS3Repo(metadata)) {
+            // Don't expect any Exception
+            s3Repo.validateHttpClientType(S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE);
+            s3Repo.validateHttpClientType(S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE);
+        }
+    }
+
+    public void testValidateHttpLClientType_Invalid_Values() {
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        try (S3Repository s3Repo = createS3Repo(metadata)) {
+            // Don't expect any Exception
+            assertThrows(BlobStoreException.class, () -> s3Repo.validateHttpClientType(randomAlphaOfLength(4)));
+        }
+    }
+
+    public void testIsSeverSideEncryptionEnabled_When_AWSKMS_Type() {
+        Settings settings = Settings.builder()
+            .put(S3Repository.SERVER_SIDE_ENCRYPTION_TYPE_SETTING.getKey(), ServerSideEncryption.AWS_KMS.toString())
+            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", settings);
+        try (S3Repository s3Repo = createS3Repo(metadata)) {
+
+            // Don't expect any Exception
+            assertTrue(s3Repo.isSeverSideEncryptionEnabled());
         }
     }
 

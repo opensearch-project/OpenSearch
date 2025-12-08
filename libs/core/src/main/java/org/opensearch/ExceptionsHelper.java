@@ -112,53 +112,40 @@ public final class ExceptionsHelper {
     private ExceptionsHelper() {}
 
     public static RuntimeException convertToRuntime(Exception e) {
-        if (e instanceof RuntimeException) {
-            return (RuntimeException) e;
-        }
-        return new OpenSearchException(e);
+        return switch (e) {
+            case RuntimeException re -> re;
+            default -> new OpenSearchException(e);
+        };
     }
 
     public static OpenSearchException convertToOpenSearchException(Exception e) {
-        if (e instanceof OpenSearchException) {
-            return (OpenSearchException) e;
-        }
-        return new OpenSearchException(e);
+        return switch (e) {
+            case OpenSearchException oe -> oe;
+            default -> new OpenSearchException(e);
+        };
     }
 
     public static RestStatus status(Throwable t) {
-        if (t != null) {
-            if (t instanceof OpenSearchException) {
-                return ((OpenSearchException) t).status();
-            } else if (t instanceof IllegalArgumentException) {
-                return RestStatus.BAD_REQUEST;
-            } else if (t instanceof InputCoercionException) {
-                return RestStatus.BAD_REQUEST;
-            } else if (t instanceof JsonParseException) {
-                return RestStatus.BAD_REQUEST;
-            } else if (t instanceof OpenSearchRejectedExecutionException) {
-                return RestStatus.TOO_MANY_REQUESTS;
-            } else if (t instanceof NotXContentException) {
-                return RestStatus.BAD_REQUEST;
-            }
-        }
-        return RestStatus.INTERNAL_SERVER_ERROR;
+        return switch (t) {
+            case OpenSearchException ose -> ose.status();
+            case IllegalArgumentException ignored -> RestStatus.BAD_REQUEST;
+            case InputCoercionException ignored -> RestStatus.BAD_REQUEST;
+            case JsonParseException ignored -> RestStatus.BAD_REQUEST;
+            case NotXContentException ignored -> RestStatus.BAD_REQUEST;
+            case OpenSearchRejectedExecutionException ignored -> RestStatus.TOO_MANY_REQUESTS;
+            case null, default -> RestStatus.INTERNAL_SERVER_ERROR;
+        };
     }
 
     public static String summaryMessage(Throwable t) {
-        if (t != null) {
-            if (t instanceof OpenSearchException) {
-                return getExceptionSimpleClassName(t) + "[" + t.getMessage() + "]";
-            } else if (t instanceof IllegalArgumentException) {
-                return ErrorMessages.INVALID_ARGUMENT;
-            } else if (t instanceof InputCoercionException) {
-                return ErrorMessages.JSON_COERCION_FAILED;
-            } else if (t instanceof JsonParseException) {
-                return ErrorMessages.JSON_PARSE_FAILED;
-            } else if (t instanceof OpenSearchRejectedExecutionException) {
-                return ErrorMessages.TOO_MANY_REQUESTS;
-            }
-        }
-        return ErrorMessages.INTERNAL_FAILURE;
+        return switch (t) {
+            case OpenSearchException ose -> getExceptionSimpleClassName(t) + "[" + ose.getMessage() + "]";
+            case IllegalArgumentException ignored -> ErrorMessages.INVALID_ARGUMENT;
+            case InputCoercionException ignored -> ErrorMessages.JSON_COERCION_FAILED;
+            case JsonParseException ignored -> ErrorMessages.JSON_PARSE_FAILED;
+            case OpenSearchRejectedExecutionException ignored -> ErrorMessages.TOO_MANY_REQUESTS;
+            case null, default -> "Internal failure";
+        };
     }
 
     public static Throwable unwrapCause(Throwable t) {
@@ -331,8 +318,8 @@ public final class ExceptionsHelper {
      */
     public static boolean reThrowIfNotNull(@Nullable Throwable e) {
         if (e != null) {
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException) e;
+            if (e instanceof RuntimeException re) {
+                throw re;
             } else {
                 throw new RuntimeException(e);
             }
@@ -455,8 +442,8 @@ public final class ExceptionsHelper {
             // which does not include the cluster alias.
             String indexName = failure.index();
             if (indexName == null) {
-                if (cause instanceof OpenSearchException) {
-                    final Index index = ((OpenSearchException) cause).getIndex();
+                if (cause instanceof OpenSearchException ose) {
+                    final Index index = ose.getIndex();
                     if (index != null) {
                         indexName = index.getName();
                     }

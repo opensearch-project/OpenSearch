@@ -17,15 +17,12 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.protobufs.SearchRequestBody;
-import org.opensearch.protobufs.TrackHits;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.search.fetch.StoredFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.node.NodeClient;
@@ -116,7 +113,7 @@ public class SearchRequestProtoUtils {
         }
         searchRequest.indices(indexArr);
 
-        SearchSourceBuilderProtoUtils.parseProto(searchRequest.source(), request.getRequestBody(), queryUtils);
+        SearchSourceBuilderProtoUtils.parseProto(searchRequest.source(), request.getSearchRequestBody(), queryUtils);
 
         final int batchedReduceSize = request.hasBatchedReduceSize()
             ? request.getBatchedReduceSize()
@@ -167,7 +164,6 @@ public class SearchRequestProtoUtils {
         }
         searchRequest.preference(request.hasPreference() ? request.getPreference() : null);
         searchRequest.indicesOptions(IndicesOptionsProtoUtils.fromRequest(request, searchRequest.indicesOptions()));
-        searchRequest.pipeline(request.hasSearchPipeline() ? request.getSearchPipeline() : searchRequest.source().pipeline());
 
         checkProtoTotalHits(request, searchRequest);
 
@@ -187,6 +183,16 @@ public class SearchRequestProtoUtils {
                 ? parseTimeValue(request.getCancelAfterTimeInterval(), null, "cancel_after_time_interval")
                 : null
         );
+
+        // TODO support typed_keys
+        if (request.hasTypedKeys()) {
+            throw new UnsupportedOperationException("typed_keys param is not supported yet");
+        }
+
+        // TODO support global_params
+        if (request.hasGlobalParams()) {
+            throw new UnsupportedOperationException("global_params param is not supported yet");
+        }
     }
 
     /**
@@ -206,45 +212,7 @@ public class SearchRequestProtoUtils {
         if (queryBuilder != null) {
             searchSourceBuilder.query(queryBuilder);
         }
-        if (request.hasFrom()) {
-            searchSourceBuilder.from(request.getFrom());
-        }
-        if (request.hasSize()) {
-            setSize.accept(request.getSize());
-        }
 
-        if (request.hasExplain()) {
-            searchSourceBuilder.explain(request.getExplain());
-        }
-
-        if (request.hasVersion()) {
-            searchSourceBuilder.version(request.getVersion());
-        }
-
-        if (request.hasSeqNoPrimaryTerm()) {
-            searchSourceBuilder.seqNoAndPrimaryTerm(request.getSeqNoPrimaryTerm());
-        }
-
-        if (request.hasTimeout()) {
-            searchSourceBuilder.timeout(parseTimeValue(request.getTimeout(), null, "timeout"));
-        }
-
-        if (request.hasVerbosePipeline()) {
-            searchSourceBuilder.verbosePipeline(request.getVerbosePipeline());
-        }
-
-        if (request.hasTerminateAfter()) {
-            int terminateAfter = request.getTerminateAfter();
-            if (terminateAfter < 0) {
-                throw new IllegalArgumentException("terminateAfter must be > 0");
-            } else if (terminateAfter > 0) {
-                searchSourceBuilder.terminateAfter(terminateAfter);
-            }
-        }
-        StoredFieldsContext storedFieldsContext = StoredFieldsContextProtoUtils.fromProtoRequest(request);
-        if (storedFieldsContext != null) {
-            searchSourceBuilder.storedFields(storedFieldsContext);
-        }
         if (request.getDocvalueFieldsCount() > 0) {
             for (String field : request.getDocvalueFieldsList()) {
                 searchSourceBuilder.docValueField(field, null);
@@ -255,53 +223,11 @@ public class SearchRequestProtoUtils {
             searchSourceBuilder.fetchSource(fetchSourceContext);
         }
 
-        if (request.hasTrackScores()) {
-            searchSourceBuilder.trackScores(request.getTrackScores());
-        }
-
-        if (request.hasIncludeNamedQueriesScore()) {
-            searchSourceBuilder.includeNamedQueriesScores(request.getIncludeNamedQueriesScore());
-        }
-
-        if (request.hasTrackTotalHits()) {
-            if (request.getTrackTotalHits().getTrackHitsCase() == TrackHits.TrackHitsCase.BOOL_VALUE) {
-                searchSourceBuilder.trackTotalHits(request.getTrackTotalHits().getBoolValue());
-            } else if (request.getTrackTotalHits().getTrackHitsCase() == TrackHits.TrackHitsCase.INT32_VALUE) {
-                searchSourceBuilder.trackTotalHitsUpTo(request.getTrackTotalHits().getInt32Value());
-            }
-        }
-
-        if (request.getSortCount() > 0) {
-            for (SearchRequest.SortOrder sort : request.getSortList()) {
-                String sortField = sort.getField();
-
-                if (sort.hasDirection()) {
-                    SearchRequest.SortOrder.Direction direction = sort.getDirection();
-                    switch (direction) {
-                        case DIRECTION_ASC:
-                            searchSourceBuilder.sort(sortField, SortOrder.ASC);
-                            break;
-                        case DIRECTION_DESC:
-                            searchSourceBuilder.sort(sortField, SortOrder.DESC);
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unsupported sort direction " + direction.toString());
-                    }
-                } else {
-                    searchSourceBuilder.sort(sortField);
-                }
-            }
-        }
-
-        if (request.getStatsCount() > 0) {
-            searchSourceBuilder.stats(request.getStatsList());
-        }
-
         if (request.hasSuggestField()) {
             String suggestField = request.getSuggestField();
             String suggestText = request.hasSuggestText() ? request.getSuggestText() : request.getQ();
             int suggestSize = request.hasSuggestSize() ? request.getSuggestSize() : 5;
-            SearchRequest.SuggestMode suggestMode = request.getSuggestMode();
+            org.opensearch.protobufs.SuggestMode suggestMode = request.getSuggestMode();
             searchSourceBuilder.suggest(
                 new SuggestBuilder().addSuggestion(
                     suggestField,
@@ -371,7 +297,7 @@ public class SearchRequestProtoUtils {
      */
     protected static void checkProtoTotalHits(SearchRequest protoRequest, org.opensearch.action.search.SearchRequest searchRequest) {
 
-        boolean totalHitsAsInt = protoRequest.hasRestTotalHitsAsInt() ? protoRequest.getRestTotalHitsAsInt() : false;
+        boolean totalHitsAsInt = protoRequest.hasTotalHitsAsInt() ? protoRequest.getTotalHitsAsInt() : false;
         if (totalHitsAsInt == false) {
             return;
         }

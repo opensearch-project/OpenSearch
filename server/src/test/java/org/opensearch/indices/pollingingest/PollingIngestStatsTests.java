@@ -51,6 +51,8 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
             + stats.getConsumerStats().totalDuplicateMessageSkippedCount()
             + ",\"lag_in_millis\":"
             + stats.getConsumerStats().lagInMillis()
+            + ",\"pointer_based_lag\":"
+            + stats.getConsumerStats().pointerBasedLag()
             + "}}}";
 
         assertEquals(expected, builder.toString());

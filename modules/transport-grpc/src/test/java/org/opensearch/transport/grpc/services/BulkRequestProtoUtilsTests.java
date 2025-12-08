@@ -8,16 +8,16 @@
 
 package org.opensearch.transport.grpc.services;
 
-import com.google.protobuf.ByteString;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
-import org.opensearch.protobufs.CreateOperation;
 import org.opensearch.protobufs.DeleteOperation;
 import org.opensearch.protobufs.IndexOperation;
+import org.opensearch.protobufs.OperationContainer;
 import org.opensearch.protobufs.UpdateOperation;
+import org.opensearch.protobufs.WriteOperation;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.transport.grpc.proto.request.document.bulk.BulkRequestProtoUtils;
@@ -47,8 +47,8 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the converted request
         assertEquals("Should have 1 request", 1, bulkRequest.numberOfActions());
-        // The actual refresh policy is NONE, not IMMEDIATE
-        assertEquals("Should have the correct refresh policy", WriteRequest.RefreshPolicy.NONE, bulkRequest.getRefreshPolicy());
+        // The actual refresh policy is IMMEDIATE since we set REFRESH_TRUE
+        assertEquals("Should have the correct refresh policy", WriteRequest.RefreshPolicy.IMMEDIATE, bulkRequest.getRefreshPolicy());
 
         // Verify the index request
         DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(0);
@@ -111,47 +111,42 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
     // Helper methods to create test requests
 
     private BulkRequest createBulkRequestWithIndexOperation() {
-        IndexOperation indexOp = IndexOperation.newBuilder().setIndex("test-index").setId("test-id").build();
-
+        IndexOperation indexOp = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
         BulkRequestBody requestBody = BulkRequestBody.newBuilder()
-            .setIndex(indexOp)
-            .setDoc(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
+            .setOperationContainer(OperationContainer.newBuilder().setIndex(indexOp).build())
             .build();
 
         return BulkRequest.newBuilder()
+            .addBulkRequestBody(requestBody)
+            .setRefresh(org.opensearch.protobufs.Refresh.REFRESH_TRUE)
             .setPipeline("test-pipeline")
-            .setRefreshValue(1) // REFRESH_TRUE = 1
-            .addRequestBody(requestBody)
             .build();
     }
 
     private BulkRequest createBulkRequestWithCreateOperation() {
-        CreateOperation createOp = CreateOperation.newBuilder().setIndex("test-index").setId("test-id").build();
-
+        WriteOperation writeOp = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
         BulkRequestBody requestBody = BulkRequestBody.newBuilder()
-            .setCreate(createOp)
-            .setDoc(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
+            .setOperationContainer(OperationContainer.newBuilder().setCreate(writeOp).build())
             .build();
 
-        return BulkRequest.newBuilder().addRequestBody(requestBody).build();
+        return BulkRequest.newBuilder().addBulkRequestBody(requestBody).build();
     }
 
     private BulkRequest createBulkRequestWithDeleteOperation() {
-        DeleteOperation deleteOp = DeleteOperation.newBuilder().setIndex("test-index").setId("test-id").build();
+        DeleteOperation deleteOp = DeleteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
+        BulkRequestBody requestBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setDelete(deleteOp).build())
+            .build();
 
-        BulkRequestBody requestBody = BulkRequestBody.newBuilder().setDelete(deleteOp).build();
-
-        return BulkRequest.newBuilder().addRequestBody(requestBody).build();
+        return BulkRequest.newBuilder().addBulkRequestBody(requestBody).build();
     }
 
     private BulkRequest createBulkRequestWithUpdateOperation() {
-        UpdateOperation updateOp = UpdateOperation.newBuilder().setIndex("test-index").setId("test-id").build();
-
+        UpdateOperation updateOp = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
         BulkRequestBody requestBody = BulkRequestBody.newBuilder()
-            .setUpdate(updateOp)
-            .setDoc(ByteString.copyFromUtf8("{\"field\":\"updated-value\"}"))
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOp).build())
             .build();
 
-        return BulkRequest.newBuilder().addRequestBody(requestBody).build();
+        return BulkRequest.newBuilder().addBulkRequestBody(requestBody).build();
     }
 }

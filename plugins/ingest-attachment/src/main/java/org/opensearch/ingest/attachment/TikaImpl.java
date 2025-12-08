@@ -32,6 +32,16 @@
 
 package org.opensearch.ingest.attachment;
 
+import org.apache.fontbox.FontBoxFont;
+import org.apache.fontbox.ttf.TTFParser;
+import org.apache.fontbox.ttf.TrueTypeFont;
+import org.apache.pdfbox.io.RandomAccessReadBuffer;
+import org.apache.pdfbox.pdmodel.font.CIDFontMapping;
+import org.apache.pdfbox.pdmodel.font.FontMapper;
+import org.apache.pdfbox.pdmodel.font.FontMappers;
+import org.apache.pdfbox.pdmodel.font.FontMapping;
+import org.apache.pdfbox.pdmodel.font.PDCIDSystemInfo;
+import org.apache.pdfbox.pdmodel.font.PDFontDescriptor;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
@@ -47,6 +57,7 @@ import org.opensearch.common.io.PathUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.ReflectPermission;
 import java.net.URISyntaxException;
@@ -75,6 +86,44 @@ import java.util.Set;
  */
 final class TikaImpl {
 
+    static {
+        /*
+         * Stop PDFBox from consulting the OS for fonts at all, use classpath instead with dummy fonts because font
+         * does not matter for ingestion
+         */
+        FontMappers.set(new FontMapper() {
+            @Override
+            public FontMapping<TrueTypeFont> getTrueTypeFont(String baseFont, PDFontDescriptor fd) {
+                try (InputStream in = TikaImpl.class.getResourceAsStream("/fonts/Roboto-Regular.ttf")) {
+                    if (in == null) return new FontMapping<>(null, true);
+                    byte[] bytes = in.readAllBytes();
+                    TrueTypeFont ttf = new TTFParser().parse(new RandomAccessReadBuffer(bytes));
+                    return new FontMapping<>(ttf, true);
+                } catch (IOException e) {
+                    return new FontMapping<>(null, true);
+                }
+            }
+
+            @Override
+            public FontMapping<FontBoxFont> getFontBoxFont(String baseFont, PDFontDescriptor fd) {
+                try (InputStream in = TikaImpl.class.getResourceAsStream("/fonts/Roboto-Regular.ttf")) {
+                    if (in == null) return new FontMapping<>(null, true);
+                    byte[] bytes = in.readAllBytes();
+                    TrueTypeFont ttf = new TTFParser().parse(new RandomAccessReadBuffer(bytes));
+                    return new FontMapping<>(ttf, true);
+                } catch (IOException e) {
+                    return new FontMapping<>(null, true);
+                }
+            }
+
+            @Override
+            public CIDFontMapping getCIDFont(String baseFont, PDFontDescriptor fd, PDCIDSystemInfo cid) {
+                // No CID substitutions from the OS either; signal "fallback only".
+                return new CIDFontMapping(null, null, true);
+            }
+        });
+    }
+
     /** Exclude some formats */
     private static final Set<MediaType> EXCLUDES = new HashSet<>(
         Arrays.asList(
@@ -91,7 +140,7 @@ final class TikaImpl {
     /** subset of parsers for types we support */
     private static final Parser PARSERS[] = new Parser[] {
         // documents
-        new org.apache.tika.parser.html.HtmlParser(),
+        new org.apache.tika.parser.html.JSoupParser(),
         new org.apache.tika.parser.pdf.PDFParser(),
         new org.apache.tika.parser.txt.TXTParser(),
         new org.apache.tika.parser.microsoft.rtf.RTFParser(),
@@ -125,10 +174,10 @@ final class TikaImpl {
         } catch (PrivilegedActionException e) {
             // checked exception from tika: unbox it
             Throwable cause = e.getCause();
-            if (cause instanceof TikaException) {
-                throw (TikaException) cause;
-            } else if (cause instanceof IOException) {
-                throw (IOException) cause;
+            if (cause instanceof TikaException te) {
+                throw te;
+            } else if (cause instanceof IOException ioe) {
+                throw ioe;
             } else {
                 throw new AssertionError(cause);
             }
@@ -156,8 +205,8 @@ final class TikaImpl {
             // classpath
             addReadPermissions(perms, JarHell.parseClassPath());
             // plugin jars
-            if (TikaImpl.class.getClassLoader() instanceof URLClassLoader) {
-                URL[] urls = ((URLClassLoader) TikaImpl.class.getClassLoader()).getURLs();
+            if (TikaImpl.class.getClassLoader() instanceof URLClassLoader urlClassLoader) {
+                URL[] urls = urlClassLoader.getURLs();
                 Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
                 if (set.size() != urls.length) {
                     throw new AssertionError("duplicate jars: " + Arrays.toString(urls));

@@ -14,7 +14,6 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.utils.cache.RefCountedCache;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
@@ -61,11 +60,18 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     private static final Logger logger = LogManager.getLogger(FileCache.class);
     private final SegmentedCache<Path, CachedIndexInput> theCache;
 
-    private final CircuitBreaker circuitBreaker;
+    private final CircuitBreaker circuitBreaker = null;
 
+    /**
+     * @deprecated Use {@link FileCache(SegmentedCache<Path, CachedIndexInput>)}. CircuitBreaker parameter is not used.
+     */
+    @Deprecated(forRemoval = true)
     public FileCache(SegmentedCache<Path, CachedIndexInput> cache, CircuitBreaker circuitBreaker) {
-        this.theCache = cache;
-        this.circuitBreaker = circuitBreaker;
+        this(cache);
+    }
+
+    public FileCache(SegmentedCache<Path, CachedIndexInput> theCache) {
+        this.theCache = theCache;
     }
 
     public long capacity() {
@@ -74,7 +80,6 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
     @Override
     public CachedIndexInput put(Path filePath, CachedIndexInput indexInput) {
-        checkParentBreaker();
         CachedIndexInput cachedIndexInput = theCache.put(filePath, indexInput);
         return cachedIndexInput;
     }
@@ -84,7 +89,6 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         Path key,
         BiFunction<? super Path, ? super CachedIndexInput, ? extends CachedIndexInput> remappingFunction
     ) {
-        checkParentBreaker();
         CachedIndexInput cachedIndexInput = theCache.compute(key, remappingFunction);
         return cachedIndexInput;
     }
@@ -205,22 +209,6 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     }
 
     /**
-     * Ensures that the PARENT breaker is not tripped when an entry is added to the cache
-     */
-    private void checkParentBreaker() {
-        try {
-            circuitBreaker.addEstimateBytesAndMaybeBreak(0, "filecache_entry");
-        } catch (CircuitBreakingException ex) {
-            throw new CircuitBreakingException(
-                "Unable to create file cache entries",
-                ex.getBytesWanted(),
-                ex.getByteLimit(),
-                ex.getDurability()
-            );
-        }
-    }
-
-    /**
      * Restores the file cache instance performing a folder scan of the
      * {@link org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory#LOCAL_STORE_LOCATION}
      * directory within the provided file cache path.
@@ -269,6 +257,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                 overallCacheStats.usage(),
                 overallCacheStats.pinnedUsage(),
                 overallCacheStats.evictionWeight(),
+                overallCacheStats.removeWeight(),
                 overallCacheStats.hitCount(),
                 overallCacheStats.missCount(),
                 FileCacheStatsType.OVER_ALL_STATS
@@ -279,6 +268,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                 fullFileCacheStats.usage(),
                 fullFileCacheStats.pinnedUsage(),
                 fullFileCacheStats.evictionWeight(),
+                fullFileCacheStats.removeWeight(),
                 fullFileCacheStats.hitCount(),
                 fullFileCacheStats.missCount(),
                 FileCacheStatsType.FULL_FILE_STATS
@@ -289,6 +279,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                 blockFileCacheStats.usage(),
                 blockFileCacheStats.pinnedUsage(),
                 blockFileCacheStats.evictionWeight(),
+                blockFileCacheStats.removeWeight(),
                 blockFileCacheStats.hitCount(),
                 blockFileCacheStats.missCount(),
                 FileCacheStatsType.BLOCK_FILE_STATS
@@ -299,6 +290,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                 pinnedFileCacheStats.usage(),
                 pinnedFileCacheStats.pinnedUsage(),
                 pinnedFileCacheStats.evictionWeight(),
+                pinnedFileCacheStats.removeWeight(),
                 pinnedFileCacheStats.hitCount(),
                 pinnedFileCacheStats.missCount(),
                 FileCacheStatsType.PINNED_FILE_STATS

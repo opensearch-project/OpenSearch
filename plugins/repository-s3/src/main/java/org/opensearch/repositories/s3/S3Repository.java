@@ -124,6 +124,10 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
 
     static final String BUCKET_DEFAULT_ENCRYPTION_TYPE = "bucket_default";
+
+    public static final String NETTY_ASYNC_HTTP_CLIENT_TYPE = "netty";
+    public static final String CRT_ASYNC_HTTP_CLIENT_TYPE = "crt";
+
     /**
      * The type of S3 Server Side Encryption to use.
      * Defaults to AES256.
@@ -170,6 +174,15 @@ class S3Repository extends MeteredBlobStoreRepository {
             throw new IllegalArgumentException("expected_bucket_owner must be a 12 digit AWS account id");
         }
     });
+
+    /**
+     * Type of Async client to be used for S3 Uploads. Defaults to crt.
+     */
+    static final Setting<String> S3_ASYNC_HTTP_CLIENT_TYPE = Setting.simpleString(
+        "s3_async_client_type",
+        CRT_ASYNC_HTTP_CLIENT_TYPE,
+        Setting.Property.NodeScope
+    );
 
     /**
      * Maximum size of files that can be uploaded using a single upload request.
@@ -315,6 +328,9 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Specifies the path within bucket to repository data. Defaults to root directory.
      */
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
+
+    /** An override for the s3 region to use for signing requests. */
+    static final Setting<Boolean> LEGACY_MD5_CHECKSUM_CALCULATION = Setting.boolSetting("legacy_md5_checksum_calculation", false);
 
     private final S3Service service;
 
@@ -604,6 +620,15 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         validateStorageClass(STORAGE_CLASS_SETTING.get(settings));
         validateCannedACL(CANNED_ACL_SETTING.get(settings));
+        validateHttpClientType(S3_ASYNC_HTTP_CLIENT_TYPE.get(settings));
+    }
+
+    // package access for tests
+    void validateHttpClientType(String httpClientType) {
+        if (!(httpClientType.equalsIgnoreCase(NETTY_ASYNC_HTTP_CLIENT_TYPE)
+            || httpClientType.equalsIgnoreCase(CRT_ASYNC_HTTP_CLIENT_TYPE))) {
+            throw new BlobStoreException("Invalid http client type. `" + httpClientType + "`");
+        }
     }
 
     private static void validateStorageClass(String storageClassStringValue) {
@@ -657,5 +682,11 @@ class S3Repository extends MeteredBlobStoreRepository {
             cancellable.cancel();
         }
         super.doClose();
+    }
+
+    @Override
+    public boolean isSeverSideEncryptionEnabled() {
+        // s3 is always server side encrypted.
+        return true;
     }
 }

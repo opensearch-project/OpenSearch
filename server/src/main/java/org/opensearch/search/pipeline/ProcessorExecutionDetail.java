@@ -187,24 +187,23 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
             return;
         }
 
-        if (data instanceof List) {
+        if (data instanceof List<?> list) {
             builder.startArray(fieldName);
-            for (Object item : (List<?>) data) {
+            for (Object item : list) {
                 writeItemToXContent(builder, item, params);
             }
             builder.endArray();
-        } else if (data instanceof Map) {
+        } else if (data instanceof Map<?, ?> map) {
             builder.startObject(fieldName);
-            for (Map.Entry<?, ?> entry : ((Map<?, ?>) data).entrySet()) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
                 addFieldToXContent(builder, entry.getKey().toString(), entry.getValue(), params);
             }
             builder.endObject();
-        } else if (data instanceof ToXContentObject) {
+        } else if (data instanceof ToXContentObject toXContentObject) {
             builder.field(fieldName);
-            ((ToXContentObject) data).toXContent(builder, params);
-        } else if (data instanceof String) {
+            toXContentObject.toXContent(builder, params);
+        } else if (data instanceof String jsonString) {
             // If the data is a String, attempt to parse it as JSON
-            String jsonString = (String) data;
             try {
                 // check if its json string
                 try (
@@ -229,8 +228,8 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
     }
 
     private void writeItemToXContent(XContentBuilder builder, Object item, Params params) throws IOException {
-        if (item instanceof ToXContentObject) {
-            ((ToXContentObject) item).toXContent(builder, params);
+        if (item instanceof ToXContentObject toXContentObject) {
+            toXContentObject.toXContent(builder, params);
         } else {
             builder.value(item);
         }

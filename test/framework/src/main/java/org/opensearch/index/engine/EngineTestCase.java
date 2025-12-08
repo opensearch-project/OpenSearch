@@ -112,6 +112,8 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.LocalTranslog;
@@ -161,6 +163,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public abstract class EngineTestCase extends OpenSearchTestCase {
 
@@ -363,6 +366,12 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         }
     }
 
+    protected static ParseContext.Document testContextSpecificDocument() {
+        ParseContext.Document doc = testDocumentWithTextField("criteria");
+        doc.setGroupingCriteria("grouping_criteria");
+        return doc;
+    }
+
     protected static ParseContext.Document testDocumentWithTextField() {
         return testDocumentWithTextField("test");
     }
@@ -524,7 +533,17 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     protected Store createStore(final IndexSettings indexSettings, final Directory directory) throws IOException {
-        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
+        final Path path = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        final ShardPath shardPath = new ShardPath(false, path, path, shardId);
+        return new Store(
+            shardId,
+            indexSettings,
+            directory,
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            shardPath,
+            new FsDirectoryFactory()
+        );
     }
 
     protected Translog createTranslog(LongSupplier primaryTermSupplier) throws IOException {
@@ -553,7 +572,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTermSupplier,
             seqNo -> {},
-            TranslogOperationHelper.create(engine.config())
+            TranslogOperationHelper.create(engine.config()),
+            null
         );
     }
 
@@ -1029,6 +1049,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .tombstoneDocSupplier(config.getTombstoneDocSupplier())
             .documentMapperForTypeSupplier(documentMapperForTypeSupplier)
             .clusterApplierService(clusterApplierService)
+            .indexReaderWarmer(mock(MergedSegmentWarmer.class))
             .build();
     }
 

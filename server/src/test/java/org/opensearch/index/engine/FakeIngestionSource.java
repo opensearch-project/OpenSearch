@@ -11,6 +11,7 @@ package org.opensearch.index.engine;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
@@ -21,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -37,7 +37,7 @@ public class FakeIngestionSource {
         }
 
         @Override
-        public void initialize(Map params) {}
+        public void initialize(IngestionSource ingestionSource) {}
 
         @Override
         public FakeIngestionConsumer createShardConsumer(String clientId, int shardId) {
@@ -114,6 +114,11 @@ public class FakeIngestionSource {
         @Override
         public int getShardId() {
             return shardId;
+        }
+
+        @Override
+        public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
+            return 0;
         }
 
         @Override

@@ -65,40 +65,42 @@ public interface ValueSource {
     Object copyAndResolve(Map<String, Object> model);
 
     static ValueSource wrap(Object value, ScriptService scriptService) {
-
-        if (value instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<Object, Object> mapValue = (Map) value;
-            Map<ValueSource, ValueSource> valueTypeMap = new HashMap<>(mapValue.size());
-            for (Map.Entry<Object, Object> entry : mapValue.entrySet()) {
-                valueTypeMap.put(wrap(entry.getKey(), scriptService), wrap(entry.getValue(), scriptService));
+        return switch (value) {
+            case Map<?, ?> mapValue -> {
+                @SuppressWarnings("unchecked")
+                Map<Object, Object> castedMap = (Map<Object, Object>) mapValue;
+                Map<ValueSource, ValueSource> valueTypeMap = new HashMap<>(castedMap.size());
+                for (Map.Entry<Object, Object> entry : castedMap.entrySet()) {
+                    valueTypeMap.put(wrap(entry.getKey(), scriptService), wrap(entry.getValue(), scriptService));
+                }
+                yield new MapValue(valueTypeMap);
             }
-            return new MapValue(valueTypeMap);
-        } else if (value instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<Object> listValue = (List) value;
-            List<ValueSource> valueSourceList = new ArrayList<>(listValue.size());
-            for (Object item : listValue) {
-                valueSourceList.add(wrap(item, scriptService));
+            case List<?> listValue -> {
+                @SuppressWarnings("unchecked")
+                List<Object> castedList = (List<Object>) listValue;
+                List<ValueSource> valueSourceList = new ArrayList<>(castedList.size());
+                for (Object item : castedList) {
+                    valueSourceList.add(wrap(item, scriptService));
+                }
+                yield new ListValue(valueSourceList);
             }
-            return new ListValue(valueSourceList);
-        } else if (value == null || value instanceof Number || value instanceof Boolean) {
-            return new ObjectValue(value);
-        } else if (value instanceof byte[]) {
-            return new ByteValue((byte[]) value);
-        } else if (value instanceof String) {
-            // This check is here because the DEFAULT_TEMPLATE_LANG(mustache) is not
-            // installed for use by REST tests. `value` will not be
-            // modified if templating is not available
-            if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) && ((String) value).contains("{{")) {
-                Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, (String) value, Collections.emptyMap());
-                return new TemplatedValue(scriptService.compile(script, TemplateScript.CONTEXT));
-            } else {
-                return new ObjectValue(value);
+            case byte[] byteArray -> new ByteValue(byteArray);
+            case String stringValue -> {
+                // This check is here because the DEFAULT_TEMPLATE_LANG(mustache) is not
+                // installed for use by REST tests. `value` will not be
+                // modified if templating is not available
+                if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) && stringValue.contains("{{")) {
+                    Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, stringValue, Collections.emptyMap());
+                    yield new TemplatedValue(scriptService.compile(script, TemplateScript.CONTEXT));
+                } else {
+                    yield new ObjectValue(stringValue);
+                }
             }
-        } else {
-            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
-        }
+            case null -> new ObjectValue(null);
+            case Number number -> new ObjectValue(number);
+            case Boolean bool -> new ObjectValue(bool);
+            default -> throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+        };
     }
 
     /**

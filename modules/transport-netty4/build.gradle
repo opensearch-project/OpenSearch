@@ -38,6 +38,7 @@ import org.opensearch.gradle.test.InternalClusterTestPlugin
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 // The transport-netty4 plugin is published to maven
 apply plugin: 'opensearch.publish'
@@ -57,6 +58,8 @@ opensearchplugin {
 dependencies {
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec-base:${versions.netty}"
+  api "io.netty:netty-codec-compression:${versions.netty}"
   api "io.netty:netty-codec:${versions.netty}"
   api "io.netty:netty-codec-http:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
@@ -65,6 +68,9 @@ dependencies {
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 restResources {
@@ -158,25 +164,6 @@ thirdPartyAudit {
     'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
     'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
 
-    // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
-    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
-    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
-    'org.eclipse.jetty.npn.NextProtoNego',
-
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteInput (netty)
-    'org.jboss.marshalling.ByteInput',
-
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteOutput (netty)
-    'org.jboss.marshalling.ByteOutput',
-
-    // from io.netty.handler.codec.marshalling.CompatibleMarshallingEncoder (netty)
-    'org.jboss.marshalling.Marshaller',
-
-    // from io.netty.handler.codec.marshalling.ContextBoundUnmarshallerProvider (netty)
-    'org.jboss.marshalling.MarshallerFactory',
-    'org.jboss.marshalling.MarshallingConfiguration',
-    'org.jboss.marshalling.Unmarshaller',
-
     // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
     'org.slf4j.helpers.FormattingTuple',
     'org.slf4j.helpers.MessageFormatter',
@@ -184,8 +171,6 @@ thirdPartyAudit {
     'org.slf4j.LoggerFactory',
     'org.slf4j.spi.LocationAwareLogger',
 
-    'com.google.protobuf.nano.CodedOutputByteBufferNano',
-    'com.google.protobuf.nano.MessageNano',
     'com.ning.compress.BufferRecycler',
     'com.ning.compress.lzf.ChunkDecoder',
     'com.ning.compress.lzf.ChunkEncoder',
@@ -209,9 +194,6 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLSession',
     'io.netty.internal.tcnative.SSLSessionCache',
-    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
-    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
-    'org.eclipse.jetty.alpn.ALPN',
 
     'org.conscrypt.AllocatedBuffer',
     'org.conscrypt.BufferAllocator',
@@ -219,16 +201,31 @@ thirdPartyAudit {
     'org.conscrypt.HandshakeListener',
 
     'reactor.blockhound.BlockHound$Builder',
-    'reactor.blockhound.integration.BlockHoundIntegration'
+    'reactor.blockhound.integration.BlockHoundIntegration',
+
+    'io.netty.pkitesting.CertificateBuilder',
+    'io.netty.pkitesting.CertificateBuilder$Algorithm',
+    'io.netty.pkitesting.X509Bundle'
   )
 
   ignoreViolations(
+    'io.netty.buffer.AbstractAllocatorEvent',
+    'io.netty.buffer.AbstractBufferEvent',
+    'io.netty.buffer.AbstractChunkEvent',
+    'io.netty.buffer.AdaptivePoolingAllocator$AdaptiveByteBuf',
+    'io.netty.buffer.AdaptivePoolingAllocator$Chunk',
+    'io.netty.buffer.AllocateBufferEvent',
+    'io.netty.buffer.AllocateChunkEvent',
+    'io.netty.buffer.FreeBufferEvent',
+    'io.netty.buffer.FreeChunkEvent',
+    'io.netty.buffer.PooledByteBufAllocator',
+    'io.netty.buffer.ReallocateBufferEvent',
+    'io.netty.buffer.ReturnChunkEvent',
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
     'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$4',
-    'io.netty.util.internal.PlatformDependent0$6',
+    'io.netty.util.internal.PlatformDependent0$5',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
@@ -245,12 +242,6 @@ thirdPartyAudit {
     'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5'
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess'
   )
 }

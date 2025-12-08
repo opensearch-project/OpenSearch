@@ -32,6 +32,7 @@ import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 opensearchplugin {
   description = 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
@@ -74,6 +75,9 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 restResources {
@@ -100,7 +104,7 @@ tasks.register("writeTestJavaPolicy") {
       throw new GradleException("failed to create temporary directory [${tmp}]")
     }
     final File javaPolicy = file("${tmp}/java.policy")
-    if (BuildParams.inFipsJvm) {
+    if (BuildParams.isInFipsJvm()) {
       javaPolicy.write(
         [
           "grant {",
@@ -140,7 +144,7 @@ tasks.named("test").configure {
 
   // Setting a custom policy to manipulate aws.ec2MetadataServiceEndpoint system property
   // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
-  if (BuildParams.inFipsJvm){
+  if (BuildParams.isInFipsJvm()) {
     // Using the key==value format to override default JVM security settings and policy
     // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
     systemProperty 'java.security.policy', "=file://${buildDir}/tmp/java.policy"
@@ -162,9 +166,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
     'org.apache.log.Logger',
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
     'software.amazon.eventstream.HeaderValue',
     'software.amazon.eventstream.Message',
     'software.amazon.eventstream.MessageDecoder',

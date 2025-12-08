@@ -20,6 +20,15 @@ setup:
                     doc_values: true
 
   - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: wildcard
+
+  - do:
       index:
         index: test
         id: 1
@@ -77,6 +86,19 @@ setup:
           my_field: "\\*"
   - do:
       indices.refresh: {}
+
+---
+# Verify that mappings doc_values is stored.
+"Mappings":
+  - skip:
+      version: "- 3.4.0"
+      reason: "the default value of doc_values is false before 3.4.0"
+
+  - do:
+      indices.get_mapping:
+        index: test1
+  - is_true: test1.mappings
+  - match: { test1.mappings.properties.my_field.doc_values: true }
 
 ---
 "term query matches exact value":
@@ -393,3 +415,23 @@ setup:
             terms: { my_field: [ "\\*" ] }
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "9" }
+
+---
+"sort on doc value enabled wildcard":
+  - skip:
+      version: " - 3.2.99"
+      reason: "sorting on doc value enabled wildcard has bug before 3.3.0"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "*"
+          sort:
+            - my_field.doc_values:
+                order: asc
+          size: 4
+  - match: { hits.total.value: 8 }
+  - match: { hits.hits.0._id: "8" }

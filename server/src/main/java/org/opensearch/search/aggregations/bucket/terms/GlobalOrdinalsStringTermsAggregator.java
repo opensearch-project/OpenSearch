@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import joptsimple.internal.Strings;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -40,6 +41,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -80,6 +82,7 @@ import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -108,6 +111,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
     protected CardinalityUpperBound cardinalityUpperBound;
+    private String resultSelectionStrategy;
 
     public GlobalOrdinalsStringTermsAggregator(
         String name,
@@ -149,6 +153,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.fieldName = (valuesSource instanceof ValuesSource.Bytes.WithOrdinals.FieldData)
             ? ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName()
             : null;
+        this.resultSelectionStrategy = Strings.EMPTY;
     }
 
     String descriptCollectionStrategy() {
@@ -269,6 +274,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         int globalOrd = singleValues.ordValue();
                         collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                     }
+
+                    @Override
+                    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                        super.collect(stream, owningBucketOrd);
+                    }
+
+                    @Override
+                    public void collectRange(int min, int max) throws IOException {
+                        super.collectRange(min, max);
+                    }
                 });
             }
             return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
@@ -282,6 +297,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         return;
                     }
                     collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
+                }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
                 }
             });
         }
@@ -303,6 +328,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                     }
                 }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
+                }
             });
         }
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
@@ -319,6 +354,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     }
                     collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                 }
+            }
+
+            @Override
+            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                super.collect(stream, owningBucketOrd);
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                super.collectRange(min, max);
             }
         });
     }
@@ -357,7 +402,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             @Override
             public void setSubCollectors() throws IOException {
                 for (Aggregator aggregator : subAggregators) {
-                    this.subCollectors.add(((StarTreePreComputeCollector) aggregator).getStarTreeBucketCollector(ctx, starTree, this));
+                    this.subCollectors.add(
+                        ((StarTreePreComputeCollector) aggregator.unwrapAggregator()).getStarTreeBucketCollector(ctx, starTree, this)
+                    );
                 }
             }
 
@@ -366,7 +413,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 if (valuesIterator.advanceExact(starTreeEntry) == false) {
                     return;
                 }
-                for (int i = 0, count = valuesIterator.docValueCount(); i < count; i++) {
+                for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
                     long dimensionValue = valuesIterator.value();
                     long ord = globalOperator.applyAsLong(dimensionValue);
                     if (docCountsIterator.advanceExact(starTreeEntry)) {
@@ -402,6 +449,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         add.accept("segments_with_single_valued_ords", segmentsWithSingleValuedOrds);
         add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
         add.accept("has_filter", acceptedGlobalOrdinals != ALWAYS_TRUE);
+        add.accept("result_selection_strategy", resultSelectionStrategy);
+    }
+
+    public String getResultSelectionStrategy() {
+        return resultSelectionStrategy;
     }
 
     /**
@@ -541,6 +593,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         long docCount = docCountProvider.getDocCount(doc);
                         segmentDocCounts.increment(ord + 1, docCount);
                     }
+
+                    @Override
+                    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                        super.collect(stream, owningBucketOrd);
+                    }
+
+                    @Override
+                    public void collectRange(int min, int max) throws IOException {
+                        super.collectRange(min, max);
+                    }
                 });
             }
             segmentsWithMultiValuedOrds++;
@@ -557,6 +619,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         long docCount = docCountProvider.getDocCount(doc);
                         segmentDocCounts.increment(segmentOrd + 1, docCount);
                     }
+                }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
                 }
             });
         }
@@ -852,32 +924,98 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 } else {
                     size = (int) Math.min(maxBucketOrd(), localBucketCountThresholds.getRequiredSize());
                 }
-                PriorityQueue<TB> ordered = buildPriorityQueue(size);
-                final int finalOrdIdx = ordIdx;
-                BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
-                // for each provides the bucket ord and key value for the owning bucket
-                collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
-                    TB spare = null;
 
-                    @Override
-                    public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
-                        otherDocCount[finalOrdIdx] += docCount;
-                        if (docCount >= localBucketCountThresholds.getMinDocCount()) {
-                            if (spare == null) {
-                                spare = buildEmptyTemporaryBucket();
+                // partiallyBuiltBucketComparator is null for significantTerm Aggregations use case and the way buckets sorted in the
+                // priority queue is based on the significanceScore
+                BucketSelectionStrategy strategy = BucketSelectionStrategy.determine(
+                    size,
+                    valueCount,
+                    order,
+                    partiallyBuiltBucketComparator,
+                    context.bucketSelectionStrategyFactor()
+                );
+
+                if (strategy.equals(BucketSelectionStrategy.PRIORITY_QUEUE)) {
+                    PriorityQueue<TB> ordered = buildPriorityQueue(size);
+                    final int finalOrdIdx = ordIdx;
+                    BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
+                    // for each provides the bucket ord and key value for the owning bucket
+                    collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
+                        TB spare = null;
+
+                        @Override
+                        public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
+                            otherDocCount[finalOrdIdx] += docCount;
+                            if (docCount >= localBucketCountThresholds.getMinDocCount()) {
+                                if (spare == null) {
+                                    spare = buildEmptyTemporaryBucket();
+                                }
+                                updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
+                                spare = ordered.insertWithOverflow(spare);
                             }
-                            updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
-                            spare = ordered.insertWithOverflow(spare);
+                        }
+                    });
+
+                    // Get the top buckets
+                    topBucketsPerOwningOrd[ordIdx] = buildBuckets(ordered.size());
+                    if (isKeyOrder(order)) {
+                        for (int i = ordered.size() - 1; i >= 0; --i) {
+                            topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop());
+                            otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
+                        }
+                    } else {
+                        // sorted buckets not needed as they will be sorted by key in buildResult() which is different from
+                        // order in priority queue ordered
+                        Iterator<TB> itr = ordered.iterator();
+                        for (int i = ordered.size() - 1; i >= 0; --i) {
+                            topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket(itr.next());
+                            otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
                         }
                     }
-                });
+                    resultSelectionStrategy = "priority_queue";
+                } else {
+                    final int finalOrdIdx = ordIdx;
+                    Object[] bucketsForOrdArr = new Object[(int) valueCount];
+                    int[] tot = { 0 };
+                    BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
+                    collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
+                        TB spare = null;
 
-                // Get the top buckets
-                // ordered contains the top buckets for the owning bucket
-                topBucketsPerOwningOrd[ordIdx] = buildBuckets(ordered.size());
-                for (int i = ordered.size() - 1; i >= 0; --i) {
-                    topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop());
-                    otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
+                        @Override
+                        public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
+                            otherDocCount[finalOrdIdx] += docCount;
+                            if (docCount >= localBucketCountThresholds.getMinDocCount()) {
+                                spare = buildEmptyTemporaryBucket();
+                                updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
+                                bucketsForOrdArr[tot[0]++] = spare;
+                            }
+                        }
+                    });
+                    // If total collected buckets greater than request size, use quickSelect to get topN buckets
+                    if (tot[0] > size) {
+                        ArrayUtil.select(
+                            bucketsForOrdArr,
+                            0,
+                            tot[0],
+                            size,
+                            ((b1, b2) -> partiallyBuiltBucketComparator.compare((InternalTerms.Bucket<?>) b1, (InternalTerms.Bucket<?>) b2))
+                        );
+                        // Get the top buckets and update the otherDocCount
+                        topBucketsPerOwningOrd[ordIdx] = buildBuckets(size);
+                        for (int i = 0; i < size; i++) {
+                            topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket((TB) bucketsForOrdArr[i]);
+                            otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
+                        }
+                        resultSelectionStrategy = "quick_select";
+                    } else {
+                        // All buckets fit within the required size, no selection needed
+                        topBucketsPerOwningOrd[ordIdx] = buildBuckets(tot[0]);
+                        for (int i = 0; i < tot[0]; i++) {
+                            topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket((TB) bucketsForOrdArr[i]);
+                        }
+                        otherDocCount[ordIdx] = 0;
+                        resultSelectionStrategy = "select_all";
+                    }
                 }
             }
 
@@ -1097,6 +1235,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     super.collect(doc, owningBucketOrd);
                     subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
                     subsetSizes.increment(owningBucketOrd, 1);
+                }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
                 }
             };
         }

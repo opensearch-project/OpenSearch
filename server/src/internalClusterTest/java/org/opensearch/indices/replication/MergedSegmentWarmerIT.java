@@ -14,16 +14,17 @@ import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.ConnectTransportException;
@@ -37,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This class runs Segment Replication Integ test suite with merged segment warmer enabled.
@@ -45,14 +47,38 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public class MergedSegmentWarmerIT extends SegmentReplicationIT {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "1b")
+            .build();
     }
 
-    @Override
-    protected Settings featureFlagSettings() {
-        Settings.Builder featureSettings = Settings.builder();
-        featureSettings.put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true);
-        return featureSettings.build();
+    public void testPrimaryNodeRestart() throws Exception {
+        logger.info("--> start nodes");
+        internalCluster().startNode();
+
+        logger.info("--> creating test index: {}", INDEX_NAME);
+        createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put("number_of_shards", 1).put("number_of_replicas", 0).build());
+
+        ensureGreen();
+
+        logger.info("--> indexing sample data");
+        final int numDocs = 100;
+        final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex(INDEX_NAME)
+                .setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
+        }
+
+        indexRandom(true, docs);
+        flush();
+        assertThat(client().prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value(), equalTo((long) numDocs));
+
+        logger.info("--> restarting cluster");
+        internalCluster().fullRestart();
+        ensureGreen();
     }
 
     public void testMergeSegmentWarmer() throws Exception {

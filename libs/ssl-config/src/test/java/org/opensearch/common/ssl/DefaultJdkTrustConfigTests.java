@@ -37,8 +37,13 @@ import org.junit.Assert;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 
+import java.security.Provider;
+import java.security.Security;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
@@ -50,16 +55,39 @@ import static org.hamcrest.Matchers.not;
 public class DefaultJdkTrustConfigTests extends OpenSearchTestCase {
 
     private static final BiFunction<String, String, String> EMPTY_SYSTEM_PROPERTIES = (key, defaultValue) -> defaultValue;
+    private static final BiFunction<String, String, String> PKCS11_SYSTEM_PROPERTIES = (key, defaultValue) -> {
+        if ("javax.net.ssl.trustStoreType".equals(key)) {
+            return "PKCS11";
+        }
+        return defaultValue;
+    };
+    private static final BiFunction<String, String, String> BCFKS_SYSTEM_PROPERTIES = (key, defaultValue) -> {
+        if ("javax.net.ssl.trustStoreType".equals(key)) {
+            return "BCFKS";
+        }
+        return defaultValue;
+    };
+    private static final BiFunction<String, String, String> FIPS_AWARE_SYSTEM_PROPERTIES = KeyStoreUtil.IN_FIPS_MODE
+        ? BCFKS_SYSTEM_PROPERTIES
+        : EMPTY_SYSTEM_PROPERTIES;
+
+    public void testGetSystemPKCS11TrustStoreWithSystemProperties() throws Exception {
+        assumeFalse("Should only run when PKCS11 provider is installed.", findPKCS11ProviderService().isEmpty());
+        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(PKCS11_SYSTEM_PROPERTIES);
+        assertThat(trustConfig.getDependentFiles(), emptyIterable());
+        final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
+        assertStandardIssuers(trustManager);
+    }
 
     public void testGetSystemTrustStoreWithNoSystemProperties() throws Exception {
-        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(EMPTY_SYSTEM_PROPERTIES);
+        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(FIPS_AWARE_SYSTEM_PROPERTIES);
         assertThat(trustConfig.getDependentFiles(), emptyIterable());
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         assertStandardIssuers(trustManager);
     }
 
     public void testGetNonPKCS11TrustStoreWithPasswordSet() throws Exception {
-        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(EMPTY_SYSTEM_PROPERTIES, "fakepassword".toCharArray());
+        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(FIPS_AWARE_SYSTEM_PROPERTIES, "fakepassword".toCharArray());
         assertThat(trustConfig.getDependentFiles(), emptyIterable());
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         assertStandardIssuers(trustManager);
@@ -77,15 +105,23 @@ public class DefaultJdkTrustConfigTests extends OpenSearchTestCase {
     private void assertHasTrustedIssuer(X509ExtendedTrustManager trustManager, String name) {
         final String lowerName = name.toLowerCase(Locale.ROOT);
         final Optional<X509Certificate> ca = Stream.of(trustManager.getAcceptedIssuers())
-            .filter(cert -> cert.getSubjectDN().getName().toLowerCase(Locale.ROOT).contains(lowerName))
+            .filter(cert -> cert.getSubjectX500Principal().getName().toLowerCase(Locale.ROOT).contains(lowerName))
             .findAny();
         if (ca.isPresent() == false) {
             logger.info("Failed to find issuer [{}] in trust manager, but did find ...", lowerName);
             for (X509Certificate cert : trustManager.getAcceptedIssuers()) {
-                logger.info(" - {}", cert.getSubjectDN().getName().replaceFirst("^\\w+=([^,]+),.*", "$1"));
+                logger.info(" - {}", cert.getSubjectX500Principal().getName().replaceFirst("^\\w+=([^,]+),.*", "$1"));
             }
             Assert.fail("Cannot find trusted issuer with name [" + name + "].");
         }
+    }
+
+    private List<Provider.Service> findPKCS11ProviderService() {
+        return Arrays.stream(Security.getProviders())
+            .filter(it -> it.getName().toUpperCase(Locale.ROOT).contains("PKCS11"))
+            .map(it -> it.getService("KeyStore", "PKCS11"))
+            .filter(Objects::nonNull)
+            .toList();
     }
 
 }

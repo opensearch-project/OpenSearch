@@ -194,14 +194,6 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         return ClusterState.builder(state).metadata(metadata).routingTable(routingTable).build();
     }
 
-    private AllocationDeciders remoteAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList())
-        );
-        Collections.shuffle(deciders, random());
-        return new AllocationDeciders(deciders);
-    }
-
     public AllocationService createRemoteCapableAllocationService() {
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         return new OpenSearchAllocationTestCase.MockAllocationService(

@@ -69,13 +69,13 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
     }
 
     private BulkRequest createTestBulkRequest() {
-        IndexOperation indexOp = IndexOperation.newBuilder().setIndex("test-index").setId("test-id").build();
+        IndexOperation indexOp = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
         BulkRequestBody requestBody = BulkRequestBody.newBuilder()
-            .setIndex(indexOp)
-            .setDoc(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
+            .setOperationContainer(org.opensearch.protobufs.OperationContainer.newBuilder().setIndex(indexOp).build())
+            .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
             .build();
 
-        return BulkRequest.newBuilder().addRequestBody(requestBody).build();
+        return BulkRequest.newBuilder().addBulkRequestBody(requestBody).build();
     }
 }

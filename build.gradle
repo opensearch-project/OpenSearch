@@ -47,6 +47,7 @@ import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.api.Project;
 import org.gradle.process.ExecResult;
 import org.opensearch.gradle.CheckCompatibilityTask
+import groovy.xml.XmlParser;
 
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
 
@@ -54,7 +55,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.25.0" apply false
+  id "com.diffplug.spotless" version "8.0.0" apply false
   id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
@@ -69,6 +70,11 @@ apply from: 'gradle/local-distribution.gradle'
 apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
+
+// Apply FIPS configuration to all projects
+allprojects {
+  apply from: "$rootDir/gradle/fips.gradle"
+}
 
 // common maven publishing configuration
 allprojects {
@@ -118,10 +124,11 @@ subprojects {
         }
         maven {
           name = 'Snapshots'
-          url = 'https://central.sonatype.com/repository/maven-snapshots/'
-          credentials {
-            username = "$System.env.SONATYPE_USERNAME"
-            password = "$System.env.SONATYPE_PASSWORD"
+          url = System.getenv("MAVEN_SNAPSHOTS_S3_REPO")
+          credentials(AwsCredentials) {
+            accessKey = System.getenv("AWS_ACCESS_KEY_ID")
+            secretKey = System.getenv("AWS_SECRET_ACCESS_KEY")
+            sessionToken = System.getenv("AWS_SESSION_TOKEN")
           }
         }
       }
@@ -232,26 +239,8 @@ tasks.register("verifyVersions") {
 
 boolean bwc_tests_enabled = true
 
-/* place an issue link here when committing bwc changes */
-String bwc_tests_disabled_issue = ""
-
-/* there's no existing MacOS release, therefore disable bcw tests */
-if (Os.isFamily(Os.FAMILY_MAC)) {
-  bwc_tests_enabled = false
-  bwc_tests_disabled_issue = "https://github.com/opensearch-project/OpenSearch/issues/4173"
-}
-
-if (bwc_tests_enabled == false) {
-  if (bwc_tests_disabled_issue.isEmpty()) {
-    throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
-  }
-  println "========================= WARNING ========================="
-  println "         Backwards compatibility tests are disabled!"
-  println "See ${bwc_tests_disabled_issue}"
-  println "==========================================================="
-}
 if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
-  // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
+  // Disable BWC tests for checkPart* tasks as it's expected that this will run in it's own check
   bwc_tests_enabled = false
 }
 
@@ -282,10 +271,7 @@ allprojects {
       memoryMaximumSize = project.property('options.forkOptions.memoryMaximumSize')
     }
 
-    // See please https://bugs.openjdk.java.net/browse/JDK-8209058
-    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_11) {
-      compile.options.compilerArgs << '-Werror'
-    }
+    compile.options.compilerArgs << '-Werror'
     compile.options.compilerArgs << '-Xlint:auxiliaryclass'
     compile.options.compilerArgs << '-Xlint:cast'
     compile.options.compilerArgs << '-Xlint:classfile'
@@ -428,7 +414,8 @@ gradle.projectsEvaluated {
       if (task != null) {
         task.jvmArgs += [
             "--add-modules=jdk.incubator.vector",
-            "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED"
+            "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED",
+            "--enable-native-access=ALL-UNNAMED"
         ]
 
         // Add Java Agent for security sandboxing
@@ -436,8 +423,12 @@ gradle.projectsEvaluated {
           dependsOn(project(':libs:agent-sm:agent').prepareAgent)
           jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
         }
-        if (BuildParams.inFipsJvm) {
-          task.jvmArgs += ["-Dorg.bouncycastle.fips.approved_only=true"]
+        if (BuildParams.isInFipsJvm()) {
+          def fipsSecurityFile = project.rootProject.file('distribution/src/config/fips_java.security')
+          task.jvmArgs += [
+              "-Dorg.bouncycastle.fips.approved_only=true",
+              "-Djava.security.properties=${fipsSecurityFile}"
+          ]
         }
       }
     }
@@ -707,14 +698,6 @@ allprojects {
   def checkPart2 = tasks.register('checkPart2')
   plugins.withId('lifecycle-base') {
     checkPart1.configure { dependsOn 'check' }
-  }
-
-  plugins.withId('opensearch.testclusters') {
-    testClusters.configureEach {
-      if (BuildParams.inFipsJvm) {
-        keystorePassword 'notarealpasswordphrase'
-      }
-    }
   }
 }
 

@@ -53,6 +53,7 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.netty.handler.ssl.ApplicationProtocolNames;
+import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SupportedCipherSuiteFilter;
@@ -156,6 +157,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     /**
      * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
+     *
      * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
@@ -193,6 +195,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     /**
      * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
+     *
      * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
@@ -231,6 +234,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     /**
      * Binds the transport engine to the socket address
+     *
      * @param socketAddress socket address to bind to
      */
     @Override
@@ -317,6 +321,8 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
             parameters.flatMap(SecureHttpTransportParameters::trustManagerFactory).ifPresent(sslContextBuilder::trustManager);
             parameters.map(SecureHttpTransportParameters::cipherSuites)
                 .ifPresent(ciphers -> sslContextBuilder.ciphers(ciphers, SupportedCipherSuiteFilter.INSTANCE));
+            parameters.flatMap(SecureHttpTransportParameters::clientAuth)
+                .ifPresent(clientAuth -> sslContextBuilder.clientAuth(ClientAuth.valueOf(clientAuth)));
 
             final SslContext sslContext = sslContextBuilder.protocols(
                 parameters.map(SecureHttpTransportParameters::protocols).orElseGet(() -> Arrays.asList(SslUtils.DEFAULT_SSL_PROTOCOLS))
@@ -343,7 +349,19 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     }
 
     /**
+     * An override to be able to keep track of accepted channels by the
+     * {@link ReactorNetty4NonStreamingRequestConsumer} and {@link ReactorNetty4StreamingRequestConsumer}
+     *
+     * @param httpChannel the accepted channel
+     */
+    @Override
+    public void serverAcceptedChannel(HttpChannel httpChannel) {
+        super.serverAcceptedChannel(httpChannel);
+    }
+
+    /**
      * Handles incoming Reactor Netty request
+     *
      * @param request request instance
      * @param response response instances
      * @return response publisher
@@ -364,6 +382,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         );
         if (dispatchHandlerOpt.map(RestHandler::supportsStreaming).orElse(false)) {
             final ReactorNetty4StreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4StreamingRequestConsumer<>(
+                this,
                 request,
                 response
             );
@@ -454,4 +473,5 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
             super.onException(channel, cause);
         }
     }
+
 }

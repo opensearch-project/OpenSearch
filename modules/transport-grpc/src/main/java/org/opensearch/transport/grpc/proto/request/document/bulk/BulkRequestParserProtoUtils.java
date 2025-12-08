@@ -8,6 +8,8 @@
 
 package org.opensearch.transport.grpc.proto.request.document.bulk;
 
+import com.google.protobuf.ByteString;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BulkRequestParser;
 import org.opensearch.action.delete.DeleteRequest;
@@ -15,6 +17,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -23,11 +26,13 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
-import org.opensearch.protobufs.CreateOperation;
 import org.opensearch.protobufs.DeleteOperation;
 import org.opensearch.protobufs.IndexOperation;
 import org.opensearch.protobufs.OpType;
+import org.opensearch.protobufs.OperationContainer;
+import org.opensearch.protobufs.UpdateAction;
 import org.opensearch.protobufs.UpdateOperation;
+import org.opensearch.protobufs.WriteOperation;
 import org.opensearch.script.Script;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
@@ -81,6 +86,42 @@ public class BulkRequestParserProtoUtils {
     }
 
     /**
+     * Converts a protobuf ByteString to OpenSearch BytesReference.
+     *
+     * This method uses ByteString.toByteArray() which delegates to protobuf's internal
+     * implementation. Protobuf optimizes this based on the ByteString's internal representation:
+     * - For ByteStrings created with UnsafeByteOperations.unsafeWrap(), it returns the wrapped array directly (zero-copy)
+     * - For other ByteStrings, it creates a copy
+     *
+     * @param byteString The protobuf ByteString to convert
+     * @return A BytesReference wrapping the ByteString data
+     */
+    private static BytesReference byteStringToBytesReference(ByteString byteString) {
+        if (byteString == null || byteString.isEmpty()) {
+            return BytesArray.EMPTY;
+        }
+        // Let protobuf handle the conversion efficiently
+        // For ByteStrings created with UnsafeByteOperations.unsafeWrap(), this returns the backing array
+        return new BytesArray(byteString.toByteArray());
+    }
+
+    /**
+     * Detects the media type from BytesReference content, with fallback to JSON if detection fails.
+     * This enables support for JSON, SMILE, and CBOR formats in gRPC bulk requests.
+     *
+     * @param document The document content as BytesReference
+     * @return The detected MediaType, or JSON if detection fails or document is empty
+     */
+    static MediaType detectMediaType(BytesReference document) {
+        if (document == null || document.length() == 0) {
+            return MediaTypeRegistry.JSON;
+        }
+        BytesRef bytesRef = document.toBytesRef();
+        MediaType detectedType = MediaTypeRegistry.mediaTypeFromBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        return detectedType != null ? detectedType : MediaTypeRegistry.JSON;
+    }
+
+    /**
      * Similar to {@link BulkRequestParser#parse(BytesReference, String, String, FetchSourceContext, String, Boolean, boolean, MediaType, Consumer, Consumer, Consumer)}, except that it takes into account global values.
      *
      * @param request
@@ -99,7 +140,7 @@ public class BulkRequestParserProtoUtils {
         String defaultPipeline,
         Boolean defaultRequireAlias
     ) {
-        List<BulkRequestBody> bulkRequestBodyList = request.getRequestBodyList();
+        List<BulkRequestBody> bulkRequestBodyList = request.getBulkRequestBodyList();
         DocWriteRequest<?>[] docWriteRequests = new DocWriteRequest<?>[bulkRequestBodyList.size()];
 
         // Process each operation in the request body
@@ -121,12 +162,12 @@ public class BulkRequestParserProtoUtils {
             String pipeline = valueOrDefault(defaultPipeline, request.getPipeline());
             Boolean requireAlias = valueOrDefault(defaultRequireAlias, request.getRequireAlias());
 
-            // Parse the operation type: create, index, update, delete, or none provided (which is invalid).
-            switch (bulkRequestBodyEntry.getOperationContainerCase()) {
+            OperationContainer operationContainer = bulkRequestBodyEntry.getOperationContainer();
+            switch (operationContainer.getOperationContainerCase()) {
                 case CREATE:
                     docWriteRequest = buildCreateRequest(
-                        bulkRequestBodyEntry.getCreate(),
-                        bulkRequestBodyEntry.getDoc().toByteArray(),
+                        operationContainer.getCreate(),
+                        bulkRequestBodyEntry.getObject(),
                         index,
                         id,
                         routing,
@@ -140,8 +181,8 @@ public class BulkRequestParserProtoUtils {
                     break;
                 case INDEX:
                     docWriteRequest = buildIndexRequest(
-                        bulkRequestBodyEntry.getIndex(),
-                        bulkRequestBodyEntry.getDoc().toByteArray(),
+                        operationContainer.getIndex(),
+                        bulkRequestBodyEntry.getObject(),
                         opType,
                         index,
                         id,
@@ -155,9 +196,19 @@ public class BulkRequestParserProtoUtils {
                     );
                     break;
                 case UPDATE:
+                    // Extract the doc field from UpdateAction
+                    // Use ByteString directly to avoid unnecessary byte array allocation
+                    ByteString updateDocBytes = ByteString.EMPTY;
+                    if (bulkRequestBodyEntry.hasUpdateAction() && bulkRequestBodyEntry.getUpdateAction().hasDoc()) {
+                        updateDocBytes = bulkRequestBodyEntry.getUpdateAction().getDoc();
+                    } else if (bulkRequestBodyEntry.hasObject()) {
+                        // Fallback to object field for backwards compatibility
+                        // TODO: Remove this fallback once all clients use UpdateAction.doc
+                        updateDocBytes = bulkRequestBodyEntry.getObject();
+                    }
                     docWriteRequest = buildUpdateRequest(
-                        bulkRequestBodyEntry.getUpdate(),
-                        bulkRequestBodyEntry.getDoc().toByteArray(),
+                        operationContainer.getUpdate(),
+                        updateDocBytes,
                         bulkRequestBodyEntry,
                         index,
                         id,
@@ -172,7 +223,7 @@ public class BulkRequestParserProtoUtils {
                     break;
                 case DELETE:
                     docWriteRequest = buildDeleteRequest(
-                        bulkRequestBodyEntry.getDelete(),
+                        operationContainer.getDelete(),
                         index,
                         id,
                         routing,
@@ -198,7 +249,7 @@ public class BulkRequestParserProtoUtils {
      * Builds an IndexRequest with create flag set to true from a CreateOperation protobuf message.
      *
      * @param createOperation The create operation protobuf message
-     * @param document The document content as bytes
+     * @param documentBytes The document content as ByteString (zero-copy reference)
      * @param index The default index name
      * @param id The default document ID
      * @param routing The default routing value
@@ -211,8 +262,8 @@ public class BulkRequestParserProtoUtils {
      * @return The constructed IndexRequest
      */
     public static IndexRequest buildCreateRequest(
-        CreateOperation createOperation,
-        byte[] document,
+        WriteOperation createOperation,
+        ByteString documentBytes,
         String index,
         String id,
         String routing,
@@ -223,19 +274,17 @@ public class BulkRequestParserProtoUtils {
         long ifPrimaryTerm,
         boolean requireAlias
     ) {
-        index = createOperation.hasIndex() ? createOperation.getIndex() : index;
-        id = createOperation.hasId() ? createOperation.getId() : id;
-        routing = createOperation.hasRouting() ? createOperation.getRouting() : routing;
-        version = createOperation.hasVersion() ? createOperation.getVersion() : version;
-        if (createOperation.hasVersionType()) {
-            versionType = VersionTypeProtoUtils.fromProto(createOperation.getVersionType());
-
+        if (createOperation.hasXIndex()) {
+            index = createOperation.getXIndex();
         }
+
+        id = createOperation.hasXId() ? createOperation.getXId() : id;
+        routing = createOperation.hasRouting() ? createOperation.getRouting() : routing;
         pipeline = createOperation.hasPipeline() ? createOperation.getPipeline() : pipeline;
-        ifSeqNo = createOperation.hasIfSeqNo() ? createOperation.getIfSeqNo() : ifSeqNo;
-        ifPrimaryTerm = createOperation.hasIfPrimaryTerm() ? createOperation.getIfPrimaryTerm() : ifPrimaryTerm;
         requireAlias = createOperation.hasRequireAlias() ? createOperation.getRequireAlias() : requireAlias;
 
+        BytesReference documentRef = byteStringToBytesReference(documentBytes);
+        MediaType mediaType = detectMediaType(documentRef);
         IndexRequest indexRequest = new IndexRequest(index).id(id)
             .routing(routing)
             .version(version)
@@ -244,7 +293,7 @@ public class BulkRequestParserProtoUtils {
             .setPipeline(pipeline)
             .setIfSeqNo(ifSeqNo)
             .setIfPrimaryTerm(ifPrimaryTerm)
-            .source(document, MediaTypeRegistry.JSON)
+            .source(documentRef, mediaType)
             .setRequireAlias(requireAlias);
         return indexRequest;
     }
@@ -253,7 +302,7 @@ public class BulkRequestParserProtoUtils {
      * Builds an IndexRequest from an IndexOperation protobuf message.
      *
      * @param indexOperation The index operation protobuf message
-     * @param document The document content as bytes
+     * @param documentBytes The document content as ByteString (zero-copy reference)
      * @param opType The default operation type
      * @param index The default index name
      * @param id The default document ID
@@ -268,7 +317,7 @@ public class BulkRequestParserProtoUtils {
      */
     public static IndexRequest buildIndexRequest(
         IndexOperation indexOperation,
-        byte[] document,
+        ByteString documentBytes,
         OpType opType,
         String index,
         String id,
@@ -281,8 +330,12 @@ public class BulkRequestParserProtoUtils {
         boolean requireAlias
     ) {
         opType = indexOperation.hasOpType() ? indexOperation.getOpType() : opType;
-        index = indexOperation.hasIndex() ? indexOperation.getIndex() : index;
-        id = indexOperation.hasId() ? indexOperation.getId() : id;
+
+        if (indexOperation.hasXIndex()) {
+            index = indexOperation.getXIndex();
+        }
+
+        id = indexOperation.hasXId() ? indexOperation.getXId() : id;
         routing = indexOperation.hasRouting() ? indexOperation.getRouting() : routing;
         version = indexOperation.hasVersion() ? indexOperation.getVersion() : version;
         if (indexOperation.hasVersionType()) {
@@ -293,6 +346,8 @@ public class BulkRequestParserProtoUtils {
         ifPrimaryTerm = indexOperation.hasIfPrimaryTerm() ? indexOperation.getIfPrimaryTerm() : ifPrimaryTerm;
         requireAlias = indexOperation.hasRequireAlias() ? indexOperation.getRequireAlias() : requireAlias;
 
+        BytesReference documentRef = byteStringToBytesReference(documentBytes);
+        MediaType mediaType = detectMediaType(documentRef);
         IndexRequest indexRequest;
         if (opType == null) {
             indexRequest = new IndexRequest(index).id(id)
@@ -302,18 +357,18 @@ public class BulkRequestParserProtoUtils {
                 .setPipeline(pipeline)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm)
-                .source(document, MediaTypeRegistry.JSON)
+                .source(documentRef, mediaType)
                 .setRequireAlias(requireAlias);
         } else {
             indexRequest = new IndexRequest(index).id(id)
                 .routing(routing)
                 .version(version)
                 .versionType(versionType)
-                .create(opType.equals(OpType.OP_TYPE_CREATE))
+                .create(opType == OpType.OP_TYPE_CREATE)
                 .setPipeline(pipeline)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm)
-                .source(document, MediaTypeRegistry.JSON)
+                .source(documentRef, mediaType)
                 .setRequireAlias(requireAlias);
         }
         return indexRequest;
@@ -323,7 +378,7 @@ public class BulkRequestParserProtoUtils {
      * Builds an UpdateRequest from an UpdateOperation protobuf message.
      *
      * @param updateOperation The update operation protobuf message
-     * @param document The document content as bytes
+     * @param documentBytes The document content as ByteString (zero-copy reference)
      * @param bulkRequestBody The bulk request body containing additional update options
      * @param index The default index name
      * @param id The default document ID
@@ -338,7 +393,7 @@ public class BulkRequestParserProtoUtils {
      */
     public static UpdateRequest buildUpdateRequest(
         UpdateOperation updateOperation,
-        byte[] document,
+        ByteString documentBytes,
         BulkRequestBody bulkRequestBody,
         String index,
         String id,
@@ -350,17 +405,18 @@ public class BulkRequestParserProtoUtils {
         long ifPrimaryTerm,
         boolean requireAlias
     ) {
-        index = updateOperation.hasIndex() ? updateOperation.getIndex() : index;
-        id = updateOperation.hasId() ? updateOperation.getId() : id;
+        if (updateOperation.hasXIndex()) {
+            index = updateOperation.getXIndex();
+        }
+
+        id = updateOperation.hasXId() ? updateOperation.getXId() : id;
         routing = updateOperation.hasRouting() ? updateOperation.getRouting() : routing;
-        fetchSourceContext = bulkRequestBody.hasSource()
-            ? FetchSourceContextProtoUtils.fromProto(bulkRequestBody.getSource())
-            : fetchSourceContext;
         retryOnConflict = updateOperation.hasRetryOnConflict() ? updateOperation.getRetryOnConflict() : retryOnConflict;
         ifSeqNo = updateOperation.hasIfSeqNo() ? updateOperation.getIfSeqNo() : ifSeqNo;
         ifPrimaryTerm = updateOperation.hasIfPrimaryTerm() ? updateOperation.getIfPrimaryTerm() : ifPrimaryTerm;
         requireAlias = updateOperation.hasRequireAlias() ? updateOperation.getRequireAlias() : requireAlias;
 
+        // Create UpdateRequest with operation-level fields
         UpdateRequest updateRequest = new UpdateRequest().index(index)
             .id(id)
             .routing(routing)
@@ -370,74 +426,108 @@ public class BulkRequestParserProtoUtils {
             .setRequireAlias(requireAlias)
             .routing(routing);
 
-        updateRequest = fromProto(updateRequest, document, bulkRequestBody, updateOperation);
+        // Populate all document-level fields
+        updateRequest = fromProto(updateRequest, documentBytes, bulkRequestBody, ifSeqNo, ifPrimaryTerm);
 
+        // Apply fetchSourceContext default
         if (fetchSourceContext != null) {
             updateRequest.fetchSource(fetchSourceContext);
         }
-        // TODO: how is upsertRequest used?
-        // IndexRequest upsertRequest = updateRequest.upsertRequest();
-        // if (upsertRequest != null) {
-        // upsertRequest.setPipeline(pipeline);
-        // }
+
+        // Set pipeline on upsert request if it exists
+        IndexRequest upsertRequest = updateRequest.upsertRequest();
+        if (upsertRequest != null) {
+            upsertRequest.setPipeline(pipeline);
+        }
 
         return updateRequest;
     }
 
     /**
      * Populates an UpdateRequest with values from protobuf messages.
-     * Similar to {@link UpdateRequest#fromXContent(XContentParser)}
+     * Equivalent to {@link UpdateRequest#fromXContent(XContentParser)} for REST API.
      *
-     * @param updateRequest The update request to populate
-     * @param document The document content as bytes
+     * @param updateRequest The update request to populate (may already have if_seq_no/if_primary_term set)
+     * @param documentBytes The document content as ByteString (zero-copy reference)
      * @param bulkRequestBody The bulk request body containing update options
-     * @param updateOperation The update operation protobuf message
+     * @param ifSeqNoFromOperation The sequence number
+     * @param ifPrimaryTermFromOperation The primary term
      * @return The populated UpdateRequest
      */
-    public static UpdateRequest fromProto(
+    static UpdateRequest fromProto(
         UpdateRequest updateRequest,
-        byte[] document,
+        ByteString documentBytes,
         BulkRequestBody bulkRequestBody,
-        UpdateOperation updateOperation
+        long ifSeqNoFromOperation,
+        long ifPrimaryTermFromOperation
     ) {
-        if (bulkRequestBody.hasScript()) {
-            Script script = ScriptProtoUtils.parseFromProtoRequest(bulkRequestBody.getScript());
-            updateRequest.script(script);
+        // Start with operation metadata values
+        long ifSeqNo = ifSeqNoFromOperation;
+        long ifPrimaryTerm = ifPrimaryTermFromOperation;
+        if (bulkRequestBody.hasUpdateAction()) {
+            UpdateAction updateAction = bulkRequestBody.getUpdateAction();
+
+            // 1. script
+            if (updateAction.hasScript()) {
+                Script script = ScriptProtoUtils.parseFromProtoRequest(updateAction.getScript());
+                updateRequest.script(script);
+            }
+
+            // 2. scripted_upsert
+            if (updateAction.hasScriptedUpsert()) {
+                updateRequest.scriptedUpsert(updateAction.getScriptedUpsert());
+            }
+
+            // 3. upsert
+            if (updateAction.hasUpsert()) {
+                ByteString upsertBytes = updateAction.getUpsert();
+                BytesReference upsertRef = byteStringToBytesReference(upsertBytes);
+                MediaType upsertMediaType = detectMediaType(upsertRef);
+                BytesRef bytesRef = upsertRef.toBytesRef();
+                updateRequest.upsert(bytesRef.bytes, bytesRef.offset, bytesRef.length, upsertMediaType);
+            }
         }
 
-        if (bulkRequestBody.hasScriptedUpsert()) {
-            updateRequest.scriptedUpsert(bulkRequestBody.getScriptedUpsert());
+        // 4. doc
+        // Only set doc if ByteString is non-empty (empty ByteString = field not provided in proto)
+        // This check is structural, not business validation:
+        // - ByteString.EMPTY = no doc field in proto → don't call doc() → keeps doc=null
+        // - Non-empty ByteString = doc field in proto → call doc() → sets doc!=null
+        // UpdateRequest.validate() then handles business rules:
+        // - If script!=null && doc!=null → validation error
+        // - If script==null && doc==null → validation error
+        if (documentBytes != null && !documentBytes.isEmpty()) {
+            BytesReference docRef = byteStringToBytesReference(documentBytes);
+            MediaType mediaType = detectMediaType(docRef);
+            BytesRef bytesRef = docRef.toBytesRef();
+            updateRequest.doc(bytesRef.bytes, bytesRef.offset, bytesRef.length, mediaType);
         }
 
-        if (bulkRequestBody.hasUpsert()) {
-            updateRequest.upsert(bulkRequestBody.getUpsert(), MediaTypeRegistry.JSON);
+        if (bulkRequestBody.hasUpdateAction()) {
+            UpdateAction updateAction = bulkRequestBody.getUpdateAction();
+
+            // 5. doc_as_upsert
+            if (updateAction.hasDocAsUpsert()) {
+                updateRequest.docAsUpsert(updateAction.getDocAsUpsert());
+            }
+
+            // 6. detect_noop
+            if (updateAction.hasDetectNoop()) {
+                updateRequest.detectNoop(updateAction.getDetectNoop());
+            }
+
+            // 7. _source
+            if (updateAction.hasXSource()) {
+                updateRequest.fetchSource(FetchSourceContextProtoUtils.fromProto(updateAction.getXSource()));
+            }
+
+            // 8 + 9. if_seq_no and if_primary_term are excluded from UpdateAction protobufs intentionally, as users can just provide them
+            // in UpdateOperation.
         }
 
-        updateRequest.doc(document, MediaTypeRegistry.JSON);
-
-        if (bulkRequestBody.hasDocAsUpsert()) {
-            updateRequest.docAsUpsert(bulkRequestBody.getDocAsUpsert());
-        }
-
-        if (bulkRequestBody.hasDetectNoop()) {
-            updateRequest.detectNoop(bulkRequestBody.getDetectNoop());
-        }
-
-        if (bulkRequestBody.hasDocAsUpsert()) {
-            updateRequest.docAsUpsert(bulkRequestBody.getDocAsUpsert());
-        }
-
-        if (bulkRequestBody.hasSource()) {
-            updateRequest.fetchSource(FetchSourceContextProtoUtils.fromProto(bulkRequestBody.getSource()));
-        }
-
-        if (updateOperation.hasIfSeqNo()) {
-            updateRequest.setIfSeqNo(updateOperation.getIfSeqNo());
-        }
-
-        if (updateOperation.hasIfPrimaryTerm()) {
-            updateRequest.setIfPrimaryTerm(updateOperation.getIfPrimaryTerm());
-        }
+        // Set if_seq_no and if_primary_term
+        updateRequest.setIfSeqNo(ifSeqNo);
+        updateRequest.setIfPrimaryTerm(ifPrimaryTerm);
 
         return updateRequest;
     }
@@ -465,8 +555,11 @@ public class BulkRequestParserProtoUtils {
         long ifSeqNo,
         long ifPrimaryTerm
     ) {
-        index = deleteOperation.hasIndex() ? deleteOperation.getIndex() : index;
-        id = deleteOperation.hasId() ? deleteOperation.getId() : id;
+        if (deleteOperation.hasXIndex()) {
+            index = deleteOperation.getXIndex();
+        }
+
+        id = deleteOperation.hasXId() ? deleteOperation.getXId() : id;
         routing = deleteOperation.hasRouting() ? deleteOperation.getRouting() : routing;
         version = deleteOperation.hasVersion() ? deleteOperation.getVersion() : version;
         if (deleteOperation.hasVersionType()) {

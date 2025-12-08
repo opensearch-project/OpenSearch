@@ -58,7 +58,7 @@ public class FlightStreamReaderTests extends OpenSearchTestCase {
     public void testNext_ReturnsTrue_WhenFlightStreamHasNext() throws Exception {
         when(mockFlightStream.next()).thenReturn(true);
         assertTrue(iterator.next());
-        assert(mockFlightStream).next();
+        assert (mockFlightStream).next();
     }
 
     public void testNext_ReturnsFalse_WhenFlightStreamHasNoNext() throws Exception {

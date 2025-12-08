@@ -11,6 +11,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Andriy Redko      | [reta](https://github.com/reta)                         | Independent |
 | Ankit Jain        | [jainankitk](https://github.com/jainankitk)             | Amazon      |
 | Ashish Singh      | [ashking94](https://github.com/ashking94)               | Amazon      |
+| Atri Sharma       | [atris](https://github.com/atris)                       | Apple       |
 | Bharathwaj G      | [bharath-techie](https://github.com/bharath-techie)     | Amazon      |
 | Bukhtawar Khan    | [Bukhtawar](https://github.com/Bukhtawar)               | Amazon      |
 | Charlotte Henkle  | [CEHENKLE](https://github.com/CEHENKLE)                 | Amazon      |
@@ -19,6 +20,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Binlong Gao       | [gaobinlong](https://github.com/gaobinlong)             | Amazon      |
 | Gaurav Bafna      | [gbbafna](https://github.com/gbbafna)                   | Amazon      |
 | Jay Deng          | [jed326](https://github.com/jed326)                     | Amazon      |
+| Karen Xu          | [karenyrx](https://github.com/karenyrx)                 | Uber        |
 | Ke Wei            | [kkewwei](https://github.com/kkewwei)                   | ByteDance   |
 | Kunal Kotwani     | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
 | Varun Bansal      | [linuxpi](https://github.com/linuxpi)                   | Amazon      |
@@ -32,11 +34,12 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Rishabh Maurya    | [rishabhmaurya](https://github.com/rishabhmaurya)       | Amazon      |
 | Rishikesh Pasham  | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
 | Sachin Kale       | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |
+| Sandesh Kumar     | [sandeshkr419](https://github.com/sandeshkr419)         | Amazon      |
 | Sarat Vemulapalli | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |
 | Shweta Thareja    | [shwetathareja](https://github.com/shwetathareja)       | Amazon      |
 | Sorabh Hamirwasia | [sohami](https://github.com/sohami)                     | Amazon      |
+| Varun Bharadwaj   | [varunbharadwaj](https://github.com/varunbharadwaj)     | Uber        |
 | Yupeng Fu         | [yupeng9](https://github.com/yupeng9)                   | Uber        |
-| Vacha Shah        | [VachaShah](https://github.com/VachaShah)               | Amazon      |
 
 ## Emeritus
 
@@ -52,3 +55,4 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Tianli Feng              | [tlfeng](https://github.com/tlfeng)         | Amazon      |
 | Suraj Singh              | [dreamer-89](https://github.com/dreamer-89) | Amazon      |
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)         | Independent |
+| Vacha Shah               | [VachaShah](https://github.com/VachaShah)   | Independent |

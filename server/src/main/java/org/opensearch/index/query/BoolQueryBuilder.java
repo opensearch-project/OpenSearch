@@ -32,13 +32,9 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.lucene.search.Queries;
@@ -49,18 +45,13 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -402,9 +393,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return any.get();
         }
 
-        changed |= rewriteMustNotRangeClausesToShould(newBuilder, queryRewriteContext);
-        changed |= rewriteMustClausesToFilter(newBuilder, queryRewriteContext);
-
         if (changed) {
             newBuilder.adjustPureNegative = adjustPureNegative;
             if (minimumShouldMatch != null) {
@@ -472,140 +460,5 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             }
         }
 
-    }
-
-    private boolean rewriteMustNotRangeClausesToShould(BoolQueryBuilder newBuilder, QueryRewriteContext queryRewriteContext) {
-        // If there is a range query on a given field in a must_not clause, it's more performant to execute it as
-        // multiple should clauses representing everything outside the target range.
-
-        // First check if we can get the individual LeafContexts. If we can't, we can't proceed with the rewrite, since we can't confirm
-        // every doc has exactly 1 value for this field.
-        List<LeafReaderContext> leafReaderContexts = getLeafReaderContexts(queryRewriteContext);
-        if (leafReaderContexts == null || leafReaderContexts.isEmpty()) {
-            return false;
-        }
-
-        QueryShardContext shardContext = getQueryShardContext(queryRewriteContext);
-
-        boolean changed = false;
-        // For now, only handle the case where there's exactly 1 complement-aware query for this field.
-        Map<String, Integer> fieldCounts = new HashMap<>();
-        Set<ComplementAwareQueryBuilder> complementAwareQueries = new HashSet<>();
-        for (QueryBuilder clause : mustNotClauses) {
-            if (clause instanceof ComplementAwareQueryBuilder && clause instanceof WithFieldName wfn) {
-                fieldCounts.merge(wfn.fieldName(), 1, Integer::sum);
-                complementAwareQueries.add((ComplementAwareQueryBuilder) wfn);
-            }
-        }
-
-        for (ComplementAwareQueryBuilder caq : complementAwareQueries) {
-            String fieldName = ((WithFieldName) caq).fieldName();
-            if (fieldCounts.getOrDefault(fieldName, 0) == 1) {
-                // Check that all docs on this field have exactly 1 value, otherwise we can't perform this rewrite
-                if (checkAllDocsHaveOneValue(leafReaderContexts, fieldName)) {
-                    List<? extends QueryBuilder> complement = caq.getComplement(shardContext);
-                    if (complement != null) {
-                        BoolQueryBuilder nestedBoolQuery = new BoolQueryBuilder();
-                        nestedBoolQuery.minimumShouldMatch(1);
-                        for (QueryBuilder complementComponent : complement) {
-                            nestedBoolQuery.should(complementComponent);
-                        }
-                        newBuilder.must(nestedBoolQuery);
-                        newBuilder.mustNotClauses.remove(caq);
-                        changed = true;
-                    }
-                }
-            }
-        }
-
-        if (minimumShouldMatch == null && changed) {
-            if ((!shouldClauses.isEmpty()) && mustClauses.isEmpty() && filterClauses.isEmpty()) {
-                // If there were originally should clauses and no must/filter clauses, null minimumShouldMatch is set to a default of 1
-                // within Lucene.
-                // But if there was originally a must or filter clause, the default is 0.
-                // If we added a must clause due to this rewrite, we should respect what the original default would have been.
-                newBuilder.minimumShouldMatch(1);
-            }
-        }
-        return changed;
-    }
-
-    private List<LeafReaderContext> getLeafReaderContexts(QueryRewriteContext queryRewriteContext) {
-        if (queryRewriteContext == null) return null;
-        QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
-        if (shardContext == null) return null;
-        IndexSearcher indexSearcher = shardContext.searcher();
-        if (indexSearcher == null) return null;
-        return indexSearcher.getIndexReader().leaves();
-    }
-
-    private QueryShardContext getQueryShardContext(QueryRewriteContext queryRewriteContext) {
-        return queryRewriteContext == null ? null : queryRewriteContext.convertToShardContext(); // Note this can still be null
-    }
-
-    private boolean checkAllDocsHaveOneValue(List<LeafReaderContext> contexts, String fieldName) {
-        for (LeafReaderContext lrc : contexts) {
-            PointValues values;
-            try {
-                LeafReader reader = lrc.reader();
-                values = reader.getPointValues(fieldName);
-                if (values == null || !(values.getDocCount() == reader.maxDoc() && values.getDocCount() == values.size())) {
-                    return false;
-                }
-            } catch (IOException e) {
-                // If we can't get PointValues to check on the number of values per doc, assume the query is ineligible
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean rewriteMustClausesToFilter(BoolQueryBuilder newBuilder, QueryRewriteContext queryRewriteContext) {
-        // If we have must clauses which return the same score for all matching documents, like numeric term queries or ranges,
-        // moving them from must clauses to filter clauses improves performance in some cases.
-        // This works because it can let Lucene use MaxScoreCache to skip non-competitive docs.
-        boolean changed = false;
-        Set<QueryBuilder> mustClausesToMove = new HashSet<>();
-
-        QueryShardContext shardContext;
-        if (queryRewriteContext == null) {
-            shardContext = null;
-        } else {
-            shardContext = queryRewriteContext.convertToShardContext(); // can still be null
-        }
-
-        for (QueryBuilder clause : mustClauses) {
-            if (isClauseIrrelevantToScoring(clause, shardContext)) {
-                mustClausesToMove.add(clause);
-                changed = true;
-            }
-        }
-
-        newBuilder.mustClauses.removeAll(mustClausesToMove);
-        newBuilder.filterClauses.addAll(mustClausesToMove);
-        return changed;
-    }
-
-    private boolean isClauseIrrelevantToScoring(QueryBuilder clause, QueryShardContext context) {
-        // This is an incomplete list of clauses this might apply for; it can be expanded in future.
-
-        // If a clause is purely numeric, for example a date range, its score is unimportant as
-        // it'll be the same for all returned docs
-        if (clause instanceof RangeQueryBuilder) return true;
-        if (clause instanceof GeoBoundingBoxQueryBuilder) return true;
-
-        // Further optimizations depend on knowing whether the field is numeric.
-        // QueryBuilder.doRewrite() is called several times in the search flow, and the shard context telling us this
-        // is only available the last time, when it's called from SearchService.executeQueryPhase().
-        // Skip moving these clauses if we don't have the shard context.
-        if (context == null) return false;
-        if (!(clause instanceof WithFieldName wfn)) return false;
-        MappedFieldType fieldType = context.fieldMapper(wfn.fieldName());
-        if (!(fieldType instanceof NumberFieldMapper.NumberFieldType)) return false;
-
-        if (clause instanceof MatchQueryBuilder) return true;
-        if (clause instanceof TermQueryBuilder) return true;
-        if (clause instanceof TermsQueryBuilder) return true;
-        return false;
     }
 }

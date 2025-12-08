@@ -60,6 +60,7 @@ import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -1064,7 +1065,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
-        ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             SearchProgressListener.NOOP,
@@ -1133,18 +1134,17 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             result.setSearchShardTarget(new SearchShardTarget("node", new ShardId("a", "b", shardId), null, OriginalIndices.NONE));
             consumer.consumeResult(result, latch::countDown);
             numEmptyResponses--;
-
         }
         latch.await();
         final int numTotalReducePhases;
         if (numShards > bufferSize) {
             if (bufferSize == 2) {
-                assertEquals(1, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                assertEquals(1, consumer.getNumReducePhases());
                 assertEquals(1, reductions.size());
                 assertEquals(false, reductions.get(0));
                 numTotalReducePhases = 2;
             } else {
-                assertEquals(0, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                assertEquals(0, consumer.getNumReducePhases());
                 assertEquals(0, reductions.size());
                 numTotalReducePhases = 1;
             }
@@ -1709,11 +1709,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
 
     private void testReduceCase(boolean shouldFail) throws Exception {
         int expectedNumResults = randomIntBetween(20, 200);
-        int bufferSize = randomIntBetween(2, expectedNumResults - 1);
-        SearchRequest request = new SearchRequest();
-
-        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
-        request.setBatchedReduceSize(bufferSize);
+        int batchedReduceSize = randomIntBetween(2, expectedNumResults - 1);
+        SearchRequest request = getAggregationSearchRequestWithBatchedReduceSize(batchedReduceSize);
         AtomicBoolean hasConsumedFailure = new AtomicBoolean();
         AssertingCircuitBreaker circuitBreaker = new AssertingCircuitBreaker(CircuitBreaker.REQUEST);
         boolean shouldFailPartial = shouldFail && randomBoolean();
@@ -1728,34 +1725,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             expectedNumResults,
             exc -> hasConsumedFailure.set(true)
         );
-        CountDownLatch latch = new CountDownLatch(expectedNumResults);
-        Thread[] threads = new Thread[expectedNumResults];
-        for (int i = 0; i < expectedNumResults; i++) {
-            final int index = i;
-            threads[index] = new Thread(() -> {
-                QuerySearchResult result = new QuerySearchResult(
-                    new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
-                    new SearchShardTarget("node", new ShardId("a", "b", index), null, OriginalIndices.NONE),
-                    null
-                );
-                result.topDocs(
-                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                    new DocValueFormat[0]
-                );
-                InternalAggregations aggs = InternalAggregations.from(
-                    Collections.singletonList(new InternalMax("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
-                );
-                result.aggregations(aggs);
-                result.setShardIndex(index);
-                result.size(1);
-                consumer.consumeResult(result, latch::countDown);
-            });
-            threads[index].start();
-        }
-        for (int i = 0; i < expectedNumResults; i++) {
-            threads[i].join();
-        }
-        latch.await();
+        consumeShardLevelQueryPhaseResultsAsync(expectedNumResults, consumer);
         if (shouldFail) {
             if (shouldFailPartial == false) {
                 circuitBreaker.shouldBreak.set(true);
@@ -1771,6 +1741,102 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         assertThat(circuitBreaker.allocated, equalTo(0L));
     }
 
+    public void testCancellationWithoutCircuitBreaker() throws Exception {
+        int expectedNumResults = randomIntBetween(20, 200);
+        int batchedReduceSize = randomIntBetween(2, expectedNumResults - 1);
+        SearchRequest request = getAggregationSearchRequestWithBatchedReduceSize(batchedReduceSize);
+        AssertingCircuitBreaker circuitBreaker = new AssertingCircuitBreaker(CircuitBreaker.REQUEST);
+        // To make it deterministic, we can count the number of times the partialReduce and reduce are called
+        // The exception is only thrown during the call to reduce which will happen once all shard level
+        // results have arrived
+        int partialReduceMethodCallCount = expectedNumResults / batchedReduceSize;
+        AtomicInteger checkCount = new AtomicInteger(expectedNumResults + partialReduceMethodCallCount);
+
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+            fixedExecutor,
+            circuitBreaker,
+            SearchProgressListener.NOOP,
+            request,
+            expectedNumResults,
+            exc -> {},
+            () -> {
+                return checkCount.decrementAndGet() <= 0;
+            }
+        );
+
+        consumeShardLevelQueryPhaseResultsAsync(expectedNumResults, consumer);
+
+        assertThrows(TaskCancelledException.class, consumer::reduce);
+    }
+
+    public void testCancellationDoesNotMaskCircuitBreakerException() throws Exception {
+        int expectedNumResults = randomIntBetween(20, 200);
+        int batchedReduceSize = randomIntBetween(2, expectedNumResults - 1);
+        SearchRequest request = getAggregationSearchRequestWithBatchedReduceSize(batchedReduceSize);
+        AssertingCircuitBreaker circuitBreaker = new AssertingCircuitBreaker(CircuitBreaker.REQUEST);
+
+        // making sure circuit breaker trips first
+        circuitBreaker.shouldBreak.set(true);
+        int partialReduceMethodCallCount = expectedNumResults / batchedReduceSize;
+        AtomicInteger checkCount = new AtomicInteger(expectedNumResults + partialReduceMethodCallCount);
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+            fixedExecutor,
+            circuitBreaker,
+            SearchProgressListener.NOOP,
+            request,
+            expectedNumResults,
+            exc -> {},
+            () -> {
+                return checkCount.decrementAndGet() <= 0;
+            }
+        );
+
+        consumeShardLevelQueryPhaseResultsAsync(expectedNumResults, consumer);
+
+        assertThrows(CircuitBreakingException.class, () -> consumer.reduce());
+    }
+
+    private static SearchRequest getAggregationSearchRequestWithBatchedReduceSize(int batchedReduceSize) {
+        SearchRequest request = new SearchRequest();
+
+        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
+        request.setBatchedReduceSize(batchedReduceSize);
+        return request;
+    }
+
+    private static void consumeShardLevelQueryPhaseResultsAsync(int expectedNumResults, QueryPhaseResultConsumer consumer)
+        throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(expectedNumResults);
+        Thread[] threads = new Thread[expectedNumResults];
+        for (int i = 0; i < expectedNumResults; i++) {
+            final int index = i;
+            threads[index] = new Thread(() -> {
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
+                    new SearchShardTarget("node", new ShardId("a", "b", index), null, OriginalIndices.NONE),
+                    null
+                );
+                result.topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]
+                );
+                InternalAggregations aggs = InternalAggregations.from(
+                    Collections.singletonList(new InternalMax("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
+                );
+                result.aggregations(aggs);
+                result.setShardIndex(index);
+                result.size(1);
+
+                consumer.consumeResult(result, latch::countDown);
+            });
+            threads[index].start();
+        }
+        for (int i = 0; i < expectedNumResults; i++) {
+            threads[i].join();
+        }
+        latch.await();
+    }
+
     private static class AssertingCircuitBreaker extends NoopCircuitBreaker {
         private final AtomicBoolean shouldBreak = new AtomicBoolean(false);
 
@@ -1782,7 +1848,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
 
         @Override
         public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            assert bytes >= 0;
+            assert bytes >= 0 : bytes + " is less than 0";
             if (shouldBreak.get()) {
                 throw new CircuitBreakingException(label, getDurability());
             }

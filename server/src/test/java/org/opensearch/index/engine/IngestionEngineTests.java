@@ -16,7 +16,6 @@ import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -36,7 +35,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -114,21 +112,10 @@ public class IngestionEngineTests extends EngineTestCase {
         // the commiit data is the start of the current batch
         Assert.assertEquals("1", commitData.get(StreamPoller.BATCH_START));
 
-        // verify the stored offsets
-        var offset = new FakeIngestionSource.FakeIngestionShardPointer(0);
-        ingestionEngine.refresh("read_offset");
-        try (Engine.Searcher searcher = ingestionEngine.acquireSearcher("read_offset")) {
-            Set<IngestionShardPointer> persistedPointers = ingestionEngine.fetchPersistedOffsets(
-                Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
-                offset
-            );
-            Assert.assertEquals(2, persistedPointers.size());
-        }
-
         // validate ingestion state on successful engine creation
         ShardIngestionState ingestionState = ingestionEngine.getIngestionState();
-        assertEquals("test", ingestionState.index());
-        assertEquals("DROP", ingestionState.errorPolicy());
+        assertEquals("test", ingestionState.getIndex());
+        assertEquals("DROP", ingestionState.getErrorPolicy());
         assertFalse(ingestionState.isPollerPaused());
         assertFalse(ingestionState.isWriteBlockEnabled());
     }
@@ -200,7 +187,7 @@ public class IngestionEngineTests extends EngineTestCase {
         ingestionEngine.updateIngestionSettings(IngestionSettings.builder().setIsPaused(true).build());
         // resume ingestion with offset reset
         ingestionEngine.updateIngestionSettings(
-            IngestionSettings.builder().setIsPaused(false).setResetState(StreamPoller.ResetState.RESET_BY_OFFSET).setResetValue("0").build()
+            IngestionSettings.builder().setIsPaused(false).setResetState(StreamPoller.ResetState.RESET_BY_OFFSET).setResetValue("1").build()
         );
         ShardIngestionState resumedIngestionState = ingestionEngine.getIngestionState();
         assertEquals(false, resumedIngestionState.isPollerPaused());
@@ -208,7 +195,35 @@ public class IngestionEngineTests extends EngineTestCase {
         publishData("{\"_id\":\"7\",\"_source\":{\"name\":\"jane\", \"age\": 27}}");
         waitForResults(ingestionEngine, 7);
         PollingIngestStats stats = ingestionEngine.pollingIngestStats();
-        assertEquals(6, stats.getConsumerStats().totalDuplicateMessageSkippedCount());
+        assertEquals(6, stats.getConsumerStats().totalPolledCount());
+    }
+
+    public void testShouldPeriodicallyFlush() throws IOException {
+        // Wait for messages to be ingested first so batchStartPointer is set
+        waitForResults(ingestionEngine, 2);
+
+        // Should flush because lastCommittedBatchStartPointer is null (no commit yet)
+        assertTrue(ingestionEngine.shouldPeriodicallyFlush());
+
+        // After first flush, lastCommittedBatchStartPointer is set
+        ingestionEngine.flush(false, true);
+
+        // Should not flush immediately after commit since pointer hasn't changed
+        assertFalse(ingestionEngine.shouldPeriodicallyFlush());
+
+        // Publish new messages, which will advance the batch start pointer
+        publishData("{\"_id\":\"3\",\"_source\":{\"name\":\"john\", \"age\": 30}}");
+        publishData("{\"_id\":\"4\",\"_source\":{\"name\":\"jane\", \"age\": 25}}");
+        waitForResults(ingestionEngine, 4);
+
+        // Should flush because batchStartPointer has changed since last commit
+        assertTrue(ingestionEngine.shouldPeriodicallyFlush());
+
+        // Flush again
+        ingestionEngine.flush(false, true);
+
+        // Should not flush immediately after commit
+        assertFalse(ingestionEngine.shouldPeriodicallyFlush());
     }
 
     private IngestionEngine buildIngestionEngine(

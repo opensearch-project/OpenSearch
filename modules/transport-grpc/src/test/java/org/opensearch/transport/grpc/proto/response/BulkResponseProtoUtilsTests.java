@@ -40,15 +40,15 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse);
 
         // Verify the conversion
-        assertEquals("Should have the correct took time", 100, protoResponse.getBulkResponseBody().getTook());
-        assertFalse("Should not have errors", protoResponse.getBulkResponseBody().getErrors());
-        assertEquals("Should have 1 item", 1, protoResponse.getBulkResponseBody().getItemsCount());
+        assertEquals("Should have the correct took time", 100, protoResponse.getTook());
+        assertFalse("Should not have errors", protoResponse.getErrors());
+        assertEquals("Should have 1 item", 1, protoResponse.getItemsCount());
 
         // Verify the item response
-        org.opensearch.protobufs.Item item = protoResponse.getBulkResponseBody().getItems(0);
-        org.opensearch.protobufs.ResponseItem responseItem = item.getIndex();
-        assertEquals("Should have the correct index", "test-index", responseItem.getIndex());
-        assertEquals("Should have the correct id", "test-id", responseItem.getId().getString());
+        org.opensearch.protobufs.Item item = protoResponse.getItems(0);
+        org.opensearch.protobufs.ResponseItem responseItem = item.getIndex(); // Since this is an INDEX operation
+        assertEquals("Should have the correct index", "test-index", responseItem.getXIndex());
+        assertEquals("Should have the correct id", "test-id", responseItem.getXId());
         assertEquals("Should have the correct status", Status.OK.getCode().value(), responseItem.getStatus());
     }
 
@@ -68,15 +68,15 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse);
 
         // Verify the conversion
-        assertEquals("Should have the correct took time", 100, protoResponse.getBulkResponseBody().getTook());
-        assertTrue("Should have errors", protoResponse.getBulkResponseBody().getErrors());
-        assertEquals("Should have 1 item", 1, protoResponse.getBulkResponseBody().getItemsCount());
+        assertEquals("Should have the correct took time", 100, protoResponse.getTook());
+        assertTrue("Should have errors", protoResponse.getErrors());
+        assertEquals("Should have 1 item", 1, protoResponse.getItemsCount());
 
         // Verify the item response
-        org.opensearch.protobufs.Item item = protoResponse.getBulkResponseBody().getItems(0);
-        org.opensearch.protobufs.ResponseItem responseItem = item.getIndex();
-        assertEquals("Should have the correct index", "test-index", responseItem.getIndex());
-        assertEquals("Should have the correct id", "test-id", responseItem.getId().getString());
+        org.opensearch.protobufs.Item item = protoResponse.getItems(0);
+        org.opensearch.protobufs.ResponseItem responseItem = item.getIndex(); // Since this is an INDEX operation
+        assertEquals("Should have the correct index", "test-index", responseItem.getXIndex());
+        assertEquals("Should have the correct id", "test-id", responseItem.getXId());
         assertTrue("Should have error", responseItem.getError().getReason().length() > 0);
     }
 
@@ -97,7 +97,7 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(bulkResponse);
 
         // Verify the conversion
-        assertEquals("Should have the correct took time", 100, protoResponse.getBulkResponseBody().getTook());
-        assertEquals("Should have the correct ingest took time", 50, protoResponse.getBulkResponseBody().getIngestTook());
+        assertEquals("Should have the correct took time", 100, protoResponse.getTook());
+        assertEquals("Should have the correct ingest took time", 50, protoResponse.getIngestTook());
     }
 }

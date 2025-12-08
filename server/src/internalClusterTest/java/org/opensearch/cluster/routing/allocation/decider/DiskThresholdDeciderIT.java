@@ -54,12 +54,14 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.opensearch.cluster.routing.allocation.FileCacheThresholdSettings;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.Rebalance;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.Environment;
@@ -67,6 +69,8 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsService;
 import org.opensearch.node.Node;
@@ -91,6 +95,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -226,6 +231,143 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
         fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, hasSize(1));
+    }
+
+    public void testIndexWriteBlockWhenNodeFileCacheActiveUsageExceedsIndexThreshold() throws Exception {
+        assumeTrue("Test should only run in the default (non-parameterized) test suite", WRITABLE_WARM_INDEX_SETTING.get(settings) == true);
+        Settings nodeSettings = buildTestSettings(false, null);
+        internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        var nodeNames = startTestNodes(1, nodeSettings);
+        ensureStableCluster(2);
+
+        List<String> indexList = createTestIndices(nodeNames);
+        simulateFileCacheActiveUsage(getMockInternalClusterInfoService(), 90L, 100L, 100L);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+            for (String index : indexList) {
+                assertTrue(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
+            }
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testIndexWriteBlockWhenNodeFileCacheActiveUsageDropsBelowIndexThreshold() throws Exception {
+        assumeTrue("Test should only run in the default (non-parameterized) test suite", WRITABLE_WARM_INDEX_SETTING.get(settings) == true);
+        Settings nodeSettings = buildTestSettings(false, null);
+        internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        var nodeNames = startTestNodes(1, nodeSettings);
+        ensureStableCluster(2);
+
+        List<String> indexList = createTestIndices(nodeNames);
+        Settings readBlockSettings = Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build();
+
+        client().admin().indices().prepareUpdateSettings(indexList.toArray(Strings.EMPTY_ARRAY)).setSettings(readBlockSettings);
+        simulateFileCacheActiveUsage(getMockInternalClusterInfoService(), 89L, 100L, 100L);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+            for (String index : indexList) {
+                assertFalse(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
+            }
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testIndexWriteBlockWhenNodeFileCacheActiveUsageExceedsSearchThreshold() throws Exception {
+        assumeTrue("Test should only run in the default (non-parameterized) test suite", WRITABLE_WARM_INDEX_SETTING.get(settings) == true);
+        Settings nodeSettings = buildTestSettings(false, null);
+        internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        var nodeNames = startTestNodes(1, nodeSettings);
+        ensureStableCluster(2);
+
+        List<String> indexList = createTestIndices(nodeNames);
+        simulateFileCacheActiveUsage(getMockInternalClusterInfoService(), 100L, 100L, 100L);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+            for (String index : indexList) {
+                assertTrue(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK));
+                assertTrue(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
+            }
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testIndexWriteBlockWhenNodeFileCacheActiveUsageExceedsSearchThresholdInBytes() throws Exception {
+        assumeTrue("Test should only run in the default (non-parameterized) test suite", WRITABLE_WARM_INDEX_SETTING.get(settings) == true);
+        Settings nodeSettings = buildTestSettings(false, null);
+        internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        var nodeNames = startTestNodes(1, nodeSettings);
+        Settings fileCacheModifiedSettings = Settings.builder()
+            .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING.getKey(), "900b")
+            .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey(), "1000b")
+            .build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(fileCacheModifiedSettings).get();
+        ensureStableCluster(2);
+
+        List<String> indexList = createTestIndices(nodeNames);
+        simulateFileCacheActiveUsage(getMockInternalClusterInfoService(), 1000L, 1000L, 1000L);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+            for (String index : indexList) {
+                assertTrue(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK));
+                assertTrue(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
+            }
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testIndexWriteBlockWhenNodeFileCacheActiveUsageExceedsSearchThresholdWithFeatureToggle() throws Exception {
+        assumeTrue("Test should only run in the default (non-parameterized) test suite", WRITABLE_WARM_INDEX_SETTING.get(settings) == true);
+        Settings nodeSettings = buildTestSettings(false, null);
+        internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        var nodeNames = startTestNodes(1, nodeSettings);
+        ensureStableCluster(2);
+
+        List<String> indexList = createTestIndices(nodeNames);
+        Settings clusterFileCacheDisabled = Settings.builder()
+            .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_THRESHOLD_ENABLED_SETTING.getKey(), Boolean.FALSE.toString())
+            .build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(clusterFileCacheDisabled).get();
+        simulateFileCacheActiveUsage(getMockInternalClusterInfoService(), 100L, 100L, 100L);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+            for (String index : indexList) {
+                assertFalse(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK));
+                assertFalse(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
+            }
+        }, 30L, TimeUnit.SECONDS);
+
+    }
+
+    public void testIndexWriteBlockWhenNodeFileCacheActiveUsageDropsBelowSearchThreshold() throws Exception {
+        assumeTrue("Test should only run in the default (non-parameterized) test suite", WRITABLE_WARM_INDEX_SETTING.get(settings) == true);
+        Settings nodeSettings = buildTestSettings(false, null);
+        internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        var nodeNames = startTestNodes(1, nodeSettings);
+        ensureStableCluster(2);
+
+        List<String> indexList = createTestIndices(nodeNames);
+        Settings readBlockSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_BLOCKS_READ, Boolean.TRUE.toString())
+            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString())
+            .build();
+
+        client().admin().indices().prepareUpdateSettings(indexList.toArray(Strings.EMPTY_ARRAY)).setSettings(readBlockSettings);
+        simulateFileCacheActiveUsage(getMockInternalClusterInfoService(), 99L, 100L, 100L);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+            for (String index : indexList) {
+                assertFalse(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK));
+                assertTrue(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
+            }
+        }, 30L, TimeUnit.SECONDS);
     }
 
     public void testIndexCreateBlockWhenAllNodesExceededHighWatermark() throws Exception {
@@ -503,12 +645,6 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
         }, 30L, TimeUnit.SECONDS);
     }
 
-    private String populateNode(final String dataNodeName) throws Exception {
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createAndPopulateIndex(indexName, dataNodeName);
-        return indexName;
-    }
-
     private void createIndex(String indexName, String nodeName, boolean isWarmIndex) throws Exception {
         final Settings.Builder indexSettingBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -603,6 +739,54 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
 
     private static FsInfo.Path setDiskUsage(FsInfo.Path original, long totalBytes, long freeBytes) {
         return new FsInfo.Path(original.getPath(), original.getMount(), totalBytes, freeBytes, freeBytes);
+    }
+
+    private static AggregateFileCacheStats setAggregateFileCacheStats(long active, long used, long totalCacheSize) {
+        FileCacheStats overallStats = new FileCacheStats(
+            active,
+            totalCacheSize,
+            used,
+            0,
+            0,
+            0,
+            0,
+            0,
+            AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS
+        );
+        FileCacheStats fullStats = new FileCacheStats(
+            0,
+            totalCacheSize,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            AggregateFileCacheStats.FileCacheStatsType.FULL_FILE_STATS
+        );
+        FileCacheStats blockStats = new FileCacheStats(
+            0,
+            totalCacheSize,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            AggregateFileCacheStats.FileCacheStatsType.BLOCK_FILE_STATS
+        );
+        FileCacheStats pinnedStats = new FileCacheStats(
+            0,
+            totalCacheSize,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            AggregateFileCacheStats.FileCacheStatsType.PINNED_FILE_STATS
+        );
+        return new AggregateFileCacheStats(System.currentTimeMillis(), overallStats, fullStats, blockStats, pinnedStats);
     }
 
     private void refreshDiskUsage() {
@@ -705,16 +889,33 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
     }
 
     /**
+     * Helper method to simulate disk pressure for both hot and warm indices
+     */
+    private void simulateFileCacheActiveUsage(
+        MockInternalClusterInfoService clusterInfoService,
+        long active,
+        long used,
+        long totalCacheSize
+    ) {
+        clusterInfoService.setAggregateFileCacheStats(setAggregateFileCacheStats(active, used, totalCacheSize));
+    }
+
+    /**
      * Helper method to create test indices for both hot and warm scenarios
      */
-    private void createTestIndices(List<String> nodeNames) throws Exception {
+    private List<String> createTestIndices(List<String> nodeNames) throws Exception {
         boolean isWarmIndex = WRITABLE_WARM_INDEX_SETTING.get(settings);
-        if (isWarmIndex && nodeNames.size() >= 2) {
+        List<String> indexList = new ArrayList<>();
+        if (isWarmIndex && !nodeNames.isEmpty()) {
             // Create warm indices on specific nodes
-            createIndex(randomAlphaOfLength(10).toLowerCase(Locale.ROOT), nodeNames.get(0), true);
-            createIndex(randomAlphaOfLength(10).toLowerCase(Locale.ROOT), nodeNames.get(1), true);
+            for (String nodeName : nodeNames) {
+                String index = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+                createIndex(index, nodeName, true);
+                indexList.add(index);
+            }
         }
         // For hot indices, no pre-creation needed as disk usage simulation handles it
+        return indexList;
     }
 
     private static class TestFileStore extends FilterFileStore {

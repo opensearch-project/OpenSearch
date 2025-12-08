@@ -41,6 +41,7 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SkipWhenEmpty
+import groovy.ant.AntBuilder
 
 import javax.inject.Inject
 

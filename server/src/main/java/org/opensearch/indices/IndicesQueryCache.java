@@ -35,15 +35,20 @@ package org.opensearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.LRUQueryCache;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.ShardCoreKeyMap;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -91,6 +96,33 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         Property.NodeScope
     );
 
+    // dynamic change the skipCacheFactor for query_cache
+    public static final Setting<Float> INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR = Setting.floatSetting(
+        "indices.queries.cache.skip_cache_factor",
+        10,
+        1,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    // dynamic change the min frequency cache threshold for query
+    public static final Setting<Integer> INDICES_QUERY_CACHE_MIN_FREQUENCY = Setting.intSetting(
+        "indices.queries.cache.min_frequency",
+        5,
+        1,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    // dynamic change the min frequency cache threshold for costly query
+    public static final Setting<Integer> INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY = Setting.intSetting(
+        "indices.queries.cache.costly_min_frequency",
+        2,
+        1,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
@@ -101,16 +133,38 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     // See onDocIdSetEviction for more info
     private final Map<Object, StatsAndCount> stats2 = Collections.synchronizedMap(new IdentityHashMap<>());
 
+    // Compatible for public api
     public IndicesQueryCache(Settings settings) {
+        this(settings, null);
+    }
+
+    public IndicesQueryCache(Settings settings, ClusterSettings clusterSettings) {
         final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);
         final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
-        logger.debug("using [node] query cache with size [{}] max filter count [{}]", size, count);
+        float skipCacheFactor = INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.get(settings);
+        logger.debug("using [node] query cache with size [{}] max filter count [{}] skipCacheFactor [{}]", size, count, skipCacheFactor);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
             cache = new OpenSearchLRUQueryCache(count, size.getBytes(), context -> true, 1f);
         } else {
             cache = new OpenSearchLRUQueryCache(count, size.getBytes());
+            cache.setSkipCacheFactor(skipCacheFactor);
+            if (clusterSettings != null) {
+                clusterSettings.addSettingsUpdateConsumer(INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR, this::setSkipCacheFactor);
+            } else {
+                logger.warn("clusterSettings is null, so {} is not dynamic", INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.getKey());
+            }
         }
         sharedRamBytesUsed = 0;
+    }
+
+    public void setSkipCacheFactor(float skipCacheFactor) {
+        logger.debug(
+            "set cluster settings {} {} -> {}",
+            INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.getKey(),
+            this.cache.getSkipCacheFactor(),
+            skipCacheFactor
+        );
+        cache.setSkipCacheFactor(skipCacheFactor);
     }
 
     /** Get usage statistics for the given shard. */
@@ -129,7 +183,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         // We also have some shared ram usage that we try to distribute to
         // proportionally to their number of cache entries of each shard
         if (stats.isEmpty()) {
-            shardStats.add(new QueryCacheStats(sharedRamBytesUsed, 0, 0, 0, 0));
+            shardStats.add(
+                new QueryCacheStats.Builder().ramBytesUsed(sharedRamBytesUsed).hitCount(0).missCount(0).cacheCount(0).cacheSize(0).build()
+            );
         } else {
             long totalSize = 0;
             for (QueryCacheStats s : stats.values()) {
@@ -137,15 +193,22 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             }
             final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
             final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
-            shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
+            shardStats.add(
+                new QueryCacheStats.Builder().ramBytesUsed(additionalRamBytesUsed)
+                    .hitCount(0)
+                    .missCount(0)
+                    .cacheCount(0)
+                    .cacheSize(0)
+                    .build()
+            );
         }
         return shardStats;
     }
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        while (weight instanceof CachingWeightWrapper) {
-            weight = ((CachingWeightWrapper) weight).in;
+        while (weight instanceof CachingWeightWrapper cachingWeightWrapper) {
+            weight = cachingWeightWrapper.in;
         }
         final Weight in = cache.doCache(weight, policy);
         // We wrap the weight to track the readers it sees and map them with
@@ -233,7 +296,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         QueryCacheStats toQueryCacheStats() {
-            return new QueryCacheStats(ramBytesUsed, hitCount, missCount, cacheCount, cacheSize);
+            return new QueryCacheStats.Builder().ramBytesUsed(ramBytesUsed)
+                .hitCount(hitCount)
+                .missCount(missCount)
+                .cacheCount(cacheCount)
+                .cacheSize(cacheSize)
+                .build();
         }
 
         @Override
@@ -391,6 +459,65 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             super.onMiss(readerCoreKey, filter);
             final Stats shardStats = getOrCreateStats(readerCoreKey);
             shardStats.missCount += 1;
+        }
+    }
+
+    /**
+     * Custom caching policy for Opensearch.
+     */
+    public static class OpenseachUsageTrackingQueryCachingPolicy extends UsageTrackingQueryCachingPolicy {
+        private volatile int minFrequency;
+        private volatile int minFrequencyForCostly;
+
+        public OpenseachUsageTrackingQueryCachingPolicy(ClusterSettings clusterSettings) {
+            minFrequency = clusterSettings.get(INDICES_QUERY_CACHE_MIN_FREQUENCY);
+            minFrequencyForCostly = clusterSettings.get(INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY);
+            clusterSettings.addSettingsUpdateConsumer(INDICES_QUERY_CACHE_MIN_FREQUENCY, this::setMinFrequency);
+            clusterSettings.addSettingsUpdateConsumer(INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY, this::setMinFrequencyForCostly);
+        }
+
+        @Override
+        protected int minFrequencyToCache(Query query) {
+            if (isCostly(query)) {
+                return minFrequencyForCostly;
+            }
+            int minFrequency = this.minFrequency;
+            if (query instanceof BooleanQuery || query instanceof DisjunctionMaxQuery) {
+                --minFrequency;
+            }
+
+            return Math.max(1, minFrequency);
+        }
+
+        /**
+         * Same to Lucene's UsageTrackingQueryCachingPolicy.isCostly, it's not public in Lucene.
+         * Given that lucene doesn't give the desired extensibility at this point.
+         * Also, we can extend it if needed.
+         */
+        private boolean isCostly(Query query) {
+            return query instanceof MultiTermQuery
+                || query.getClass().getSimpleName().equals("MultiTermQueryConstantScoreBlendedWrapper")
+                || query.getClass().getSimpleName().equals("MultiTermQueryConstantScoreWrapper")
+                || isPointQuery(query);
+        }
+
+        // Same to Lucene's UsageTrackingQueryCachingPolicy.isPointQuery
+        private boolean isPointQuery(Query query) {
+            for (Class<?> clazz = query.getClass(); clazz != Query.class; clazz = clazz.getSuperclass()) {
+                final String simpleName = clazz.getSimpleName();
+                if (simpleName.startsWith("Point") && simpleName.endsWith("Query")) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void setMinFrequency(int minFrequency) {
+            this.minFrequency = minFrequency;
+        }
+
+        public void setMinFrequencyForCostly(int minFrequencyForCostly) {
+            this.minFrequencyForCostly = minFrequencyForCostly;
         }
     }
 }

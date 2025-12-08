@@ -66,6 +66,7 @@ allprojects {
           target '**/*.java'
 
           removeUnusedImports()
+          forbidWildcardImports()
           importOrder(
               'de.thetaphi',
               'com.carrotsearch',
@@ -81,17 +82,9 @@ allprojects {
               '',
               '\\#java|\\#org.opensearch|\\#org.hamcrest|\\#'
           )
-
-          eclipse().withP2Mirrors(Map.of("https://download.eclipse.org/", "https://mirror.umd.edu/eclipse/")).configFile rootProject.file('buildSrc/formatterConfig.xml')
+          eclipse().configFile rootProject.file('buildSrc/formatterConfig.xml')
           trimTrailingWhitespace()
           endWithNewline()
-
-          custom 'Refuse wildcard imports', {
-                // Wildcard imports can't be resolved; fail the build
-                if (it =~ /\s+import .*\*;/) {
-                    throw new AssertionError("Do not use wildcard imports.  'spotlessApply' cannot resolve this issue.")
-                }
-          }
 
           // See DEVELOPER_GUIDE.md for details of when to enable this.
           if (System.getProperty('spotless.paddedcell') != null) {
@@ -101,7 +94,7 @@ allprojects {
         format 'misc', {
             target '*.md', '*.gradle', '**/*.json', '**/*.yaml', '**/*.yml', '**/*.svg'
 
-            targetExclude '**/simple-bulk11.json', '**/simple-msearch5.json'
+            targetExclude '**/simple-bulk11.json', '**/simple-msearch5.json', '**/build/**', '**/build-bootstrap/**'
 
             trimTrailingWhitespace()
             endWithNewline()

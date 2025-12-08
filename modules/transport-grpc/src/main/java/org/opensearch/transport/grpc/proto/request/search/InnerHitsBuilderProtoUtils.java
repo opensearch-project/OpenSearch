@@ -7,7 +7,6 @@
  */
 package org.opensearch.transport.grpc.proto.request.search;
 
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.protobufs.InnerHits;
 import org.opensearch.protobufs.ScriptField;
@@ -15,6 +14,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.subphase.FieldAndFormat;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,82 +34,88 @@ public class InnerHitsBuilderProtoUtils {
     }
 
     /**
-     * Similar to {@link InnerHitBuilder#fromXContent(XContentParser)}
+     * Converts a single protobuf InnerHits to an OpenSearch InnerHitBuilder.
+     * Each InnerHits protobuf message represents ONE inner hit definition.
      *
-     * @param innerHits
+     * @param innerHits the protobuf InnerHits to convert
+     * @param registry The registry for query conversion (needed for sorts and highlights with queries)
+     * @return the converted OpenSearch InnerHitBuilder
      * @throws IOException if there's an error during parsing
      */
-    protected static InnerHitBuilder fromProto(List<InnerHits> innerHits) throws IOException {
+    public static InnerHitBuilder fromProto(InnerHits innerHits, QueryBuilderProtoConverterRegistry registry) throws IOException {
+        if (innerHits == null) {
+            throw new IllegalArgumentException("InnerHits cannot be null");
+        }
+
         InnerHitBuilder innerHitBuilder = new InnerHitBuilder();
 
-        for (InnerHits innerHit : innerHits) {
-            if (innerHit.hasName()) {
-                innerHitBuilder.setName(innerHit.getName());
-            }
-            if (innerHit.hasIgnoreUnmapped()) {
-                innerHitBuilder.setIgnoreUnmapped(innerHit.getIgnoreUnmapped());
-            }
-            if (innerHit.hasFrom()) {
-                innerHitBuilder.setFrom(innerHit.getFrom());
-            }
-            if (innerHit.hasSize()) {
-                innerHitBuilder.setSize(innerHit.getSize());
-            }
-            if (innerHit.hasExplain()) {
-                innerHitBuilder.setExplain(innerHit.getExplain());
-            }
-            if (innerHit.hasVersion()) {
-                innerHitBuilder.setVersion(innerHit.getVersion());
-            }
-            if (innerHit.hasSeqNoPrimaryTerm()) {
-                innerHitBuilder.setSeqNoAndPrimaryTerm(innerHit.getSeqNoPrimaryTerm());
-            }
-            if (innerHit.hasTrackScores()) {
-                innerHitBuilder.setTrackScores(innerHit.getTrackScores());
-            }
-            if (innerHit.getStoredFieldsCount() > 0) {
-                innerHitBuilder.setStoredFieldNames(innerHit.getStoredFieldsList());
-            }
-            if (innerHit.getDocvalueFieldsCount() > 0) {
-                List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
-                for (org.opensearch.protobufs.FieldAndFormat fieldAndFormat : innerHit.getDocvalueFieldsList()) {
-                    fieldAndFormatList.add(FieldAndFormatProtoUtils.fromProto(fieldAndFormat));
-                }
-                innerHitBuilder.setDocValueFields(fieldAndFormatList);
-            }
-            if (innerHit.getFieldsCount() > 0) {
-                List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
-                for (org.opensearch.protobufs.FieldAndFormat fieldAndFormat : innerHit.getFieldsList()) {
-                    fieldAndFormatList.add(FieldAndFormatProtoUtils.fromProto(fieldAndFormat));
-                }
-                innerHitBuilder.setFetchFields(fieldAndFormatList);
-            }
-            if (innerHit.getScriptFieldsCount() > 0) {
-                Set<SearchSourceBuilder.ScriptField> scriptFields = new HashSet<>();
-                for (Map.Entry<String, ScriptField> entry : innerHit.getScriptFieldsMap().entrySet()) {
-                    String name = entry.getKey();
-                    ScriptField scriptFieldProto = entry.getValue();
-                    SearchSourceBuilder.ScriptField scriptField = SearchSourceBuilderProtoUtils.ScriptFieldProtoUtils.fromProto(
-                        name,
-                        scriptFieldProto
-                    );
-                    scriptFields.add(scriptField);
-                }
-                innerHitBuilder.setScriptFields(scriptFields);
-            }
-            if (innerHit.getSortCount() > 0) {
-                innerHitBuilder.setSorts(SortBuilderProtoUtils.fromProto(innerHit.getSortList()));
-            }
-            if (innerHit.hasSource()) {
-                innerHitBuilder.setFetchSourceContext(FetchSourceContextProtoUtils.fromProto(innerHit.getSource()));
-            }
-            if (innerHit.hasHighlight()) {
-                innerHitBuilder.setHighlightBuilder(HighlightBuilderProtoUtils.fromProto(innerHit.getHighlight()));
-            }
-            if (innerHit.hasCollapse()) {
-                innerHitBuilder.setInnerCollapse(CollapseBuilderProtoUtils.fromProto(innerHit.getCollapse()));
-            }
+        if (innerHits.hasName()) {
+            innerHitBuilder.setName(innerHits.getName());
         }
+        if (innerHits.hasIgnoreUnmapped()) {
+            innerHitBuilder.setIgnoreUnmapped(innerHits.getIgnoreUnmapped());
+        }
+        if (innerHits.hasFrom()) {
+            innerHitBuilder.setFrom(innerHits.getFrom());
+        }
+        if (innerHits.hasSize()) {
+            innerHitBuilder.setSize(innerHits.getSize());
+        }
+        if (innerHits.hasExplain()) {
+            innerHitBuilder.setExplain(innerHits.getExplain());
+        }
+        if (innerHits.hasVersion()) {
+            innerHitBuilder.setVersion(innerHits.getVersion());
+        }
+        if (innerHits.hasSeqNoPrimaryTerm()) {
+            innerHitBuilder.setSeqNoAndPrimaryTerm(innerHits.getSeqNoPrimaryTerm());
+        }
+        if (innerHits.hasTrackScores()) {
+            innerHitBuilder.setTrackScores(innerHits.getTrackScores());
+        }
+        if (innerHits.getStoredFieldsCount() > 0) {
+            innerHitBuilder.setStoredFieldNames(innerHits.getStoredFieldsList());
+        }
+        if (innerHits.getDocvalueFieldsCount() > 0) {
+            List<FieldAndFormat> docvalueFieldsList = new ArrayList<>();
+            for (org.opensearch.protobufs.FieldAndFormat fieldAndFormat : innerHits.getDocvalueFieldsList()) {
+                docvalueFieldsList.add(FieldAndFormatProtoUtils.fromProto(fieldAndFormat));
+            }
+            innerHitBuilder.setDocValueFields(docvalueFieldsList);
+        }
+        if (innerHits.getFieldsCount() > 0) {
+            List<FieldAndFormat> fieldsList = new ArrayList<>();
+            for (org.opensearch.protobufs.FieldAndFormat fieldAndFormat : innerHits.getFieldsList()) {
+                fieldsList.add(FieldAndFormatProtoUtils.fromProto(fieldAndFormat));
+            }
+            innerHitBuilder.setFetchFields(fieldsList);
+        }
+        if (innerHits.getScriptFieldsCount() > 0) {
+            Set<SearchSourceBuilder.ScriptField> scriptFields = new HashSet<>();
+            for (Map.Entry<String, ScriptField> entry : innerHits.getScriptFieldsMap().entrySet()) {
+                String name = entry.getKey();
+                ScriptField scriptFieldProto = entry.getValue();
+                SearchSourceBuilder.ScriptField scriptField = SearchSourceBuilderProtoUtils.ScriptFieldProtoUtils.fromProto(
+                    name,
+                    scriptFieldProto
+                );
+                scriptFields.add(scriptField);
+            }
+            innerHitBuilder.setScriptFields(scriptFields);
+        }
+        if (innerHits.getSortCount() > 0) {
+            innerHitBuilder.setSorts(SortBuilderProtoUtils.fromProto(innerHits.getSortList(), registry));
+        }
+        if (innerHits.hasXSource()) {
+            innerHitBuilder.setFetchSourceContext(FetchSourceContextProtoUtils.fromProto(innerHits.getXSource()));
+        }
+        if (innerHits.hasHighlight()) {
+            innerHitBuilder.setHighlightBuilder(HighlightBuilderProtoUtils.fromProto(innerHits.getHighlight(), registry));
+        }
+        if (innerHits.hasCollapse()) {
+            innerHitBuilder.setInnerCollapse(CollapseBuilderProtoUtils.fromProto(innerHits.getCollapse(), registry));
+        }
+
         return innerHitBuilder;
     }
 

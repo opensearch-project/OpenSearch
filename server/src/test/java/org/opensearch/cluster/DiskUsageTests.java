@@ -122,7 +122,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
         Path test0Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
         CommonStats commonStats0 = new CommonStats();
-        commonStats0.store = new StoreStats(100, 0L);
+        commonStats0.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
         ShardRouting test_1 = ShardRouting.newUnassigned(
             new ShardId(index, 1),
             false,
@@ -133,10 +133,24 @@ public class DiskUsageTests extends OpenSearchTestCase {
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
         Path test1Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("1");
         CommonStats commonStats1 = new CommonStats();
-        commonStats1.store = new StoreStats(1000, 0L);
+        commonStats1.store = new StoreStats.Builder().sizeInBytes(1000).reservedSize(0L).build();
         ShardStats[] stats = new ShardStats[] {
-            new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0, null, null, null, null),
-            new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1, null, null, null, null) };
+            new ShardStats.Builder().shardRouting(test_0)
+                .shardPath(new ShardPath(false, test0Path, test0Path, test_0.shardId()))
+                .commonStats(commonStats0)
+                .commitStats(null)
+                .seqNoStats(null)
+                .retentionLeaseStats(null)
+                .pollingIngestStats(null)
+                .build(),
+            new ShardStats.Builder().shardRouting(test_1)
+                .shardPath(new ShardPath(false, test1Path, test1Path, test_1.shardId()))
+                .commonStats(commonStats1)
+                .commitStats(null)
+                .seqNoStats(null)
+                .retentionLeaseStats(null)
+                .pollingIngestStats(null)
+                .build() };
         final Map<String, Long> shardSizes = new HashMap<>();
         final Map<ShardRouting, String> routingToPath = new HashMap<>();
         InternalClusterInfoService.buildShardLevelInfo(logger, stats, shardSizes, routingToPath, new HashMap<>());

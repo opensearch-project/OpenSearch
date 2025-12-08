@@ -105,9 +105,6 @@ testingConventions {
 thirdPartyAudit {
   ignoreMissingClasses(
       'org.conscrypt.Conscrypt',
-      'org.slf4j.impl.StaticLoggerBinder',
-      'org.slf4j.impl.StaticMDCBinder',
-      'org.slf4j.impl.StaticMarkerBinder',
       //commons-logging optional dependencies
       'org.apache.avalon.framework.logger.Logger',
       'org.apache.log.Hierarchy',
@@ -115,6 +112,16 @@ thirdPartyAudit {
       'org.apache.log4j.Level',
       'org.apache.log4j.Logger',
       'org.apache.log4j.Priority',
+      'org.apache.logging.log4j.Level',
+      'org.apache.logging.log4j.LogManager',
+      'org.apache.logging.log4j.Marker',
+      'org.apache.logging.log4j.MarkerManager',
+      'org.apache.logging.log4j.spi.AbstractLoggerAdapter',
+      'org.apache.logging.log4j.spi.ExtendedLogger',
+      'org.apache.logging.log4j.spi.LoggerAdapter',
+      'org.apache.logging.log4j.spi.LoggerContext',
+      'org.apache.logging.log4j.spi.LoggerContextFactory',
+      'org.apache.logging.log4j.util.StackLocatorUtil',
       //commons-logging provided dependencies
       'javax.servlet.ServletContextEvent',
       'javax.servlet.ServletContextListener',

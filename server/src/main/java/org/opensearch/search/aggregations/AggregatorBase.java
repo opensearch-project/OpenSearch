@@ -73,6 +73,7 @@ public abstract class AggregatorBase extends Aggregator {
     private Map<String, Aggregator> subAggregatorbyName;
     private final CircuitBreakerService breakerService;
     private long requestBytesUsed;
+    protected LeafCollectionMode leafCollectorMode = LeafCollectionMode.NORMAL;
 
     /**
      * Constructs a new Aggregator.
@@ -236,6 +237,23 @@ public abstract class AggregatorBase extends Aggregator {
         return false;
     }
 
+    /**
+     * To be used in conjunction with <code>tryPrecomputeAggregationForLeaf()</code>
+     * or <code>getLeafCollector</code> method.
+     */
+    public LeafCollectionMode getLeafCollectorMode() {
+        return leafCollectorMode;
+    }
+
+    /**
+     * To be used in conjunction with <code>tryPrecomputeAggregationForLeaf()</code>
+     * or <code>getLeafCollector</code> method.
+     */
+    public enum LeafCollectionMode {
+        NORMAL,
+        FILTER_REWRITE
+    }
+
     @Override
     public final void preCollection() throws IOException {
         List<BucketCollector> collectors = Arrays.asList(subAggregators);
@@ -305,7 +323,7 @@ public abstract class AggregatorBase extends Aggregator {
         collectableSubAggregators.reset();
     }
 
-    protected void doReset() {}
+    public void doReset() {}
 
     /** Called upon release of the aggregator. */
     @Override
@@ -343,4 +361,5 @@ public abstract class AggregatorBase extends Aggregator {
             throw new TaskCancelledException("The query has been cancelled");
         }
     }
+
 }

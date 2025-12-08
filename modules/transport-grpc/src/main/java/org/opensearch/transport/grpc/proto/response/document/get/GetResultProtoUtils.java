@@ -40,11 +40,10 @@ public class GetResultProtoUtils {
      */
     public static ResponseItem.Builder toProto(GetResult getResult, ResponseItem.Builder responseItemBuilder) {
         // Reuse the builder passed in by reference
-        responseItemBuilder.setIndex(getResult.getIndex());
+        responseItemBuilder.setXIndex(getResult.getIndex());
 
-        // Avoid creating a new Id builder for each call
-        ResponseItem.Id id = ResponseItem.Id.newBuilder().setString(getResult.getId()).build();
-        responseItemBuilder.setId(id);
+        // Set document ID
+        responseItemBuilder.setXId(getResult.getId());
 
         // Create the inline get dict builder only once
         InlineGetDictUserDefined.Builder inlineGetDictUserDefinedBuilder = InlineGetDictUserDefined.newBuilder();
@@ -52,7 +51,7 @@ public class GetResultProtoUtils {
         if (getResult.isExists()) {
             // Set document version if available
             if (getResult.getVersion() != -1) {
-                responseItemBuilder.setVersion(getResult.getVersion());
+                responseItemBuilder.setXVersion(getResult.getVersion());
             }
             toProtoEmbedded(getResult, inlineGetDictUserDefinedBuilder);
         } else {
@@ -73,8 +72,8 @@ public class GetResultProtoUtils {
     public static void toProtoEmbedded(GetResult getResult, InlineGetDictUserDefined.Builder builder) {
         // Set sequence number and primary term if available
         if (getResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            builder.setSeqNo(getResult.getSeqNo());
-            builder.setPrimaryTerm(getResult.getPrimaryTerm());
+            builder.setXSeqNo(getResult.getSeqNo());
+            builder.setXPrimaryTerm(getResult.getPrimaryTerm());
         }
 
         // Set existence status
@@ -82,7 +81,7 @@ public class GetResultProtoUtils {
 
         // Set source if available - avoid unnecessary copying if possible
         if (getResult.source() != null) {
-            builder.setSource(ByteString.copyFrom(getResult.source()));
+            builder.setXSource(ByteString.copyFrom(getResult.source()));
         }
 
         // Process metadata fields

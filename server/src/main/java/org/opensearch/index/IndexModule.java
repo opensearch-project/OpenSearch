@@ -38,6 +38,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.util.Constants;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -62,6 +64,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.env.ShardLock;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.query.DisabledQueryCache;
@@ -76,12 +79,15 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -96,6 +102,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -151,6 +158,17 @@ public final class IndexModule {
     public static final Setting<String> INDEX_COMPOSITE_STORE_TYPE_SETTING = new Setting<>(
         "index.composite_store.type",
         "default",
+        Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    /**
+     * Index setting that selects a custom StoreFactory provided by plugins. If empty, the default store is used
+     */
+    public static final Setting<String> INDEX_STORE_FACTORY_SETTING = new Setting<>(
+        "index.store.factory",
+        "",
         Function.identity(),
         Property.IndexScope,
         Property.NodeScope
@@ -260,6 +278,7 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
 
@@ -283,6 +302,7 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories,
         final FileCache fileCache,
         final CompositeIndexSettings compositeIndexSettings
     ) {
@@ -297,6 +317,7 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.storeFactories = storeFactories;
         this.fileCache = fileCache;
         this.compositeIndexSettings = compositeIndexSettings;
     }
@@ -322,6 +343,7 @@ public final class IndexModule {
             allowExpensiveQueries,
             expressionResolver,
             recoveryStateFactories,
+            Collections.emptyMap(),
             null,
             null
         );
@@ -654,33 +676,8 @@ public final class IndexModule {
         RemoteStoreSettings remoteStoreSettings,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) throws IOException {
-        return newIndexService(
-            indexCreationContext,
-            environment,
-            xContentRegistry,
-            shardStoreDeleter,
-            circuitBreakerService,
-            bigArrays,
-            threadPool,
-            scriptService,
-            clusterService,
-            client,
-            indicesQueryCache,
-            mapperRegistry,
-            indicesFieldDataCache,
-            namedWriteableRegistry,
-            idFieldDataEnabled,
-            valuesSourceRegistry,
-            remoteDirectoryFactory,
-            translogFactorySupplier,
-            clusterDefaultRefreshIntervalSupplier,
-            fixedRefreshIntervalSchedulingEnabled,
-            shardLevelRefreshEnabled,
-            recoverySettings,
-            remoteStoreSettings,
-            (s) -> {},
-            shardId -> ReplicationStats.empty(),
-            clusterDefaultMaxMergeAtOnceSupplier
+        throw new UnsupportedOperationException(
+            "This API is removed in OpenSearch version 3.4.0. " + "Use the new overloaded newIndexService() method instead."
         );
     }
 
@@ -711,6 +708,40 @@ public final class IndexModule {
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+    ) throws IOException {
+        throw new UnsupportedOperationException(
+            "This API is removed in OpenSearch version 3.4.0. " + "Use the new overloaded newIndexService() method instead."
+        );
+    }
+
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -759,6 +790,7 @@ public final class IndexModule {
                 directoryFactory,
                 compositeDirectoryFactory,
                 remoteDirectoryFactory,
+                resolveStoreFactory(indexSettings, storeFactories),
                 eventListener,
                 readerWrapperFactory,
                 mapperRegistry,
@@ -781,7 +813,8 @@ public final class IndexModule {
                 compositeIndexSettings,
                 replicator,
                 segmentReplicationStatsProvider,
-                clusterDefaultMaxMergeAtOnceSupplier
+                clusterDefaultMaxMergeAtOnceSupplier,
+                clusterMergeSchedulerConfig
             );
             success = true;
             return indexService;
@@ -820,7 +853,18 @@ public final class IndexModule {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
             }
         }
-        return factory;
+
+        return new IndexStorePlugin.DirectoryFactory() {
+            @Override
+            public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+                return new BucketedCompositeDirectory(factory.newDirectory(indexSettings, shardPath));
+            }
+
+            @Override
+            public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+                return factory.newFSDirectory(location, lockFactory, indexSettings);
+            }
+        };
     }
 
     private static IndexStorePlugin.CompositeDirectoryFactory getCompositeDirectoryFactory(
@@ -855,6 +899,47 @@ public final class IndexModule {
             throw new IllegalArgumentException("Unknown recovery type [" + recoveryType + "]");
         }
 
+        return factory;
+    }
+
+    private static IndexStorePlugin.StoreFactory resolveStoreFactory(
+        final IndexSettings indexSettings,
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories
+    ) {
+        final String key = indexSettings.getValue(INDEX_STORE_FACTORY_SETTING);
+        if (key == null || key.isEmpty()) {
+            return new IndexStorePlugin.StoreFactory() {
+
+                @Override
+                public Store newStore(
+                    ShardId shardId,
+                    IndexSettings indexSettings,
+                    Directory directory,
+                    ShardLock shardLock,
+                    Store.OnClose onClose,
+                    ShardPath shardPath
+                ) throws IOException {
+                    return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath);
+                }
+
+                @Override
+                public Store newStore(
+                    ShardId shardId,
+                    IndexSettings indexSettings,
+                    Directory directory,
+                    ShardLock shardLock,
+                    Store.OnClose onClose,
+                    ShardPath shardPath,
+                    IndexStorePlugin.DirectoryFactory directoryFactory
+                ) throws IOException {
+                    return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory);
+                }
+            };
+        }
+        final IndexStorePlugin.StoreFactory factory = storeFactories.get(key);
+        if (factory == null) {
+            throw new IllegalArgumentException("Unknown store factory [" + key + "]");
+        }
         return factory;
     }
 

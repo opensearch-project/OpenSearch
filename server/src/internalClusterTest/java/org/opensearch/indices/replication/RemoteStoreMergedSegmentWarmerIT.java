@@ -13,9 +13,9 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.TieredMergePolicyProvider;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.RemoteStorePublishMergedSegmentRequest;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -42,14 +42,9 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(remoteStoreClusterSettings("test-remote-store-repo", absolutePath))
+            .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "1b")
             .build();
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        Settings.Builder featureSettings = Settings.builder();
-        featureSettings.put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true);
-        return featureSettings.build();
     }
 
     @Before
@@ -62,13 +57,11 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
         final String node2 = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
-        MockTransportService mockTransportServiceNode1 = (MockTransportService) internalCluster().getInstance(
+
+        String primaryShardNode = findprimaryShardNode(INDEX_NAME);
+        MockTransportService mockTransportServicePrimary = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            node1
-        );
-        MockTransportService mockTransportServiceNode2 = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            node2
+            primaryShardNode
         );
         final CountDownLatch latch = new CountDownLatch(1);
         StubbableTransport.SendRequestBehavior behavior = (connection, requestId, action, request, options) -> {
@@ -82,6 +75,8 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
             connection.sendRequest(requestId, action, request, options);
         };
 
+        mockTransportServicePrimary.addSendBehavior(behavior);
+
         for (int i = 0; i < 30; i++) {
             client().prepareIndex(INDEX_NAME)
                 .setId(String.valueOf(i))
@@ -92,14 +87,10 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
 
         waitForSearchableDocs(30, node1, node2);
 
-        mockTransportServiceNode1.addSendBehavior(behavior);
-        mockTransportServiceNode2.addSendBehavior(behavior);
-
         client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(2));
         waitForSegmentCount(INDEX_NAME, 2, logger);
         assertTrue(latch.await(10, TimeUnit.SECONDS));
-        mockTransportServiceNode1.clearAllRules();
-        mockTransportServiceNode2.clearAllRules();
+        mockTransportServicePrimary.clearAllRules();
     }
 
     public void testConcurrentMergeSegmentWarmerRemote() throws Exception {
@@ -115,14 +106,13 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
                 .build()
         );
         ensureGreen(INDEX_NAME);
-        MockTransportService mockTransportServiceNode1 = (MockTransportService) internalCluster().getInstance(
+
+        String primaryShardNode = findprimaryShardNode(INDEX_NAME);
+        MockTransportService mockTransportServicePrimary = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            node1
+            primaryShardNode
         );
-        MockTransportService mockTransportServiceNode2 = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            node2
-        );
+
         CountDownLatch latch = new CountDownLatch(2);
         AtomicLong numInvocations = new AtomicLong(0);
         Set<String> executingThreads = ConcurrentHashMap.newKeySet();
@@ -139,8 +129,7 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
             connection.sendRequest(requestId, action, request, options);
         };
 
-        mockTransportServiceNode1.addSendBehavior(behavior);
-        mockTransportServiceNode2.addSendBehavior(behavior);
+        mockTransportServicePrimary.addSendBehavior(behavior);
 
         for (int i = 0; i < 30; i++) {
             client().prepareIndex(INDEX_NAME)
@@ -158,8 +147,7 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
         assertTrue(executingThreads.size() > 1);
         // Verify concurrent execution by checking that multiple unique threads handled merge operations
         assertTrue(numInvocations.get() > 1);
-        mockTransportServiceNode1.clearAllRules();
-        mockTransportServiceNode2.clearAllRules();
+        mockTransportServicePrimary.clearAllRules();
     }
 
     public void testMergeSegmentWarmerWithInactiveReplicaRemote() throws Exception {
@@ -178,5 +166,61 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
         client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(1)).get();
         final IndicesSegmentResponse response = client().admin().indices().prepareSegments(INDEX_NAME).get();
         assertEquals(1, response.getIndices().get(INDEX_NAME).getShards().values().size());
+    }
+
+    public void testMergeSegmentWarmerWithWarmingDisabled() throws Exception {
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        String primaryNodeName = findprimaryShardNode(INDEX_NAME);
+        internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), false).build()
+            )
+            .get();
+
+        MockTransportService mockTransportServicePrimary = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            primaryNodeName
+        );
+
+        CountDownLatch warmingLatch = new CountDownLatch(1);
+        StubbableTransport.SendRequestBehavior behavior = (connection, requestId, action, request, options) -> {
+            if (action.equals("indices:admin/remote_publish_merged_segment[r]")) {
+                warmingLatch.countDown(); // This should NOT happen
+            }
+            connection.sendRequest(requestId, action, request, options);
+        };
+
+        mockTransportServicePrimary.addSendBehavior(behavior);
+
+        for (int i = 0; i < 30; i++) {
+            client().prepareIndex(INDEX_NAME)
+                .setId(String.valueOf(i))
+                .setSource("foo" + i, "bar" + i)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
+
+        client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(1)).get();
+        final IndicesSegmentResponse response = client().admin().indices().prepareSegments(INDEX_NAME).get();
+        assertEquals(1, response.getIndices().get(INDEX_NAME).getShards().values().size());
+        assertFalse("Warming should be skipped when disabled", warmingLatch.await(5, TimeUnit.SECONDS));
+        mockTransportServicePrimary.clearAllRules();
+    }
+
+    /**
+     * Returns the node name for the node hosting the primary shard for index "indexName"
+     */
+    private String findprimaryShardNode(String indexName) {
+        String nodeId = internalCluster().clusterService().state().routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
+
+        return internalCluster().clusterService().state().nodes().get(nodeId).getName();
+
     }
 }

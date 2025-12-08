@@ -60,6 +60,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
@@ -71,6 +72,7 @@ import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.query.ExistsQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.SearchService;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -96,6 +98,8 @@ import static org.opensearch.index.search.QueryParserHelper.resolveMappingFields
  */
 public class QueryStringQueryParser extends XQueryParser {
     private static final String EXISTS_FIELD = "_exists_";
+    @SuppressWarnings("NonFinalStaticField")
+    private static int maxQueryStringLength = SearchService.SEARCH_MAX_QUERY_STRING_LENGTH.get(Settings.EMPTY);
 
     private final QueryShardContext context;
     private final Map<String, Float> fieldsAndWeights;
@@ -817,28 +821,28 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query applySlop(Query q, int slop) {
-        if (q instanceof PhraseQuery) {
+        if (q instanceof PhraseQuery phraseQuery) {
             // make sure that the boost hasn't been set beforehand, otherwise we'd lose it
             assert q instanceof BoostQuery == false;
-            return addSlopToPhrase((PhraseQuery) q, slop);
-        } else if (q instanceof MultiPhraseQuery) {
-            MultiPhraseQuery.Builder builder = new MultiPhraseQuery.Builder((MultiPhraseQuery) q);
+            return addSlopToPhrase(phraseQuery, slop);
+        } else if (q instanceof MultiPhraseQuery multiPhraseQuery) {
+            MultiPhraseQuery.Builder builder = new MultiPhraseQuery.Builder(multiPhraseQuery);
             builder.setSlop(slop);
             return builder.build();
-        } else if (q instanceof SpanQuery) {
-            return addSlopToSpan((SpanQuery) q, slop);
+        } else if (q instanceof SpanQuery spanQuery) {
+            return addSlopToSpan(spanQuery, slop);
         } else {
             return q;
         }
     }
 
     private Query addSlopToSpan(SpanQuery query, int slop) {
-        if (query instanceof SpanNearQuery) {
-            return new SpanNearQuery(((SpanNearQuery) query).getClauses(), slop, ((SpanNearQuery) query).isInOrder());
-        } else if (query instanceof SpanOrQuery) {
-            SpanQuery[] clauses = new SpanQuery[((SpanOrQuery) query).getClauses().length];
+        if (query instanceof SpanNearQuery spanNearQuery) {
+            return new SpanNearQuery(spanNearQuery.getClauses(), slop, spanNearQuery.isInOrder());
+        } else if (query instanceof SpanOrQuery spanOrQuery) {
+            SpanQuery[] clauses = new SpanQuery[spanOrQuery.getClauses().length];
             int pos = 0;
-            for (SpanQuery clause : ((SpanOrQuery) query).getClauses()) {
+            for (SpanQuery clause : spanOrQuery.getClauses()) {
                 clauses[pos++] = (SpanQuery) addSlopToSpan(clause, slop);
             }
             return new SpanOrQuery(clauses);
@@ -867,6 +871,23 @@ public class QueryStringQueryParser extends XQueryParser {
         if (query.trim().isEmpty()) {
             return Queries.newMatchNoDocsQuery("Matching no documents because no terms present");
         }
+        if (query.length() > maxQueryStringLength) {
+            throw new ParseException(
+                "Query string length exceeds max allowed length "
+                    + maxQueryStringLength
+                    + " ("
+                    + SearchService.SEARCH_MAX_QUERY_STRING_LENGTH.getKey()
+                    + "); actual length: "
+                    + query.length()
+            );
+        }
         return super.parse(query);
+    }
+
+    /**
+     * Sets the maximum allowed length for query strings. This should be only called from SearchService on settings updates.
+     */
+    public static void setMaxQueryStringLength(int maxQueryStringLength) {
+        QueryStringQueryParser.maxQueryStringLength = maxQueryStringLength;
     }
 }

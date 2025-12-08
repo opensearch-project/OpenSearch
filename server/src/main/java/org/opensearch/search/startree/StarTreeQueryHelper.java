@@ -47,8 +47,6 @@ import java.util.function.Consumer;
  */
 public class StarTreeQueryHelper {
 
-    private static StarTreeValues starTreeValues;
-
     /**
      * Checks if the search context can be supported by star-tree
      */
@@ -63,10 +61,9 @@ public class StarTreeQueryHelper {
 
     public static StarTreeValues getStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
         SegmentReader reader = Lucene.segmentReader(context.reader());
-        if (!(reader.getDocValuesReader() instanceof CompositeIndexReader)) {
+        if (!(reader.getDocValuesReader() instanceof CompositeIndexReader starTreeDocValuesReader)) {
             return null;
         }
-        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
         return (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
     }
 
@@ -247,9 +244,16 @@ public class StarTreeQueryHelper {
         return StarTreeTraversalUtil.getStarTreeResult(starTreeValues, starTreeFilter, context);
     }
 
+    // TODO: Refactor to have a single method for collecting dimension filters
     public static List<DimensionFilter> collectDimensionFilters(DimensionFilter initialDimensionFilter, Aggregator[] subAggregators) {
-        List<DimensionFilter> dimensionFiltersToMerge = new ArrayList<>();
-        dimensionFiltersToMerge.add(initialDimensionFilter);
+        return collectDimensionFilters(List.of(initialDimensionFilter), subAggregators);
+    }
+
+    public static List<DimensionFilter> collectDimensionFilters(
+        List<DimensionFilter> initialDimensionFilters,
+        Aggregator[] subAggregators
+    ) {
+        List<DimensionFilter> dimensionFiltersToMerge = new ArrayList<>(initialDimensionFilters);
 
         for (Aggregator subAgg : subAggregators) {
             if (subAgg instanceof StarTreePreComputeCollector collector) {

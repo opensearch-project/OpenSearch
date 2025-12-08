@@ -15,6 +15,8 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.core.client.config.ClientAsyncConfiguration;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption;
@@ -22,10 +24,12 @@ import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
+import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
+import software.amazon.awssdk.http.crt.ProxyConfiguration;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
-import software.amazon.awssdk.http.nio.netty.ProxyConfiguration;
 import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.LegacyMd5Plugin;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.sts.StsClient;
@@ -45,6 +49,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -63,7 +68,10 @@ class S3AsyncService implements Closeable {
 
     private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
 
-    private volatile Map<S3ClientSettings, AmazonAsyncS3Reference> clientsCache = emptyMap();
+    // We will need to support the cache with both type of clients. Since S3ClientSettings doesn't contain Http Client.
+    // Also adding the Http Client type in S3ClientSettings is not good option since it is used by Async and Sync clients.
+    // We can segregate the types of cache here itself
+    private volatile Map<String, Map<S3ClientSettings, AmazonAsyncS3Reference>> s3HttpClientTypesClientsCache = emptyMap();
 
     /**
      * Client settings calculated from static configuration and settings in the keystore.
@@ -82,10 +90,22 @@ class S3AsyncService implements Closeable {
     private final @Nullable ScheduledExecutorService clientExecutorService;
 
     S3AsyncService(final Path configPath, @Nullable ScheduledExecutorService clientExecutorService) {
+
         staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
-            .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath))
+            .put(
+                buildClientName("default", S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE),
+                S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath)
+            )
+            .put(
+                buildClientName("default", S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE),
+                S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath)
+            )
             .immutableMap();
         this.clientExecutorService = clientExecutorService;
+    }
+
+    private String buildClientName(final String clientValue, final String asyncClientType) {
+        return clientValue + "-" + asyncClientType;
     }
 
     S3AsyncService(final Path configPath) {
@@ -102,9 +122,24 @@ class S3AsyncService implements Closeable {
         // shutdown all unused clients
         // others will shutdown on their respective release
         releaseCachedClients();
-        this.staticClientSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+        MapBuilder<String, S3ClientSettings> defaultBuilder = MapBuilder.newMapBuilder();
+        for (Map.Entry<String, S3ClientSettings> entrySet : clientsSettings.entrySet()) {
+            defaultBuilder.put(
+                buildClientName(entrySet.getKey(), S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE),
+                clientsSettings.get(entrySet.getKey())
+            );
+            defaultBuilder.put(
+                buildClientName(entrySet.getKey(), S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE),
+                clientsSettings.get(entrySet.getKey())
+            );
+        }
+
+        staticClientSettings = defaultBuilder.immutableMap();
         derivedClientSettings = emptyMap();
-        assert this.staticClientSettings.containsKey("default") : "always at least have 'default'";
+        assert this.staticClientSettings.containsKey(buildClientName("default", S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE))
+            : "Static Client Settings should contain default Netty client";
+        assert this.staticClientSettings.containsKey(buildClientName("default", S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE))
+            : "Static Client Settings should contain default CRT client";
         // clients are built lazily by {@link client}
     }
 
@@ -118,26 +153,55 @@ class S3AsyncService implements Closeable {
         AsyncExecutorContainer priorityExecutorBuilder,
         AsyncExecutorContainer normalExecutorBuilder
     ) {
+        String asyncHttpClientType = S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE.get(repositoryMetadata.settings());
+
         final S3ClientSettings clientSettings = settings(repositoryMetadata);
-        {
-            final AmazonAsyncS3Reference clientReference = clientsCache.get(clientSettings);
+        AmazonAsyncS3Reference clientReference = getCachedClientForHttpTypeAndClientSettings(asyncHttpClientType, clientSettings);
+        if (clientReference != null) {
+            return clientReference;
+        }
+
+        synchronized (this) {
+            AmazonAsyncS3Reference existingClient = getCachedClientForHttpTypeAndClientSettings(asyncHttpClientType, clientSettings);
+            if (existingClient != null) {
+                return existingClient;
+            }
+
+            // If the client reference is not found in cache. Let's create it.
+            final AmazonAsyncS3Reference newClientReference = new AmazonAsyncS3Reference(
+                buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder, asyncHttpClientType)
+            );
+            newClientReference.incRef();
+
+            // Get or create new client cache map for the HTTP client type
+            Map<S3ClientSettings, AmazonAsyncS3Reference> clientsCacheForType = s3HttpClientTypesClientsCache.getOrDefault(
+                asyncHttpClientType,
+                emptyMap()
+            );
+
+            // Update both cache levels atomically
+            s3HttpClientTypesClientsCache = MapBuilder.newMapBuilder(s3HttpClientTypesClientsCache)
+                .put(
+                    asyncHttpClientType,
+                    MapBuilder.newMapBuilder(clientsCacheForType).put(clientSettings, newClientReference).immutableMap()
+                )
+                .immutableMap();
+            return newClientReference;
+        }
+    }
+
+    private AmazonAsyncS3Reference getCachedClientForHttpTypeAndClientSettings(
+        final String asyncHttpClientType,
+        final S3ClientSettings clientSettings
+    ) {
+        final Map<S3ClientSettings, AmazonAsyncS3Reference> clientsCacheMap = s3HttpClientTypesClientsCache.get(asyncHttpClientType);
+        if (clientsCacheMap != null && !clientsCacheMap.isEmpty()) {
+            final AmazonAsyncS3Reference clientReference = clientsCacheMap.get(clientSettings);
             if (clientReference != null && clientReference.tryIncRef()) {
                 return clientReference;
             }
         }
-        synchronized (this) {
-            final AmazonAsyncS3Reference existing = clientsCache.get(clientSettings);
-            if (existing != null && existing.tryIncRef()) {
-                return existing;
-            }
-
-            final AmazonAsyncS3Reference clientReference = new AmazonAsyncS3Reference(
-                buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder)
-            );
-            clientReference.incRef();
-            clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientSettings, clientReference).immutableMap();
-            return clientReference;
-        }
+        return null;
     }
 
     /**
@@ -154,7 +218,10 @@ class S3AsyncService implements Closeable {
                 return existing;
             }
         }
-        final String clientName = S3Repository.CLIENT_NAME.get(settings);
+        final String clientName = buildClientName(
+            S3Repository.CLIENT_NAME.get(settings),
+            S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE.get(repositoryMetadata.settings())
+        );
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {
             synchronized (this) {
@@ -180,7 +247,8 @@ class S3AsyncService implements Closeable {
         final S3ClientSettings clientSettings,
         AsyncExecutorContainer urgentExecutorBuilder,
         AsyncExecutorContainer priorityExecutorBuilder,
-        AsyncExecutorContainer normalExecutorBuilder
+        AsyncExecutorContainer normalExecutorBuilder,
+        String asyncHttpClientType
     ) {
         setDefaultAwsProfilePath();
         final S3AsyncClientBuilder builder = S3AsyncClient.builder();
@@ -209,7 +277,7 @@ class S3AsyncService implements Closeable {
             builder.forcePathStyle(true);
         }
 
-        builder.httpClient(buildHttpClient(clientSettings, urgentExecutorBuilder.getAsyncTransferEventLoopGroup()));
+        builder.httpClient(buildHttpClient(clientSettings, urgentExecutorBuilder.getAsyncTransferEventLoopGroup(), asyncHttpClientType));
         builder.asyncConfiguration(
             ClientAsyncConfiguration.builder()
                 .advancedOption(
@@ -218,9 +286,9 @@ class S3AsyncService implements Closeable {
                 )
                 .build()
         );
-        final S3AsyncClient urgentClient = SocketAccess.doPrivileged(builder::build);
+        final S3AsyncClient urgentClient = AccessController.doPrivileged(builder::build);
 
-        builder.httpClient(buildHttpClient(clientSettings, priorityExecutorBuilder.getAsyncTransferEventLoopGroup()));
+        builder.httpClient(buildHttpClient(clientSettings, priorityExecutorBuilder.getAsyncTransferEventLoopGroup(), asyncHttpClientType));
         builder.asyncConfiguration(
             ClientAsyncConfiguration.builder()
                 .advancedOption(
@@ -229,9 +297,9 @@ class S3AsyncService implements Closeable {
                 )
                 .build()
         );
-        final S3AsyncClient priorityClient = SocketAccess.doPrivileged(builder::build);
+        final S3AsyncClient priorityClient = AccessController.doPrivileged(builder::build);
 
-        builder.httpClient(buildHttpClient(clientSettings, normalExecutorBuilder.getAsyncTransferEventLoopGroup()));
+        builder.httpClient(buildHttpClient(clientSettings, normalExecutorBuilder.getAsyncTransferEventLoopGroup(), asyncHttpClientType));
         builder.asyncConfiguration(
             ClientAsyncConfiguration.builder()
                 .advancedOption(
@@ -240,39 +308,38 @@ class S3AsyncService implements Closeable {
                 )
                 .build()
         );
-        final S3AsyncClient client = SocketAccess.doPrivileged(builder::build);
-
+        builder.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
+            .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
+        if (clientSettings.legacyMd5ChecksumCalculation) {
+            builder.addPlugin(LegacyMd5Plugin.create());
+        }
+        final S3AsyncClient client = AccessController.doPrivileged(builder::build);
         return AmazonAsyncS3WithCredentials.create(client, priorityClient, urgentClient, credentials);
     }
 
-    static ClientOverrideConfiguration buildOverrideConfiguration(
-        final S3ClientSettings clientSettings,
-        ScheduledExecutorService clientExecutorService
+    static SdkAsyncHttpClient buildHttpClient(
+        S3ClientSettings clientSettings,
+        AsyncTransferEventLoopGroup asyncTransferEventLoopGroup,
+        final String asyncHttpClientType
     ) {
-        RetryPolicy retryPolicy = SocketAccess.doPrivileged(
-            () -> RetryPolicy.builder()
-                .numRetries(clientSettings.maxRetries)
-                .throttlingBackoffStrategy(
-                    clientSettings.throttleRetries ? BackoffStrategy.defaultThrottlingStrategy(RetryMode.STANDARD) : BackoffStrategy.none()
-                )
-                .build()
-        );
-        ClientOverrideConfiguration.Builder builder = ClientOverrideConfiguration.builder();
-        if (clientExecutorService != null) {
-            builder = builder.scheduledExecutorService(clientExecutorService);
+        logger.debug("S3 Http client type [{}]", asyncHttpClientType);
+        if (S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE.equals(asyncHttpClientType)) {
+            return buildAsyncNettyHttpClient(clientSettings, asyncTransferEventLoopGroup);
         }
-
-        return builder.retryPolicy(retryPolicy).apiCallAttemptTimeout(Duration.ofMillis(clientSettings.requestTimeoutMillis)).build();
+        return buildAsyncCrtHttpClient(clientSettings);
     }
 
-    // pkg private for tests
-    static SdkAsyncHttpClient buildHttpClient(S3ClientSettings clientSettings, AsyncTransferEventLoopGroup asyncTransferEventLoopGroup) {
+    static SdkAsyncHttpClient buildAsyncNettyHttpClient(
+        final S3ClientSettings clientSettings,
+        final AsyncTransferEventLoopGroup asyncTransferEventLoopGroup
+    ) {
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
         NettyNioAsyncHttpClient.Builder clientBuilder = NettyNioAsyncHttpClient.builder();
 
         if (clientSettings.proxySettings.getType() != ProxySettings.ProxyType.DIRECT) {
-            ProxyConfiguration.Builder proxyConfiguration = ProxyConfiguration.builder();
+            software.amazon.awssdk.http.nio.netty.ProxyConfiguration.Builder proxyConfiguration =
+                software.amazon.awssdk.http.nio.netty.ProxyConfiguration.builder();
             proxyConfiguration.scheme(clientSettings.proxySettings.getType().toProtocol().toString());
             proxyConfiguration.host(clientSettings.proxySettings.getHostName());
             proxyConfiguration.port(clientSettings.proxySettings.getPort());
@@ -292,6 +359,46 @@ class S3AsyncService implements Closeable {
         return clientBuilder.build();
     }
 
+    static SdkAsyncHttpClient buildAsyncCrtHttpClient(final S3ClientSettings clientSettings) {
+        AwsCrtAsyncHttpClient.Builder crtClientBuilder = AwsCrtAsyncHttpClient.builder();
+
+        if (clientSettings.proxySettings.getType() != ProxySettings.ProxyType.DIRECT) {
+            ProxyConfiguration.Builder crtProxyConfiguration = ProxyConfiguration.builder();
+
+            crtProxyConfiguration.scheme(clientSettings.proxySettings.getType().toProtocol().toString());
+            crtProxyConfiguration.host(clientSettings.proxySettings.getHostName());
+            crtProxyConfiguration.port(clientSettings.proxySettings.getPort());
+            crtProxyConfiguration.username(clientSettings.proxySettings.getUsername());
+            crtProxyConfiguration.password(clientSettings.proxySettings.getPassword());
+
+            crtClientBuilder.proxyConfiguration(crtProxyConfiguration.build());
+        }
+
+        crtClientBuilder.connectionTimeout(Duration.ofMillis(clientSettings.connectionTimeoutMillis));
+        crtClientBuilder.maxConcurrency(clientSettings.maxConnections);
+        return crtClientBuilder.build();
+    }
+
+    static ClientOverrideConfiguration buildOverrideConfiguration(
+        final S3ClientSettings clientSettings,
+        ScheduledExecutorService clientExecutorService
+    ) {
+        RetryPolicy retryPolicy = AccessController.doPrivileged(
+            () -> RetryPolicy.builder()
+                .numRetries(clientSettings.maxRetries)
+                .throttlingBackoffStrategy(
+                    clientSettings.throttleRetries ? BackoffStrategy.defaultThrottlingStrategy(RetryMode.STANDARD) : BackoffStrategy.none()
+                )
+                .build()
+        );
+        ClientOverrideConfiguration.Builder builder = ClientOverrideConfiguration.builder();
+        if (clientExecutorService != null) {
+            builder = builder.scheduledExecutorService(clientExecutorService);
+        }
+
+        return builder.retryPolicy(retryPolicy).apiCallAttemptTimeout(Duration.ofMillis(clientSettings.requestTimeoutMillis)).build();
+    }
+
     // pkg private for tests
     static AwsCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
         final AwsCredentials basicCredentials = clientSettings.credentials;
@@ -302,7 +409,7 @@ class S3AsyncService implements Closeable {
             logger.debug("Using IRSA credentials");
 
             final Region region = Region.of(clientSettings.region);
-            StsClient stsClient = SocketAccess.doPrivileged(() -> {
+            StsClient stsClient = AccessController.doPrivileged(() -> {
                 StsClientBuilder builder = StsClient.builder().region(region);
 
                 final String stsEndpoint = System.getProperty(STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY);
@@ -329,7 +436,7 @@ class S3AsyncService implements Closeable {
                             .build()
                     );
 
-                final StsAssumeRoleCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                final StsAssumeRoleCredentialsProvider stsCredentialsProvider = AccessController.doPrivileged(
                     stsCredentialsProviderBuilder::build
                 );
 
@@ -342,7 +449,7 @@ class S3AsyncService implements Closeable {
                         .roleSessionName(irsaCredentials.getRoleSessionName())
                         .webIdentityTokenFile(Path.of(irsaCredentials.getIdentityTokenFile()));
 
-                final StsWebIdentityTokenFileCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                final StsWebIdentityTokenFileCredentialsProvider stsCredentialsProvider = AccessController.doPrivileged(
                     stsCredentialsProviderBuilder::build
                 );
 
@@ -388,13 +495,16 @@ class S3AsyncService implements Closeable {
     }
 
     public synchronized void releaseCachedClients() {
-        // the clients will shutdown when they will not be used anymore
-        for (final AmazonAsyncS3Reference clientReference : clientsCache.values()) {
-            clientReference.decRef();
+        // There will be 2 types of caches CRT and Netty
+        for (Map<S3ClientSettings, AmazonAsyncS3Reference> clientTypeCaches : s3HttpClientTypesClientsCache.values()) {
+            // the clients will shutdown when they will not be used anymore
+            for (final AmazonAsyncS3Reference clientReference : clientTypeCaches.values()) {
+                clientReference.decRef();
+            }
         }
 
         // clear previously cached clients, they will be build lazily
-        clientsCache = emptyMap();
+        s3HttpClientTypesClientsCache = emptyMap();
         derivedClientSettings = emptyMap();
     }
 
@@ -417,7 +527,7 @@ class S3AsyncService implements Closeable {
 
         @Override
         public AwsCredentials resolveCredentials() {
-            return SocketAccess.doPrivileged(credentials::resolveCredentials);
+            return AccessController.doPrivileged(credentials::resolveCredentials);
         }
     }
 
@@ -435,25 +545,27 @@ class S3AsyncService implements Closeable {
 
         @Override
         public void close() throws IOException {
-            SocketAccess.doPrivilegedIOException(() -> {
-                credentials.close();
-                if (stsClient != null) {
-                    stsClient.close();
-                }
-                return null;
-            });
+            try {
+                AccessController.doPrivilegedChecked(() -> {
+                    credentials.close();
+                    if (stsClient != null) {
+                        stsClient.close();
+                    }
+                });
+            } catch (Exception e) {
+                throw (IOException) e;
+            }
         }
 
         @Override
         public AwsCredentials resolveCredentials() {
-            return SocketAccess.doPrivileged(credentials::resolveCredentials);
+            return AccessController.doPrivileged(credentials::resolveCredentials);
         }
     }
 
     @Override
     public void close() {
         releaseCachedClients();
-
     }
 
     @Nullable

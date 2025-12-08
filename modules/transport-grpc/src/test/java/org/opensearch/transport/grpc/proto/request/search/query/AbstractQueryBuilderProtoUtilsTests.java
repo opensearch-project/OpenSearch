@@ -12,19 +12,12 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
-import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.MatchAllQuery;
 import org.opensearch.protobufs.MatchNoneQuery;
 import org.opensearch.protobufs.QueryContainer;
-import org.opensearch.protobufs.StringArray;
 import org.opensearch.protobufs.TermQuery;
-import org.opensearch.protobufs.TermsLookupFieldStringArrayMap;
-import org.opensearch.protobufs.TermsQueryField;
 import org.opensearch.test.OpenSearchTestCase;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
@@ -82,7 +75,7 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseInnerQueryBuilderProtoWithTerm() {
         // Create a QueryContainer with Term query
-        FieldValue fieldValue = FieldValue.newBuilder().setStringValue("test-value").build();
+        FieldValue fieldValue = FieldValue.newBuilder().setString("test-value").build();
         TermQuery termQuery = TermQuery.newBuilder().setField("test-field").setValue(fieldValue).build();
 
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
@@ -98,37 +91,6 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Value should match", "test-value", termQueryBuilder.value());
     }
 
-    public void testParseInnerQueryBuilderProtoWithTerms() {
-        // Create a QueryContainer with Terms query using the correct protobuf classes
-        StringArray stringArray = StringArray.newBuilder().addStringArray("value1").addStringArray("value2").build();
-
-        TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
-            .setStringArray(stringArray)
-            .build();
-
-        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
-        termsLookupFieldStringArrayMapMap.put("test-field", termsLookupFieldStringArrayMap);
-
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder()
-            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
-            .build();
-
-        // Create a QueryContainer with Terms query
-        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQueryField).build();
-
-        // Call parseInnerQueryBuilderProto using instance method
-        QueryBuilder queryBuilder = queryUtils.parseInnerQueryBuilderProto(queryContainer);
-
-        // Verify the result
-        assertNotNull("QueryBuilder should not be null", queryBuilder);
-        assertTrue("QueryBuilder should be a TermsQueryBuilder", queryBuilder instanceof TermsQueryBuilder);
-        TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
-        assertEquals("Field name should match", "test-field", termsQueryBuilder.fieldName());
-        assertEquals("Values size should match", 2, termsQueryBuilder.values().size());
-        assertEquals("First value should match", "value1", termsQueryBuilder.values().get(0));
-        assertEquals("Second value should match", "value2", termsQueryBuilder.values().get(1));
-    }
-
     public void testParseInnerQueryBuilderProtoWithUnsupportedQuery() {
         // Create an empty QueryContainer (no query type specified)
         QueryContainer queryContainer = QueryContainer.newBuilder().build();
@@ -141,5 +103,13 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the exception message
         assertTrue("Exception message should mention 'Unsupported query type'", exception.getMessage().contains("Unsupported query type"));
+    }
+
+    public void testGetRegistry() {
+        assertNotNull("Registry should not be null", queryUtils.getRegistry());
+    }
+
+    public void testGetRegistryReturnsSameInstance() {
+        assertEquals("Registry should be the same instance", queryUtils.getRegistry(), queryUtils.getRegistry());
     }
 }

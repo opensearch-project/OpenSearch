@@ -267,11 +267,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             public Float parse(Object value, boolean coerce) {
                 final float result;
 
-                if (value instanceof Number) {
-                    result = ((Number) value).floatValue();
+                if (value instanceof Number number) {
+                    result = number.floatValue();
                 } else {
-                    if (value instanceof BytesRef) {
-                        value = ((BytesRef) value).utf8ToString();
+                    if (value instanceof BytesRef bytesRef) {
+                        value = bytesRef.utf8ToString();
                     }
                     result = Float.parseFloat(value.toString());
                 }
@@ -405,8 +405,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         query,
                         new ApproximatePointRangeQuery(
                             field,
-                            NumberType.HALF_FLOAT.encodePoint(l),
-                            NumberType.HALF_FLOAT.encodePoint(u),
+                            HalfFloatPoint.pack(l).bytes,
+                            HalfFloatPoint.pack(u).bytes,
                             APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.HALF_FLOAT_FORMAT
                         )
@@ -467,11 +467,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             public Float parse(Object value, boolean coerce) {
                 final float result;
 
-                if (value instanceof Number) {
-                    result = ((Number) value).floatValue();
+                if (value instanceof Number number) {
+                    result = number.floatValue();
                 } else {
-                    if (value instanceof BytesRef) {
-                        value = ((BytesRef) value).utf8ToString();
+                    if (value instanceof BytesRef bytesRef) {
+                        value = bytesRef.utf8ToString();
                     }
                     result = Float.parseFloat(value.toString());
                 }
@@ -604,8 +604,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         query,
                         new ApproximatePointRangeQuery(
                             field,
-                            FloatPoint.pack(new float[] { l }).bytes,
-                            FloatPoint.pack(new float[] { u }).bytes,
+                            FloatPoint.pack(l).bytes,
+                            FloatPoint.pack(u).bytes,
                             APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.FLOAT_FORMAT
                         )
@@ -778,8 +778,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             query,
                             new ApproximatePointRangeQuery(
                                 field,
-                                DoublePoint.pack(new double[] { l }).bytes,
-                                DoublePoint.pack(new double[] { u }).bytes,
+                                DoublePoint.pack(l).bytes,
+                                DoublePoint.pack(u).bytes,
                                 APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.DOUBLE_FORMAT
                             )
@@ -846,8 +846,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
-                if (value instanceof Number) {
-                    return ((Number) value).byteValue();
+                if (value instanceof Number number) {
+                    return number.byteValue();
                 }
 
                 return (byte) doubleValue;
@@ -954,8 +954,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
-                if (value instanceof Number) {
-                    return ((Number) value).shortValue();
+                if (value instanceof Number number) {
+                    return number.shortValue();
                 }
 
                 return (short) doubleValue;
@@ -1057,8 +1057,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
-                if (value instanceof Number) {
-                    return ((Number) value).intValue();
+                if (value instanceof Number number) {
+                    return number.intValue();
                 }
 
                 return (int) doubleValue;
@@ -1228,8 +1228,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         query,
                         new ApproximatePointRangeQuery(
                             field,
-                            IntPoint.pack(new int[] { l }).bytes,
-                            IntPoint.pack(new int[] { u }).bytes,
+                            IntPoint.pack(l).bytes,
+                            IntPoint.pack(u).bytes,
                             APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.INT_FORMAT
                         )
@@ -1396,8 +1396,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             query,
                             new ApproximatePointRangeQuery(
                                 field,
-                                LongPoint.pack(new long[] { l }).bytes,
-                                LongPoint.pack(new long[] { u }).bytes,
+                                LongPoint.pack(l).bytes,
+                                LongPoint.pack(u).bytes,
                                 APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.LONG_FORMAT
                             )
@@ -1555,8 +1555,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             query,
                             new ApproximatePointRangeQuery(
                                 field,
-                                NumberType.UNSIGNED_LONG.encodePoint(l),
-                                NumberType.UNSIGNED_LONG.encodePoint(u),
+                                BigIntegerPoint.pack(l).bytes,
+                                BigIntegerPoint.pack(u).bytes,
                                 APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.UNSIGNED_LONG_FORMAT
                             )
@@ -1678,15 +1678,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
          * Returns true if the object is a number and has a decimal part
          */
         public static boolean hasDecimalPart(Object number) {
-            if (number instanceof Number) {
-                double doubleValue = ((Number) number).doubleValue();
+            if (number instanceof Number numberValue) {
+                double doubleValue = numberValue.doubleValue();
                 return doubleValue % 1 != 0;
             }
-            if (number instanceof BytesRef) {
-                number = ((BytesRef) number).utf8ToString();
+            if (number instanceof BytesRef bytesRef) {
+                number = bytesRef.utf8ToString();
             }
-            if (number instanceof String) {
-                return Double.parseDouble((String) number) % 1 != 0;
+            if (number instanceof String stringValue) {
+                return Double.parseDouble(stringValue) % 1 != 0;
             }
             return false;
         }
@@ -1695,12 +1695,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
          * Returns -1, 0, or 1 if the value is lower than, equal to, or greater than 0
          */
         public static double signum(Object value) {
-            if (value instanceof Number) {
-                double doubleValue = ((Number) value).doubleValue();
+            if (value instanceof Number number) {
+                double doubleValue = number.doubleValue();
                 return Math.signum(doubleValue);
             }
-            if (value instanceof BytesRef) {
-                value = ((BytesRef) value).utf8ToString();
+            if (value instanceof BytesRef bytesRef) {
+                value = bytesRef.utf8ToString();
             }
             return Math.signum(Double.parseDouble(value.toString()));
         }
@@ -1711,10 +1711,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         public static double objectToDouble(Object value) {
             double doubleValue;
 
-            if (value instanceof Number) {
-                doubleValue = ((Number) value).doubleValue();
-            } else if (value instanceof BytesRef) {
-                doubleValue = Double.parseDouble(((BytesRef) value).utf8ToString());
+            if (value instanceof Number number) {
+                doubleValue = number.doubleValue();
+            } else if (value instanceof BytesRef bytesRef) {
+                doubleValue = Double.parseDouble(bytesRef.utf8ToString());
             } else {
                 doubleValue = Double.parseDouble(value.toString());
             }
@@ -1727,8 +1727,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
          * types and checking its range.
          */
         public static long objectToLong(Object value, boolean coerce) {
-            if (value instanceof Long) {
-                return (Long) value;
+            if (value instanceof Long longValue) {
+                return longValue;
             }
 
             double doubleValue = objectToDouble(value);
@@ -1742,7 +1742,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             // longs need special handling so we don't lose precision while parsing
-            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+            String stringValue = (value instanceof BytesRef bytesRef) ? bytesRef.utf8ToString() : value.toString();
             return Numbers.toLong(stringValue, coerce);
         }
 
@@ -1757,8 +1757,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
          * @param lenientBound if true, use MIN or MAX if the value is out of bound
          */
         public static BigInteger objectToUnsignedLong(Object value, boolean coerce, boolean lenientBound) {
-            if (value instanceof Long) {
-                return Numbers.toUnsignedBigInteger(((Long) value).longValue());
+            if (value instanceof Long longValue) {
+                return Numbers.toUnsignedBigInteger(longValue);
             }
 
             double doubleValue = objectToDouble(value);
@@ -1778,7 +1778,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
             }
 
-            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+            String stringValue = (value instanceof BytesRef bytesRef) ? bytesRef.utf8ToString() : value.toString();
             return Numbers.toUnsignedLong(stringValue, coerce);
         }
 
@@ -1902,6 +1902,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         private final NumberType type;
         private final boolean coerce;
         private final Number nullValue;
+        private final boolean skiplist;
 
         public NumberFieldType(
             String name,
@@ -1909,11 +1910,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             boolean isSearchable,
             boolean isStored,
             boolean hasDocValues,
+            boolean skiplist,
             boolean coerce,
             Number nullValue,
             Map<String, String> meta
         ) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.skiplist = skiplist;
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
@@ -1927,6 +1930,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 builder.indexed.getValue(),
                 builder.stored.getValue(),
                 builder.hasDocValues.getValue(),
+                builder.skiplist.getValue(),
                 builder.coerce.getValue().value(),
                 builder.nullValue.getValue(),
                 builder.meta.getValue()
@@ -1934,7 +1938,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, false, true, true, null, Collections.emptyMap());
+            this(name, type, true, false, true, false, true, null, Collections.emptyMap());
         }
 
         @Override
@@ -2013,8 +2017,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             if (value == null) {
                 return null;
             }
-            if (value instanceof String) {
-                return type.valueForSearch((String) value);
+            if (value instanceof String stringValue) {
+                return type.valueForSearch(stringValue);
             } else {
                 return type.valueForSearch((Number) value);
             }
@@ -2132,39 +2136,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        XContentParser parser = context.parser();
-        Object value;
-        Number numericValue = null;
-        if (context.externalValueSet()) {
-            value = context.externalValue();
-        } else if (parser.currentToken() == Token.VALUE_NULL) {
-            value = null;
-        } else if (coerce.value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
-            value = null;
-        } else {
-            try {
-                numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
-                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
-                    context.addIgnoredField(mappedFieldType.name());
-                    return;
-                } else {
-                    throw e;
-                }
-            }
-            value = numericValue;
-        }
-
-        if (value == null) {
-            value = nullValue;
-        }
-
-        if (value == null) {
-            return;
-        }
-
+        Number numericValue = getFieldValue(context);
         if (numericValue == null) {
-            numericValue = fieldType().type.parse(value, coerce.value());
+            return;
         }
 
         context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, skiplist, stored));
@@ -2172,6 +2146,36 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         if (hasDocValues == false && (stored || indexed)) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected Number getFieldValue(ParseContext context) throws IOException {
+        XContentParser parser = context.parser();
+        Number value;
+        if (context.externalValueSet()) {
+            return fieldType().type.parse(context.externalValue(), coerce.value());
+        } else if (parser.currentToken() == Token.VALUE_NULL) {
+            value = nullValue;
+        } else if (coerce.value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
+            value = nullValue;
+        } else {
+            try {
+                value = fieldType().type.parse(parser, coerce.value());
+            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
+                    context.addIgnoredField(mappedFieldType.name());
+                    return null;
+                } else {
+                    throw e;
+                }
+            }
+        }
+
+        if (value == null) {
+            return nullValue;
+        }
+
+        return value;
     }
 
     @Override

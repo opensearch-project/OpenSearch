@@ -13,8 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
@@ -44,11 +42,7 @@ import static org.mockito.Mockito.mock;
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     protected static final int EIGHT_MB = 1024 * 1024 * 8;
-    protected final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-        EIGHT_MB * 2,
-        1,
-        new NoopCircuitBreaker(CircuitBreaker.REQUEST)
-    );
+    protected final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(EIGHT_MB * 2, 1);
     protected MMapDirectory directory;
     protected TransferManager transferManager;
     protected ThreadPool threadPool;
@@ -327,6 +321,18 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         fileCache.decRef(blobFetchRequest.getFilePath());
         // Making the read call to fetch from file cache
         IndexInput indexInput = transferManager.fetchBlob(blobFetchRequest);
+        assertEquals(Optional.of(1), Optional.of(fileCache.getRef(blobFetchRequest.getFilePath())));
+    }
+
+    public void testRefMultipleCount() throws Exception {
+        List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
+        String blobname = "test-blob";
+        blobParts.add(new BlobFetchRequest.BlobPart("blob", 0, EIGHT_MB));
+        BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build();
+        transferManager.fetchBlob(blobFetchRequest);
+        assertNotNull(fileCache.getRef(blobFetchRequest.getFilePath()));
+        transferManager.fetchBlobAsync(blobFetchRequest).join();
+        waitUntil(() -> fileCache.getRef(blobFetchRequest.getFilePath()) == 1, 10, TimeUnit.SECONDS);
         assertEquals(Optional.of(1), Optional.of(fileCache.getRef(blobFetchRequest.getFilePath())));
     }
 

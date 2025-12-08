@@ -49,6 +49,8 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -59,8 +61,10 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -68,6 +72,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -99,6 +104,7 @@ import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.object.HasToString.hasToString;
+import static org.mockito.Mockito.mock;
 
 public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
 
@@ -137,6 +143,7 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         Response,
         TransportBroadcastByNodeAction.EmptyResult> {
         private final Map<ShardRouting, Object> shards = new HashMap<>();
+        private final CounterMetric nodeOperationCount = new CounterMetric();
 
         TestTransportBroadcastByNodeAction(
             TransportService transportService,
@@ -204,6 +211,18 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         @Override
         protected ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices) {
             return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
+        }
+
+        @Override
+        protected void nodeOperation(
+            List<TransportBroadcastByNodeAction.EmptyResult> results,
+            List<BroadcastShardOperationFailedException> accumulatedExceptions
+        ) {
+            nodeOperationCount.inc();
+        }
+
+        public long getNodeOperationCount() {
+            return nodeOperationCount.count();
         }
 
         public Map<ShardRouting, Object> getResults() {
@@ -452,6 +471,33 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
             assertThat(exception.getMessage(), is("operation indices:admin/test failed"));
             assertThat(exception, hasToString(containsString("operation failed")));
         }
+        assertEquals(1, action.getNodeOperationCount());
+    }
+
+    public void testNodeLevelHookForMultiNode() throws Exception {
+        // Manually send the request from coordinator --> target nodes, action.doExecute() does not do that in this test case setup
+
+        Request request = new Request(new String[] { TEST_INDEX });
+        final PlainActionFuture<Response> listener = PlainActionFuture.newFuture();
+        action.doExecute(mock(Task.class), request, ActionListener.wrap(listener::onResponse, listener::onFailure));
+
+        // Get captured NodeRequest from coordinator for each target node
+        Map<String, List<CapturingTransport.CapturedRequest>> captured = transport.getCapturedRequestsByTargetNodeAndClear();
+        assertFalse("expected at least one target node", captured.isEmpty());
+
+        final TransportBroadcastByNodeAction<?, ?, ?>.BroadcastByNodeTransportRequestHandler handler =
+            action.new BroadcastByNodeTransportRequestHandler();
+
+        for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> e : captured.entrySet()) {
+            CapturingTransport.CapturedRequest cr = e.getValue().get(0);
+            assertEquals(action.transportNodeBroadcastAction, cr.action);
+            TransportBroadcastByNodeAction.NodeRequest nodeReq = (TransportBroadcastByNodeAction.NodeRequest) cr.request;
+
+            final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
+            TestTransportChannel channel = new TestTransportChannel(future);
+            handler.messageReceived(nodeReq, channel, null);
+        }
+        assertEquals("nodeOperation should run once per target node", captured.size(), action.getNodeOperationCount());
     }
 
     public void testResultAggregation() throws ExecutionException, InterruptedException {
@@ -584,5 +630,11 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         assertEquals("successful shards", totalSuccessfulShards, response.getSuccessfulShards());
         assertEquals("failed shards", totalFailedShards, response.getFailedShards());
         assertEquals("accumulated exceptions", totalFailedShards, response.getShardFailures().length);
+    }
+
+    public void testResolveIndices() {
+        Request request = new Request(TEST_INDEX);
+        OptionallyResolvedIndices resolvedIndices = action.resolveIndices(request);
+        assertEquals(ResolvedIndices.of(TEST_INDEX), resolvedIndices);
     }
 }

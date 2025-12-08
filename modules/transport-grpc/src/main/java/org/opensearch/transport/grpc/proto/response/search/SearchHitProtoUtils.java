@@ -8,15 +8,17 @@
 package org.opensearch.transport.grpc.proto.response.search;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.UnsafeByteOperations;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.protobufs.InnerHitsResult;
 import org.opensearch.protobufs.NestedIdentity;
-import org.opensearch.protobufs.NullValue;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -46,8 +48,8 @@ public class SearchHitProtoUtils {
      * @return A Protocol Buffer Hit representation
      * @throws IOException if there's an error during conversion
      */
-    protected static org.opensearch.protobufs.Hit toProto(SearchHit hit) throws IOException {
-        org.opensearch.protobufs.Hit.Builder hitBuilder = org.opensearch.protobufs.Hit.newBuilder();
+    protected static org.opensearch.protobufs.HitsMetadataHitsInner toProto(SearchHit hit) throws IOException {
+        org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder = org.opensearch.protobufs.HitsMetadataHitsInner.newBuilder();
         toProto(hit, hitBuilder);
         return hitBuilder.build();
     }
@@ -60,7 +62,7 @@ public class SearchHitProtoUtils {
      * @param hitBuilder The builder to populate with the SearchHit data
      * @throws IOException if there's an error during conversion
      */
-    protected static void toProto(SearchHit hit, org.opensearch.protobufs.Hit.Builder hitBuilder) throws IOException {
+    protected static void toProto(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) throws IOException {
         // Process shard information
         processShardInfo(hit, hitBuilder);
 
@@ -101,12 +103,12 @@ public class SearchHitProtoUtils {
      * @param hit The SearchHit to process
      * @param hitBuilder The builder to populate with the shard information
      */
-    private static void processShardInfo(SearchHit hit, org.opensearch.protobufs.Hit.Builder hitBuilder) {
+    private static void processShardInfo(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (hit.getExplanation() != null && hit.getShard() != null) {
-            hitBuilder.setShard(String.valueOf(hit.getShard().getShardId().id()));
-            hitBuilder.setNode(hit.getShard().getNodeIdText().string());
+            hitBuilder.setXShard(String.valueOf(hit.getShard().getShardId().id()));
+            hitBuilder.setXNode(hit.getShard().getNodeIdText().string());
         }
     }
 
@@ -116,31 +118,31 @@ public class SearchHitProtoUtils {
      * @param hit The SearchHit to process
      * @param hitBuilder The builder to populate with the basic information
      */
-    private static void processBasicInfo(SearchHit hit, org.opensearch.protobufs.Hit.Builder hitBuilder) {
+    private static void processBasicInfo(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
         // Set index if available
         if (hit.getIndex() != null) {
-            hitBuilder.setIndex(RemoteClusterAware.buildRemoteIndexName(hit.getClusterAlias(), hit.getIndex()));
+            hitBuilder.setXIndex(RemoteClusterAware.buildRemoteIndexName(hit.getClusterAlias(), hit.getIndex()));
         }
 
         // Set ID if available
         if (hit.getId() != null) {
-            hitBuilder.setId(hit.getId());
+            hitBuilder.setXId(hit.getId());
         }
 
         // Set nested identity if available
         if (hit.getNestedIdentity() != null) {
-            hitBuilder.setNested(NestedIdentityProtoUtils.toProto(hit.getNestedIdentity()));
+            hitBuilder.setXNested(NestedIdentityProtoUtils.toProto(hit.getNestedIdentity()));
         }
 
         // Set version if available
         if (hit.getVersion() != -1) {
-            hitBuilder.setVersion(hit.getVersion());
+            hitBuilder.setXVersion(hit.getVersion());
         }
 
         // Set sequence number and primary term if available
         if (hit.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            hitBuilder.setSeqNo(hit.getSeqNo());
-            hitBuilder.setPrimaryTerm(hit.getPrimaryTerm());
+            hitBuilder.setXSeqNo(hit.getSeqNo());
+            hitBuilder.setXPrimaryTerm(hit.getPrimaryTerm());
         }
     }
 
@@ -150,16 +152,17 @@ public class SearchHitProtoUtils {
      * @param hit The SearchHit to process
      * @param hitBuilder The builder to populate with the score information
      */
-    private static void processScore(SearchHit hit, org.opensearch.protobufs.Hit.Builder hitBuilder) {
-        org.opensearch.protobufs.Hit.Score.Builder scoreBuilder = org.opensearch.protobufs.Hit.Score.newBuilder();
-
-        if (Float.isNaN(hit.getScore())) {
-            scoreBuilder.setNullValue(NullValue.NULL_VALUE_NULL);
+    private static void processScore(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
+        if (!Float.isNaN(hit.getScore())) {
+            org.opensearch.protobufs.HitXScore.Builder scoreBuilder = org.opensearch.protobufs.HitXScore.newBuilder();
+            scoreBuilder.setDouble(hit.getScore());
+            hitBuilder.setXScore(scoreBuilder.build());
         } else {
-            scoreBuilder.setFloatValue(hit.getScore());
+            // Handle null/NaN score case
+            org.opensearch.protobufs.HitXScore.Builder scoreBuilder = org.opensearch.protobufs.HitXScore.newBuilder();
+            scoreBuilder.setNullValue(org.opensearch.protobufs.NullValue.NULL_VALUE_NULL);
+            hitBuilder.setXScore(scoreBuilder.build());
         }
-
-        hitBuilder.setScore(scoreBuilder.build());
     }
 
     /**
@@ -168,7 +171,7 @@ public class SearchHitProtoUtils {
      * @param hit The SearchHit to process
      * @param hitBuilder The builder to populate with the metadata fields
      */
-    private static void processMetadataFields(SearchHit hit, org.opensearch.protobufs.Hit.Builder hitBuilder) {
+    private static void processMetadataFields(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
         // Only process if there are non-empty metadata fields
         if (hit.getMetaFields().values().stream().anyMatch(field -> !field.getValues().isEmpty())) {
             ObjectMap.Builder objectMapBuilder = ObjectMap.newBuilder();
@@ -192,9 +195,20 @@ public class SearchHitProtoUtils {
      * @param hit The SearchHit to process
      * @param hitBuilder The builder to populate with the source information
      */
-    private static void processSource(SearchHit hit, org.opensearch.protobufs.Hit.Builder hitBuilder) {
+    private static void processSource(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
         if (hit.getSourceRef() != null) {
-            hitBuilder.setSource(ByteString.copyFrom(BytesReference.toBytes(hit.getSourceRef())));
+            BytesReference sourceRef = hit.getSourceRef();
+            BytesRef bytesRef = sourceRef.toBytesRef();
+
+            if (sourceRef instanceof BytesArray) {
+                if (bytesRef.offset == 0 && bytesRef.length == bytesRef.bytes.length) {
+                    hitBuilder.setXSource(UnsafeByteOperations.unsafeWrap(bytesRef.bytes));
+                } else {
+                    hitBuilder.setXSource(UnsafeByteOperations.unsafeWrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+                }
+            } else {
+                hitBuilder.setXSource(ByteString.copyFrom(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+            }
         }
     }
 
@@ -204,7 +218,7 @@ public class SearchHitProtoUtils {
      * @param hit The SearchHit to process
      * @param hitBuilder The builder to populate with the document fields
      */
-    private static void processDocumentFields(SearchHit hit, org.opensearch.protobufs.Hit.Builder hitBuilder) {
+    private static void processDocumentFields(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
         if (!hit.getDocumentFields().isEmpty() &&
         // ignore fields all together if they are all empty
             hit.getDocumentFields().values().stream().anyMatch(df -> !df.getValues().isEmpty())) {
@@ -227,7 +241,7 @@ public class SearchHitProtoUtils {
      * @param hit The SearchHit to process
      * @param hitBuilder The builder to populate with the highlight fields
      */
-    private static void processHighlightFields(SearchHit hit, org.opensearch.protobufs.Hit.Builder hitBuilder) {
+    private static void processHighlightFields(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
         if (hit.getHighlightFields() != null && !hit.getHighlightFields().isEmpty()) {
             for (HighlightField field : hit.getHighlightFields().values()) {
                 hitBuilder.putHighlight(field.getName(), HighlightFieldProtoUtils.toProto(field.getFragments()));
@@ -241,7 +255,7 @@ public class SearchHitProtoUtils {
      * @param hit The SearchHit to process
      * @param hitBuilder The builder to populate with the matched queries
      */
-    private static void processMatchedQueries(SearchHit hit, org.opensearch.protobufs.Hit.Builder hitBuilder) {
+    private static void processMatchedQueries(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
         if (hit.getMatchedQueries().length > 0) {
             // TODO pass params in
             // boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
@@ -266,11 +280,12 @@ public class SearchHitProtoUtils {
      * @param hitBuilder The builder to populate with the explanation
      * @throws IOException if there's an error during conversion
      */
-    private static void processExplanation(SearchHit hit, org.opensearch.protobufs.Hit.Builder hitBuilder) throws IOException {
+    private static void processExplanation(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder)
+        throws IOException {
         if (hit.getExplanation() != null) {
             org.opensearch.protobufs.Explanation.Builder explanationBuilder = org.opensearch.protobufs.Explanation.newBuilder();
             buildExplanation(hit.getExplanation(), explanationBuilder);
-            hitBuilder.setExplanation(explanationBuilder.build());
+            hitBuilder.setXExplanation(explanationBuilder.build());
         }
     }
 
@@ -281,7 +296,8 @@ public class SearchHitProtoUtils {
      * @param hitBuilder The builder to populate with the inner hits
      * @throws IOException if there's an error during conversion
      */
-    private static void processInnerHits(SearchHit hit, org.opensearch.protobufs.Hit.Builder hitBuilder) throws IOException {
+    private static void processInnerHits(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder)
+        throws IOException {
         if (hit.getInnerHits() != null) {
             for (Map.Entry<String, SearchHits> entry : hit.getInnerHits().entrySet()) {
                 org.opensearch.protobufs.HitsMetadata.Builder hitsBuilder = org.opensearch.protobufs.HitsMetadata.newBuilder();
@@ -305,7 +321,7 @@ public class SearchHitProtoUtils {
         org.apache.lucene.search.Explanation explanation,
         org.opensearch.protobufs.Explanation.Builder protoExplanationBuilder
     ) throws IOException {
-        protoExplanationBuilder.setValue(explanation.getValue().doubleValue());
+        protoExplanationBuilder.setValue(explanation.getValue().floatValue());
         protoExplanationBuilder.setDescription(explanation.getDescription());
 
         org.apache.lucene.search.Explanation[] innerExps = explanation.getDetails();
@@ -368,7 +384,7 @@ public class SearchHitProtoUtils {
             if (nestedIdentity.getChild() != null) {
                 NestedIdentity.Builder childBuilder = NestedIdentity.newBuilder();
                 toProto(nestedIdentity.getChild(), childBuilder);
-                nestedIdentityBuilder.setNested(childBuilder.build());
+                nestedIdentityBuilder.setXNested(childBuilder.build());
             }
         }
     }

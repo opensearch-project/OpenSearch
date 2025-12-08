@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -47,7 +48,13 @@ public class MergedSegmentWarmerFactoryTests extends OpenSearchTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
     }
 
-    public void testGetWithSegmentReplicationEnabled() {
+    @Override
+    public void tearDown() throws Exception {
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        super.tearDown();
+    }
+
+    public void testGetWithSegmentReplication() {
         IndexSettings indexSettings = createIndexSettings(
             false,
             Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build()
@@ -80,7 +87,6 @@ public class MergedSegmentWarmerFactoryTests extends OpenSearchTestCase {
 
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         IndexWriter.IndexReaderWarmer warmer = factory.get(indexShard);
-
         assertNull(warmer);
     }
 

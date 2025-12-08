@@ -290,8 +290,7 @@ public class QueryPhase {
                 );
 
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                if (executor instanceof EWMATrackingThreadPoolExecutor) {
-                    final EWMATrackingThreadPoolExecutor rExecutor = (EWMATrackingThreadPoolExecutor) executor;
+                if (executor instanceof EWMATrackingThreadPoolExecutor rExecutor) {
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
@@ -373,8 +372,8 @@ public class QueryPhase {
         for (QueryCollectorContext ctx : collectors) {
             ctx.postProcess(queryResult);
         }
-        if (queryCollectorContext instanceof RescoringQueryCollectorContext) {
-            return ((RescoringQueryCollectorContext) queryCollectorContext).shouldRescore();
+        if (queryCollectorContext instanceof RescoringQueryCollectorContext rescoringContext) {
+            return rescoringContext.shouldRescore();
         }
         return false;
     }
@@ -446,14 +445,16 @@ public class QueryPhase {
             boolean hasFilterCollector,
             boolean hasTimeout
         ) throws IOException {
-            QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
+            QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, query, hasFilterCollector);
             return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
         }
 
-        private QueryCollectorContext getQueryCollectorContext(SearchContext searchContext, boolean hasFilterCollector) throws IOException {
+        private QueryCollectorContext getQueryCollectorContext(SearchContext searchContext, Query query, boolean hasFilterCollector)
+            throws IOException {
             // create the top docs collector last when the other collectors are known
             final Optional<QueryCollectorContext> queryCollectorContextOpt = QueryCollectorContextSpecRegistry.getQueryCollectorContextSpec(
                 searchContext,
+                query,
                 new QueryCollectorArguments.Builder().hasFilterCollector(hasFilterCollector).build()
             ).map(queryCollectorContextSpec -> new QueryCollectorContext(queryCollectorContextSpec.getContextName()) {
                 @Override

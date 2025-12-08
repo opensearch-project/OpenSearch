@@ -111,10 +111,10 @@ dependencies {
   api 'org.apache.rat:apache-rat:0.15'
   api "commons-io:commons-io:${props.getProperty('commonsio')}"
   api "net.java.dev.jna:jna:5.16.0"
-  api 'com.gradleup.shadow:shadow-gradle-plugin:8.3.5'
+  api 'com.gradleup.shadow:shadow-gradle-plugin:8.3.9'
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
-  api 'de.thetaphi:forbiddenapis:3.8'
+  api 'de.thetaphi:forbiddenapis:3.10'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.17.12'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
   api 'org.apache.maven:maven-model:3.9.6'
@@ -130,9 +130,17 @@ dependencies {
   testFixturesApi gradleTestKit()
   testImplementation 'org.wiremock:wiremock-standalone:3.6.0'
   testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
-  integTestImplementation('org.spockframework:spock-core:2.3-groovy-3.0') {
+  integTestImplementation('org.spockframework:spock-core:2.4-M6-groovy-4.0') {
     exclude module: "groovy"
   }
+  // Integration with JUnit 4 features for Spock 2+ (which internally uses JUnit Platform -
+  // part of JUnit 5) - https://spockframework.org/spock/docs/2.4-M6/modules.html
+  integTestImplementation('org.spockframework:spock-junit4:2.4-M6-groovy-4.0') {
+    exclude module: "groovy"
+  }
+  integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
+  integTestRuntimeOnly("org.junit.platform:junit-platform-launcher")
+  integTestRuntimeOnly("org.junit.vintage:junit-vintage-engine")
 }
 
 configurations.all {
@@ -185,7 +193,7 @@ if (project != rootProject) {
   disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
-  if (org.opensearch.gradle.info.BuildParams.inFipsJvm) {
+  if (org.opensearch.gradle.info.BuildParams.isInFipsJvm()) {
     // We don't support running gradle with a JVM that is in FIPS 140 mode, so we don't test it.
     // WaitForHttpResourceTests tests would fail as they use JKS/PKCS12 keystores
     test.enabled = false
@@ -218,6 +226,7 @@ if (project != rootProject) {
   // Track reaper jar as a test input using runtime classpath normalization strategy
   tasks.withType(Test).configureEach {
     inputs.files(configurations.reaper).withNormalizer(ClasspathNormalizer)
+    jvmArgs += ["--add-opens", "java.base/java.lang=ALL-UNNAMED"]
   }
 
   normalization {
@@ -252,9 +261,10 @@ if (project != rootProject) {
   }
 
   tasks.register("integTest", Test) {
+    useJUnitPlatform()
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
-    onlyIf { org.opensearch.gradle.info.BuildParams.inFipsJvm == false }
+    onlyIf { org.opensearch.gradle.info.BuildParams.isInFipsJvm() == false }
     maxParallelForks = System.getProperty('tests.jvms', org.opensearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath

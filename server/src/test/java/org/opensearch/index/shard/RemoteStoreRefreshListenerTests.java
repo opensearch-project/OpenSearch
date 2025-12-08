@@ -54,6 +54,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.mockito.stubbing.Answer;
+
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
@@ -822,7 +824,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         when(shard.getRemoteStoreSettings()).thenReturn(remoteStoreSettings);
         if (testUploadTimeout) {
             when(remoteStoreSettings.getClusterRemoteSegmentTransferTimeout()).thenReturn(TimeValue.timeValueMillis(10));
-            doAnswer(invocation -> {
+            Answer<Boolean> answer = invocation -> {
                 ActionListener<Void> actionListener = invocation.getArgument(5);
                 indexShard.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(() -> {
                     try {
@@ -833,7 +835,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                     actionListener.onResponse(null);
                 });
                 return true;
-            }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(ActionListener.class), any(Boolean.class));
+            };
+            doAnswer(answer).when(remoteDirectory)
+                .copyFrom(any(), any(), any(), any(), any(), any(ActionListener.class), any(Boolean.class));
+
+            doAnswer(answer).when(remoteDirectory).copyFrom(any(), any(), any(), any());
         }
 
         RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(

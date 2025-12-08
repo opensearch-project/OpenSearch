@@ -91,7 +91,9 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.codec.CriteriaBasedCodec;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.NonPruningSortedSetOrdinalsIndexFieldData.NonPruningSortField;
 import org.opensearch.search.sort.SortedWiderNumericSortField;
 
 import java.io.IOException;
@@ -110,7 +112,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene101";
+    public static final String LATEST_CODEC = "Lucene103";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
     public static final String PARENT_FIELD = "__nested_parent";
@@ -576,6 +578,24 @@ public class Lucene {
             );
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
+        } else if (sortField instanceof NonPruningSortField) {
+            // There are 2 cases of how NonPruningSortField wraps around its underlying sort field.
+            // Which are through the SortField class or SortedSetSortField class
+            // We will serialize the sort field based on the type of underlying sort field
+            // Here the underlying sort field is SortedSetSortField, therefore, we will follow the
+            // logic in serializing SortedSetSortField and also unwrap the SortField case.
+            NonPruningSortField nonPruningSortField = (NonPruningSortField) sortField;
+            if (nonPruningSortField.getDelegate().getClass() == SortedSetSortField.class) {
+                SortField newSortField = new SortField(
+                    nonPruningSortField.getField(),
+                    SortField.Type.STRING,
+                    nonPruningSortField.getReverse()
+                );
+                newSortField.setMissingValue(nonPruningSortField.getMissingValue());
+                sortField = newSortField;
+            } else if (nonPruningSortField.getDelegate().getClass() == SortField.class) {
+                sortField = nonPruningSortField.getDelegate();
+            }
         }
 
         if (sortField.getClass() != SortField.class) {
@@ -920,9 +940,22 @@ public class Lucene {
                     // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
                     // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
                     // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
-                    final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+
+                    // With CAS enabled segments, hard deletes can also be present, so correcting numDocs.
+                    // We are using attribute value here to identify whether segment has CAS enabled or not.
+                    int numDocs;
+                    if (isContextAwareEnabled(segmentReader)) {
+                        numDocs = popCount(hardLiveDocs);
+                    } else {
+                        numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+                    }
+
                     assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
                     return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+                }
+
+                private boolean isContextAwareEnabled(SegmentReader reader) {
+                    return reader.getSegmentInfo().info.getAttribute(CriteriaBasedCodec.BUCKET_NAME) != null;
                 }
             });
         }
