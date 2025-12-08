@@ -22,7 +22,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithBoolValue() {
         // Create a BulkRequest with source as boolean
-        BulkRequest request = BulkRequest.newBuilder().setXSource(SourceConfigParam.newBuilder().setBool(true).build()).build();
+        BulkRequest request = BulkRequest.newBuilder().setXSource(SourceConfigParam.newBuilder().setFetch(true).build()).build();
 
         // Parse the request
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
@@ -39,7 +39,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = BulkRequest.newBuilder()
             .setXSource(
                 SourceConfigParam.newBuilder()
-                    .setStringArray(StringArray.newBuilder().addStringArray("field1").addStringArray("field2").build())
+                    .setFields(StringArray.newBuilder().addStringArray("field1").addStringArray("field2").build())
                     .build()
             )
             .build();
@@ -178,7 +178,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithSearchRequestBoolValue() {
         // Create a SearchRequest with source as boolean
-        SearchRequest request = SearchRequest.newBuilder().setXSource(SourceConfigParam.newBuilder().setBool(true).build()).build();
+        SearchRequest request = SearchRequest.newBuilder().setXSource(SourceConfigParam.newBuilder().setFetch(true).build()).build();
 
         // Parse the request
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
@@ -195,7 +195,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
         SearchRequest request = SearchRequest.newBuilder()
             .setXSource(
                 SourceConfigParam.newBuilder()
-                    .setStringArray(StringArray.newBuilder().addStringArray("field1").addStringArray("field2").build())
+                    .setFields(StringArray.newBuilder().addStringArray("field1").addStringArray("field2").build())
                     .build()
             )
             .build();

@@ -216,7 +216,7 @@ final class QueryAnalyzer {
                 case MatchAllDocsQuery ignored -> terms.add(new Result(true, true));
                 case MatchNoDocsQuery ignored -> terms.add(Result.MATCH_NONE);
                 case PointRangeQuery pointRangeQuery -> terms.add(pointRangeQuery(pointRangeQuery));
-                default -> terms.add(Result.UNKNOWN);
+                case null, default -> terms.add(Result.UNKNOWN);
             }
         }
 

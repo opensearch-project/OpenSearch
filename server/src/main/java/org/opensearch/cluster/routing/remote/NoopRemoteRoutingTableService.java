@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.routing.remote;
 
+import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -71,7 +72,8 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     public void getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<IndexRoutingTable> latchedActionListener
+        LatchedActionListener<IndexRoutingTable> latchedActionListener,
+        Version version
     ) {
         // noop
     }
@@ -80,7 +82,8 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     public void getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<Diff<RoutingTable>> latchedActionListener
+        LatchedActionListener<Diff<RoutingTable>> latchedActionListener,
+        Version version
     ) {
         // noop
     }

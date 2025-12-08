@@ -744,7 +744,7 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
             client().prepareSearch("testdynamic").setQuery(qb).get();
         });
 
-        assert (e.getDetailedMessage().contains("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT - 1)));
+        assertThat(e.getDetailedMessage(), containsString("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT - 1)));
 
         // increase clause count by 2
         assertAcked(
@@ -753,8 +753,6 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT + 2))
         );
-
-        Thread.sleep(1);
 
         SearchResponse response = client().prepareSearch("testdynamic").setQuery(qb).get();
         assertHitCount(response, 1);

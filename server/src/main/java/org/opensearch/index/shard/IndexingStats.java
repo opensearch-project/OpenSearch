@@ -33,6 +33,7 @@
 package org.opensearch.index.shard;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -70,6 +71,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
          * @opensearch.api
          */
         @PublicApi(since = "1.0.0")
+        @DeprecatedApi(since = "3.4.0")
         public static class DocStatusStats implements Writeable, ToXContentFragment {
 
             final AtomicLong[] docStatusCounter;
@@ -162,7 +164,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long maxLastIndexRequestTimestamp;
 
         Stats() {
-            docStatusStats = new DocStatusStats();
+            docStatusStats = null;
         }
 
         /**
@@ -201,7 +203,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             } else {
                 maxLastIndexRequestTimestamp = 0L;
             }
-            if (in.getVersion().onOrAfter(Version.V_2_11_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_11_0) && in.getVersion().before(Version.V_3_4_0)) {
                 docStatusStats = in.readOptionalWriteable(DocStatusStats::new);
             } else {
                 docStatusStats = null;
@@ -212,7 +214,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
          * This constructor will be deprecated starting in version 3.4.0.
          * Use {@link Builder} instead.
          */
-        @Deprecated
+        @Deprecated(since = "3.4.0")
         public Stats(
             long indexCount,
             long indexTimeInMillis,
@@ -246,7 +248,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
          * This constructor will be deprecated starting in version 3.4.0.
          * Use {@link Builder} instead.
          */
-        @Deprecated
+        @Deprecated(since = "3.4.0")
         public Stats(
             long indexCount,
             long indexTimeInMillis,
@@ -386,7 +388,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
                 out.writeLong(maxLastIndexRequestTimestamp);
             }
-            if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_11_0) && out.getVersion().before(Version.V_3_4_0)) {
                 out.writeOptionalWriteable(docStatusStats);
             }
         }
@@ -486,6 +488,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 return this;
             }
 
+            // To be removed soon
             public Builder docStatusStats(DocStatusStats stats) {
                 this.docStatusStats = stats;
                 return this;

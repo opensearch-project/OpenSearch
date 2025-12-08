@@ -11,6 +11,7 @@ package org.opensearch.cluster.routing.remote;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -182,7 +183,8 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     public void getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<IndexRoutingTable> latchedActionListener
+        LatchedActionListener<IndexRoutingTable> latchedActionListener,
+        Version version
     ) {
 
         ActionListener<IndexRoutingTable> actionListener = ActionListener.wrap(
@@ -190,7 +192,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             latchedActionListener::onFailure
         );
 
-        RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(uploadedFilename, clusterUUID, compressor);
+        RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(uploadedFilename, clusterUUID, compressor, version);
 
         remoteIndexRoutingTableStore.readAsync(remoteIndexRoutingTable, actionListener);
     }
@@ -199,14 +201,15 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     public void getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<Diff<RoutingTable>> latchedActionListener
+        LatchedActionListener<Diff<RoutingTable>> latchedActionListener,
+        Version version
     ) {
         ActionListener<Diff<RoutingTable>> actionListener = ActionListener.wrap(
             latchedActionListener::onResponse,
             latchedActionListener::onFailure
         );
 
-        RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(uploadedFilename, clusterUUID, compressor);
+        RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(uploadedFilename, clusterUUID, compressor, version);
         remoteRoutingTableDiffStore.readAsync(remoteRoutingTableDiff, actionListener);
     }
 
