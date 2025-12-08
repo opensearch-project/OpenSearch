@@ -71,8 +71,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactor the Cache.CacheStats class to use the Builder pattern instead of constructors ([#20015](https://github.com/opensearch-project/OpenSearch/pull/20015))
 - Refactor the HttpStats, ScriptStats, AdaptiveSelectionStats and OsStats class to use the Builder pattern instead of constructors ([#20014](https://github.com/opensearch-project/OpenSearch/pull/20014))
 - Bump opensearch-protobufs dependency to 0.24.0 and update transport-grpc module compatibility ([#20059](https://github.com/opensearch-project/OpenSearch/pull/20059))
-
 - Refactor the ShardStats, WarmerStats and IndexingPressureStats class to use the Builder pattern instead of constructors ([#19966](https://github.com/opensearch-project/OpenSearch/pull/19966))
+- Add skiplist optimization to auto_date_histogram aggregation ([#20057](https://github.com/opensearch-project/OpenSearch/pull/20057))
 - Throw exceptions for currently unsupported GRPC request-side fields ([#20162](https://github.com/opensearch-project/OpenSearch/pull/20162))
 
 ### Fixed
@@ -81,6 +81,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix case-insensitive wildcard + aggregation query crash ([#19489](https://github.com/opensearch-project/OpenSearch/pull/19489))
 - Avoid primary shard failure caused by merged segment warmer exceptions ([#19436](https://github.com/opensearch-project/OpenSearch/pull/19436))
 - Fix pull-based ingestion out-of-bounds offset scenarios and remove persisted offsets ([#19607](https://github.com/opensearch-project/OpenSearch/pull/19607))
+- Fix flaky test ClusterMaxMergesAtOnceIT.testClusterLevelDefaultUpdatesMergePolicy ([#18056](https://github.com/opensearch-project/OpenSearch/issues/18056))
 - Fix issue with updating core with a patch number other than 0 ([#19377](https://github.com/opensearch-project/OpenSearch/pull/19377))
 - [Java Agent] Allow JRT protocol URLs in protection domain extraction ([#19683](https://github.com/opensearch-project/OpenSearch/pull/19683))
 - Fix potential concurrent modification exception when updating allocation filters ([#19701])(https://github.com/opensearch-project/OpenSearch/pull/19701))
@@ -140,7 +141,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `actions/upload-artifact` from 4 to 5 ([#20081](https://github.com/opensearch-project/OpenSearch/pull/20081))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.5 to 10.6 ([#20084](https://github.com/opensearch-project/OpenSearch/pull/20084))
 - Bump `commons-logging` from 1.2 to 1.3.5 ([#20156](https://github.com/opensearch-project/OpenSearch/pull/20156))
-- Bump `org.apache.commons:commons-configuration2` from 2.12.0 to 2.13.0 ([#20184](https://github.com/opensearch-project/OpenSearch/pull/20184))
+- Bump `org.apache.commons:commons-configuration2` from 2.12.0 to 2.13.0 ([#20184](https://github.com/opensearch-project/OpenSearch/pull/20184)), ([#20185](https://github.com/opensearch-project/OpenSearch/pull/20185))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
