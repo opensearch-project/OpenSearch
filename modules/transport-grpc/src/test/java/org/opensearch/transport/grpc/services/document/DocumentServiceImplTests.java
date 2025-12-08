@@ -9,6 +9,11 @@
 package org.opensearch.transport.grpc.services.document;
 
 import com.google.protobuf.ByteString;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
 import org.opensearch.protobufs.IndexOperation;
@@ -20,12 +25,20 @@ import org.junit.Before;
 import java.io.IOException;
 
 import io.grpc.stub.StreamObserver;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DocumentServiceImplTests extends OpenSearchTestCase {
 
@@ -35,12 +48,19 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
     private NodeClient client;
 
     @Mock
+    private CircuitBreakerService circuitBreakerService;
+
+    @Mock
+    private CircuitBreaker circuitBreaker;
+
+    @Mock
     private StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver;
 
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
-        service = new DocumentServiceImpl(client);
+        when(circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)).thenReturn(circuitBreaker);
+        service = new DocumentServiceImpl(client, circuitBreakerService);
     }
 
     public void testBulkSuccess() throws IOException {
@@ -66,6 +86,120 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
 
         // Verify that the error was sent
         verify(responseObserver).onError(any(RuntimeException.class));
+    }
+
+    public void testCircuitBreakerCheckedBeforeProcessing() throws IOException {
+        // Create a test request
+        BulkRequest request = createTestBulkRequest();
+
+        // Call the bulk method
+        service.bulk(request, responseObserver);
+
+        // Verify circuit breaker was checked with the request size
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), eq("<grpc_bulk_request>"));
+
+        // Verify client.bulk was called
+        verify(client).bulk(any(org.opensearch.action.bulk.BulkRequest.class), any());
+    }
+
+    public void testCircuitBreakerTripsAndRejectsRequest() throws IOException {
+        // Create a test request
+        BulkRequest request = createTestBulkRequest();
+
+        // Make circuit breaker throw exception
+        CircuitBreakingException circuitBreakerException = new CircuitBreakingException(
+            "Data too large",
+            100L,
+            50 * 1024 * 1024L,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        doThrow(circuitBreakerException).when(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), anyString());
+
+        // Call the bulk method
+        service.bulk(request, responseObserver);
+
+        // Verify circuit breaker was checked
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), eq("<grpc_bulk_request>"));
+
+        // Verify client.bulk was NOT called (request was rejected before processing)
+        verify(client, never()).bulk(any(org.opensearch.action.bulk.BulkRequest.class), any());
+
+        // Verify bytes were released after rejection
+        verify(circuitBreaker).addWithoutBreaking(anyLong());
+
+        // Verify error was sent to client
+        verify(responseObserver).onError(any());
+    }
+
+    public void testCircuitBreakerBytesReleasedOnSuccess() throws IOException {
+        // Create a test request
+        BulkRequest request = createTestBulkRequest();
+
+        // Capture the ActionListener to simulate success
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<ActionListener<BulkResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+
+        // Call the bulk method
+        service.bulk(request, responseObserver);
+
+        // Verify client.bulk was called and capture the listener
+        verify(client).bulk(any(org.opensearch.action.bulk.BulkRequest.class), listenerCaptor.capture());
+
+        // Simulate successful response
+        BulkResponse mockResponse = mock(BulkResponse.class);
+        when(mockResponse.hasFailures()).thenReturn(false);
+        listenerCaptor.getValue().onResponse(mockResponse);
+
+        // Verify bytes were released after success (negative value)
+        verify(circuitBreaker).addWithoutBreaking(anyLong());
+    }
+
+    public void testCircuitBreakerBytesReleasedOnFailure() throws IOException {
+        // Create a test request
+        BulkRequest request = createTestBulkRequest();
+
+        // Capture the ActionListener to simulate failure
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<ActionListener<BulkResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+
+        // Call the bulk method
+        service.bulk(request, responseObserver);
+
+        // Verify client.bulk was called and capture the listener
+        verify(client).bulk(any(org.opensearch.action.bulk.BulkRequest.class), listenerCaptor.capture());
+
+        // Simulate failure
+        Exception testException = new RuntimeException("Bulk operation failed");
+        listenerCaptor.getValue().onFailure(testException);
+
+        // Verify bytes were released after failure (negative value)
+        verify(circuitBreaker).addWithoutBreaking(anyLong());
+    }
+
+    public void testCircuitBreakerBytesReleasedExactlyOnce() throws IOException {
+        // Create a test request
+        BulkRequest request = createTestBulkRequest();
+
+        // Capture the ActionListener
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<ActionListener<BulkResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+
+        // Call the bulk method
+        service.bulk(request, responseObserver);
+
+        // Verify circuit breaker was checked
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(anyLong(), eq("<grpc_bulk_request>"));
+
+        // Verify client.bulk was called and capture the listener
+        verify(client).bulk(any(org.opensearch.action.bulk.BulkRequest.class), listenerCaptor.capture());
+
+        // Simulate successful response
+        BulkResponse mockResponse = mock(BulkResponse.class);
+        when(mockResponse.hasFailures()).thenReturn(false);
+        listenerCaptor.getValue().onResponse(mockResponse);
+
+        // Verify bytes were released exactly once (no double-release)
+        verify(circuitBreaker, times(1)).addWithoutBreaking(anyLong());
     }
 
     private BulkRequest createTestBulkRequest() {
