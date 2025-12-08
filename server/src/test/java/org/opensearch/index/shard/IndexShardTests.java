@@ -1692,15 +1692,14 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testShardStats() throws IOException {
 
         IndexShard shard = newStartedShard();
-        ShardStats stats = new ShardStats(
-            shard.routingEntry(),
-            shard.shardPath(),
-            new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
-            shard.commitStats(),
-            shard.seqNoStats(),
-            shard.getRetentionLeaseStats(),
-            shard.pollingIngestStats()
-        );
+        ShardStats stats = new ShardStats.Builder().shardRouting(shard.routingEntry())
+            .shardPath(shard.shardPath())
+            .commonStats(new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()))
+            .commitStats(shard.commitStats())
+            .seqNoStats(shard.seqNoStats())
+            .retentionLeaseStats(shard.getRetentionLeaseStats())
+            .pollingIngestStats(shard.pollingIngestStats())
+            .build();
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
         assertEquals(shard.shardPath().isCustomDataPath(), stats.isCustomDataPath());
@@ -1836,15 +1835,14 @@ public class IndexShardTests extends IndexShardTestCase {
             .getRemoteTranslogTransferTracker(shard.shardId);
         populateSampleRemoteSegmentStats(remoteSegmentTransferTracker);
         populateSampleRemoteTranslogStats(remoteTranslogTransferTracker);
-        ShardStats shardStats = new ShardStats(
-            shard.routingEntry(),
-            shard.shardPath(),
-            new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
-            shard.commitStats(),
-            shard.seqNoStats(),
-            shard.getRetentionLeaseStats(),
-            shard.pollingIngestStats()
-        );
+        ShardStats shardStats = new ShardStats.Builder().shardRouting(shard.routingEntry())
+            .shardPath(shard.shardPath())
+            .commonStats(new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()))
+            .commitStats(shard.commitStats())
+            .seqNoStats(shard.seqNoStats())
+            .retentionLeaseStats(shard.getRetentionLeaseStats())
+            .pollingIngestStats(shard.pollingIngestStats())
+            .build();
         RemoteSegmentStats remoteSegmentStats = shardStats.getStats().getSegments().getRemoteSegmentStats();
         assertRemoteSegmentStats(remoteSegmentTransferTracker, remoteSegmentStats);
         RemoteTranslogStats remoteTranslogStats = shardStats.getStats().getTranslog().getRemoteTranslogStats();

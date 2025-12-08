@@ -29,6 +29,7 @@
  */
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
+apply from: "$rootDir/gradle/fips.gradle"
 
 java {
   targetCompatibility = JavaVersion.VERSION_11
@@ -55,6 +56,9 @@ dependencies {
   testImplementation "org.objenesis:objenesis:${versions.objenesis}"
   testImplementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
   testImplementation "net.bytebuddy:byte-buddy-agent:${versions.bytebuddy}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -97,6 +101,16 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log4j.Level',
   'org.apache.log4j.Logger',
   'org.apache.log4j.Priority',
+  'org.apache.logging.log4j.Level',
+  'org.apache.logging.log4j.LogManager',
+  'org.apache.logging.log4j.Marker',
+  'org.apache.logging.log4j.MarkerManager',
+  'org.apache.logging.log4j.spi.AbstractLoggerAdapter',
+  'org.apache.logging.log4j.spi.ExtendedLogger',
+  'org.apache.logging.log4j.spi.LoggerAdapter',
+  'org.apache.logging.log4j.spi.LoggerContext',
+  'org.apache.logging.log4j.spi.LoggerContextFactory',
+  'org.apache.logging.log4j.util.StackLocatorUtil',
   //commons-logging provided dependencies
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'
