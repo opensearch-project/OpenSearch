@@ -807,7 +807,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Intra-segment search settings
                 SearchService.INTRA_SEGMENT_SEARCH_ENABLED,
                 SearchService.INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE,
-                SearchService.INTRA_SEGMENT_SEARCH_PARTITIONS_PER_SEGMENT,
 
                 RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,

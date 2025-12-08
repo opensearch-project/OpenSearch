@@ -596,8 +596,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract boolean getIntraSegmentSearchEnabled();
 
-    public abstract int getIntraSegmentPartitionsPerSegment();
-
     public abstract int getIntraSegmentMinSegmentSize();
 
 }

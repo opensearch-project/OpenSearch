@@ -360,15 +360,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
-    // Setting to control number of partitions per segment
-    public static final Setting<Integer> INTRA_SEGMENT_SEARCH_PARTITIONS_PER_SEGMENT = Setting.intSetting(
-        "search.intra_segment_search.partitions_per_segment",
-        2,      // Default 2 partitions per segment
-        1,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
     // value 0 means rewrite filters optimization in aggregations will be disabled
     @ExperimentalApi
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(

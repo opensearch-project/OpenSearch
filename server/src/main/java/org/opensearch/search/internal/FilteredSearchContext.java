@@ -594,11 +594,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public int getIntraSegmentPartitionsPerSegment() {
-        return in.getIntraSegmentPartitionsPerSegment();
-    }
-
-    @Override
     public int getIntraSegmentMinSegmentSize() {
         return in.getIntraSegmentMinSegmentSize();
     }
