@@ -1093,12 +1093,17 @@ public class TextFieldMapperTests extends MapperTestCase {
     public void testDerivedValueFetching_StoredField() throws IOException {
         try (Directory directory = newDirectory()) {
             MapperService mapperService = getMapperServiceForDerivedSource();
-            merge(mapperService, fieldMapping(b -> { b.field("type", "text"); }));
+            merge(mapperService, fieldMapping(b -> b.field("type", "text").field("store", true)));
             TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             String value = "value";
             try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
                 ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", value)));
                 iw.addDocument(doc.rootDoc());
+
+                TextFieldMapper textFieldMapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+                IndexableField[] storedFields = doc.rootDoc().getFields(textFieldMapper.simpleName());
+                assertEquals(1, storedFields.length);
+                assertEquals(value, storedFields[0].stringValue());
             }
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {

@@ -1274,35 +1274,40 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
-        final List<FieldValueFetcher> fieldValueFetchers = TextFieldMapper.DerivedSourceHelper
-            .getDerivedSourceSupportedKeywordValueFetchers(multiFields, simpleName());
+        final List<FieldValueFetcher> fieldValueFetchers = new ArrayList<>();
 
-        // Override to read from the special ignored value field
-        final MappedFieldType ignoredFieldType = new MappedFieldType(
-            fieldType().derivedSourceIgnoreFieldName(),
-            false,  // not searchable
-            true,   // stored
-            false,  // no doc values
-            TextSearchInfo.NONE,
-            Collections.emptyMap()
-        ) {
-            @Override
-            public String typeName() {
-                return "text";
-            }
+        if (mappedFieldType.isStored()) {
+            fieldValueFetchers.add(new StoredFieldFetcher(mappedFieldType, simpleName()));
+        } else {
+            fieldValueFetchers.addAll(
+                TextFieldMapper.DerivedSourceHelper.getDerivedSourceSupportedKeywordValueFetchers(multiFields, simpleName())
+            );
+            // Override to read from the special ignored value field
+            final MappedFieldType ignoredFieldType = new MappedFieldType(
+                fieldType().derivedSourceIgnoreFieldName(),
+                false,  // not searchable
+                true,   // stored
+                false,  // no doc values
+                TextSearchInfo.NONE,
+                Collections.emptyMap()
+            ) {
+                @Override
+                public String typeName() {
+                    return "text";
+                }
 
-            @Override
-            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
-                return null;
-            }
+                @Override
+                public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                    return null;
+                }
 
-            @Override
-            public Query termQuery(Object value, QueryShardContext context) {
-                return null;
-            }
-        };
-
-        fieldValueFetchers.add(new StoredFieldFetcher(ignoredFieldType, simpleName()));
+                @Override
+                public Query termQuery(Object value, QueryShardContext context) {
+                    return null;
+                }
+            };
+            fieldValueFetchers.add(new StoredFieldFetcher(ignoredFieldType, simpleName()));
+        }
         final FieldValueFetcher compositeFieldValueFetcher = new CompositeFieldValueFetcher(simpleName(), fieldValueFetchers);
 
         return new DerivedFieldGenerator(mappedFieldType, compositeFieldValueFetcher, null) {
