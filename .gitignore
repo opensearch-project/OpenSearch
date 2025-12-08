@@ -3,7 +3,7 @@ CLAUDE.md
 .cursor*
 
 # intellij files
-# .idea/
+.idea/
 *.iml
 *.ipr
 *.iws
