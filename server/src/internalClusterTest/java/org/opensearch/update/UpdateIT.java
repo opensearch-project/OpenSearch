@@ -932,8 +932,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
                                 "type": "boolean"
                             },
                             "text_field": {
-                                "type": "text",
-                                "store": true
+                                "type": "text"
                             }
                         }
                     }
