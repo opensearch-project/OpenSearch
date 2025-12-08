@@ -100,7 +100,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
@@ -1902,6 +1901,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .collect(Collectors.toSet());
         refreshedMergedSegmentCheckpoints.forEach(primaryMergedSegmentCheckpoints::remove);
         logger.trace("primary shard remove refreshed merged segment checkpoints {}", refreshedMergedSegmentCheckpoints);
+    }
+
+    @Deprecated(since = "3.4.0", forRemoval = true)
+    public void addPendingMergeSegmentCheckpoint(MergedSegmentCheckpoint mergedSegmentCheckpoint) {}
+
+    @Deprecated(since = "3.4.0", forRemoval = true)
+    public Set<MergedSegmentCheckpoint> getPendingMergedSegmentCheckpoints() {
+        return null;
     }
 
     public void addPrimaryMergedSegmentCheckpoint(MergedSegmentCheckpoint mergedSegmentCheckpoint) {
