@@ -35,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support pull-based ingestion message mappers and raw payload support ([#19765](https://github.com/opensearch-project/OpenSearch/pull/19765))
 - Add search API tracker ([#18601](https://github.com/opensearch-project/OpenSearch/pull/18601))
 - Support dynamic consumer configuration update in pull-based ingestion ([#19963](https://github.com/opensearch-project/OpenSearch/pull/19963))
+- Cache the `StoredFieldsReader` for scroll query optimization ([#20112](https://github.com/opensearch-project/OpenSearch/pull/20112))
 - Add traceparent/traceId support for search ([#19798](https://github.com/opensearch-project/OpenSearch/pull/19798))
 
 ### Changed
@@ -73,6 +74,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump opensearch-protobufs dependency to 0.24.0 and update transport-grpc module compatibility ([#20059](https://github.com/opensearch-project/OpenSearch/pull/20059))
 
 - Refactor the ShardStats, WarmerStats and IndexingPressureStats class to use the Builder pattern instead of constructors ([#19966](https://github.com/opensearch-project/OpenSearch/pull/19966))
+- Throw exceptions for currently unsupported GRPC request-side fields ([#20162](https://github.com/opensearch-project/OpenSearch/pull/20162))
 
 ### Fixed
 - Fix Allocation and Rebalance Constraints of WeightFunction are incorrectly reset ([#19012](https://github.com/opensearch-project/OpenSearch/pull/19012))
@@ -96,6 +98,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix node bootstrap error when enable stream transport and remote cluster state ([#19948](https://github.com/opensearch-project/OpenSearch/pull/19948))
 - Keep track and release Reactor Netty 4 Transport accepted Http Channels during the Node shutdown ([#20106](https://github.com/opensearch-project/OpenSearch/pull/20106))
 - Fix deletion failure/error of unused index template; case when an index template matches a data stream but has a lower priority. ([#20102](https://github.com/opensearch-project/OpenSearch/pull/20102))
+- Fixed version incompatibility in remote state entities using bytestream for ser/de ([#20080](https://github.com/opensearch-project/OpenSearch/pull/20080))
 - Fix toBuilder method in EngineConfig to include mergedSegmentTransferTracker([#20105](https://github.com/opensearch-project/OpenSearch/pull/20105))
 - Fixed handling of property index in BulkRequest during deserialization ([#20132](https://github.com/opensearch-project/OpenSearch/pull/20132))
 - Fix negative CPU usage values in node stats ([#19120](https://github.com/opensearch-project/OpenSearch/issues/19120))
@@ -137,6 +140,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.api:api-common` from 2.52.0 to 2.55.1 ([#20083](https://github.com/opensearch-project/OpenSearch/pull/20083))
 - Bump `actions/upload-artifact` from 4 to 5 ([#20081](https://github.com/opensearch-project/OpenSearch/pull/20081))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.5 to 10.6 ([#20084](https://github.com/opensearch-project/OpenSearch/pull/20084))
+- Bump `commons-logging` from 1.2 to 1.3.5 ([#20156](https://github.com/opensearch-project/OpenSearch/pull/20156))
 
 ### Deprecated
 - Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19317](https://github.com/opensearch-project/OpenSearch/pull/19317))
