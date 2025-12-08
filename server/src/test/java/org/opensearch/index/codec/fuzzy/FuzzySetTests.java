@@ -12,6 +12,7 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.test.OpenSearchTestCase;
+
 import java.io.IOException;
 
 public class FuzzySetTests extends OpenSearchTestCase {
@@ -25,7 +26,10 @@ public class FuzzySetTests extends OpenSearchTestCase {
     }
 
     public void testSetTypeFromInvalidName() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> FuzzySet.SetType.from("invalid_filter_type"));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> FuzzySet.SetType.from("invalid_filter_type")
+        );
         assertEquals("There is no implementation for fuzzy set: invalid_filter_type", exception.getMessage());
     }
 
@@ -77,7 +81,7 @@ public class FuzzySetTests extends OpenSearchTestCase {
     }
 
     public void testBloomFilterWithDifferentSizes() throws IOException {
-        for (int size : new int[]{100, 1000, 10000}) {
+        for (int size : new int[] { 100, 1000, 10000 }) {
             TestBloomFilterFuzzySet bloomFilter = new TestBloomFilterFuzzySet(size);
             for (int i = 0; i < size; i++) {
                 bloomFilter.addItem(new BytesRef("item" + i));
@@ -265,8 +269,7 @@ public class FuzzySetTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void seek(long pos) throws IOException {
-        }
+        public void seek(long pos) throws IOException {}
 
         @Override
         public long length() {

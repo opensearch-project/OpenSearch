@@ -11,6 +11,7 @@ package org.opensearch.index.codec.fuzzy;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.test.OpenSearchTestCase;
+
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
@@ -38,8 +39,8 @@ public class FuzzySetParametersTests extends OpenSearchTestCase {
     }
 
     public void testSupplierBehavior() {
-        double[] values = {0.1, 0.2, 0.3};
-        int[] index = {0};
+        double[] values = { 0.1, 0.2, 0.3 };
+        int[] index = { 0 };
         FuzzySetParameters params = new FuzzySetParameters(() -> values[index[0]++]);
         assertEquals(0.1, params.getFalsePositiveProbability(), 0.0);
         assertEquals(0.2, params.getFalsePositiveProbability(), 0.0);

@@ -11,6 +11,7 @@ package org.opensearch.index.codec.fuzzy;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.test.OpenSearchTestCase;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;

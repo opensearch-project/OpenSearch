@@ -10,14 +10,14 @@ package org.opensearch.index.codec.fuzzy;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.document.TextField;
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.DoublePoint;
-import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -31,6 +31,7 @@ import org.apache.lucene.tests.index.BasePostingsFormatTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.TreeMap;
@@ -44,7 +45,9 @@ public class FuzzyFilterPostingsFormatTests extends BasePostingsFormatTestCase {
         }
     };
 
-    private Codec fuzzyFilterCodec = TestUtil.alwaysPostingsFormat(new FuzzyFilterPostingsFormat(TestUtil.getDefaultPostingsFormat(), new FuzzySetFactory(params)));
+    private Codec fuzzyFilterCodec = TestUtil.alwaysPostingsFormat(
+        new FuzzyFilterPostingsFormat(TestUtil.getDefaultPostingsFormat(), new FuzzySetFactory(params))
+    );
 
     @Override
     protected Codec getCodec() {
@@ -122,12 +125,27 @@ public class FuzzyFilterPostingsFormatTests extends BasePostingsFormatTestCase {
             writer.addDocument(doc);
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            for (String fieldName : Arrays.asList("_id", "text_field", "keyword_field", "int_field", "long_field", "double_field", "date_field", "binary_field")) {
+            for (String fieldName : Arrays.asList(
+                "_id",
+                "text_field",
+                "keyword_field",
+                "int_field",
+                "long_field",
+                "double_field",
+                "date_field",
+                "binary_field"
+            )) {
                 Terms terms = MultiTerms.getTerms(reader, fieldName);
                 if (terms != null) {
                     TermsEnum termsEnum = terms.iterator();
-                    assertTrue("Should find existing term in " + fieldName, termsEnum.seekExact(new BytesRef(getTestValueForField(fieldName))));
-                    assertFalse("Should not find non-existent term in " + fieldName, termsEnum.seekExact(new BytesRef("nonexistent_" + fieldName)));
+                    assertTrue(
+                        "Should find existing term in " + fieldName,
+                        termsEnum.seekExact(new BytesRef(getTestValueForField(fieldName)))
+                    );
+                    assertFalse(
+                        "Should not find non-existent term in " + fieldName,
+                        termsEnum.seekExact(new BytesRef("nonexistent_" + fieldName))
+                    );
                 }
             }
         }

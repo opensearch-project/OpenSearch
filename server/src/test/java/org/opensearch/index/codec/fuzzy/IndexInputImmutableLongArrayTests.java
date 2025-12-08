@@ -11,12 +11,13 @@ package org.opensearch.index.codec.fuzzy;
 import org.apache.lucene.store.RandomAccessInput;
 import org.opensearch.OpenSearchException;
 import org.opensearch.test.OpenSearchTestCase;
+
 import java.io.IOException;
 
 public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
 
     public void testBasicOperations() {
-        long[] testData = {1L, 2L, 3L, 4L, 5L};
+        long[] testData = { 1L, 2L, 3L, 4L, 5L };
         IndexInputImmutableLongArray array = createTestArray(testData);
         assertEquals(testData.length, array.size());
         for (int i = 0; i < testData.length; i++) {
@@ -96,6 +97,7 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
         logger.info("Bloom filter fill ratio: {}", fillRatio);
         assertTrue("Fill ratio should be reasonable", fillRatio > 0.1 && fillRatio < 0.9);
     }
+
     private long countSetBits(IndexInputImmutableLongArray array, int length) {
         long count = 0;
         for (int i = 0; i < length; i++) {
@@ -103,6 +105,7 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
         }
         return count;
     }
+
     private int[] calculateHashes(String item, int numHashes, int size) {
         int[] positions = new int[numHashes];
         long hash1 = mixHash(item.hashCode());
@@ -113,6 +116,7 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
         }
         return positions;
     }
+
     private long mixHash(long h) {
         h ^= h >>> 33;
         h *= 0xff51afd7ed558ccdL;
@@ -121,6 +125,7 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
         h ^= h >>> 33;
         return h;
     }
+
     public void testBloomFilterPerformance() throws IOException {
         int expectedItems = 10_000;
         int bitsPerItem = 10;
@@ -153,19 +158,18 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
             }
             assertTrue("Should find existing item", found);
         }
-        logger.debug("Bloom filter operation completed successfully with {} items and {} lookups",
-            expectedItems, lookups);
+        logger.debug("Bloom filter operation completed successfully with {} items and {} lookups", expectedItems, lookups);
     }
 
     public void testUnsupportedOperations() {
-        IndexInputImmutableLongArray array = createTestArray(new long[]{1L, 2L, 3L});
+        IndexInputImmutableLongArray array = createTestArray(new long[] { 1L, 2L, 3L });
         expectThrows(UnsupportedOperationException.class, () -> array.set(0, 42L));
         expectThrows(UnsupportedOperationException.class, () -> array.increment(0, 1L));
         expectThrows(UnsupportedOperationException.class, () -> array.fill(0, 2, 42L));
     }
 
     public void testInvalidAccess() {
-        IndexInputImmutableLongArray array = createTestArray(new long[]{1L, 2L, 3L});
+        IndexInputImmutableLongArray array = createTestArray(new long[] { 1L, 2L, 3L });
         expectThrows(OpenSearchException.class, () -> array.get(-1));
         expectThrows(OpenSearchException.class, () -> array.get(array.size()));
     }
@@ -236,17 +240,17 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
     }
 
     public void testEmptyArray() {
-        IndexInputImmutableLongArray array = createTestArray(new long[]{});
+        IndexInputImmutableLongArray array = createTestArray(new long[] {});
         assertEquals(0, array.size());
     }
 
     public void testRamBytesUsed() {
-        IndexInputImmutableLongArray array = createTestArray(new long[]{1L, 2L, 3L});
+        IndexInputImmutableLongArray array = createTestArray(new long[] { 1L, 2L, 3L });
         assertTrue(array.ramBytesUsed() > 0);
     }
 
     public void testClose() {
-        IndexInputImmutableLongArray array = createTestArray(new long[]{1L, 2L, 3L});
+        IndexInputImmutableLongArray array = createTestArray(new long[] { 1L, 2L, 3L });
         array.close(); // Should not throw any exception
     }
 

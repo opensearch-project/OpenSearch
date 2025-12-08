@@ -12,12 +12,13 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.test.OpenSearchTestCase;
+
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -128,7 +129,11 @@ public class BloomFilterTests extends OpenSearchTestCase {
             initialElements.add("initial" + i);
         }
 
-        BloomFilter filter = new BloomFilter(elementsPerThread * (numThreads + 1), fpp, () -> initialElements.stream().map(BytesRef::new).iterator());
+        BloomFilter filter = new BloomFilter(
+            elementsPerThread * (numThreads + 1),
+            fpp,
+            () -> initialElements.stream().map(BytesRef::new).iterator()
+        );
 
         for (String element : initialElements) {
             assertEquals(FuzzySet.Result.MAYBE, filter.contains(new BytesRef(element)));
@@ -192,7 +197,7 @@ public class BloomFilterTests extends OpenSearchTestCase {
 
     public void testBloomFilterWithDifferentFPP() throws IOException {
         int elementCount = 1000;
-        double[] fpps = {0.01, 0.05, 0.1, 0.2};
+        double[] fpps = { 0.01, 0.05, 0.1, 0.2 };
 
         for (double fpp : fpps) {
             BloomFilter filter = new BloomFilter(elementCount, fpp, () -> idIterator(elementCount));

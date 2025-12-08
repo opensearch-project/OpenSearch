@@ -13,13 +13,14 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.test.OpenSearchTestCase;
+
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Map;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 public class FuzzySetFactoryTests extends OpenSearchTestCase {
 
@@ -54,7 +55,7 @@ public class FuzzySetFactoryTests extends OpenSearchTestCase {
         Map<String, FuzzySetParameters> setTypeMap = new HashMap<>();
         setTypeMap.put(TEST_FIELD, new FuzzySetParameters(() -> 0.01));
         FuzzySetFactory factory = new FuzzySetFactory(setTypeMap);
-        int[] sizes = {100, 1000, 10000};
+        int[] sizes = { 100, 1000, 10000 };
         for (int size : sizes) {
             FuzzySet fuzzySet = factory.createFuzzySet(size * 2, TEST_FIELD, () -> {
                 List<BytesRef> elements = new ArrayList<>();
@@ -64,7 +65,11 @@ public class FuzzySetFactoryTests extends OpenSearchTestCase {
                 return elements.iterator();
             });
             for (int i = 0; i < size / 2; i++) {
-                assertEquals("Should return MAYBE for existing element in size " + size, FuzzySet.Result.MAYBE, fuzzySet.contains(new BytesRef("test" + i)));
+                assertEquals(
+                    "Should return MAYBE for existing element in size " + size,
+                    FuzzySet.Result.MAYBE,
+                    fuzzySet.contains(new BytesRef("test" + i))
+                );
             }
             int falsePositives = 0;
             int testCount = 100;
@@ -75,7 +80,10 @@ public class FuzzySetFactoryTests extends OpenSearchTestCase {
                 }
             }
             double falsePositiveRate = (double) falsePositives / testCount;
-            assertTrue("False positive rate " + falsePositiveRate + " should be below threshold for size " + size, falsePositiveRate <= 0.04);
+            assertTrue(
+                "False positive rate " + falsePositiveRate + " should be below threshold for size " + size,
+                falsePositiveRate <= 0.04
+            );
         }
     }
 
@@ -92,7 +100,11 @@ public class FuzzySetFactoryTests extends OpenSearchTestCase {
             return elements.iterator();
         });
         for (int i = 0; i < size; i++) {
-            assertEquals("Should return MAYBE for existing element", FuzzySet.Result.MAYBE, fuzzySet.contains(new BytesRef("smalltest" + i)));
+            assertEquals(
+                "Should return MAYBE for existing element",
+                FuzzySet.Result.MAYBE,
+                fuzzySet.contains(new BytesRef("smalltest" + i))
+            );
         }
         int falsePositives = 0;
         int testCount = 100;
@@ -133,7 +145,10 @@ public class FuzzySetFactoryTests extends OpenSearchTestCase {
         Map<String, FuzzySetParameters> setTypeMap = new HashMap<>();
         setTypeMap.put(TEST_FIELD, new FuzzySetParameters(() -> 0.1));
         FuzzySetFactory factory = new FuzzySetFactory(setTypeMap);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> factory.createFuzzySet(100, "non_existent_field", () -> createTestIterator()));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.createFuzzySet(100, "non_existent_field", () -> createTestIterator())
+        );
         assertTrue(exception.getMessage().contains("non_existent_field"));
     }
 
@@ -205,8 +220,7 @@ public class FuzzySetFactoryTests extends OpenSearchTestCase {
             private long pos = 0;
 
             @Override
-            public void close() {
-            }
+            public void close() {}
 
             @Override
             public long getFilePointer() {

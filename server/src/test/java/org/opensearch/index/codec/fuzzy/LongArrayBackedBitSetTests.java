@@ -11,6 +11,7 @@ package org.opensearch.index.codec.fuzzy;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.opensearch.test.OpenSearchTestCase;
+
 import java.io.IOException;
 
 public class LongArrayBackedBitSetTests extends OpenSearchTestCase {
@@ -175,8 +176,7 @@ public class LongArrayBackedBitSetTests extends OpenSearchTestCase {
             private long pos = 0;
 
             @Override
-            public void close() {
-            }
+            public void close() {}
 
             @Override
             public long getFilePointer() {
