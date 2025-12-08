@@ -2183,7 +2183,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             numericValue = fieldType().type.parse(value, coerce.value());
         }
 
-        if (isPluggableDataFormatFeatureEnabled()) {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
             context.compositeDocumentInput().addField(fieldType(), numericValue);
         } else {
             context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, skiplist, stored));

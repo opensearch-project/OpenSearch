@@ -498,7 +498,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
         long scaledValue = Math.round(doubleValue * scalingFactor);
 
-        if (isPluggableDataFormatFeatureEnabled()) {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
             context.compositeDocumentInput().addField(fieldType(), scaledValue);
         } else {
             List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(

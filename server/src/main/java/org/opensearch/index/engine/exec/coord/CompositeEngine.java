@@ -409,7 +409,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         return readEngines.values().stream().filter(list -> !list.isEmpty()).findFirst().map(List::getFirst).orElse(null);
     }
 
-    public CompositeDataFormatWriter.CompositeDocumentInput documentInput() throws IOException {
+    @Override
+    public CompositeDataFormatWriter.CompositeDocumentInput documentInput() {
         return engine.createCompositeWriter().newDocumentInput();
     }
 

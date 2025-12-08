@@ -157,7 +157,7 @@ public class QueryPhase {
         // here to make sure it happens during the QUERY phase
         aggregationProcessor.preProcess(searchContext.getOriginalContext());
 
-        if(Optional.ofNullable(searchContext.queryResult().topDocs().topDocs.totalHits).isEmpty() || searchContext.queryResult().topDocs().topDocs.totalHits.value() == 0) {
+        if(searchContext.queryResult().hasConsumedTopDocs() || Optional.ofNullable(searchContext.queryResult().topDocs().topDocs.totalHits).isEmpty() || searchContext.queryResult().topDocs().topDocs.totalHits.value() == 0) {
             searchContext.queryResult()
                 .topDocs(
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
@@ -165,16 +165,17 @@ public class QueryPhase {
                 );
         }
 
-        // boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
+        if (searchContext.getDFResults().isEmpty() == false) {
+            SearchEngineResultConversionUtils.convertDFResultGeneric(searchContext);
+        } else {
+            boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
+             if (rescore) { // only if we do a regular search
+             rescoreProcessor.process(searchContext);
+             }
+             suggestProcessor.process(searchContext);
+        }
 
-        // Post process
-        SearchEngineResultConversionUtils.convertDFResultGeneric(searchContext);
-
-        // if (rescore) { // only if we do a regular search
-        // rescoreProcessor.process(searchContext);
-        // }
-        // suggestProcessor.process(searchContext);
-         aggregationProcessor.postProcess(searchContext);
+        aggregationProcessor.postProcess(searchContext);
 
         if (searchContext.getProfilers() != null) {
             ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(
