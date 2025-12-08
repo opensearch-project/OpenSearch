@@ -68,14 +68,14 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
         String repositoryName = indexSettings.getRemoteStoreRepository();
         String indexUUID = indexSettings.getIndex().getUUID();
-
         return newDirectory(
             repositoryName,
             indexUUID,
             path.getShardId(),
             indexSettings.getRemoteStorePathStrategy(),
             null,
-            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata()),
+            indexSettings.isWarmIndex()
         );
     }
 
@@ -101,6 +101,18 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         RemoteStorePathStrategy pathStrategy,
         String indexFixedPrefix,
         boolean isServerSideEncryptionEnabled
+    ) throws IOException {
+        return newDirectory(repositoryName, indexUUID, shardId, pathStrategy, indexFixedPrefix, isServerSideEncryptionEnabled, false);
+    }
+
+    public Directory newDirectory(
+        String repositoryName,
+        String indexUUID,
+        ShardId shardId,
+        RemoteStorePathStrategy pathStrategy,
+        String indexFixedPrefix,
+        boolean isServerSideEncryptionEnabled,
+        boolean isWarmIndex
     ) throws IOException {
         assert Objects.nonNull(pathStrategy);
         // We should be not calling close for repository.
@@ -128,7 +140,9 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 blobStoreRepository.blobStore(isServerSideEncryptionEnabled).blobContainer(dataPath),
                 blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
                 blobStoreRepository::maybeRateLimitLowPriorityRemoteUploadTransfers,
-                blobStoreRepository::maybeRateLimitRemoteDownloadTransfers,
+                isWarmIndex
+                    ? blobStoreRepository::maybeRateLimitRemoteDownloadTransfersForWarm
+                    : blobStoreRepository::maybeRateLimitRemoteDownloadTransfers,
                 blobStoreRepository::maybeRateLimitLowPriorityDownloadTransfers,
                 pendingDownloadMergedSegments
             );

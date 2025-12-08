@@ -54,6 +54,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
@@ -838,6 +839,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             protected Query doToQuery(QueryShardContext context) {
                 return new TermQuery(new Term("k", "hello")) {
                     @Override
+                    @SuppressForbidden(reason = "Waiting 10x the timeout")
                     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
                         // Create the weight before sleeping. Otherwise, TermStates.build() (in the call to super.createWeight()) will
                         // sometimes throw an exception on timeout, rather than timing out gracefully.
