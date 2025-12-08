@@ -130,8 +130,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 }
             };
         } catch (Exception ex) {
-            logger.error("Failed to acquire searcher {}", ex.toString(), ex);
-            // TODO
+            logger.error("Failed to acquire searcher", ex);
+            throw new RuntimeException(ex);
         }
         return searcher;
     }

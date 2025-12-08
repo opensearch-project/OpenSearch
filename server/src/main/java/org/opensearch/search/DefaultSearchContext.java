@@ -225,7 +225,6 @@ final class DefaultSearchContext extends SearchContext {
 
     private boolean isStreamSearch;
     private StreamSearchChannelListener listener;
-    private Map<String, Object[]> dfResults;
     private final SetOnce<FlushMode> cachedFlushMode = new SetOnce<>();
 
     DefaultSearchContext(
@@ -1313,11 +1312,4 @@ final class DefaultSearchContext extends SearchContext {
         return clusterService.getClusterSettings().get(STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
     }
 
-    public void setDFResults(Map<String, Object[]> dfResults) {
-        this.dfResults = dfResults;
-    }
-
-    public Map<String, Object[]> getDFResults() {
-        return dfResults;
-    }
 }

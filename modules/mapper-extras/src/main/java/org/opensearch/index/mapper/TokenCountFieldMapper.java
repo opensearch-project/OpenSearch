@@ -185,7 +185,7 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
             tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }
 
-        if (isPluggableDataFormatFeatureEnabled()) {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
             context.compositeDocumentInput().addField(fieldType(), tokenCount);
         } else {
             context.doc()

@@ -290,6 +290,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING,
 
                 IndexSettings.INDEX_SEARCH_QUERY_PLAN_EXPLAIN_SETTING,
+                IndexSettings.OPTIMIZED_INDEX_ENABLED_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
