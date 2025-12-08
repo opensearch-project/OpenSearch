@@ -655,7 +655,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         super.testCleanupReplicaRedundantMergedSegment();
     }
 
-    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     @Override
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18890")
     public void testPrimaryMergedSegmentCheckpointRetentionTimeout() throws Exception {
