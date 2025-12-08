@@ -55,8 +55,8 @@ impl PartialAggregationOptimizer {
             // println!("[DEBUG] Aggregate expressions: {:?}", agg.aggr_expr().iter().map(|e| e.name()).collect::<Vec<_>>());
 
             let needs_partial = agg.aggr_expr().iter().any(|e| {
-                let name = e.name().to_lowercase();
-                name.starts_with("approx_distinct(")
+                let name = e.fun().name().to_lowercase();
+                name.eq("approx_distinct")
             });
 
             if needs_partial && !matches!(agg.mode(), &AggregateMode::Partial) {
