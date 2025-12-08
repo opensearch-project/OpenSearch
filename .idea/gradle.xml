@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
+  <component name="GradleSettings">
+    <option name="linkedExternalProjectsSettings">
+      <GradleProjectSettings>
+        <compositeConfiguration>
+          <compositeBuild compositeDefinitionSource="SCRIPT">
+            <builds>
+              <build path="$PROJECT_DIR$/buildSrc" name="buildSrc">
+                <projects>
+                  <project path="$PROJECT_DIR$/buildSrc" />
+                  <project path="$PROJECT_DIR$/buildSrc/reaper" />
+                </projects>
+              </build>
+              <build path="$PROJECT_DIR$/doc-tools/missing-doclet" name="missing-doclet">
+                <projects>
+                  <project path="$PROJECT_DIR$/doc-tools/missing-doclet" />
+                </projects>
+              </build>
+            </builds>
+          </compositeBuild>
+        </compositeConfiguration>
+        <option name="testRunner" value="CHOOSE_PER_TEST" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="gradleJvm" value="openjdk-25" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/benchmarks" />
+            <option value="$PROJECT_DIR$/buildSrc" />
+            <option value="$PROJECT_DIR$/buildSrc/reaper" />
+            <option value="$PROJECT_DIR$/client" />
+            <option value="$PROJECT_DIR$/client/benchmark" />
+            <option value="$PROJECT_DIR$/client/client-benchmark-noop-api-plugin" />
+            <option value="$PROJECT_DIR$/client/rest" />
+            <option value="$PROJECT_DIR$/client/rest-high-level" />
+            <option value="$PROJECT_DIR$/client/sniffer" />
+            <option value="$PROJECT_DIR$/client/test" />
+            <option value="$PROJECT_DIR$/distribution" />
+            <option value="$PROJECT_DIR$/distribution/archives" />
+            <option value="$PROJECT_DIR$/distribution/archives/darwin-arm64-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/darwin-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/freebsd-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/integ-test-zip" />
+            <option value="$PROJECT_DIR$/distribution/archives/jre-linux-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/linux-arm64-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/linux-ppc64le-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/linux-riscv64-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/linux-s390x-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/linux-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/no-jdk-darwin-arm64-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/no-jdk-darwin-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/no-jdk-freebsd-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/no-jdk-linux-arm64-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/no-jdk-linux-ppc64le-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/no-jdk-linux-riscv64-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/no-jdk-linux-tar" />
+            <option value="$PROJECT_DIR$/distribution/archives/no-jdk-windows-zip" />
+            <option value="$PROJECT_DIR$/distribution/archives/windows-zip" />
+            <option value="$PROJECT_DIR$/distribution/bwc" />
+            <option value="$PROJECT_DIR$/distribution/bwc/bugfix" />
+            <option value="$PROJECT_DIR$/distribution/bwc/maintenance" />
+            <option value="$PROJECT_DIR$/distribution/bwc/minor" />
+            <option value="$PROJECT_DIR$/distribution/bwc/staged" />
+            <option value="$PROJECT_DIR$/distribution/docker" />
+            <option value="$PROJECT_DIR$/distribution/docker/docker-arm64-build-context" />
+            <option value="$PROJECT_DIR$/distribution/docker/docker-arm64-export" />
+            <option value="$PROJECT_DIR$/distribution/docker/docker-build-context" />
+            <option value="$PROJECT_DIR$/distribution/docker/docker-export" />
+            <option value="$PROJECT_DIR$/distribution/docker/docker-ppc64le-export" />
+            <option value="$PROJECT_DIR$/distribution/docker/docker-riscv64-export" />
+            <option value="$PROJECT_DIR$/distribution/docker/docker-s390x-export" />
+            <option value="$PROJECT_DIR$/distribution/packages" />
+            <option value="$PROJECT_DIR$/distribution/packages/arm64-deb" />
+            <option value="$PROJECT_DIR$/distribution/packages/arm64-rpm" />
+            <option value="$PROJECT_DIR$/distribution/packages/deb" />
+            <option value="$PROJECT_DIR$/distribution/packages/no-jdk-arm64-deb" />
+            <option value="$PROJECT_DIR$/distribution/packages/no-jdk-arm64-rpm" />
+            <option value="$PROJECT_DIR$/distribution/packages/no-jdk-deb" />
+            <option value="$PROJECT_DIR$/distribution/packages/no-jdk-rpm" />
+            <option value="$PROJECT_DIR$/distribution/packages/rpm" />
+            <option value="$PROJECT_DIR$/distribution/tools" />
+            <option value="$PROJECT_DIR$/distribution/tools/fips-demo-installer-cli" />
+            <option value="$PROJECT_DIR$/distribution/tools/java-version-checker" />
+            <option value="$PROJECT_DIR$/distribution/tools/keystore-cli" />
+            <option value="$PROJECT_DIR$/distribution/tools/launchers" />
+            <option value="$PROJECT_DIR$/distribution/tools/plugin-cli" />
+            <option value="$PROJECT_DIR$/doc-tools" />
+            <option value="$PROJECT_DIR$/doc-tools/missing-doclet" />
+            <option value="$PROJECT_DIR$/docs" />
+            <option value="$PROJECT_DIR$/libs" />
+            <option value="$PROJECT_DIR$/libs/agent-sm" />
+            <option value="$PROJECT_DIR$/libs/agent-sm/agent" />
+            <option value="$PROJECT_DIR$/libs/agent-sm/agent-policy" />
+            <option value="$PROJECT_DIR$/libs/agent-sm/bootstrap" />
+            <option value="$PROJECT_DIR$/libs/cli" />
+            <option value="$PROJECT_DIR$/libs/common" />
+            <option value="$PROJECT_DIR$/libs/compress" />
+            <option value="$PROJECT_DIR$/libs/core" />
+            <option value="$PROJECT_DIR$/libs/dissect" />
+            <option value="$PROJECT_DIR$/libs/geo" />
+            <option value="$PROJECT_DIR$/libs/grok" />
+            <option value="$PROJECT_DIR$/libs/nio" />
+            <option value="$PROJECT_DIR$/libs/plugin-classloader" />
+            <option value="$PROJECT_DIR$/libs/secure-sm" />
+            <option value="$PROJECT_DIR$/libs/ssl-config" />
+            <option value="$PROJECT_DIR$/libs/task-commons" />
+            <option value="$PROJECT_DIR$/libs/telemetry" />
+            <option value="$PROJECT_DIR$/libs/x-content" />
+            <option value="$PROJECT_DIR$/modules" />
+            <option value="$PROJECT_DIR$/modules/aggs-matrix-stats" />
+            <option value="$PROJECT_DIR$/modules/analysis-common" />
+            <option value="$PROJECT_DIR$/modules/autotagging-commons" />
+            <option value="$PROJECT_DIR$/modules/autotagging-commons/common" />
+            <option value="$PROJECT_DIR$/modules/autotagging-commons/spi" />
+            <option value="$PROJECT_DIR$/modules/cache-common" />
+            <option value="$PROJECT_DIR$/modules/geo" />
+            <option value="$PROJECT_DIR$/modules/ingest-common" />
+            <option value="$PROJECT_DIR$/modules/ingest-geoip" />
+            <option value="$PROJECT_DIR$/modules/ingest-user-agent" />
+            <option value="$PROJECT_DIR$/modules/lang-expression" />
+            <option value="$PROJECT_DIR$/modules/lang-mustache" />
+            <option value="$PROJECT_DIR$/modules/lang-painless" />
+            <option value="$PROJECT_DIR$/modules/lang-painless/spi" />
+            <option value="$PROJECT_DIR$/modules/mapper-extras" />
+            <option value="$PROJECT_DIR$/modules/opensearch-dashboards" />
+            <option value="$PROJECT_DIR$/modules/parent-join" />
+            <option value="$PROJECT_DIR$/modules/percolator" />
+            <option value="$PROJECT_DIR$/modules/rank-eval" />
+            <option value="$PROJECT_DIR$/modules/reindex" />
+            <option value="$PROJECT_DIR$/modules/repository-url" />
+            <option value="$PROJECT_DIR$/modules/search-pipeline-common" />
+            <option value="$PROJECT_DIR$/modules/store-subdirectory" />
+            <option value="$PROJECT_DIR$/modules/systemd" />
+            <option value="$PROJECT_DIR$/modules/transport-grpc" />
+            <option value="$PROJECT_DIR$/modules/transport-grpc/spi" />
+            <option value="$PROJECT_DIR$/modules/transport-netty4" />
+            <option value="$PROJECT_DIR$/plugins" />
+            <option value="$PROJECT_DIR$/plugins/analysis-icu" />
+            <option value="$PROJECT_DIR$/plugins/analysis-kuromoji" />
+            <option value="$PROJECT_DIR$/plugins/analysis-nori" />
+            <option value="$PROJECT_DIR$/plugins/analysis-phonenumber" />
+            <option value="$PROJECT_DIR$/plugins/analysis-phonetic" />
+            <option value="$PROJECT_DIR$/plugins/analysis-smartcn" />
+            <option value="$PROJECT_DIR$/plugins/analysis-stempel" />
+            <option value="$PROJECT_DIR$/plugins/analysis-ukrainian" />
+            <option value="$PROJECT_DIR$/plugins/arrow-flight-rpc" />
+            <option value="$PROJECT_DIR$/plugins/cache-ehcache" />
+            <option value="$PROJECT_DIR$/plugins/crypto-kms" />
+            <option value="$PROJECT_DIR$/plugins/discovery-azure-classic" />
+            <option value="$PROJECT_DIR$/plugins/discovery-ec2" />
+            <option value="$PROJECT_DIR$/plugins/discovery-ec2/qa" />
+            <option value="$PROJECT_DIR$/plugins/discovery-ec2/qa/amazon-ec2" />
+            <option value="$PROJECT_DIR$/plugins/discovery-gce" />
+            <option value="$PROJECT_DIR$/plugins/discovery-gce/qa" />
+            <option value="$PROJECT_DIR$/plugins/discovery-gce/qa/gce" />
+            <option value="$PROJECT_DIR$/plugins/examples" />
+            <option value="$PROJECT_DIR$/plugins/examples/custom-settings" />
+            <option value="$PROJECT_DIR$/plugins/examples/custom-significance-heuristic" />
+            <option value="$PROJECT_DIR$/plugins/examples/custom-suggester" />
+            <option value="$PROJECT_DIR$/plugins/examples/mapping-transformer" />
+            <option value="$PROJECT_DIR$/plugins/examples/painless-allowlist" />
+            <option value="$PROJECT_DIR$/plugins/examples/rescore" />
+            <option value="$PROJECT_DIR$/plugins/examples/rest-handler" />
+            <option value="$PROJECT_DIR$/plugins/examples/script-expert-scoring" />
+            <option value="$PROJECT_DIR$/plugins/examples/stream-transport-example" />
+            <option value="$PROJECT_DIR$/plugins/examples/system-ingest-processor" />
+            <option value="$PROJECT_DIR$/plugins/examples/system-search-processor" />
+            <option value="$PROJECT_DIR$/plugins/identity-shiro" />
+            <option value="$PROJECT_DIR$/plugins/ingest-attachment" />
+            <option value="$PROJECT_DIR$/plugins/ingestion-fs" />
+            <option value="$PROJECT_DIR$/plugins/ingestion-kafka" />
+            <option value="$PROJECT_DIR$/plugins/ingestion-kinesis" />
+            <option value="$PROJECT_DIR$/plugins/mapper-annotated-text" />
+            <option value="$PROJECT_DIR$/plugins/mapper-murmur3" />
+            <option value="$PROJECT_DIR$/plugins/mapper-size" />
+            <option value="$PROJECT_DIR$/plugins/repository-azure" />
+            <option value="$PROJECT_DIR$/plugins/repository-gcs" />
+            <option value="$PROJECT_DIR$/plugins/repository-hdfs" />
+            <option value="$PROJECT_DIR$/plugins/repository-s3" />
+            <option value="$PROJECT_DIR$/plugins/store-smb" />
+            <option value="$PROJECT_DIR$/plugins/telemetry-otel" />
+            <option value="$PROJECT_DIR$/plugins/transport-reactor-netty4" />
+            <option value="$PROJECT_DIR$/plugins/workload-management" />
+            <option value="$PROJECT_DIR$/plugins/workload-management/wlm-spi" />
+            <option value="$PROJECT_DIR$/qa" />
+            <option value="$PROJECT_DIR$/qa/ccs-unavailable-clusters" />
+            <option value="$PROJECT_DIR$/qa/die-with-dignity" />
+            <option value="$PROJECT_DIR$/qa/evil-tests" />
+            <option value="$PROJECT_DIR$/qa/fips-compliance" />
+            <option value="$PROJECT_DIR$/qa/full-cluster-restart" />
+            <option value="$PROJECT_DIR$/qa/logging-config" />
+            <option value="$PROJECT_DIR$/qa/mixed-cluster" />
+            <option value="$PROJECT_DIR$/qa/multi-cluster-search" />
+            <option value="$PROJECT_DIR$/qa/no-bootstrap-tests" />
+            <option value="$PROJECT_DIR$/qa/os" />
+            <option value="$PROJECT_DIR$/qa/os/centos-6" />
+            <option value="$PROJECT_DIR$/qa/os/centos-7" />
+            <option value="$PROJECT_DIR$/qa/os/debian-8" />
+            <option value="$PROJECT_DIR$/qa/os/debian-9" />
+            <option value="$PROJECT_DIR$/qa/os/fedora-28" />
+            <option value="$PROJECT_DIR$/qa/os/fedora-29" />
+            <option value="$PROJECT_DIR$/qa/os/oel-6" />
+            <option value="$PROJECT_DIR$/qa/os/oel-7" />
+            <option value="$PROJECT_DIR$/qa/os/sles-12" />
+            <option value="$PROJECT_DIR$/qa/os/ubuntu-1604" />
+            <option value="$PROJECT_DIR$/qa/os/ubuntu-1804" />
+            <option value="$PROJECT_DIR$/qa/os/windows-2012r2" />
+            <option value="$PROJECT_DIR$/qa/os/windows-2016" />
+            <option value="$PROJECT_DIR$/qa/remote-clusters" />
+            <option value="$PROJECT_DIR$/qa/repository-multi-version" />
+            <option value="$PROJECT_DIR$/qa/rolling-upgrade" />
+            <option value="$PROJECT_DIR$/qa/smoke-test-http" />
+            <option value="$PROJECT_DIR$/qa/smoke-test-ingest-disabled" />
+            <option value="$PROJECT_DIR$/qa/smoke-test-ingest-with-all-dependencies" />
+            <option value="$PROJECT_DIR$/qa/smoke-test-multinode" />
+            <option value="$PROJECT_DIR$/qa/smoke-test-plugins" />
+            <option value="$PROJECT_DIR$/qa/systemd-test" />
+            <option value="$PROJECT_DIR$/qa/unconfigured-node-name" />
+            <option value="$PROJECT_DIR$/qa/verify-version-constants" />
+            <option value="$PROJECT_DIR$/qa/wildfly" />
+            <option value="$PROJECT_DIR$/rest-api-spec" />
+            <option value="$PROJECT_DIR$/sandbox" />
+            <option value="$PROJECT_DIR$/sandbox/libs" />
+            <option value="$PROJECT_DIR$/sandbox/modules" />
+            <option value="$PROJECT_DIR$/sandbox/plugins" />
+            <option value="$PROJECT_DIR$/server" />
+            <option value="$PROJECT_DIR$/server/cli" />
+            <option value="$PROJECT_DIR$/test" />
+            <option value="$PROJECT_DIR$/test/external-modules" />
+            <option value="$PROJECT_DIR$/test/external-modules/delayed-aggs" />
+            <option value="$PROJECT_DIR$/test/fixtures" />
+            <option value="$PROJECT_DIR$/test/fixtures/azure-fixture" />
+            <option value="$PROJECT_DIR$/test/fixtures/gcs-fixture" />
+            <option value="$PROJECT_DIR$/test/fixtures/hdfs-fixture" />
+            <option value="$PROJECT_DIR$/test/fixtures/krb5kdc-fixture" />
+            <option value="$PROJECT_DIR$/test/fixtures/minio-fixture" />
+            <option value="$PROJECT_DIR$/test/fixtures/s3-fixture" />
+            <option value="$PROJECT_DIR$/test/framework" />
+            <option value="$PROJECT_DIR$/test/logger-usage" />
+            <option value="$PROJECT_DIR$/test/telemetry" />
+          </set>
+        </option>
+        <option name="resolveExternalAnnotations" value="true" />
+      </GradleProjectSettings>
+    </option>
+  </component>
+</project>

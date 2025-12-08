@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="35272ffa-4898-42e9-a1dd-b40f93b5cb03" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/runConfigurations/Debug_OpenSearch.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/src/main/java/org/opensearch/common/settings/ClusterSettings.java" beforeDir="false" afterPath="$PROJECT_DIR$/server/src/main/java/org/opensearch/common/settings/ClusterSettings.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/src/main/java/org/opensearch/search/DefaultSearchContext.java" beforeDir="false" afterPath="$PROJECT_DIR$/server/src/main/java/org/opensearch/search/DefaultSearchContext.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/src/main/java/org/opensearch/search/SearchService.java" beforeDir="false" afterPath="$PROJECT_DIR$/server/src/main/java/org/opensearch/search/SearchService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/src/main/java/org/opensearch/search/internal/FilteredSearchContext.java" beforeDir="false" afterPath="$PROJECT_DIR$/server/src/main/java/org/opensearch/search/internal/FilteredSearchContext.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/src/main/java/org/opensearch/search/internal/SearchContext.java" beforeDir="false" afterPath="$PROJECT_DIR$/server/src/main/java/org/opensearch/search/internal/SearchContext.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/src/main/java/org/opensearch/search/internal/SubSearchContext.java" beforeDir="false" afterPath="$PROJECT_DIR$/server/src/main/java/org/opensearch/search/internal/SubSearchContext.java" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$">
+      <ProjectState />
+    </projectState>
+  </component>
+  <component name="ExternalProjectsManager">
+    <system id="GRADLE">
+      <state>
+        <task path="$PROJECT_DIR$">
+          <activation />
+        </task>
+        <projects_view>
+          <tree_state>
+            <expand>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="OpenSearch" type="f1a62948:ProjectNode" />
+              </path>
+            </expand>
+            <select />
+          </tree_state>
+        </projects_view>
+      </state>
+    </system>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;005094cd&quot;
+}</component>
+  <component name="ProjectId" id="36G7OlAST0cr87ZRTei1TZA5Sz6" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Gradle.Build OpenSearch.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Download Sources.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.OpenSearch Run.executor&quot;: &quot;Debug&quot;,
+    &quot;Gradle.OpenSearch [--debug-jvm].executor&quot;: &quot;Debug&quot;,
+    &quot;Gradle.OpenSearch [--preserve-data --debug-jvm].executor&quot;: &quot;Debug&quot;,
+    &quot;Gradle.OpenSearch [run --preserve-data --debug-jvm].executor&quot;: &quot;Debug&quot;,
+    &quot;Gradle.OpenSearch.executor&quot;: &quot;Debug&quot;,
+    &quot;Gradle.TransportTwoNodesSearchIT.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.CRUDDocumentationIT.testDeleteByQuery.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.ClusterSettingsIT.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.ClusterSettingsIT.testClusterSettingsUpdateResponse.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.ClusterSettingsIT.testUserMetadata.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.ClusterSettingsIT.testWithMultipleIndexCreationAndVerifySettingRegisteredOnce.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.DebugTests.testPainlessExplainErrorSerialization.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.DuelScrollIT.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.RemoteRestoreSnapshotIT.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.RemoteRestoreSnapshotIT.testRestoreOperationsShallowCopyEnabled.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.RetryTests.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.ScrollContextReaderCacheTests.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.ScrollContextReaderCacheTests.testMultipleSegmentsCached.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.ScrollStoredFieldsCacheIT [*].executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.ScrollStoredFieldsCacheIT.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.ScrollStoredFieldsCacheIT.testLargeScrollBatchTriggersOptimization.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.ScrollStoredFieldsCacheIT.testScrollAcrossMultipleSegments.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.SearchRestCancellationIT.testAutomaticCancellationMultiSearchDuringQueryPhase.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.SearchScrollIT.testScrollWithSequentialReaderCacheReturnsCorrectResults.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.SearchSliceIT.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.ShardsLimitAllocationDeciderIT.executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.TransportTwoNodesSearchIT.executor&quot;: &quot;Run&quot;,
+    &quot;Remote JVM Debug.Debug OpenSearch.executor&quot;: &quot;Debug&quot;,
+    &quot;Remote JVM Debug.OpenSearch Debug.executor&quot;: &quot;Debug&quot;,
+    &quot;Remote JVM Debug.OpenSearch.executor&quot;: &quot;Debug&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;external.system.has.shared.sources&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;approx&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/pgodithi/git/OpenSearch&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Project&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.2855568&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;reference.settingsdialog.project.gradle&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="ReactorSettings">
+    <option name="notificationShown" value="true" />
+  </component>
+  <component name="RunManager" selected="Gradle.OpenSearch Run">
+    <configuration name="OpenSearch Run" type="GradleRunConfiguration" factoryName="Gradle">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" value="" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="run" />
+            <option value="--preserve-data" />
+            <option value="--debug-jvm" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <method v="2" />
+    </configuration>
+    <configuration name="CRUDDocumentationIT.testDeleteByQuery" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="OpenSearch.client.rest-high-level.test" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="org.opensearch.client.documentation.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="org.opensearch.client.documentation" />
+      <option name="MAIN_CLASS_NAME" value="org.opensearch.client.documentation.CRUDDocumentationIT" />
+      <option name="METHOD_NAME" value="testDeleteByQuery" />
+      <option name="TEST_OBJECT" value="method" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="ClusterSettingsIT.testWithMultipleIndexCreationAndVerifySettingRegisteredOnce" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="OpenSearch.server.internalClusterTest" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="org.opensearch.cluster.settings.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="org.opensearch.cluster.settings" />
+      <option name="MAIN_CLASS_NAME" value="org.opensearch.cluster.settings.ClusterSettingsIT" />
+      <option name="METHOD_NAME" value="testWithMultipleIndexCreationAndVerifySettingRegisteredOnce" />
+      <option name="TEST_OBJECT" value="method" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="RemoteRestoreSnapshotIT" type="JUnit" factoryName="JUnit" singleton="false" temporary="true" nameIsGenerated="true">
+      <module name="OpenSearch.server.internalClusterTest" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="org.opensearch.remotestore.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="org.opensearch.remotestore" />
+      <option name="MAIN_CLASS_NAME" value="org.opensearch.remotestore.RemoteRestoreSnapshotIT" />
+      <option name="METHOD_NAME" value="" />
+      <option name="TEST_OBJECT" value="class" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="RemoteRestoreSnapshotIT.testRestoreOperationsShallowCopyEnabled" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="OpenSearch.server.internalClusterTest" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="org.opensearch.remotestore.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="org.opensearch.remotestore" />
+      <option name="MAIN_CLASS_NAME" value="org.opensearch.remotestore.RemoteRestoreSnapshotIT" />
+      <option name="METHOD_NAME" value="testRestoreOperationsShallowCopyEnabled" />
+      <option name="TEST_OBJECT" value="method" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="RetryTests" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="OpenSearch.modules.reindex.test" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="org.opensearch.index.reindex.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="org.opensearch.index.reindex" />
+      <option name="MAIN_CLASS_NAME" value="org.opensearch.index.reindex.RetryTests" />
+      <option name="TEST_OBJECT" value="class" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="ScrollStoredFieldsCacheIT.testScrollAcrossMultipleSegments" type="JUnit" factoryName="JUnit" nameIsGenerated="true" repeat_mode="Until Failure">
+      <module name="OpenSearch.server.internalClusterTest" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="org.opensearch.search.scroll.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="org.opensearch.search.scroll" />
+      <option name="MAIN_CLASS_NAME" value="org.opensearch.search.scroll.ScrollStoredFieldsCacheIT" />
+      <option name="METHOD_NAME" value="testScrollAcrossMultipleSegments" />
+      <option name="TEST_OBJECT" value="method" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="SearchSliceIT" type="JUnit" factoryName="JUnit" singleton="false" nameIsGenerated="true">
+      <module name="OpenSearch.server.internalClusterTest" />
+      <selectedOptions>
+        <option name="environmentVariables" visible="false" />
+      </selectedOptions>
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="org.opensearch.search.slice.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="org.opensearch.search.slice" />
+      <option name="MAIN_CLASS_NAME" value="org.opensearch.search.slice.SearchSliceIT" />
+      <option name="METHOD_NAME" value="" />
+      <option name="TEST_OBJECT" value="class" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="OpenSearch Debug" type="Remote">
+      <option name="USE_SOCKET_TRANSPORT" value="true" />
+      <option name="SERVER_MODE" value="true" />
+      <option name="SHMEM_ADDRESS" />
+      <option name="HOST" value="localhost" />
+      <option name="PORT" value="5005" />
+      <option name="AUTO_RESTART" value="true" />
+      <RunnerSettings RunnerId="Debug">
+        <option name="DEBUG_PORT" value="5005" />
+        <option name="LOCAL" value="false" />
+      </RunnerSettings>
+      <method v="2" />
+    </configuration>
+    <list>
+      <item itemvalue="Gradle.OpenSearch Run" />
+      <item itemvalue="JUnit.SearchSliceIT" />
+      <item itemvalue="JUnit.ScrollStoredFieldsCacheIT.testScrollAcrossMultipleSegments" />
+      <item itemvalue="JUnit.CRUDDocumentationIT.testDeleteByQuery" />
+      <item itemvalue="JUnit.RemoteRestoreSnapshotIT" />
+      <item itemvalue="JUnit.RemoteRestoreSnapshotIT.testRestoreOperationsShallowCopyEnabled" />
+      <item itemvalue="JUnit.RetryTests" />
+      <item itemvalue="JUnit.ClusterSettingsIT.testWithMultipleIndexCreationAndVerifySettingRegisteredOnce" />
+      <item itemvalue="Remote JVM Debug.OpenSearch Debug" />
+    </list>
+    <recent_temporary>
+      <list>
+        <item itemvalue="JUnit.RemoteRestoreSnapshotIT" />
+        <item itemvalue="JUnit.RemoteRestoreSnapshotIT.testRestoreOperationsShallowCopyEnabled" />
+        <item itemvalue="JUnit.RetryTests" />
+        <item itemvalue="JUnit.CRUDDocumentationIT.testDeleteByQuery" />
+        <item itemvalue="JUnit.ClusterSettingsIT.testWithMultipleIndexCreationAndVerifySettingRegisteredOnce" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-9823dce3aa75-bf35d07a577b-intellij.indexing.shared.core-IU-252.28238.7" />
+        <option value="bundled-js-predefined-d6986cc7102b-a71380e98a7c-JavaScript-IU-252.28238.7" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="35272ffa-4898-42e9-a1dd-b40f93b5cb03" name="Changes" comment="" />
+      <created>1764621025986</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1764621025986</updated>
+      <workItem from="1764621028088" duration="260000" />
+      <workItem from="1764621464395" duration="357000" />
+      <workItem from="1764621828007" duration="234000" />
+      <workItem from="1764622142025" duration="43000" />
+      <workItem from="1764622195499" duration="1960000" />
+      <workItem from="1764624172444" duration="2611000" />
+      <workItem from="1764627474173" duration="178000" />
+      <workItem from="1764627658180" duration="38000" />
+      <workItem from="1764631275002" duration="12370000" />
+      <workItem from="1764713771043" duration="1883000" />
+      <workItem from="1764720521437" duration="1705000" />
+      <workItem from="1764725098555" duration="4489000" />
+      <workItem from="1764810838283" duration="22749000" />
+      <workItem from="1764971150176" duration="1063000" />
+      <workItem from="1764972228500" duration="1026000" />
+      <workItem from="1764973287298" duration="10477000" />
+      <workItem from="1765229571030" duration="324000" />
+      <workItem from="1765232412703" duration="222000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VgoProject">
+    <settings-migrated>true</settings-migrated>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="java-method">
+          <url>jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.lucene/lucene-core/10.3.2/5e63a517084aedd5c701fe76dcc7aabf3c1c80b5/lucene-core-10.3.2-sources.jar!/org/apache/lucene/search/IndexSearcher.java</url>
+          <line>539</line>
+          <properties class="org.apache.lucene.search.IndexSearcher" method="computeAndCacheSlices">
+            <option name="EMULATED" value="true" />
+            <option name="WATCH_EXIT" value="false" />
+          </properties>
+          <option name="timeStamp" value="7" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+  <component name="XSLT-Support.FileAssociations.UIState">
+    <expand />
+    <select />
+  </component>
+</project>
