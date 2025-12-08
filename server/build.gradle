@@ -28,7 +28,6 @@
  * under the License.
  */
 
-import org.opensearch.gradle.info.BuildParams
 import groovy.xml.XmlParser
 
 plugins {
@@ -123,10 +122,13 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
   }
+  internalClusterTestImplementation project(':libs:opensearch-secure-sm')
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
   }
   testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -167,6 +169,8 @@ tasks.named("testingConventions").configure {
         }
     }
 }
+
+tasks.named('forbiddenApisInternalClusterTest').configure { forbidSleep() }
 
 // Set to current version by default
 def japicmpCompareTarget = System.getProperty("japicmp.compare.version")
@@ -232,7 +236,6 @@ tasks.named("processResources").configure {
 
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
-        *[
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -260,6 +263,29 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.databind.node.ObjectNode',
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
+            'io.micrometer.context.ContextAccessor',
+            'io.micrometer.context.ContextRegistry',
+            'io.micrometer.context.ContextSnapshot',
+            'io.micrometer.context.ContextSnapshot$Scope',
+            'io.micrometer.context.ContextSnapshotFactory',
+            'io.micrometer.context.ContextSnapshotFactory$Builder',
+            'io.micrometer.context.ThreadLocalAccessor',
+            'io.micrometer.core.instrument.Clock',
+            'io.micrometer.core.instrument.Counter',
+            'io.micrometer.core.instrument.Counter$Builder',
+            'io.micrometer.core.instrument.DistributionSummary',
+            'io.micrometer.core.instrument.DistributionSummary$Builder',
+            'io.micrometer.core.instrument.Meter',
+            'io.micrometer.core.instrument.MeterRegistry',
+            'io.micrometer.core.instrument.Metrics',
+            'io.micrometer.core.instrument.Tag',
+            'io.micrometer.core.instrument.Tags',
+            'io.micrometer.core.instrument.Timer',
+            'io.micrometer.core.instrument.Timer$Builder',
+            'io.micrometer.core.instrument.Timer$Sample',
+            'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+            'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+            'io.micrometer.core.instrument.search.Search',
             'com.lmax.disruptor.EventFactory',
             'com.lmax.disruptor.EventTranslator',
             'com.lmax.disruptor.EventTranslatorTwoArg',
@@ -268,7 +294,9 @@ tasks.named("thirdPartyAudit").configure {
             'com.lmax.disruptor.LifecycleAware',
             'com.lmax.disruptor.RingBuffer',
             'com.lmax.disruptor.Sequence',
+            'com.lmax.disruptor.SequenceBarrier',
             'com.lmax.disruptor.SequenceReportingEventHandler',
+            'com.lmax.disruptor.TimeoutException',
             'com.lmax.disruptor.WaitStrategy',
             'com.lmax.disruptor.dsl.Disruptor',
             'com.lmax.disruptor.dsl.ProducerType',
@@ -297,6 +325,7 @@ tasks.named("thirdPartyAudit").configure {
             'org.apache.commons.csv.QuoteMode',
             'org.apache.kafka.clients.producer.Producer',
             'org.apache.kafka.clients.producer.RecordMetadata',
+            'org.apache.kafka.common.serialization.ByteArraySerializer',
             'org.codehaus.stax2.XMLStreamWriter2',
             'org.jctools.queues.MpscArrayQueue',
             'org.osgi.framework.Bundle',
@@ -305,18 +334,45 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.BundleEvent',
             'org.osgi.framework.BundleReference',
             'org.osgi.framework.FrameworkUtil',
+            'org.osgi.framework.ServiceReference',
             'org.osgi.framework.ServiceRegistration',
             'org.osgi.framework.SynchronousBundleListener',
             'org.osgi.framework.wiring.BundleWire',
             'org.osgi.framework.wiring.BundleWiring',
+            'org.slf4j.Logger',
+            'org.slf4j.LoggerFactory',
+            'org.zeromq.SocketType',
+            'org.zeromq.ZContext',
+            'org.zeromq.ZMQ',
             'org.zeromq.ZMQ$Context',
             'org.zeromq.ZMQ$Socket',
-            'org.zeromq.ZMQ',
+            'org.zeromq.ZMonitor',
+            'org.zeromq.ZMonitor$Event',
+            'org.zeromq.ZMonitor$ZEvent',
+            'reactor.blockhound.BlockHound$Builder',
+            'reactor.blockhound.integration.BlockHoundIntegration',
 
             // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
             'org.noggit.JSONParser',
 
-            // from lucene-spatial
+            // from lucene-spatial (and other lucene modules)
+            'org.apache.lucene.facet.DrillDownQuery',
+            'org.apache.lucene.facet.DrillSideways',
+            'org.apache.lucene.facet.DrillSideways$Result',
+            'org.apache.lucene.facet.FacetResult',
+            'org.apache.lucene.facet.FacetsConfig',
+            'org.apache.lucene.facet.FacetsConfig$DimConfig',
+            'org.apache.lucene.facet.LabelAndValue',
+            'org.apache.lucene.facet.MultiDoubleValuesSource',
+            'org.apache.lucene.facet.MultiLongValues',
+            'org.apache.lucene.facet.MultiLongValuesSource',
+            'org.apache.lucene.facet.range.DoubleRange',
+            'org.apache.lucene.facet.range.LongRange',
+            'org.apache.lucene.facet.range.Range',
+            'org.apache.lucene.facet.taxonomy.FacetLabel',
+            'org.apache.lucene.facet.taxonomy.ParallelTaxonomyArrays',
+            'org.apache.lucene.facet.taxonomy.ParallelTaxonomyArrays$IntArray',
+            'org.apache.lucene.facet.taxonomy.TaxonomyReader',
             'com.fasterxml.jackson.databind.JsonSerializer',
             'com.fasterxml.jackson.databind.JsonDeserializer',
             'com.fasterxml.jackson.databind.node.ArrayNode',
@@ -325,16 +381,18 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2Projections',
             'com.google.common.geometry.S2Point',
             'com.google.common.geometry.S2$Metric',
-            'com.google.common.geometry.S2LatLng'
-        ] + (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_20) ? [] : [
+            'com.google.common.geometry.S2LatLng',
             'jdk.incubator.vector.ByteVector',
+            'jdk.incubator.vector.DoubleVector',
             'jdk.incubator.vector.FloatVector',
             'jdk.incubator.vector.IntVector',
+            'jdk.incubator.vector.LongVector',
             'jdk.incubator.vector.ShortVector',
             'jdk.incubator.vector.Vector',
+            'jdk.incubator.vector.VectorMask',
             'jdk.incubator.vector.VectorOperators',
+            'jdk.incubator.vector.VectorShape',
             'jdk.incubator.vector.VectorSpecies'
-        ]
     )
     ignoreViolations(
             'com.google.protobuf.MessageSchema',

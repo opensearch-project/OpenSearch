@@ -13,6 +13,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportResponseHandler;
@@ -587,5 +588,83 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         IllegalStateException exception = assertThrows(IllegalStateException.class, () -> flightTransport.setMessageListener(listener2));
         assertEquals("Cannot set message listener twice", exception.getMessage());
+    }
+
+    static class LargeTestRequest extends TestRequest {
+        private final String largeData;
+
+        LargeTestRequest(String data) {
+            this.largeData = data;
+        }
+
+        LargeTestRequest(StreamInput in) throws IOException {
+            super(in);
+            this.largeData = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(largeData);
+        }
+    }
+
+    public void testLargeRequest() throws Exception {
+        String action = "internal:test/large";
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        streamTransportService.registerRequestHandler(action, ThreadPool.Names.SAME, LargeTestRequest::new, (request, channel, task) -> {
+            try {
+                channel.sendResponseBatch(new TestResponse("OK"));
+                channel.completeStream();
+            } catch (Exception e) {
+                try {
+                    channel.sendResponse(e);
+                } catch (IOException ex) {}
+            }
+        });
+
+        LargeTestRequest testRequest = new LargeTestRequest("X".repeat(20 * 1024));
+
+        streamTransportService.sendRequest(
+            remoteNode,
+            action,
+            testRequest,
+            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+            new StreamTransportResponseHandler<TestResponse>() {
+                @Override
+                public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
+                    try {
+                        while (streamResponse.nextResponse() != null) {
+                        }
+                        streamResponse.close();
+                    } catch (Exception e) {
+                        error.set(e);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    error.set(exp);
+                    latch.countDown();
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public TestResponse read(StreamInput in) throws IOException {
+                    return new TestResponse(in);
+                }
+            }
+        );
+
+        assertTrue(latch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+        assertNull(error.get());
     }
 }

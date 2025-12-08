@@ -222,4 +222,87 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
             .setSettings(Settings.builder().put("index.blocks.write", isWriteBlockEnabled))
             .get();
     }
+
+    /**
+     * Gets the periodic flush count for the specified index from the specified node.
+     *
+     * @param nodeName the name of the node to query
+     * @param indexName the name of the index
+     * @return the periodic flush count
+     */
+    protected long getPeriodicFlushCount(String nodeName, String indexName) {
+        return client(nodeName).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0].getStats()
+            .getFlush()
+            .getPeriodic();
+    }
+
+    /**
+     * Helper method to pause ingestion and wait for the pause to complete.
+     *
+     * @param indexName the index name
+     * @param expectedShardCount the expected number of shards
+     */
+    protected void pauseIngestionAndWait(String indexName, int expectedShardCount) throws Exception {
+        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
+        assertTrue(pauseResponse.isAcknowledged());
+        assertTrue(pauseResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == expectedShardCount
+                && ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
+        });
+    }
+
+    /**
+     * Helper method to resume ingestion and wait for the resume to complete.
+     *
+     * @param indexName the index name
+     * @param expectedShardCount the expected number of shards
+     */
+    protected void resumeIngestionAndWait(String indexName, int expectedShardCount) throws Exception {
+        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
+        assertTrue(resumeResponse.isAcknowledged());
+        assertTrue(resumeResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == expectedShardCount
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(
+                        state -> state.isPollerPaused() == false
+                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
+                    );
+        });
+    }
+
+    /**
+     * Helper method to resume ingestion with reset settings and wait for the resume to complete.
+     *
+     * @param indexName the index name
+     * @param shardId the shard id to reset
+     * @param resetMode the reset mode
+     * @param resetValue the reset value
+     * @param expectedShardCount the expected number of shards
+     */
+    protected void resumeIngestionWithResetAndWait(
+        String indexName,
+        int shardId,
+        ResumeIngestionRequest.ResetSettings.ResetMode resetMode,
+        String resetValue,
+        int expectedShardCount
+    ) throws Exception {
+        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName, shardId, resetMode, resetValue);
+        assertTrue(resumeResponse.isAcknowledged());
+        assertTrue(resumeResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == expectedShardCount
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(
+                        state -> state.isPollerPaused() == false
+                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
+                    );
+        });
+    }
 }

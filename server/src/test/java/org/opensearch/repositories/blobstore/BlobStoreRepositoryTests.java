@@ -42,6 +42,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -90,6 +91,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.repositories.RepositoryDataTests.generateRandomRepoData;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.calculateMaxWithinIntLimit;
@@ -596,6 +599,127 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         RepositoryStats stats = repository.stats();
         assertNotNull(stats);
         repository.close();
+    }
+
+    public void testGetStats_When_Sse_Enabled_WithExtended_Stats() {
+        BlobStoreRepository repository = setupRepo();
+        BlobStoreRepository repoSpy = Mockito.spy(repository);
+
+        BlobStore blobStore = getMockedBlobStoreWithStats(10L, 20L, true);
+        BlobStore sseBlobStore = getMockedBlobStoreWithStats(5L, 10L, true);
+
+        Mockito.doReturn(blobStore).when(repoSpy).getBlobStore(false);
+        Mockito.doReturn(sseBlobStore).when(repoSpy).getBlobStore(true);
+
+        RepositoryStats stats = repoSpy.stats();
+        assertNotNull(stats);
+        assertTrue(stats.detailed);
+        Map<String, Long> mergedStats = stats.extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS);
+
+        assertEquals(15, mergedStats.get("GET").longValue());
+        assertEquals(30, mergedStats.get("PUT").longValue());
+
+        repository.close();
+    }
+
+    public void testGetStats_When_Sse_Only_Enabled_WithExtended_Stats() {
+        BlobStoreRepository repository = setupRepo();
+        BlobStoreRepository repoSpy = Mockito.spy(repository);
+
+        BlobStore sseBlobStore = getMockedBlobStoreWithStats(5L, 10L, true);
+        Mockito.doReturn(sseBlobStore).when(repoSpy).getBlobStore(true);
+
+        RepositoryStats stats = repoSpy.stats();
+        assertNotNull(stats);
+        assertTrue(stats.detailed);
+        Map<String, Long> mergedStats = stats.extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS);
+
+        assertEquals(5, mergedStats.get("GET").longValue());
+        assertEquals(10, mergedStats.get("PUT").longValue());
+
+        repository.close();
+    }
+
+    public void testGetStats_When_Sse_not_Enabled_WithExtended_Stats() {
+        BlobStoreRepository repository = setupRepo();
+        BlobStoreRepository repoSpy = Mockito.spy(repository);
+
+        BlobStore blobStore = getMockedBlobStoreWithStats(10L, 20L, true);
+        Mockito.doReturn(blobStore).when(repoSpy).getBlobStore(false);
+
+        RepositoryStats stats = repoSpy.stats();
+        assertNotNull(stats);
+        assertTrue(stats.detailed);
+        Map<String, Long> mergedStats = stats.extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS);
+
+        assertEquals(10, mergedStats.get("GET").longValue());
+        assertEquals(20, mergedStats.get("PUT").longValue());
+
+        repository.close();
+    }
+
+    public void testGetStats_When_Sse_Enabled() {
+        BlobStoreRepository repository = setupRepo();
+        BlobStoreRepository repoSpy = Mockito.spy(repository);
+
+        BlobStore blobStore = getMockedBlobStoreWithStats(10L, 20L, false);
+        BlobStore sseBlobStore = getMockedBlobStoreWithStats(5L, 10L, false);
+
+        Mockito.doReturn(blobStore).when(repoSpy).getBlobStore(false);
+        Mockito.doReturn(sseBlobStore).when(repoSpy).getBlobStore(true);
+
+        RepositoryStats stats = repoSpy.stats();
+        assertNotNull(stats);
+        assertFalse(stats.detailed);
+
+        assertEquals(45, stats.requestCounts.get("requests_count").longValue());
+        repository.close();
+    }
+
+    public void testGetStats_When_Sse_Disabled() {
+        BlobStoreRepository repository = setupRepo();
+        BlobStoreRepository repoSpy = Mockito.spy(repository);
+
+        BlobStore blobStore = getMockedBlobStoreWithStats(10L, 20L, false);
+
+        Mockito.doReturn(blobStore).when(repoSpy).getBlobStore(false);
+
+        RepositoryStats stats = repoSpy.stats();
+        assertNotNull(stats);
+        assertFalse(stats.detailed);
+
+        assertEquals(30, stats.requestCounts.get("requests_count").longValue());
+        repository.close();
+    }
+
+    public void testGetStats_When_Sse_Only_Enabled() {
+        BlobStoreRepository repository = setupRepo();
+        BlobStoreRepository repoSpy = Mockito.spy(repository);
+
+        BlobStore sseBlobStore = getMockedBlobStoreWithStats(5L, 10L, false);
+        Mockito.doReturn(sseBlobStore).when(repoSpy).getBlobStore(true);
+
+        RepositoryStats stats = repoSpy.stats();
+        assertNotNull(stats);
+        assertFalse(stats.detailed);
+
+        assertEquals(15, stats.requestCounts.get("requests_count").longValue());
+        repository.close();
+    }
+
+    private BlobStore getMockedBlobStoreWithStats(long getCount, long putCount, boolean extendedStats) {
+        BlobStore blobStore = Mockito.mock(BlobStore.class);
+        HashMap<String, Long> blobStoreStatsMap = new HashMap<>();
+        if (extendedStats) {
+            blobStoreStatsMap.put("GET", getCount);
+            blobStoreStatsMap.put("PUT", putCount);
+            Map<BlobStore.Metric, Map<String, Long>> blobStoreMetricMap = Map.of(BlobStore.Metric.REQUEST_SUCCESS, blobStoreStatsMap);
+            Mockito.when(blobStore.extendedStats()).thenReturn(blobStoreMetricMap);
+        } else {
+            blobStoreStatsMap.put("requests_count", getCount + putCount);
+            Mockito.when(blobStore.stats()).thenReturn(blobStoreStatsMap);
+        }
+        return blobStore;
     }
 
     public void testGetSnapshotThrottleTimeInNanos() {

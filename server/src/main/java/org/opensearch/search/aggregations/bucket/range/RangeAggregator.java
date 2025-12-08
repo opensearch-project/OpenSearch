@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.core.ParseField;
@@ -353,6 +354,16 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
                 }
             }
 
+            @Override
+            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                super.collect(stream, owningBucketOrd);
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                super.collectRange(min, max);
+            }
+
             private int collect(int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
                 MatchedRange range = new MatchedRange(ranges, lowBound, value, maxTo);
                 for (int i = range.startLo; i <= range.endHi; ++i) {
@@ -401,7 +412,9 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
             @Override
             public void setSubCollectors() throws IOException {
                 for (Aggregator aggregator : subAggregators) {
-                    this.subCollectors.add(((StarTreePreComputeCollector) aggregator).getStarTreeBucketCollector(ctx, starTree, this));
+                    this.subCollectors.add(
+                        ((StarTreePreComputeCollector) aggregator.unwrapAggregator()).getStarTreeBucketCollector(ctx, starTree, this)
+                    );
                 }
             }
 

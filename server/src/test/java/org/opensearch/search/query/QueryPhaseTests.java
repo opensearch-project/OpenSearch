@@ -1090,7 +1090,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     public void testMaxScoreWithSortOnScoreAndCollapsingResults() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig();
+        final Sort sort = new Sort(new SortField("user", SortField.Type.INT));
+        IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
 
         // Always end up with uneven buckets so collapsing is predictable
@@ -1130,8 +1131,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].score, equalTo(context.queryResult().getMaxScore()));
 
-        Sort sort = new Sort(new SortField(null, SortField.Type.SCORE), new SortField(null, SortField.Type.DOC));
-        SortAndFormats sortAndFormats = new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+        Sort scoreSort = new Sort(new SortField(null, SortField.Type.SCORE), new SortField(null, SortField.Type.DOC));
+        SortAndFormats sortAndFormats = new SortAndFormats(scoreSort, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
         context.sort(sortAndFormats);
         QueryPhase.executeInternal(context.withCleanQueryResult(), queryPhaseSearcher);
         assertFalse(Float.isNaN(context.queryResult().getMaxScore()));

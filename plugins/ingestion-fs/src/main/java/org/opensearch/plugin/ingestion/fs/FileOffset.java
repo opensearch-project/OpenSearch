@@ -62,17 +62,17 @@ public class FileOffset implements IngestionShardPointer {
 
     @Override
     public int compareTo(IngestionShardPointer o) {
-        if (o == null || !(o instanceof FileOffset)) {
+        if (!(o instanceof FileOffset fileOffset)) {
             throw new IllegalArgumentException("Incompatible pointer type: " + (o == null ? "null" : o.getClass()));
         }
-        return Long.compare(this.line, ((FileOffset) o).line);
+        return Long.compare(this.line, fileOffset.line);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof FileOffset)) return false;
-        return this.line == ((FileOffset) o).line;
+        if (!(o instanceof FileOffset fileOffset)) return false;
+        return this.line == fileOffset.line;
     }
 
     @Override

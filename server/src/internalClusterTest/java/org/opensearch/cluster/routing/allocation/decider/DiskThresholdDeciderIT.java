@@ -645,12 +645,6 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
         }, 30L, TimeUnit.SECONDS);
     }
 
-    private String populateNode(final String dataNodeName) throws Exception {
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createAndPopulateIndex(indexName, dataNodeName);
-        return indexName;
-    }
-
     private void createIndex(String indexName, String nodeName, boolean isWarmIndex) throws Exception {
         final Settings.Builder indexSettingBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -756,11 +750,13 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
             0,
             0,
             0,
+            0,
             AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS
         );
         FileCacheStats fullStats = new FileCacheStats(
             0,
             totalCacheSize,
+            0,
             0,
             0,
             0,
@@ -776,11 +772,13 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
             0,
             0,
             0,
+            0,
             AggregateFileCacheStats.FileCacheStatsType.BLOCK_FILE_STATS
         );
         FileCacheStats pinnedStats = new FileCacheStats(
             0,
             totalCacheSize,
+            0,
             0,
             0,
             0,

@@ -51,12 +51,13 @@ dependencies {
   api "org.mockito:mockito-core:${versions.mockito}"
   api "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
   api "org.objenesis:objenesis:${versions.objenesis}"
+  api libs.netty.pkitesting
   fipsOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   fipsOnly "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
   fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   compileOnly project(":libs:agent-sm:bootstrap")
-  compileOnly "com.github.spotbugs:spotbugs-annotations:4.9.6"
+  compileOnly "com.github.spotbugs:spotbugs-annotations:4.9.8"
 
   annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 }
@@ -89,7 +90,9 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
   'org.opentest4j.AssertionFailedError',
   'net.bytebuddy.agent.ByteBuddyAgent',
-  'net.bytebuddy.agent.Installer'
+  'net.bytebuddy.agent.Installer',
+  'io.netty.util.NetUtil',
+  'io.netty.util.internal.EmptyArrays'
 )
 // TODO - OpenSearch remove this violation. Issue: https://github.com/opensearch-project/OpenSearch/issues/420
 thirdPartyAudit.ignoreViolations(
