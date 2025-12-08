@@ -40,6 +40,13 @@ import org.opensearch.index.analysis.LowercaseNormalizer;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.indices.IndicesModule;
+import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.ScriptPlugin;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -48,7 +55,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toList;
 import static org.opensearch.index.mapper.FieldTypeTestCase.fetchSourceValue;
 import static org.opensearch.index.mapper.KeywordFieldMapper.normalizeValue;
 
@@ -339,7 +348,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     public void testPossibleToDeriveSource_WhenIgnoreAbovePresent() throws IOException {
         WildcardFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), 100, "default", true);
-        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+        assertDoesNotThrow(mapper::canDeriveSource);
     }
 
     public void testPossibleToDeriveSource_WhenNormalizerPresent() throws IOException {
@@ -370,6 +379,97 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testDerivedValueFetching_AboveIgnoreAbove() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperServiceForDerivedSource();
+            merge(mapperService, fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 20)));
+            WildcardFieldMapper mapper = (WildcardFieldMapper) mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
+            String value = "this_is_a_very_long_value_exceeding_ignore_above";
+
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create document with value stored in ignored field
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+                iw.addDocument(doc.rootDoc());
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":\"" + value + "\"}", source);
+            }
+        }
+    }
+
+    public void testParseCreateField_BelowIgnoreAbove() throws IOException {
+        MapperService mapperService = getMapperServiceForDerivedSource();
+        merge(mapperService, fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 20)));
+
+        String value = "short";
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+
+        // Should have normal fields
+        assertEquals(2, doc.rootDoc().getFields(FIELD_NAME).length);
+
+        // Should NOT have ignored field
+        WildcardFieldMapper mapper = (WildcardFieldMapper) mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
+        String ignoredFieldName = mapper.fieldType().derivedSourceIgnoreFieldName();
+        assertEquals(0, doc.rootDoc().getFields(ignoredFieldName).length);
+    }
+
+    public void testParseCreateField_AboveIgnoreAbove_WithDerivedSource() throws IOException {
+        MapperService mapperService = getMapperServiceForDerivedSource();
+        merge(mapperService, fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 10)));
+
+        String value = "this_is_way_too_long";
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+
+        // Should NOT have normal fields (value exceeds ignore_above)
+        assertEquals(0, doc.rootDoc().getFields(FIELD_NAME).length);
+
+        // If derived source is enabled, should have ignored field
+        WildcardFieldMapper mapper = (WildcardFieldMapper) mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
+        String ignoredFieldName = mapper.fieldType().derivedSourceIgnoreFieldName();
+
+        assertEquals(1, doc.rootDoc().getFields(ignoredFieldName).length);
+    }
+
+    private MapperService getMapperServiceForDerivedSource() {
+        IndexMetadata build = IndexMetadata.builder("test_index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(build, Settings.EMPTY);
+        MapperRegistry mapperRegistry = new IndicesModule(
+            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+        ).getMapperRegistry();
+        ScriptModule scriptModule = new ScriptModule(
+            Settings.EMPTY,
+            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
+        );
+        ScriptService scriptService = new ScriptService(getIndexSettings(), scriptModule.engines, scriptModule.contexts);
+        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
+
+        return new MapperService(
+            indexSettings,
+            createIndexAnalyzers(indexSettings),
+            xContentRegistry(),
+            similarityService,
+            mapperRegistry,
+            () -> {
+                throw new UnsupportedOperationException();
+            },
+            () -> true,
+            scriptService
+        );
+    }
+
     private WildcardFieldMapper getMapper(FieldMapper.CopyTo copyTo, int ignoreAbove, String normalizerName, boolean hasDocValues)
         throws IOException {
         MapperService mapperService = createMapperService(
@@ -395,5 +495,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         final BytesRef binaryValue = new BytesRef(value);
         doc.add(new SortedSetDocValuesField(FIELD_NAME, binaryValue));
         return doc;
+    }
+
+    private void assertDoesNotThrow(Runnable runnable) {
+        try {
+            runnable.run();
+        } catch (Exception e) {
+            fail("Expected no exception, but got: " + e.getMessage());
+        }
     }
 }

@@ -273,7 +273,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected void canDeriveSourceInternal() {
         if (!(fieldType().normalizer() == null || Lucene.KEYWORD_ANALYZER.equals(fieldType().normalizer()))) {
-            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with " + "normalizer set");
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with normalizer set");
         }
         checkStoredAndDocValuesForDerivedSource();
     }
@@ -283,8 +283,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      * 2. If doc_values is disabled in field mapping, then build source using stored field
      * <p>
      * Support:
-     *    1. If "ignore_above" is set in the field mapping, then we won't be supporting derived source for now,
-     *       considering for these cases we will need to have explicit stored field.
+     *    1. If "ignore_above" is set in the field mapping, then we will fall back to ignored_value explicitly being
+     *       added for derived source
      *    2. If "normalizer" is set in the field mapping, then also we won't support derived source, as with
      *       normalizer it is hard to regenerate original source
      * <p>
@@ -294,7 +294,10 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
-        final FieldValueFetcher primaryFieldValueFetcher = KeywordFieldMapper.DerivedSourceHelper.getPrimaryFieldValueFetcher(this);
+        final FieldValueFetcher primaryFieldValueFetcher = KeywordFieldMapper.DerivedSourceHelper.getPrimaryFieldValueFetcher(
+            this,
+            simpleName()
+        );
         final FieldValueFetcher fallbackFieldValueFetcher = KeywordFieldMapper.DerivedSourceHelper.getFallbackFieldValueFetcher(this);
         final FieldValueFetcher compositeFieldValueFetcher = new CompositeFieldValueFetcher(
             simpleName(),
@@ -884,6 +887,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         NamedAnalyzer normalizer = fieldType().normalizer();
 
+        // Explicitly add value as a stored field if value is getting ignored, to be able to derive the source
         if (value.length() > ignoreAbove) {
             if ((normalizer == null || Lucene.KEYWORD_ANALYZER.equals(normalizer))
                 && context.indexSettings().isDerivedSourceEnabled()
@@ -953,15 +957,15 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         return new Builder(simpleName(), indexAnalyzers).init(this);
     }
 
-    private static final class DerivedSourceHelper {
+    static final class DerivedSourceHelper {
 
-        private static FieldValueFetcher getPrimaryFieldValueFetcher(KeywordFieldMapper mapper) {
+        static FieldValueFetcher getPrimaryFieldValueFetcher(KeywordFieldMapper mapper, String textFieldName) {
             return mapper.fieldType().hasDocValues()
-                ? new SortedSetDocValuesFetcher(mapper.fieldType(), mapper.simpleName())
-                : new StoredFieldFetcher(mapper.fieldType(), mapper.simpleName());
+                ? new SortedSetDocValuesFetcher(mapper.fieldType(), textFieldName)
+                : new StoredFieldFetcher(mapper.fieldType(), textFieldName);
         }
 
-        private static FieldValueFetcher getFallbackFieldValueFetcher(KeywordFieldMapper mapper) {
+        static FieldValueFetcher getFallbackFieldValueFetcher(KeywordFieldMapper mapper) {
             // Override to read from the special ignored value field
             final MappedFieldType ignoredFieldType = new MappedFieldType(
                 mapper.fieldType().derivedSourceIgnoreFieldName(),

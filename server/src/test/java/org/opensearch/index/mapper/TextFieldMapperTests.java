@@ -40,10 +40,7 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -262,7 +259,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         );
         return new IndexAnalyzers(
             Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
-            Map.of(),
+            Map.of("whitespace", whitespace),
             Map.of()
         );
     }
@@ -1093,7 +1090,124 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
     }
 
-    public void testDefaultStoredFieldForDerivedSource() throws IOException {
+    public void testDerivedValueFetching_StoredField() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperServiceForDerivedSource();
+            merge(mapperService, fieldMapping(b -> { b.field("type", "text"); }));
+            TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            String value = "value";
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", value)));
+                iw.addDocument(doc.rootDoc());
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + "field" + "\":" + "\"" + value + "\"" + "}", source);
+            }
+        }
+    }
+
+    public void testDerivedSourceWithKeywordSubField() throws IOException {
+        MapperService mapperService = getMapperServiceForDerivedSource();
+        merge(mapperService, fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+
+        TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertTrue(mapper.fieldType().getHasDerivedSourceSupportedKeyword());
+        assertEquals(Integer.MAX_VALUE, mapper.fieldType().getKeywordIgnoredLengthForDerivedSource());
+    }
+
+    public void testDerivedSourceWithKeywordSubFieldAndIgnoreAbove() throws IOException {
+        MapperService mapperService = getMapperServiceForDerivedSource();
+        merge(mapperService, fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").field("ignore_above", 20).endObject();
+            b.endObject();
+        }));
+
+        TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertTrue(mapper.fieldType().getHasDerivedSourceSupportedKeyword());
+        assertEquals(20, mapper.fieldType().getKeywordIgnoredLengthForDerivedSource());
+    }
+
+    public void testDerivedSourceWithMultipleKeywordSubFields() throws IOException {
+        MapperService mapperService = getMapperServiceForDerivedSource();
+        merge(mapperService, fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword1").field("type", "keyword").field("ignore_above", 10).endObject();
+            b.startObject("keyword2").field("type", "keyword").field("ignore_above", 20).endObject();
+            b.endObject();
+        }));
+
+        TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertTrue(mapper.fieldType().getHasDerivedSourceSupportedKeyword());
+        // Should take max ignore_above value
+        assertEquals(20, mapper.fieldType().getKeywordIgnoredLengthForDerivedSource());
+    }
+
+    public void testDerivedSourceWithNormalizedKeywordSubField() throws IOException {
+        MapperService mapperService = getMapperServiceForDerivedSource();
+        merge(mapperService, fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").field("normalizer", "whitespace").endObject();
+            b.endObject();
+        }));
+
+        TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        // Should be false since keyword has normalizer
+        assertFalse(mapper.fieldType().getHasDerivedSourceSupportedKeyword());
+    }
+
+    public void testStoredFieldWithLongText() throws IOException {
+        String longText = "This is a very long text field that exceeds the ignore_above setting";
+
+        MapperService mapperService = getMapperServiceForDerivedSource();
+        merge(mapperService, fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").field("ignore_above", 20).endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", longText)));
+
+        // Verify stored field is added since text length exceeds ignore_above
+        TextFieldMapper textFieldMapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        IndexableField[] storedFields = doc.rootDoc().getFields(textFieldMapper.fieldType().derivedSourceIgnoreFieldName());
+        assertEquals(1, storedFields.length);
+        assertEquals(longText, storedFields[0].stringValue());
+    }
+
+    public void testDerivedValueFetching_SubKeyword() throws IOException {
+        String value = "value";
+        MapperService mapperService = getMapperServiceForDerivedSource();
+        merge(mapperService, fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").field("ignore_above", 20).endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", value)));
+
+        // Verify stored field is not added
+        TextFieldMapper textFieldMapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        IndexableField[] storedFields = doc.rootDoc().getFields(textFieldMapper.fieldType().derivedSourceIgnoreFieldName());
+        assertEquals(0, storedFields.length);
+    }
+
+    private MapperService getMapperServiceForDerivedSource() {
         IndexMetadata build = IndexMetadata.builder("test_index")
             .settings(
                 Settings.builder()
@@ -1113,7 +1227,8 @@ public class TextFieldMapperTests extends MapperTestCase {
         );
         ScriptService scriptService = new ScriptService(getIndexSettings(), scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
-        MapperService mapperService = new MapperService(
+
+        return new MapperService(
             indexSettings,
             createIndexAnalyzers(indexSettings),
             xContentRegistry(),
@@ -1125,28 +1240,6 @@ public class TextFieldMapperTests extends MapperTestCase {
             () -> true,
             scriptService
         );
-
-        merge(mapperService, fieldMapping(b -> b.field("type", "text").field("store", false)));
-        TextFieldMapper textFieldMapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertTrue(textFieldMapper.fieldType.stored());
-    }
-
-    public void testDerivedValueFetching_StoredField() throws IOException {
-        try (Directory directory = newDirectory()) {
-            TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false);
-            String value = "value";
-            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
-                iw.addDocument(createDocument("field", value, false, false));
-            }
-
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
-                builder.endObject();
-                String source = builder.toString();
-                assertEquals("{\"" + "field" + "\":" + "\"" + value + "\"" + "}", source);
-            }
-        }
     }
 
     private TextFieldMapper getMapper(FieldMapper.CopyTo copyTo, boolean isStored) throws IOException {
@@ -1154,23 +1247,5 @@ public class TextFieldMapperTests extends MapperTestCase {
         TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         mapper.copyTo = copyTo;
         return mapper;
-    }
-
-    /**
-     * Helper method to create a document with both doc values and stored fields
-     */
-    private Document createDocument(String name, String value, boolean forKeyword, boolean hasDocValues) {
-        Document doc = new Document();
-        final BytesRef binaryValue = new BytesRef(value);
-        if (hasDocValues) {
-            doc.add(new SortedSetDocValuesField(name, binaryValue));
-        } else {
-            if (forKeyword) {
-                doc.add(new StoredField(name, binaryValue));
-            } else {
-                doc.add(new StoredField(name, value));
-            }
-        }
-        return doc;
     }
 }

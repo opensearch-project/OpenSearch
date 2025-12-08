@@ -415,8 +415,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
             {
               "properties": {
                 "text_field": {
-                  "type": "text",
-                  "store": true
+                  "type": "text"
                 },
                 "keyword_field": {
                   "type": "keyword"
@@ -458,8 +457,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
             {
               "properties": {
                 "text_field": {
-                  "type": "text",
-                  "store": true
+                  "type": "text"
                 },
                 "multi_field": {
                   "properties": {
@@ -543,8 +541,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
             {
               "properties": {
                 "text_field": {
-                  "type": "text",
-                  "store": true
+                  "type": "text"
                 },
                 "counter": {
                   "type": "long"

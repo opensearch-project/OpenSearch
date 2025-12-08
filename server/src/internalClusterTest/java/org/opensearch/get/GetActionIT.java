@@ -824,7 +824,13 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                                 "type": "boolean"
                             },
                             "text_field": {
-                                "type": "text"
+                                "type": "text",
+                                "fields": {
+                                    "keyword_field": {
+                                        "type": "keyword",
+                                        "ignore_above": 20
+                                    }
+                                }
                             },
                             "ip_field": {
                                 "type": "ip"
@@ -847,7 +853,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                     .field("numeric_field", 123)
                     .field("date_field", "2023-01-01")
                     .field("bool_field", true)
-                    .field("text_field", "test text")
+                    .field("text_field", "This text field is exceeding ignore above")
                     .field("ip_field", "1.2.3.4")
                     .endObject()
             )
@@ -1086,7 +1092,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertEquals(123, source.get("numeric_field"));
         assertEquals("2023-01-01T00:00:00.000Z", source.get("date_field"));
         assertEquals(true, source.get("bool_field"));
-        assertEquals("test text", source.get("text_field"));
+        assertEquals("This text field is exceeding ignore above", source.get("text_field"));
         assertEquals("1.2.3.4", source.get("ip_field"));
     }
 

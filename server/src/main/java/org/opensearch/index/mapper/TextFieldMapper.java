@@ -1352,17 +1352,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             for (Mapper mapper : multiFields) {
                 if (mapper instanceof KeywordFieldMapper kw) {
                     if (isDerivedSourceSupportedKeyword(kw)) {
-                        fetchers.add(getKeywordFieldValueFetcher(kw, textFieldName));
+                        fetchers.add(KeywordFieldMapper.DerivedSourceHelper.getPrimaryFieldValueFetcher(kw, textFieldName));
                     }
                 }
             }
             return fetchers;
-        }
-
-        private static FieldValueFetcher getKeywordFieldValueFetcher(KeywordFieldMapper keywordFieldMapper, String textFieldName) {
-            return keywordFieldMapper.fieldType().hasDocValues()
-                ? new SortedSetDocValuesFetcher(keywordFieldMapper.fieldType(), textFieldName)
-                : new StoredFieldFetcher(keywordFieldMapper.fieldType(), textFieldName);
         }
     }
 }
