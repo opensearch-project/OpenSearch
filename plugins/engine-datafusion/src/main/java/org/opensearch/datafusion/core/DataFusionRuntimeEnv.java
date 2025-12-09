@@ -41,12 +41,12 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
     /**
      * Creates a new DataFusion runtime environment.
      */
-    public DataFusionRuntimeEnv(ClusterService clusterService) {
+    public DataFusionRuntimeEnv(ClusterService clusterService, String spill_dir) {
         long memoryLimit = clusterService.getClusterSettings().get(MEMORY_POOL_CONFIGURATION_DATAFUSION).getBytes();
         long cacheManagerConfigPtr = CacheUtils.createCacheConfig(clusterService.getClusterSettings());
         NativeBridge.initTokioRuntimeManager(Runtime.getRuntime().availableProcessors());
         NativeBridge.startTokioRuntimeMonitoring(); // TODO : do we need this control in java ?
-        this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerConfigPtr);
+        this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerConfigPtr, spill_dir);
         System.out.println("Runtime : " + this.runtimeHandle);
         this.cacheManager = new CacheManager(this.runtimeHandle);
     }

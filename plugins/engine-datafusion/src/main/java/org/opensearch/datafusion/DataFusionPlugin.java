@@ -8,6 +8,7 @@
 
 package org.opensearch.datafusion;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.stream.Collectors;
@@ -116,10 +117,11 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Map<DataFormat, DataSourceCodec> dataSourceCodecs
     ) {
+        String spill_dir = Arrays.stream(environment.dataFiles()).findFirst().get().getParent().resolve("tmp").toAbsolutePath().toString();
         if (!isDataFusionEnabled) {
             return Collections.emptyList();
         }
-        dataFusionService = new DataFusionService(dataSourceCodecs, clusterService);
+        dataFusionService = new DataFusionService(dataSourceCodecs, clusterService, spill_dir);
 
         for(DataFormat format : this.getSupportedFormats()) {
             dataSourceCodecs.get(format);

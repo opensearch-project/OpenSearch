@@ -29,6 +29,7 @@ use datafusion::{
     DATAFUSION_VERSION,
 };
 use std::default::Default;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 mod util;
@@ -52,6 +53,7 @@ use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 use object_store::ObjectMeta;
 use tokio::runtime::Runtime;
 use std::result;
+use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use futures::TryStreamExt;
 
@@ -214,11 +216,28 @@ fn log_task_metrics(operation: &str, metrics: &tokio_metrics::TaskMetrics) {
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlobalRuntime(
-    _env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     memory_pool_limit: jlong,
-    cache_manager_ptr: jlong
+    cache_manager_ptr: jlong,
+    spill_dir: JString
 ) -> jlong {
+
+    let spill_dir: String = match env.get_string(&spill_dir) {
+        Ok(path) => path.into(),
+        Err(e) => {
+            let _ = env.throw_new(
+                "java/lang/IllegalArgumentException",
+                format!("Invalid table path: {:?}", e),
+            );
+            return 0;
+        }
+    };
+
+    let mut builder = DiskManagerBuilder::default()
+        .with_max_temp_directory_size(20 * 1024 * 1024 * 1024);
+    let builder = builder.with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));
+
     let monitor = Arc::new(Monitor::default());
     let memory_pool = Arc::new(MonitoredMemoryPool::new(
         Arc::new(TrackConsumersPool::new(
@@ -228,35 +247,29 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         monitor.clone(),
     ));
 
-    if cache_manager_ptr != 0 {
-        // Take ownership of the CustomCacheManager
-        let custom_cache_manager = unsafe { *Box::from_raw(cache_manager_ptr as *mut CustomCacheManager) };
-        let cache_manager_config = custom_cache_manager.build_cache_manager_config();
+    let (cache_manager_config, custom_cache_manager) = match cache_manager_ptr {
+        0 => {
+            (CacheManagerConfig::default(), None)
+        }
+        _ => {
+            let custom_cache_manager = unsafe { *Box::from_raw(cache_manager_ptr as *mut CustomCacheManager) };
+            (custom_cache_manager.build_cache_manager_config(), Some(custom_cache_manager))
+        }
+    };
 
-        let runtime_env = RuntimeEnvBuilder::new().with_cache_manager(cache_manager_config)
-            .with_memory_pool(memory_pool.clone())
-            .build().unwrap();
+    let runtime_env = RuntimeEnvBuilder::new()
+        .with_cache_manager(cache_manager_config)
+        .with_memory_pool(memory_pool.clone())
+        .with_disk_manager_builder(builder)
+        .build().unwrap();
 
-        let runtime = DataFusionRuntime {
-            runtime_env,
-            custom_cache_manager: Some(custom_cache_manager),
-            monitor,
-        };
+    let runtime = DataFusionRuntime {
+        runtime_env,
+        custom_cache_manager,
+        monitor,
+    };
 
-        Box::into_raw(Box::new(runtime)) as jlong
-    } else {
-        let runtime_env = RuntimeEnvBuilder::new()
-            .with_memory_pool(memory_pool)
-            .build().unwrap();
-
-        let runtime = DataFusionRuntime {
-            runtime_env,
-            custom_cache_manager: None,
-            monitor,
-        };
-
-        Box::into_raw(Box::new(runtime)) as jlong
-    }
+    Box::into_raw(Box::new(runtime)) as jlong
 }
 
 #[no_mangle]
