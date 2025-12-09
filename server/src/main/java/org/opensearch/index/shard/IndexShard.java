@@ -1245,7 +1245,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // with the exception side effects of closing the shard. Since we don't have the shard, we
             // can not raise an exception that may block any replication of previous operations to the
             // replicas
-            e.printStackTrace();
             verifyNotClosed(e);
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo);
         }
