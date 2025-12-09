@@ -74,6 +74,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -252,11 +253,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {
-                Long val = (Long) value;
-                if (val == null) {
+                if (value instanceof LocalDateTime) {
+                    Instant instant = ((LocalDateTime) value).toInstant(ZoneOffset.UTC);
+                    return fieldType().dateTimeFormatter().format(resolution.toInstant(instant.toEpochMilli()).atZone(ZoneOffset.UTC));
+                }
+                if (value == null) {
                     return null;
                 }
-                return fieldType().dateTimeFormatter().format(resolution.toInstant(val).atZone(ZoneOffset.UTC));
+                return fieldType().dateTimeFormatter().format(resolution.toInstant((Long) value).atZone(ZoneOffset.UTC));
             }
         }, new StoredFieldFetcher(mappedFieldType, simpleName()));
     }

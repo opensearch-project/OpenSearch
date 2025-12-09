@@ -42,6 +42,7 @@ public abstract class RefCountedNativeHandle extends NativeHandle {
      */
     @Override
     public final void close() {
+        ensureOpen();
         if (refCount.decrementAndGet() == 0) {
             super.close();
         }

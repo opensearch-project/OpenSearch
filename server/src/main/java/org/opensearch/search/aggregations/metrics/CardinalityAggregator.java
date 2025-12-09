@@ -765,7 +765,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     @Override
     public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
-        Object[] hlls = shardResult.get(name);
+        Object[] hlls = shardResult.get(name + "[hll_registers]");
+        if (hlls == null) {
+            hlls = shardResult.get(name);
+        }
         HyperLogLogPlusPlus sketch = DataFusionHLLWrapper.getHyperLogLogPlusPlus((byte[]) hlls[row]);
         return new InternalCardinality(name, sketch, null);
     }

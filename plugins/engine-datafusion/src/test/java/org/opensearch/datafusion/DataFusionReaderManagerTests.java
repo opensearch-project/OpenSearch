@@ -11,6 +11,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -390,13 +391,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
     // ========== Helper Methods ==========
 
     private int getRefCount(DatafusionReader reader) {
-        try {
-            java.lang.reflect.Field refCountField = DatafusionReader.class.getDeclaredField("refCount");
-            refCountField.setAccessible(true);
-            return ((AtomicInteger) refCountField.get(reader)).get();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to get ref count", e);
-        }
+        return reader.getRefCount();
     }
 
     private org.opensearch.index.engine.exec.DataFormat getMockDataFormat() {

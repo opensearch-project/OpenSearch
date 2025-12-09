@@ -21,13 +21,19 @@ public class RustBridge {
 
     static {
         NativeLibraryLoader.load("parquet_dataformat_jni");
+
+        initLogger();
     }
+
+    // Logger initialization method
+    public static native void initLogger();
 
     // Enhanced native methods that handle validation and provide better error reporting
     public static native void createWriter(String file, long schemaAddress) throws IOException;
     public static native void write(String file, long arrayAddress, long schemaAddress) throws IOException;
     public static native void closeWriter(String file) throws IOException;
     public static native void flushToDisk(String file) throws IOException;
+
     public static native long getFilteredNativeBytesUsed(String pathPrefix);
 
 

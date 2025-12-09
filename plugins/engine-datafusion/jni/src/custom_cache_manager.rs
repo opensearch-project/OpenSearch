@@ -12,6 +12,10 @@ use crate::eviction_policy::{CacheConfig, PolicyType};
 use crate::util::{create_object_meta_from_file, construct_file_metadata};
 use object_store::path::Path;
 use object_store::ObjectMeta;
+use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
+use tokio::runtime::Runtime;
+use crate::cache::MutexFileMetadataCache;
+use crate::util::{create_object_meta_from_file};
 
 /// Custom CacheManager that holds cache references directly
 pub struct CustomCacheManager {
@@ -58,7 +62,8 @@ impl CustomCacheManager {
 
         // Add file metadata cache if available
         if let Some(cache) = self.get_file_metadata_cache_for_datafusion() {
-            config = config.with_file_metadata_cache(Some(cache));
+            config = config.with_file_metadata_cache(Some(cache.clone()))
+                .with_metadata_cache_limit(cache.cache_limit());
         }
 
         // Add statistics cache if available - use CustomStatisticsCache directly
@@ -336,31 +341,40 @@ impl CustomCacheManager {
 
         let store = Arc::new(object_store::local::LocalFileSystem::new());
 
-        //TODO: Use TokioRuntimePtr to block on the async operation
-        let metadata = Runtime::new()
-            .map_err(|e| format!("Failed to create Tokio Runtime: {}", e))?
-            .block_on(async {
-                construct_file_metadata(store.as_ref(), object_meta, data_format)
-                    .await
-                    .map_err(|e| format!("Failed to construct file metadata: {}", e))
-            })?;
-
-        // Get the cache directly from our stored reference
-        let cache = self.file_metadata_cache.as_ref()
+        // Get cache reference for DataFusion metadata loading
+        let cache_ref = self.file_metadata_cache.as_ref()
             .ok_or_else(|| "No file metadata cache configured".to_string())?;
 
-        match cache.inner.lock() {
-            Ok(mut cache_guard) => {
-                cache_guard.put(object_meta, metadata);
+        let metadata_cache = cache_ref.clone() as Arc<dyn FileMetadataCache>;
 
+        // Use DataFusion's metadata loading by passing reference to file_metadata_cache to get complete metadata
+        // IMPORTANT: When a cache is provided to DFParquetMetadata, fetch_metadata() will:
+        // 1. Enable page index loading (with_page_indexes(true))
+        // 2. Load the complete metadata including column and offset indexes
+        // 3. Automatically put the metadata into the cache (lines 155-160 in datafusion's metadata.rs)
+        // This ensures we cache exactly what DataFusion would cache during query execution
+        let _parquet_metadata = Runtime::new()
+            .map_err(|e| format!("Failed to create Tokio Runtime: {}", e))?
+            .block_on(async {
+                let df_metadata = DFParquetMetadata::new(store.as_ref(), object_meta)
+                    .with_file_metadata_cache(Some(metadata_cache));
+
+                // fetch_metadata() performs the cache put operation internally
+                df_metadata.fetch_metadata().await
+                    .map_err(|e| format!("Failed to fetch metadata: {}", e))
+            })?;
+
+        // Verify the metadata was cached properly
+        match cache_ref.inner.lock() {
+            Ok(cache_guard) => {
                 if cache_guard.contains_key(object_meta) {
                     Ok(true)
                 } else {
-                    println!("Failed to cache metadata for: {}", file_path);
+                    println!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
                     Ok(false)
                 }
             }
-            Err(e) => Err(format!("Cache put failed: {}", e))
+            Err(e) => Err(format!("Failed to verify cache: {}", e))
         }
     }
 

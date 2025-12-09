@@ -209,25 +209,6 @@ pub fn create_object_meta_from_file(file_path: &str) -> Result<Vec<ObjectMeta>, 
     Ok(vec![object_meta])
 }
 
-pub async fn construct_file_metadata(
-    store: &dyn ObjectStore,
-    object_meta: &ObjectMeta,
-    data_format: &str,
-) -> Result<Arc<dyn FileMetadata>, Box<dyn std::error::Error>> {
-    match data_format.to_lowercase().as_str() {
-        "parquet" => {
-            let df_metadata = DFParquetMetadata::new(
-                store,
-                object_meta
-            );
-
-            let parquet_metadata = df_metadata.fetch_metadata().await?;
-            let par = CachedParquetMetaData::new(parquet_metadata);
-            Ok(Arc::new(par))
-        },
-        _ => Err(format!("Unsupported data format: {}", data_format).into())
-    }
-}
 /// Set success result by calling an ActionListener
 pub fn set_action_listener_ok(env: &mut JNIEnv, listener: JObject, value: jlong) {
     let long_obj = env.new_object("java/lang/Long", "(J)V", &[value.into()])

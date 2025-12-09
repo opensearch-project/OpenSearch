@@ -154,6 +154,27 @@ run {
   useCluster testClusters.integTest
 }
 
+tasks.register('runNativeUnitTests', Exec) {
+    workingDir = file("${projectDir}/src/main/rust")
+    // Find cargo executable - try common locations
+    def cargoExecutable = 'cargo'
+    def possibleCargoPaths = [
+            System.getenv('HOME') + '/.cargo/bin/cargo',
+            '/usr/local/bin/cargo',
+            'cargo'
+    ]
+
+    for (String path : possibleCargoPaths) {
+        if (new File(path).exists()) {
+            cargoExecutable = path
+            break
+        }
+    }
+
+    def cargoArgs = [cargoExecutable, 'test']
+    commandLine cargoArgs
+}
+
 // updateVersion: Task to auto update version to the next development iteration
 tasks.register('buildRust', Exec) {
 //  workingDir = file("${projectDir}/src/main/rust")

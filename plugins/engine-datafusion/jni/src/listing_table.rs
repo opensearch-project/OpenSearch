@@ -1314,7 +1314,7 @@ impl TableProvider for ListingTable {
                 .with_file_groups(partitioned_file_lists)
                 .with_constraints(self.constraints.clone())
                 .with_statistics(statistics)
-                .with_projection(projection.cloned())
+                .with_projection_indices(projection.cloned())
                 .with_limit(limit)
                 .with_output_ordering(output_ordering)
                 .with_table_partition_cols(table_partition_cols)

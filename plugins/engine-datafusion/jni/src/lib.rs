@@ -236,7 +236,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
 
         let runtime_env = RuntimeEnvBuilder::new().with_cache_manager(cache_manager_config)
             .with_memory_pool(memory_pool.clone())
-            .with_metadata_cache_limit(250 * 1024 * 1024) // 250 MB
             .build().unwrap();
 
         let runtime = DataFusionRuntime {

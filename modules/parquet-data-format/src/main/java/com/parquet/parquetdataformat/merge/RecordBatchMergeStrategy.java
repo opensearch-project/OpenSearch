@@ -18,6 +18,7 @@ import org.opensearch.index.engine.exec.merge.RowId;
 import org.opensearch.index.engine.exec.merge.RowIdMapping;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,17 +35,17 @@ import static com.parquet.parquetdataformat.bridge.RustBridge.mergeParquetFilesI
 public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
 
     @Override
-    public MergeResult mergeParquetFiles(Collection<FileMetadata> files, long writerGeneration) {
+    public MergeResult mergeParquetFiles(List<WriterFileSet> files, long writerGeneration) {
 
         if (files.isEmpty()) {
             throw new IllegalArgumentException("No files to merge");
         }
 
-        List<Path> filePaths = files.stream()
-            .map(fm -> Path.of(fm.directory(), fm.file()))
-            .collect(Collectors.toList());
+        List<Path> filePaths = new ArrayList<>();
+        files.forEach(writerFileSet ->  writerFileSet.getFiles().forEach(
+            file -> filePaths.add(Path.of(writerFileSet.getDirectory(), file))));
 
-        String outputDirectory = files.iterator().next().directory();
+        String outputDirectory = files.iterator().next().getDirectory();
         String mergedFilePath = getMergedFilePath(writerGeneration, outputDirectory);
         String mergedFileName = getMergedFileName(writerGeneration);
 

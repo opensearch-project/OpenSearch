@@ -13,22 +13,21 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
-import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
-public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
+public class CompositeMergePolicy implements MergePolicy.MergeContext {
     private final MergePolicy luceneMergePolicy;
     private final InfoStream infoStream;
 
     private static final HashSet<SegmentCommitInfo> mergingSegments = new HashSet<>();
-    private static final Set<String> mergingFileNames = new HashSet<>();
 
-    public ParquetTieredMergePolicy(MergePolicy mergePolicy) {
+    public CompositeMergePolicy(MergePolicy mergePolicy) {
         this.luceneMergePolicy = mergePolicy;
         System.out.println("Merge Policy : " + mergePolicy);
         this.infoStream = new InfoStream() {
@@ -49,16 +48,16 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
         };
     }
 
-    public List<List<ParquetFileInfo>> findForceMergeCandidates(List<ParquetFileInfo> segments, int maxSegmentCount) throws IOException {
-        // Convert Parquet segments to Lucene-style segments
+    public List<List<CatalogSnapshot.Segment>> findForceMergeCandidates(List<CatalogSnapshot.Segment> segments, int maxSegmentCount) throws IOException {
+        // Convert segments to Lucene-style segments
         List<SegmentCommitInfo> luceneSegments = new ArrayList<>();
-        Map<SegmentCommitInfo, ParquetFileInfo> segmentMap = new HashMap<>();
+        Map<SegmentCommitInfo, CatalogSnapshot.Segment> segmentMap = new HashMap<>();
         Map<SegmentCommitInfo, Boolean> segmentsToMerge = new HashMap<>();
 
-        for (ParquetFileInfo parquetSegment : segments) {
-            ParquetSegmentWrapper wrapper = new ParquetSegmentWrapper(parquetSegment);
+        for(CatalogSnapshot.Segment segment : segments) {
+            SegmentWrapper wrapper = new SegmentWrapper(segment, calculateSegmentSize(segment));
             luceneSegments.add(wrapper);
-            segmentMap.put(wrapper, parquetSegment);
+            segmentMap.put(wrapper, segment);
             segmentsToMerge.put(wrapper, true);
         }
 
@@ -67,21 +66,21 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
         luceneSegments.forEach(segmentInfos::add);
 
         // Find merge candidates using Lucene's policy
-        List<List<ParquetFileInfo>> merges = new ArrayList<>();
+        List<List<CatalogSnapshot.Segment>> merges = new ArrayList<>();
         try {
             MergePolicy.MergeSpecification mergeSpecification = luceneMergePolicy.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, this);
 
             if(mergeSpecification != null) {
                 List<MergePolicy.OneMerge> luceneMerges = mergeSpecification.merges;
 
-                // Convert back to Parquet segments
+                // Convert back to segments
                 for (MergePolicy.OneMerge merge : luceneMerges) {
-                    List<ParquetFileInfo> parquetMerge = new ArrayList<>();
+                    List<CatalogSnapshot.Segment> segmentMerge = new ArrayList<>();
 
                     for(SegmentCommitInfo segment : merge.segments) {
-                        parquetMerge.add(segmentMap.get(segment));
+                        segmentMerge.add(segmentMap.get(segment));
                     }
-                    merges.add(parquetMerge);
+                    merges.add(segmentMerge);
                 }
             }
         } catch (Exception e) {
@@ -90,17 +89,16 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
         return merges;
     }
 
-    public List<List<ParquetFileInfo>> findMergeCandidates(List<ParquetFileInfo> segments) throws IOException {
+    public List<List<CatalogSnapshot.Segment>> findMergeCandidates(List<CatalogSnapshot.Segment> segments) throws IOException {
 
-        // Convert Parquet segments to Lucene-style segments
+        // Convert segments to Lucene-style segments
         List<SegmentCommitInfo> luceneSegments = new ArrayList<>();
-        Map<SegmentCommitInfo, ParquetFileInfo> segmentMap = new HashMap<>();
+        Map<SegmentCommitInfo, CatalogSnapshot.Segment> segmentMap = new HashMap<>();
 
-        for (ParquetFileInfo parquetSegment : segments) {
-            ParquetSegmentWrapper wrapper = new ParquetSegmentWrapper(parquetSegment);
-            wrapper.info.setFiles(Arrays.asList(parquetSegment.path.getFileName().toString()));
+        for(CatalogSnapshot.Segment segment : segments) {
+            SegmentWrapper wrapper = new SegmentWrapper(segment, calculateSegmentSize(segment));
             luceneSegments.add(wrapper);
-            segmentMap.put(wrapper, parquetSegment);
+            segmentMap.put(wrapper, segment);
         }
 
         // Create SegmentInfos (required by Lucene 10)
@@ -108,7 +106,7 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
         luceneSegments.forEach(segmentInfos::add);
 
         // Find merge candidates using Lucene's policy
-        List<List<ParquetFileInfo>> merges = new ArrayList<>();
+        List<List<CatalogSnapshot.Segment>> merges = new ArrayList<>();
         try {
             // Get merge candidates from Lucene's policy
             MergePolicy.MergeSpecification mergeSpecification = luceneMergePolicy.findMerges(MergeTrigger.COMMIT, segmentInfos
@@ -117,14 +115,14 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
             if(mergeSpecification != null) {
                 List<MergePolicy.OneMerge> luceneMerges = mergeSpecification.merges;
 
-                // Convert back to Parquet segments
+                // Convert back to segments
                 for (MergePolicy.OneMerge merge : luceneMerges) {
-                    List<ParquetFileInfo> parquetMerge = new ArrayList<>();
+                    List<CatalogSnapshot.Segment> segmentMerge = new ArrayList<>();
 
                     for(SegmentCommitInfo segment : merge.segments) {
-                        parquetMerge.add(segmentMap.get(segment));
+                        segmentMerge.add(segmentMap.get(segment));
                     }
-                    merges.add(parquetMerge);
+                    merges.add(segmentMerge);
                 }
             }
         } catch (Exception e) {
@@ -154,10 +152,29 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
         return Collections.unmodifiableSet(mergingSegments);
     }
 
-    public synchronized void addMergingSegment(Collection<FileMetadata> files) {
+    private long calculateSegmentSize(CatalogSnapshot.Segment segment) {
+        long totalSize = 0;
         try {
-            for (FileMetadata fileMetadata : files) {
-                mergingSegments.add(new ParquetSegmentWrapper(new ParquetFileInfo(fileMetadata.directory() + "/" + fileMetadata.file())));
+            for (WriterFileSet writerFileSet : segment.getDFGroupedSearchableFiles().values()) {
+                for (String fileName : writerFileSet.getFiles()) {
+                    Path filePath = Path.of(writerFileSet.getDirectory(), fileName);
+                    if (java.nio.file.Files.exists(filePath)) {
+                        totalSize += java.nio.file.Files.size(filePath);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Log error but continue with 0 size
+            System.err.println("Error calculating segment size: " + e.getMessage());
+        }
+        return totalSize;
+    }
+
+    public synchronized void addMergingSegment(Collection<CatalogSnapshot.Segment> segments) {
+        try {
+            for (CatalogSnapshot.Segment segment : segments) {
+                SegmentWrapper wrapper = new SegmentWrapper(segment, calculateSegmentSize(segment));
+                mergingSegments.add(wrapper);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -165,15 +182,13 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
         }
     }
 
-    public synchronized void removeMergingSegment(Collection<FileMetadata> files) {
+    public synchronized void removeMergingSegment(Collection<CatalogSnapshot.Segment> segments) {
         List<SegmentCommitInfo> segmentToRemove = new ArrayList<>();
         try {
-            for(FileMetadata fileMetadata : files) {
-                for(SegmentCommitInfo segment : mergingSegments) {
-                    if(segment.info.name.equals(fileMetadata.directory()+"/"+fileMetadata.file())) {
-                        segmentToRemove.add(segment);
-                    }
-                }
+
+            for (CatalogSnapshot.Segment segment : segments) {
+                SegmentWrapper wrapper = new SegmentWrapper(segment, calculateSegmentSize(segment));
+                segmentToRemove.add(wrapper);
             }
             segmentToRemove.forEach(segment -> mergingSegments.remove(segment));
         } catch (Exception e) {
@@ -182,47 +197,24 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
         }
     }
 
-    public static class ParquetFileInfo {
-        private final Path path;
-        private final long sizeBytes;
-        private final long docCount;
-        private final String segmentName;  // Added for Lucene compatibility
+    private static class SegmentWrapper extends SegmentCommitInfo {
+        private final long totalSizeBytes;
 
-        public ParquetFileInfo(String path) throws IOException {
-            this.path = Paths.get(path);
-            this.sizeBytes = Files.size(this.path);
-            // TODO
-            // For now doc count we are deriving from size of file.
-            // Once we have that info as part of Refresh Result, we can change this.
-            this.docCount = Files.size(this.path)/1000;
-
-            // SegmentName is same as fileName
-            this.segmentName = path;
-        }
-
-        public Path getPath() { return path; }
-        public long getSizeBytes() { return sizeBytes; }
-        public int getDocCount() { return (int)docCount; }
-        public String getSegmentName() { return segmentName; }
-    }
-
-    private static class ParquetSegmentWrapper extends SegmentCommitInfo {
-        private final ParquetFileInfo parquetInfo;
-
-        public ParquetSegmentWrapper(ParquetFileInfo parquetInfo) throws IOException {
+        public SegmentWrapper(CatalogSnapshot.Segment segment, long totalSizeBytes) throws IOException {
             super(
                 // SegmentInfo
-                new SegmentInfo(
-                    // directory - not used for our purpose
-                    new NIOFSDirectory(parquetInfo.path.getParent()),
+                new org.apache.lucene.index.SegmentInfo(
+                    // directory - use temp directory
+                    new NIOFSDirectory(Paths.get(System.getProperty("java.io.tmpdir"))),
                     // version
                     Version.LATEST,
                     // min version
                     Version.LATEST,
                     // segment name
-                    parquetInfo.getSegmentName(),
-                    // maxDoc - number of rows in parquet file
-                    parquetInfo.getDocCount(),
+                    "segment_" + segment.getGeneration(),
+                    // maxDoc - total document count across all files in segment
+                    // TODO: Get correct total doc from catalogSnaoshot or Segment
+                    (int)(totalSizeBytes / 1000),
                     // isCompound - false as we don't need compound file format
                     false,
                     // has block
@@ -233,7 +225,7 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
                     new HashMap<String, String>(Map.of("dummy", "dummy")),
                     // segmentID - generate unique ID
                     UUID.randomUUID().toString().substring(0,16).getBytes(),
-                    // map of attribute - map with dummy entru
+                    // map of attribute - map with dummy entry
                     new HashMap<String, String>(Map.of("dummy", "dummy")),
                     // index sort - no specific sort
                     null
@@ -242,7 +234,7 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
                 0,
                 // softDelCount
                 0,
-                // delGen - no deletions in parquet
+                // delGen - no deletions
                 0,
                 // fieldInfosGen - no separate field infos
                 -1,
@@ -250,12 +242,12 @@ public class ParquetTieredMergePolicy implements MergePolicy.MergeContext {
                 -1,
                 // id
                 UUID.randomUUID().toString().substring(0,16).getBytes());
-            this.parquetInfo = parquetInfo;
+            this.totalSizeBytes = totalSizeBytes;
         }
 
         @Override
         public long sizeInBytes() {
-            return parquetInfo.getSizeBytes();
+            return totalSizeBytes;
         }
 
         @Override

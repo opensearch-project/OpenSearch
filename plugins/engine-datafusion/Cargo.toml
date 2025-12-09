@@ -6,15 +6,14 @@ members = [
 
 [workspace.dependencies]
 # DataFusion dependencies
-datafusion = "50.0.0"
-datafusion-expr = "50.0.0"
-datafusion-datasource = "50.0.0"
-arrow-json = "56.2"
-arrow = { version = "56.2", features = ["ffi", "ipc_compression"] }
-#arrow = "55.2.0"
-arrow-array = "56.2.0"
-arrow-schema = "56.2.0"
-arrow-buffer = "56.2.0"
+datafusion = "51.0.0"
+datafusion-expr = "51.0.0"
+datafusion-datasource = "51.0.0"
+arrow-json = "57.1.0"
+arrow = { version = "57.1.0", features = ["ffi", "ipc_compression"] }
+arrow-array = "57.1.0"
+arrow-schema = "57.1.0"
+arrow-buffer = "57.1.0"
 downcast-rs = "1.2"
 
 
@@ -22,8 +21,8 @@ downcast-rs = "1.2"
 jni = "0.21"
 
 # Substrait support
-datafusion-substrait = "50.0.0"
-prost = "0.13"
+datafusion-substrait = "51.0.0"
+prost = "0.14"
 
 
 # Async runtime
@@ -43,10 +42,10 @@ thiserror = "1.0"
 # Logging
 log = "0.4"
 # Parquet support
-parquet = "54.0.0"
+parquet = "57.1.0"
 
 # Object store for file access
-object_store = "=0.12.3"
+object_store = "=0.12.4"
 url = "2.0"
 
 # Substrait support

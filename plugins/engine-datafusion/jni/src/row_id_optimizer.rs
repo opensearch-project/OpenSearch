@@ -6,12 +6,10 @@
  * compatible open source license.
  */
 
-use std::fs;
 use std::sync::Arc;
 
-use arrow::datatypes::{DataType, Field, Fields, Schema};
+use arrow::datatypes::{Field, Fields, Schema};
 use arrow_schema::SchemaRef;
-use datafusion::physical_plan::projection::new_projections_for_columns;
 use datafusion::{
     common::tree_node::{Transformed, TreeNode, TreeNodeRecursion},
     config::ConfigOptions,
@@ -21,10 +19,11 @@ use datafusion::{
     },
     error::DataFusionError,
     logical_expr::Operator,
-    physical_expr::{PhysicalExpr, expressions::{BinaryExpr, Column}},
+    physical_expr::{expressions::{BinaryExpr, Column}, PhysicalExpr},
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{ExecutionPlan, filter::FilterExec, projection::{ProjectionExec, ProjectionExpr}},
+    physical_plan::{projection::{ProjectionExec, ProjectionExpr}, ExecutionPlan},
 };
+use datafusion_datasource::TableSchema;
 
 #[derive(Debug)]
 pub struct ProjectRowIdOptimizer;
@@ -37,8 +36,7 @@ impl ProjectRowIdOptimizer {
         datasource_exec_schema: SchemaRef,
     ) -> (SchemaRef, Vec<usize>) {
         // Clone projection and add new field index
-        let mut projections = datasource.projection.clone().unwrap_or_default();
-        let file_source_schema = datasource.file_schema.clone();
+        let file_source_schema = datasource.file_schema();
 
         let mut new_projections = vec![];
 
@@ -52,8 +50,8 @@ impl ProjectRowIdOptimizer {
         //         fields.push(Arc::new(Field::new(field.name(), field.data_type().clone(), field.is_nullable())));
         //     }
         // }
-
-        if !projections.contains(&file_source_schema.index_of("___row_id").unwrap()) {
+        if !new_projections.contains(&file_source_schema.index_of("___row_id").unwrap()) {
+        // if !projections.contains(&file_source_schema.index_of("___row_id").unwrap()) {
             new_projections.push(file_source_schema.index_of("___row_id").unwrap());
 
             // let field  = file_source_schema.field_with_name(&*"___row_id").expect("Field ___row_id not found in file_source_schema");
@@ -133,8 +131,8 @@ impl ProjectRowIdOptimizer {
         let (new_schema, new_projections) =
             self.build_updated_file_source_schema(datasource, data_source_exec_schema.clone());
         let file_scan_config = FileScanConfigBuilder::from(datasource.clone())
-            .with_source(datasource.file_source.with_schema(new_schema.clone()))
-            .with_projection(Some(new_projections))
+            .with_source(datasource.file_source.with_schema(TableSchema::from_file_schema(new_schema.clone())))
+            .with_projection_indices(Some(new_projections))
             .build();
 
         let new_datasource = DataSourceExec::from_data_source(file_scan_config);
@@ -161,7 +159,7 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
                     .as_any()
                     .downcast_ref::<FileScanConfig>()
                     .expect("DataSource not found");
-                let schema = datasource.file_schema.clone();
+                let schema = datasource.file_schema();
                 schema
                     .field_with_name("___row_id")
                     .expect("Field ___row_id missing");
