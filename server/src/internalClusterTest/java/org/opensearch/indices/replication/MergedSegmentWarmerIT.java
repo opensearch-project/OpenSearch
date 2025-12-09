@@ -10,6 +10,7 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -271,9 +272,15 @@ public class MergedSegmentWarmerIT extends SegmentReplicationIT {
                 .setSettings(
                     Settings.builder()
                         .put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-                        .put(IndexSettings.INDEX_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(1))
                 )
         );
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
+        assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).get());
 
         waitForSameFilesInPrimaryAndReplica(INDEX_NAME, primaryNode, replicaNode);
         assertBusy(() -> assertTrue(replicaShard.getReplicaMergedSegmentCheckpoints().isEmpty()));
@@ -328,9 +335,15 @@ public class MergedSegmentWarmerIT extends SegmentReplicationIT {
                 .setSettings(
                     Settings.builder()
                         .put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-                        .put(IndexSettings.INDEX_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(1))
                 )
         );
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
+        assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).get());
 
         waitForSameFilesInPrimaryAndReplica(INDEX_NAME, primaryNode, replicaNode);
 

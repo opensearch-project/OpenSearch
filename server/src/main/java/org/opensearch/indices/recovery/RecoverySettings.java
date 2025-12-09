@@ -107,6 +107,19 @@ public class RecoverySettings {
     );
 
     /**
+     * Dynamic setting describing the maximum retention time of merged segment checkpoint in the primary shard, used to prevent memory leak.
+     * It should be noted that the smaller this value is, the higher the risk that useful pending merged segments in the replica shard
+     * will be deleted, which will cause these segments to be resynchronized to the replica through segment replication.
+     */
+    public static final Setting<TimeValue> INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME = Setting.timeSetting(
+        "indices.merged_segment_checkpoint.retention_time",
+        TimeValue.timeValueMinutes(15),
+        TimeValue.timeValueSeconds(0),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
      * Control the maximum waiting time for replicate merged segment to the replica
      */
     public static final Setting<TimeValue> INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING = Setting.timeSetting(
@@ -235,6 +248,7 @@ public class RecoverySettings {
     private volatile ByteSizeValue replicationMaxBytesPerSec;
     private volatile boolean mergedSegmentReplicationWarmerEnabled;
     private volatile ByteSizeValue mergedSegmentReplicationMaxBytesPerSec;
+    private volatile TimeValue mergedSegmentCheckpointRetentionTime;
     private volatile int maxConcurrentFileChunks;
     private volatile int maxConcurrentOperations;
     private volatile int maxConcurrentRemoteStoreStreams;
@@ -276,6 +290,7 @@ public class RecoverySettings {
         this.mergedSegmentReplicationWarmerEnabled = INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.get(settings);
         this.mergedSegmentReplicationMaxBytesPerSec = INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
         this.mergedSegmentReplicationTimeout = INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.get(settings);
+        this.mergedSegmentCheckpointRetentionTime = INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.get(settings);
         this.mergedSegmentWarmerMinSegmentSizeThreshold = INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.get(
             settings
         );
@@ -299,6 +314,10 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING,
             this::setMergedSegmentReplicationTimeout
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME,
+            this::setMergedSegmentCheckpointRetentionTime
         );
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING,
@@ -457,8 +476,16 @@ public class RecoverySettings {
         mergedSegmentReplicationRateLimiter = getReplicationRateLimiter(mergedSegmentReplicationMaxBytesPerSec);
     }
 
-    public void setMergedSegmentReplicationTimeout(TimeValue mergedSegmentReplicationTimeout) {
+    private void setMergedSegmentReplicationTimeout(TimeValue mergedSegmentReplicationTimeout) {
         this.mergedSegmentReplicationTimeout = mergedSegmentReplicationTimeout;
+    }
+
+    public TimeValue getMergedSegmentCheckpointRetentionTime() {
+        return mergedSegmentCheckpointRetentionTime;
+    }
+
+    private void setMergedSegmentCheckpointRetentionTime(TimeValue mergedSegmentCheckpointRetentionTime) {
+        this.mergedSegmentCheckpointRetentionTime = mergedSegmentCheckpointRetentionTime;
     }
 
     public int getMaxConcurrentFileChunks() {
