@@ -1908,7 +1908,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     @Deprecated(since = "3.4.0", forRemoval = true)
     public Set<MergedSegmentCheckpoint> getPendingMergedSegmentCheckpoints() {
-        return null;
+        return Collections.emptySet();
     }
 
     public void addPrimaryMergedSegmentCheckpoint(MergedSegmentCheckpoint mergedSegmentCheckpoint) {
