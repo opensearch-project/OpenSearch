@@ -8,8 +8,6 @@
 
 package org.opensearch.index.codec.fuzzy;
 
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.RandomAccessInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -169,89 +167,5 @@ public class LongArrayBackedBitSetTests extends OpenSearchTestCase {
         LongArrayBackedBitSet bitSet = new LongArrayBackedBitSet(128);
         bitSet.set(0);
         bitSet.close();
-    }
-
-    private IndexInput createTestIndexInput(byte[] data) {
-        return new IndexInput("test") {
-            private long pos = 0;
-
-            @Override
-            public void close() {}
-
-            @Override
-            public long getFilePointer() {
-                return pos;
-            }
-
-            @Override
-            public void seek(long pos) {
-                this.pos = pos;
-            }
-
-            @Override
-            public long length() {
-                return data.length;
-            }
-
-            @Override
-            public IndexInput slice(String sliceDescription, long offset, long length) {
-                return null;
-            }
-
-            @Override
-            public byte readByte() {
-                return data[(int) pos++];
-            }
-
-            @Override
-            public void readBytes(byte[] b, int offset, int len) {
-                System.arraycopy(data, (int) pos, b, offset, len);
-                pos += len;
-            }
-
-            @Override
-            public RandomAccessInput randomAccessSlice(long offset, long length) {
-                return new TestRandomAccessInput(data, offset);
-            }
-        };
-    }
-
-    private static class TestRandomAccessInput implements RandomAccessInput {
-        private final byte[] data;
-        private final long offset;
-
-        TestRandomAccessInput(byte[] data, long offset) {
-            this.data = data;
-            this.offset = offset;
-        }
-
-        @Override
-        public byte readByte(long pos) {
-            return data[(int) (offset + pos)];
-        }
-
-        @Override
-        public short readShort(long pos) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int readInt(long pos) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long readLong(long pos) {
-            long value = 0;
-            for (int i = 0; i < 8; i++) {
-                value = (value << 8) | (data[(int) (offset + pos + i)] & 0xFF);
-            }
-            return value;
-        }
-
-        @Override
-        public long length() {
-            return data.length - offset;
-        }
     }
 }

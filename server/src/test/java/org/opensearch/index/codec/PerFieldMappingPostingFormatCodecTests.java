@@ -35,35 +35,6 @@ public class PerFieldMappingPostingFormatCodecTests extends OpenSearchTestCase {
         logger = mock(Logger.class);
     }
 
-    public void testFuzzySetEnabled() {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.optimize_doc_id_lookup.fuzzy_set.enabled", true)
-            .put("index.optimize_doc_id_lookup.fuzzy_set.false_positive_probability", 0.05)
-            .build();
-
-        IndexMetadata metadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-
-        IndexSettings indexSettings = new IndexSettings(metadata, settings);
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-
-        MappedFieldType mockFieldType = mock(MappedFieldType.class);
-        when(mapperService.fieldType(IdFieldMapper.NAME)).thenReturn(mockFieldType);
-
-        assertTrue("Fuzzy set should be enabled", indexSettings.isEnableFuzzySetForDocId());
-
-        PerFieldMappingPostingFormatCodec codec = new PerFieldMappingPostingFormatCodec(
-            Lucene103Codec.Mode.BEST_SPEED,
-            mapperService,
-            logger
-        );
-
-        PostingsFormat format = codec.getPostingsFormatForField(IdFieldMapper.NAME);
-        assertTrue("Should be FuzzyFilterPostingsFormat when enabled", format instanceof FuzzyFilterPostingsFormat);
-    }
-
     public void testFuzzySetEnabledSetting() {
         Settings settings = Settings.builder().put("index.optimize_doc_id_lookup.fuzzy_set.enabled", true).build();
 

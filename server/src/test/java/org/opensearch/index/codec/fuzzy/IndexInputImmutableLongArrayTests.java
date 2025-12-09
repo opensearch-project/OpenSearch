@@ -42,13 +42,15 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
         int bitsPerItem = 10;
         int bitArraySize = expectedItems * bitsPerItem;
         int numHashes = 7;
-        long[] bitArray = new long[(bitArraySize + 63) / 64];
+        int longArraySize = (bitArraySize + 63) / 64;
+        long[] bitArray = new long[longArraySize];
         IndexInputImmutableLongArray bloomFilterArray = createTestArray(bitArray);
         String[] addedItems = new String[expectedItems];
         for (int i = 0; i < expectedItems; i++) {
             addedItems[i] = "item" + i;
             int[] hashPositions = calculateHashes(addedItems[i], numHashes, bitArraySize);
             for (int pos : hashPositions) {
+                pos = pos % bitArraySize;
                 int longIndex = pos >>> 6;
                 long bitMask = 1L << (pos & 63);
                 bitArray[longIndex] |= bitMask;
@@ -112,7 +114,8 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
         long hash2 = mixHash(hash1);
 
         for (int i = 0; i < numHashes; i++) {
-            positions[i] = Math.abs((int) ((hash1 + i * hash2) % size));
+            long combinedHash = hash1 + i * hash2;
+            positions[i] = (int) (Math.abs(combinedHash % size));
         }
         return positions;
     }
@@ -132,12 +135,14 @@ public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
         int bitArraySize = expectedItems * bitsPerItem;
         int numHashes = 7;
 
-        long[] bitArray = new long[(bitArraySize + 63) / 64];
+        int longArraySize = (bitArraySize + 63) / 64;
+        long[] bitArray = new long[longArraySize];
         IndexInputImmutableLongArray bloomFilterArray = createTestArray(bitArray);
         for (int i = 0; i < expectedItems; i++) {
             String item = "item" + i;
             int[] hashPositions = calculateHashes(item, numHashes, bitArraySize);
             for (int pos : hashPositions) {
+                pos = pos % bitArraySize;
                 int longIndex = pos >>> 6;
                 long bitMask = 1L << (pos & 63);
                 bitArray[longIndex] |= bitMask;

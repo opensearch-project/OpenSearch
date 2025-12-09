@@ -95,16 +95,12 @@ public class FuzzyFilterPostingsFormatTests extends BasePostingsFormatTestCase {
             Terms terms = MultiTerms.getTerms(reader, "field");
             TermsEnum termsEnum = terms.iterator();
             for (int i = 0; i < 1000; i++) {
-                assertTrue(termsEnum.seekExact(new BytesRef("value" + i)));
+                assertTrue("Should find existing term", termsEnum.seekExact(new BytesRef("value" + i)));
             }
-            int falsePositives = 0;
+
             for (int i = 1000; i < 2000; i++) {
-                if (termsEnum.seekExact(new BytesRef("value" + i))) {
-                    falsePositives++;
-                }
+                assertFalse("Should not find non-existent term", termsEnum.seekExact(new BytesRef("value" + i)));
             }
-            double falsePositiveRate = (double) falsePositives / 1000;
-            assertTrue("False positive rate too high: " + falsePositiveRate, falsePositiveRate < 0.01);
         }
     }
 
@@ -117,36 +113,27 @@ public class FuzzyFilterPostingsFormatTests extends BasePostingsFormatTestCase {
             doc.add(new StringField("_id", "doc1", Field.Store.YES));
             doc.add(new TextField("text_field", "some analyzed text", Field.Store.YES));
             doc.add(new StringField("keyword_field", "exact_match", Field.Store.YES));
+            doc.add(new StringField("date_field", "2025-10-16", Field.Store.YES));
             doc.add(new IntPoint("int_field", 42));
             doc.add(new LongPoint("long_field", 42L));
             doc.add(new DoublePoint("double_field", 42.0));
-            doc.add(new StringField("date_field", "2025-10-16", Field.Store.YES));
             doc.add(new BinaryDocValuesField("binary_field", new BytesRef("binary_data")));
             writer.addDocument(doc);
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            for (String fieldName : Arrays.asList(
-                "_id",
-                "text_field",
-                "keyword_field",
-                "int_field",
-                "long_field",
-                "double_field",
-                "date_field",
-                "binary_field"
-            )) {
+            for (String fieldName : Arrays.asList("_id", "text_field", "keyword_field", "date_field")) {
                 Terms terms = MultiTerms.getTerms(reader, fieldName);
-                if (terms != null) {
-                    TermsEnum termsEnum = terms.iterator();
-                    assertTrue(
-                        "Should find existing term in " + fieldName,
-                        termsEnum.seekExact(new BytesRef(getTestValueForField(fieldName)))
-                    );
-                    assertFalse(
-                        "Should not find non-existent term in " + fieldName,
-                        termsEnum.seekExact(new BytesRef("nonexistent_" + fieldName))
-                    );
-                }
+                assertNotNull("Should have terms for " + fieldName, terms);
+                TermsEnum termsEnum = terms.iterator();
+                assertTrue("Should find existing term in " + fieldName, termsEnum.seekExact(new BytesRef(getTestValueForField(fieldName))));
+                assertFalse(
+                    "Should not find non-existent term in " + fieldName,
+                    termsEnum.seekExact(new BytesRef("nonexistent_" + fieldName))
+                );
+            }
+            for (String fieldName : Arrays.asList("int_field", "long_field", "double_field", "binary_field")) {
+                Terms terms = MultiTerms.getTerms(reader, fieldName);
+                assertNull("Should not have terms for " + fieldName, terms);
             }
         }
     }

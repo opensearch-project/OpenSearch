@@ -8,13 +8,9 @@
 
 package org.opensearch.index.codec.fuzzy;
 
-import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
 
 public class FuzzySetParametersTests extends OpenSearchTestCase {
 
@@ -134,49 +130,5 @@ public class FuzzySetParametersTests extends OpenSearchTestCase {
         long h = seed * 31L + value.hashCode();
         h = h * h * h * 31L;
         return h ^ (h >>> 32);
-    }
-
-    private static class MockBloomFilter extends AbstractFuzzySet {
-        private final Set<Long> hashSet = new HashSet<>();
-        private final FuzzySetParameters params;
-
-        MockBloomFilter(FuzzySetParameters params) {
-            this.params = params;
-        }
-
-        @Override
-        protected void add(BytesRef value) {
-            hashSet.add(generateKey(value));
-        }
-
-        @Override
-        protected Result containsHash(long hash) {
-            return hashSet.contains(hash) ? Result.MAYBE : Result.NO;
-        }
-
-        @Override
-        public SetType setType() {
-            return params.getSetType();
-        }
-
-        @Override
-        public boolean isSaturated() {
-            return false;
-        }
-
-        @Override
-        public void writeTo(DataOutput out) throws IOException {
-            // No-op for this mock
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return 0;
-        }
-
-        @Override
-        public void close() throws IOException {
-            // No-op for this mock
-        }
     }
 }

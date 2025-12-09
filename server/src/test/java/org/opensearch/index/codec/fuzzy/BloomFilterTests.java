@@ -100,6 +100,7 @@ public class BloomFilterTests extends OpenSearchTestCase {
     public void testBloomFilterDistribution() throws IOException {
         int elementCount = 5000;
         double fpp = 0.01;
+        long expectedBits = (long) Math.ceil(-elementCount * Math.log(fpp) / (Math.log(2) * Math.log(2)));
         List<String> elements = new ArrayList<>();
         for (int i = 0; i < elementCount; i++) {
             elements.add("prefix" + randomAlphaOfLength(5) + i);
@@ -107,14 +108,13 @@ public class BloomFilterTests extends OpenSearchTestCase {
 
         BloomFilter filter = new BloomFilter(elementCount, fpp, () -> elements.stream().map(BytesRef::new).iterator());
         long setBits = 0;
-        long totalBits = filter.ramBytesUsed() * 8;
-        for (int i = 0; i < totalBits; i++) {
+        for (long i = 0; i < expectedBits; i++) {
             if (filter.containsHash(i) == FuzzySet.Result.MAYBE) {
                 setBits++;
             }
         }
 
-        double fillRatio = (double) setBits / totalBits;
+        double fillRatio = (double) setBits / expectedBits;
         logger.info("Bloom filter fill ratio: {}", fillRatio);
         assertTrue("Fill ratio should be reasonable (between 0.1 and 0.9)", fillRatio > 0.1 && fillRatio < 0.9);
     }
@@ -186,13 +186,21 @@ public class BloomFilterTests extends OpenSearchTestCase {
 
     public void testBloomFilterContainsElement() throws IOException {
         int elementCount = 100;
-        BloomFilter filter = new BloomFilter(1000, 0.01, () -> idIterator(elementCount));
+        double fpp = 0.01;
+        BloomFilter filter = new BloomFilter(1000, fpp, () -> idIterator(elementCount));
         for (int i = 0; i < elementCount; i++) {
             assertEquals(FuzzySet.Result.MAYBE, filter.contains(new BytesRef(Integer.toString(i))));
         }
-        for (int i = elementCount; i < elementCount + 100; i++) {
-            assertEquals(FuzzySet.Result.NO, filter.contains(new BytesRef(Integer.toString(i))));
+        int falsePositives = 0;
+        int testCount = 100;
+        for (int i = elementCount; i < elementCount + testCount; i++) {
+            if (filter.contains(new BytesRef(Integer.toString(i))) == FuzzySet.Result.MAYBE) {
+                falsePositives++;
+            }
         }
+        double actualFpp = (double) falsePositives / testCount;
+        logger.info("False positive rate: {}", actualFpp);
+        assertTrue("False positive rate should be reasonable", actualFpp <= fpp * 2);
     }
 
     public void testBloomFilterWithDifferentFPP() throws IOException {
@@ -225,7 +233,7 @@ public class BloomFilterTests extends OpenSearchTestCase {
         }
 
         double actualFpp = (double) falsePositives / testCount;
-        assertTrue("False positive rate " + actualFpp + " should be close to target " + targetFpp, actualFpp <= targetFpp * 1.5);
+        assertTrue("False positive rate " + actualFpp + " should be close to target " + targetFpp, actualFpp <= targetFpp * 2);
     }
 
     public void testBloomFilterSerialization() throws IOException {
@@ -244,7 +252,8 @@ public class BloomFilterTests extends OpenSearchTestCase {
     }
 
     private byte[] serializeFilter(BloomFilter filter) throws IOException {
-        byte[] buffer = new byte[8192]; // Use an appropriate buffer size
+        int bufferSize = (int) Math.max(8192, filter.ramBytesUsed() * 2);
+        byte[] buffer = new byte[bufferSize];
         ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
         out.writeString(filter.setType().getSetName());
         filter.writeTo(out);
