@@ -8,6 +8,7 @@
 
 package org.opensearch.datafusion;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.stream.Collectors;
@@ -60,11 +61,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_ENABLED;
-import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
-import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_SIZE_LIMIT;
-
-import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION;
+import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_MEMORY_POOL_CONFIGURATION;
+import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION;
 
 
 /**
@@ -116,10 +114,11 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Map<DataFormat, DataSourceCodec> dataSourceCodecs
     ) {
+        String spill_dir = Arrays.stream(environment.dataFiles()).findFirst().get().getParent().resolve("tmp").toAbsolutePath().toString();
         if (!isDataFusionEnabled) {
             return Collections.emptyList();
         }
-        dataFusionService = new DataFusionService(dataSourceCodecs, clusterService);
+        dataFusionService = new DataFusionService(dataSourceCodecs, clusterService, spill_dir);
 
         for(DataFormat format : this.getSupportedFormats()) {
             dataSourceCodecs.get(format);
@@ -176,7 +175,8 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settingList = new ArrayList<>();
 
-        settingList.add(MEMORY_POOL_CONFIGURATION_DATAFUSION);
+        settingList.add(DATAFUSION_MEMORY_POOL_CONFIGURATION);
+        settingList.add(DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION);
         settingList.addAll(Stream.of(
                 CacheSettings.CACHE_SETTINGS,
                 CacheSettings.CACHE_ENABLED)

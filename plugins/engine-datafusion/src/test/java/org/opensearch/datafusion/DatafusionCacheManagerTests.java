@@ -27,6 +27,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.datafusion.core.DataFusionRuntimeEnv;
 import org.opensearch.datafusion.search.cache.CacheManager;
 import org.opensearch.datafusion.search.cache.CacheUtils;
 import org.opensearch.env.Environment;
@@ -56,14 +57,15 @@ public class DatafusionCacheManagerTests extends OpenSearchSingleNodeTestCase {
         clusterSettingsToAdd.add(METADATA_CACHE_ENABLED);
         clusterSettingsToAdd.add(METADATA_CACHE_SIZE_LIMIT);
         clusterSettingsToAdd.add(METADATA_CACHE_EVICTION_TYPE);
-        clusterSettingsToAdd.add(org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION);
+        clusterSettingsToAdd.add(DataFusionRuntimeEnv.DATAFUSION_MEMORY_POOL_CONFIGURATION);
+        clusterSettingsToAdd.add(DataFusionRuntimeEnv.DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION);
 
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);
         clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        service = new DataFusionService(Collections.emptyMap(), clusterService);
+        service = new DataFusionService(Collections.emptyMap(), clusterService, "/tmp");
         service.doStart();
     }
 

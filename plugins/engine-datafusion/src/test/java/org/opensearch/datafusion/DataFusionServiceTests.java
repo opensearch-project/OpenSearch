@@ -25,6 +25,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.datafusion.core.DataFusionRuntimeEnv;
 import org.opensearch.datafusion.search.DatafusionContext;
 import org.opensearch.datafusion.search.DatafusionQuery;
 import org.opensearch.datafusion.search.DatafusionSearcher;
@@ -96,12 +97,13 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
         Settings mockSettings = Settings.builder().put("path.data", "/tmp/test-data").build();
 
         when(mockEnvironment.settings()).thenReturn(mockSettings);
-        service = new DataFusionService(Map.of(), clusterService);
+        service = new DataFusionService(Map.of(), clusterService, "/tmp");
         Set<Setting<?>> clusterSettingsToAdd = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
         clusterSettingsToAdd.add(METADATA_CACHE_ENABLED);
         clusterSettingsToAdd.add(METADATA_CACHE_SIZE_LIMIT);
         clusterSettingsToAdd.add(METADATA_CACHE_EVICTION_TYPE);
-        clusterSettingsToAdd.add(org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION);
+        clusterSettingsToAdd.add(DataFusionRuntimeEnv.DATAFUSION_MEMORY_POOL_CONFIGURATION);
+        clusterSettingsToAdd.add(DataFusionRuntimeEnv.DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION);
 
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);
@@ -109,7 +111,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        service = new DataFusionService(Collections.emptyMap(), clusterService);
+        service = new DataFusionService(Collections.emptyMap(), clusterService, "/tmp");
         //service = new DataFusionService(Map.of());
         service.doStart();
     }
