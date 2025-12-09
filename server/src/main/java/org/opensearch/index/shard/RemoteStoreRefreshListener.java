@@ -270,13 +270,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         public void onResponse(Void unused) {
                             try {
                                 logger.debug("New segments upload successful");
-                                if (localSegmentsPostRefresh.stream().allMatch(file -> skipUpload(file))) {
-                                    logger.debug("Skipping metadata upload - no new segments were uploaded");
-                                } else {
-                                    // Start metadata file upload
-                                    uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
-                                    logger.debug("Metadata upload successful");
-                                }
+                                uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
+                                logger.debug("Metadata upload successful");
+//                                if (localSegmentsPostRefresh.stream().allMatch(file -> skipUpload(file))) {
+//                                    logger.debug("Skipping metadata upload - no new segments were uploaded");
+//                                } else {
+//                                    // Start metadata file upload
+//                                    uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
+//                                    logger.debug("Metadata upload successful");
+//                                }
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
