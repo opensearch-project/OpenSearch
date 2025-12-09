@@ -24,7 +24,7 @@ public class CacheSettings {
             (s) -> ByteSizeValue.parseBytesSizeValue(s, new ByteSizeValue(1000, ByteSizeUnit.KB),METADATA_CACHE_SIZE_LIMIT_KEY), Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     public static final Setting<ByteSizeValue> STATISTICS_CACHE_SIZE_LIMIT =
-        new Setting<>(STATISTICS_CACHE_SIZE_LIMIT_KEY, "300mb",
+        new Setting<>(STATISTICS_CACHE_SIZE_LIMIT_KEY, "100mb",
             (s) -> ByteSizeValue.parseBytesSizeValue(s, new ByteSizeValue(0, ByteSizeUnit.KB),STATISTICS_CACHE_SIZE_LIMIT_KEY), Setting.Property.NodeScope, Setting.Property.Dynamic);
 
 
