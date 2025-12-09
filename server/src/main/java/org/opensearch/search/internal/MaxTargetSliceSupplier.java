@@ -37,22 +37,18 @@ final class MaxTargetSliceSupplier {
         if (targetMaxSlice <= 0) {
             throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
         }
-
         int targetSliceCount = Math.min(targetMaxSlice, leaves.size());
 
         List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
         sortedLeaves.sort(Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().maxDoc())));
-
         final List<List<LeafReaderContextPartition>> groupedLeaves = new ArrayList<>(targetSliceCount);
         for (int i = 0; i < targetSliceCount; ++i) {
             groupedLeaves.add(new ArrayList<>());
         }
-
         PriorityQueue<Group> groupQueue = new PriorityQueue<>();
         for (int i = 0; i < targetSliceCount; i++) {
             groupQueue.offer(new Group(i));
         }
-
         Group minGroup;
         for (int i = 0; i < sortedLeaves.size(); ++i) {
             minGroup = groupQueue.poll();
@@ -60,7 +56,6 @@ final class MaxTargetSliceSupplier {
             minGroup.sum += sortedLeaves.get(i).reader().maxDoc();
             groupQueue.offer(minGroup);
         }
-
         return groupedLeaves.stream().map(IndexSearcher.LeafSlice::new).toArray(IndexSearcher.LeafSlice[]::new);
     }
 
@@ -68,37 +63,32 @@ final class MaxTargetSliceSupplier {
         if (targetMaxSlice <= 0) {
             throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
         }
-
         if (leaves.isEmpty()) {
             return new IndexSearcher.LeafSlice[0];
         }
-
+        // Calculate total docs and estimate partition count in single pass
         long totalDocs = 0;
         for (LeafReaderContext leaf : leaves) {
             totalDocs += leaf.reader().maxDoc();
         }
-
-        long maxDocsPerPartition = (long) Math.ceil((double) totalDocs / targetMaxSlice);
-
-        List<LeafReaderContextPartition> partitions = new ArrayList<>();
-
+        long maxDocsPerPartition = (totalDocs + targetMaxSlice - 1) / targetMaxSlice;
+        // Pre-size list based on estimate (at most targetMaxSlice partitions per segment)
+        List<LeafReaderContextPartition> partitions = new ArrayList<>(Math.min(leaves.size() * 2, targetMaxSlice * 2));
         for (LeafReaderContext leaf : leaves) {
             int segmentSize = leaf.reader().maxDoc();
             if (segmentSize > maxDocsPerPartition && segmentSize >= minSegmentSize) {
-                int numPartitions = (int) Math.ceil((double) segmentSize / maxDocsPerPartition);
+                int numPartitions = (int) ((segmentSize + maxDocsPerPartition - 1) / maxDocsPerPartition); // ceil
                 numPartitions = Math.min(numPartitions, targetMaxSlice);
                 int docsPerPartition = segmentSize / numPartitions;
-
                 for (int i = 0; i < numPartitions; i++) {
                     int startDoc = i * docsPerPartition;
-                    int endDoc = (i == numPartitions - 1) ? segmentSize : (i + 1) * docsPerPartition;
+                    int endDoc = (i == numPartitions - 1) ? segmentSize : startDoc + docsPerPartition;
                     partitions.add(LeafReaderContextPartition.createFromAndTo(leaf, startDoc, endDoc));
                 }
             } else {
                 partitions.add(LeafReaderContextPartition.createForEntireSegment(leaf));
             }
         }
-
         return distributePartitionsWithLPT(partitions, targetMaxSlice);
     }
 
@@ -110,51 +100,35 @@ final class MaxTargetSliceSupplier {
         if (partitions.isEmpty()) {
             return new IndexSearcher.LeafSlice[0];
         }
-
         int sliceCount = Math.min(targetMaxSlice, partitions.size());
-
-        List<LeafReaderContextPartition> sortedPartitions = new ArrayList<>(partitions);
-        sortedPartitions.sort(Collections.reverseOrder(Comparator.comparingInt(p -> getPartitionDocCount(p))));
-
-        PriorityQueue<GroupWithSegmentTracking> sliceHeap = new PriorityQueue<>();
+        // Sort partitions by doc count descending (LPT heuristic)
+        partitions.sort(Collections.reverseOrder(Comparator.comparingInt(MaxTargetSliceSupplier::getPartitionDocCount)));
+        GroupWithSegmentTracking[] slices = new GroupWithSegmentTracking[sliceCount];
         for (int i = 0; i < sliceCount; i++) {
-            sliceHeap.offer(new GroupWithSegmentTracking(i));
+            slices[i] = new GroupWithSegmentTracking(i);
         }
-
-        for (LeafReaderContextPartition partition : sortedPartitions) {
+        for (LeafReaderContextPartition partition : partitions) {
             int segmentOrd = partition.ctx.ord;
             int docCount = getPartitionDocCount(partition);
-
-            List<GroupWithSegmentTracking> allSlices = new ArrayList<>();
-            while (!sliceHeap.isEmpty()) {
-                allSlices.add(sliceHeap.poll());
-            }
-
+            // Find slice with minimum load that doesn't have this segment
             GroupWithSegmentTracking targetSlice = null;
-            for (GroupWithSegmentTracking slice : allSlices) {
-                if (!slice.hasSegment(segmentOrd)) {
+            long minLoad = Long.MAX_VALUE;
+            for (GroupWithSegmentTracking slice : slices) {
+                if (!slice.hasSegment(segmentOrd) && slice.docCountSum < minLoad) {
+                    minLoad = slice.docCountSum;
                     targetSlice = slice;
-                    break;
                 }
             }
-
             assert targetSlice != null : "No available slice for segment " + segmentOrd;
-
             targetSlice.addPartition(partition, segmentOrd, docCount);
-
-            for (GroupWithSegmentTracking slice : allSlices) {
-                sliceHeap.offer(slice);
+        }
+        // Collect non-empty slices
+        List<IndexSearcher.LeafSlice> result = new ArrayList<>(sliceCount);
+        for (GroupWithSegmentTracking slice : slices) {
+            if (!slice.partitions.isEmpty()) {
+                result.add(new IndexSearcher.LeafSlice(slice.partitions));
             }
         }
-
-        List<IndexSearcher.LeafSlice> result = new ArrayList<>();
-        while (!sliceHeap.isEmpty()) {
-            GroupWithSegmentTracking group = sliceHeap.poll();
-            if (!group.partitions.isEmpty()) {
-                result.add(new IndexSearcher.LeafSlice(group.partitions));
-            }
-        }
-
         return result.toArray(new IndexSearcher.LeafSlice[0]);
     }
 
