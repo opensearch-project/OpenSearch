@@ -94,6 +94,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private volatile long lastUploadedPrimaryTerm = INVALID_PRIMARY_TERM; // Use constant or -1
     private volatile long lastUploadedGeneration = -1;
     private volatile long lastUploadedTranslogGeneration = -1;
+    private volatile long lastUploadedMaxSeqNo = -1;
 
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
@@ -444,7 +445,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         long translogFileGeneration = translogGeneration.translogFileGeneration;
         if (this.lastUploadedPrimaryTerm == replicationCheckpoint.getPrimaryTerm()
             && this.lastUploadedGeneration == segmentInfos.getGeneration()
-            && this.lastUploadedTranslogGeneration == translogFileGeneration) {
+            && this.lastUploadedTranslogGeneration == translogFileGeneration
+            && this.lastUploadedMaxSeqNo == maxSeqNo) {
 
             logger.debug("Skipping metadata upload (deduplicated) - state is already persisted.");
             return;
@@ -469,6 +471,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         this.lastUploadedPrimaryTerm = replicationCheckpoint.getPrimaryTerm();
         this.lastUploadedGeneration = segmentInfos.getGeneration();
         this.lastUploadedTranslogGeneration = translogFileGeneration;
+        this.lastUploadedMaxSeqNo = maxSeqNo;
     }
 
     boolean isLowPriorityUpload() {
