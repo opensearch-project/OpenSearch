@@ -1,18 +1,22 @@
-use std::sync::{Arc, Mutex};
-use datafusion::execution::cache::cache_manager::{FileMetadataCache, CacheManagerConfig};
-use datafusion::execution::cache::cache_unit::{DefaultFileStatisticsCache, DefaultFilesMetadataCache, DefaultListFilesCache};
+use std::sync::{Arc};
+use datafusion::execution::cache::cache_manager::{FileMetadataCache, FileStatisticsCache, CacheManagerConfig};
+use datafusion::execution::cache::cache_unit::{DefaultFileStatisticsCache};
 use datafusion::execution::cache::CacheAccessor;
-use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
+use crate::statistics_cache::compute_parquet_statistics;
 use tokio::runtime::Runtime;
 use crate::cache::MutexFileMetadataCache;
+use crate::statistics_cache::CustomStatisticsCache;
 use crate::util::{create_object_meta_from_file};
+use object_store::path::Path;
+use object_store::ObjectMeta;
+use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 
 /// Custom CacheManager that holds cache references directly
 pub struct CustomCacheManager {
     /// Direct reference to the file metadata cache
     file_metadata_cache: Option<Arc<MutexFileMetadataCache>>,
-    // Future: Statistics cache when implemented
-    // stats_cache: Option<Arc<dyn StatsCache>>,
+    /// Direct reference to the statistics cache
+    statistics_cache: Option<Arc<CustomStatisticsCache>>
 }
 
 impl CustomCacheManager {
@@ -20,6 +24,7 @@ impl CustomCacheManager {
     pub fn new() -> Self {
         Self {
             file_metadata_cache: None,
+            statistics_cache: None
         }
     }
 
@@ -27,6 +32,17 @@ impl CustomCacheManager {
     pub fn set_file_metadata_cache(&mut self, cache: Arc<MutexFileMetadataCache>) {
         self.file_metadata_cache = Some(cache);
         println!("[CACHE INFO] File metadata cache set in CustomCacheManager");
+    }
+
+    /// Set the statistics cache
+    pub fn set_statistics_cache(&mut self, cache: Arc<CustomStatisticsCache>) {
+        self.statistics_cache = Some(cache);
+        println!("[CACHE INFO] Statistics cache set in CustomCacheManager");
+    }
+
+    /// Get the statistics cache
+    pub fn get_statistics_cache(&self) -> Option<Arc<CustomStatisticsCache>> {
+        self.statistics_cache.clone()
     }
 
     /// Get the file metadata cache as Arc<dyn FileMetadataCache> for DataFusion
@@ -37,14 +53,22 @@ impl CustomCacheManager {
     /// Build a CacheManagerConfig from the caches stored in this CustomCacheManager
     pub fn build_cache_manager_config(&self) -> CacheManagerConfig {
         let mut config = CacheManagerConfig::default();
-        let file_static_cache = Arc::new(DefaultFileStatisticsCache::default());
+
         // Add file metadata cache if available
         if let Some(cache) = self.get_file_metadata_cache_for_datafusion() {
             config = config.with_file_metadata_cache(Some(cache.clone()))
                 .with_metadata_cache_limit(cache.cache_limit());
         }
-        config = config.with_files_statistics_cache(Some(file_static_cache.clone()));
-        // Future: Add stats cache when implemented
+
+        // Add statistics cache if available - use CustomStatisticsCache directly
+        if let Some(stats_cache) = &self.statistics_cache {
+            config = config.with_files_statistics_cache(Some(stats_cache.clone() as FileStatisticsCache));
+        } else {
+            // Default statistics cache if none set
+            let default_stats = Arc::new(DefaultFileStatisticsCache::default());
+            config = config.with_files_statistics_cache(Some(default_stats));
+        }
+
         config
     }
 
@@ -69,7 +93,20 @@ impl CustomCacheManager {
                 }
             }
 
-            // Future: Add to stats cache when implemented
+            // Add to statistics cache
+            if let Some(_) = &self.statistics_cache {
+                match self.statistics_cache_compute_and_put(file_path) {
+                    Ok(true) => {
+                        any_success = true;
+                    }
+                    Ok(false) => {
+                        println!("[CACHE INFO] File not added for statistics cache: {}", file_path);
+                    }
+                    Err(e) => {
+                        errors.push(format!("Statistics cache: {}", e));
+                    }
+                }
+        }
 
             let success = if !errors.is_empty() && !any_success {
                 false
@@ -123,7 +160,19 @@ impl CustomCacheManager {
                 }
             }
 
-            // Future: Remove from stats cache when implemented
+            // Remove from statistics cache
+            if let Some(cache) = &self.statistics_cache {
+                let path = Path::from(file_path.clone());
+                // Use contains_key to check if the entry exists before attempting removal
+                if cache.contains_key(&path) {
+                    // Since we can't call remove directly on Arc<CustomStatisticsCache>,
+                    // we need to use the thread-safe DashMap operations
+                    if cache.inner().remove(&path).is_some() {
+                        any_removed = true;
+                        println!("[CACHE INFO] Removed file from statistics cache: {}", file_path);
+                    }
+                }
+            }
 
             let removed = if !errors.is_empty() && !any_removed {
                 false
@@ -139,6 +188,8 @@ impl CustomCacheManager {
 
     /// Check if a file exists in any cache
     pub fn contains_file(&self, file_path: &str) -> bool {
+        let mut found = false;
+
         // Check metadata cache
         match create_object_meta_from_file(file_path) {
             Ok(object_metas) => {
@@ -147,33 +198,47 @@ impl CustomCacheManager {
                         match cache.get(object_meta) {
                             Some(metadata) => {
                                 println!("Retrieved metadata for: {} - size: {:?}", file_path, metadata.memory_size());
-                                true
+                                found = true;
                             },
                             None => {
                                 println!("No metadata found for: {}", file_path);
-                                false
                             },
                         }
-                    } else {
-                        println!("No object metadata returned for: {}", file_path);
-                        false
                     }
-                } else {
-                    println!("No metadata cache configured");
-                    false
                 }
             }
             Err(e) => {
                 println!("Failed to get object metadata for {}: {}", file_path, e);
-                false
             }
         }
+
+        // Check statistics cache
+        if let Some(cache) = &self.statistics_cache {
+            let path = Path::from(file_path);
+            if cache.contains_key(&path) {
+                found = true;
+            }
+        }
+
+        found
     }
 
     /// Update the file metadata cache size limit
     pub fn update_metadata_cache_limit(&self, new_limit: usize) {
         if let Some(cache) = &self.file_metadata_cache {
             cache.update_cache_limit(new_limit);
+        }
+    }
+
+    /// Update the statistics cache size limit
+    pub fn update_statistics_cache_limit(&self, new_limit: usize) -> Result<(), String> {
+        if let Some(cache) = &self.statistics_cache {
+            // Need mutable reference for update_size_limit
+            let cache_mut = unsafe { &mut *(Arc::as_ptr(cache) as *mut CustomStatisticsCache) };
+            cache_mut.update_size_limit(new_limit)
+                .map_err(|e| format!("Failed to update statistics cache limit: {:?}", e))
+        } else {
+            Err("No statistics cache configured".to_string())
         }
     }
 
@@ -188,7 +253,10 @@ impl CustomCacheManager {
             }
         }
 
-        // Future: Add stats cache memory when implemented
+        // Add statistics cache memory
+        if let Some(cache) = &self.statistics_cache {
+            total += cache.memory_consumed();
+        }
 
         total
     }
@@ -198,7 +266,9 @@ impl CustomCacheManager {
         if let Some(cache) = &self.file_metadata_cache {
             cache.clear();
         }
-        // Future: Clear stats cache when implemented
+        if let Some(cache) = &self.statistics_cache {
+            cache.clear();
+        }
     }
 
     /// Clear specific cache type
@@ -213,8 +283,12 @@ impl CustomCacheManager {
                 }
             }
             crate::cache::CACHE_TYPE_STATS => {
-                // Future: Clear stats cache when implemented
-                Err("Stats cache not yet implemented".to_string())
+                if let Some(cache) = &self.statistics_cache {
+                    cache.clear();
+                    Ok(())
+                } else {
+                    Err("No statistics cache configured".to_string())
+                }
             }
             _ => Err(format!("Unknown cache type: {}", cache_type))
         }
@@ -235,8 +309,11 @@ impl CustomCacheManager {
                 }
             }
             crate::cache::CACHE_TYPE_STATS => {
-                // Future: Get stats cache memory when implemented
-                Err("Stats cache not yet implemented".to_string())
+                if let Some(cache) = &self.statistics_cache {
+                    Ok(cache.memory_consumed())
+                } else {
+                    Err("No statistics cache configured".to_string())
+                }
             }
             _ => Err(format!("Unknown cache type: {}", cache_type))
         }
@@ -294,4 +371,136 @@ impl CustomCacheManager {
             Err(e) => Err(format!("Failed to verify cache: {}", e))
         }
     }
+
+    /// Compute and put statistics into cache
+    pub fn statistics_cache_compute_and_put(&self, file_path: &str) -> Result<bool, String> {
+        let cache = self.statistics_cache.as_ref()
+            .ok_or_else(|| "No statistics cache configured".to_string())?;
+
+        let path = Path::from(file_path.to_string());
+
+        // Check if already cached
+        if cache.contains_key(&path) {
+            println!("[STATS CACHE INFO] Statistics already cached for: {}", file_path);
+            return Ok(true);
+        }
+
+        // Compute statistics
+        match compute_parquet_statistics(file_path) {
+            Ok(stats) => {
+                let meta = ObjectMeta {
+                    location: path.clone(),
+                    last_modified: chrono::Utc::now(),
+                    size: std::fs::metadata(file_path)
+                        .map(|m| m.len())
+                        .unwrap_or(0),
+                    e_tag: None,
+                    version: None,
+                };
+
+                cache.put_with_extra(&path, Arc::new(stats), &meta);
+                println!("[STATS CACHE INFO] Successfully computed and cached statistics for: {}", file_path);
+                Ok(true)
+            }
+            Err(e) => {
+                Err(format!("Failed to compute statistics for {}: {}", file_path, e))
+            }
+        }
+    }
+
+    /// Batch compute and cache statistics for multiple files
+    pub fn statistics_cache_batch_compute_and_put(&self, file_paths: &[String]) -> Result<usize, String> {
+        let cache = self.statistics_cache.as_ref()
+            .ok_or_else(|| "No statistics cache configured".to_string())?;
+
+        let mut success_count = 0;
+        let mut failed_files = Vec::new();
+
+        for file_path in file_paths {
+            let path = Path::from(file_path.clone());
+
+            // Skip if already cached
+            if cache.contains_key(&path) {
+                success_count += 1;
+                continue;
+            }
+
+            // Compute and cache statistics
+            match compute_parquet_statistics(file_path) {
+                Ok(stats) => {
+                    let meta = ObjectMeta {
+                        location: path.clone(),
+                        last_modified: chrono::Utc::now(),
+                        size: std::fs::metadata(file_path)
+                            .map(|m| m.len())
+                            .unwrap_or(0),
+                        e_tag: None,
+                        version: None,
+                    };
+
+                    cache.put_with_extra(&path, Arc::new(stats), &meta);
+                    success_count += 1;
+                }
+                Err(e) => {
+                    eprintln!("[STATS CACHE ERROR] Failed to compute statistics for {}: {}", file_path, e);
+                    failed_files.push(file_path.clone());
+                }
+            }
+        }
+
+        if !failed_files.is_empty() {
+            eprintln!("[STATS CACHE WARNING] Failed to compute statistics for {} files: {:?}",
+                      failed_files.len(), failed_files);
+        }
+
+        println!("[STATS CACHE INFO] Successfully computed and cached statistics for {} files", success_count);
+        Ok(success_count)
+    }
+
+    /// Get or compute statistics
+    pub fn statistics_cache_get_or_compute(&self, file_path: &str) -> Result<bool, String> {
+        let cache = self.statistics_cache.as_ref()
+            .ok_or_else(|| "No statistics cache configured".to_string())?;
+
+        let path = Path::from(file_path.to_string());
+
+        // Check if already cached
+        if cache.get(&path).is_some() {
+            println!("[STATS CACHE INFO] Statistics found in cache for: {}", file_path);
+            return Ok(true);
+        }
+
+        // Not in cache, compute and add
+        self.statistics_cache_compute_and_put(file_path)
+    }
+
+    /// Get statistics cache hit count
+    pub fn statistics_cache_hit_count(&self) -> usize {
+        self.statistics_cache.as_ref()
+            .map(|cache| cache.hit_count())
+            .unwrap_or(0)
+    }
+
+    /// Get statistics cache miss count
+    pub fn statistics_cache_miss_count(&self) -> usize {
+        self.statistics_cache.as_ref()
+            .map(|cache| cache.miss_count())
+            .unwrap_or(0)
+    }
+
+    /// Get statistics cache hit rate
+    pub fn statistics_cache_hit_rate(&self) -> f64 {
+        self.statistics_cache.as_ref()
+            .map(|cache| cache.hit_rate())
+            .unwrap_or(0.0)
+    }
+
+    /// Reset statistics cache stats
+    pub fn statistics_cache_reset_stats(&self) {
+        if let Some(cache) = &self.statistics_cache {
+            cache.reset_stats();
+        }
+    }
 }
+
+

@@ -18,6 +18,9 @@ import org.opensearch.datafusion.jni.NativeBridge;
 import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_ENABLED;
 import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
 import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_SIZE_LIMIT;
+import static org.opensearch.datafusion.search.cache.CacheSettings.STATISTICS_CACHE_ENABLED;
+import static org.opensearch.datafusion.search.cache.CacheSettings.STATISTICS_CACHE_EVICTION_TYPE;
+import static org.opensearch.datafusion.search.cache.CacheSettings.STATISTICS_CACHE_SIZE_LIMIT;
 
 /**
  * Utility class for cache initialization and configuration.
@@ -38,8 +41,9 @@ public final class CacheUtils {
             METADATA_CACHE_ENABLED,
             METADATA_CACHE_SIZE_LIMIT,
             METADATA_CACHE_EVICTION_TYPE
-        );
-        // STATS("STATS", STATS_CACHE_ENABLED, STATS_CACHE_SIZE_LIMIT, STATS_CACHE_EVICTION_TYPE);
+        ),
+
+        STATISTICS("STATISTICS",STATISTICS_CACHE_ENABLED, STATISTICS_CACHE_SIZE_LIMIT,STATISTICS_CACHE_EVICTION_TYPE);
 
         private final String cacheTypeName;
         private final Setting<Boolean> enabledSetting;

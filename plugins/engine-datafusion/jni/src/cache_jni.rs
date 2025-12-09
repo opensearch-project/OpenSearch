@@ -5,7 +5,7 @@ use crate::custom_cache_manager::CustomCacheManager;
 use crate::util::{parse_string_arr};
 use crate::cache;
 use crate::DataFusionRuntime;
-use datafusion::execution::cache::cache_unit::DefaultFilesMetadataCache;
+use datafusion::execution::cache::cache_unit::{DefaultFilesMetadataCache, DefaultFileStatisticsCache};
 use std::sync::Arc;
 
 /// Create a CustomCacheManager instance
@@ -79,10 +79,14 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createCac
             println!("[CACHE INFO] Successfully created {} cache in CustomCacheManager", cache_type_str);
         }
         cache::CACHE_TYPE_STATS => {
-            let msg = "Stats cache not yet implemented";
-            eprintln!("[CACHE ERROR] {}", msg);
-            let _ = env.throw_new("java/lang/DataFusionException", msg);
-            return 0;
+            // Create statistics cache with LRU policy
+            let stats_cache = Arc::new(crate::statistics_cache::CustomStatisticsCache::new(
+                crate::eviction_policy::PolicyType::Lru,
+                size_limit as usize,
+                0.8
+            ));
+            manager.set_statistics_cache(stats_cache);
+            println!("[CACHE INFO] Successfully created {} cache in CustomCacheManager", cache_type_str);
         }
         _ => {
             let msg = format!("Invalid cache type: {}", cache_type_str);
@@ -306,12 +310,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
 
     match &runtime_env.custom_cache_manager {
         Some(manager) => {
-            match cache_type.as_str() {
-                cache::CACHE_TYPE_METADATA => {
-                    manager.get_total_memory_consumed() as jlong
-                }
-                _ => {
-                    let msg = format!("Unknown cache type: {}", cache_type);
+            match manager.get_memory_consumed_by_type(&cache_type) {
+                Ok(size) => size as jlong,
+                Err(e) => {
+                    let msg = format!("Failed to get memory consumed for cache type {}: {}", cache_type, e);
                     eprintln!("[CACHE ERROR] {}", msg);
                     let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
                     0

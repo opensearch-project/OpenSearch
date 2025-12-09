@@ -65,16 +65,15 @@ pub async fn execute_query_with_cross_rt_stream(
 
     let runtimeEnv = &runtime.runtime_env;
 
-    let file_metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
-
     let runtime_env = match RuntimeEnvBuilder::from_runtime_env(runtimeEnv)
         .with_cache_manager(
             CacheManagerConfig::default()
                 .with_list_files_cache(Some(list_file_cache.clone()))
-                .with_file_metadata_cache(Some(file_metadata_cache.clone()))
-                .with_metadata_cache_limit(file_metadata_cache.cache_limit())
+                .with_file_metadata_cache(Some(runtimeEnv.cache_manager.get_file_metadata_cache()))
                 .with_files_statistics_cache(runtimeEnv.cache_manager.get_file_statistic_cache()),
-        ).build() {
+        )
+        .with_metadata_cache_limit(250 * 1024 * 1024) // 250 MB
+        .build() {
         Ok(env) => env,
         Err(e) => {
             error!("Failed to build runtime env: {}", e);
@@ -88,12 +87,13 @@ pub async fn execute_query_with_cross_rt_stream(
     config.options_mut().execution.batch_size = 1024;
 
     let state = datafusion::execution::SessionStateBuilder::new()
-        .with_config(config.clone())
+        .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
+        
         //.with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer)) // TODO : uncomment this after fix
         .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer))
-        .build();
+                .build();
 
     let ctx = SessionContext::new_with_state(state);
 
@@ -102,7 +102,7 @@ pub async fn execute_query_with_cross_rt_stream(
     let listing_options = ListingOptions::new(Arc::new(file_format))
         .with_file_extension(".parquet")
         .with_files_metadata(files_meta)
-        .with_session_config_options(&config)
+        .with_collect_stat(true)
         .with_table_partition_cols(vec![("row_base".to_string(), DataType::Int64)]);
 
     let resolved_schema = match listing_options
@@ -213,20 +213,19 @@ pub async fn execute_fetch_phase(
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
     list_file_cache.put(table_path.prefix(), object_meta);
 
-    let file_metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
-
     let runtime_env = RuntimeEnvBuilder::new()
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
-                .with_file_metadata_cache(Some(file_metadata_cache.clone()))
-                .with_files_statistics_cache(runtime.runtime_env.cache_manager.get_file_statistic_cache())
-                .with_metadata_cache_limit(file_metadata_cache.cache_limit()),
+                         .with_metadata_cache_limit(runtime.runtime_env.cache_manager.get_file_metadata_cache().cache_limit())
+                .with_file_metadata_cache(Some(runtime.runtime_env.cache_manager.get_file_metadata_cache().clone()))
+                .with_files_statistics_cache(runtime.runtime_env.cache_manager.get_file_statistic_cache()),
+
         )
         .build()?;
     let ctx = SessionContext::new_with_config_rt(SessionConfig::new(), Arc::new(runtime_env));
 
     let file_format = ParquetFormat::new();
-    let listing_options = ListingOptions::new(Arc::new(file_format)).with_file_extension(".parquet");
+    let listing_options = ListingOptions::new(Arc::new(file_format)).with_file_extension(".parquet").with_collect_stat(true);
 
     let parquet_schema = listing_options.infer_schema(&ctx.state(), &table_path).await?;
 
@@ -259,7 +258,7 @@ pub async fn execute_fetch_phase(
         parquet_schema.clone(),
         file_source,
     )
-    .with_projection_indices(Some(projection_index.clone()))
+    .with_projection(Option::from(projection_index.clone()))
     .with_file_group(file_group)
     .build();
 

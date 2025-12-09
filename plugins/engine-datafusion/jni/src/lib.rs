@@ -19,15 +19,14 @@ use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::{
     common::DataFusionError,
     datasource::listing::ListingTableUrl,
-    execution::cache::cache_manager::CacheManagerConfig,
-    execution::cache::cache_unit::{DefaultListFilesCache,DefaultFilesMetadataCache},
-    execution::cache::CacheAccessor,
     execution::context::SessionContext,
     execution::runtime_env::{RuntimeEnv, RuntimeEnvBuilder},
     execution::RecordBatchStream,
     prelude::*,
     DATAFUSION_VERSION,
 };
+
+
 use std::default::Default;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -50,6 +49,8 @@ use crate::custom_cache_manager::CustomCacheManager;
 use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global};
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 
+use crate::statistics_cache::CustomStatisticsCache;
+use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use object_store::ObjectMeta;
 use tokio::runtime::Runtime;
 use std::result;
@@ -60,15 +61,16 @@ use futures::TryStreamExt;
 pub type Result<T, E = DataFusionError> = result::Result<T, E>;
 
 // NativeBridge JNI implementations
-use crate::listing_table::ListingOptions;
 use jni::objects::{JObjectArray, JString};
-use log::{error, info};
+use log::error;
 use once_cell::sync::Lazy;
-use tokio_metrics::{RuntimeMonitor, TaskMonitor};
+use tokio_metrics::TaskMonitor;
 use crate::cross_rt_stream::CrossRtStream;
-use crate::executor::DedicatedExecutor;
-use crate::memory::{CustomMemoryPool, Monitor, MonitoredMemoryPool};
+use crate::memory::{Monitor, MonitoredMemoryPool};
 use crate::runtime_manager::RuntimeManager;
+
+mod statistics_cache;
+mod eviction_policy;
 
 struct DataFusionRuntime {
     runtime_env: RuntimeEnv,
