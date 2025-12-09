@@ -71,6 +71,31 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
         }
     }
 
+    public String conditionallyUpdateVersionedBlob(final U entity, String version) throws IOException {
+        try (InputStream inputStream = entity.serialize()) {
+            BlobPath blobPath = getBlobPathForUpload(entity);
+            entity.setFullBlobName(blobPath);
+            return transferService.conditionallyUpdateBlobWithVersion(
+                inputStream,
+                getBlobPathForUpload(entity),
+                entity.getBlobFileName(),
+                version
+            );
+        }
+    }
+
+    public String writeVersionedBlob(final U entity) throws IOException {
+        try (InputStream inputStream = entity.serialize()) {
+            BlobPath blobPath = getBlobPathForUpload(entity);
+            entity.setFullBlobName(blobPath);
+            return transferService.writeVersionedBlob(
+                inputStream,
+                getBlobPathForUpload(entity),
+                entity.getBlobFileName()
+            );
+        }
+    }
+
     @Override
     public T read(final U entity) throws IOException {
         // TODO Add timing logs and tracing

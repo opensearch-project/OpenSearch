@@ -146,6 +146,39 @@ public class BlobStoreTransferService implements TransferService {
         );
     }
 
+    @Override
+    @ExperimentalApi
+    public String conditionallyUpdateBlobWithVersion(
+        InputStream inputStream,
+        Iterable<String> remotePath,
+        String fileName,
+        String version
+    ) throws IOException {
+        assert remotePath instanceof BlobPath;
+        BlobPath blobPath = (BlobPath) remotePath;
+        final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
+        assert blobContainer instanceof VersionedBlobContainer;
+        return ((VersionedBlobContainer) blobContainer).conditionallyWriteBlobWithVersion(fileName, inputStream, inputStream.available(), version);
+    }
+
+    /**
+     * Reads the input stream and updates a blob conditionally such that the version matches as the previous version
+     *
+     * @param inputStream the stream to read from
+     * @param remotePath  the remote path where upload should be made
+     * @param fileName    the name of blob file
+     * @return String the version of the blob after the upload is complete
+     * @throws IOException the exception thrown while uploading
+     */
+    @Override
+    public String writeVersionedBlob(InputStream inputStream, Iterable<String> remotePath, String fileName) throws IOException {
+        assert remotePath instanceof BlobPath;
+        BlobPath blobPath = (BlobPath) remotePath;
+        final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
+        assert blobContainer instanceof VersionedBlobContainer;
+        return ((VersionedBlobContainer) blobContainer).writeVersionedBlobIfNotExists(fileName, inputStream, inputStream.available());
+    }
+
     // Builds a metadata map containing the Base64-encoded checkpoint file data associated with a translog file.
     static Map<String, String> buildTransferFileMetadata(InputStream metadataInputStream) throws IOException {
         Map<String, String> metadata = new HashMap<>();

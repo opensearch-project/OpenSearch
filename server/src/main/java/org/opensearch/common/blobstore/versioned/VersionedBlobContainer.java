@@ -39,11 +39,26 @@ public abstract class VersionedBlobContainer extends AbstractBlobContainer {
      * @return VersionedInputStream containing the new version
      * @throws IOException if write fails or version mismatch
      */
-    public abstract VersionedInputStream writeBlobWithVersion(
+    public abstract String conditionallyWriteBlobWithVersion(
         String blobName,
         InputStream inputStream,
         long blobSize,
         String expectedVersion
+    ) throws IOException;
+
+    /**
+     * Writes a blob if it does not exists and get the version
+     *
+     * @param blobName the name of the blob
+     * @param inputStream the input stream to write
+     * @param blobSize the size of the blob
+     * @return VersionedInputStream containing the new version
+     * @throws IOException if write fails or version mismatch
+     */
+    public abstract String writeVersionedBlobIfNotExists(
+        String blobName,
+        InputStream inputStream,
+        long blobSize
     ) throws IOException;
 
     /**

@@ -165,6 +165,38 @@ public interface TransferService {
     @ExperimentalApi
     VersionedInputStream downloadVersionedBlob(Iterable<String> path, String fileName) throws IOException;
 
+    /**
+     * Reads the input stream and updates a blob conditionally such that the version matches as the previous version
+     * @param inputStream the stream to read from
+     * @param remotePath the remote path where upload should be made
+     * @param blobName the name of blob file
+     * @param Version the version of the blob to conditionally check before uploading
+     * @return String the version of the blob after the upload is complete
+     * @throws IOException the exception thrown while uploading
+     */
+    @ExperimentalApi
+    String conditionallyUpdateBlobWithVersion(
+        InputStream inputStream,
+        Iterable<String> remotePath,
+        String blobName,
+        String Version
+    ) throws IOException;
+
+    /**
+     * Reads the input stream and updates a blob conditionally such that the version matches as the previous version
+     * @param inputStream the stream to read from
+     * @param remotePath the remote path where upload should be made
+     * @param blobName the name of blob file
+     * @return String the version of the blob after the upload is complete
+     * @throws IOException the exception thrown while uploading
+     */
+    @ExperimentalApi
+    String writeVersionedBlob(
+        InputStream inputStream,
+        Iterable<String> remotePath,
+        String blobName
+    ) throws IOException;
+
     void listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit, ActionListener<List<BlobMetadata>> listener);
 
     List<BlobMetadata> listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit) throws IOException;

@@ -140,42 +140,59 @@ public class RemoteManifestManager {
     }
 
     private String writeMetadataManifest(String clusterUUID, ClusterMetadataManifest uploadManifest) {
-        AtomicReference<String> result = new AtomicReference<String>();
-        AtomicReference<Exception> exceptionReference = new AtomicReference<Exception>();
-
-        // latch to wait until upload is not finished
-        CountDownLatch latch = new CountDownLatch(1);
-
-        LatchedActionListener completionListener = new LatchedActionListener<>(ActionListener.wrap(resp -> {
-            logger.trace(String.format(Locale.ROOT, "Manifest file uploaded successfully."));
-        }, ex -> { exceptionReference.set(ex); }), latch);
-
         RemoteClusterMetadataManifest remoteClusterMetadataManifest = new RemoteClusterMetadataManifest(
             uploadManifest,
             clusterUUID,
             compressor,
             namedXContentRegistry
         );
-        manifestBlobStore.writeAsync(remoteClusterMetadataManifest, completionListener);
 
+        String newManifestVersion;
         try {
-            if (latch.await(getMetadataManifestUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
-                RemoteStateTransferException ex = new RemoteStateTransferException(
-                    String.format(Locale.ROOT, "Timed out waiting for transfer of manifest file to complete")
-                );
-                throw ex;
+            if (!lastUploadedManifestVersion.isEmpty()) {
+                newManifestVersion = manifestBlobStore.conditionallyUpdateVersionedBlob(remoteClusterMetadataManifest, lastUploadedManifestVersion);
+            } else {
+                newManifestVersion = manifestBlobStore.writeVersionedBlob(remoteClusterMetadataManifest);
             }
-        } catch (InterruptedException ex) {
-            RemoteStateTransferException exception = new RemoteStateTransferException(
-                String.format(Locale.ROOT, "Timed out waiting for transfer of manifest file to complete - %s"),
-                ex
-            );
-            Thread.currentThread().interrupt();
-            throw exception;
+        } catch (IOException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Version conflict")) {
+                throw new RemoteStateVersionConflictException(
+                    String.format(Locale.ROOT, "Version conflict while uploading manifest. Expected version: %s", lastUploadedManifestVersion),
+                    e
+                );
+            }
+            if (e.getMessage() != null && e.getMessage().contains("Blob already exists")) {
+                throw new RemoteStateBlobAlreadyExistsException(
+                    String.format(Locale.ROOT, "Manifest blob already exists: %s", remoteClusterMetadataManifest.getBlobFileName()),
+                    e
+                );
+            }
+            throw new RemoteStateTransferException("Failed to upload manifest", e);
         }
-        if (exceptionReference.get() != null) {
-            throw new RemoteStateTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
-        }
+
+        assert !newManifestVersion.isEmpty();
+
+        lastUploadedManifestVersion = newManifestVersion;
+
+
+//        try {
+//            if (latch.await(getMetadataManifestUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
+//                RemoteStateTransferException ex = new RemoteStateTransferException(
+//                    String.format(Locale.ROOT, "Timed out waiting for transfer of manifest file to complete")
+//                );
+//                throw ex;
+//            }
+//        } catch (InterruptedException ex) {
+//            RemoteStateTransferException exception = new RemoteStateTransferException(
+//                String.format(Locale.ROOT, "Timed out waiting for transfer of manifest file to complete - %s"),
+//                ex
+//            );
+//            Thread.currentThread().interrupt();
+//            throw exception;
+//        }
+//        if (exceptionReference.get() != null) {
+//            throw new RemoteStateTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
+//        }
         logger.debug(
             "Metadata manifest file [{}] written during [{}] phase. ",
             remoteClusterMetadataManifest.getBlobFileName(),
