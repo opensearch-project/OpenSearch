@@ -123,6 +123,13 @@ import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.ScriptPlugin;
+import org.opensearch.script.MockScriptEngine;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptEngine;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -136,8 +143,10 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -154,6 +163,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.shuffle;
+import static java.util.stream.Collectors.toList;
 import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
@@ -226,6 +236,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         } else {
             codecName = "default";
         }
+
         defaultSettings = IndexSettingsModule.newIndexSettings("test", indexSettings());
         threadPool = new TestThreadPool(getClass().getName());
         store = createStore();
@@ -379,6 +390,12 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     protected static ParseContext.Document testDocumentWithTextField(String value) {
         ParseContext.Document document = testDocument();
         document.add(new TextField("value", value, Field.Store.YES));
+        return document;
+    }
+
+    protected static ParseContext.Document testDocumentWithGroupingCriteria() {
+        ParseContext.Document document = new ParseContext.Document();
+        document.setGroupingCriteria("grouping_criteria");
         return document;
     }
 
@@ -1606,8 +1623,70 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         }
     }
 
+    public static MapperService createMapperServiceForContextAwareIndex() throws IOException {
+        String mapping = "{\"properties\": {}}";
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true)
+            )
+            .putMapping(mapping)
+            .build();
+
+        ScriptModule scriptModule = new ScriptModule(
+            Settings.EMPTY,
+            Collections.singletonList(new ContextAwareCustomScriptPlugin())
+        );
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
+
+        MapperService mapperService = MapperTestUtils.newMapperService(
+            new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+            createTempDir(),
+            Settings.EMPTY,
+            "test",
+            scriptService
+        );
+        mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
+        return mapperService;
+
+    }
+
     public static MapperService createMapperService() throws IOException {
         return createMapperService("{\"properties\": {}}");
+    }
+
+    public static class ContextAwareCustomScriptPlugin extends Plugin implements ScriptPlugin {
+
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> pluginScripts = new HashMap<>();
+            pluginScripts.put("ctx.op='delete'", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
+            pluginScripts.put("String.valueOf(grouping_criteria)", vars -> "grouping_criteria");
+
+            return pluginScripts;
+        }
+
+        public static final String NAME = "painless";
+
+        @Override
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+            return new MockScriptEngine(pluginScriptLang(), pluginScripts(), nonDeterministicPluginScripts(), pluginContextCompilers());
+        }
+
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            return Collections.emptyMap();
+        }
+
+        protected Map<ScriptContext<?>, MockScriptEngine.ContextCompiler> pluginContextCompilers() {
+            return Collections.emptyMap();
+        }
+
+        public String pluginScriptLang() {
+            return NAME;
+        }
     }
 
     public static MapperService createMapperService(String mapping) throws IOException {

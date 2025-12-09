@@ -951,7 +951,7 @@ public class Lucene {
                     }
 
                     assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
-                    return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+                    return new LeafReaderWithLiveDocs(leaf, hardLiveDocs, numDocs);
                 }
 
                 private boolean isContextAwareEnabled(SegmentReader reader) {
