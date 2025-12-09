@@ -45,24 +45,6 @@ pub enum PolicyType {
     Lfu,
 }
 
-/// Cache configuration
-#[derive(Debug, Clone)]
-pub struct CacheConfig {
-    pub policy_type: PolicyType,
-    pub size_limit: usize,
-    pub eviction_threshold: f64,
-}
-
-impl Default for CacheConfig {
-    fn default() -> Self {
-        Self {
-            policy_type: PolicyType::Lru,
-            size_limit: 20 * 1024 * 1024, // 20MB
-            eviction_threshold: 0.8,
-        }
-    }
-}
-
 /// Simple cache entry metadata
 #[derive(Debug, Clone)]
 pub struct CacheEntryMetadata {

@@ -85,8 +85,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createCac
                 size_limit as usize,
                 0.8
             ));
-            let datafusion_stats_cache = Arc::new(DefaultFileStatisticsCache::default());
-            manager.set_statistics_cache(stats_cache, datafusion_stats_cache);
+            manager.set_statistics_cache(stats_cache);
             println!("[CACHE INFO] Successfully created {} cache in CustomCacheManager", cache_type_str);
         }
         _ => {

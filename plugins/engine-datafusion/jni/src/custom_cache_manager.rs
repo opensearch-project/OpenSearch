@@ -1,21 +1,15 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 use datafusion::execution::cache::cache_manager::{FileMetadataCache, FileStatisticsCache, CacheManagerConfig};
-use datafusion::execution::cache::cache_unit::{DefaultFileStatisticsCache, DefaultFilesMetadataCache, DefaultListFilesCache};
+use datafusion::execution::cache::cache_unit::{DefaultFileStatisticsCache};
 use datafusion::execution::cache::CacheAccessor;
-use datafusion::physical_plan::Statistics;
-use datafusion::common::stats::Precision;
 use crate::statistics_cache::compute_parquet_statistics;
 use tokio::runtime::Runtime;
 use crate::cache::MutexFileMetadataCache;
 use crate::statistics_cache::CustomStatisticsCache;
-use crate::eviction_policy::{CacheConfig, PolicyType};
-use crate::util::{create_object_meta_from_file, construct_file_metadata};
+use crate::util::{create_object_meta_from_file};
 use object_store::path::Path;
 use object_store::ObjectMeta;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
-use tokio::runtime::Runtime;
-use crate::cache::MutexFileMetadataCache;
-use crate::util::{create_object_meta_from_file};
 
 /// Custom CacheManager that holds cache references directly
 pub struct CustomCacheManager {

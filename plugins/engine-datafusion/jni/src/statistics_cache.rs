@@ -12,13 +12,6 @@ use object_store::{path::Path, ObjectMeta};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-// JNI imports
-use jni::objects::{JClass, JString};
-use jni::sys::{jboolean, jlong};
-use jni::JNIEnv;
-use datafusion::execution::cache::cache_unit::DefaultFileStatisticsCache;
-use datafusion::execution::cache::cache_manager::CacheManagerConfig;
-use crate::DataFusionRuntime;
 use std::fs::File;
 
 /// Trait to calculate heap memory size for statistics objects
