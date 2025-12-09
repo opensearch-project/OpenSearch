@@ -55,6 +55,7 @@ final class MultiSnapshot implements Translog.Snapshot {
     private int overriddenOperations;
     private final Closeable onClose;
     private final PrimitiveIterator.OfInt iterator;
+    private int index;
     private final SeqNoSet seenSeqNo;
 
     /**
@@ -71,6 +72,7 @@ final class MultiSnapshot implements Translog.Snapshot {
         } else {
             this.iterator = IntStream.range(0, translogs.length).map(i -> translogs.length - 1 - i).iterator();
         }
+        this.index = iterator.hasNext() ? iterator.nextInt() : -1;
     }
 
     @Override
@@ -85,8 +87,8 @@ final class MultiSnapshot implements Translog.Snapshot {
 
     @Override
     public Translog.Operation next() throws IOException {
-        while (iterator.hasNext()) {
-            final TranslogSnapshot current = translogs[iterator.nextInt()];
+        while (index >= 0) {
+            final TranslogSnapshot current = translogs[index];
             Translog.Operation op;
             while ((op = current.next()) != null) {
                 if (op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
@@ -95,6 +97,8 @@ final class MultiSnapshot implements Translog.Snapshot {
                     overriddenOperations++;
                 }
             }
+            // Current snapshot exhausted, move to next
+            index = iterator.hasNext() ? iterator.nextInt() : -1;
         }
         return null;
     }
