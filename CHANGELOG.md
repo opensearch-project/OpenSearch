@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased 3.x]
 ### Added
 - Add support for forward translog reading ([#20163](https://github.com/opensearch-project/OpenSearch/pull/20163))
+- Added public getter method in `SourceFieldMapper` to be used in KNN derived source path ([#20205](https://github.com/opensearch-project/OpenSearch/pull/20205))
 
 ### Changed
 - Handle custom metadata files in subdirectory-store ([#20157](https://github.com/opensearch-project/OpenSearch/pull/20157))
@@ -23,3 +24,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump Project Reactor to 3.8.1 and Reactor Netty to 1.3.1 ([#20217](https://github.com/opensearch-project/OpenSearch/pull/20217))
 
 [Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.4...main
+
