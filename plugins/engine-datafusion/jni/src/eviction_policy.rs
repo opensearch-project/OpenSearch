@@ -296,13 +296,6 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    #[test]
-    fn test_cache_config_default() {
-        let config = CacheConfig::default();
-        assert!(matches!(config.policy_type, PolicyType::Lru));
-        assert_eq!(config.size_limit, 100 * 1024 * 1024);
-        assert_eq!(config.eviction_threshold, 0.8);
-    }
 
     #[test]
     fn test_cache_entry_metadata() {

@@ -50,6 +50,7 @@ use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 
 use crate::statistics_cache::CustomStatisticsCache;
+use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use object_store::ObjectMeta;
 use tokio::runtime::Runtime;
 use std::result;
