@@ -359,7 +359,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             Settings.builder()
                 .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
                 .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "1b")
-                .put(RecoverySettings.INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(0))
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(10))
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
@@ -391,8 +391,10 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             // specify parameter flush as false to prevent triggering the refresh operation
             primaryShard.forceMerge(new ForceMergeRequest("test").flush(false).maxNumSegments(1));
             assertEquals(1, primaryShard.getPrimaryMergedSegmentCheckpoints().size());
-            primaryShard.removeExpiredPrimaryMergedSegmentCheckpoints();
-            assertEquals(0, primaryShard.getPrimaryMergedSegmentCheckpoints().size());
+            assertBusy(() -> {
+                primaryShard.removeExpiredPrimaryMergedSegmentCheckpoints();
+                assertEquals(0, primaryShard.getPrimaryMergedSegmentCheckpoints().size());
+            }, 60, TimeUnit.SECONDS);
 
             primaryShard.refresh("test");
             replicateSegments(primaryShard, List.of(replicaShard));

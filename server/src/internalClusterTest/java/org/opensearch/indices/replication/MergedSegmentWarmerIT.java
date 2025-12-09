@@ -277,7 +277,7 @@ public class MergedSegmentWarmerIT extends SegmentReplicationIT {
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
             Settings.builder()
-                .put(RecoverySettings.INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(1))
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(10))
                 .build()
         );
         assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).get());
@@ -340,7 +340,7 @@ public class MergedSegmentWarmerIT extends SegmentReplicationIT {
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
             Settings.builder()
-                .put(RecoverySettings.INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(1))
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(10))
                 .build()
         );
         assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).get());
