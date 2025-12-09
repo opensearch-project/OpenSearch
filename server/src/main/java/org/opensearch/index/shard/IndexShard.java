@@ -226,7 +226,6 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1882,11 +1881,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // Remove expired primary merged segment checkpoints to prevent memory leaks
     public void removeExpiredPrimaryMergedSegmentCheckpoints() {
-        long mergedSegmentRetentionTime = getRecoverySettings().getMergedSegmentCheckpointRetentionTime().getMillis();
+        long mergedSegmentRetentionTime = getRecoverySettings().getMergedSegmentCheckpointRetentionTime().getNanos();
         Set<MergedSegmentCheckpoint> expiredMergedSegmentCheckpoints = primaryMergedSegmentCheckpoints.stream()
-            .filter(
-                m -> Duration.ofNanos(DateUtils.toLong(Instant.now()) - m.getCreatedTimeStamp()).toMillis() >= mergedSegmentRetentionTime
-            )
+            .filter(m -> DateUtils.toLong(Instant.now()) - m.getCreatedTimeStamp() >= mergedSegmentRetentionTime)
             .collect(Collectors.toSet());
         expiredMergedSegmentCheckpoints.forEach(primaryMergedSegmentCheckpoints::remove);
         logger.trace("primary shard remove expired merged segment checkpoints {}", expiredMergedSegmentCheckpoints);
