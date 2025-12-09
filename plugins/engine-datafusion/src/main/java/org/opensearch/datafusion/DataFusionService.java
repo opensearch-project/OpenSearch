@@ -34,12 +34,12 @@ public class DataFusionService extends AbstractLifecycleComponent {
     /**
      * Creates a new DataFusion service instance.
      */
-    public DataFusionService(Map<DataFormat, DataSourceCodec> dataSourceCodecs, ClusterService clusterService) {
+    public DataFusionService(Map<DataFormat, DataSourceCodec> dataSourceCodecs, ClusterService clusterService, String spill_dir) {
         this.dataSourceRegistry = new DataSourceRegistry(dataSourceCodecs);
 
         // to verify jni
         String version = NativeBridge.getVersionInfo();
-        this.runtimeEnv = new DataFusionRuntimeEnv(clusterService);
+        this.runtimeEnv = new DataFusionRuntimeEnv(clusterService, spill_dir);
     }
 
     @Override

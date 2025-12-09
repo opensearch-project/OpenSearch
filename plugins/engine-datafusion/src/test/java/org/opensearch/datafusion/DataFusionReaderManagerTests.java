@@ -27,6 +27,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.datafusion.core.DataFusionRuntimeEnv;
 import org.opensearch.datafusion.search.*;
 import org.opensearch.env.Environment;
 import org.opensearch.index.engine.exec.*;
@@ -72,12 +73,13 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         clusterSettingsToAdd.add(STATISTICS_CACHE_ENABLED);
         clusterSettingsToAdd.add(STATISTICS_CACHE_SIZE_LIMIT);
         clusterSettingsToAdd.add(STATISTICS_CACHE_EVICTION_TYPE);
-        clusterSettingsToAdd.add(org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION);
+        clusterSettingsToAdd.add(DataFusionRuntimeEnv.DATAFUSION_MEMORY_POOL_CONFIGURATION);
+        clusterSettingsToAdd.add(DataFusionRuntimeEnv.DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);
 
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        service = new DataFusionService(Collections.emptyMap(),clusterService);
+        service = new DataFusionService(Collections.emptyMap(),clusterService, "/tmp");
         service.doStart();
         noOpFileDeleterSupplier = () -> {
             try {
