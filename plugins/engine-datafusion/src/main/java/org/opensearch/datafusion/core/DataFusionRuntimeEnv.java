@@ -31,9 +31,19 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
     /**
      * Controls the memory used for the datafusion query execution
      */
-    public static final Setting<ByteSizeValue> MEMORY_POOL_CONFIGURATION_DATAFUSION = Setting.byteSizeSetting(
+    public static final Setting<ByteSizeValue> DATAFUSION_MEMORY_POOL_CONFIGURATION = Setting.byteSizeSetting(
         "datafusion.search.memory_pool",
         new ByteSizeValue(10, ByteSizeUnit.GB),
+        Setting.Property.Final,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Controls the spill memory used for the datafusion query execution
+     */
+    public static final Setting<ByteSizeValue> DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION = Setting.byteSizeSetting(
+        "datafusion.spill.memory_limit",
+        new ByteSizeValue(20, ByteSizeUnit.GB),
         Setting.Property.Final,
         Setting.Property.NodeScope
     );
@@ -42,11 +52,12 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
      * Creates a new DataFusion runtime environment.
      */
     public DataFusionRuntimeEnv(ClusterService clusterService, String spill_dir) {
-        long memoryLimit = clusterService.getClusterSettings().get(MEMORY_POOL_CONFIGURATION_DATAFUSION).getBytes();
+        long memoryLimit = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_POOL_CONFIGURATION).getBytes();
+        long spillLimit = clusterService.getClusterSettings().get(DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION).getBytes();
         long cacheManagerConfigPtr = CacheUtils.createCacheConfig(clusterService.getClusterSettings());
         NativeBridge.initTokioRuntimeManager(Runtime.getRuntime().availableProcessors());
         NativeBridge.startTokioRuntimeMonitoring(); // TODO : do we need this control in java ?
-        this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerConfigPtr, spill_dir);
+        this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerConfigPtr, spill_dir, spillLimit);
         System.out.println("Runtime : " + this.runtimeHandle);
         this.cacheManager = new CacheManager(this.runtimeHandle);
     }

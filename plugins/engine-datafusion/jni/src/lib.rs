@@ -220,9 +220,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
     _class: JClass,
     memory_pool_limit: jlong,
     cache_manager_ptr: jlong,
-    spill_dir: JString
+    spill_dir: JString,
+    spill_limit: jlong
 ) -> jlong {
-
     let spill_dir: String = match env.get_string(&spill_dir) {
         Ok(path) => path.into(),
         Err(e) => {
@@ -235,7 +235,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
     };
 
     let mut builder = DiskManagerBuilder::default()
-        .with_max_temp_directory_size(20 * 1024 * 1024 * 1024);
+        .with_max_temp_directory_size(spill_limit as u64);
+    println!("Spill Limit is being set to : {}", spill_limit);
     let builder = builder.with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));
 
     let monitor = Arc::new(Monitor::default());

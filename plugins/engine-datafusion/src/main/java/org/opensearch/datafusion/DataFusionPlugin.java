@@ -61,11 +61,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_ENABLED;
-import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_EVICTION_TYPE;
-import static org.opensearch.datafusion.search.cache.CacheSettings.METADATA_CACHE_SIZE_LIMIT;
-
-import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.MEMORY_POOL_CONFIGURATION_DATAFUSION;
+import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_MEMORY_POOL_CONFIGURATION;
+import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION;
 
 
 /**
@@ -178,7 +175,8 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settingList = new ArrayList<>();
 
-        settingList.add(MEMORY_POOL_CONFIGURATION_DATAFUSION);
+        settingList.add(DATAFUSION_MEMORY_POOL_CONFIGURATION);
+        settingList.add(DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION);
         settingList.addAll(Stream.of(
                 CacheSettings.CACHE_SETTINGS,
                 CacheSettings.CACHE_ENABLED)
