@@ -40,6 +40,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.PrimitiveIterator;
+import java.util.stream.IntStream;
 
 /**
  * A snapshot composed out of multiple snapshots
@@ -52,9 +54,8 @@ final class MultiSnapshot implements Translog.Snapshot {
     private final int totalOperations;
     private int overriddenOperations;
     private final Closeable onClose;
-    private int index;
+    private final PrimitiveIterator.OfInt iterator;
     private final SeqNoSet seenSeqNo;
-    private final boolean readForward;
 
     /**
      * Creates a new point in time snapshot of the given snapshots. Those snapshots are always iterated in-order.
@@ -65,8 +66,11 @@ final class MultiSnapshot implements Translog.Snapshot {
         this.overriddenOperations = 0;
         this.onClose = onClose;
         this.seenSeqNo = new SeqNoSet();
-        this.readForward = readForward;
-        this.index = readForward ? 0 : translogs.length - 1;
+        if (readForward) {
+            this.iterator = IntStream.range(0, translogs.length).iterator();
+        } else {
+            this.iterator = IntStream.range(0, translogs.length).map(i -> translogs.length - 1 - i).iterator();
+        }
     }
 
     @Override
@@ -81,8 +85,8 @@ final class MultiSnapshot implements Translog.Snapshot {
 
     @Override
     public Translog.Operation next() throws IOException {
-        while (hasMore()) {
-            final TranslogSnapshot current = translogs[index];
+        while (iterator.hasNext()) {
+            final TranslogSnapshot current = translogs[iterator.nextInt()];
             Translog.Operation op;
             while ((op = current.next()) != null) {
                 if (op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
@@ -91,13 +95,8 @@ final class MultiSnapshot implements Translog.Snapshot {
                     overriddenOperations++;
                 }
             }
-            index = readForward ? index + 1 : index - 1;
         }
         return null;
-    }
-
-    private boolean hasMore() {
-        return readForward ? index < translogs.length : index >= 0;
     }
 
     @Override
