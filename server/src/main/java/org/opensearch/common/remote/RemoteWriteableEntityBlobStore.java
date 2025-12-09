@@ -103,12 +103,20 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
         return clusterName;
     }
 
+    public BlobPath getBlobPathPrefix(String clusterUUID, boolean clusterUUIDAgnostic) {
+        BlobPath path = blobStoreRepository.basePath().add(encodeString(getClusterName())).add(pathToken);
+        if (!clusterUUIDAgnostic) {
+            path = path.add(clusterUUID);
+        }
+        return path;
+    }
+
     public BlobPath getBlobPathPrefix(String clusterUUID) {
-        return blobStoreRepository.basePath().add(encodeString(getClusterName())).add(pathToken).add(clusterUUID);
+        return getBlobPathPrefix(clusterUUID, false);
     }
 
     public BlobPath getBlobPathForUpload(final RemoteWriteableBlobEntity<T> obj) {
-        BlobPath blobPath = getBlobPathPrefix(obj.clusterUUID());
+        BlobPath blobPath = getBlobPathPrefix(obj.clusterUUID(), obj.isClusterUUIDAgnostic());
         for (String token : obj.getBlobPathParameters().getPathTokens()) {
             blobPath = blobPath.add(token);
         }

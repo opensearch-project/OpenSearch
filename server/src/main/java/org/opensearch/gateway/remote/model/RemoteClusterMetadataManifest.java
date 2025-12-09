@@ -75,6 +75,7 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
     ) {
         super(clusterUUID, compressor, namedXContentRegistry);
         this.clusterMetadataManifest = clusterMetadataManifest;
+        setClusterUUIDAgnostic(true);
     }
 
     public RemoteClusterMetadataManifest(
@@ -85,6 +86,7 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
     ) {
         super(clusterUUID, compressor, namedXContentRegistry);
         this.blobName = blobName;
+        setClusterUUIDAgnostic(true);
     }
 
     @Override
@@ -104,10 +106,10 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
         String blobFileName = String.join(
             DELIMITER,
             MANIFEST,
-            RemoteStoreUtils.invertLong(clusterMetadataManifest.getClusterTerm()),
-            RemoteStoreUtils.invertLong(clusterMetadataManifest.getStateVersion()),
+//            RemoteStoreUtils.invertLong(clusterMetadataManifest.getClusterTerm()),
+//            RemoteStoreUtils.invertLong(clusterMetadataManifest.getStateVersion()),
             (clusterMetadataManifest.isCommitted() ? COMMITTED : PUBLISHED),
-            RemoteStoreUtils.invertLong(System.currentTimeMillis()),
+//            RemoteStoreUtils.invertLong(System.currentTimeMillis()),
             String.valueOf(clusterMetadataManifest.getCodecVersion())
             // Keep the codec version at last place only, during we read last place to determine codec version.
         );
