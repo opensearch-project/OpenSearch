@@ -165,7 +165,7 @@ public class QueryPhase {
                 );
         }
 
-        if (searchContext.getDFResults().isEmpty() == false) {
+        if (searchContext.getDFResults() != null && searchContext.getDFResults().isEmpty() == false) {
             SearchEngineResultConversionUtils.convertDFResultGeneric(searchContext);
         } else {
             boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
