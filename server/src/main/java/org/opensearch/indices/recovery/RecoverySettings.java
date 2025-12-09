@@ -476,7 +476,7 @@ public class RecoverySettings {
         mergedSegmentReplicationRateLimiter = getReplicationRateLimiter(mergedSegmentReplicationMaxBytesPerSec);
     }
 
-    private void setMergedSegmentReplicationTimeout(TimeValue mergedSegmentReplicationTimeout) {
+    public void setMergedSegmentReplicationTimeout(TimeValue mergedSegmentReplicationTimeout) {
         this.mergedSegmentReplicationTimeout = mergedSegmentReplicationTimeout;
     }
 
