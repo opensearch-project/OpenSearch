@@ -21,6 +21,8 @@ import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Implementation of the gRPC Document Service.
  */
@@ -51,14 +53,13 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
     public void bulk(org.opensearch.protobufs.BulkRequest request, StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver) {
         final int contentLength = request.getSerializedSize();
         CircuitBreaker inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final AtomicBoolean closed = new AtomicBoolean(false);
 
         try {
-            // Check circuit breaker before processing to prevent OOM when memory pressure is too high
             inFlightRequestsBreaker.addEstimateBytesAndMaybeBreak(contentLength, "<grpc_bulk_request>");
 
             org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
 
-            // Wrap the listener to release circuit breaker bytes when done
             BulkRequestActionListener baseListener = new BulkRequestActionListener(responseObserver);
             org.opensearch.core.action.ActionListener<org.opensearch.action.bulk.BulkResponse> wrappedListener =
                 new org.opensearch.core.action.ActionListener<org.opensearch.action.bulk.BulkResponse>() {
@@ -67,7 +68,9 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
                         try {
                             baseListener.onResponse(response);
                         } finally {
-                            inFlightRequestsBreaker.addWithoutBreaking(-contentLength);
+                            if (closed.compareAndSet(false, true)) {
+                                inFlightRequestsBreaker.addWithoutBreaking(-contentLength);
+                            }
                         }
                     }
 
@@ -76,15 +79,18 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
                         try {
                             baseListener.onFailure(e);
                         } finally {
-                            inFlightRequestsBreaker.addWithoutBreaking(-contentLength);
+                            if (closed.compareAndSet(false, true)) {
+                                inFlightRequestsBreaker.addWithoutBreaking(-contentLength);
+                            }
                         }
                     }
                 };
 
             client.bulk(bulkRequest, wrappedListener);
         } catch (RuntimeException e) {
-            // Release bytes if we fail before calling client.bulk()
-            inFlightRequestsBreaker.addWithoutBreaking(-contentLength);
+            if (closed.compareAndSet(false, true)) {
+                inFlightRequestsBreaker.addWithoutBreaking(-contentLength);
+            }
             logger.debug("DocumentServiceImpl failed: {} - {}", e.getClass().getSimpleName(), e.getMessage());
             StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
             responseObserver.onError(grpcError);
