@@ -13,6 +13,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.versioned.VersionedInputStream;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
@@ -153,6 +154,16 @@ public interface TransferService {
      */
     @ExperimentalApi
     InputStreamWithMetadata downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException;
+
+    /**
+     *
+     * @param path  the remote path from where download should be made
+     * @param fileName the name of the file
+     * @return {@link VersionedInputStream} of the remote file
+     * @throws IOException the exception while reading the data
+     */
+    @ExperimentalApi
+    VersionedInputStream downloadVersionedBlob(Iterable<String> path, String fileName) throws IOException;
 
     void listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit, ActionListener<List<BlobMetadata>> listener);
 

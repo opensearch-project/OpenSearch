@@ -17,6 +17,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.versioned.VersionedInputStream;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -68,6 +70,7 @@ public class RemoteManifestManager {
     private final NamedXContentRegistry namedXContentRegistry;
     // todo remove blobStorerepo from here
     private final BlobStoreRepository blobStoreRepository;
+    private volatile String lastUploadedManifestVersion;
 
     RemoteManifestManager(
         ClusterSettings clusterSettings,
@@ -213,10 +216,17 @@ public class RemoteManifestManager {
                 compressor,
                 namedXContentRegistry
             );
-            return manifestBlobStore.read(remoteClusterMetadataManifest);
+            Tuple<ClusterMetadataManifest, String> manifestByVersion = manifestBlobStore.readWithVersion(remoteClusterMetadataManifest);
+            ClusterMetadataManifest manifest = manifestByVersion.v1();
+            lastUploadedManifestVersion = manifestByVersion.v2();
+            return manifest;
         } catch (IOException e) {
             throw new IllegalStateException(String.format(Locale.ROOT, "Error while downloading cluster metadata - %s", filename), e);
         }
+    }
+
+    public String getLastUploadedManifestVersion() {
+        return lastUploadedManifestVersion;
     }
 
     /**
@@ -236,7 +246,10 @@ public class RemoteManifestManager {
                 compressor,
                 namedXContentRegistry
             );
-            return manifestBlobStore.read(remoteClusterMetadataManifest);
+            Tuple<ClusterMetadataManifest, String> manifestByVersion = manifestBlobStore.readWithVersion(remoteClusterMetadataManifest);
+            ClusterMetadataManifest manifest = manifestByVersion.v1();
+            lastUploadedManifestVersion = manifestByVersion.v2();
+            return manifest;
         } catch (IOException e) {
             throw new IllegalStateException(String.format(Locale.ROOT, "Error while downloading cluster metadata - %s", filename), e);
         }

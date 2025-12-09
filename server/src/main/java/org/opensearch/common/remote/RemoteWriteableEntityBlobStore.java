@@ -10,6 +10,8 @@ package org.opensearch.common.remote;
 
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.versioned.VersionedInputStream;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -75,6 +77,14 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
         assert entity.getFullBlobName() != null;
         try (InputStream inputStream = transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName())) {
             return entity.deserialize(inputStream);
+        }
+    }
+
+    public Tuple<T, String> readWithVersion(final U entity) throws IOException {
+        assert entity.getFullBlobName() != null;
+        VersionedInputStream versionedStream = transferService.downloadVersionedBlob(getBlobPathForDownload(entity), entity.getBlobFileName());
+        try (InputStream inputStream = versionedStream.getInputStream()) {
+            return new Tuple<>(entity.deserialize(inputStream), versionedStream.getVersion());
         }
     }
 

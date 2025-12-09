@@ -24,6 +24,8 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeFileInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
+import org.opensearch.common.blobstore.versioned.VersionedBlobContainer;
+import org.opensearch.common.blobstore.versioned.VersionedInputStream;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
@@ -264,6 +266,21 @@ public class BlobStoreTransferService implements TransferService {
         assert blobStore.isBlobMetadataEnabled();
         return blobStore.blobContainer((BlobPath) path).readBlobWithMetadata(fileName);
     }
+
+    /**
+     * @param path     the remote path from where download should be made
+     * @param fileName the name of the file
+     * @return {@link VersionedInputStream} of the remote file
+     * @throws IOException the exception while reading the data
+     */
+    @Override
+    @ExperimentalApi
+    public VersionedInputStream downloadVersionedBlob(Iterable<String> path, String fileName) throws IOException {
+        BlobContainer blobContainer = blobStore.blobContainer((BlobPath) path);
+        assert blobContainer instanceof VersionedBlobContainer;
+        return ((VersionedBlobContainer) blobContainer).readVersionedBlob(fileName);
+    }
+
 
     @Override
     public void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException {
