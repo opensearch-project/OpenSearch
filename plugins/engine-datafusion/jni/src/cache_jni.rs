@@ -79,13 +79,12 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createCac
             println!("[CACHE INFO] Successfully created {} cache in CustomCacheManager", cache_type_str);
         }
         cache::CACHE_TYPE_STATS => {
-            // Create statistics cache
-            let config = crate::cache_policy::CacheConfig {
-                policy_type: crate::cache_policy::PolicyType::Lru,
-                size_limit: size_limit as usize,
-                eviction_threshold: 0.8,
-            };
-            let stats_cache = Arc::new(crate::statistics_cache::CustomStatisticsCache::new(config));
+            // Create statistics cache with LRU policy
+            let stats_cache = Arc::new(crate::statistics_cache::CustomStatisticsCache::new(
+                crate::eviction_policy::PolicyType::Lru,
+                size_limit as usize,
+                0.8
+            ));
             let datafusion_stats_cache = Arc::new(DefaultFileStatisticsCache::default());
             manager.set_statistics_cache(stats_cache, datafusion_stats_cache);
             println!("[CACHE INFO] Successfully created {} cache in CustomCacheManager", cache_type_str);

@@ -67,13 +67,12 @@ use crate::memory::{Monitor, MonitoredMemoryPool};
 use crate::runtime_manager::RuntimeManager;
 
 mod statistics_cache;
-mod cache_policy;
+mod eviction_policy;
 
 struct DataFusionRuntime {
     runtime_env: RuntimeEnv,
     custom_cache_manager: Option<CustomCacheManager>,
     monitor: Arc<Monitor>,
-    statistics_cache: Option<Arc<CustomStatisticsCache>>,
 }
 
 // TASK monitorint metrics
@@ -244,7 +243,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
             runtime_env,
             custom_cache_manager: Some(custom_cache_manager),
             monitor,
-            statistics_cache: None,
         };
 
         Box::into_raw(Box::new(runtime)) as jlong
@@ -257,7 +255,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
             runtime_env,
             custom_cache_manager: None,
             monitor,
-            statistics_cache: None,
         };
 
         Box::into_raw(Box::new(runtime)) as jlong

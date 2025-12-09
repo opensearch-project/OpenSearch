@@ -4,10 +4,11 @@ use datafusion::execution::cache::cache_unit::{DefaultFileStatisticsCache, Defau
 use datafusion::execution::cache::CacheAccessor;
 use datafusion::physical_plan::Statistics;
 use datafusion::common::stats::Precision;
+use crate::statistics_cache::compute_parquet_statistics;
 use tokio::runtime::Runtime;
 use crate::cache::MutexFileMetadataCache;
 use crate::statistics_cache::CustomStatisticsCache;
-use crate::cache_policy::{CacheConfig, PolicyType};
+use crate::eviction_policy::{CacheConfig, PolicyType};
 use crate::util::{create_object_meta_from_file, construct_file_metadata};
 use object_store::path::Path;
 use object_store::ObjectMeta;
@@ -17,9 +18,7 @@ pub struct CustomCacheManager {
     /// Direct reference to the file metadata cache
     file_metadata_cache: Option<Arc<MutexFileMetadataCache>>,
     /// Direct reference to the statistics cache
-    statistics_cache: Option<Arc<CustomStatisticsCache>>,
-    /// DataFusion's statistics cache for the CacheManagerConfig
-    datafusion_stats_cache: Option<Arc<DefaultFileStatisticsCache>>,
+    statistics_cache: Option<Arc<CustomStatisticsCache>>
 }
 
 impl CustomCacheManager {
@@ -27,8 +26,7 @@ impl CustomCacheManager {
     pub fn new() -> Self {
         Self {
             file_metadata_cache: None,
-            statistics_cache: None,
-            datafusion_stats_cache: None,
+            statistics_cache: None
         }
     }
 
@@ -39,9 +37,8 @@ impl CustomCacheManager {
     }
 
     /// Set the statistics cache
-    pub fn set_statistics_cache(&mut self, cache: Arc<CustomStatisticsCache>, datafusion_cache: Arc<DefaultFileStatisticsCache>) {
+    pub fn set_statistics_cache(&mut self, cache: Arc<CustomStatisticsCache>) {
         self.statistics_cache = Some(cache);
-        self.datafusion_stats_cache = Some(datafusion_cache);
         println!("[CACHE INFO] Statistics cache set in CustomCacheManager");
     }
 
@@ -58,21 +55,21 @@ impl CustomCacheManager {
     /// Build a CacheManagerConfig from the caches stored in this CustomCacheManager
     pub fn build_cache_manager_config(&self) -> CacheManagerConfig {
         let mut config = CacheManagerConfig::default();
-        
+
         // Add file metadata cache if available
         if let Some(cache) = self.get_file_metadata_cache_for_datafusion() {
             config = config.with_file_metadata_cache(Some(cache));
         }
-        
-        // Add statistics cache if available
-        if let Some(stats_cache) = &self.datafusion_stats_cache {
-            config = config.with_files_statistics_cache(Some(stats_cache.clone()));
+
+        // Add statistics cache if available - use CustomStatisticsCache directly
+        if let Some(stats_cache) = &self.statistics_cache {
+            config = config.with_files_statistics_cache(Some(stats_cache.clone() as FileStatisticsCache));
         } else {
             // Default statistics cache if none set
             let default_stats = Arc::new(DefaultFileStatisticsCache::default());
             config = config.with_files_statistics_cache(Some(default_stats));
         }
-        
+
         config
     }
 
@@ -98,17 +95,19 @@ impl CustomCacheManager {
             }
 
             // Add to statistics cache
-            match self.statistics_cache_compute_and_put(file_path) {
-                Ok(true) => {
-                    any_success = true;
+            if let Some(_) = &self.statistics_cache {
+                match self.statistics_cache_compute_and_put(file_path) {
+                    Ok(true) => {
+                        any_success = true;
+                    }
+                    Ok(false) => {
+                        println!("[CACHE INFO] File not added for statistics cache: {}", file_path);
+                    }
+                    Err(e) => {
+                        errors.push(format!("Statistics cache: {}", e));
+                    }
                 }
-                Ok(false) => {
-                    println!("[CACHE INFO] File not added for statistics cache: {}", file_path);
-                }
-                Err(e) => {
-                    errors.push(format!("Statistics cache: {}", e));
-                }
-            }
+        }
 
             let success = if !errors.is_empty() && !any_success {
                 false
@@ -191,7 +190,7 @@ impl CustomCacheManager {
     /// Check if a file exists in any cache
     pub fn contains_file(&self, file_path: &str) -> bool {
         let mut found = false;
-        
+
         // Check metadata cache
         match create_object_meta_from_file(file_path) {
             Ok(object_metas) => {
@@ -371,7 +370,7 @@ impl CustomCacheManager {
             .ok_or_else(|| "No statistics cache configured".to_string())?;
 
         let path = Path::from(file_path.to_string());
-        
+
         // Check if already cached
         if cache.contains_key(&path) {
             println!("[STATS CACHE INFO] Statistics already cached for: {}", file_path);
@@ -411,7 +410,7 @@ impl CustomCacheManager {
 
         for file_path in file_paths {
             let path = Path::from(file_path.clone());
-            
+
             // Skip if already cached
             if cache.contains_key(&path) {
                 success_count += 1;
@@ -442,7 +441,7 @@ impl CustomCacheManager {
         }
 
         if !failed_files.is_empty() {
-            eprintln!("[STATS CACHE WARNING] Failed to compute statistics for {} files: {:?}", 
+            eprintln!("[STATS CACHE WARNING] Failed to compute statistics for {} files: {:?}",
                       failed_files.len(), failed_files);
         }
 
@@ -456,7 +455,7 @@ impl CustomCacheManager {
             .ok_or_else(|| "No statistics cache configured".to_string())?;
 
         let path = Path::from(file_path.to_string());
-        
+
         // Check if already cached
         if cache.get(&path).is_some() {
             println!("[STATS CACHE INFO] Statistics found in cache for: {}", file_path);
@@ -496,73 +495,4 @@ impl CustomCacheManager {
     }
 }
 
-/// Compute statistics from a parquet file using DataFusion's built-in functionality
-fn compute_parquet_statistics(file_path: &str) -> Result<Statistics, Box<dyn std::error::Error>> {
-    use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-    use datafusion::common::stats::Precision;
-    use std::fs::File;
-    
-    // Open the parquet file
-    let file = File::open(file_path)?;
-    
-    // Build parquet reader to get metadata
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
-    let metadata = builder.metadata();
-    let schema = builder.schema();
-    
-    // Get file-level statistics
-    let file_metadata = metadata.file_metadata();
-    let num_rows = file_metadata.num_rows() as usize;
-    
-    // Calculate total byte size from row groups
-    let mut total_byte_size = 0;
-    for row_group in metadata.row_groups() {
-        total_byte_size += row_group.total_byte_size() as usize;
-    }
-    
-    // Extract column statistics from parquet metadata
-    let mut column_statistics = Vec::new();
-    
-    // Get the number of columns from schema
-    let num_columns = schema.fields().len();
-    
-    // Initialize column statistics for each field
-    for field_idx in 0..num_columns {
-        let mut null_count = 0;
-        let mut has_statistics = false;
-        
-        // Aggregate statistics across all row groups for this column
-        for row_group in metadata.row_groups() {
-            if let Some(col_metadata) = row_group.columns().get(field_idx) {
-                if let Some(stats) = col_metadata.statistics() {
-                    has_statistics = true;
-                    null_count += stats.null_count_opt().unwrap_or(0);
-                }
-            }
-        }
-        
-        // Create column statistics
-        let col_stats = datafusion::common::stats::ColumnStatistics {
-            null_count: if has_statistics {
-                Precision::Exact(null_count as usize)
-            } else {
-                Precision::Absent
-            },
-            max_value: Precision::Absent,
-            min_value: Precision::Absent,
-            distinct_count: Precision::Absent,
-            sum_value: Precision::Absent,
-        };
-        
-        column_statistics.push(col_stats);
-    }
-    
-    // Create the Statistics object
-    let statistics = Statistics {
-        num_rows: Precision::Exact(num_rows),
-        total_byte_size: Precision::Exact(total_byte_size),
-        column_statistics,
-    };
-    
-    Ok(statistics)
-}
+

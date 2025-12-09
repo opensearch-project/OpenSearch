@@ -90,9 +90,10 @@ pub async fn execute_query_with_cross_rt_stream(
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
+        
         //.with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer)) // TODO : uncomment this after fix
         .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer))
-        .build();
+                .build();
 
     let ctx = SessionContext::new_with_state(state);
 
@@ -101,6 +102,7 @@ pub async fn execute_query_with_cross_rt_stream(
     let listing_options = ListingOptions::new(Arc::new(file_format))
         .with_file_extension(".parquet")
         .with_files_metadata(files_meta)
+        .with_collect_stat(true)
         .with_table_partition_cols(vec![("row_base".to_string(), DataType::Int64)]);
 
     let resolved_schema = match listing_options
@@ -211,6 +213,11 @@ pub async fn execute_fetch_phase(
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
     list_file_cache.put(table_path.prefix(), object_meta);
 
+        // Debug: Check if statistics cache is None
+    if runtime.runtime_env.cache_manager.get_file_statistic_cache().is_none() {
+        println!("passing none - statistics cache is not available in runtime");
+    }
+
     let runtime_env = RuntimeEnvBuilder::new()
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
@@ -222,7 +229,7 @@ pub async fn execute_fetch_phase(
     let ctx = SessionContext::new_with_config_rt(SessionConfig::new(), Arc::new(runtime_env));
 
     let file_format = ParquetFormat::new();
-    let listing_options = ListingOptions::new(Arc::new(file_format)).with_file_extension(".parquet");
+    let listing_options = ListingOptions::new(Arc::new(file_format)).with_file_extension(".parquet").with_collect_stat(true);
 
     let parquet_schema = listing_options.infer_schema(&ctx.state(), &table_path).await?;
 

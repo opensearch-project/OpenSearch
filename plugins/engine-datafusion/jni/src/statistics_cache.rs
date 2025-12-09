@@ -1,6 +1,6 @@
 
-use crate::cache_policy::{
-    create_policy, CacheConfig, CacheError, CachePolicy, CacheResult, PolicyType,
+use crate::eviction_policy::{
+    create_policy, CacheError, CachePolicy, CacheResult, PolicyType,
 };
 use arrow_array::Array;
 use datafusion::common::stats::{ColumnStatistics, Precision};
@@ -116,8 +116,10 @@ pub struct CustomStatisticsCache {
     inner_cache: DashMap<Path, (ObjectMeta, Arc<Statistics>)>,
     /// The eviction policy (thread-safe)
     policy: Arc<Mutex<Box<dyn CachePolicy>>>,
-    /// Cache configuration
-    config: CacheConfig,
+    /// Size limit for the cache in bytes
+    size_limit: usize,
+    /// Eviction threshold (0.0 to 1.0)
+    eviction_threshold: f64,
     /// Memory usage tracker - maps cache keys to their memory consumption (thread-safe)
     memory_tracker: Arc<Mutex<HashMap<String, usize>>>,
     /// Total memory consumed by all entries (thread-safe)
@@ -130,14 +132,15 @@ pub struct CustomStatisticsCache {
 
 impl CustomStatisticsCache {
     /// Create a new custom statistics cache
-    pub fn new(config: CacheConfig) -> Self {
+    pub fn new(policy_type: PolicyType, size_limit: usize, eviction_threshold: f64) -> Self {
         let inner_cache = DashMap::new();
-        let policy = Arc::new(Mutex::new(create_policy(config.policy_type.clone())));
+        let policy = Arc::new(Mutex::new(create_policy(policy_type)));
 
         Self {
             inner_cache,
             policy,
-            config,
+            size_limit,
+            eviction_threshold,
             memory_tracker: Arc::new(Mutex::new(HashMap::new())),
             total_memory: Arc::new(Mutex::new(0)),
             hit_count: Arc::new(Mutex::new(0)),
@@ -147,7 +150,7 @@ impl CustomStatisticsCache {
 
     /// Create with default configuration
     pub fn with_default_config() -> Self {
-        Self::new(CacheConfig::default())
+        Self::new(PolicyType::Lru, 100 * 1024 * 1024, 0.8) // 100MB default
     }
 
     /// Get the underlying cache for compatibility
@@ -194,12 +197,12 @@ impl CustomStatisticsCache {
 
     /// Update the cache size limit
     pub fn update_size_limit(&mut self, new_limit: usize) -> CacheResult<()> {
-        // Update the config size limit
-        self.config.size_limit = new_limit;
+        // Update the size limit
+        self.size_limit = new_limit;
 
         let current_size = self.current_size()?;
         if current_size > new_limit {
-            let target_eviction = current_size - (new_limit as f64 * 0.8) as usize;
+            let target_eviction = current_size - (new_limit as f64 * self.eviction_threshold) as usize;
             self.evict(target_eviction)?;
         }
         Ok(())
@@ -337,7 +340,6 @@ impl CacheAccessor<Path, Arc<Statistics>> for CustomStatisticsCache {
     type Extra = ObjectMeta;
 
     fn get(&self, k: &Path) -> Option<Arc<Statistics>> {
-        println!("stats cache get called");
         let result = self.inner_cache.get(k);
 
         if result.is_some() {
@@ -389,14 +391,13 @@ impl CacheAccessor<Path, Arc<Statistics>> for CustomStatisticsCache {
         v: Arc<Statistics>,
         e: &Self::Extra,
     ) -> Option<Arc<Statistics>> {
-        println!("stats cache put called");
         let key = k.to_string();
         let memory_size = v.memory_size();
 
         // Check if eviction is needed BEFORE inserting
         let current_size = self.memory_consumed();
-        if current_size + memory_size > (self.config.size_limit as f64 * 0.8) as usize {
-            let target_eviction = (current_size + memory_size) - (self.config.size_limit as f64 * 0.6) as usize;
+        if current_size + memory_size > (self.size_limit as f64 * self.eviction_threshold) as usize {
+            let target_eviction = (current_size + memory_size) - (self.size_limit as f64 * 0.6) as usize;
 
             // Perform actual eviction using remove_internal
             let candidates = {
@@ -539,13 +540,7 @@ mod tests {
 
     #[test]
     fn test_custom_stats_cache_creation() {
-        let config = CacheConfig {
-            policy_type: PolicyType::Lru,
-            size_limit: 1024 * 1024,
-            eviction_threshold: 0.8,
-        };
-
-        let cache = CustomStatisticsCache::new(config);
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 1024 * 1024, 0.8);
         assert_eq!(cache.policy_name().unwrap(), "lru");
         assert_eq!(cache.memory_consumed(), 0);
         assert_eq!(cache.len(), 0);
@@ -577,12 +572,7 @@ mod tests {
 
     #[test]
     fn test_policy_based_eviction_with_memory() {
-        let config = CacheConfig {
-            policy_type: PolicyType::Lru,
-            size_limit: 1000, // Small limit to trigger eviction
-            eviction_threshold: 0.8,
-        };
-        let cache = CustomStatisticsCache::new(config);
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 1000, 0.8);
 
         // Add multiple entries to trigger eviction
         for i in 0..10 {
@@ -704,12 +694,7 @@ mod tests {
 
     #[test]
     fn test_lru_eviction_with_memory() {
-        let config = CacheConfig {
-            policy_type: PolicyType::Lru,
-            size_limit: 2000, // Limit to ~2 entries
-            eviction_threshold: 0.8,
-        };
-        let cache = CustomStatisticsCache::new(config);
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 2000, 0.8);
 
         // Add entries
         let mut paths = vec![];
@@ -736,12 +721,7 @@ mod tests {
 
     #[test]
     fn test_lfu_eviction_with_memory() {
-        let config = CacheConfig {
-            policy_type: PolicyType::Lfu,
-            size_limit: 2000, // Limit to ~2 entries
-            eviction_threshold: 0.8,
-        };
-        let cache = CustomStatisticsCache::new(config);
+        let cache = CustomStatisticsCache::new(PolicyType::Lfu, 2000, 0.8);
 
         // Add entries
         let mut paths = vec![];
@@ -982,12 +962,7 @@ mod tests {
 
     #[test]
     fn test_hit_miss_with_eviction() {
-        let config = CacheConfig {
-            policy_type: PolicyType::Lru,
-            size_limit: 1500, // Small limit to trigger eviction
-            eviction_threshold: 0.8,
-        };
-        let cache = CustomStatisticsCache::new(config);
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 1500, 0.8);
 
         // Add multiple entries to trigger eviction
         let mut paths = vec![];
@@ -1064,437 +1039,35 @@ mod tests {
 // ============================================================================
 
 /// Compute statistics from a parquet file using DataFusion's built-in functionality
-fn compute_parquet_statistics(file_path: &str) -> Result<Statistics, Box<dyn std::error::Error>> {
+pub fn compute_parquet_statistics(file_path: &str) -> Result<Statistics, Box<dyn std::error::Error>> {
     use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-    
+    use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
+    use object_store::local::LocalFileSystem;
+    use object_store::path::Path;
+
     // Open the parquet file
     let file = File::open(file_path)?;
-    
+
     // Build parquet reader to get metadata
     let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
     let metadata = builder.metadata();
-    let schema = builder.schema();
-    
-    // Get file-level statistics
-    let file_metadata = metadata.file_metadata();
-    let num_rows = file_metadata.num_rows() as usize;
-    
-    // Calculate total byte size from row groups
-    let mut total_byte_size = 0;
-    for row_group in metadata.row_groups() {
-        total_byte_size += row_group.total_byte_size() as usize;
-    }
-    
-    // Extract column statistics from parquet metadata
-    let mut column_statistics = Vec::new();
-    
-    // Get the number of columns from schema
-    let num_columns = schema.fields().len();
-    
-    // Initialize column statistics for each field
-    for field_idx in 0..num_columns {
-        let mut null_count = 0;
-        let mut has_statistics = false;
-        
-        // Aggregate statistics across all row groups for this column
-        for row_group in metadata.row_groups() {
-            if let Some(col_metadata) = row_group.columns().get(field_idx) {
-                if let Some(stats) = col_metadata.statistics() {
-                    has_statistics = true;
-                    null_count += stats.null_count_opt().unwrap_or(0);
-                }
-            }
-        }
-        
-        // Create column statistics
-        let col_stats = ColumnStatistics {
-            null_count: if has_statistics {
-                Precision::Exact(null_count as usize)
-            } else {
-                Precision::Absent
-            },
-            max_value: Precision::Absent,
-            min_value: Precision::Absent,
-            distinct_count: Precision::Absent,
-            sum_value: Precision::Absent,
-        };
-        
-        column_statistics.push(col_stats);
-    }
-    
-    // Create the Statistics object
-    let statistics = Statistics {
-        num_rows: Precision::Exact(num_rows),
-        total_byte_size: Precision::Exact(total_byte_size),
-        column_statistics,
+    let schema = builder.schema().clone();
+
+    // Create ObjectStore and ObjectMeta for the file
+    let store: Arc<dyn object_store::ObjectStore> = Arc::new(LocalFileSystem::new());
+    let path = Path::from(file_path);
+    let file_metadata = std::fs::metadata(file_path)?;
+    let object_meta = ObjectMeta {
+        location: path,
+        last_modified: chrono::DateTime::from(file_metadata.modified()?),
+        size: file_metadata.len(),
+        e_tag: None,
+        version: None,
     };
-    
+
+    // Use DataFusion's method to extract statistics from parquet metadata
+    // statistics_from_parquet_metadata is an associated function that takes metadata and schema
+    let statistics = DFParquetMetadata::statistics_from_parquet_metadata(metadata, &schema)?;
+
     Ok(statistics)
-}
-
-/// Create a statistics cache and add it to the CacheManagerConfig
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createStatisticsCache(
-    _env: JNIEnv,
-    _class: JClass,
-    config_ptr: jlong,
-    size_limit: jlong,
-) -> jlong {
-    // Create memory-aware policy cache with default LRU policy
-    let config = CacheConfig {
-        policy_type: PolicyType::Lru,
-        size_limit: size_limit as usize,
-        eviction_threshold: 0.8,
-    };
-    let memory_aware_cache = CustomStatisticsCache::new(config);
-
-    // Create a new DefaultFileStatisticsCache for the CacheManagerConfig
-    let stats_cache = Arc::new(DefaultFileStatisticsCache::default());
-
-    // Update the CacheManagerConfig at the same memory location
-    if config_ptr != 0 {
-        let cache_manager_config = unsafe { &mut *(config_ptr as *mut CacheManagerConfig) };
-        *cache_manager_config = cache_manager_config
-            .clone()
-            .with_files_statistics_cache(Some(stats_cache));
-    }
-
-    // Return the CustomStatisticsCache pointer for JNI operations
-    Box::into_raw(Box::new(memory_aware_cache)) as jlong
-}
-
-/// Get current memory usage from statistics cache
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_statisticsCacheGetSize(
-    _env: JNIEnv,
-    _class: JClass,
-    cache_ptr: jlong,
-) -> jlong {
-    let cache = unsafe { &*(cache_ptr as *const CustomStatisticsCache) };
-    cache.memory_consumed() as jlong
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_statisticsCacheContainsFile(
-    mut env: JNIEnv,
-    _class: JClass,
-    cache_ptr: jlong,
-    file_path: JString
-) -> bool {
-    let file_path: String = match env.get_string(&file_path) {
-        Ok(s) => s.into(),
-        Err(_) => return false,
-    };
-    let cache = unsafe { &*(cache_ptr as *const CustomStatisticsCache) };
-
-    let path_obj = match Path::from_url_path(&file_path) {
-        Ok(path) => path,
-        Err(_) => {
-            println!("Failed to create path object from: {}", file_path);
-            return false;
-        }
-    };
-    cache.inner().contains_key(&path_obj)
-}
-
-/// Update size limit for statistics cache
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_statisticsCacheUpdateSizeLimit(
-    _env: JNIEnv,
-    _class: JClass,
-    cache_ptr: jlong,
-    new_size_limit: jlong,
-) -> bool {
-    let cache = unsafe { &mut *(cache_ptr as *mut CustomStatisticsCache) };
-
-    match cache.update_size_limit(new_size_limit as usize) {
-        Ok(_) => {
-            println!("Statistics cache size limit updated to: {}", new_size_limit);
-            true
-        }
-        Err(_) => {
-            println!("Failed to update statistics cache size limit to: {}", new_size_limit);
-            false
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_statisticsCacheClear(
-    _env: JNIEnv,
-    _class: JClass,
-    cache_ptr: jlong,
-) {
-    let cache = unsafe { &*(cache_ptr as *const CustomStatisticsCache) };
-    cache.clear();
-    println!("Statistics cache cleared");
-}
-
-/// Get hit count from statistics cache
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_statisticsCacheGetHitCount(
-    _env: JNIEnv,
-    _class: JClass,
-    cache_ptr: jlong,
-) -> jlong {
-    let cache = unsafe { &*(cache_ptr as *const CustomStatisticsCache) };
-    cache.hit_count() as jlong
-}
-
-/// Get miss count from statistics cache
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_statisticsCacheGetMissCount(
-    _env: JNIEnv,
-    _class: JClass,
-    cache_ptr: jlong,
-) -> jlong {
-    let cache = unsafe { &*(cache_ptr as *const CustomStatisticsCache) };
-    cache.miss_count() as jlong
-}
-
-/// Get hit rate from statistics cache (returns value between 0.0 and 1.0)
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_statisticsCacheGetHitRate(
-    _env: JNIEnv,
-    _class: JClass,
-    cache_ptr: jlong,
-) -> f64 {
-    let cache = unsafe { &*(cache_ptr as *const CustomStatisticsCache) };
-    cache.hit_rate()
-}
-
-/// Reset hit and miss counters in statistics cache
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_statisticsCacheResetStats(
-    _env: JNIEnv,
-    _class: JClass,
-    cache_ptr: jlong,
-) {
-    let cache = unsafe { &*(cache_ptr as *const CustomStatisticsCache) };
-    cache.reset_stats();
-    println!("Statistics cache hit/miss counters reset");
-}
-
-/// Automatically compute and cache statistics for a parquet file
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_statisticsCacheComputeAndPut(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_ptr: jlong,
-    file_path: JString,
-) -> jboolean {
-    if runtime_ptr == 0 {
-        let _ = env.throw_new("java/lang/NullPointerException", "Runtime pointer is null");
-        return 0;
-    }
-
-    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
-    
-    // Get the statistics cache
-    let stats_cache = match &runtime.statistics_cache {
-        Some(cache) => cache,
-        None => {
-            let _ = env.throw_new("java/lang/IllegalStateException", "Statistics cache not initialized");
-            return 0;
-        }
-    };
-
-    // Parse file path
-    let file_path_str: String = match env.get_string(&file_path) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            let msg = format!("Failed to convert file path: {}", e);
-            eprintln!("[STATS CACHE ERROR] {}", msg);
-            let _ = env.throw_new("java/lang/IllegalArgumentException", &msg);
-            return 0;
-        }
-    };
-
-    // Create Path object for cache key
-    let path = Path::from(file_path_str.clone());
-    
-    // Check if already cached
-    if stats_cache.contains_key(&path) {
-        eprintln!("[STATS CACHE INFO] Statistics already cached for: {}", file_path_str);
-        return 1; // Already cached
-    }
-
-    // Read parquet file metadata to compute statistics
-    match compute_parquet_statistics(&file_path_str) {
-        Ok(stats) => {
-            // Create ObjectMeta for the cache entry
-            let meta = ObjectMeta {
-                location: path.clone(),
-                last_modified: chrono::Utc::now(),
-                size: std::fs::metadata(&file_path_str)
-                    .map(|m| m.len())
-                    .unwrap_or(0),
-                e_tag: None,
-                version: None,
-            };
-
-            // Put statistics in cache
-            stats_cache.put_with_extra(&path, Arc::new(stats), &meta);
-            
-            eprintln!("[STATS CACHE INFO] Successfully computed and cached statistics for: {}", file_path_str);
-            1 // Success
-        }
-        Err(e) => {
-            let msg = format!("Failed to compute statistics for {}: {}", file_path_str, e);
-            eprintln!("[STATS CACHE ERROR] {}", msg);
-            let _ = env.throw_new("java/io/IOException", &msg);
-            0 // Failure
-        }
-    }
-}
-
-/// Batch compute and cache statistics for multiple parquet files
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_statisticsCacheBatchComputeAndPut(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_ptr: jlong,
-    file_paths: jni::objects::JObjectArray,
-) -> jlong {
-    use crate::util::parse_string_arr;
-    
-    if runtime_ptr == 0 {
-        let _ = env.throw_new("java/lang/NullPointerException", "Runtime pointer is null");
-        return 0;
-    }
-
-    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
-    
-    // Get the statistics cache
-    let stats_cache = match &runtime.statistics_cache {
-        Some(cache) => cache,
-        None => {
-            let _ = env.throw_new("java/lang/IllegalStateException", "Statistics cache not initialized");
-            return 0;
-        }
-    };
-
-    // Parse file paths array
-    let file_paths_vec: Vec<String> = match parse_string_arr(&mut env, file_paths) {
-        Ok(paths) => paths,
-        Err(e) => {
-            let msg = format!("Failed to parse file paths array: {}", e);
-            eprintln!("[STATS CACHE ERROR] {}", msg);
-            let _ = env.throw_new("java/lang/IllegalArgumentException", &msg);
-            return 0;
-        }
-    };
-
-    let mut success_count = 0;
-    let mut failed_files = Vec::new();
-
-    for file_path_str in file_paths_vec {
-        let path = Path::from(file_path_str.clone());
-        
-        // Skip if already cached
-        if stats_cache.contains_key(&path) {
-            success_count += 1;
-            continue;
-        }
-
-        // Compute and cache statistics
-        match compute_parquet_statistics(&file_path_str) {
-            Ok(stats) => {
-                let meta = ObjectMeta {
-                    location: path.clone(),
-                    last_modified: chrono::Utc::now(),
-                    size: std::fs::metadata(&file_path_str)
-                        .map(|m| m.len())
-                        .unwrap_or(0),
-                    e_tag: None,
-                    version: None,
-                };
-
-                stats_cache.put_with_extra(&path, Arc::new(stats), &meta);
-                success_count += 1;
-            }
-            Err(e) => {
-                eprintln!("[STATS CACHE ERROR] Failed to compute statistics for {}: {}", file_path_str, e);
-                failed_files.push(file_path_str);
-            }
-        }
-    }
-
-    if !failed_files.is_empty() {
-        eprintln!("[STATS CACHE WARNING] Failed to compute statistics for {} files: {:?}", 
-                  failed_files.len(), failed_files);
-    }
-
-    eprintln!("[STATS CACHE INFO] Successfully computed and cached statistics for {} files", success_count);
-    success_count as jlong
-}
-
-/// Get statistics from cache or compute if not present
-#[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_statisticsCacheGetOrCompute(
-    mut env: JNIEnv,
-    _class: JClass,
-    runtime_ptr: jlong,
-    file_path: JString,
-) -> jboolean {
-    if runtime_ptr == 0 {
-        let _ = env.throw_new("java/lang/NullPointerException", "Runtime pointer is null");
-        return 0;
-    }
-
-    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
-    
-    // Get the statistics cache
-    let stats_cache = match &runtime.statistics_cache {
-        Some(cache) => cache,
-        None => {
-            let _ = env.throw_new("java/lang/IllegalStateException", "Statistics cache not initialized");
-            return 0;
-        }
-    };
-
-    // Parse file path
-    let file_path_str: String = match env.get_string(&file_path) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            let msg = format!("Failed to convert file path: {}", e);
-            eprintln!("[STATS CACHE ERROR] {}", msg);
-            let _ = env.throw_new("java/lang/IllegalArgumentException", &msg);
-            return 0;
-        }
-    };
-
-    let path = Path::from(file_path_str.clone());
-    
-    // Check if already cached
-    if stats_cache.get(&path).is_some() {
-        eprintln!("[STATS CACHE INFO] Statistics found in cache for: {}", file_path_str);
-        return 1; // Found in cache
-    }
-
-    // Not in cache, compute and add
-    match compute_parquet_statistics(&file_path_str) {
-        Ok(stats) => {
-            let meta = ObjectMeta {
-                location: path.clone(),
-                last_modified: chrono::Utc::now(),
-                size: std::fs::metadata(&file_path_str)
-                    .map(|m| m.len())
-                    .unwrap_or(0),
-                e_tag: None,
-                version: None,
-            };
-
-            stats_cache.put_with_extra(&path, Arc::new(stats), &meta);
-            
-            eprintln!("[STATS CACHE INFO] Computed and cached statistics for: {}", file_path_str);
-            1 // Success
-        }
-        Err(e) => {
-            let msg = format!("Failed to compute statistics for {}: {}", file_path_str, e);
-            eprintln!("[STATS CACHE ERROR] {}", msg);
-            let _ = env.throw_new("java/io/IOException", &msg);
-            0 // Failure
-        }
-    }
 }
