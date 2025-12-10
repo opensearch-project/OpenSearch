@@ -31,6 +31,21 @@ public class RandomScoreFunctionProtoUtilsTests extends OpenSearchTestCase {
         assertEquals(Integer.valueOf(12345), randomScoreBuilder.getSeed());
     }
 
+    public void testFromProtoWithInt64Seed() {
+        // Create a random score function with int64 seed
+        RandomScoreFunctionSeed seed = RandomScoreFunctionSeed.newBuilder().setInt64(9876543210L).build();
+
+        RandomScoreFunction randomScore = RandomScoreFunction.newBuilder().setField("_seq_no").setSeed(seed).build();
+
+        ScoreFunctionBuilder<?> result = RandomScoreFunctionProtoUtils.fromProto(randomScore);
+
+        assertThat(result, instanceOf(RandomScoreFunctionBuilder.class));
+        RandomScoreFunctionBuilder randomScoreBuilder = (RandomScoreFunctionBuilder) result;
+        assertEquals("_seq_no", randomScoreBuilder.getField());
+        // Long seeds are converted to int via Long.hashCode() internally
+        assertEquals(Integer.valueOf(Long.hashCode(9876543210L)), randomScoreBuilder.getSeed());
+    }
+
     public void testFromProtoWithStringSeed() {
         // Create a random score function with string seed
         RandomScoreFunctionSeed seed = RandomScoreFunctionSeed.newBuilder().setString("test_seed").build();

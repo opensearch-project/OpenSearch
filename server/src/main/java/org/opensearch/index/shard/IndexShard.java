@@ -135,6 +135,7 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.IngestionEngine;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
@@ -4022,6 +4023,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     protected Engine getEngineOrNull() {
         return this.currentEngineReference.get();
+    }
+
+    // Only used for initializing segment replication CopyState
+    public long getLastRefreshedCheckpoint() {
+        Engine engine = getEngine();
+        assert engine instanceof InternalEngine;
+        return ((InternalEngine) engine).lastRefreshedCheckpoint();
     }
 
     public void startRecovery(
