@@ -38,7 +38,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support dynamic consumer configuration update in pull-based ingestion ([#19963](https://github.com/opensearch-project/OpenSearch/pull/19963))
 - Cache the `StoredFieldsReader` for scroll query optimization ([#20112](https://github.com/opensearch-project/OpenSearch/pull/20112))
 - Add Hybrid Cardinality collector to prioritize Ordinals Collector ([#19524](https://github.com/opensearch-project/OpenSearch/pull/19524))
-- Add support for forward translog reading ([#20163](https://github.com/opensearch-project/OpenSearch/pull/20163)
 - Add support for forward translog reading ([#20163](https://github.com/opensearch-project/OpenSearch/pull/20163))
 
 ### Changed
