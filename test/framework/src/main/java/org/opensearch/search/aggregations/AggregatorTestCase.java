@@ -859,7 +859,10 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             totalCollectCount = rootCount.getCollectCount().get();
         }
 
-        assertEquals(expectedCount, totalCollectCount);
+        if (expectedCount != -1) {
+            // When expectedCount is -1, we do not care about the collect count.
+            assertEquals(expectedCount, totalCollectCount);
+        }
 
         if (randomBoolean() && aggs.size() > 1) {
             // sometimes do an incremental reduce
