@@ -518,9 +518,9 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> INDEX_MAX_RETRY_ON_LOOKUP_MAP_LOCK_ACQUISITION_EXCEPTION = Setting.intSetting(
         "index.context_aware.max_retry_on_lookup_map_acquisition_exception",
-        15,
-        5,
         100,
+        5,
+        500,
         Setting.Property.IndexScope,
         Property.Dynamic
     );

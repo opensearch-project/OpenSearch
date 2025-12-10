@@ -40,7 +40,6 @@ import org.opensearch.index.store.Store;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +47,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 import static org.opensearch.index.BucketedCompositeDirectory.CHILD_DIRECTORY_PREFIX;
 
@@ -209,12 +207,12 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
      * each refresh cycle.
      *
      */
-    public static final class CriteriaBasedIndexWriterLookup implements Closeable {
+    public static class CriteriaBasedIndexWriterLookup implements Closeable {
         private final Map<String, DisposableIndexWriter> criteriaBasedIndexWriterMap;
         private final Map<BytesRef, DeleteEntry> lastDeleteEntrySet;
         private final Map<BytesRef, String> criteria;
         private final ReentrantReadWriteLock mapLock;
-        private final CriteriaBasedWriterLock mapReadLock;
+        CriteriaBasedWriterLock mapReadLock;
         private final ReleasableLock mapWriteLock;
         private final long version;
         private boolean closed;
@@ -300,7 +298,7 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
             return closed;
         }
 
-        private static final class CriteriaBasedWriterLock implements Releasable {
+        static class CriteriaBasedWriterLock implements Releasable {
             private final Lock lock;
             // a per-thread count indicating how many times the thread has entered the lock; only works if assertions are enabled
             private final ThreadLocal<Integer> holdingThreads;
@@ -405,9 +403,9 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
      *
      * @opensearch.internal
      */
-    final static class LiveIndexWriterDeletesMap {
+    static class LiveIndexWriterDeletesMap {
         // All writes (adds and deletes) go into here:
-        final CriteriaBasedIndexWriterLookup current;
+        CriteriaBasedIndexWriterLookup current;
 
         // Used while refresh is running, and to hold adds/deletes until refresh finishes. We read from both current and old on lookup:
         final CriteriaBasedIndexWriterLookup old;
@@ -468,16 +466,31 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         DisposableIndexWriter computeIndexWriterIfAbsentForCriteria(
             String criteria,
             CheckedBiFunction<String, CriteriaBasedIndexWriterLookup, DisposableIndexWriter, IOException> indexWriterSupplier,
-            ShardId shardId
+            ShardId shardId,
+            int maxRetryOnLookupMapAcquisitionException
         ) {
             boolean success = false;
             CriteriaBasedIndexWriterLookup current = null;
             try {
-                current = getCurrentMap();
+                int counter = 0;
+                while ((current == null || current.isClosed()) && counter < maxRetryOnLookupMapAcquisitionException) {
+                    // This function acquires a first read lock on a map which does not have any write lock present. Current keeps
+                    // on getting rotated during refresh, so there will be one current on which read lock can be obtained.
+                    // Validate that no write lock is applied on the map and the map is not closed. Idea here is write lock was
+                    // never applied on this map as write lock gets only during closing time. We are doing this instead of acquire,
+                    // because acquire can also apply a read lock in case refresh completed and map is closed.
+                    current = this.current.mapReadLock.tryAcquire();
+                    if (current != null && current.isClosed() == true) {
+                        current.mapReadLock.close();
+                        current = null;
+                    }
+
+                    ++counter;
+                }
+
                 if (current == null || current.isClosed()) {
                     throw new LookupMapLockAcquisitionException(shardId, "Unable to obtain lock on the current Lookup map", null);
                 }
-
                 DisposableIndexWriter writer = current.computeIndexWriterIfAbsentForCriteria(criteria, indexWriterSupplier);
                 success = true;
                 return writer;
@@ -487,15 +500,6 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
                     current.mapReadLock.close();
                 }
             }
-        }
-
-        // This function acquires a first read lock on a map which does not have any write lock present. Current keeps
-        // on getting rotated during refresh, so there will be one current on which read lock can be obtained.
-        // Validate that no write lock is applied on the map and the map is not closed. Idea here is write lock was
-        // never applied on this map as write lock gets only during closing time. We are doing this instead of acquire,
-        // because acquire can also apply a read lock in case refresh completed and map is closed.
-        CriteriaBasedIndexWriterLookup getCurrentMap() {
-            return current.mapReadLock.tryAcquire();
         }
 
         // Used for Test Case.
@@ -672,7 +676,8 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         return currentLiveIndexWriterDeletesMap.computeIndexWriterIfAbsentForCriteria(
             criteria,
             indexWriterSupplier,
-            engineConfig.getShardId()
+            engineConfig.getShardId(),
+            engineConfig.getIndexSettings().getMaxRetryOnLookupMapAcquisitionException()
         );
     }
 
@@ -684,12 +689,8 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     public long getFlushingBytes() {
         ensureOpen();
         long flushingBytes = 0;
-        Collection<IndexWriter> currentWriterSet = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
-        for (IndexWriter currentWriter : currentWriterSet) {
-            flushingBytes += currentWriter.getFlushingBytes();
+        for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()) {
+            flushingBytes += disposableIndexWriter.getIndexWriter().getFlushingBytes();
         }
 
         return flushingBytes + accumulatingIndexWriter.getFlushingBytes();
@@ -699,13 +700,8 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     public long getPendingNumDocs() {
         ensureOpen();
         long pendingNumDocs = 0;
-        Collection<IndexWriter> currentWriterSet = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
-        ;
-        for (IndexWriter currentWriter : currentWriterSet) {
-            pendingNumDocs += currentWriter.getPendingNumDocs();
+        for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()) {
+            pendingNumDocs += disposableIndexWriter.getIndexWriter().getPendingNumDocs();
         }
 
         // TODO: Should we add docs for old writer as well?
@@ -733,24 +729,17 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
 
     @Override
     public Throwable getTragicException() {
-        Collection<IndexWriter> currentWriterSet = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
-        for (IndexWriter writer : currentWriterSet) {
-            if (writer.isOpen() == false && writer.getTragicException() != null) {
-                return writer.getTragicException();
+        for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()) {
+            if (disposableIndexWriter.getIndexWriter().isOpen() == false
+                && disposableIndexWriter.getIndexWriter().getTragicException() != null) {
+                return disposableIndexWriter.getIndexWriter().getTragicException();
             }
         }
 
-        Collection<IndexWriter> oldWriterSet = liveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
-        ;
-        for (IndexWriter writer : oldWriterSet) {
-            if (writer.isOpen() == false && writer.getTragicException() != null) {
-                return writer.getTragicException();
+        for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()) {
+            if (disposableIndexWriter.getIndexWriter().isOpen() == false
+                && disposableIndexWriter.getIndexWriter().getTragicException() != null) {
+                return disposableIndexWriter.getIndexWriter().getTragicException();
             }
         }
 
@@ -765,27 +754,19 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     public final long ramBytesUsed() {
         ensureOpen();
         long ramBytesUsed = 0;
-        Collection<IndexWriter> currentWriterSet = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
 
         try (ReleasableLock ignore = liveIndexWriterDeletesMap.current.mapWriteLock.acquire()) {
-            for (IndexWriter indexWriter : currentWriterSet) {
-                if (indexWriter.isOpen() == true) {
-                    ramBytesUsed += indexWriter.ramBytesUsed();
+            for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()) {
+                if (disposableIndexWriter.getIndexWriter().isOpen() == true) {
+                    ramBytesUsed += disposableIndexWriter.getIndexWriter().ramBytesUsed();
                 }
             }
         }
 
-        Collection<IndexWriter> oldWriterSet = liveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()
-            .stream()
-            .map(DisposableIndexWriter::getIndexWriter)
-            .collect(Collectors.toSet());
         try (ReleasableLock ignore = liveIndexWriterDeletesMap.old.mapWriteLock.acquire()) {
-            for (IndexWriter indexWriter : oldWriterSet) {
-                if (indexWriter.isOpen() == true) {
-                    ramBytesUsed += indexWriter.ramBytesUsed();
+            for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()) {
+                if (disposableIndexWriter.getIndexWriter().isOpen() == true) {
+                    ramBytesUsed += disposableIndexWriter.getIndexWriter().ramBytesUsed();
                 }
             }
         }
@@ -813,24 +794,15 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
 
     public void rollback() throws IOException {
         if (shouldClose()) {
-            Collection<IndexWriter> currentWriterSet = liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()
-                .stream()
-                .map(DisposableIndexWriter::getIndexWriter)
-                .collect(Collectors.toSet());
-
-            for (IndexWriter indexWriter : currentWriterSet) {
-                if (indexWriter.isOpen() == true) {
-                    indexWriter.rollback();
+            for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.current.criteriaBasedIndexWriterMap.values()) {
+                if (disposableIndexWriter.getIndexWriter().isOpen() == true) {
+                    disposableIndexWriter.getIndexWriter().rollback();
                 }
             }
 
-            Collection<IndexWriter> oldWriterSet = liveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()
-                .stream()
-                .map(DisposableIndexWriter::getIndexWriter)
-                .collect(Collectors.toSet());
-            for (IndexWriter indexWriter : oldWriterSet) {
-                if (indexWriter.isOpen() == true) {
-                    indexWriter.rollback();
+            for (DisposableIndexWriter disposableIndexWriter : liveIndexWriterDeletesMap.old.criteriaBasedIndexWriterMap.values()) {
+                if (disposableIndexWriter.getIndexWriter().isOpen() == true) {
+                    disposableIndexWriter.getIndexWriter().rollback();
                 }
             }
 
