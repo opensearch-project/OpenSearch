@@ -130,6 +130,17 @@ public class FileSnapshot implements Closeable {
             return primaryTerm;
         }
 
+        /**
+         * Returns the generation number.
+         * Default implementation returns -1 for non-generational files.
+         * Subclasses should override this to return the actual generation.
+         *
+         * @return the generation number, or -1 if not applicable
+         */
+        public long getGeneration() {
+            return -1;
+        }
+
         public void setMetadataFileInputStream(InputStream inputStream) {
             this.metadataFileInputStream = inputStream;
         }
@@ -160,7 +171,7 @@ public class FileSnapshot implements Closeable {
      *
      * @opensearch.internal
      */
-    public static final class TranslogFileSnapshot extends TransferFileSnapshot {
+    public static class TranslogFileSnapshot extends TransferFileSnapshot {
 
         private final long generation;
 
@@ -169,6 +180,7 @@ public class FileSnapshot implements Closeable {
             this.generation = generation;
         }
 
+        @Override
         public long getGeneration() {
             return generation;
         }
@@ -208,6 +220,7 @@ public class FileSnapshot implements Closeable {
             this.generation = generation;
         }
 
+        @Override
         public long getGeneration() {
             return generation;
         }

@@ -216,7 +216,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
         @Nullable CryptoMetadata cryptoMetadata
     ) throws IOException {
         // FsBlobContainer doesn't handle metadata or encryption
-        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+        // writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+        writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
     @Override

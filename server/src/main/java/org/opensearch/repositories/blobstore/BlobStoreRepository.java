@@ -4186,16 +4186,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             executor.execute(ActionRunnable.wrap(listener, l -> {
                 try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
                     snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store, cryptoMetadata);
-                    executeOneFileSnapshot(
-                        store,
-                        snapshotId,
-                        indexId,
-                        snapshotStatus,
-                        filesToSnapshot,
-                        executor,
-                        l,
-                        cryptoMetadata
-                    );
+                    executeOneFileSnapshot(store, snapshotId, indexId, snapshotStatus, filesToSnapshot, executor, l, cryptoMetadata);
                 }
             }));
         }
