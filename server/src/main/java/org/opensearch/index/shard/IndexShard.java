@@ -5203,10 +5203,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void updateReplicationCheckpoint() {
         final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = getLatestSegmentInfosAndCheckpoint();
-        try (final GatedCloseable<SegmentInfos> ignored = tuple.v1()) {
+        try (final GatedCloseable<SegmentInfos> snapshot = tuple.v1()) {
             replicationTracker.setLatestReplicationCheckpoint(tuple.v2());
-            if (isPrimaryMode() && routingEntry().active()) {
-                updatePrimaryMergedSegmentCheckpoints(tuple.v1().get());
+            SegmentInfos segmentInfos = snapshot.get();
+            if (segmentInfos != null && isPrimaryMode() && routingEntry().active()) {
+                updatePrimaryMergedSegmentCheckpoints(segmentInfos);
             }
         } catch (IOException e) {
             throw new OpenSearchException("Error Closing SegmentInfos Snapshot", e);
