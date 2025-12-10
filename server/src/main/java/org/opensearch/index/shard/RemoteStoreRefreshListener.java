@@ -449,8 +449,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             && this.lastUploadedLuceneGeneration == currentLuceneGeneration
             && this.lastUploadedCheckpointVersion == currentCheckpointVersion) {
 
-            // LOGIC: The index state (segment files, primary authority, and replication progress)
-            // is identical to the last state successfully uploaded. Skip the costly remote I/O.
+            // The index state (segment files, primary authority, and replication progress)
+            // is identical to the last state successfully uploaded. Skip the remote I/O.
             return;
         }
 
