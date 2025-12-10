@@ -8,6 +8,7 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.crypto.CryptoHandler;
@@ -118,6 +119,52 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
                 encryptedStream,
                 encryptedLength,
                 failIfAlreadyExists
+            )
+        );
+    }
+
+    @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        Map<String, String> metadata
+    ) throws IOException {
+        executeWrite(
+            inputStream,
+            blobSize,
+            (encryptedStream, encryptedLength) -> blobContainer.writeBlobWithMetadata(
+                blobName,
+                encryptedStream,
+                encryptedLength,
+                failIfAlreadyExists,
+                metadata
+            )
+        );
+    }
+
+    @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        Map<String, String> metadata,
+        CryptoMetadata cryptoMetadata
+    ) throws IOException {
+        // Note: cryptoMetadata parameter is for SSE-KMS settings
+        // SSE-KMS settings are passed through to underlying container
+        executeWrite(
+            inputStream,
+            blobSize,
+            (encryptedStream, encryptedLength) -> blobContainer.writeBlobWithMetadata(
+                blobName,
+                encryptedStream,
+                encryptedLength,
+                failIfAlreadyExists,
+                metadata,
+                cryptoMetadata
             )
         );
     }

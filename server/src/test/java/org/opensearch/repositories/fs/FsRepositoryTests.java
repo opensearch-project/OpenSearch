@@ -141,7 +141,8 @@ public class FsRepositoryTests extends OpenSearchTestCase {
                     snapshotStatus,
                     Version.CURRENT,
                     Collections.emptyMap(),
-                    future1
+                    future1,
+                    null
                 );
                 future1.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
@@ -183,7 +184,8 @@ public class FsRepositoryTests extends OpenSearchTestCase {
                     snapshotStatus,
                     Version.CURRENT,
                     Collections.emptyMap(),
-                    future2
+                    future2,
+                    null
                 );
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();

@@ -9,6 +9,8 @@
 package org.opensearch.index.translog;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobPath;
@@ -390,7 +392,7 @@ public class RemoteFsTranslog extends Translog {
         prepareAndUpload(primaryTermSupplier.getAsLong(), null);
     }
 
-    private boolean prepareAndUpload(Long primaryTerm, Long generation) throws IOException {
+    protected boolean prepareAndUpload(Long primaryTerm, Long generation) throws IOException {
         // During primary relocation, both the old and new primary have engine created with RemoteFsTranslog and having
         // ReplicationTracker.primaryMode() as true. However, before we perform the `internal:index/shard/replication/segments_sync`
         // action which re-downloads the segments and translog on the new primary. We are ensuring 2 things here -
@@ -449,7 +451,7 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    private boolean upload(long primaryTerm, long generation, long maxSeqNo) throws IOException {
+    protected boolean upload(long primaryTerm, long generation, long maxSeqNo) throws IOException {
         logger.trace("uploading translog for primary term {} generation {}", primaryTerm, generation);
         try (
             TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
@@ -462,9 +464,13 @@ public class RemoteFsTranslog extends Translog {
             ).build()
         ) {
             Checkpoint checkpoint = current.getLastSyncedCheckpoint();
+
+            // resolve Index-level cryptoMetadata
+            CryptoMetadata cryptoMetadata = resolveCryptoMetadata();
             return translogTransferManager.transferSnapshot(
                 transferSnapshotProvider,
-                new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo, checkpoint.globalCheckpoint)
+                new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo, checkpoint.globalCheckpoint),
+                cryptoMetadata
             );
         } finally {
             syncPermit.release(SYNC_PERMIT);
@@ -787,5 +793,14 @@ public class RemoteFsTranslog extends Translog {
             return false;
         }
         return readers.size() >= maxRemoteTlogReaders;
+    }
+
+    private CryptoMetadata resolveCryptoMetadata() {
+        IndexMetadata indexMetadata = indexSettings.getIndexMetadata();
+        if (indexMetadata == null) {
+            return null;
+        }
+        CryptoMetadata cryptoMetadata = CryptoMetadata.fromIndexSettings(indexMetadata.getSettings());
+        return cryptoMetadata;
     }
 }

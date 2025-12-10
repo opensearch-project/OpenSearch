@@ -19,6 +19,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -372,11 +373,12 @@ public class RemoteDirectory extends Directory {
         IOContext context,
         Runnable postUploadRunner,
         ActionListener<Void> listener,
-        boolean lowPriorityUpload
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata
     ) {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
             try {
-                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload);
+                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload, cryptoMetadata);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -392,7 +394,8 @@ public class RemoteDirectory extends Directory {
         IOContext ioContext,
         Runnable postUploadRunner,
         ActionListener<Void> listener,
-        boolean lowPriorityUpload
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata
     ) throws Exception {
         assert ioContext != IOContext.READONCE : "Remote upload will fail with IoContext.READONCE";
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
@@ -424,7 +427,9 @@ public class RemoteDirectory extends Directory {
                 lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
                 offsetRangeInputStreamSupplier,
                 expectedChecksum,
-                remoteIntegrityEnabled
+                remoteIntegrityEnabled,
+                null,
+                cryptoMetadata
             );
             ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
                 try {
