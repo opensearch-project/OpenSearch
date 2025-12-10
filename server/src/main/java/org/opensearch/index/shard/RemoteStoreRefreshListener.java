@@ -91,6 +91,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
     private final RemoteStoreSettings remoteStoreSettings;
     private final RemoteStoreUploader remoteStoreUploader;
+    private volatile long lastUploadedPrimaryTerm = INVALID_PRIMARY_TERM; // Use constant or -1
+    private volatile long lastUploadedGeneration = -1;
+    private volatile long lastUploadedTranslogGeneration = -1;
+    private volatile long lastUploadedMaxSeqNo = -1;
 
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
@@ -267,9 +271,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         public void onResponse(Void unused) {
                             try {
                                 logger.debug("New segments upload successful");
-                                // Start metadata file upload
                                 uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
                                 logger.debug("Metadata upload successful");
+                                // if (localSegmentsPostRefresh.stream().allMatch(file -> skipUpload(file))) {
+                                // logger.debug("Skipping metadata upload - no new segments were uploaded");
+                                // } else {
+                                // // Start metadata file upload
+                                // uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
+                                // logger.debug("Metadata upload successful");
+                                // }
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
@@ -426,27 +436,42 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
+
         final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
+        Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
+        if (translogGeneration == null) {
+            throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
+        }
+        long translogFileGeneration = translogGeneration.translogFileGeneration;
+        if (this.lastUploadedPrimaryTerm == replicationCheckpoint.getPrimaryTerm()
+            && this.lastUploadedGeneration == segmentInfos.getGeneration()
+            && this.lastUploadedTranslogGeneration == translogFileGeneration
+            && this.lastUploadedMaxSeqNo == maxSeqNo) {
+
+            logger.debug("Skipping metadata upload (deduplicated) - state is already persisted.");
+            return;
+        }
+
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         segmentInfosSnapshot.setUserData(userData, false);
 
-        Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
-        if (translogGeneration == null) {
-            throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
-        } else {
-            long translogFileGeneration = translogGeneration.translogFileGeneration;
-            remoteDirectory.uploadMetadata(
-                localSegmentsPostRefresh,
-                segmentInfosSnapshot,
-                storeDirectory,
-                translogFileGeneration,
-                replicationCheckpoint,
-                indexShard.getNodeId()
-            );
-        }
+        remoteDirectory.uploadMetadata(
+            localSegmentsPostRefresh,
+            segmentInfosSnapshot,
+            storeDirectory,
+            translogFileGeneration,
+            replicationCheckpoint,
+            indexShard.getNodeId()
+        );
+
+        // Update the Listener's cache on success
+        this.lastUploadedPrimaryTerm = replicationCheckpoint.getPrimaryTerm();
+        this.lastUploadedGeneration = segmentInfos.getGeneration();
+        this.lastUploadedTranslogGeneration = translogFileGeneration;
+        this.lastUploadedMaxSeqNo = maxSeqNo;
     }
 
     boolean isLowPriorityUpload() {
