@@ -91,10 +91,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
     private final RemoteStoreSettings remoteStoreSettings;
     private final RemoteStoreUploader remoteStoreUploader;
-    private volatile long lastUploadedPrimaryTerm = INVALID_PRIMARY_TERM; // Use constant or -1
-    private volatile long lastUploadedGeneration = -1;
-    private volatile long lastUploadedTranslogGeneration = -1;
-    private volatile long lastUploadedMaxSeqNo = -1;
+    private volatile long lastUploadedPrimaryTerm = -1L;
+    private volatile long lastUploadedLuceneGeneration = -1L;
+    private volatile long lastUploadedCheckpointVersion = -1L;
 
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
@@ -443,12 +442,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         }
         long translogFileGeneration = translogGeneration.translogFileGeneration;
-        if (this.lastUploadedPrimaryTerm == replicationCheckpoint.getPrimaryTerm()
-            && this.lastUploadedGeneration == segmentInfos.getGeneration()
-            && this.lastUploadedTranslogGeneration == translogFileGeneration
-            && this.lastUploadedMaxSeqNo == maxSeqNo) {
+        final long currentPrimaryTerm = replicationCheckpoint.getPrimaryTerm();
+        final long currentLuceneGeneration = segmentInfos.getGeneration();
+        final long currentCheckpointVersion = replicationCheckpoint.getSegmentInfosVersion();
+        if (this.lastUploadedPrimaryTerm == currentPrimaryTerm
+            && this.lastUploadedLuceneGeneration == currentLuceneGeneration
+            && this.lastUploadedCheckpointVersion == currentCheckpointVersion) {
 
-            logger.debug("Skipping metadata upload (deduplicated) - state is already persisted.");
+            // LOGIC: The index state (segment files, primary authority, and replication progress)
+            // is identical to the last state successfully uploaded. Skip the costly remote I/O.
             return;
         }
 
@@ -467,11 +469,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             indexShard.getNodeId()
         );
 
-        // Update the Listener's cache on success
-        this.lastUploadedPrimaryTerm = replicationCheckpoint.getPrimaryTerm();
-        this.lastUploadedGeneration = segmentInfos.getGeneration();
-        this.lastUploadedTranslogGeneration = translogFileGeneration;
-        this.lastUploadedMaxSeqNo = maxSeqNo;
+        this.lastUploadedPrimaryTerm = currentPrimaryTerm;
+        this.lastUploadedLuceneGeneration = currentLuceneGeneration;
+        this.lastUploadedCheckpointVersion = currentCheckpointVersion;
     }
 
     boolean isLowPriorityUpload() {
