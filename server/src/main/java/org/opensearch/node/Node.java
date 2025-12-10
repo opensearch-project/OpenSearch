@@ -165,6 +165,8 @@ import org.opensearch.index.autoforcemerge.AutoForceMergeMetrics;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.exec.format.DataSourcePlugin;
+import org.opensearch.index.engine.exec.format.DataSourceRegistry;
 import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
@@ -1010,7 +1012,8 @@ public class Node implements Closeable {
                 fileCache,
                 compositeIndexSettings,
                 segmentReplicator::startReplication,
-                segmentReplicator::getSegmentReplicationStats
+                segmentReplicator::getSegmentReplicationStats,
+                new DataSourceRegistry(pluginsService)
             );
 
             final IngestService ingestService = new IngestService(
