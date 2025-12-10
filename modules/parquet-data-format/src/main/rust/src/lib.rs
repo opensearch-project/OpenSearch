@@ -13,6 +13,8 @@ use std::sync::{Arc, Mutex};
 
 pub mod logger;
 pub mod parquet_merge;
+mod rate_limited_writer;
+
 pub use parquet_merge::*;
 
 lazy_static! {
