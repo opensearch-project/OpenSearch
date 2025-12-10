@@ -105,8 +105,11 @@ test {
   systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
   systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
 
-  dependsOn(project(':libs:agent-sm:agent').prepareAgent)
-  jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
+  dependsOn(':libs:agent-sm:agent:jar')
+  // Defer resolution of agent jar file until task execution by using doFirst
+  doFirst {
+    jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
+  }
 }
 
 tasks.register("integTest", Test) {
