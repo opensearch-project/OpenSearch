@@ -1907,6 +1907,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return Collections.emptySet();
     }
 
+    // We introduced primaryMergedSegmentCheckpoints for primary shard to track merged segment checkpoints that have been
+    // published for pre-warm but not yet refreshed. We will add merged segment checkpoint to IndexShard#primaryMergedSegmentCheckpoints
+    // before publish merged segment.
     public void addPrimaryMergedSegmentCheckpoint(MergedSegmentCheckpoint mergedSegmentCheckpoint) {
         logger.trace("primary shard add merged segment checkpoint {}", mergedSegmentCheckpoint);
         primaryMergedSegmentCheckpoints.add(mergedSegmentCheckpoint);
@@ -1917,6 +1920,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return primaryMergedSegmentCheckpoints;
     }
 
+    // We introduced replicaMergedSegmentCheckpoints for replica shard to track merged segment checkpoints that has not yet been refreshed.
     public void addReplicaMergedSegmentCheckpoint(MergedSegmentCheckpoint mergedSegmentCheckpoint) {
         logger.trace("replica shard add merged segment checkpoint {}", mergedSegmentCheckpoint);
         replicaMergedSegmentCheckpoints.add(mergedSegmentCheckpoint);
