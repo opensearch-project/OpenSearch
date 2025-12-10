@@ -1882,8 +1882,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Remove expired primary merged segment checkpoints to prevent memory leaks
     public void removeExpiredPrimaryMergedSegmentCheckpoints() {
         long mergedSegmentRetentionTime = getRecoverySettings().getMergedSegmentCheckpointRetentionTime().getNanos();
+        long nowNanos = DateUtils.toLong(Instant.now());
         Set<MergedSegmentCheckpoint> expiredMergedSegmentCheckpoints = primaryMergedSegmentCheckpoints.stream()
-            .filter(m -> DateUtils.toLong(Instant.now()) - m.getCreatedTimeStamp() >= mergedSegmentRetentionTime)
+            .filter(m -> nowNanos - m.getCreatedTimeStamp() >= mergedSegmentRetentionTime)
             .collect(Collectors.toSet());
         expiredMergedSegmentCheckpoints.forEach(primaryMergedSegmentCheckpoints::remove);
         logger.trace("primary shard remove expired merged segment checkpoints {}", expiredMergedSegmentCheckpoints);
