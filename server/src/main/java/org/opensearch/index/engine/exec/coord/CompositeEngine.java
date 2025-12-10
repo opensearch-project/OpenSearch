@@ -1040,7 +1040,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
                 try {
-                    IOUtils.close(engine, translogManager);
+                    IOUtils.close(engine, translogManager, compositeEngineCommitter);
                 } catch (Exception e) {
                     logger.warn("Failed to close translog", e);
                 }
