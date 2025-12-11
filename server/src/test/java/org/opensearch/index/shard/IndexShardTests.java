@@ -1692,15 +1692,14 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testShardStats() throws IOException {
 
         IndexShard shard = newStartedShard();
-        ShardStats stats = new ShardStats(
-            shard.routingEntry(),
-            shard.shardPath(),
-            new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
-            shard.commitStats(),
-            shard.seqNoStats(),
-            shard.getRetentionLeaseStats(),
-            shard.pollingIngestStats()
-        );
+        ShardStats stats = new ShardStats.Builder().shardRouting(shard.routingEntry())
+            .shardPath(shard.shardPath())
+            .commonStats(new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()))
+            .commitStats(shard.commitStats())
+            .seqNoStats(shard.seqNoStats())
+            .retentionLeaseStats(shard.getRetentionLeaseStats())
+            .pollingIngestStats(shard.pollingIngestStats())
+            .build();
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
         assertEquals(shard.shardPath().isCustomDataPath(), stats.isCustomDataPath());
@@ -1836,15 +1835,14 @@ public class IndexShardTests extends IndexShardTestCase {
             .getRemoteTranslogTransferTracker(shard.shardId);
         populateSampleRemoteSegmentStats(remoteSegmentTransferTracker);
         populateSampleRemoteTranslogStats(remoteTranslogTransferTracker);
-        ShardStats shardStats = new ShardStats(
-            shard.routingEntry(),
-            shard.shardPath(),
-            new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
-            shard.commitStats(),
-            shard.seqNoStats(),
-            shard.getRetentionLeaseStats(),
-            shard.pollingIngestStats()
-        );
+        ShardStats shardStats = new ShardStats.Builder().shardRouting(shard.routingEntry())
+            .shardPath(shard.shardPath())
+            .commonStats(new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()))
+            .commitStats(shard.commitStats())
+            .seqNoStats(shard.seqNoStats())
+            .retentionLeaseStats(shard.getRetentionLeaseStats())
+            .pollingIngestStats(shard.pollingIngestStats())
+            .build();
         RemoteSegmentStats remoteSegmentStats = shardStats.getStats().getSegments().getRemoteSegmentStats();
         assertRemoteSegmentStats(remoteSegmentTransferTracker, remoteSegmentStats);
         RemoteTranslogStats remoteTranslogStats = shardStats.getStats().getTranslog().getRemoteTranslogStats();
@@ -5236,5 +5234,90 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(remoteSegmentTransferTracker.getUploadBytesFailed(), remoteSegmentStats.getUploadBytesFailed());
         assertTrue(remoteSegmentStats.getTotalRejections() > 0);
         assertEquals(remoteSegmentTransferTracker.getRejectionCount(), remoteSegmentStats.getTotalRejections());
+    }
+
+    public void testPeriodicFlushTaskNotStartedForRegularIndex() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+
+        // Periodic flush task should not be started
+        assertNull(primary.getPeriodicFlushTask());
+        closeShards(primary);
+    }
+
+    public void testPeriodicFlushTaskStartedForIngestionIndex() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m")
+            .build();
+
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+
+        // Periodic flush task should be started
+        assertNotNull(primary.getPeriodicFlushTask());
+        assertEquals(TimeValue.timeValueMinutes(1), primary.getPeriodicFlushTask().getInterval());
+        assertFalse(primary.getPeriodicFlushTask().isClosed());
+
+        closeShards(primary);
+
+        // Task should be closed after shard close
+        assertTrue(primary.getPeriodicFlushTask().isClosed());
+    }
+
+    public void testPeriodicFlushTaskExecutesFlush() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1s")
+            .build();
+
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+
+        // Get initial flush count
+        long initialPeriodicFlushCount = primary.flushStats().getPeriodic();
+
+        // Execute the periodic flush task
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull(flushTask);
+
+        // Execute the flush task
+        flushTask.run();
+
+        // Verify periodic flush count increased
+        assertEquals(initialPeriodicFlushCount + 1, primary.flushStats().getPeriodic());
+
+        closeShards(primary);
     }
 }

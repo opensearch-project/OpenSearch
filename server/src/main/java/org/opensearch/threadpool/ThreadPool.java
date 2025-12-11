@@ -564,8 +564,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             long waitTimeNanos = -1;
             int parallelism = -1;
 
-            if (holder.executor() instanceof OpenSearchThreadPoolExecutor) {
-                OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) holder.executor();
+            if (holder.executor() instanceof OpenSearchThreadPoolExecutor threadPoolExecutor) {
                 threads = threadPoolExecutor.getPoolSize();
                 queue = threadPoolExecutor.getQueue().size();
                 active = threadPoolExecutor.getActiveCount();
@@ -574,8 +573,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 waitTimeNanos = threadPoolExecutor.getPoolWaitTimeNanos();
 
                 RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
-                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
-                    rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
+                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler xRejectedExecutionHandler) {
+                    rejected = xRejectedExecutionHandler.rejected();
                 }
             }
             stats.add(
