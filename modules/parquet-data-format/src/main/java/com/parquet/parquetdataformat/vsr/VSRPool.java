@@ -57,7 +57,9 @@ public class VSRPool {
      * @return Active ManagedVSR for writing, or null if none exists
      */
     public ManagedVSR getActiveVSR() {
-        return activeVSR.get();
+        synchronized (this) {
+            return activeVSR.get();
+        }
     }
 
     /**
@@ -69,8 +71,6 @@ public class VSRPool {
      */
     public boolean maybeRotateActiveVSR() throws IOException {
         ManagedVSR current = activeVSR.get();
-
-        // Check if rotation is needed
         if (current == null || !shouldRotateVSR(current)) {
             return false; // No rotation needed
         }
@@ -82,29 +82,16 @@ public class VSRPool {
                                 "system bottleneck or processing failure.");
         }
 
-        // Safe to rotate - perform the rotation
         synchronized (this) {
-            // Double-check conditions under lock
             current = activeVSR.get();
-            if (current == null || !shouldRotateVSR(current)) {
-                return false; // Conditions changed while acquiring lock
+            if (current == null || !shouldRotateVSR(current) || frozenVSR.get() != null) {
+                return false;
             }
-
-            // Check frozen slot again under lock
-            if (frozenVSR.get() != null) {
-                throw new IOException("Cannot rotate VSR: frozen slot became occupied during rotation");
-            }
-
-            // Freeze current VSR if it exists and has data
-            if (current != null && current.getRowCount() > 0) {
+            if (current.getRowCount() > 0) {
                 freezeVSR(current);
             }
-
-            // Create new active VSR
-            ManagedVSR newActive = createNewVSR();
-            activeVSR.set(newActive);
-
-            return true; // Rotation occurred
+            activeVSR.set(createNewVSR());
+            return true;
         }
     }
 
@@ -143,13 +130,16 @@ public class VSRPool {
     }
 
     public void unsetFrozenVSR() throws IOException {
-        if (frozenVSR.get() == null) {
+        ManagedVSR vsr = frozenVSR.get();
+        if (vsr == null) {
             throw new IOException("unsetFrozenVSR called when frozen VSR is not set");
         }
-        if (!VSRState.CLOSED.equals(frozenVSR.get().getState())) {
-            throw new IOException("frozenVSR cannot be unset, state is " + frozenVSR.get().getState());
+        if (vsr.getState() != VSRState.CLOSED) {
+            throw new IOException("frozenVSR cannot be unset, state is " + vsr.getState());
         }
-        frozenVSR.set(null);
+        if (!frozenVSR.compareAndSet(vsr, null)) {
+            throw new IOException("frozenVSR changed during unset");
+        }
     }
 
     /**
@@ -233,20 +223,16 @@ public class VSRPool {
     }
 
     private void initializeActiveVSR() {
-        ManagedVSR initial = createNewVSR();
-        activeVSR.set(initial);
+        activeVSR.set(createNewVSR());
     }
 
     private ManagedVSR createNewVSR() {
-
         String vsrId = poolId + "-vsr-" + vsrCounter.incrementAndGet();
         BufferAllocator allocator = null;
         VectorSchemaRoot vsr = null;
-
         try {
             allocator = bufferPool.createChildAllocator(vsrId);
             vsr = VectorSchemaRoot.create(schema, allocator);
-
             ManagedVSR managedVSR = new ManagedVSR(vsrId, vsr, allocator);
             allVSRs.put(vsrId, managedVSR);
 
@@ -255,18 +241,10 @@ public class VSRPool {
         } catch (Exception e) {
             // Clean up resources on failure since ManagedVSR couldn't take ownership
             if (vsr != null) {
-                try {
-                    vsr.close();
-                } catch (Exception closeEx) {
-                    e.addSuppressed(closeEx);
-                }
+                try { vsr.close(); } catch (Exception ex) { e.addSuppressed(ex); }
             }
             if (allocator != null) {
-                try {
-                    allocator.close();
-                } catch (Exception closeEx) {
-                    e.addSuppressed(closeEx);
-                }
+                try { allocator.close(); } catch (Exception ex) { e.addSuppressed(ex); }
             }
             throw new RuntimeException("Failed to create new VSR", e);
         }
@@ -274,29 +252,9 @@ public class VSRPool {
 
     private void freezeVSR(ManagedVSR vsr) {
         vsr.setState(VSRState.FROZEN);
-
-        // CRITICAL FIX: Check if frozen slot is already occupied
-        ManagedVSR previousFrozen = frozenVSR.get();
-        if (previousFrozen != null) {
-            // NEVER blindly overwrite a frozen VSR - this would cause data loss
-            logger.error("Attempting to freeze VSR when frozen slot is occupied! " +
-                        "Previous VSR: {} ({} rows), New VSR: {} ({} rows). " +
-                        "This indicates a logic error - frozen VSR should be consumed before replacement.",
-                        previousFrozen.getId(), previousFrozen.getRowCount(),
-                        vsr.getId(), vsr.getRowCount());
-
-            // Return VSR to ACTIVE state to prevent state corruption
+        if (!frozenVSR.compareAndSet(null, vsr)) {
             vsr.setState(VSRState.ACTIVE);
-            throw new IllegalStateException("Cannot freeze VSR: frozen slot is occupied by unprocessed VSR " +
-                                          previousFrozen.getId() + ". This would cause data loss.");
-        }
-
-        // Safe to set frozen VSR since slot is empty
-        boolean success = frozenVSR.compareAndSet(null, vsr);
-        if (!success) {
-            // Race condition: another thread set frozen VSR between our check and set
-            vsr.setState(VSRState.ACTIVE);
-            throw new IllegalStateException("Race condition detected: frozen slot was occupied during freeze operation");
+            throw new IllegalStateException("Frozen slot occupied during freeze");
         }
     }
 
