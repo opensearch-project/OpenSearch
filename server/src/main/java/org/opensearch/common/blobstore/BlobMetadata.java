@@ -32,7 +32,6 @@
 
 package org.opensearch.common.blobstore;
 
-
 /**
  * An interface for providing basic metadata about a blob.
  *

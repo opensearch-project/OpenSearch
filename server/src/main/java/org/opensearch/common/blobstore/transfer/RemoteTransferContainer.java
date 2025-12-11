@@ -34,8 +34,6 @@ import java.util.function.Supplier;
 import java.util.zip.CRC32;
 
 import com.jcraft.jzlib.JZlib;
-import org.opensearch.index.engine.exec.FileMetadata;
-import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 
 /**
  * RemoteTransferContainer is an encapsulation for managing file transfers.
@@ -59,12 +57,11 @@ public class RemoteTransferContainer implements Closeable {
     private final boolean isRemoteDataIntegritySupported;
     private final AtomicBoolean readBlock = new AtomicBoolean();
     private final Map<String, String> metadata;
-    private  final String dataFormat;
 
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
     /**
-     * OLD Construct a new RemoteTransferContainer object
+     * Construct a new RemoteTransferContainer object
      *
      * @param fileName                       Name of the local file
      * @param remoteFileName                 Name of the remote file
@@ -94,32 +91,7 @@ public class RemoteTransferContainer implements Closeable {
             offsetRangeInputStreamSupplier,
             expectedChecksum,
             isRemoteDataIntegritySupported,
-            null,
             null
-        );
-    }
-
-    public RemoteTransferContainer(
-        FileMetadata fileMetadata,
-        String remoteFileName,
-        long contentLength,
-        boolean failTransferIfFileExists,
-        WritePriority writePriority,
-        OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier,
-        Long expectedChecksum,
-        boolean isRemoteDataIntegritySupported
-    ) {
-        this(
-            fileMetadata.file(),
-            remoteFileName,
-            contentLength,
-            failTransferIfFileExists,
-            writePriority,
-            offsetRangeInputStreamSupplier,
-            expectedChecksum,
-            isRemoteDataIntegritySupported,
-            null,
-            fileMetadata.dataFormat()
         );
     }
 
@@ -145,8 +117,7 @@ public class RemoteTransferContainer implements Closeable {
         OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier,
         Long expectedChecksum,
         boolean isRemoteDataIntegritySupported,
-        Map<String, String> metadata,
-        String dataFormat
+        Map<String, String> metadata
     ) {
         this.fileName = fileName;
         this.remoteFileName = remoteFileName;
@@ -157,7 +128,6 @@ public class RemoteTransferContainer implements Closeable {
         this.expectedChecksum = expectedChecksum;
         this.isRemoteDataIntegritySupported = isRemoteDataIntegritySupported;
         this.metadata = metadata;
-        this.dataFormat = dataFormat;
     }
 
     /**

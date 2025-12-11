@@ -278,7 +278,6 @@ public interface BlobContainer {
 
     /**
      * The type representing sort order of blob names
-     * @opensearch.api
      */
     enum BlobNameSortOrder {
 

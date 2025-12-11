@@ -616,6 +616,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     @Override
     public final void incRef() {
         refCounter.incRef();
+        logger.info("refCount after incRef for store {}: {}", this, refCounter.refCount());
     }
 
     /**
@@ -644,7 +645,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     @Override
     public final boolean decRef() {
-        return refCounter.decRef();
+        boolean decRef = refCounter.decRef();
+        logger.info("refCount after decRef for store {}: {}", this, refCounter.refCount());
+        return decRef;
     }
 
     @Override
@@ -669,7 +672,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         // Leverage try-with-resources to close the shard lock for us
         try (Closeable c = shardLock) {
             try {
-                directory.close(); // close the composite directory
+                directory.innerClose();
+                IOUtils.close(compositeStoreDirectory);
             } finally {
                 onClose.accept(shardLock);
             }

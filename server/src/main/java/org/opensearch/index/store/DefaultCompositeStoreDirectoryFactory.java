@@ -83,7 +83,7 @@ public class DefaultCompositeStoreDirectoryFactory implements CompositeStoreDire
                     shardPath.getShardId(), fallbackException);
 
                 throw new IOException(
-                    String.format("Failed to create CompositeStoreDirectory for shard %s: plugin discovery failed (%s), fallback failed (%s)",
+                    String.format("Failed to create CompositeStoreDirectory for shard %s: %s",
                         shardPath.getShardId(),
                         fallbackException.getMessage()
                     ),

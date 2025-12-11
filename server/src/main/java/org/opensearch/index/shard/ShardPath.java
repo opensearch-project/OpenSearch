@@ -59,7 +59,7 @@ import java.util.Objects;
  */
 @PublicApi(since = "1.0.0")
 public final class ShardPath {
-    public static final String INDEX_FOLDER_NAME = "lucene";
+    public static final String INDEX_FOLDER_NAME = "index";
     public static final String TRANSLOG_FOLDER_NAME = "translog";
 
     private final Path path;

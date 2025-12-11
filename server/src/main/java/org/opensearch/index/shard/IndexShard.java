@@ -408,7 +408,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MergedSegmentPublisher mergedSegmentPublisher;
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
-    private final PluginsService pluginsService;
     @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
@@ -571,13 +570,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.clusterApplierService = clusterApplierService;
         this.mergedSegmentPublisher = mergedSegmentPublisher;
         this.referencedSegmentsPublisher = referencedSegmentsPublisher;
-        this.pluginsService = pluginsService;
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
             }
         }
-        this.compositeEngine = new CompositeEngine(mapperService, pluginsService, path);
     }
 
     public CompositeEngine getIndexingExecutionCoordinator() {
@@ -1853,21 +1850,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
         }
 
-        // Use the fresh catalogSnapshot parameter directly (like old SegmentInfos pattern)
         try {
             replicationTracker.setLatestReplicationCheckpoint(replicationCheckpoint);
-            getIndexingExecutionCoordinator().setCatalogSnapshot(catalogSnapshot, this.shardPath());
+            getIndexingExecutionCoordinator().finalizeReplication(catalogSnapshot, this.shardPath());
             logger.trace("Updated replication checkpoint from fresh CatalogSnapshot: shard={}, checkpoint={}", shardId, replicationCheckpoint);
         } catch (Exception e) {
             logger.error("Error computing replication checkpoint from fresh catalog snapshot for shard [{}]", shardId, e);
             throw new OpenSearchException("Error computing replication checkpoint from fresh catalog snapshot", e);
         }
 
-        // Todo: We need to initialize compositeRepliationEngine here
         logger.debug("Finalized replication with CatalogSnapshot: generation={}, version={}, shard={}",
                     catalogSnapshot.getGeneration(), catalogSnapshot.getVersion(), shardId);
-        List<SearchEnginePlugin> searchEnginePlugins = pluginsService.filterPlugins(SearchEnginePlugin.class);
-        compositeEngine.updateSearchEngine();
 
     }
 
@@ -2055,7 +2048,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     Version.LATEST,
                     fileMetadata.dataFormat()
                 );
-                formatAwareMap.put(fileMetadata, storeFileMetadata);
+
+                // Normalize directory to empty string for replication comparison
+                // Directory paths are node-specific and not serialized in ReplicationCheckpoint
+                FileMetadata normalizedKey = new FileMetadata(fileMetadata.dataFormat(), "", fileMetadata.file());
+                formatAwareMap.put(normalizedKey, storeFileMetadata);
             } catch (IOException e) {
                 logger.warn("Failed to create StoreFileMetadata for {}", fileMetadata, e);
             }
@@ -5597,7 +5594,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 storeDirectory = store.directory();
             }
-
             if (indexSettings.isWarmIndex() == false) {
                 // ToDo:@Kamal update while restore implementation
                 // copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal, onFileSync);

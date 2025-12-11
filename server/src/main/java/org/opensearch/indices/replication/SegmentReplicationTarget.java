@@ -18,6 +18,7 @@ import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
@@ -140,11 +141,8 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
      * @throws IOException if deserialization fails
      */
     private CatalogSnapshot deserializeCatalogSnapshot(byte[] infoBytes) throws IOException {
-        try {
-            ByteArrayInputStream bais = new ByteArrayInputStream(infoBytes);
-            return CatalogSnapshot.readFrom(bais);
-        } catch (ClassNotFoundException e) {
-            throw new IOException("Failed to deserialize CatalogSnapshot", e);
+        try (BytesStreamInput in = new BytesStreamInput(infoBytes)) {
+            return new CatalogSnapshot(in);
         }
     }
 }

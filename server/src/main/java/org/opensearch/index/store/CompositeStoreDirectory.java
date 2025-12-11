@@ -13,6 +13,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.Any;
@@ -20,6 +21,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.plugins.PluginsService;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Path;
@@ -42,7 +44,7 @@ import java.util.Set;
  * @opensearch.api
  */
 @PublicApi(since = "3.0.0")
-public class CompositeStoreDirectory {
+public class CompositeStoreDirectory implements Closeable {
 
     private Any dataFormat;
     private final Path directoryPath;
@@ -63,13 +65,22 @@ public class CompositeStoreDirectory {
         this.directoryPath = shardPath.getDataPath();
 
         try {
-            DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class).stream()
-                .findAny()
-                .orElseThrow(() -> new IllegalArgumentException("dataformat is not registered."));
-            delegates.add(plugin.createFormatStoreDirectory(indexSettings, shardPath));
-            delegatesMap.put(plugin.getDataFormat().name(), delegates.get(delegates.size() - 1));
-        } catch (NullPointerException | IOException e) {
-                throw new RuntimeException("Failed to create fallback directory", e);
+            pluginsService.filterPlugins(DataSourcePlugin.class).forEach(plugin -> {
+                try {
+                    FormatStoreDirectory<?> formatDir = plugin.createFormatStoreDirectory(indexSettings, shardPath);
+                    delegates.add(formatDir);
+                    delegatesMap.put(plugin.getDataFormat().name(), formatDir);
+                } catch (IOException e) {
+                    logger.error("Failed to create FormatStoreDirectory for format: {}", plugin.getDataFormat().name(), e);
+                    throw new RuntimeException("Failed to create format directory for " + plugin.getDataFormat().name(), e);
+                }
+            });
+
+            if (delegates.isEmpty()) {
+                throw new IllegalArgumentException("No dataformat plugins registered.");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create CompositeStoreDirectory", e);
         }
     }
 
@@ -126,7 +137,7 @@ public class CompositeStoreDirectory {
     // Directory interface implementation with routing
     public FileMetadata[] listAll() throws IOException {
         Set<FileMetadata> allFiles = new HashSet<>();
-        for (FormatStoreDirectory directory : delegates) {
+        for (FormatStoreDirectory<?> directory : delegates) {
             allFiles.addAll(Arrays.asList(directory.listAll()));
         }
         return allFiles.toArray(new FileMetadata[0]);
@@ -134,14 +145,14 @@ public class CompositeStoreDirectory {
 
     public void sync(Collection<FileMetadata> fileMetadataList) throws IOException {
         // Group files by directory and sync each directory
-        Map<FormatStoreDirectory, List<String>> filesByDirectory = new HashMap<>();
+        Map<FormatStoreDirectory<?>, List<String>> filesByDirectory = new HashMap<>();
 
         for (var fileMetadata : fileMetadataList) {
-            FormatStoreDirectory directory = getDirectoryForFormat(fileMetadata.dataFormat());
+            FormatStoreDirectory<?> directory = getDirectoryForFormat(fileMetadata.dataFormat());
             filesByDirectory.computeIfAbsent(directory, k -> new ArrayList<>()).add(fileMetadata.file());
         }
 
-        for (Map.Entry<FormatStoreDirectory, List<String>> entry : filesByDirectory.entrySet()) {
+        for (Map.Entry<FormatStoreDirectory<?>, List<String>> entry : filesByDirectory.entrySet()) {
             entry.getKey().sync(entry.getValue());
         }
     }
@@ -238,6 +249,11 @@ public class CompositeStoreDirectory {
     public String calculateUploadChecksum(FileMetadata fileMetadata) throws IOException {
         FormatStoreDirectory<?> formatDirectory = getDirectoryForFormat(fileMetadata.dataFormat());
         return formatDirectory.calculateUploadChecksum(fileMetadata.file());
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(delegates);
     }
 }
 

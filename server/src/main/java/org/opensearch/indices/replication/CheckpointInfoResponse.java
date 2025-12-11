@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse;
@@ -27,6 +28,8 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class CheckpointInfoResponse extends TransportResponse {
+
+    private static final Version FORMAT_AWARE_VERSION = Version.V_3_1_0;
 
     private final ReplicationCheckpoint checkpoint;
     private final Map<String, StoreFileMetadata> legacyMetadataMap;
@@ -55,15 +58,45 @@ public class CheckpointInfoResponse extends TransportResponse {
 
     public CheckpointInfoResponse(StreamInput in) throws IOException {
         this.checkpoint = new ReplicationCheckpoint(in);
-        this.legacyMetadataMap = in.readMap(StreamInput::readString, StoreFileMetadata::new);
-        this.formatAwareMetadataMap = convertLegacyToFormatAware(legacyMetadataMap);
+        
+        if (in.getVersion().onOrAfter(FORMAT_AWARE_VERSION)) {
+            // Read format-aware metadata directly
+            this.formatAwareMetadataMap = in.readMap(
+                streamInput -> new FileMetadata(streamInput.readString(), "", streamInput.readString()),
+                StoreFileMetadata::new
+            );
+            // Build legacy map for backward compatibility
+            this.legacyMetadataMap = new HashMap<>();
+            for (Map.Entry<FileMetadata, StoreFileMetadata> entry : formatAwareMetadataMap.entrySet()) {
+                legacyMetadataMap.put(entry.getKey().file(), entry.getValue());
+            }
+        } else {
+            // Read legacy format and convert
+            this.legacyMetadataMap = in.readMap(StreamInput::readString, StoreFileMetadata::new);
+            this.formatAwareMetadataMap = convertLegacyToFormatAware(legacyMetadataMap);
+        }
+        
         this.infosBytes = in.readByteArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         checkpoint.writeTo(out);
-        out.writeMap(legacyMetadataMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        
+        if (out.getVersion().onOrAfter(FORMAT_AWARE_VERSION)) {
+            // Write format-aware metadata
+            out.writeMap(formatAwareMetadataMap,
+                (keyOut, fileMetadata) -> {
+                    keyOut.writeString(fileMetadata.dataFormat());
+                    keyOut.writeString(fileMetadata.file());
+                },
+                (valueOut, storeFileMetadata) -> storeFileMetadata.writeTo(valueOut)
+            );
+        } else {
+            // Write legacy format for backward compatibility
+            out.writeMap(legacyMetadataMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        }
+        
         out.writeByteArray(infosBytes);
     }
 

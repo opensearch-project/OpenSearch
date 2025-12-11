@@ -11,12 +11,18 @@ import com.parquet.parquetdataformat.engine.ParquetDataFormat;
 import com.parquet.parquetdataformat.fields.ArrowSchemaBuilder;
 import com.parquet.parquetdataformat.engine.read.ParquetDataSourceCodec;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
@@ -37,9 +43,11 @@ import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
+import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * OpenSearch plugin that provides Parquet data format support for indexing operations.
@@ -71,12 +79,6 @@ import java.util.Set;
  * </ul>
  */
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin, DataSourcePlugin {
-
-    /**
-     * Set of file extensions that Parquet format handles
-     */
-    private static final Set<String> PARQUET_EXTENSIONS = Set.of(".parquet", ".pqt");
-
     private Settings settings;
 
     public static String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
@@ -112,10 +114,6 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, indexNameExpressionResolver, repositoriesServiceSupplier);
     }
 
-    private Class<? extends DataFormat> getDataFormatType() {
-        return ParquetDataFormat.class;
-    }
-
     @Override
     public DataFormat getDataFormat() {
         return new ParquetDataFormat();
@@ -131,7 +129,6 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         // return Optional.empty();
     }
 
-
     @Override
     public FormatStoreDirectory<?> createFormatStoreDirectory(
         IndexSettings indexSettings,
@@ -144,10 +141,14 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     }
 
     @Override
-    public BlobContainer createBlobContainer(BlobStore blobStore, BlobPath baseBlobPath) throws IOException
-    {
+    public BlobContainer createBlobContainer(BlobStore blobStore, BlobPath baseBlobPath) throws IOException {
         BlobPath formatPath = baseBlobPath.add(getDataFormat().name().toLowerCase());
         return blobStore.blobContainer(formatPath);
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(INDEX_MAX_NATIVE_ALLOCATION);
     }
 
     // for testing locally only

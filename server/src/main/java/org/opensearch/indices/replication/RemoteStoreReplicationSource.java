@@ -152,6 +152,10 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                     FileMetadata fileMetadata = new FileMetadata(dataFormat, "", fileName);
 
                     // Verify file doesn't already exist in local directory
+                    if (directoryFiles.contains(fileMetadata)) {
+                        logger.info("ReplicationCheckpoint: {}, filesToFetch: {}", checkpoint.getSegmentInfosVersion(), filesToFetch);
+                        logger.info(directoryFiles);
+                    }
                     assert directoryFiles.contains(fileMetadata) == false : "Local store already contains the file " + fileMetadata;
 
                     toDownloadFileMetadata.add(fileMetadata);
