@@ -175,7 +175,7 @@ public class BlobStoreTransferService implements TransferService {
         assert remotePath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remotePath;
         final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
-        assert blobContainer instanceof VersionedBlobContainer;
+        assert blobContainer instanceof VersionedBlobContainer: String.format("%s does not support conditional writes", blobContainer.getClass().getName());
         return ((VersionedBlobContainer) blobContainer).writeVersionedBlobIfNotExists(fileName, inputStream, inputStream.available());
     }
 

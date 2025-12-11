@@ -24,6 +24,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
@@ -149,7 +150,7 @@ public class RemoteManifestManager {
 
         String newManifestVersion;
         try {
-            if (!lastUploadedManifestVersion.isEmpty()) {
+            if (!Strings.isNullOrEmpty(lastUploadedManifestVersion)) {
                 newManifestVersion = manifestBlobStore.conditionallyUpdateVersionedBlob(remoteClusterMetadataManifest, lastUploadedManifestVersion);
             } else {
                 newManifestVersion = manifestBlobStore.writeVersionedBlob(remoteClusterMetadataManifest);
@@ -173,6 +174,7 @@ public class RemoteManifestManager {
         assert !newManifestVersion.isEmpty();
 
         lastUploadedManifestVersion = newManifestVersion;
+        logger.info("Updated manifest " + newManifestVersion);
 
 
 //        try {
