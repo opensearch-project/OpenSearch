@@ -1035,8 +1035,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             } catch (IOException e) {
                 deletionSuccessful.set(false);
                 logger.warn(
-                    "Exception while deleting segment files corresponding to metadata file {}. Deletion will be re-tried",
-                    metadataFile,
+                    () -> new ParameterizedMessage(
+                        "Exception while deleting segment files corresponding to metadata file {}. Deletion will be re-tried",
+                        metadataFile
+                    ),
                     e
                 );
             }
