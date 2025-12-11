@@ -36,6 +36,16 @@ public class DatafusionReader implements Closeable {
      * The catalog snapshot reference.
      */
     private CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef;
+    /**
+     * The unique reader ID in the global registry
+     */
+    private Long registryId;
+    /**
+     * The shard ID this reader belongs to
+     */
+    private String shardId;
+
+
 
     /**
      * Constructor
@@ -78,6 +88,11 @@ public class DatafusionReader implements Closeable {
      */
     public void decRef() {
         readerHandle.close();
+        // Check if this was the last reference and unregister if so
+        if (readerHandle.getRefCount() == 0 && registryId != null) {
+            DatafusionReaderRegistry.getInstance().unregisterReader(registryId);
+            registryId = null; // Prevent double unregistration
+        }
     }
 
     /**
@@ -88,8 +103,45 @@ public class DatafusionReader implements Closeable {
         return readerHandle.getRefCount();
     }
 
+    /**
+     * Set the registry ID for this reader
+     * @param registryId The registry ID
+     */
+    public void setRegistryId(Long registryId) {
+        this.registryId = registryId;
+    }
+
+    /**
+     * Get the registry ID for this reader
+     * @return The registry ID
+     */
+    public Long getRegistryId() {
+        return registryId;
+    }
+
+    /**
+     * Set the shard ID for this reader
+     * @param shardId The shard ID
+     */
+    public void setShardId(String shardId) {
+        this.shardId = shardId;
+    }
+
+    /**
+     * Get the shard ID for this reader
+     * @return The shard ID
+     */
+    public String getShardId() {
+        return shardId;
+    }
+
     @Override
     public void close() {
+        // Unregister from the global registry if registered
+        if (registryId != null) {
+            DatafusionReaderRegistry.getInstance().unregisterReader(registryId);
+            registryId = null; // Prevent double unregistration
+        }
         readerHandle.close();
     }
 
