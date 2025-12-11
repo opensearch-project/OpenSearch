@@ -635,6 +635,74 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
         }
     }
 
+    public void testSeqNoCollisionWithReadForward() throws Exception {
+        try (
+            ReplicationGroup shards = createGroup(
+                2,
+                Settings.builder()
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_TRANSLOG_READ_FORWARD_SETTING.getKey(), true)
+                    .build()
+            )
+        ) {
+            shards.startAll();
+            int initDocs = shards.indexDocs(randomInt(10));
+            List<IndexShard> replicas = shards.getReplicas();
+            IndexShard replica1 = replicas.get(0);
+            IndexShard replica2 = replicas.get(1);
+            shards.syncGlobalCheckpoint();
+
+            logger.info("--> Isolate replica1");
+            IndexRequest indexDoc1 = new IndexRequest(index.getName()).id("d1").source("{}", MediaTypeRegistry.JSON);
+            BulkShardRequest replicationRequest = indexOnPrimary(indexDoc1, shards.getPrimary());
+            indexOnReplica(replicationRequest, shards, replica2);
+
+            final Translog.Operation op1;
+            final List<Translog.Operation> initOperations = new ArrayList<>(initDocs);
+            try (Translog.Snapshot snapshot = getTranslog(replica2).newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
+                for (int i = 0; i < initDocs; i++) {
+                    Translog.Operation op = snapshot.next();
+                    assertThat(op, is(notNullValue()));
+                    initOperations.add(op);
+                }
+                op1 = snapshot.next();
+                assertThat(op1, notNullValue());
+                assertThat(snapshot.next(), nullValue());
+                assertThat(snapshot.skippedOperations(), equalTo(0));
+            }
+            logger.info("--> Promote replica1 as the primary");
+            shards.promoteReplicaToPrimary(replica1).get(); // wait until resync completed.
+            shards.index(new IndexRequest(index.getName()).id("d2").source("{}", MediaTypeRegistry.JSON));
+            final Translog.Operation op2;
+            try (Translog.Snapshot snapshot = getTranslog(replica2).newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(1));
+                op2 = snapshot.next();
+                assertThat(op2.seqNo(), equalTo(op1.seqNo()));
+                assertThat(op2.primaryTerm(), greaterThan(op1.primaryTerm()));
+                assertNull(snapshot.next());
+                assertThat(snapshot.skippedOperations(), equalTo(0));
+            }
+
+            // Make sure that peer-recovery transfers all but non-overridden operations with forward reading.
+            IndexShard replica3 = shards.addReplica();
+            logger.info("--> Promote replica2 as the primary");
+            shards.promoteReplicaToPrimary(replica2).get();
+            logger.info("--> Recover replica3 from replica2");
+            recoverReplica(replica3, replica2, true);
+            try (Translog.Snapshot snapshot = replica3.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, true)) {
+                assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
+                final List<Translog.Operation> expectedOps = new ArrayList<>(initOperations);
+                expectedOps.add(op2);
+                assertThat(snapshot, containsOperationsInAnyOrder(expectedOps));
+                assertThat("Peer-recovery should not send overridden operations", snapshot.skippedOperations(), equalTo(0));
+            }
+            shards.assertAllEqual(initDocs + 1);
+        }
+    }
+
     /**
      * This test ensures the consistency between primary and replica with late and out of order delivery on the replica.
      * An index operation on the primary is followed by a delete operation. The delete operation is delivered first
