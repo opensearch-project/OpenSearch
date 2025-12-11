@@ -40,7 +40,6 @@ import org.opensearch.gradle.jvm.JvmTestSuiteHelper;
 import org.opensearch.gradle.test.ErrorReportingTestListener;
 import org.opensearch.gradle.util.Util;
 import org.gradle.api.Action;
-import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -106,15 +105,7 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                     mkdirs(test.getWorkingDir());
                     mkdirs(test.getWorkingDir().toPath().resolve("temp").toFile());
 
-                    // TODO remove once jvm.options are added to test system properties
-                    if (BuildParams.getRuntimeJavaVersion() == JavaVersion.VERSION_1_8) {
-                        test.systemProperty("java.locale.providers", "SPI,JRE");
-                    } else {
-                        test.systemProperty("java.locale.providers", "SPI,CLDR");
-                        if (test.getJavaVersion().compareTo(JavaVersion.VERSION_17) < 0) {
-                            test.jvmArgs("--illegal-access=warn");
-                        }
-                    }
+                    test.systemProperty("java.locale.providers", "SPI,CLDR");
                 }
             });
             test.getJvmArgumentProviders().add(nonInputProperties);
