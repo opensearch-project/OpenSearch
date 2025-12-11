@@ -401,6 +401,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Replica Shard: record the pre-copied merged segment checkpoints, which are not yet refreshed.
     private final Set<MergedSegmentCheckpoint> replicaMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
 
+    // Replica Shard: track the currently ongoing segment replication checkpoint.
+    private ReplicationCheckpoint currentSegmentReplicationCheckpoint;
+    private final Object cleanupReplicaMergedSegmentMutex = new Object();
+
     @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
@@ -1873,9 +1877,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 pendingDeleteCheckpoints.add(mergedSegmentCheckpoint);
             }
         }
-        for (MergedSegmentCheckpoint mergedSegmentCheckpoint : pendingDeleteCheckpoints) {
-            store.deleteQuiet(mergedSegmentCheckpoint.getMetadataMap().keySet().toArray(new String[0]));
-            replicaMergedSegmentCheckpoints.remove(mergedSegmentCheckpoint);
+        synchronized (cleanupReplicaMergedSegmentMutex) {
+            for (MergedSegmentCheckpoint mergedSegmentCheckpoint : pendingDeleteCheckpoints) {
+                if ((currentSegmentReplicationCheckpoint == null)
+                    || mergedSegmentCheckpoint.getMetadataMap()
+                        .keySet()
+                        .stream()
+                        .noneMatch(currentSegmentReplicationCheckpoint.getMetadataMap()::containsKey)) {
+                    logger.trace("replica shard remove redundant pending merge segment {}", mergedSegmentCheckpoint.getSegmentName());
+                    store.deleteQuiet(mergedSegmentCheckpoint.getMetadataMap().keySet().toArray(new String[0]));
+                    replicaMergedSegmentCheckpoints.remove(mergedSegmentCheckpoint);
+                } else {
+                    logger.trace(
+                        "replica shard can not remove redundant pending merge segment {}",
+                        mergedSegmentCheckpoint.getSegmentName()
+                    );
+                }
+            }
         }
     }
 
@@ -1930,6 +1948,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // for tests
     public Set<MergedSegmentCheckpoint> getReplicaMergedSegmentCheckpoints() {
         return replicaMergedSegmentCheckpoints;
+    }
+
+    public void setCurrentSegmentReplicationCheckpoint(ReplicationCheckpoint currentSegmentReplicationCheckpoint) {
+        synchronized (cleanupReplicaMergedSegmentMutex) {
+            this.currentSegmentReplicationCheckpoint = currentSegmentReplicationCheckpoint;
+        }
     }
 
     /**
