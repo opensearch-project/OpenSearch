@@ -13,7 +13,6 @@ import com.parquet.parquetdataformat.bridge.NativeParquetWriter;
 import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,15 +36,15 @@ import java.util.concurrent.atomic.AtomicReference;
  *   <li>{@link com.parquet.parquetdataformat.bridge.RustBridge} - Direct JNI calls to Rust backend</li>
  * </ul>
  */
-public class VSRManager implements Closeable {
+public class VSRManager implements AutoCloseable {
+
+    private static final Logger logger = LogManager.getLogger(VSRManager.class);
+
     private final AtomicReference<ManagedVSR> managedVSR = new AtomicReference<>();
-    private Map<String, FieldVector> fieldVectorMap;
     private final Schema schema;
     private final String fileName;
     private final VSRPool vsrPool;
     private NativeParquetWriter writer;
-
-    private static final Logger logger = LogManager.getLogger(VSRManager.class);
 
 
     public VSRManager(String fileName, Schema schema, ArrowBufferPool arrowBufferPool) {
@@ -57,7 +56,7 @@ public class VSRManager implements Closeable {
 
         // Get active VSR from pool
         this.managedVSR.set(vsrPool.getActiveVSR());
-        initializeFieldVectorMap();
+
         // Initialize writer lazily to avoid crashes
         initializeWriter();
     }
@@ -75,11 +74,7 @@ public class VSRManager implements Closeable {
     public WriteResult addToManagedVSR(ParquetDocumentInput document) throws IOException {
         ManagedVSR currentVSR = managedVSR.updateAndGet(vsr -> {
             if (vsr == null) {
-                ManagedVSR newVSR = vsrPool.getActiveVSR();
-                if (newVSR != null) {
-                    reinitializeFieldVectorMap();
-                }
-                return newVSR;
+                return vsrPool.getActiveVSR();
             }
             return vsr;
         });
@@ -123,11 +118,8 @@ public class VSRManager implements Closeable {
             }
 
             // Transition VSR to FROZEN state before flushing
-            currentVSR.setState(VSRState.FROZEN);
+            currentVSR.moveToFrozen();
             logger.info("Flushing {} rows for {}", currentVSR.getRowCount(), fileName);
-
-            // Transition to FLUSHING state
-            currentVSR.setState(VSRState.FLUSHING);
 
             // Write through native writer handle
             try (ArrowExport export = currentVSR.exportToArrow()) {
@@ -150,10 +142,29 @@ public class VSRManager implements Closeable {
                 writer.flush();
                 writer.close();
             }
+
+            // Close VSR Pool - handle IllegalStateException specially
             vsrPool.close();
             managedVSR.set(null);
+
+        } catch (IllegalStateException e) {
+            // Direct IllegalStateException - re-throw for business logic validation
+            logger.error("Error during close for {}: {}", fileName, e.getMessage(), e);
+            throw e;
+        } catch (RuntimeException e) {
+            // Check if this is a wrapped IllegalStateException from defensive cleanup
+            Throwable cause = e.getCause();
+            if (cause instanceof IllegalStateException) {
+                // Re-throw the original IllegalStateException for business logic validation
+                logger.error("Error during close for {}: {}", fileName, cause.getMessage(), cause);
+                throw (IllegalStateException) cause;
+            }
+            // For other RuntimeExceptions, log and re-throw
+            logger.error("Error during close for {}: {}", fileName, e.getMessage(), e);
+            throw new RuntimeException("Failed to close VSRManager: " + e.getMessage(), e);
         } catch (Exception e) {
             logger.error("Error during close for {}: {}", fileName, e.getMessage(), e);
+            throw new RuntimeException("Failed to close VSRManager: " + e.getMessage(), e);
         }
     }
 
@@ -181,7 +192,6 @@ public class VSRManager implements Closeable {
                         frozenVSR.getId(), frozenVSR.getRowCount(), fileName);
 
                     // Write the frozen VSR data immediately
-                    frozenVSR.setState(VSRState.FLUSHING);
                     try (ArrowExport export = frozenVSR.exportToArrow()) {
                         writer.write(export.getArrayAddress(), export.getSchemaAddress());
                     }
@@ -202,9 +212,6 @@ public class VSRManager implements Closeable {
                     throw new IOException("No active VSR available after rotation");
                 }
                 updateVSRAndReinitialize(oldVSR, newVSR);
-
-                // Reinitialize field vector map with new VSR
-                reinitializeFieldVectorMap();
 
                 logger.debug("VSR rotation completed for {}, new active VSR: {}, row count: {}",
                     fileName, newVSR.getId(), newVSR.getRowCount());
@@ -243,28 +250,7 @@ public class VSRManager implements Closeable {
      * Atomically updates managedVSR and reinitializes field vector map.
      */
     private void updateVSRAndReinitialize(ManagedVSR oldVSR, ManagedVSR newVSR) {
-        if (managedVSR.compareAndSet(oldVSR, newVSR)) {
-            reinitializeFieldVectorMap();
-        }
-    }
-
-    /**
-     * Reinitializes the field vector map with the current managed VSR.
-     * Called after VSR rotation to update vector references.
-     */
-    private void reinitializeFieldVectorMap() {
-        fieldVectorMap.clear();
-        initializeFieldVectorMap();
-    }
-
-    private void initializeFieldVectorMap() {
-        fieldVectorMap = new HashMap<>();
-        for (Field field : schema.getFields()) {
-            String fieldName = field.getName();
-            FieldVector fieldVector = managedVSR.get().getVector(fieldName);
-            // Vector is already properly typed from ManagedVSR.getVector()
-            fieldVectorMap.put(fieldName, fieldVector);
-        }
+        managedVSR.compareAndSet(oldVSR, newVSR);
     }
 
     /**
@@ -274,5 +260,14 @@ public class VSRManager implements Closeable {
      */
     public ManagedVSR getActiveManagedVSR() {
         return managedVSR.get();
+    }
+
+    /**
+     * Gets the current frozen VSR for testing purposes.
+     *
+     * @return The current frozen VSR instance, or null if none exists
+     */
+    public ManagedVSR getFrozenVSR() {
+        return vsrPool.getFrozenVSR();
     }
 }
