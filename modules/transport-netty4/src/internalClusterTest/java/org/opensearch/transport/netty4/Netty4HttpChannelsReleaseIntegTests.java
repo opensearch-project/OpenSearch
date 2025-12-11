@@ -37,8 +37,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class Netty4HttpChannelsReleaseIntegTests extends OpenSearchNetty4IntegTestCase {
 
     // This is being set as true so that we use TraceableHttpChannel(wrapped over netty channel) per request and below test doesn't fail.
-    // With the flag set to false as in the base class,
-    // the Netty HTTP channel is reused across requests because it’s tied to a single TCP connection, and fails. This test and
+    // With the flag set to false as in the base class, the Netty HTTP channel is reused across requests because it’s tied to a single TCP
+    // connection, and fails. This test and
     // TraceableHttpChannel needs update?
     @Override
     protected Settings featureFlagSettings() {
