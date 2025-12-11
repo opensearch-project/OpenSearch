@@ -46,12 +46,11 @@ import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.TemplateScript;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -128,17 +127,13 @@ public final class MustacheScriptEngine implements ScriptEngine {
             this.params = params;
         }
 
-        @SuppressWarnings("removal")
         @Override
         public String execute() {
             final StringWriter writer = new StringWriter();
             try {
                 // crazy reflection here
                 SpecialPermission.check();
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    template.execute(writer, params);
-                    return null;
-                });
+                AccessController.doPrivileged(() -> template.execute(writer, params));
             } catch (Exception e) {
                 logger.error((Supplier<?>) () -> new ParameterizedMessage("Error running {}", template), e);
                 throw new GeneralScriptException("Error running " + template, e);
