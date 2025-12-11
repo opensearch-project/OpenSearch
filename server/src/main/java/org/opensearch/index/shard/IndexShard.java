@@ -4715,7 +4715,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         );
                         // With Segment Replication enabled, we never want to reset a replica's engine unless
                         // it is promoted to primary.
-                        if (currentGlobalCheckpoint < maxSeqNo && indexSettings.isSegRepEnabledOrRemoteNode() == false) {
+                        // Also skip resetEngineToGlobalCheckpoint if tsdb_engine is enabled.
+                        boolean tsdbEngineEnabled = indexSettings.getSettings().getAsBoolean("index.tsdb_engine.enabled", true);
+                        if (currentGlobalCheckpoint < maxSeqNo
+                            && indexSettings.isSegRepEnabledOrRemoteNode() == false
+                            && tsdbEngineEnabled == false) {
                             resetEngineToGlobalCheckpoint();
                         } else {
                             getEngine().translogManager().rollTranslogGeneration();
