@@ -10,6 +10,7 @@ package org.opensearch.common.crypto;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -44,4 +45,10 @@ public interface MasterKeyProvider extends Closeable {
      * @return encryption context associated with this master key.
      */
     Map<String, String> getEncryptionContext();
+
+    /**
+    * Returns grant tokens for KMS operations.
+    * @return list of grant tokens or empty list if not configured
+    */
+    List<String> getGrantTokens();
 }
