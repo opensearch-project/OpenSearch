@@ -494,9 +494,13 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             @Override
             public void onFailure(Exception e) {}
         };
-        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener, false);
+        org.opensearch.index.engine.exec.FileMetadata fileMetadata = new org.opensearch.index.engine.exec.FileMetadata("lucene", "", filename);
+        org.opensearch.index.store.CompositeStoreDirectory compositeStoreDirectory = mock(org.opensearch.index.store.CompositeStoreDirectory.class);
+        when(compositeStoreDirectory.fileLength(fileMetadata)).thenReturn(storeDirectory.fileLength(filename));
+        when(compositeStoreDirectory.openInput(eq(fileMetadata), any())).thenAnswer(inv -> storeDirectory.openInput(filename, inv.getArgument(1)));
+        remoteSegmentStoreDirectory.copyFrom(fileMetadata, compositeStoreDirectory, IOContext.DEFAULT, completionListener, false);
         assertTrue(latch.await(5000, TimeUnit.SECONDS));
-        assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+        assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(fileMetadata));
         storeDirectory.close();
     }
 
@@ -539,9 +543,13 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
                 latch.countDown();
             }
         };
-        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener, false);
+        org.opensearch.index.engine.exec.FileMetadata fileMetadata = new org.opensearch.index.engine.exec.FileMetadata("lucene", "", filename);
+        org.opensearch.index.store.CompositeStoreDirectory compositeStoreDirectory = mock(org.opensearch.index.store.CompositeStoreDirectory.class);
+        when(compositeStoreDirectory.fileLength(fileMetadata)).thenReturn(storeDirectory.fileLength(filename));
+        when(compositeStoreDirectory.openInput(eq(fileMetadata), any())).thenAnswer(inv -> storeDirectory.openInput(filename, inv.getArgument(1)));
+        remoteSegmentStoreDirectory.copyFrom(fileMetadata, compositeStoreDirectory, IOContext.DEFAULT, completionListener, false);
         assertTrue(latch.await(5000, TimeUnit.SECONDS));
-        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(fileMetadata));
 
         storeDirectory.close();
     }
@@ -618,8 +626,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         assertThrows(
             UnsupportedOperationException.class,
             () -> uploadedSegmentMetadataMap.put(
-                "_100.si",
-                new RemoteSegmentStoreDirectory.UploadedSegmentMetadata("_100.si", "_100.si__uuid1", "1234", 500,"format")
+                new org.opensearch.index.engine.exec.FileMetadata("lucene", "", "_100.si"),
+                new RemoteSegmentStoreDirectory.UploadedSegmentMetadata("_100.si", "_100.si__uuid1", "1234", 500,"lucene")
             )
         );
 
@@ -637,12 +645,15 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         when(storeDirectory.createOutput(startsWith("metadata__" + primaryTerm + "__o"), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
 
         Collection<String> segmentFiles = List.of("_s1.si", "_s1.cfe", "_s3.cfs");
+        Collection<org.opensearch.index.engine.exec.FileMetadata> fileMetadataCollection = segmentFiles.stream()
+            .map(f -> new org.opensearch.index.engine.exec.FileMetadata("lucene", "", f))
+            .collect(java.util.stream.Collectors.toList());
         assertThrows(
             NoSuchFileException.class,
             () -> remoteSegmentStoreDirectory.uploadMetadata(
-                segmentFiles,
-                segmentInfos,
-                storeDirectory,
+                fileMetadataCollection,
+                null,
+                mock(org.opensearch.index.store.CompositeStoreDirectory.class),
                 34L,
                 indexShard.getLatestReplicationCheckpoint(),
                 ""
@@ -686,10 +697,13 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         when(storeDirectory.createOutput(startsWith("metadata__" + primaryTermLong + "__" + generationLong), eq(IOContext.DEFAULT)))
             .thenReturn(indexOutput);
 
+        Collection<org.opensearch.index.engine.exec.FileMetadata> fileMetadataCollection = segInfos.files(true).stream()
+            .map(f -> new org.opensearch.index.engine.exec.FileMetadata("lucene", "", f))
+            .collect(java.util.stream.Collectors.toList());
         remoteSegmentStoreDirectory.uploadMetadata(
-            segInfos.files(true),
-            segInfos,
-            storeDirectory,
+            fileMetadataCollection,
+            null,
+            mock(org.opensearch.index.store.CompositeStoreDirectory.class),
             generation,
             indexShard.getLatestReplicationCheckpoint(),
             ""
@@ -710,11 +724,11 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         RemoteSegmentMetadata remoteSegmentMetadata = streamWrapper.readStream(
             new ByteArrayIndexInput("expected", BytesReference.toBytes(output.bytes()))
         );
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> actual = remoteSegmentStoreDirectory
+        Map<org.opensearch.index.engine.exec.FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> actual = remoteSegmentStoreDirectory
             .getSegmentsUploadedToRemoteStore();
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> expected = remoteSegmentMetadata.getMetadata();
-        for (String filename : expected.keySet()) {
-            assertEquals(expected.get(filename).toString(), actual.get(filename).toString());
+        Map<org.opensearch.index.engine.exec.FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> expected = remoteSegmentMetadata.getMetadata();
+        for (org.opensearch.index.engine.exec.FileMetadata fileMetadata : expected.keySet()) {
+            assertEquals(expected.get(fileMetadata).toString(), actual.get(fileMetadata).toString());
         }
     }
 
@@ -733,12 +747,15 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         );
 
         Collection<String> segmentFiles = List.of("_123.si");
+        Collection<org.opensearch.index.engine.exec.FileMetadata> fileMetadataCollection = segmentFiles.stream()
+            .map(f -> new org.opensearch.index.engine.exec.FileMetadata("lucene", "", f))
+            .collect(java.util.stream.Collectors.toList());
         assertThrows(
             NoSuchFileException.class,
             () -> remoteSegmentStoreDirectory.uploadMetadata(
-                segmentFiles,
-                segmentInfos,
-                storeDirectory,
+                fileMetadataCollection,
+                null,
+                mock(org.opensearch.index.store.CompositeStoreDirectory.class),
                 12L,
                 indexShard.getLatestReplicationCheckpoint(),
                 ""
@@ -1198,11 +1215,11 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
 
         RemoteSegmentMetadata remoteSegmentMetadata = remoteSegmentStoreDirectory.initializeToSpecificTimestamp(1234L);
         assertNotNull(remoteSegmentMetadata);
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteSegmentStoreDirectory
+        Map<org.opensearch.index.engine.exec.FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteSegmentStoreDirectory
             .getSegmentsUploadedToRemoteStore();
         assertEquals(2, uploadedSegments.size());
-        assertTrue(uploadedSegments.containsKey("_0.cfe"));
-        assertTrue(uploadedSegments.containsKey("_0.cfs"));
+        assertTrue(uploadedSegments.containsKey(new org.opensearch.index.engine.exec.FileMetadata("lucene", "", "_0.cfe")));
+        assertTrue(uploadedSegments.containsKey(new org.opensearch.index.engine.exec.FileMetadata("lucene", "", "_0.cfs")));
     }
 
     public void testMarkMergedSegmentPendingDownload() {
@@ -1210,19 +1227,21 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         String remoteSegmentName1 = "_1.si__uuid";
         String localSegmentName2 = "_1.dvd";
         String remoteSegmentName2 = "_1.dvd__uuid";
+        org.opensearch.index.engine.exec.FileMetadata fm1 = new org.opensearch.index.engine.exec.FileMetadata("lucene", "", localSegmentName1);
+        org.opensearch.index.engine.exec.FileMetadata fm2 = new org.opensearch.index.engine.exec.FileMetadata("lucene", "", localSegmentName2);
         remoteSegmentStoreDirectory.markMergedSegmentsPendingDownload(
-            Map.of(localSegmentName1, remoteSegmentName1, localSegmentName2, remoteSegmentName2)
+            Map.of(fm1, remoteSegmentName1, fm2, remoteSegmentName2)
         );
 
-        assertTrue(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(localSegmentName1));
-        assertTrue(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(localSegmentName2));
-        assertFalse(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload("_3.si"));
-        assertEquals(remoteSegmentName1, remoteSegmentStoreDirectory.getExistingRemoteFilename(localSegmentName1));
-        assertEquals(remoteSegmentName2, remoteSegmentStoreDirectory.getExistingRemoteFilename(localSegmentName2));
+        assertTrue(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(fm1));
+        assertTrue(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(fm2));
+        assertFalse(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(new org.opensearch.index.engine.exec.FileMetadata("lucene", "", "_3.si")));
+        assertEquals(remoteSegmentName1, remoteSegmentStoreDirectory.getExistingRemoteFilename(fm1));
+        assertEquals(remoteSegmentName2, remoteSegmentStoreDirectory.getExistingRemoteFilename(fm2));
 
-        remoteSegmentStoreDirectory.unmarkMergedSegmentsPendingDownload(Set.of(localSegmentName1));
-        assertFalse(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(localSegmentName1));
-        assertNull(remoteSegmentStoreDirectory.getExistingRemoteFilename(localSegmentName1));
+        remoteSegmentStoreDirectory.unmarkMergedSegmentsPendingDownload(java.util.Set.of(localSegmentName1));
+        assertFalse(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(fm1));
+        assertNull(remoteSegmentStoreDirectory.getExistingRemoteFilename(fm1));
     }
 
     private static class WrapperIndexOutput extends IndexOutput {

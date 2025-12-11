@@ -9,6 +9,7 @@
 package org.opensearch.index.store;
 
 import org.opensearch.common.util.UploadListener;
+import org.opensearch.index.engine.exec.FileMetadata;
 
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -23,18 +24,18 @@ public class TestUploadListener implements UploadListener {
     }
 
     @Override
-    public void beforeUpload(String file) {
-        uploadStatusMap.put(file, UploadStatus.BEFORE_UPLOAD);
+    public void beforeUpload(FileMetadata fileMetadata) {
+        uploadStatusMap.put(fileMetadata.file(), UploadStatus.BEFORE_UPLOAD);
     }
 
     @Override
-    public void onSuccess(String file) {
-        uploadStatusMap.put(file, UploadStatus.UPLOAD_SUCCESS);
+    public void onSuccess(FileMetadata fileMetadata) {
+        uploadStatusMap.put(fileMetadata.file(), UploadStatus.UPLOAD_SUCCESS);
     }
 
     @Override
-    public void onFailure(String file) {
-        uploadStatusMap.put(file, UploadStatus.UPLOAD_FAILURE);
+    public void onFailure(FileMetadata fileMetadata) {
+        uploadStatusMap.put(fileMetadata.file(), UploadStatus.UPLOAD_FAILURE);
     }
 
     public UploadStatus getUploadStatus(String file) {

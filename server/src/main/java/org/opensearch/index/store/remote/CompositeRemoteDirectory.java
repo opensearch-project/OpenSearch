@@ -49,6 +49,7 @@ import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.UnaryOperator;
 
@@ -115,13 +116,21 @@ public class CompositeRemoteDirectory implements Closeable {
         this.pendingDownloadMergedSegments = pendingDownloadMergedSegments;
         this.logger = logger;
 
-        BlobPath metadataBlobPath = baseBlobPath.parent().add("metadata");
+        BlobPath metadataBlobPath = Objects.requireNonNull(baseBlobPath.parent()).add("metadata");
         this.metadataBlobContainer = blobStore.blobContainer(metadataBlobPath);
 
         try {
-            DataSourcePlugin  plugin = pluginsService.filterPlugins(DataSourcePlugin.class).stream().findAny().orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
-             formatBlobContainers.put(plugin.getDataFormat().name(), plugin.createBlobContainer(blobStore, baseBlobPath));
-        } catch (NullPointerException | IOException e) {
+            pluginsService.filterPlugins(DataSourcePlugin.class).forEach(
+                plugin -> {
+                    try {
+                        formatBlobContainers.put(plugin.getDataFormat().name(), plugin.createBlobContainer(blobStore, baseBlobPath));
+                    } catch (IOException e) {
+                        logger.error("failed to create blob container for dataformat {} at base path {}", plugin.getDataFormat().name(), baseBlobPath, e);
+                        throw new RuntimeException(e);
+                    }
+                }
+            );
+        } catch (NullPointerException e) {
             formatBlobContainers.put("", null);
         }
 
@@ -228,14 +237,15 @@ public class CompositeRemoteDirectory implements Closeable {
                 );
             }
             RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
-                src,
+                src.file(),
                 remoteFileName,
                 contentLength,
                 true,
                 lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
                 offsetRangeInputStreamSupplier,
                 expectedChecksum,
-                remoteIntegrityEnabled
+                remoteIntegrityEnabled,
+                null
             );
             ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
                 try {

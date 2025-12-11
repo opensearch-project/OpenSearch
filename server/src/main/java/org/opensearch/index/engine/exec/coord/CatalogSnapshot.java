@@ -8,28 +8,21 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
-import org.opensearch.core.common.io.stream.BytesStreamInput;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.*;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.Serializable;
-import java.io.DataOutputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectOutputStream;
-import java.io.ObjectInputStream;
-import java.io.InputStream;
-import java.io.DataInputStream;
-import java.io.ByteArrayInputStream;
+import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -38,58 +31,56 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 @ExperimentalApi
-public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
+public class CatalogSnapshot extends AbstractRefCounted implements Writeable, Cloneable {
 
     public static final String CATALOG_SNAPSHOT_KEY = "_catalog_snapshot_";
     public static final String LAST_COMPOSITE_WRITER_GEN_KEY = "_last_composite_writer_gen_";
     private final long id;
     private long version;
-    private final Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles;
-    private static final String CATALOG_SNAPSHOT_KEY = "_catalog_snapshot_";
     private Map<String, String> userData;
+    private long lastWriterGeneration;
+    private final Map<String, List<WriterFileSet>> dfGroupedSearchableFiles;
+    private List<Segment> segmentList;
+    private Supplier<IndexFileDeleter> indexFileDeleterSupplier;
+    private Map<Long, CatalogSnapshot> catalogSnapshotMap;
 
-    // Todo: @Kamal, update version increment logic properly
-    public CatalogSnapshot(RefreshResult refreshResult, long id, long version) {
-        super("catalog_snapshot");
+    public CatalogSnapshot(long id, long version, List<Segment> segmentList, Map<Long, CatalogSnapshot> catalogSnapshotMap, Supplier<IndexFileDeleter> indexFileDeleterSupplier) {
+        super("catalog_snapshot_" + id);
         this.id = id;
+        this.segmentList = segmentList;
         this.version = version;
         this.userData = new HashMap<>();
         this.dfGroupedSearchableFiles = new HashMap<>();
-        if (refreshResult != null) {
-            refreshResult.getRefreshedFiles().forEach((dataFormat, writerFiles) -> dfGroupedSearchableFiles.put(dataFormat.name(), writerFiles));
-        }
-    }
+        this.lastWriterGeneration = -1;
 
-    private CatalogSnapshot(long id, Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles) {
-        super("catalog_snapshot");
-        this.id = id;
-        this.dfGroupedSearchableFiles = dfGroupedSearchableFiles;
-    }
-
-    public CatalogSnapshot remapPaths(Path newShardDataPath) {
-        Map<String, Collection<WriterFileSet>> remappedFiles = new HashMap<>();
-
-        for (Map.Entry<String, Collection<WriterFileSet>> entry : dfGroupedSearchableFiles.entrySet()) {
-            String dataFormat = entry.getKey();
-            List<WriterFileSet> remappedFileSets = new ArrayList<>();
-            Path shardDataPath = newShardDataPath.resolve(dataFormat);
-            for (WriterFileSet fileSet : entry.getValue()) {
-                // Create new WriterFileSet with updated directory and file paths
-                WriterFileSet remappedFileSet = fileSet.withDirectory(shardDataPath.toString());
-                remappedFileSets.add(remappedFileSet);
-            }
-
-            remappedFiles.put(dataFormat, remappedFileSets);
-        }
-
-        return new CatalogSnapshot(this.id, remappedFiles);
+        segmentList.forEach(segment -> segment.getDFGroupedSearchableFiles().forEach((dataFormat, writerFiles) -> {
+            dfGroupedSearchableFiles.computeIfAbsent(dataFormat, k -> new ArrayList<>()).add(writerFiles);
+            this.lastWriterGeneration = Math.max(this.lastWriterGeneration, writerFiles.getWriterGeneration());
+        }));
+        this.catalogSnapshotMap = catalogSnapshotMap;
+        this.indexFileDeleterSupplier = indexFileDeleterSupplier;
+        // Whenever a new CatalogSnapshot is created add its files to the IndexFileDeleter
+        indexFileDeleterSupplier.get().addFileReferences(this);
     }
 
     public CatalogSnapshot(StreamInput in) throws IOException {
         super("catalog_snapshot");
         this.id = in.readLong();
+        this.version = in.readLong();
+
+        // Read userData map
+        int userDataSize = in.readVInt();
+        this.userData = new HashMap<>();
+        for (int i = 0; i < userDataSize; i++) {
+            String key = in.readString();
+            String value = in.readString();
+            userData.put(key, value);
+        }
+
         this.lastWriterGeneration = in.readLong();
 
         int segmentCount = in.readVInt();
@@ -111,8 +102,10 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
             Segment remappedSegment = new Segment(segment.getGeneration());
             for (Map.Entry<String, WriterFileSet> entry : segment.getDFGroupedSearchableFiles().entrySet()) {
                 String dataFormat = entry.getKey();
+                // TODO this path resolution should be handled by core components
+                Path newDataFormatSpecificShardPath = newShardDataPath.resolve(dataFormat);
                 WriterFileSet originalFileSet = entry.getValue();
-                WriterFileSet remappedFileSet = originalFileSet.withDirectory(newShardDataPath.toString());
+                WriterFileSet remappedFileSet = originalFileSet.withDirectory(newDataFormatSpecificShardPath.toString());
                 remappedSegment.addSearchableFiles(dataFormat, remappedFileSet);
             }
             remappedSegments.add(remappedSegment);
@@ -127,6 +120,19 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
+        out.writeLong(version);
+
+        // Write userData map
+        if (userData == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(userData.size());
+            for (Map.Entry<String, String> entry : userData.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeString(entry.getValue());
+            }
+        }
+
         out.writeLong(lastWriterGeneration);
 
         out.writeVInt(segmentList != null ? segmentList.size() : 0);
@@ -198,24 +204,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
      * @return map of user data key-value pairs
      */
     public Map<String, String> getUserData() {
-        return new HashMap<>(userData);
-    }
-
-    /**
-     * Sets user data for this catalog snapshot.
-     *
-     * @param userData the user data map to set
-     * @param doIncrementVersion whether to increment version (for compatibility with SegmentInfos API)
-     */
-    public void setUserData(Map<String, String> userData, boolean doIncrementVersion) {
-        if (userData == null) {
-            this.userData = Collections.emptyMap();
-        } else {
-            this.userData = new HashMap<>(userData);
-        }
-        if (doIncrementVersion) {
-            changed();
-        }
+        return userData;
     }
 
     public void changed() {
@@ -234,127 +223,6 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
         return id;
     }
 
-    /**
-     * Writes this CatalogSnapshot to an OutputStream using standard Java serialization.
-     * This method serializes the catalog snapshot data without relying on Lucene-specific APIs.
-     *
-     * @param outputStream the OutputStream to write to
-     * @throws IOException if an I/O error occurs during writing
-     */
-    public void writeTo(OutputStream outputStream) throws IOException {
-        DataOutputStream dataOut = new DataOutputStream(outputStream);
-
-        // Write basic metadata
-        dataOut.writeLong(id);
-        dataOut.writeLong(version);
-
-        // Write userData map
-        dataOut.writeInt(userData.size());
-        for (Map.Entry<String, String> entry : userData.entrySet()) {
-            dataOut.writeUTF(entry.getKey());
-            dataOut.writeUTF(entry.getValue());
-        }
-
-        // Write dfGroupedSearchableFiles map
-        dataOut.writeInt(dfGroupedSearchableFiles.size());
-        for (Map.Entry<String, Collection<WriterFileSet>> entry : dfGroupedSearchableFiles.entrySet()) {
-            dataOut.writeUTF(entry.getKey()); // data format name
-
-            Collection<WriterFileSet> writerFileSets = entry.getValue();
-            dataOut.writeInt(writerFileSets.size());
-
-            // Serialize each WriterFileSet using ObjectOutputStream
-            for (WriterFileSet writerFileSet : writerFileSets) {
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                ObjectOutputStream oos = new ObjectOutputStream(baos);
-                oos.writeObject(writerFileSet);
-                oos.flush();
-
-                byte[] serializedWriterFileSet = baos.toByteArray();
-                dataOut.writeInt(serializedWriterFileSet.length);
-                dataOut.write(serializedWriterFileSet);
-            }
-        }
-
-        dataOut.flush();
-    }
-
-    /**
-     * Reads a CatalogSnapshot from an InputStream using standard Java deserialization.
-     * This method deserializes catalog snapshot data without relying on Lucene-specific APIs.
-     *
-     * @param inputStream the InputStream to read from
-     * @return a new CatalogSnapshot instance
-     * @throws IOException if an I/O error occurs during reading
-     * @throws ClassNotFoundException if a class cannot be found during deserialization
-     */
-    public static CatalogSnapshot readFrom(InputStream inputStream) throws IOException, ClassNotFoundException {
-        DataInputStream dataIn = new DataInputStream(inputStream);
-
-        // Read basic metadata
-        long id = dataIn.readLong();
-        long version = dataIn.readLong();
-
-        // Create CatalogSnapshot instance
-        CatalogSnapshot catalog = new CatalogSnapshot(null, id, version);
-
-        // Read userData map
-        int userDataSize = dataIn.readInt();
-        Map<String, String> userData = new HashMap<>();
-        for (int i = 0; i < userDataSize; i++) {
-            String key = dataIn.readUTF();
-            String value = dataIn.readUTF();
-            userData.put(key, value);
-        }
-        catalog.userData = userData;
-
-        // Read dfGroupedSearchableFiles map
-        int dfGroupedSize = dataIn.readInt();
-        for (int i = 0; i < dfGroupedSize; i++) {
-            String dataFormat = dataIn.readUTF();
-
-            int writerFileSetsSize = dataIn.readInt();
-            Collection<WriterFileSet> writerFileSets = new ArrayList<>();
-
-            for (int j = 0; j < writerFileSetsSize; j++) {
-                int serializedSize = dataIn.readInt();
-                byte[] serializedData = new byte[serializedSize];
-                dataIn.readFully(serializedData);
-
-                ByteArrayInputStream bais = new ByteArrayInputStream(serializedData);
-                ObjectInputStream ois = new ObjectInputStream(bais);
-                WriterFileSet writerFileSet = (WriterFileSet) ois.readObject();
-                writerFileSets.add(writerFileSet);
-            }
-
-            catalog.dfGroupedSearchableFiles.put(dataFormat, writerFileSets);
-        }
-
-        return catalog;
-    }
-
-    /**
-     * Creates a clone of this CatalogSnapshot with the same content but independent lifecycle.
-     * Similar to SegmentInfos.clone(), this allows creating independent copies that can be
-     * modified without affecting the original snapshot.
-     *
-     * @return a new CatalogSnapshot instance with the same data
-     */
-    public CatalogSnapshot clone() {
-        CatalogSnapshot cloned = new CatalogSnapshot(null, this.id, this.version);
-        cloned.userData = new HashMap<>(this.userData);
-
-        for (Map.Entry<String, Collection<WriterFileSet>> entry : this.dfGroupedSearchableFiles.entrySet()) {
-            String dataFormat = entry.getKey();
-            Collection<WriterFileSet> writerFileSets = entry.getValue();
-
-            Collection<WriterFileSet> clonedWriterFileSets = new ArrayList<>(writerFileSets);
-            cloned.dfGroupedSearchableFiles.put(dataFormat, clonedWriterFileSets);
-        }
-
-        return cloned;
-    }
-
     public long getLastWriterGeneration() {
         return lastWriterGeneration;
     }
@@ -365,7 +233,9 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     // used only when catalog snapshot is created from last commited segment and hence the object is not initialized with the deleter and map
     public void setIndexFileDeleterSupplier(Supplier<IndexFileDeleter> supplier) {
-        this.indexFileDeleterSupplier = supplier;
+        if (this.indexFileDeleterSupplier == null) {
+            this.indexFileDeleterSupplier = supplier;
+        }
     }
 
     public void setCatalogSnapshotMap(Map<Long, CatalogSnapshot> catalogSnapshotMap) {
@@ -374,7 +244,13 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
 
     @Override
     public String toString() {
-        return "CatalogSnapshot{" + "id=" + id + ", version=" + version + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + ", userData=" + userData +'}';
+        return "CatalogSnapshot{" + "id=" + id + ", version=" + version + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + ", List of Segment= " + segmentList + ", userData=" + userData +'}';
+    }
+
+    @Override
+    public CatalogSnapshot clone() {
+        // TODO this doesn't call super.clone right now
+        return new CatalogSnapshot(getId(), getVersion(), getSegments(), catalogSnapshotMap, indexFileDeleterSupplier);
     }
 
     public static class Segment implements Serializable, Writeable {
@@ -409,8 +285,8 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
         public Collection<FileMetadata> getSearchableFiles(String df) {
             List<FileMetadata> searchableFiles = new ArrayList<>();
             String directory = dfGroupedSearchableFiles.get(df).getDirectory();
-            for (String file : dfGroupedSearchableFiles.get(df).getFiles()) {
-                searchableFiles.add(new FileMetadata(directory, file));
+            for(String file : dfGroupedSearchableFiles.get(df).getFiles()) {
+                searchableFiles.add(new FileMetadata(df ,directory, file));
             }
             return searchableFiles;
         }
@@ -427,23 +303,6 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable {
                 out.writeString(entry.getKey());
                 entry.getValue().writeTo(out);
             }
-        }
-
-        public void addSearchableFiles(String dataFormat, WriterFileSet writerFileSetGroup) {
-            dfGroupedSearchableFiles.put(dataFormat, writerFileSetGroup);
-        }
-
-        public Collection<FileMetadata> getSearchableFiles(String df) {
-            List<FileMetadata> searchableFiles = new ArrayList<>();
-            String directory = dfGroupedSearchableFiles.get(df).getDirectory();
-            for(String file : dfGroupedSearchableFiles.get(df).getFiles()) {
-                searchableFiles.add(new FileMetadata(df ,directory, file));
-            }
-            return searchableFiles;
-        }
-
-        public long getGeneration() {
-            return generation;
         }
 
         @Override

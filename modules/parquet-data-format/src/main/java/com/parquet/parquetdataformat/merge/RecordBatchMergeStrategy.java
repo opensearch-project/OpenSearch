@@ -11,7 +11,6 @@ package com.parquet.parquetdataformat.merge;
 import com.parquet.parquetdataformat.engine.ParquetDataFormat;
 import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
 import org.opensearch.index.engine.exec.DataFormat;
-import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.RowId;
@@ -19,13 +18,10 @@ import org.opensearch.index.engine.exec.merge.RowIdMapping;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import static com.parquet.parquetdataformat.bridge.RustBridge.mergeParquetFilesInRust;
 
@@ -45,12 +41,9 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         files.forEach(writerFileSet ->  writerFileSet.getFiles().forEach(
             file -> filePaths.add(Path.of(writerFileSet.getDirectory(), file))));
 
-        FileMetadata firstFile = files.iterator().next();
-        String outputDirectory = firstFile.directory();
-        String dataFormat = firstFile.dataFormat();
-        long generation = generationCounter.incrementAndGet();
-        String mergedFilePath = getMergedFilePath(generation, outputDirectory);
-        String mergedFileName = getMergedFileName(generation);
+        String outputDirectory = files.iterator().next().getDirectory();
+        String mergedFilePath = getMergedFilePath(writerGeneration, outputDirectory);
+        String mergedFileName = getMergedFileName(writerGeneration);
 
         // Merge files in Rust
         mergeParquetFilesInRust(filePaths, mergedFilePath);
@@ -58,12 +51,11 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         // Build row ID mapping
         Map<RowId, Long> rowIdMapping = new HashMap<>();
 
-        FileMetadata mergedFileMetadata = new FileMetadata(
-            dataFormat,
-            outputDirectory,
-            mergedFileName
-        );
-        Map<DataFormat, Collection<FileMetadata>> mergedFiles = Collections.singletonMap(
+        WriterFileSet mergedWriterFileSet =
+            WriterFileSet.builder().directory(Path.of(outputDirectory)).addFile(mergedFileName).writerGeneration(writerGeneration).build();
+
+
+        Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(
             new ParquetDataFormat(),
             mergedWriterFileSet
         );

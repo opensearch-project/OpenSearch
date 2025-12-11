@@ -28,16 +28,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map;
-
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.NIOFSDirectory;
-import org.opensearch.index.engine.exec.DataFormat;
-import org.opensearch.index.engine.exec.RefreshResult;
-import org.opensearch.index.engine.exec.WriterFileSet;
-import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import java.util.function.LongSupplier;
 
 public class LuceneCommitEngine implements Committer {
 
@@ -69,11 +60,7 @@ public class LuceneCommitEngine implements Committer {
     }
 
     @Override
-    public CommitPoint commit(CatalogSnapshot catalogSnapshot) {
-
-        if(catalogSnapshot == null) {
-            catalogSnapshot = new CatalogSnapshot(new RefreshResult(), 0, 0);
-        }
+    public CommitPoint commit(Iterable<Map.Entry<String, String>> commitData, CatalogSnapshot catalogSnapshot) {
         addLuceneIndexes(catalogSnapshot);
         indexWriter.setLiveCommitData(commitData);
         try {

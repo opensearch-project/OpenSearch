@@ -5,6 +5,7 @@ apply plugin: 'idea'
 apply plugin: 'eclipse'
 apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 apply plugin: 'opensearch.pluginzip'
 apply plugin: 'opensearch.java-agent'
 
@@ -146,6 +147,20 @@ integTest {
   }
 }
 
+internalClusterTest {
+  // JVM arguments required for Arrow memory access (Java 9+ only)
+  if (JavaVersion.current().isJava9Compatible()) {
+    jvmArgs '--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED'
+    jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+  }
+}
+
+testClusters.all {
+  // JVM arguments required for Arrow memory access in cluster nodes
+  jvmArgs '--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+}
+
 testClusters.integTest {
   testDistribution = "INTEG_TEST"
 
@@ -273,6 +288,7 @@ clean {
             exclude '.gitkeep' // Keep any gitkeep files if they exist
         }
         delete 'src/main/rust/target'
+        delete "src/main/resources/native"
         println "Cleaned native build artifacts: src/main/resources/native and src/main/rust/target"
     }
 }

@@ -16,6 +16,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -61,13 +62,9 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
     }
 
     @Override
-    public final void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
-        if (closed.get()) {
-            return;
-        }
-
-        runAfterRefreshExactlyOnce(didRefresh);
-        runAfterRefreshWithPermit(didRefresh, () -> {});
+    public final void afterRefresh(boolean didRefresh, CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot) throws IOException {
+        // TODO CompositeEngine filters CatalogSnapshotAwareListeners, keeping this for now
+        afterRefresh(didRefresh);
     }
 
     @Override
