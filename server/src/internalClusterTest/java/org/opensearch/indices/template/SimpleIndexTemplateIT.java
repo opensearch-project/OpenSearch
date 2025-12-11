@@ -1115,13 +1115,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
 
         // Index a document with dotted field names
         client().prepareIndex("metrics-001")
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("cpu.usage", 75.5)
-                    .field("memory.used", 8589934592L)
-                    .endObject()
-            )
+            .setSource(XContentFactory.jsonBuilder().startObject().field("cpu.usage", 75.5).field("memory.used", 8589934592L).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
@@ -1195,9 +1189,11 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
 
         // Query using both field types
         SearchResponse searchResponse = client().prepareSearch("mixed-001")
-            .setQuery(QueryBuilders.boolQuery()
-                .must(QueryBuilders.matchQuery("user.name", "John"))
-                .must(QueryBuilders.rangeQuery("metrics.cpu.usage").gte(80.0)))
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.matchQuery("user.name", "John"))
+                    .must(QueryBuilders.rangeQuery("metrics.cpu.usage").gte(80.0))
+            )
             .get();
 
         assertHitCount(searchResponse, 1);

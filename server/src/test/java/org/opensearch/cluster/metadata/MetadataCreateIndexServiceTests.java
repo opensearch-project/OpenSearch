@@ -3152,16 +3152,11 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         List<CompressedXContent> templateMappings = Arrays.asList(template1Mapping, template2Mapping);
 
-        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
-            "",
-            templateMappings,
-            NamedXContentRegistry.EMPTY
-        );
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings("", templateMappings, NamedXContentRegistry.EMPTY);
 
         assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
 
-        Map<String, Object> doc =
-            (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
 
         // disable_objects from last template wins
         assertThat(doc, hasKey("disable_objects"));
@@ -3174,7 +3169,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertThat(properties, hasKey("field1"));
         assertThat(properties, hasKey("field.dotted"));
     }
-
 
     private DiscoveryNode getRemoteNode() {
         Map<String, String> attributes = new HashMap<>();

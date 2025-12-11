@@ -2738,17 +2738,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
 
         // First document with a predefined field
-        ParsedDocument doc1 = mapper.parse(source(b -> {
-            b.field("metrics.cpu.usage", 55.5);
-        }));
+        ParsedDocument doc1 = mapper.parse(source(b -> { b.field("metrics.cpu.usage", 55.5); }));
 
         IndexableField cpuUsageField = doc1.rootDoc().getField("metrics.cpu.usage");
         assertNotNull("Field 'metrics.cpu.usage' should exist", cpuUsageField);
 
         // Second document with a new dynamic field that shares a prefix
-        ParsedDocument doc2 = mapper.parse(source(b -> {
-            b.field("metrics.cpu", 99.1);
-        }));
+        ParsedDocument doc2 = mapper.parse(source(b -> { b.field("metrics.cpu", 99.1); }));
 
         IndexableField cpuField = doc2.rootDoc().getField("metrics.cpu");
         assertNotNull("Dynamic field 'metrics.cpu' should exist as a flat field", cpuField);
@@ -2756,7 +2752,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // Verify the mapping update contains the new flat field
         Mapping mappingUpdate = doc2.dynamicMappingsUpdate();
         assertNotNull("Dynamic mapping update should be created", mappingUpdate);
-        
+
         // The new field should be added as a flat field at root level
         Mapper cpuMapper = mappingUpdate.root().getMapper("metrics.cpu");
         assertNotNull("Mapper for 'metrics.cpu' should exist in dynamic update", cpuMapper);
@@ -2780,9 +2776,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
 
         // Test case 1: Flat notation (should work as before)
-        ParsedDocument doc1 = mapper.parse(source(b -> {
-            b.field("foo.bar", 5);
-        }));
+        ParsedDocument doc1 = mapper.parse(source(b -> { b.field("foo.bar", 5); }));
 
         IndexableField fooBarField1 = doc1.rootDoc().getField("foo.bar");
         assertNotNull("Field 'foo.bar' should exist", fooBarField1);

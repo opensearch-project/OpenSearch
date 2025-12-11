@@ -615,7 +615,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
-                    
+
                     // When disable_objects is enabled, treat dotted field names as literal field names
                     // and don't create intermediate object mappers
                     if (Boolean.TRUE.equals(objBuilder.disableObjects.value())) {
@@ -825,7 +825,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public void validate(MappingLookup mappers) {
         // Validate flat field compatibility when disable_objects is enabled
         validateFlatFieldCompatibility();
-        
+
         for (Mapper mapper : this.mappers.values()) {
             mapper.validate(mappers);
         }
@@ -899,7 +899,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     /**
      * Validates that disable_objects parameter is not being modified after index creation.
      * Provides descriptive error message including the field name and attempted change.
-     * 
+     *
      * @param mergeWith The ObjectMapper being merged
      * @param reason The reason for the merge
      * @throws MapperException if disable_objects is being changed
@@ -923,7 +923,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     /**
      * Validates that nested objects are not being added when disable_objects is enabled.
      * Provides clear indication of flat vs nested conflict with field name.
-     * 
+     *
      * @param newMapper The new mapper being added
      * @throws MapperException if attempting to add nested object when disable_objects=true
      */
@@ -944,7 +944,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
      * Validates that no nested object definitions exist when disable_objects is enabled.
      * This is called during index creation to ensure compatibility.
      * Provides clear indication of flat vs nested conflict with field name.
-     * 
+     *
      * @throws MapperParsingException if nested objects are found when disable_objects=true
      */
     private void validateFlatFieldCompatibility() {

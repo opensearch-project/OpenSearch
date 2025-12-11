@@ -220,7 +220,7 @@ public class FieldAliasMapperValidationTests extends OpenSearchTestCase {
             new Explicit<>(true, false),
             ObjectMapper.Nested.NO,
             ObjectMapper.Dynamic.FALSE,
-            new Explicit<>(false, false),                     
+            new Explicit<>(false, false),
             (Map<String, Mapper>) (Map<?, ?>) emptyMap(),
             SETTINGS
         );
