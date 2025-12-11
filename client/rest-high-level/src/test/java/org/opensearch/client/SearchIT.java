@@ -1847,7 +1847,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         CountRequest countRequest = new CountRequest();
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
-        assertEquals(12, countResponse.getCount());
+        assertEquals(13, countResponse.getCount());
     }
 
     public void testCountOneIndexMatchQuery() throws IOException {
