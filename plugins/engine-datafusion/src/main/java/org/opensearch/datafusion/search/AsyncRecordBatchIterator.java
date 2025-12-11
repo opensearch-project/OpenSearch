@@ -32,8 +32,9 @@ public class AsyncRecordBatchIterator {
             return;
         }
 
-        stream.loadNextBatch().whenComplete((result, throwable) -> {
+        stream.loadNextBatch().whenCompleteAsync((result, throwable) -> {
             if (throwable != null) {
+                hasNext = false;
                 listener.onFailure(new RuntimeException("Failed to load next batch", throwable));
             } else {
                 hasNext = result;
