@@ -1937,7 +1937,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // for tests
     public Set<MergedSegmentCheckpoint> getPrimaryMergedSegmentCheckpoints() {
-        return primaryMergedSegmentCheckpoints;
+        return Collections.unmodifiableSet(primaryMergedSegmentCheckpoints);
     }
 
     // We introduced replicaMergedSegmentCheckpoints for replica shard to track merged segment checkpoints that has not yet been refreshed.
@@ -1948,7 +1948,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // for tests
     public Set<MergedSegmentCheckpoint> getReplicaMergedSegmentCheckpoints() {
-        return replicaMergedSegmentCheckpoints;
+        return Collections.unmodifiableSet(replicaMergedSegmentCheckpoints);
     }
 
     public void setCurrentSegmentReplicationCheckpoint(ReplicationCheckpoint currentSegmentReplicationCheckpoint) {
