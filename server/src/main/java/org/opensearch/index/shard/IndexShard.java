@@ -396,8 +396,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
-    // Primary Shard: track merged segment checkpoints that have been published for pre-warm but not yet refreshed.
-    private final Set<MergedSegmentCheckpoint> primaryMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
+    // Primary Shard: track merged segment checkpoints that have been published for pre-warm.
+    // To save memory, the primary shard only records necessary information <segmentName, createdTimeStamp>.
+    private final Set<Tuple<String, Long>> primaryMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
 
     // Replica Shard: record the pre-copied merged segment checkpoints, which are not yet refreshed.
     private final Set<MergedSegmentCheckpoint> replicaMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
@@ -1904,21 +1905,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void removeExpiredPrimaryMergedSegmentCheckpoints() {
         long mergedSegmentRetentionTime = getRecoverySettings().getMergedSegmentCheckpointRetentionTime().getNanos();
         long nowNanos = DateUtils.toLong(Instant.now());
-        Set<MergedSegmentCheckpoint> expiredMergedSegmentCheckpoints = primaryMergedSegmentCheckpoints.stream()
-            .filter(m -> nowNanos - m.getCreatedTimeStamp() >= mergedSegmentRetentionTime)
-            .collect(Collectors.toSet());
-        expiredMergedSegmentCheckpoints.forEach(primaryMergedSegmentCheckpoints::remove);
-        logger.trace("primary shard remove expired merged segment checkpoints {}", expiredMergedSegmentCheckpoints);
-    }
-
-    // Remove the already refreshed segments from primary merged segment checkpoints.
-    public void updatePrimaryMergedSegmentCheckpoints(SegmentInfos segmentInfos) {
-        Set<String> segmentNames = segmentInfos.asList().stream().map(s -> s.info.name).collect(Collectors.toSet());
-        Set<MergedSegmentCheckpoint> refreshedMergedSegmentCheckpoints = primaryMergedSegmentCheckpoints.stream()
-            .filter(m -> segmentNames.contains(m.getSegmentName()))
-            .collect(Collectors.toSet());
-        refreshedMergedSegmentCheckpoints.forEach(primaryMergedSegmentCheckpoints::remove);
-        logger.trace("primary shard remove refreshed merged segment checkpoints {}", refreshedMergedSegmentCheckpoints);
+        primaryMergedSegmentCheckpoints.removeIf(c -> nowNanos - c.v2() > mergedSegmentRetentionTime);
     }
 
     @Deprecated(since = "3.4.0", forRemoval = true)
@@ -1929,16 +1916,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return Collections.emptySet();
     }
 
-    // We introduced primaryMergedSegmentCheckpoints for primary shard to track merged segment checkpoints that have been
-    // published for pre-warm but not yet refreshed. We will add merged segment checkpoint to IndexShard#primaryMergedSegmentCheckpoints
-    // before publish merged segment.
+    // We introduced primaryMergedSegmentCheckpoints for primary shard to track merged segment checkpoints that have been published for
+    // pre-warm.
     public void addPrimaryMergedSegmentCheckpoint(MergedSegmentCheckpoint mergedSegmentCheckpoint) {
         logger.trace("primary shard add merged segment checkpoint {}", mergedSegmentCheckpoint);
-        primaryMergedSegmentCheckpoints.add(mergedSegmentCheckpoint);
+        primaryMergedSegmentCheckpoints.add(
+            new Tuple<>(mergedSegmentCheckpoint.getSegmentName(), mergedSegmentCheckpoint.getCreatedTimeStamp())
+        );
     }
 
     // for tests
-    public Set<MergedSegmentCheckpoint> getPrimaryMergedSegmentCheckpoints() {
+    public Set<Tuple<String, Long>> getPrimaryMergedSegmentCheckpoints() {
         return Collections.unmodifiableSet(primaryMergedSegmentCheckpoints);
     }
 
@@ -2072,9 +2060,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
             Set<String> segmentNames = Sets.newHashSet();
             segmentNames.addAll(segmentInfosGatedCloseable.get().asList().stream().map(s -> s.info.name).collect(Collectors.toSet()));
-            segmentNames.addAll(
-                primaryMergedSegmentCheckpoints.stream().map(MergedSegmentCheckpoint::getSegmentName).collect(Collectors.toSet())
-            );
+            segmentNames.addAll(primaryMergedSegmentCheckpoints.stream().map(Tuple::v1).collect(Collectors.toSet()));
             return new ReferencedSegmentsCheckpoint(
                 shardId,
                 getOperationPrimaryTerm(),
@@ -5248,12 +5234,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void updateReplicationCheckpoint() {
         final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = getLatestSegmentInfosAndCheckpoint();
-        try (final GatedCloseable<SegmentInfos> snapshot = tuple.v1()) {
+        try (final GatedCloseable<SegmentInfos> ignored = tuple.v1()) {
             replicationTracker.setLatestReplicationCheckpoint(tuple.v2());
-            SegmentInfos segmentInfos = snapshot.get();
-            if (segmentInfos != null && isPrimaryMode() && routingEntry().active()) {
-                updatePrimaryMergedSegmentCheckpoints(segmentInfos);
-            }
         } catch (IOException e) {
             throw new OpenSearchException("Error Closing SegmentInfos Snapshot", e);
         }

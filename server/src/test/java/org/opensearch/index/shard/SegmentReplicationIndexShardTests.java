@@ -293,6 +293,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             Settings.builder()
                 .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
                 .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "1b")
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(10))
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
@@ -336,11 +337,17 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             // verify primary segment count and replica pending merge segment count
             assertEquals(1, primaryShard.segments(false).size());
+            assertEquals(2, primaryShard.getPrimaryMergedSegmentCheckpoints().size());
             assertEquals(2, replicaShard.getReplicaMergedSegmentCheckpoints().size());
 
             // after segment replication, _4.si is removed from pending merge segments
             replicateSegments(primaryShard, List.of(replicaShard));
             assertEquals(1, replicaShard.getReplicaMergedSegmentCheckpoints().size());
+
+            assertBusy(() -> {
+                primaryShard.removeExpiredPrimaryMergedSegmentCheckpoints();
+                assertEquals(0, primaryShard.getPrimaryMergedSegmentCheckpoints().size());
+            }, 60, TimeUnit.SECONDS);
 
             // after cleanup redundant pending merge segment, _2.si is removed from pending merge segments
             ReferencedSegmentsCheckpoint referencedSegmentsCheckpoint = primaryShard.computeReferencedSegmentsCheckpoint();
