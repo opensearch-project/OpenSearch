@@ -1918,9 +1918,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // We introduced primaryMergedSegmentCheckpoints for primary shard to track merged segment checkpoints that have been published for
     // pre-warm.
-    public void addPrimaryMergedSegmentCheckpoint(MergedSegmentCheckpoint mergedSegmentCheckpoint) {
+    private void addPrimaryMergedSegmentCheckpoint(MergedSegmentCheckpoint mergedSegmentCheckpoint) {
         logger.trace("primary shard add merged segment checkpoint {}", mergedSegmentCheckpoint);
         primaryMergedSegmentCheckpoints.add(
+            new Tuple<>(mergedSegmentCheckpoint.getSegmentName(), mergedSegmentCheckpoint.getCreatedTimeStamp())
+        );
+    }
+
+    private void removePrimaryMergedSegmentCheckpoint(MergedSegmentCheckpoint mergedSegmentCheckpoint) {
+        logger.trace("primary shard remove merged segment checkpoint {}", mergedSegmentCheckpoint);
+        primaryMergedSegmentCheckpoints.remove(
             new Tuple<>(mergedSegmentCheckpoint.getSegmentName(), mergedSegmentCheckpoint.getCreatedTimeStamp())
         );
     }
@@ -1949,8 +1956,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // Merged Segment Warmer: Used to clean up the replica shard status during the promotion process.
     public void clearReplicaMergedSegmentState() {
-        currentSegmentReplicationCheckpoint = null;
-        replicaMergedSegmentCheckpoints.clear();
+        synchronized (cleanupReplicaMergedSegmentMutex) {
+            currentSegmentReplicationCheckpoint = null;
+            replicaMergedSegmentCheckpoints.clear();
+        }
     }
 
     /**
@@ -2045,8 +2054,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void publishReferencedSegments() throws IOException {
         assert referencedSegmentsPublisher != null;
-        referencedSegmentsPublisher.publish(this, computeReferencedSegmentsCheckpoint());
-        removeExpiredPrimaryMergedSegmentCheckpoints();
+        try {
+            referencedSegmentsPublisher.publish(this, computeReferencedSegmentsCheckpoint());
+        } finally {
+            removeExpiredPrimaryMergedSegmentCheckpoints();
+        }
     }
 
     /**
@@ -2077,7 +2089,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert mergedSegmentPublisher != null;
         MergedSegmentCheckpoint mergedSegmentCheckpoint = computeMergeSegmentCheckpoint(segmentCommitInfo);
         addPrimaryMergedSegmentCheckpoint(mergedSegmentCheckpoint);
-        mergedSegmentPublisher.publish(this, mergedSegmentCheckpoint);
+        try {
+            mergedSegmentPublisher.publish(this, mergedSegmentCheckpoint);
+        } catch (Exception e) {
+            removePrimaryMergedSegmentCheckpoint(mergedSegmentCheckpoint);
+            throw e;
+        }
     }
 
     /**
