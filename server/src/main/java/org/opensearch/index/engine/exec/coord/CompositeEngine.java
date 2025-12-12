@@ -44,6 +44,7 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.VersionValue;
+import org.opensearch.index.engine.*;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
@@ -716,7 +717,22 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     }
 
     public synchronized void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
-        catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
+        try {
+            catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
+        } catch (Exception ex) {
+            try {
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "Merge failed while registering merged files in Snapshot"
+                    ),
+                    ex
+                );
+                failEngine("Merge failed while registering merged files in Snapshot", ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
+            throw new MergeFailedEngineException(shardId, ex);
+        }
     }
 
     public void triggerPossibleMerges() {
