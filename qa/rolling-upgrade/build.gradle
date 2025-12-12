@@ -37,6 +37,25 @@ apply plugin: 'opensearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
 apply plugin: 'opensearch.rest-resources'
 
+def configureTestTask(task, clusterName, bwcVersionStr, suite, testFilter, extraConfig = {}) {
+  task.configure {
+    useCluster project, testClusters."${clusterName}"
+    systemProperty 'tests.upgrade_from_version', bwcVersionStr
+    systemProperty 'tests.rest.suite', suite
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${clusterName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${clusterName}".getName()}")
+
+    if (testFilter == 'exclude') {
+      exclude '**/RemotePublicationClusterStateIT.class'
+    } else if (testFilter == 'include') {
+      include '**/RemotePublicationClusterStateIT.class'
+    }
+
+    extraConfig.delegate = delegate
+    extraConfig()
+  }
+}
+
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   /*
    * The goal here is to:
@@ -58,7 +77,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     "${baseName}" {
       versions = [bwcVersionStr, project.version]
       numberOfNodes = 3
-
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'http.content_type.required', 'true'
@@ -67,57 +85,90 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     dependsOn processTestResources
-    useCluster project, testClusters."${baseName}"
     mustRunAfter(precommit)
-    doFirst {
-      delete("${buildDir}/cluster/shared/repo/${baseName}")
+    configureTestTask(it, baseName, bwcVersionStr, 'old_cluster', 'exclude') {
+      doFirst { delete("${buildDir}/cluster/shared/repo/${baseName}") }
     }
-    systemProperty 'tests.upgrade_from_version', bwcVersionStr
-    systemProperty 'tests.rest.suite', 'old_cluster'
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
   tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
-    useCluster project, testClusters."${baseName}"
-    doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+    configureTestTask(it, baseName, bwcVersionStr, 'mixed_cluster', 'exclude') {
+      systemProperty 'tests.first_round', 'true'
+      doFirst { testClusters."${baseName}".nextNodeToNextVersion() }
     }
-    systemProperty 'tests.rest.suite', 'mixed_cluster'
-    systemProperty 'tests.upgrade_from_version', bwcVersionStr
-    systemProperty 'tests.first_round', 'true'
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgradedTest"
-    useCluster project, testClusters."${baseName}"
-    doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+    configureTestTask(it, baseName, bwcVersionStr, 'mixed_cluster', 'exclude') {
+      systemProperty 'tests.first_round', 'false'
+      doFirst { testClusters."${baseName}".nextNodeToNextVersion() }
     }
-    systemProperty 'tests.rest.suite', 'mixed_cluster'
-    systemProperty 'tests.upgrade_from_version', bwcVersionStr
-    systemProperty 'tests.first_round', 'false'
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdsUpgradedTest"
-    doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+    configureTestTask(it, baseName, bwcVersionStr, 'upgraded_cluster', 'exclude') {
+      doFirst { testClusters."${baseName}".nextNodeToNextVersion() }
     }
-    useCluster project, testClusters."${baseName}"
-    systemProperty 'tests.rest.suite', 'upgraded_cluster'
-    systemProperty 'tests.upgrade_from_version', bwcVersionStr
-
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn tasks.named("${baseName}#upgradedClusterTest")
+  }
+
+  // Remote publication cluster
+  String remoteBaseName = "${baseName}-remote"
+
+  testClusters {
+    "${remoteBaseName}" {
+      versions = [bwcVersionStr, project.version]
+      numberOfNodes = 3
+      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${remoteBaseName}"
+      setting 'http.content_type.required', 'true'
+      setting 'node.attr.remote_store.routing_table.repository', 'my-fs-repository'
+      setting 'node.attr.remote_store.state.repository', 'my-fs-repository'
+      setting 'node.attr.remote_store.repository.my-fs-repository.type', 'fs'
+      setting 'node.attr.remote_store.repository.my-fs-repository.settings.location', "${buildDir}/cluster/shared/repo/${remoteBaseName}/remote_state"
+      setting 'cluster.remote_store.state.enabled', 'true'
+      setting 'cluster.remote_store.publication.enabled', 'true'
+    }
+  }
+
+  tasks.register("${remoteBaseName}#oldClusterTest", StandaloneRestIntegTestTask) {
+    dependsOn processTestResources
+    mustRunAfter(precommit)
+    configureTestTask(it, remoteBaseName, bwcVersionStr, 'old_cluster', 'include') {
+      doFirst { delete("${buildDir}/cluster/shared/repo/${remoteBaseName}") }
+    }
+  }
+
+  tasks.register("${remoteBaseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
+    dependsOn "${remoteBaseName}#oldClusterTest"
+    configureTestTask(it, remoteBaseName, bwcVersionStr, 'mixed_cluster', 'include') {
+      systemProperty 'tests.first_round', 'true'
+      doFirst { testClusters."${remoteBaseName}".nextNodeToNextVersion() }
+    }
+  }
+
+  tasks.register("${remoteBaseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
+    dependsOn "${remoteBaseName}#oneThirdUpgradedTest"
+    configureTestTask(it, remoteBaseName, bwcVersionStr, 'mixed_cluster', 'include') {
+      systemProperty 'tests.first_round', 'false'
+      doFirst { testClusters."${remoteBaseName}".nextNodeToNextVersion() }
+    }
+  }
+
+  tasks.register("${remoteBaseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
+    dependsOn "${remoteBaseName}#twoThirdsUpgradedTest"
+    configureTestTask(it, remoteBaseName, bwcVersionStr, 'upgraded_cluster', 'include') {
+      doFirst { testClusters."${remoteBaseName}".nextNodeToNextVersion() }
+    }
+  }
+
+  tasks.register("remote-${bwcTaskName(bwcVersion)}") {
+    dependsOn tasks.named("${remoteBaseName}#upgradedClusterTest")
   }
 }
