@@ -387,7 +387,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         }
     }
 
-    public void testBulkAdaptedSelectShard() {
+    public void testBulkAdaptiveSelectShard() {
         // if IndexRoutingTable is null, we should return null
         ResponseCollectorService nodeMetricsCollector = new ResponseCollectorService(clusterService);
         Map<String, Long> clientConnections = new HashMap<>();
