@@ -53,7 +53,6 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.Sort
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
-import org.opensearch.search.aggregations.AggregatorBase;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
@@ -233,7 +232,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
 
-        if (canUseSkiplist(skipper, singleton)) {
+        if (HistogramSkiplistLeafCollector.canUseSkiplist(hardBounds, parent, skipper, singleton)) {
             skipListCollectorsUsed++;
             return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, sub, this);
         }
@@ -293,23 +292,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 super.collectRange(min, max);
             }
         };
-    }
-
-    /**
-     * Skiplist is based as top level agg (null parent) or parent that will execute in sorted order
-     *
-     */
-    private boolean canUseSkiplist(DocValuesSkipper skipper, NumericDocValues singleton) {
-        if (skipper == null || singleton == null) return false;
-        // TODO: add hard bounds support
-        if (hardBounds != null) return false;
-
-        if (parent == null) return true;
-
-        if (parent instanceof AggregatorBase base) {
-            return base.getLeafCollectorMode() == LeafCollectionMode.FILTER_REWRITE;
-        }
-        return false;
     }
 
     private void collectValue(LeafBucketCollector sub, int doc, long owningBucketOrd, long rounded) throws IOException {
