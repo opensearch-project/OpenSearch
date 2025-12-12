@@ -469,6 +469,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     shard_view_ptr: jlong,
     table_name: JString,
     substrait_bytes: jbyteArray,
+    is_query_plan_explain_enabled: jboolean,
     runtime_ptr: jlong,
     listener: JObject,
 ) {
@@ -492,6 +493,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             return;
         }
     };
+
+    let is_query_plan_explain_enabled: bool = is_query_plan_explain_enabled !=0;
 
     let plan_bytes_obj = unsafe { JByteArray::from_raw(substrait_bytes) };
     let plan_bytes_vec = match env.convert_byte_array(plan_bytes_obj) {
@@ -530,6 +533,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             files_meta,
             table_name,
             plan_bytes_vec,
+            is_query_plan_explain_enabled,
             runtime,
             cpu_executor,
         ).await;

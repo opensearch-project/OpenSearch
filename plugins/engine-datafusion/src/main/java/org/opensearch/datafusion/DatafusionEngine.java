@@ -264,6 +264,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<Map<String, Object[]>> listener) {
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
+            context.getDatafusionQuery().setQueryPlanExplainEnabled(context.mapperService().getIndexSettings().isSearchQueryPlaneExplainEnabled());
+
             datafusionSearcher.searchAsync(context.getDatafusionQuery(), datafusionService.getRuntimePointer()).whenCompleteAsync((streamPointer, error)-> {
                 Map<String, Object[]> finalRes = new HashMap<>();
                 List<Long> rowIdResult = new ArrayList<>();
@@ -395,7 +397,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             includeFields.add(CompositeDataFormatWriter.ROW_ID);
         }
         excludeFields.addAll(context.mapperService().documentMapper().mapping().getMetadataStringNames());
-        excludeFields.add(SeqNoFieldMapper.PRIMARY_TERM_NAME); // TODO: check why _primary_term is not part of metadata mapper fields
+        excludeFields.add(SeqNoFieldMapper.PRIMARY_TERM_NAME);
 
         context.getDatafusionQuery().setSource(includeFields, excludeFields);
         DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
