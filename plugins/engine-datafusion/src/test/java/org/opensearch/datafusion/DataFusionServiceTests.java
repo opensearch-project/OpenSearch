@@ -325,7 +325,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
         ReaderContext readerContext = createAndPutReaderContext(shardSearchRequest, indexService, indexShard, reader);
         SearchShardTarget searchShardTarget = new SearchShardTarget("node_1", new ShardId("index-7", "index-7", 0), null, OriginalIndices.NONE);
         SearchShardTask searchShardTask = new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "my_id"));
-        DatafusionContext datafusionContext = new DatafusionContext(readerContext, shardSearchRequest, searchShardTarget, searchShardTask, engine, null, null);
+        DatafusionContext datafusionContext = new DatafusionContext(readerContext, shardSearchRequest, searchShardTarget, searchShardTask, engine, null, null, null);
 
         byte[] protoContent;
         try (InputStream is = getClass().getResourceAsStream("/substrait_plan_test.pb")) {

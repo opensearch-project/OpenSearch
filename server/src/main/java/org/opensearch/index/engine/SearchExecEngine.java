@@ -9,6 +9,7 @@
 package org.opensearch.index.engine;
 
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.action.ActionListener;
@@ -35,7 +36,7 @@ public abstract class SearchExecEngine<C extends SearchContext, S extends Engine
     /**
      * Create a search context for this engine
      */
-    public abstract C createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext) throws IOException;
+    public abstract C createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext, ClusterService clusterService) throws IOException;
 
     /**
      * execute Query Phase
