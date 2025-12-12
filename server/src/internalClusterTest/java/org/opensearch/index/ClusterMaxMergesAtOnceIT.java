@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2)
 public class ClusterMaxMergesAtOnceIT extends AbstractSnapshotIntegTestCase {
@@ -64,7 +65,6 @@ public class ClusterMaxMergesAtOnceIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startClusterManagerOnlyNode();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18056")
     public void testClusterLevelDefaultUpdatesMergePolicy() throws ExecutionException, InterruptedException {
         String clusterManagerName = internalCluster().getClusterManagerName();
         List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
@@ -98,9 +98,11 @@ public class ClusterMaxMergesAtOnceIT extends AbstractSnapshotIntegTestCase {
 
         // Create index with index level override in settings
         indexName = "log-myindex-3";
-        createIndex(
-            indexName,
-            Settings.builder().put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), 15).build()
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder().put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), 15)
+            )
         );
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);

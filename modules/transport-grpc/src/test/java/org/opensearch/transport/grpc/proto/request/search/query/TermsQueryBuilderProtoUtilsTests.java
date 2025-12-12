@@ -172,6 +172,36 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals(fieldName, builder.fieldName());
         assertEquals(TermsQueryBuilder.ValueType.DEFAULT, builder.valueType());
         assertNotNull("termsLookup should be set for lookup path", builder.termsLookup());
+        assertEquals("idx", builder.termsLookup().index());
+        assertEquals("1", builder.termsLookup().id());
+        assertEquals("tags", builder.termsLookup().path());
+        assertEquals("r", builder.termsLookup().routing());
+        assertTrue("store should be true", builder.termsLookup().store());
+    }
+
+    public void testFromProtoWithLookupStoreDefaultFalse() {
+        String fieldName = "tags";
+
+        // Test without setting store (should default to false)
+        org.opensearch.protobufs.TermsLookup lookup = org.opensearch.protobufs.TermsLookup.newBuilder()
+            .setIndex("idx")
+            .setId("1")
+            .setPath("tags")
+            .build();
+
+        org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
+            .setLookup(lookup)
+            .build();
+
+        TermsQueryBuilder builder = TermsQueryBuilderProtoUtils.fromProto(
+            fieldName,
+            termsQueryField,
+            org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_DEFAULT
+        );
+
+        assertNotNull(builder);
+        assertNotNull("termsLookup should be set for lookup path", builder.termsLookup());
+        assertFalse("store should default to false", builder.termsLookup().store());
     }
 
     public void testFromProtoNewOverloadBitmapDecoding() {

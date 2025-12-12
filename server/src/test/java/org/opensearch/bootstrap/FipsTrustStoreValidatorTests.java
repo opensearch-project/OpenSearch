@@ -9,16 +9,12 @@
 package org.opensearch.bootstrap;
 
 import org.opensearch.cli.SuppressForbidden;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermissions;
-import java.security.KeyStore;
 import java.security.KeyStoreException;
 
 @SuppressForbidden(reason = "the java.io.File is exposed by TemporaryFolder")
@@ -44,48 +40,6 @@ public class FipsTrustStoreValidatorTests extends OpenSearchTestCase {
 
         // Proves PKCS11 is accepted as from valid type (didn't throw "must be PKCS11 or BCFKS")
         assertTrue(exception.getMessage().contains("Trust store provider not available"));
-    }
-
-    public void testValidateAcceptsBCFKSType() throws Exception {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-
-        var trustStoreResource = getClass().getResource("/org/opensearch/bootstrap/truststore/opensearch-fips-truststore.bcfks");
-        assertNotNull(trustStoreResource);
-        var trustStorePath = Path.of(trustStoreResource.toURI());
-
-        // Should not throw exception
-        FipsTrustStoreValidator.validate(trustStorePath.toString(), "BCFKS", "BCFIPS", "notarealpasswordphrase");
-    }
-
-    public void testBCFKSEmptyTrustStoreWarning() throws Exception {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-
-        var trustStorePath = tempDir.newFolder().toPath().resolve("empty_trust_store.bcfks");
-        var password = "testPassword";
-
-        var keyStore = java.security.KeyStore.getInstance("BCFKS", "BCFIPS");
-        keyStore.load(null, password.toCharArray());
-
-        try (var fos = Files.newOutputStream(trustStorePath)) {
-            keyStore.store(fos, password.toCharArray());
-        }
-
-        FipsTrustStoreValidator.validate(trustStorePath.toString(), "BCFKS", "BCFIPS", password);
-    }
-
-    public void testTrustStoreWithWrongPassword() throws Exception {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-
-        var trustStoreResource = getClass().getResource("/org/opensearch/bootstrap/truststore/opensearch-fips-truststore.bcfks");
-        assertNotNull("FIPS truststore resource not found", trustStoreResource);
-        var trustStorePath = Path.of(trustStoreResource.toURI());
-
-        var exception = expectThrows(
-            java.io.UncheckedIOException.class,
-            () -> FipsTrustStoreValidator.validate(trustStorePath.toString(), "BCFKS", "BCFIPS", "wrongPassword")
-        );
-
-        assertTrue(exception.getMessage().contains("possibly wrong password"));
     }
 
     public void testTrustStoreWithInvalidType() throws Exception {
@@ -164,26 +118,6 @@ public class FipsTrustStoreValidatorTests extends OpenSearchTestCase {
 
         assertTrue(exception.getMessage().contains("Trust store file is empty"));
         assertTrue(exception.getMessage().contains(emptyFile.toString()));
-    }
-
-    public void testWithoutReadPermission() throws Exception {
-        assumeTrue("Should only run when BCFIPS provider is installed.", inFipsJvm());
-        assumeTrue("requires POSIX file permissions", (IOUtils.LINUX || IOUtils.MAC_OS_X));
-        var tempBcfksFile = Files.createTempFile(createTempDir(), "no-write", ".bcfks");
-        Files.setPosixFilePermissions(tempBcfksFile, PosixFilePermissions.fromString("---------"));
-
-        try {
-            var keyStore = KeyStore.getInstance("BCFKS", "BCFIPS");
-            keyStore.load(null, "changeit".toCharArray());
-
-            var throwable = assertThrows(
-                IllegalStateException.class,
-                () -> FipsTrustStoreValidator.validate(tempBcfksFile.toAbsolutePath().toString(), "BCFKS", "BCFIPS", "changeit")
-            );
-            assertTrue(throwable.getMessage().startsWith("Trust store file is not readable: " + tempBcfksFile));
-        } finally {
-            Files.setPosixFilePermissions(tempBcfksFile, PosixFilePermissions.fromString("rwxrwxrwx"));
-        }
     }
 
     public void testTrustStoreWithInvalidProvider() throws Exception {

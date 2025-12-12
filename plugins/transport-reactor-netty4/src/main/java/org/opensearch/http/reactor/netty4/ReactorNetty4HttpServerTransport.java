@@ -157,6 +157,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     /**
      * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
+     *
      * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
@@ -194,6 +195,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     /**
      * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
+     *
      * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
@@ -232,6 +234,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     /**
      * Binds the transport engine to the socket address
+     *
      * @param socketAddress socket address to bind to
      */
     @Override
@@ -346,7 +349,19 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     }
 
     /**
+     * An override to be able to keep track of accepted channels by the
+     * {@link ReactorNetty4NonStreamingRequestConsumer} and {@link ReactorNetty4StreamingRequestConsumer}
+     *
+     * @param httpChannel the accepted channel
+     */
+    @Override
+    public void serverAcceptedChannel(HttpChannel httpChannel) {
+        super.serverAcceptedChannel(httpChannel);
+    }
+
+    /**
      * Handles incoming Reactor Netty request
+     *
      * @param request request instance
      * @param response response instances
      * @return response publisher
@@ -367,6 +382,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         );
         if (dispatchHandlerOpt.map(RestHandler::supportsStreaming).orElse(false)) {
             final ReactorNetty4StreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4StreamingRequestConsumer<>(
+                this,
                 request,
                 response
             );
@@ -457,4 +473,5 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
             super.onException(channel, cause);
         }
     }
+
 }

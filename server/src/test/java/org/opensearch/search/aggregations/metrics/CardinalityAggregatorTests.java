@@ -69,6 +69,8 @@ import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator.HybridCollector;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator.OrdinalsCollector;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
@@ -633,5 +635,229 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, collector -> { assertTrue(collector instanceof CardinalityAggregator.OrdinalsCollector); }, fieldType);
+    }
+
+    private void testAggregationHybridCollector(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalCardinality> verify,
+        Consumer<LeafBucketCollector> verifyCollector,
+        MappedFieldType fieldType,
+        boolean hybridCollectorEnabled,
+        long memoryThreshold
+    ) throws IOException {
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+            buildIndex.accept(indexWriter);
+            indexWriter.close();
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                CountingAggregator aggregator = new CountingAggregator(
+                    new AtomicInteger(),
+                    createAggregatorWithCustomizableSearchContext(
+                        query,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            Integer.MAX_VALUE,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        (searchContext) -> {
+                            CardinalityAggregationContext cardinalityContext = new CardinalityAggregationContext(
+                                hybridCollectorEnabled,
+                                memoryThreshold
+                            );
+                            when(searchContext.cardinalityAggregationContext()).thenReturn(cardinalityContext);
+                        },
+                        fieldType
+                    )
+                );
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
+
+                MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+                    Integer.MAX_VALUE,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                );
+                InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                    aggregator.context().bigArrays(),
+                    getMockScriptService(),
+                    reduceBucketConsumer,
+                    PipelineAggregator.PipelineTree.EMPTY
+                );
+                InternalCardinality topLevel = (InternalCardinality) aggregator.buildTopLevel();
+                InternalCardinality card = (InternalCardinality) topLevel.reduce(Collections.singletonList(topLevel), context);
+                doAssertReducedMultiBucketConsumer(card, reduceBucketConsumer);
+
+                verify.accept(card);
+                verifyCollector.accept(aggregator.getSelectedCollector());
+            }
+        }
+    }
+
+    public void testHybridCollectorEnabledWithKeywordField() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
+
+        testAggregationHybridCollector(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("a"))));
+            iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("b"))));
+        }, card -> {
+            assertEquals(2.0, card.getValue(), 0.1);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, collector -> {
+            assertTrue(collector instanceof HybridCollector);
+            assertTrue(((HybridCollector) collector).getActiveCollector() instanceof OrdinalsCollector);
+        }, fieldType, true, 1024L * 1024L);
+    }
+
+    public void testHybridCollectorDisabledWithKeywordField() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
+
+        testAggregationHybridCollector(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("a"))));
+            iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("b"))));
+        }, card -> {
+            assertEquals(2.0, card.getValue(), 0.1);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, collector -> { assertTrue(collector instanceof OrdinalsCollector); }, fieldType, false, 1024L * 1024L);
+    }
+
+    public void testHybridCollectorMemoryThresholdExceeded() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
+
+        testAggregationHybridCollector(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            // Add many documents to potentially exceed memory threshold
+            for (int i = 0; i < 1000; i++) {
+                iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("value" + i))));
+            }
+        }, card -> {
+            assertEquals(1000.0, card.getValue(), 10.0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, collector -> {
+            assertTrue(collector instanceof HybridCollector);
+            assertTrue(((HybridCollector) collector).getActiveCollector() instanceof CardinalityAggregator.DirectCollector);
+        }, fieldType, true, 1); // Very low threshold to trigger switching
+    }
+
+    public void testHybridCollectorWithDocIdStream() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
+
+        // Test that DocIdStream collection works with hybrid collector
+        testAggregationHybridCollector(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            for (int i = 0; i < 100; i++) {
+                iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("stream_value" + i))));
+            }
+        }, card -> {
+            assertEquals(100.0, card.getValue(), 5.0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, collector -> { assertTrue(collector instanceof HybridCollector); }, fieldType, true, 1024L * 1024L);
+    }
+
+    public void testHybridCollectorWithCollectRange() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
+
+        // Test that collectRange works with hybrid collector
+        testAggregationHybridCollector(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            for (int i = 0; i < 50; i++) {
+                iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("range_value" + i))));
+            }
+        }, card -> {
+            assertEquals(50.0, card.getValue(), 3.0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, collector -> { assertTrue(collector instanceof HybridCollector); }, fieldType, true, 1024L * 1024L);
+    }
+
+    public void testHybridCollectorUsesOrdinalsCollectorWithLowCardinality() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
+
+        testAggregationHybridCollector(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            // Low cardinality data - should use OrdinalsCollector
+            iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("low1"))));
+            iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("low2"))));
+            iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("low3"))));
+        }, card -> {
+            assertEquals(3.0, card.getValue(), 0.1);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, collector -> {
+            assertTrue(collector instanceof HybridCollector);
+            assertTrue(((HybridCollector) collector).getActiveCollector() instanceof OrdinalsCollector);
+        }, fieldType, true, 1024L * 1024L);
+    }
+
+    public void testHybridCollectorUsesDirectCollectorWithHighCardinality() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
+
+        testAggregationHybridCollector(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            // High cardinality data with low memory threshold - should switch to DirectCollector
+            for (int i = 0; i < 500; i++) {
+                iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("high_card_" + i))));
+            }
+        }, card -> {
+            assertEquals(500.0, card.getValue(), 10.0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, collector -> {
+            assertTrue(collector instanceof HybridCollector);
+            assertTrue(((HybridCollector) collector).getActiveCollector() instanceof CardinalityAggregator.DirectCollector);
+        }, fieldType, true, 10); // Very low threshold to force DirectCollector
+    }
+
+    public void testHybridCollectorDocIdStreamSwitchesToDirectCollector() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
+
+        testAggregationHybridCollector(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            // High cardinality data to trigger memory threshold during DocIdStream collection
+            for (int i = 0; i < 300; i++) {
+                iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("docstream_" + i))));
+            }
+        }, card -> {
+            assertEquals(300.0, card.getValue(), 10.0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, collector -> {
+            assertTrue(collector instanceof HybridCollector);
+            // Should have switched to DirectCollector due to memory threshold
+            assertTrue(((HybridCollector) collector).getActiveCollector() instanceof CardinalityAggregator.DirectCollector);
+        }, fieldType, true, 20); // Low threshold to force switching during DocIdStream
+    }
+
+    public void testHybridCollectorCollectRangeSwitchesToDirectCollector() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
+
+        testAggregationHybridCollector(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            // High cardinality data to trigger memory threshold during collectRange
+            for (int i = 0; i < 250; i++) {
+                iw.addDocument(singleton(new SortedSetDocValuesField("field", new BytesRef("range_switch_" + i))));
+            }
+        }, card -> {
+            assertEquals(250.0, card.getValue(), 8.0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, collector -> {
+            assertTrue(collector instanceof HybridCollector);
+            // Should have switched to DirectCollector due to memory threshold
+            assertTrue(((HybridCollector) collector).getActiveCollector() instanceof CardinalityAggregator.DirectCollector);
+        }, fieldType, true, 15); // Very low threshold to force switching during collectRange
+    }
+
+    public void testMemoryLimitExceptionSingleton() {
+        // Test that the exception is indeed a singleton
+        CardinalityAggregator.MemoryLimitExceededException ex1 = CardinalityAggregator.MemoryLimitExceededException.INSTANCE;
+        CardinalityAggregator.MemoryLimitExceededException ex2 = CardinalityAggregator.MemoryLimitExceededException.INSTANCE;
+        assertSame("Exception should be singleton", ex1, ex2);
+
+        // Test that it has no stack trace for performance
+        assertEquals(0, ex1.getStackTrace().length);
     }
 }

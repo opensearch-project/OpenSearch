@@ -14,6 +14,7 @@ import org.opensearch.protobufs.DateDecayPlacement;
 import org.opensearch.protobufs.DecayFunction;
 import org.opensearch.protobufs.DecayPlacement;
 import org.opensearch.protobufs.GeoDecayPlacement;
+import org.opensearch.protobufs.MultiValueMode;
 import org.opensearch.protobufs.NumericDecayPlacement;
 import org.opensearch.transport.grpc.proto.request.common.GeoPointProtoUtils;
 
@@ -49,21 +50,29 @@ class GaussDecayFunctionProtoUtils {
         String fieldName = entry.getKey();
         DecayPlacement decayPlacement = entry.getValue();
 
+        GaussDecayFunctionBuilder builder;
         if (decayPlacement.hasNumericDecayPlacement()) {
-            return parseNumericGaussDecay(fieldName, decayPlacement.getNumericDecayPlacement());
+            builder = parseNumericGaussDecay(fieldName, decayPlacement.getNumericDecayPlacement());
         } else if (decayPlacement.hasGeoDecayPlacement()) {
-            return parseGeoGaussDecay(fieldName, decayPlacement.getGeoDecayPlacement());
+            builder = parseGeoGaussDecay(fieldName, decayPlacement.getGeoDecayPlacement());
         } else if (decayPlacement.hasDateDecayPlacement()) {
-            return parseDateGaussDecay(fieldName, decayPlacement.getDateDecayPlacement());
+            builder = parseDateGaussDecay(fieldName, decayPlacement.getDateDecayPlacement());
         } else {
             throw new IllegalArgumentException("Unsupported decay placement type");
         }
+
+        // Set multi_value_mode if present
+        if (decayFunction.hasMultiValueMode() && decayFunction.getMultiValueMode() != MultiValueMode.MULTI_VALUE_MODE_UNSPECIFIED) {
+            builder.setMultiValueMode(DecayFunctionProtoUtils.parseMultiValueMode(decayFunction.getMultiValueMode()));
+        }
+
+        return builder;
     }
 
     /**
      * Parses a numeric decay placement for Gaussian decay.
      */
-    private static ScoreFunctionBuilder<?> parseNumericGaussDecay(String fieldName, NumericDecayPlacement numericPlacement) {
+    private static GaussDecayFunctionBuilder parseNumericGaussDecay(String fieldName, NumericDecayPlacement numericPlacement) {
         GaussDecayFunctionBuilder builder;
         if (numericPlacement.hasDecay()) {
             builder = new GaussDecayFunctionBuilder(
@@ -88,7 +97,7 @@ class GaussDecayFunctionProtoUtils {
     /**
      * Parses a geo decay placement for Gaussian decay.
      */
-    private static ScoreFunctionBuilder<?> parseGeoGaussDecay(String fieldName, GeoDecayPlacement geoPlacement) {
+    private static GaussDecayFunctionBuilder parseGeoGaussDecay(String fieldName, GeoDecayPlacement geoPlacement) {
         GeoPoint geoPoint = GeoPointProtoUtils.parseGeoPoint(geoPlacement.getOrigin());
 
         GaussDecayFunctionBuilder builder;
@@ -115,7 +124,7 @@ class GaussDecayFunctionProtoUtils {
     /**
      * Parses a date decay placement for Gaussian decay.
      */
-    private static ScoreFunctionBuilder<?> parseDateGaussDecay(String fieldName, DateDecayPlacement datePlacement) {
+    private static GaussDecayFunctionBuilder parseDateGaussDecay(String fieldName, DateDecayPlacement datePlacement) {
         Object origin = datePlacement.hasOrigin() ? datePlacement.getOrigin() : null;
 
         GaussDecayFunctionBuilder builder;

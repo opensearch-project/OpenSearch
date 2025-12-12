@@ -66,6 +66,9 @@ dependencies {
   testImplementation(project(':test:framework')) {
     exclude module: 'jakarta.annotation-api'
   }
+  fipsOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  fipsOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 war {

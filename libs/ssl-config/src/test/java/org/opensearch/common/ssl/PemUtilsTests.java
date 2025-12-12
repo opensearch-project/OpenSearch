@@ -131,7 +131,6 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadEncryptedPKCS8Key() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
         var key = (RSAPrivateCrtKey) getKeyFromKeystore("RSA");
         var privateKey = (RSAPrivateCrtKey) PemUtils.readPrivateKey(
             getDataPath("/certs/pem-utils/key_pkcs8_encrypted.pem"),
@@ -142,7 +141,6 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadDESEncryptedPKCS1Key() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
         var key = (RSAPrivateCrtKey) getKeyFromKeystore("RSA");
         var privateKey = (RSAPrivateCrtKey) PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode.pem"), TESTNODE_PASSWORD);
 
@@ -150,7 +148,6 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadAESEncryptedPKCS1Key() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
         var key = (RSAPrivateCrtKey) getKeyFromKeystore("RSA");
         String bits = randomFrom("128", "192", "256");
         var privateKey = (RSAPrivateCrtKey) PemUtils.readPrivateKey(
@@ -189,7 +186,6 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadEncryptedOpenSslDsaKey() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
         var key = (DSAPrivateKey) getKeyFromKeystore("DSA");
         var privateKey = (DSAPrivateKey) PemUtils.readPrivateKey(
             getDataPath("/certs/pem-utils/dsa_key_openssl_encrypted.pem"),
@@ -217,7 +213,6 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadEncryptedOpenSslEcKey() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
         var key = (ECPrivateKey) getKeyFromKeystore("EC");
         var privateKey = (ECPrivateKey) PemUtils.readPrivateKey(
             getDataPath("/certs/pem-utils/ec_key_openssl_encrypted.pem"),

@@ -100,6 +100,10 @@ TaskProvider createKey = tasks.register("createKey", LoggedExec) {
 }
 //no unit tests
 tasks.named("test").configure { enabled = false }
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false }
+}
+
 // add keystore to test classpath: it expects it there
 tasks.named("processInternalClusterTestResources").configure {
   from createKey
@@ -328,6 +332,12 @@ tasks.named("thirdPartyAudit").configure {
     'org.osgi.framework.BundleActivator',
     'org.osgi.framework.BundleContext',
     'org.osgi.framework.BundleEvent',
-    'org.osgi.framework.SynchronousBundleListener'
+    'org.osgi.framework.SynchronousBundleListener',
+    'org.slf4j.ILoggerFactory',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.Marker',
+    'org.slf4j.MarkerFactory',
+    'org.slf4j.spi.LocationAwareLogger'
   )
 }

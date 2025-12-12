@@ -32,6 +32,10 @@
 
 package org.opensearch.http;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+
 import java.io.IOException;
 
 import org.apache.hc.core5.http.ContentType;
@@ -51,10 +55,6 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-
 /**
  * Tests that when disabling detailed errors, a request with the error_trace parameter returns an HTTP 400 response.
  */
@@ -65,9 +65,9 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED.getKey(), false)
-                .build();
+                       .put(super.nodeSettings(nodeOrdinal))
+                       .put(HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED.getKey(), false)
+                       .build();
     }
 
     public void testThatErrorTraceParamReturns400() throws IOException, ParseException {
@@ -79,7 +79,7 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
         Response response = e.getResponse();
         assertThat(response.getHeader("Content-Type"), is("application/json; charset=UTF-8"));
         assertThat(EntityUtils.toString(e.getResponse().getEntity()),
-                   containsString("\"error\":\"error traces in responses are disabled.\""));
+            containsString("\"error\":\"error traces in responses are disabled.\""));
         assertThat(response.getStatusLine().getStatusCode(), is(400));
     }
 

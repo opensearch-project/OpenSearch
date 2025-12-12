@@ -75,10 +75,11 @@ public class RemoteCustomMetadata extends AbstractClusterMetadataWriteableBlobEn
         this.blobName = blobName;
         this.customType = customType;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.customBlobStoreFormat = new ChecksumWritableBlobStoreFormat<>("custom", is -> {
-            is.setVersion(version);
-            return readFrom(is, namedWriteableRegistry, customType);
-        });
+        this.customBlobStoreFormat = new ChecksumWritableBlobStoreFormat<>(
+            "custom",
+            is -> readFrom(is, namedWriteableRegistry, customType),
+            version
+        );
     }
 
     @Override

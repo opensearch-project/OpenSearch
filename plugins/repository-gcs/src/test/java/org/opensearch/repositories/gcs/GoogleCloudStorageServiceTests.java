@@ -76,11 +76,10 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
 
     public void testClientInitializer() throws Exception {
         final String clientName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        final Settings settings = Settings.builder()
-            .put(
-                GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-                connectTimeValue.getStringRep()
-            )
+        final Settings settings = newSettingsBuilder(new MockSecureSettings(), clientName).put(
+            GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            connectTimeValue.getStringRep()
+        )
             .put(
                 GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
                 readTimeValue.getStringRep()
@@ -127,11 +126,11 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         final MockSecureSettings secureSettings1 = new MockSecureSettings();
         secureSettings1.setFile("gcs.client.gcs1.credentials_file", serviceAccountFileContent("project_gcs11"));
         secureSettings1.setFile("gcs.client.gcs2.credentials_file", serviceAccountFileContent("project_gcs12"));
-        final Settings settings1 = Settings.builder().setSecureSettings(secureSettings1).build();
+        final Settings settings1 = newSettingsBuilder(secureSettings1, "gcs1", "gcs2").build();
         final MockSecureSettings secureSettings2 = new MockSecureSettings();
         secureSettings2.setFile("gcs.client.gcs1.credentials_file", serviceAccountFileContent("project_gcs21"));
         secureSettings2.setFile("gcs.client.gcs3.credentials_file", serviceAccountFileContent("project_gcs23"));
-        final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
+        final Settings settings2 = newSettingsBuilder(secureSettings2, "gcs1", "gcs3").build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
             GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
@@ -169,7 +168,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
     public void testClientsAreNotSharedAcrossRepositories() throws Exception {
         final MockSecureSettings secureSettings1 = new MockSecureSettings();
         secureSettings1.setFile("gcs.client.gcs1.credentials_file", serviceAccountFileContent("test_project"));
-        final Settings settings = Settings.builder().setSecureSettings(secureSettings1).build();
+        final Settings settings = newSettingsBuilder(secureSettings1, "gcs1").build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
 
@@ -257,6 +256,48 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         MatcherAssert.assertThat(exception.getMessage(), containsString("Your default credentials were not found"));
     }
 
+    public void testCustomTruststoreConfiguration() throws Exception {
+        final var truststorePath = getDataPath("/google.p12");
+        final var clientName = "gcs1";
+        final var secureSettings = new MockSecureSettings();
+        secureSettings.setString("gcs.client.gcs1.truststore.password", "notasecret");
+
+        final var settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put("gcs.client.gcs1.truststore.path", truststorePath.toString())
+            .put("gcs.client.gcs1.truststore.type", "PKCS12")
+            .build();
+
+        final var service = new GoogleCloudStorageService();
+        service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
+
+        final var clientSettings = GoogleCloudStorageClientSettings.getClientSettings(settings, clientName);
+        final var truststoreSettings = clientSettings.getTruststoreSettings();
+        assertNotNull(truststoreSettings);
+        assertTrue(truststoreSettings.isConfigured());
+        assertEquals(truststorePath.toString(), truststoreSettings.path().toString());
+        assertEquals("notasecret", truststoreSettings.password().toString());
+        assertEquals("PKCS12", truststoreSettings.type());
+
+        // Verify that a client can be created with the custom truststore
+        final var statsCollector = new GoogleCloudStorageOperationsStats("bucket");
+        final var storage = service.client(clientName, "repo", statsCollector);
+        assertNotNull(storage);
+    }
+
+    /**
+     * Creates a Settings.Builder with secure settings for one or more GCS clients.
+     * Override in subclasses (e.g., FIPS tests) to automatically add required settings
+     * like truststore configuration for all specified clients.
+     *
+     * @param secureSettings the secure settings to use
+     * @param clientNames the names of the GCS clients to configure
+     * @return a Settings.Builder with secure settings configured
+     */
+    protected Settings.Builder newSettingsBuilder(MockSecureSettings secureSettings, String... clientNames) {
+        return Settings.builder().setSecureSettings(secureSettings);
+    }
+
     /**
      * This is a helper method to provide GCS Client settings without credentials
      * @return GoogleCloudStorageClientSettings
@@ -271,7 +312,8 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
             readTimeValue,
             applicationName,
             new URI(""),
-            new ProxySettings(Proxy.Type.DIRECT, null, 0, null, null)
+            new ProxySettings(Proxy.Type.DIRECT, null, 0, null, null),
+            TruststoreSettings.NO_TRUSTSTORE_SETTINGS
         );
     }
 

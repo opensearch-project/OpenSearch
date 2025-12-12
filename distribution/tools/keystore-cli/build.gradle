@@ -38,4 +38,5 @@ dependencies {
   testRuntimeOnly("com.google.guava:guava:${versions.guava}") {
     transitive = false
   }
+  testFipsRuntimeOnly("org.bouncycastle:bc-fips:${versions.bouncycastle_jce}")
 }

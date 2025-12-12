@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout Lucene ref:${{ github.event.inputs.ref }}
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: 'apache/lucene'
           ref: ${{ github.event.inputs.ref }}

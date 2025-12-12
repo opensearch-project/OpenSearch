@@ -133,8 +133,11 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             clientSettings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(client).getKey(), readTimeout);
         }
 
+        configureClientSettings(clientSettings, client);
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(client).getKey(), createServiceAccount(random()));
+
+        configureSecureSettings(secureSettings, client);
         clientSettings.setSecureSettings(secureSettings);
 
         final GoogleCloudStorageService service = new GoogleCloudStorageService() {
@@ -175,6 +178,26 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         );
 
         return new GoogleCloudStorageBlobContainer(BlobPath.cleanPath(), blobStore);
+    }
+
+    /**
+     * Hook method for subclasses to add additional client settings.
+     *
+     * @param settings the settings builder to add settings to
+     * @param clientName the name of the client being configured
+     */
+    protected void configureClientSettings(Settings.Builder settings, String clientName) {
+        // Default implementation: no additional settings
+    }
+
+    /**
+     * Hook method for subclasses to add additional secure settings.
+     *
+     * @param secureSettings the secure settings to add settings to
+     * @param clientName the name of the client being configured
+     */
+    protected void configureSecureSettings(MockSecureSettings secureSettings, String clientName) {
+        // Default implementation: no additional secure settings
     }
 
     public void testReadLargeBlobWithRetries() throws Exception {

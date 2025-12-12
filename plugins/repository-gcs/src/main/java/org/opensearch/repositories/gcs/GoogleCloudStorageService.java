@@ -36,6 +36,7 @@ import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.util.SecurityUtils;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
@@ -48,6 +49,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
@@ -55,6 +57,10 @@ import java.net.Authenticator;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
 import java.net.URI;
+import java.nio.file.Files;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.Security;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -184,12 +190,12 @@ public class GoogleCloudStorageService {
     }
 
     private HttpTransport createHttpTransport(final GoogleCloudStorageClientSettings clientSettings) throws IOException {
-        try {
-            return AccessController.doPrivilegedChecked(() -> {
+        return AccessController.doPrivilegedChecked(() -> {
+            try {
                 final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-                // requires java.lang.RuntimePermission "setFactory"
-                // Pin the TLS trust certificates.
-                builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
+                final TruststoreSettings truststoreSettings = clientSettings.getTruststoreSettings();
+                builder.trustCertificates(loadTrustStore(truststoreSettings));
+
                 final ProxySettings proxySettings = clientSettings.getProxySettings();
                 if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
                     if (proxySettings.isAuthenticated()) {
@@ -203,10 +209,40 @@ public class GoogleCloudStorageService {
                     builder.setProxy(new Proxy(proxySettings.getType(), proxySettings.getAddress()));
                 }
                 return builder.build();
-            });
-        } catch (Exception e) {
-            throw new IOException(e);
+            } catch (GeneralSecurityException e) {
+                throw new IOException("Failed to configure HTTP transport security", e);
+            } catch (IOException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IOException(e);
+            }
+        });
+    }
+
+    private KeyStore loadTrustStore(TruststoreSettings truststoreSettings) throws GeneralSecurityException, IOException {
+        KeyStore certTrustStore;
+        if (truststoreSettings.isConfigured()) {
+            final var truststorePath = truststoreSettings.path();
+            final var truststoreType = truststoreSettings.type();
+            final SecureString truststorePassword = truststoreSettings.password();
+            certTrustStore = KeyStore.getInstance(truststoreType);
+            try (var trustStoreStream = Files.newInputStream(truststorePath)) {
+                SecurityUtils.loadKeyStore(certTrustStore, trustStoreStream, truststorePassword.toString());
+            }
+            logger.debug("Loaded custom truststore from path: {} with type: {}", truststorePath, truststoreType);
+        } else if (Security.getProvider("BCFIPS") != null) {
+            throw new IllegalStateException(
+                "FIPS mode is active but no custom truststore is configured. "
+                    + "Please configure gcs.client.<client-name>.truststore.path and "
+                    + "gcs.client.<client-name>.truststore.secure_password settings."
+            );
+        } else {
+            // requires java.lang.RuntimePermission "setFactory"
+            // Pin the TLS trust certificates.
+            certTrustStore = GoogleUtils.getCertificateTrustStore();
+            logger.debug("Using Google default certificate trust store");
         }
+        return certTrustStore;
     }
 
     StorageOptions createStorageOptions(

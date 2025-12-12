@@ -35,6 +35,8 @@ import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
+import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
+import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -70,8 +72,6 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMIT
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_FILE;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_FORMAT;
-import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.REMOTE_ROUTING_TABLE_DIFF_FORMAT;
 import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE;
 import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_METADATA_PREFIX;
 import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_PATH_TOKEN;
@@ -567,8 +567,14 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
         String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
+        RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
+            uploadedFileName,
+            clusterState.stateUUID(),
+            compressor,
+            Version.CURRENT
+        );
         when(blobContainer.readBlob(indexName)).thenReturn(
-            INDEX_ROUTING_TABLE_FORMAT.serialize(
+            remoteIndexRoutingTable.indexRoutingTableFormat.serialize(
                 clusterState.getRoutingTable().getIndicesRouting().get(indexName),
                 uploadedFileName,
                 compressor
@@ -580,7 +586,8 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         remoteRoutingTableService.getAsyncIndexRoutingReadAction(
             "cluster-uuid",
             uploadedFileName,
-            new LatchedActionListener<>(listener, latch)
+            new LatchedActionListener<>(listener, latch),
+            Version.CURRENT
         );
         latch.await();
 
@@ -598,27 +605,36 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         RoutingTableIncrementalDiff diff = new RoutingTableIncrementalDiff(previousState.getRoutingTable(), currentState.getRoutingTable());
 
         String uploadedFileName = String.format(Locale.ROOT, "routing-table-diff/" + indexName);
+        RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(
+            uploadedFileName,
+            currentState.stateUUID(),
+            compressor,
+            Version.CURRENT
+        );
         when(blobContainer.readBlob(indexName)).thenReturn(
-            REMOTE_ROUTING_TABLE_DIFF_FORMAT.serialize(diff, uploadedFileName, compressor).streamInput()
+            remoteRoutingTableDiff.remoteRoutingTableDiffFormat.serialize(diff, uploadedFileName, compressor).streamInput()
         );
 
         TestCapturingListener<Diff<RoutingTable>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
-            "cluster-uuid",
-            uploadedFileName,
-            new LatchedActionListener<>(listener, latch)
-        );
-        latch.await();
+        for (Version version : List.of(Version.CURRENT, Version.V_3_1_0, Version.V_3_2_0)) {
+            remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
+                "cluster-uuid",
+                uploadedFileName,
+                new LatchedActionListener<>(listener, latch),
+                version
+            );
+            latch.await();
 
-        assertNull(listener.getFailure());
-        assertNotNull(listener.getResult());
-        Diff<RoutingTable> resultDiff = listener.getResult();
-        assertEquals(
-            currentState.getRoutingTable().getIndicesRouting(),
-            resultDiff.apply(previousState.getRoutingTable()).getIndicesRouting()
-        );
+            assertNull(listener.getFailure());
+            assertNotNull(listener.getResult());
+            Diff<RoutingTable> resultDiff = listener.getResult();
+            assertEquals(
+                currentState.getRoutingTable().getIndicesRouting(),
+                resultDiff.apply(previousState.getRoutingTable()).getIndicesRouting()
+            );
+        }
     }
 
     public void testGetAsyncIndexRoutingWriteAction() throws Exception {
