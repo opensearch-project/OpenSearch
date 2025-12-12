@@ -156,7 +156,7 @@ public final class ArrowFieldRegistry {
 
         @Override
         public String toString() {
-            return String.format("RegistryStats{total=%d, }", totalFields);
+            return String.format("RegistryStats{total=%d}", totalFields);
         }
     }
 
