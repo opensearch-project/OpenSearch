@@ -49,13 +49,16 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.AfterClass;
+import org.junit.Before;
 
 import java.net.HttpURLConnection;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import reactor.core.scheduler.Schedulers;
 
+import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
@@ -63,6 +66,26 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     @AfterClass
     public static void shutdownSchedulers() {
         Schedulers.shutdownNow();
+    }
+
+    @Before
+    public void waitForAzureFixtureReady() throws Exception {
+        ensureGreen();
+
+        assertBusy(() -> {
+            assertThat(System.getProperty("test.azure.container"), not(blankOrNullString()));
+            assertThat(System.getProperty("test.azure.base"), not(blankOrNullString()));
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        try {
+            client().admin().indices().prepareDelete("*").get();
+            client().admin().cluster().prepareDeleteRepository("_all").get();
+        } finally {
+            super.tearDown();
+        }
     }
 
     @Override
@@ -99,6 +122,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key"));
         }
         return secureSettings;
+    }
+
+    private <T> T eventually(Supplier<T> supplier) throws Exception {
+        final AtomicReference<T> result = new AtomicReference<>();
+        assertBusy(() -> result.set(supplier.get()), 30, TimeUnit.SECONDS);
+        return result.get();
     }
 
     @Override
