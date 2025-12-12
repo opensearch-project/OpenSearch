@@ -66,11 +66,11 @@ dependencies {
   api "com.google.code.gson:gson:${versions.gson}"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api 'commons-cli:commons-cli:1.10.0'
+  api 'commons-cli:commons-cli:1.11.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'commons-collections:commons-collections:3.2.2'
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
-  api 'org.apache.commons:commons-configuration2:2.12.0'
+  api 'org.apache.commons:commons-configuration2:2.13.0'
   api "commons-io:commons-io:${versions.commonsio}"
   api "org.apache.commons:commons-lang3:${versions.commonslang}"
   implementation 'com.google.re2j:re2j:1.8'

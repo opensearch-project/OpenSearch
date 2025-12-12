@@ -155,14 +155,14 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             retentionLeaseStats = null;
             pollingIngestStats = null;
         }
-        return new ShardStats(
-            indexShard.routingEntry(),
-            indexShard.shardPath(),
-            commonStats,
-            commitStats,
-            seqNoStats,
-            retentionLeaseStats,
-            pollingIngestStats
-        );
+        return new ShardStats.Builder().shardRouting(indexShard.routingEntry())
+            .shardPath(indexShard.shardPath())
+            .commonStats(commonStats)
+            .commitStats(commitStats)
+            .seqNoStats(seqNoStats)
+            .retentionLeaseStats(retentionLeaseStats)
+            .pollingIngestStats(pollingIngestStats)
+            .build();
+
     }
 }

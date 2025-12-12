@@ -1411,11 +1411,13 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             0,
             0,
             0,
+            0,
             AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS
         );
         FileCacheStats fullStats = new FileCacheStats(
             0,
             totalCacheSize,
+            0,
             0,
             0,
             0,
@@ -1431,11 +1433,13 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             0,
             0,
             0,
+            0,
             AggregateFileCacheStats.FileCacheStatsType.BLOCK_FILE_STATS
         );
         FileCacheStats pinnedStats = new FileCacheStats(
             0,
             totalCacheSize,
+            0,
             0,
             0,
             0,

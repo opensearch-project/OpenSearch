@@ -178,4 +178,81 @@ public class ExpDecayFunctionProtoUtilsTests extends OpenSearchTestCase {
 
         assertEquals("geo_field", expFunction.getFieldName());
     }
+
+    public void testFromProtoWithMultiValueModeMin() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(10.0).setScale(5.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("price", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_MIN)
+            .build();
+
+        ScoreFunctionBuilder<?> result = ExpDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(ExponentialDecayFunctionBuilder.class));
+        ExponentialDecayFunctionBuilder expFunction = (ExponentialDecayFunctionBuilder) result;
+
+        assertEquals("price", expFunction.getFieldName());
+        assertEquals(org.opensearch.search.MultiValueMode.MIN, expFunction.getMultiValueMode());
+    }
+
+    public void testFromProtoWithMultiValueModeMax() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(50.0).setScale(25.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("rating", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_MAX)
+            .build();
+
+        ScoreFunctionBuilder<?> result = ExpDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(ExponentialDecayFunctionBuilder.class));
+        ExponentialDecayFunctionBuilder expFunction = (ExponentialDecayFunctionBuilder) result;
+
+        assertEquals("rating", expFunction.getFieldName());
+        assertEquals(org.opensearch.search.MultiValueMode.MAX, expFunction.getMultiValueMode());
+    }
+
+    public void testFromProtoWithMultiValueModeAvg() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(100.0).setScale(10.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("score", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_AVG)
+            .build();
+
+        ScoreFunctionBuilder<?> result = ExpDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(ExponentialDecayFunctionBuilder.class));
+        ExponentialDecayFunctionBuilder expFunction = (ExponentialDecayFunctionBuilder) result;
+
+        assertEquals("score", expFunction.getFieldName());
+        assertEquals(org.opensearch.search.MultiValueMode.AVG, expFunction.getMultiValueMode());
+    }
+
+    public void testFromProtoWithMultiValueModeUnspecified() {
+        NumericDecayPlacement numericPlacement = NumericDecayPlacement.newBuilder().setOrigin(10.0).setScale(5.0).build();
+
+        DecayPlacement decayPlacement = DecayPlacement.newBuilder().setNumericDecayPlacement(numericPlacement).build();
+
+        DecayFunction decayFunction = DecayFunction.newBuilder()
+            .putPlacement("price", decayPlacement)
+            .setMultiValueMode(org.opensearch.protobufs.MultiValueMode.MULTI_VALUE_MODE_UNSPECIFIED)
+            .build();
+
+        ScoreFunctionBuilder<?> result = ExpDecayFunctionProtoUtils.fromProto(decayFunction);
+
+        assertThat(result, instanceOf(ExponentialDecayFunctionBuilder.class));
+        ExponentialDecayFunctionBuilder expFunction = (ExponentialDecayFunctionBuilder) result;
+
+        assertEquals("price", expFunction.getFieldName());
+        // When UNSPECIFIED, multi_value_mode should remain at default (MIN)
+        assertEquals(org.opensearch.search.MultiValueMode.MIN, expFunction.getMultiValueMode());
+    }
 }

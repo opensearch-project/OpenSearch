@@ -160,9 +160,9 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
             urlConnection = AccessController.doPrivilegedChecked(() -> url.openConnection());
             urlConnection.setConnectTimeout(2000);
-        } catch (final Exception e) {
+        } catch (final IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
-            throw new UncheckedIOException((IOException) e);
+            throw new UncheckedIOException(e);
         }
 
         try (
@@ -176,10 +176,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             } else {
                 attrs.put(Node.NODE_ATTRIBUTES.getKey() + "aws_availability_zone", metadataResult);
             }
-        } catch (final Exception e) {
-            if (e instanceof IllegalStateException) {
-                throw (IllegalStateException) e;
-            }
+        } catch (final IOException e) {
             // this is lenient so the plugin does not fail when installed outside of ec2
             logger.error("failed to get metadata for [placement/availability-zone]", e);
         }

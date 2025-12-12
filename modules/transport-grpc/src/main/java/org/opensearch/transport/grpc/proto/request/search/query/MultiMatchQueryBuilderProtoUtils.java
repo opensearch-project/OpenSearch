@@ -14,6 +14,7 @@ import org.opensearch.index.query.Operator;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.protobufs.MultiMatchQuery;
 import org.opensearch.transport.grpc.proto.request.search.OperatorProtoUtils;
+import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -133,8 +134,10 @@ class MultiMatchQueryBuilderProtoUtils {
             }
         }
 
-        if (multiMatchQueryProto.hasFuzzyRewrite()) {
-            fuzzyRewrite = multiMatchQueryProto.getFuzzyRewrite();
+        if (multiMatchQueryProto.hasFuzzyRewrite()
+            && multiMatchQueryProto
+                .getFuzzyRewrite() != org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED) {
+            fuzzyRewrite = ProtobufEnumUtils.convertToString(multiMatchQueryProto.getFuzzyRewrite());
         }
 
         if (multiMatchQueryProto.hasTieBreaker()) {

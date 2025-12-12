@@ -88,7 +88,7 @@ import static org.mockito.Mockito.mock;
 @ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class ReindexRestClientSslTests extends OpenSearchTestCase {
 
-    private static final String STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/=";
+    private static final String STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/="; // has to be at least 112 bit strong to test in FIPS mode.
     private static HttpsServer server;
     private static Consumer<HttpsExchange> handler = ignore -> {};
 
@@ -133,7 +133,6 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
     }
 
     public void testClientFailsWithUntrustedCertificate() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
@@ -168,8 +167,7 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
         }
     }
 
-    public void testClientSucceedsWithVerificationDisabled() throws IOException {
-        assumeFalse("Cannot disable verification in FIPS JVM", inFipsJvm());
+    public void testClientWithVerificationDisabled() throws IOException {
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())

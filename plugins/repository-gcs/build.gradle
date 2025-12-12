@@ -12,6 +12,7 @@
 
 import org.opensearch.gradle.MavenFilteringHack
 import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.info.FipsBuildParams
 import org.opensearch.gradle.test.InternalClusterTestPlugin
 import org.opensearch.gradle.test.RestIntegTestTask
 import org.opensearch.gradle.test.rest.YamlRestTestPlugin
@@ -42,6 +43,7 @@ import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 ext {
   guava_version = "33.4.0-jre"
@@ -55,7 +57,7 @@ opensearchplugin {
 dependencies {
 
   // dependencies consistent with 'com.google.cloud:google-cloud-storage-bom:2.55.0'
-  implementation "com.google.cloud:google-cloud-storage:2.55.0"
+  implementation "com.google.cloud:google-cloud-storage:2.60.0"
   implementation "com.google.cloud:google-cloud-core:2.60.0"
   implementation "com.google.cloud:google-cloud-core-http:2.60.0"
 
@@ -65,7 +67,7 @@ dependencies {
 
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
-  implementation "com.google.api:api-common:2.52.0"
+  implementation "com.google.api:api-common:2.55.1"
   implementation "com.google.api:gax:2.72.1"
   runtimeOnly "com.google.api:gax-httpjson:2.72.1"
   implementation "org.threeten:threetenbp:1.7.0"
@@ -74,8 +76,8 @@ dependencies {
   runtimeOnly "com.google.code.gson:gson:${versions.gson}"
   runtimeOnly "com.google.api.grpc:proto-google-common-protos:2.60.0"
   runtimeOnly "com.google.api.grpc:proto-google-iam-v1:1.57.0"
-  implementation "com.google.auth:google-auth-library-credentials:1.38.0"
-  implementation "com.google.auth:google-auth-library-oauth2-http:1.38.0"
+  implementation "com.google.auth:google-auth-library-credentials:1.41.0"
+  implementation "com.google.auth:google-auth-library-oauth2-http:1.41.0"
   runtimeOnly "com.google.oauth-client:google-oauth-client:1.39.0" // 1.39.0 in bom
   implementation "com.google.api-client:google-api-client:2.7.2"
   implementation "com.google.http-client:google-http-client:2.0.2"
@@ -91,10 +93,13 @@ dependencies {
 
   runtimeOnly "io.opentelemetry:opentelemetry-api:1.47.0"
   runtimeOnly "io.opentelemetry:opentelemetry-context:1.47.0"
-  runtimeOnly "com.google.api.grpc:proto-google-cloud-storage-v2:2.55.0"
+  runtimeOnly "com.google.api.grpc:proto-google-cloud-storage-v2:2.60.0"
   runtimeOnly "io.grpc:grpc-api:1.71.0"
 
   testImplementation project(':test:fixtures:gcs-fixture')
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 compileJava {
@@ -277,6 +282,15 @@ thirdPartyAudit {
     'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
     'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
     'org.graalvm.nativeimage.hosted.RuntimeReflection',
+    // jackson
+    'com.fasterxml.jackson.databind.DeserializationContext',
+    'com.fasterxml.jackson.databind.DeserializationFeature',
+    'com.fasterxml.jackson.databind.Module',
+    'com.fasterxml.jackson.databind.Module$SetupContext',
+    'com.fasterxml.jackson.databind.SerializerProvider',
+    'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
+    'com.fasterxml.jackson.databind.ser.std.StdSerializer',
+    'com.fasterxml.jackson.dataformat.xml.XmlMapper',
   )
 }
 
@@ -347,6 +361,14 @@ processYamlRestTestResources {
 internalClusterTest {
   // this is tested explicitly in a separate test task
   exclude '**/GoogleCloudStorageThirdPartyTests.class'
+  exclude '**/GoogleCloudStorageThirdPartyFipsTests.class'
+
+  // Conditionally exclude based on FIPS mode
+  if (FipsBuildParams.isInFipsMode()) {
+    exclude '**/GoogleCloudStorageBlobStoreRepositoryTests.class'
+  } else {
+    exclude '**/GoogleCloudStorageBlobStoreRepositoryFipsTests.class'
+  }
 }
 
 final Closure testClustersConfiguration = {
@@ -409,7 +431,11 @@ task gcsThirdPartyTest(type: Test) {
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  include '**/GoogleCloudStorageThirdPartyTests.class'
+  if (FipsBuildParams.isInFipsMode()) {
+    include '**/GoogleCloudStorageThirdPartyFipsTests.class'
+  } else {
+    include '**/GoogleCloudStorageThirdPartyTests.class'
+  }
   systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
