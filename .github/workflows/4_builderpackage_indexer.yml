@@ -183,7 +183,7 @@ jobs:
         env:
           username: "wazuh-devel-xdrsiem-indexer"
         run: |
-          git clone https://${{ env.username }}:${{ secrets.INDEXER_BOT_TOKEN }}@github.com/wazuh/wazuh-automation.git
+          git clone https://${{ env.username }}:${{ secrets.INDEXER_BOT_TOKEN }}@github.com/wazuh/wazuh-automation.git -b $(bash packaging_scripts/product_version.sh)
           cd wazuh-automation
           sudo pip3 install -r deployability/deps/requirements.txt
 
