@@ -213,6 +213,10 @@ public class MultiBucketConsumerService {
         public int getLimit() {
             return limit;
         }
+
+        public CircuitBreaker getBreaker() {
+            return breaker;
+        }
     }
 
     public MultiBucketConsumer create() {

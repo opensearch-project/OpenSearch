@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -54,6 +55,9 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
+
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 /**
  * Implementation of {@link Histogram}.
@@ -304,7 +308,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
-    private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
         final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<IteratorAndCurrent<Bucket>>(aggregations.size()) {
             @Override
@@ -382,7 +386,58 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         return Math.floor((key - emptyBucketInfo.offset) / emptyBucketInfo.interval) * emptyBucketInfo.interval + emptyBucketInfo.offset;
     }
 
-    private void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
+    private int estimateTotalBucketCount(List<Bucket> list) {
+        if (emptyBucketInfo == null || list.isEmpty()) {
+            return list.size();
+        }
+
+        double min;
+        double max;
+
+        // Determine the range: either from extended_bounds or from natural data range
+        if (Double.isFinite(emptyBucketInfo.minBound) && Double.isFinite(emptyBucketInfo.maxBound)) {
+            min = min(emptyBucketInfo.minBound, list.getFirst().key);
+            max = max(emptyBucketInfo.maxBound, list.getLast().key);
+        } else {
+            // No extended_bounds: use natural data range (first to last bucket)
+            min = list.getFirst().key;
+            max = list.getLast().key;
+        }
+
+        int i = 0;
+        double key = min;
+        while (key < max && i++ < 10) {
+            key = nextKey(key);
+        }
+
+        if (i < 10) {
+            return i;
+        }
+
+        long estimatedBuckets = Math.round(Math.floor((max - min) / emptyBucketInfo.interval));
+        if (estimatedBuckets > Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) estimatedBuckets;
+    }
+
+    void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
+        final int originalSize = list.size();
+        // we use counts here only to add those values to the CircuitBreaker, list's count has already been added in #reduce, so we only
+        // need to add emptyBucketCount
+        final int estimateEmptyBucketCount = Math.max(0, estimateTotalBucketCount(list) - originalSize);
+
+        // First check bucket count limit before attempting memory allocation
+        if (estimateEmptyBucketCount > 0) {
+            reduceContext.consumeBucketsAndMaybeBreak(estimateEmptyBucketCount);
+
+            CircuitBreaker breaker = reduceContext.getBreaker();
+            if (breaker != null) {
+                // 50 bytes memory usage for each empty bucket
+                breaker.addEstimateBytesAndMaybeBreak(50L * estimateEmptyBucketCount, "empty histogram buckets");
+            }
+        }
+
         ListIterator<Bucket> iter = list.listIterator();
 
         // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
@@ -395,7 +450,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             // fill with empty buckets
             for (double key = round(emptyBucketInfo.minBound); key <= emptyBucketInfo.maxBound; key = nextKey(key)) {
                 iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
-                reduceContext.consumeBucketsAndMaybeBreak(0);
             }
         } else {
             Bucket first = list.get(iter.nextIndex());
@@ -403,7 +457,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 // fill with empty buckets until the first key
                 for (double key = round(emptyBucketInfo.minBound); key < first.key; key = nextKey(key)) {
                     iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
-                    reduceContext.consumeBucketsAndMaybeBreak(0);
                 }
             }
 
@@ -416,7 +469,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                     double key = nextKey(lastBucket.key);
                     while (key < nextBucket.key) {
                         iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
-                        reduceContext.consumeBucketsAndMaybeBreak(0);
                         key = nextKey(key);
                     }
                     assert key == nextBucket.key || Double.isNaN(nextBucket.key) : "key: " + key + ", nextBucket.key: " + nextBucket.key;
@@ -427,14 +479,18 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
             for (double key = nextKey(lastBucket.key); key <= emptyBucketInfo.maxBound; key = nextKey(key)) {
                 iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
-                reduceContext.consumeBucketsAndMaybeBreak(0);
             }
+        }
+        int postAddEmptyBucketCount = list.size() - estimateEmptyBucketCount - originalSize;
+        if (postAddEmptyBucketCount > 0) {
+            reduceContext.consumeBucketsAndMaybeBreak(postAddEmptyBucketCount);
         }
     }
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
+        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
         if (reduceContext.isFinalReduce()) {
             if (minDocCount == 0) {
                 addEmptyBuckets(reducedBuckets, reduceContext);
@@ -451,7 +507,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 CollectionUtil.introSort(reducedBuckets, order.comparator());
             }
         }
-        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
         return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
