@@ -298,7 +298,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(ParseContext context) {
         BytesRef id = Uid.encodeId(context.sourceToParse().id());
-        if (isPluggableDataFormatFeatureEnabled()) {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
             context.compositeDocumentInput().addField(fieldType(), id);
         } else {
             context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));

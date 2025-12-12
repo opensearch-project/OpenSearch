@@ -810,6 +810,13 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> OPTIMIZED_INDEX_ENABLED_SETTING = Setting.boolSetting(
+        "index.optimized.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -954,6 +961,8 @@ public final class IndexSettings {
      * Denotes whether search via star tree index is enabled for this index
      */
     private volatile boolean isStarTreeIndexEnabled;
+
+    private final boolean isOptimizedIndex;
 
     /**
      * Returns the default search fields for this index.
@@ -1119,6 +1128,8 @@ public final class IndexSettings {
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
         isCompositeIndex = scopedSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
         isStarTreeIndexEnabled = scopedSettings.get(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING);
+        isOptimizedIndex = scopedSettings.get(OPTIMIZED_INDEX_ENABLED_SETTING);
+
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -2166,4 +2177,6 @@ public final class IndexSettings {
     public boolean isDerivedSourceEnabled() {
         return derivedSourceEnabled;
     }
+
+    public boolean isOptimizedIndex() { return isOptimizedIndex; }
 }

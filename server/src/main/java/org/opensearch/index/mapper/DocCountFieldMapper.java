@@ -150,7 +150,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
             throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer.");
         }
 
-        if (isPluggableDataFormatFeatureEnabled()) {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
             context.compositeDocumentInput().addField(fieldType(), value);
         } else {
             final Field docCount = new NumericDocValuesField(NAME, value);

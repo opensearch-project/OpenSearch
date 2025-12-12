@@ -148,7 +148,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public void preParse(ParseContext context) {
         String routing = context.sourceToParse().routing();
         if (routing != null) {
-            if (isPluggableDataFormatFeatureEnabled()) {
+            if (isPluggableDataFormatFeatureEnabled(context)) {
                 context.compositeDocumentInput().addField(fieldType(), routing);
             } else {
                 context.doc().add(new Field(fieldType().name(), routing, Defaults.FIELD_TYPE));

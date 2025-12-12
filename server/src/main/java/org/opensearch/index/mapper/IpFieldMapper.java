@@ -665,7 +665,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        if (isPluggableDataFormatFeatureEnabled()) {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
             context.compositeDocumentInput().addField(fieldType(), address);
         } else {
             if (indexed && hasDocValues) {

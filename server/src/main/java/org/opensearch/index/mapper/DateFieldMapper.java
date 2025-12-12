@@ -849,7 +849,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        if (isPluggableDataFormatFeatureEnabled()) {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
             context.compositeDocumentInput().addField(fieldType(), timestamp);
         } else {
             if (indexed) {

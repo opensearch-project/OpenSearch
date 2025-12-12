@@ -1046,7 +1046,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        if (isPluggableDataFormatFeatureEnabled()) {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
             context.compositeDocumentInput().addField(fieldType(), value);
         } else {
             if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
