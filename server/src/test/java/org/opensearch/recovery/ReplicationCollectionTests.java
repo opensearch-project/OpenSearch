@@ -75,6 +75,13 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (ReplicationCollection.ReplicationRef<RecoveryTarget> status = collection.get(recoveryId)) {
                 final long lastSeenTime = status.get().lastAccessTime();
+                // ensure simple access does not update last access time automatically
+                assertBusy(() -> {
+                    try (ReplicationCollection.ReplicationRef<RecoveryTarget> currentStatus = collection.get(recoveryId)) {
+                        assertThat(currentStatus.get().lastAccessTime(), equalTo(lastSeenTime));
+                    }
+                });
+                status.get().setLastAccessTime();
                 assertBusy(() -> {
                     try (ReplicationCollection.ReplicationRef<RecoveryTarget> currentStatus = collection.get(recoveryId)) {
                         assertThat("access time failed to update", lastSeenTime, lessThan(currentStatus.get().lastAccessTime()));
@@ -82,6 +89,39 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
                 });
             } finally {
                 collection.cancel(recoveryId, "life");
+            }
+        }
+    }
+
+    public void testRecoveryTimeoutNotResetByPolling() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            final ReplicationCollection<RecoveryTarget> collection = new ReplicationCollection<>(logger, threadPool);
+            final AtomicBoolean failed = new AtomicBoolean();
+            final CountDownLatch latch = new CountDownLatch(1);
+            final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica(), new ReplicationListener() {
+                @Override
+                public void onDone(ReplicationState state) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    failed.set(true);
+                    latch.countDown();
+                }
+            }, TimeValue.timeValueMillis(100));
+            try {
+                // simulate observers polling recovery status frequently
+                for (int i = 0; i < 10; i++) {
+                    try (ReplicationCollection.ReplicationRef<RecoveryTarget> ignored = collection.get(recoveryId)) {
+                        // no-op
+                    }
+                    Thread.sleep(10);
+                }
+                latch.await(30, TimeUnit.SECONDS);
+                assertTrue("recovery failed to timeout", failed.get());
+            } finally {
+                collection.cancel(recoveryId, "meh");
             }
         }
     }

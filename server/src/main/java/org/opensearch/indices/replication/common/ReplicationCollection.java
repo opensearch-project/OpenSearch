@@ -310,7 +310,6 @@ public class ReplicationCollection<T extends ReplicationTarget> {
          */
         public ReplicationRef(T status) {
             super(status);
-            status.setLastAccessTime();
         }
     }
 

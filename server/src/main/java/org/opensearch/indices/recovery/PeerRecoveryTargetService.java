@@ -237,6 +237,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 return;
             }
             final RecoveryTarget recoveryTarget = recoveryRef.get();
+            recoveryTarget.setLastAccessTime();
             timer = recoveryTarget.state().getTimer();
             if (preExistingRequest == null) {
                 try {
@@ -397,6 +398,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel, Task task) {
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
+                recoveryTarget.setLastAccessTime();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.PREPARE_TRANSLOG, request);
                 if (listener == null) {
                     return;
@@ -413,6 +415,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel, Task task) throws Exception {
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
+                recoveryTarget.setLastAccessTime();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.FINALIZE, request);
                 if (listener == null) {
                     return;
@@ -429,7 +432,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(final RecoveryHandoffPrimaryContextRequest request, final TransportChannel channel, Task task)
             throws Exception {
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
-                recoveryRef.get().handoffPrimaryContext(request.primaryContext());
+                RecoveryTarget recoveryTarget = recoveryRef.get();
+                recoveryTarget.setLastAccessTime();
+                recoveryTarget.handoffPrimaryContext(request.primaryContext());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -443,6 +448,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             throws IOException {
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
+                recoveryTarget.setLastAccessTime();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(
                     channel,
                     Actions.TRANSLOG_OPS,
@@ -463,6 +469,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             final ReplicationRef<RecoveryTarget> recoveryRef
         ) {
             final RecoveryTarget recoveryTarget = recoveryRef.get();
+            recoveryTarget.setLastAccessTime();
 
             final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
             final Consumer<Exception> retryOnMappingException = exception -> {
@@ -528,6 +535,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel, Task task) throws Exception {
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
+                recoveryTarget.setLastAccessTime();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.FILES_INFO, request);
                 if (listener == null) {
                     return;
@@ -551,6 +559,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel, Task task) throws Exception {
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
+                recoveryTarget.setLastAccessTime();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.CLEAN_FILES, request);
                 if (listener == null) {
                     return;
@@ -575,6 +584,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(final FileChunkRequest request, TransportChannel channel, Task task) throws Exception {
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
+                recoveryTarget.setLastAccessTime();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
                 recoveryTarget.handleFileChunk(
                     request,

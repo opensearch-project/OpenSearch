@@ -329,6 +329,7 @@ public class SegmentReplicator {
                 return;
             }
             target = replicationRef.get();
+            target.setLastAccessTime();
         }
         target.startReplication(new ActionListener<>() {
             @Override
