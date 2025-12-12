@@ -95,6 +95,8 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MapperTestUtils;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.engine.exec.bridge.Indexer;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
@@ -1620,6 +1622,20 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         TranslogManager translogManager = engine.translogManager();
         assert translogManager instanceof InternalTranslogManager : "only InternalTranslogManager have translogs, got: "
             + engine.getClass();
+        InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
+        return internalTranslogManager.getTranslog();
+    }
+
+    /**
+     * Exposes a translog associated with the given engine for testing purpose.
+     */
+    public static Translog getTranslog(CompositeEngine engine) {
+//        assert engine instanceof InternalEngine || engine instanceof NRTReplicationEngine || engine
+//            : "only InternalEngines or NRTReplicationEngines have translogs, got: " + engine.getClass();
+        engine.ensureOpen();
+        TranslogManager translogManager = engine.translogManager();
+        assert translogManager instanceof InternalTranslogManager : "only InternalTranslogManager have translogs, got: "
+            + translogManager.getClass();
         InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
         return internalTranslogManager.getTranslog();
     }

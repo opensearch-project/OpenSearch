@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.index.engine.exec.DataFormat;
-import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -50,7 +49,7 @@ public class CatalogSnapshotManager {
             latestCatalogSnapshot.setIndexFileDeleterSupplier(indexFileDeleter::get);
             latestCatalogSnapshot.setCatalogSnapshotMap(catalogSnapshotMap);
         } else {
-            latestCatalogSnapshot = new CatalogSnapshot(1, new ArrayList<>(), catalogSnapshotMap, indexFileDeleter::get);
+            latestCatalogSnapshot = new CatalogSnapshot(1, 1, new ArrayList<>(), catalogSnapshotMap, indexFileDeleter::get);
             catalogSnapshotMap.put(latestCatalogSnapshot.getId(), latestCatalogSnapshot);
         }
     }
@@ -67,9 +66,27 @@ public class CatalogSnapshotManager {
     }
 
     public synchronized void applyRefreshResult(RefreshResult refreshResult) {
-        CatalogSnapshot newCatSnap;
-        newCatSnap = new CatalogSnapshot(latestCatalogSnapshot.getId()+1, refreshResult.getRefreshedSegments(), catalogSnapshotMap, indexFileDeleter::get);
-        commitCatalogSnapshot(newCatSnap);
+        commitCatalogSnapshot(
+            new CatalogSnapshot(
+                latestCatalogSnapshot.getId() + 1,
+                latestCatalogSnapshot.getVersion() + 1,
+                refreshResult.getRefreshedSegments(),
+                catalogSnapshotMap,
+                indexFileDeleter::get)
+        );
+    }
+
+    public synchronized void applyReplicationChanges(CatalogSnapshot catalogSnapshot, ShardPath shardPath) {
+        CatalogSnapshot oldSnapshot = latestCatalogSnapshot;
+        if (catalogSnapshot != null) {
+            catalogSnapshot.incRef();
+            catalogSnapshot.remapPaths(shardPath.getDataPath());
+            latestCatalogSnapshot = catalogSnapshot;
+            catalogSnapshotMap.put(latestCatalogSnapshot.getId(), latestCatalogSnapshot);
+        }
+        if (oldSnapshot != null) {
+            oldSnapshot.decRef();
+        }
     }
 
     public synchronized void applyMergeResults(MergeResult mergeResult, OneMerge oneMerge) {
@@ -107,7 +124,7 @@ public class CatalogSnapshotManager {
         if (!inserted) {
             segmentList.add(0, segmentToAdd);
         }
-        CatalogSnapshot newCatSnap = new CatalogSnapshot(latestCatalogSnapshot.getId()+1, segmentList, catalogSnapshotMap, indexFileDeleter::get);
+        CatalogSnapshot newCatSnap = new CatalogSnapshot(latestCatalogSnapshot.getId() + 1, latestCatalogSnapshot.getVersion() + 1, segmentList, catalogSnapshotMap, indexFileDeleter::get);
 
         // Commit new catalog snapshot
         commitCatalogSnapshot(newCatSnap);

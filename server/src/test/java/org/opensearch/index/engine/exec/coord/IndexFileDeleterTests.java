@@ -168,7 +168,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
 
         // Create new snapshot
         long id = catalogSnapshotId.incrementAndGet();
-        catalogSnapshot = new CatalogSnapshot(id, List.of(segment), catalogSnapshotMap, () -> indexFileDeleter);
+        catalogSnapshot = new CatalogSnapshot(id, id, List.of(segment), catalogSnapshotMap, () -> indexFileDeleter);
         catalogSnapshotMap.put(id, catalogSnapshot);
 
         // Release previous snapshot if exists

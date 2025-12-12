@@ -18,6 +18,8 @@ import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.core.common.io.stream.BytesStreamInput;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -25,6 +27,8 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.function.BiConsumer;
 
@@ -78,7 +82,7 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
 
     @Override
     protected void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws Exception {
-        // Handle empty SegmentInfos bytes for recovering replicas
+        // Handle empty CatalogSnapshot bytes for recovering replicas
         if (checkpointInfoResponse.getInfosBytes() == null) {
             return;
         }
@@ -87,15 +91,13 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
             store = store();
             store.incRef();
             multiFileWriter.renameAllTempFiles();
-            final SegmentInfos infos = store.buildSegmentInfos(
-                checkpointInfoResponse.getInfosBytes(),
-                checkpointInfoResponse.getCheckpoint().getSegmentsGen()
-            );
-            indexShard.finalizeReplication(infos);
+            final CatalogSnapshot catalogSnapshot = deserializeCatalogSnapshot(checkpointInfoResponse.getInfosBytes());
+            indexShard.finalizeReplication(catalogSnapshot, checkpointInfoResponse.getCheckpoint());
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are
             // broken. We have to clean up this shard entirely, remove all files and bubble it up.
+            // ToDo: Need to update this lucene specific code
             try {
                 try {
                     store.removeCorruptionMarker();
@@ -129,5 +131,18 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
     @Override
     public SegmentReplicationTarget retryCopy() {
         return new SegmentReplicationTarget(indexShard, checkpoint, source, listener);
+    }
+
+    /**
+     * Deserializes CatalogSnapshot from byte array.
+     *
+     * @param infoBytes the serialized CatalogSnapshot bytes
+     * @return deserialized CatalogSnapshot
+     * @throws IOException if deserialization fails
+     */
+    private CatalogSnapshot deserializeCatalogSnapshot(byte[] infoBytes) throws IOException {
+        try (BytesStreamInput in = new BytesStreamInput(infoBytes)) {
+            return new CatalogSnapshot(in);
+        }
     }
 }

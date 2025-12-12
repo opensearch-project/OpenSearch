@@ -16,6 +16,8 @@ import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.store.DirectoryFileTransferTracker;
 
+import java.util.Collections;
+
 import java.util.Map;
 
 import static org.opensearch.test.OpenSearchTestCase.assertEquals;
@@ -44,12 +46,15 @@ public class RemoteStoreStatsTestHelper {
             0,
             5,
             5,
-            5,
-            0,
-            0,
+            5.0,
+            0.0,
+            0.0,
             0,
             10,
-            createZeroDirectoryFileTransferStats()
+            createZeroDirectoryFileTransferStats(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap()
         );
     }
 
@@ -70,12 +75,15 @@ public class RemoteStoreStatsTestHelper {
             0,
             0,
             0,
+            0.0,
+            0.0,
+            0.0,
             0,
             0,
-            0,
-            0,
-            0,
-            createSampleDirectoryFileTransferStats()
+            createSampleDirectoryFileTransferStats(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap()
         );
     }
 
@@ -96,12 +104,15 @@ public class RemoteStoreStatsTestHelper {
             0,
             10,
             10,
-            0,
-            0,
-            0,
+            0.0,
+            0.0,
+            0.0,
             100,
             10,
-            createSampleDirectoryFileTransferStats()
+            createSampleDirectoryFileTransferStats(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap()
         );
     }
 

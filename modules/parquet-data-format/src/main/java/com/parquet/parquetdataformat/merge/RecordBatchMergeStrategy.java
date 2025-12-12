@@ -11,7 +11,6 @@ package com.parquet.parquetdataformat.merge;
 import com.parquet.parquetdataformat.engine.ParquetDataFormat;
 import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
 import org.opensearch.index.engine.exec.DataFormat;
-import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.RowId;
@@ -19,13 +18,10 @@ import org.opensearch.index.engine.exec.merge.RowIdMapping;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import static com.parquet.parquetdataformat.bridge.RustBridge.mergeParquetFilesInRust;
 

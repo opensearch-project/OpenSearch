@@ -99,6 +99,8 @@ import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.bridge.Indexer;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -1490,8 +1492,15 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         return indexShard.getEngine();
     }
 
+    /**
+     * Helper method to access (package-protected) indexer from tests
+     */
+    public static Indexer getIndexer(IndexShard indexShard) {
+        return indexShard.getIndexer();
+    }
+
     public static Translog getTranslog(IndexShard shard) {
-        return EngineTestCase.getTranslog(getEngine(shard));
+        return EngineTestCase.getTranslog((CompositeEngine) getIndexer(shard));
     }
 
     public static ReplicationTracker getReplicationTracker(IndexShard indexShard) {

@@ -8,9 +8,11 @@
 
 package org.opensearch.index.engine.exec;
 
-public record FileMetadata(String directory, String file) {
+import reactor.util.annotation.NonNull;
 
-    public String toString() {
-        return "FileMetadata {" + "directory='" + directory + '\'' + ", file='" + file + '\'' + '}';
+public record FileMetadata(String dataFormat, String directory, String file) {
+    @Override
+    public @NonNull String toString() {
+        return "FileMetadata {" + "directory='" + directory + '\'' + ", file='" + file + '\'' + ", format='" + dataFormat + '\'' + '}';
     }
 }

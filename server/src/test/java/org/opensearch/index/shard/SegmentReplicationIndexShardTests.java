@@ -42,6 +42,7 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.ReadOnlyEngine;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.replication.TestReplicationSource;
@@ -1069,7 +1070,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testComputeReplicationCheckpointNullInfosReturnsEmptyCheckpoint() throws Exception {
         try (ReplicationGroup shards = createGroup(1, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir())) {
             final IndexShard primaryShard = shards.getPrimary();
-            assertEquals(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard.computeReplicationCheckpoint(null));
+            assertEquals(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard.computeReplicationCheckpoint((SegmentInfos) null));
         }
     }
 
