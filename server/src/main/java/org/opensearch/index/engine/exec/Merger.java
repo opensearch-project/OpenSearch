@@ -12,6 +12,7 @@ import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.RowIdMapping;
 
 import java.util.List;
+import java.io.IOException;
 
 public interface Merger {
     /**
@@ -19,7 +20,7 @@ public interface Merger {
      * @param fileMetadataList List of FileMetadata to merge
      * @return MergeResult - having RowIdMapping and mergedFileMetadata
      */
-    MergeResult merge(List<WriterFileSet> fileMetadataList, long writerGeneration);
+    MergeResult merge(List<WriterFileSet> fileMetadataList, long writerGeneration) throws IOException;
 
     /**
      *
