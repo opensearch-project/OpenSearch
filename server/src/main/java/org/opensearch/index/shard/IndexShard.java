@@ -1814,16 +1814,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Optional<NRTReplicationEngine> engineOptional = getReplicationEngine();
         if (engineOptional.isPresent()) {
             engineOptional.get().updateSegments(infos);
+            final Set<String> refreshedSegmentNames = new HashSet<>();
             for (SegmentCommitInfo segmentCommitInfo : infos) {
                 String segmentCommitInfoName = segmentCommitInfo.info.name;
-                logger.trace(
-                    () -> new ParameterizedMessage(
-                        "segment replication complete, remove segment {} from pending merged segments",
-                        segmentCommitInfoName
-                    )
-                );
-                replicaMergedSegmentCheckpoints.removeIf(s -> s.getSegmentName().equals(segmentCommitInfoName));
+                refreshedSegmentNames.add(segmentCommitInfoName);
             }
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "segment replication complete, remove segments {} from pending merged segments",
+                    refreshedSegmentNames
+                )
+            );
+            replicaMergedSegmentCheckpoints.removeIf(s -> refreshedSegmentNames.contains(s.getSegmentName()));
         }
     }
 
@@ -1955,6 +1957,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (cleanupReplicaMergedSegmentMutex) {
             this.currentSegmentReplicationCheckpoint = currentSegmentReplicationCheckpoint;
         }
+    }
+
+    // Merged Segment Warmer: Used to clean up the replica shard status during the promotion process.
+    public void clearReplicaMergedSegmentState() {
+        currentSegmentReplicationCheckpoint = null;
+        replicaMergedSegmentCheckpoints.clear();
     }
 
     /**
