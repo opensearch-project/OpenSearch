@@ -49,6 +49,11 @@ public class Any implements DataFormat {
     }
 
     @Override
+    public boolean isDataFormatSupported(String fieldType) {
+        return false;
+    }
+
+    @Override
     public void configureStore() {
         for (DataFormat dataFormat : dataFormats) {
             dataFormat.configureStore();

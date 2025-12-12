@@ -89,7 +89,8 @@ public class TranslogHandler implements TranslogRecoveryRunner {
             mapperRegistry,
             () -> null,
             () -> false,
-            null
+            null,
+            null  // pluginsService
         );
     }
 

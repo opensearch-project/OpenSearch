@@ -135,6 +135,11 @@ public final class ArrowFieldRegistry {
     }
 
     /**
+     * Checks if a fieldtype is supported or not
+     */
+    public static boolean isFieldTypeSupported(String fieldType) { return FIELD_REGISTRY.containsKey(fieldType); }
+
+    /**
      * Returns the ParquetField implementation for the specified OpenSearch field type, or null if not found.
      */
     public static ParquetField getParquetField(String fieldType) {

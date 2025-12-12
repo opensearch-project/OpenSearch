@@ -1123,7 +1123,8 @@ public class TextFieldMapperTests extends MapperTestCase {
                 throw new UnsupportedOperationException();
             },
             () -> true,
-            scriptService
+            scriptService,
+            null  // pluginsService
         );
 
         merge(mapperService, fieldMapping(b -> b.field("type", "text").field("store", false)));
