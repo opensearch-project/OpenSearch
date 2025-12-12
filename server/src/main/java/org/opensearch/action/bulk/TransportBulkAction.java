@@ -141,7 +141,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportIndicesResolvingAction<BulkRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
-    final static ShardShuffler shuffler = new RotationShardShuffler(Randomness.get().nextInt());;
+    private static final ShardShuffler shuffler = new RotationShardShuffler(Randomness.get().nextInt());
 
     private final ThreadPool threadPool;
     private final AutoCreateIndex autoCreateIndex;
