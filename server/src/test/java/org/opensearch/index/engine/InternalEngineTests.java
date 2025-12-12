@@ -1876,7 +1876,7 @@ public class InternalEngineTests extends EngineTestCase {
                 writer.forceMerge(1);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     assertEquals(1, reader.leaves().size());
-                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "1"), false));
+                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "1"), false, false));
                 }
             }
         }
@@ -8592,9 +8592,9 @@ public class InternalEngineTests extends EngineTestCase {
         MockDirectoryWrapper wrapper = newMockDirectory();
         final Path translogPath = createTempDir("testFailEngineOnRandomIO");
         try (Store store = createStore(wrapper)) {
-            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc3 = testParsedDocument("3", null, testContextSpecificDocument(), B_1, null);
+            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc3 = testParsedDocument("3", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
 
             AtomicReference<AddIndexesFailingIndexWriter> throwingIndexWriter = new AtomicReference<>();
             final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
@@ -8637,9 +8637,9 @@ public class InternalEngineTests extends EngineTestCase {
         MockDirectoryWrapper wrapper = newMockDirectory();
         final Path translogPath = createTempDir("testFailEngineOnRandomIO");
         try (Store store = createStore(wrapper)) {
-            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc3 = testParsedDocument("1", null, testContextSpecificDocument(), B_1, null);
+            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc3 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
             final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
                 "test",
                 Settings.builder()
@@ -8674,6 +8674,30 @@ public class InternalEngineTests extends EngineTestCase {
                     // fine
                 }
             }
+        }
+    }
+
+    @LockFeatureFlag(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG)
+    public void testDoesNotAllowGroupingCriteriaUpdate() throws IOException, InterruptedException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(defaultSettings.getSettings())
+                .put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(
+                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
+            )) {
+            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria_update"), B_1, null);
+            engine.index(indexForDoc(doc1));
+            IndexResult indexResult = engine.index(indexForDoc(doc2));
+            assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(indexResult.getFailure(), instanceOf(ImmutableCriteriaException.class));
         }
     }
 

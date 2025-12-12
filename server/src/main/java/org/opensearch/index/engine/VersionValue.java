@@ -35,6 +35,7 @@ package org.opensearch.index.engine;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.index.translog.Translog;
 
 import java.util.Collection;
@@ -56,6 +57,7 @@ abstract class VersionValue implements Accountable {
     final long seqNo;
     /** the term of the operation that last changed the associated uuid */
     final long term;
+    final SetOnce<String> previousCriteria = new SetOnce<>();
 
     VersionValue(long version, long seqNo, long term) {
         this.version = version;

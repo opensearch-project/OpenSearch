@@ -35,10 +35,13 @@ package org.opensearch.common.lucene.uid;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.index.codec.CriteriaBasedCodec;
 
 import java.io.IOException;
 import java.util.List;
@@ -121,6 +124,7 @@ public final class VersionsAndSeqNoResolver {
         public final long primaryTerm;
         public final LeafReader reader;
         public final int docBase;
+        public final SetOnce<String> criteria;
 
         public DocIdAndVersion(int docId, long version, long seqNo, long primaryTerm, LeafReader reader, int docBase) {
             this.docId = docId;
@@ -129,6 +133,7 @@ public final class VersionsAndSeqNoResolver {
             this.primaryTerm = primaryTerm;
             this.reader = reader;
             this.docBase = docBase;
+            this.criteria = new SetOnce<>();
         }
     }
 
@@ -155,7 +160,8 @@ public final class VersionsAndSeqNoResolver {
      * <li>a doc ID and a version otherwise
      * </ul>
      */
-    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
+    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo, boolean loadGroupingCriteria)
+        throws IOException {
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
@@ -165,6 +171,10 @@ public final class VersionsAndSeqNoResolver {
             PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
             DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf);
             if (result != null) {
+                if (result.version > 0 && loadGroupingCriteria == true) {
+                    SegmentReader unwrappedReader = (SegmentReader) leaf.reader();
+                    result.criteria.set(unwrappedReader.getSegmentInfo().info.getAttribute(CriteriaBasedCodec.BUCKET_NAME));
+                }
                 return result;
             }
         }

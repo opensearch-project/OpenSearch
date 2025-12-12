@@ -461,10 +461,6 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
             current.putCriteriaForDoc(key, criteria);
         }
 
-        String getCriteriaForDoc(BytesRef key) {
-            return current.getCriteriaForDoc(key);
-        }
-
         DisposableIndexWriter computeIndexWriterIfAbsentForCriteria(
             String criteria,
             CheckedBiFunction<String, CriteriaBasedIndexWriterLookup, DisposableIndexWriter, IOException> indexWriterSupplier,
@@ -627,7 +623,7 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         boolean isCriteriaNotNull = false;
         try {
             indexWriterLookup.mapReadLock.acquire();
-            String criteria = getCriteriaForDoc(uid);
+            String criteria = getCurrentCriteriaForDoc(uid);
             if (criteria != null) {
                 DisposableIndexWriter disposableIndexWriter = indexWriterLookup.getIndexWriterForCriteria(criteria);
                 if (disposableIndexWriter != null) {
@@ -648,8 +644,17 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         return liveIndexWriterDeletesMap.hasNewIndexingOrUpdates();
     }
 
-    String getCriteriaForDoc(BytesRef uid) {
-        return liveIndexWriterDeletesMap.getCriteriaForDoc(uid);
+    public String getCurrentCriteriaForDoc(BytesRef uid) {
+        return liveIndexWriterDeletesMap.current.getCriteriaForDoc(uid);
+    }
+
+    public String getCriteriaForDoc(BytesRef uid) {
+        String currentCriteria = liveIndexWriterDeletesMap.current.getCriteriaForDoc(uid);
+        if (currentCriteria != null) {
+            return currentCriteria;
+        }
+
+        return liveIndexWriterDeletesMap.old.getCriteriaForDoc(uid);
     }
 
     boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {

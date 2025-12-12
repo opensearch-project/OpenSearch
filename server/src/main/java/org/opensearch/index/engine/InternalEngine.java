@@ -781,10 +781,11 @@ public class InternalEngine extends Engine {
             // IndexWriters with parent writers, version will be either present in version map or in parent IndexWriter. So we do not need
             // to resolve version from child level IndexWriters (both from mark for refresh and active IndexWriter).
             try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
-                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), op.uid(), loadSeqNo);
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), op.uid(), loadSeqNo, isContextAwareEnabled);
             }
             if (docIdAndVersion != null) {
                 versionValue = new IndexVersionValue(null, docIdAndVersion.version, docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
+                versionValue.previousCriteria.set(docIdAndVersion.criteria.get());
             }
         } else if (engineConfig.isEnableGcDeletes()
             && versionValue.isDelete()
@@ -806,7 +807,13 @@ public class InternalEngine extends Engine {
                 versionMap.enforceSafeAccess();
             }
         }
-        return versionMap.getUnderLock(id);
+
+        VersionValue versionValue = versionMap.getUnderLock(id);
+        if (versionValue != null && versionValue.version > 0) {
+            versionValue.previousCriteria.set(documentIndexWriter.getCriteriaForDoc(id));
+        }
+
+        return versionValue;
     }
 
     private boolean canOptimizeAddDocument(Index index) {
@@ -1144,13 +1151,24 @@ public class InternalEngine extends Engine {
                         );
                         final IndexResult result = new IndexResult(retryException, currentVersion, versionValue.term, versionValue.seqNo);
                         plan = IndexingStrategy.failAsIndexAppendOnly(result, currentVersion, 0);
-                    } else {
-                        plan = IndexingStrategy.processNormally(
-                            currentNotFoundOrDeleted,
-                            canOptimizeAddDocument ? 1L : index.versionType().updateVersion(currentVersion, index.version()),
-                            reservingDocs
-                        );
-                    }
+                    } else if (currentVersion > 0
+                        && engineConfig.getIndexSettings().isContextAwareEnabled()
+                        && !index.docs().isEmpty()
+                        && !index.docs().getFirst().getGroupingCriteria().equals(versionValue.previousCriteria.get())) {
+                            ImmutableCriteriaException criteriaException = new ImmutableCriteriaException(
+                                shardId,
+                                "Updating the grouping criteria is not allowed",
+                                null
+                            );
+
+                            plan = IndexingStrategy.failAsCriteriaUpdateNotAllowed(criteriaException);
+                        } else {
+                            plan = IndexingStrategy.processNormally(
+                                currentNotFoundOrDeleted,
+                                canOptimizeAddDocument ? 1L : index.versionType().updateVersion(currentVersion, index.version()),
+                                reservingDocs
+                            );
+                        }
                 }
         }
         return plan;
@@ -1340,6 +1358,11 @@ public class InternalEngine extends Engine {
 
         static IndexingStrategy failAsIndexAppendOnly(IndexResult result, long versionForIndexing, int reservedDocs) {
             return new IndexingStrategy(false, false, false, true, versionForIndexing, reservedDocs, result);
+        }
+
+        static IndexingStrategy failAsCriteriaUpdateNotAllowed(Exception criteriaException) {
+            final IndexResult result = new IndexResult(criteriaException, Versions.NOT_FOUND);
+            return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, 0, result);
         }
     }
 
