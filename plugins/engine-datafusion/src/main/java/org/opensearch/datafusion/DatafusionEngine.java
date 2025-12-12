@@ -95,7 +95,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext) throws IOException {
         DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, searchShardTarget, task, this, bigArrays, originalContext);
         // Parse source
-        datafusionContext.datafusionQuery(new DatafusionQuery(request.shardId().getIndexName(), request.source().queryPlanIR(), new ArrayList<>(), request.source().aggregations() != null));
+        datafusionContext.datafusionQuery(new DatafusionQuery(request.shardId().getIndexName(), request.source().queryPlanIR(), new ArrayList<>()));
         return datafusionContext;
     }
 
@@ -387,13 +387,15 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         List<String>  excludeFields =
             Optional.ofNullable(context.request().source())
                 .map(SearchSourceBuilder::fetchSource)
-                .map(FetchSourceContext::includes)
+                .map(FetchSourceContext::excludes)
                 .map(list -> new ArrayList<>(Arrays.asList(list)))
                 .orElseGet(ArrayList::new);
 
         if(!includeFields.isEmpty()) {
             includeFields.add(CompositeDataFormatWriter.ROW_ID);
         }
+        excludeFields.addAll(context.mapperService().documentMapper().mapping().getMetadataStringNames());
+        excludeFields.add(SeqNoFieldMapper.PRIMARY_TERM_NAME); // TODO: check why _primary_term is not part of metadata mapper fields
 
         context.getDatafusionQuery().setSource(includeFields, excludeFields);
         DatafusionSearcher datafusionSearcher = context.getEngineSearcher();

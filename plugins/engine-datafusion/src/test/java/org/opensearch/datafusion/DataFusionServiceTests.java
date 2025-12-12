@@ -160,7 +160,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
                 throw new RuntimeException(e);
             }
 
-            long streamPointer = datafusionSearcher.search(new DatafusionQuery(index.getName(), protoContent, new ArrayList<>(), false), service.getRuntimePointer());
+            long streamPointer = datafusionSearcher.search(new DatafusionQuery(index.getName(), protoContent, new ArrayList<>()), service.getRuntimePointer());
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer(), allocator);
 
@@ -219,7 +219,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
                 throw new RuntimeException(e);
             }
 
-            DatafusionQuery query = new DatafusionQuery(index.getName(), protoContent, new ArrayList<>(), false);
+            DatafusionQuery query = new DatafusionQuery(index.getName(), protoContent, new ArrayList<>());
             long streamPointer = datafusionSearcher.search(query, service.getRuntimePointer());
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             RecordBatchStream stream = new RecordBatchStream(streamPointer, service.getRuntimePointer(), allocator);
@@ -334,7 +334,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
             throw new RuntimeException(e);
         }
 
-        DatafusionQuery query = new DatafusionQuery(index.getName(), protoContent, new ArrayList<>(), false);
+        DatafusionQuery query = new DatafusionQuery(index.getName(), protoContent, new ArrayList<>());
         List<String> projections = List.of("message");
         query.setSource(projections, List.of());
 

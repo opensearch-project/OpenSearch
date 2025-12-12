@@ -6,12 +6,10 @@
  * compatible open source license.
  */
 
-use std::fs;
 use std::sync::Arc;
 
-use arrow::datatypes::{DataType, Field, Fields, Schema};
+use arrow::datatypes::{Field, Fields, Schema};
 use arrow_schema::SchemaRef;
-use datafusion::physical_plan::projection::{new_projections_for_columns, ProjectionExpr};
 use datafusion::{
     common::tree_node::{Transformed, TreeNode, TreeNodeRecursion},
     config::ConfigOptions,
@@ -21,16 +19,14 @@ use datafusion::{
     },
     error::DataFusionError,
     logical_expr::Operator,
-    parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder,
     physical_expr::{
         expressions::{BinaryExpr, Column},
         PhysicalExpr,
     },
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{filter::FilterExec, projection::ProjectionExec, ExecutionPlan},
+    physical_plan::{projection::ProjectionExec, ExecutionPlan},
 };
 use datafusion_datasource::TableSchema;
-use itertools::Itertools;
 
 #[derive(Debug)]
 pub struct AbsoluteRowIdOptimizer;
@@ -50,26 +46,17 @@ impl AbsoluteRowIdOptimizer {
 
         let mut new_projections = vec![];
 
-        // let mut fields = vec![];
         for field_name in datasource_exec_schema.fields().to_vec() {
             new_projections.push(file_source_schema.index_of(field_name.name()).unwrap());
         }
-
-        // for field in file_source_schema.fields().to_vec() {
-        //     if datasource_exec_schema.field_with_name(&field.name().clone()).is_ok() {
-        //         fields.push(Arc::new(Field::new(field.name(), field.data_type().clone(), field.is_nullable())));
-        //     }
-        // }
 
         if !projected_schema.index_of(ROW_ID_FIELD_NAME).is_ok() {
             new_projections.push(file_source_schema.index_of(ROW_ID_FIELD_NAME).unwrap());
         }
 
         new_projections.push(file_source_schema.fields.len());
-        // fields.push(Arc::new(Field::new("row_base", file_source_schema.field_with_name(ROW_ID_FIELD_NAME).unwrap().data_type().clone(), true)));
 
         // Add row_base field to schema
-
         let mut new_fields = file_source_schema.fields().clone().to_vec();
         new_fields.push(Arc::new(Field::new(ROW_BASE_FIELD_NAME, file_source_schema.field_with_name(ROW_ID_FIELD_NAME).unwrap().data_type().clone(), true)));
 
@@ -156,25 +143,8 @@ impl PhysicalOptimizerRule for AbsoluteRowIdOptimizer {
                 let projection = self.create_datasource_projection(datasource, datasource_exec.schema()).expect("Failed to create ProjectionExec from datasource");
                 return Ok(Transformed::new(Arc::new(projection), true, TreeNodeRecursion::Continue));
 
-            } else if let Some(projection_exec) = node.as_any().downcast_ref::<ProjectionExec>() {
-                if !projection_exec.schema().field_with_name(ROW_ID_FIELD_NAME).is_ok() {
-
-                    let mut projection_exprs = projection_exec.expr().to_vec();
-                    if(projection_exec.input().schema().index_of(ROW_ID_FIELD_NAME).is_ok()) {
-                        projection_exprs.push(ProjectionExpr::new(Arc::new(Column::new(ROW_ID_FIELD_NAME, projection_exec.input().schema().index_of(ROW_ID_FIELD_NAME).unwrap())), ROW_ID_FIELD_NAME.to_string()));
-                    }
-
-                    let projection =
-                        ProjectionExec::try_new(projection_exprs, projection_exec.input().clone())
-                            .expect("Failed to create projection exec");
-                    return Ok(Transformed::new(
-                        Arc::new(projection.clone()),
-                        true,
-                        TreeNodeRecursion::Continue,
-                    ));
-                }
             }
-
+            
             Ok(Transformed::no(node))
         })?;
 

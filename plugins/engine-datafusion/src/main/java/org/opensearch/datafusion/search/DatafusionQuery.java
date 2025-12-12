@@ -20,14 +20,12 @@ public class DatafusionQuery {
     private List<Long> queryPhaseRowIds;
     private List<String> includeFields;
     private List<String> excludeFields;
-    private boolean isAggregationQuery;
 
-    public DatafusionQuery(String indexName, byte[] substraitBytes, List<SearchExecutor> searchExecutors, boolean isAggregationQuery) {
+    public DatafusionQuery(String indexName, byte[] substraitBytes, List<SearchExecutor> searchExecutors) {
         this.indexName = indexName;
         this.substraitBytes = substraitBytes;
         this.searchExecutors = searchExecutors;
         this.isFetchPhase = false;
-        this.isAggregationQuery = isAggregationQuery;
     }
 
     public void setSource(List<String> includeFields, List<String> excludeFields) {
@@ -42,14 +40,6 @@ public class DatafusionQuery {
 
     public boolean isFetchPhase() {
         return this.isFetchPhase;
-    }
-
-    public boolean isAggregationQuery() {
-        return isAggregationQuery;
-    }
-
-    public void setAggregationQuery(boolean aggregationQuery) {
-        isAggregationQuery = aggregationQuery;
     }
 
     public List<Long> getQueryPhaseRowIds() {

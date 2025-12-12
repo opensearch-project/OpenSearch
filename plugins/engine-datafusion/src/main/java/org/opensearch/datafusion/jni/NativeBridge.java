@@ -35,7 +35,7 @@ public final class NativeBridge {
     public static native void shutdownTokioRuntimeManager();
 
     // Query execution
-    public static native void executeQueryPhaseAsync(long readerPtr, String tableName, byte[] plan, boolean isAggregationQuery, long runtimePtr, ActionListener<Long> listener);
+    public static native void executeQueryPhaseAsync(long readerPtr, String tableName, byte[] plan, long runtimePtr, ActionListener<Long> listener);
     public static native long executeFetchPhase(long readerPtr, long[] rowIds, String[] includeFields, String[] excludeFields, long runtimePtr);
 
     // Stream operations
