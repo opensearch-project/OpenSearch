@@ -36,7 +36,7 @@ public final class NativeBridge {
 
     // Query execution
     public static native void executeQueryPhaseAsync(long readerPtr, String tableName, byte[] plan, long runtimePtr, ActionListener<Long> listener);
-    public static native long executeFetchPhase(long readerPtr, long[] rowIds, String[] projections, long runtimePtr);
+    public static native long executeFetchPhase(long readerPtr, long[] rowIds, String[] includeFields, String[] excludeFields, long runtimePtr);
 
     // Stream operations
     public static native void streamNext(long runtime, long stream, ActionListener<Long> listener);

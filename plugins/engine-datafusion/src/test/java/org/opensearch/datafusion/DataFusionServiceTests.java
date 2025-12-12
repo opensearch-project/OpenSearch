@@ -242,7 +242,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
             logger.info("Final row_ids count: {}", row_ids_res);
 
             List<String> projections = List.of("message");
-            query.setProjections(projections);
+            query.setSource(projections, List.of());
             query.setFetchPhaseContext(row_ids_res);
             long fetchPhaseStreamPointer = datafusionSearcher.search(query, service.getRuntimePointer());
 
@@ -328,7 +328,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
         DatafusionContext datafusionContext = new DatafusionContext(readerContext, shardSearchRequest, searchShardTarget, searchShardTask, engine, null, null);
 
         byte[] protoContent;
-        try (InputStream is = getClass().getResourceAsStream("/substrait_plan.pb")) {
+        try (InputStream is = getClass().getResourceAsStream("/substrait_plan_test.pb")) {
             protoContent = is.readAllBytes();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -336,7 +336,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
 
         DatafusionQuery query = new DatafusionQuery(index.getName(), protoContent, new ArrayList<>());
         List<String> projections = List.of("message");
-        query.setProjections(projections);
+        query.setSource(projections, List.of());
 
         datafusionContext.datafusionQuery(query);
 

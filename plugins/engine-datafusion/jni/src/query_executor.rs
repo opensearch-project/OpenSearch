@@ -7,7 +7,7 @@
  */
 
 use std::sync::Arc;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use jni::sys::jlong;
 use datafusion::{
     common::DataFusionError,
@@ -34,17 +34,74 @@ use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use datafusion_substrait::substrait::proto::{Plan, extensions::simple_extension_declaration::MappingType};
 use object_store::ObjectMeta;
 use prost::Message;
-use arrow_schema::DataType;
+use arrow_schema::{DataType, Field, SchemaRef};
+use chrono::TimeZone;
+use datafusion::common::ScalarValue;
+use datafusion::logical_expr::Operator;
+use datafusion::optimizer::AnalyzerRule;
+use datafusion::physical_expr::expressions::BinaryExpr;
+use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_optimizer::PhysicalOptimizerRule;
+use datafusion::physical_plan::execute_stream;
+use datafusion::physical_plan::projection::ProjectionExec;
+use datafusion_expr::{LogicalPlan, Projection};
 use log::error;
-
+use object_store::path::Path;
 use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
 use crate::partial_agg_optimizer::PartialAggregationOptimizer;
 use crate::executor::DedicatedExecutor;
 use crate::cross_rt_stream::CrossRtStream;
 use crate::CustomFileMeta;
 use crate::DataFusionRuntime;
-use crate::row_id_optimizer::ProjectRowIdOptimizer;
+use crate::project_row_id_analyzer::ProjectRowIdAnalyzer;
+use crate::absolute_row_id_optimizer::{AbsoluteRowIdOptimizer, ROW_BASE_FIELD_NAME, ROW_ID_FIELD_NAME};
 
+/// Executes a query using DataFusion with cross-runtime streaming capabilities.
+/// This function sets up the complete query execution pipeline including table registration,
+/// plan optimization, and stream creation for efficient data processing across different runtimes.
+///
+/// # Arguments
+/// * `table_path` - The URL path to the table data source (typically a directory containing Parquet files)
+/// * `files_meta` - Metadata for all files in the table, including row counts and base offsets
+/// * `table_name` - Name to register the table under in the DataFusion context
+/// * `plan_bytes_vec` - Serialized Substrait query plan as bytes
+/// * `is_aggregation_query` - Flag indicating if this is an aggregation query (affects optimization strategy)
+/// * `runtime` - The DataFusion runtime environment containing configuration and caches
+/// * `cpu_executor` - Dedicated executor for CPU-intensive operations
+///
+/// # Returns
+/// A pointer (as jlong) to the cross-runtime stream that can be consumed from Java/JNI
+///
+/// # Process Overview
+/// 1. Sets up file caching and runtime environment for optimal performance
+/// 2. Configures session with appropriate settings (batch size, partitions, etc.)
+/// 3. Registers the table with proper schema inference and partition columns
+/// 4. Decodes and processes the Substrait plan, applying necessary transformations
+/// 5. Applies query-specific optimizations (row ID handling for non-aggregation queries)
+/// 6. Creates and returns a cross-runtime stream for result consumption
+/// # Row ID Optimization Strategy (for non-aggregation queries)
+///
+/// The system uses a multi-phase approach to ensure queries return absolute row IDs:
+///
+/// **Phase 1: Logical Plan Analysis (ProjectRowIdAnalyzer)**
+/// - Ensures ___row_id fields are included in TableScan projections
+/// - Propagates ___row_id through Projection nodes in the logical plan
+/// - Works at the logical level before physical plan generation
+///
+/// **Phase 2: Physical Plan Optimization (AbsoluteRowIdOptimizer)**
+/// - Transforms relative row IDs to absolute row IDs at execution time
+/// - Replaces ___row_id expressions with (___row_id + row_base) calculations
+/// - row_base comes from partition columns and represents the file's starting row offset
+///
+/// **Phase 3: Final Projection**
+/// - Creates a top-level projection that only selects ___row_id
+/// - Ensures query results contain only the row identifiers needed for fetch operations
+///
+/// **Why This Approach:**
+/// - Parquet files store relative row IDs (0-based within each file)
+/// - We need absolute row IDs for global row identification across all files
+/// - The row_base partition column provides the offset to convert relative → absolute
+/// - This enables efficient two-phase query execution: filter → fetch
 pub async fn execute_query_with_cross_rt_stream(
     table_path: ListingTableUrl,
     files_meta: Arc<Vec<CustomFileMeta>>,
@@ -87,23 +144,26 @@ pub async fn execute_query_with_cross_rt_stream(
     config.options_mut().execution.batch_size = 1024;
 
     let state = datafusion::execution::SessionStateBuilder::new()
-        .with_config(config)
+        .with_config(config.clone())
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
-        
-        //.with_physical_optimizer_rule(Arc::new(ProjectRowIdOptimizer)) // TODO : uncomment this after fix
         .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer))
-                .build();
+        .build();
 
     let ctx = SessionContext::new_with_state(state);
 
-    // Register table
+    // Register table with partition column setup for row ID optimization
     let file_format = ParquetFormat::new();
     let listing_options = ListingOptions::new(Arc::new(file_format))
         .with_file_extension(".parquet")
         .with_files_metadata(files_meta)
+        .with_session_config_options(&config)
         .with_collect_stat(true)
-        .with_table_partition_cols(vec![("row_base".to_string(), DataType::Int64)]);
+        // Critical: Set up row_base as a partition column
+        // This makes row_base available in expressions during query execution
+        // row_base contains the starting row offset for each file, enabling
+        // the AbsoluteRowIdOptimizer to convert relative row IDs to absolute ones
+        .with_table_partition_cols(vec![(ROW_BASE_FIELD_NAME.to_string(), DataType::Int64)]);
 
     let resolved_schema = match listing_options
         .infer_schema(&ctx.state(), &table_path)
@@ -152,7 +212,7 @@ pub async fn execute_query_with_cross_rt_stream(
         }
     }
 
-    let logical_plan = match from_substrait_plan(&ctx.state(), &modified_plan).await {
+    let mut logical_plan = match from_substrait_plan(&ctx.state(), &modified_plan).await {
         Ok(plan) => plan,
         Err(e) => {
             error!("Failed to convert Substrait plan: {}", e);
@@ -160,7 +220,35 @@ pub async fn execute_query_with_cross_rt_stream(
         }
     };
 
-    let dataframe = match ctx.execute_logical_plan(logical_plan).await {
+    let is_aggregation_query = is_aggs_query(&logical_plan);
+
+    // For non-aggregation queries, we apply a two-phase optimization strategy to ensure
+    // only absolute row IDs are returned, which is essential for subsequent fetch operations
+    if !is_aggregation_query {
+        // Phase 1: ProjectRowIdAnalyzer (Logical Plan Analysis)
+        // This analyzer works at the logical plan level and ensures that:
+        // 1. TableScan nodes include the ___row_id field in their projections
+        // 2. Projection nodes propagate the ___row_id field through the query tree
+        // 3. The ___row_id field is available at every level of the plan for later optimization
+        logical_plan = ProjectRowIdAnalyzer.analyze(logical_plan, ctx.state().config_options())?;
+
+        // Phase 2: Top-level Projection Restriction
+        // Create a final projection that ONLY selects the ___row_id field
+        // This ensures the query result contains only the row identifiers needed for the fetch phase
+        // The AbsoluteRowIdOptimizer (applied earlier) will later transform these relative IDs
+        // into absolute IDs during physical plan execution.
+        // Creation of final projection is needed since in some case top-level projection is missing
+        // from the plan if final projection schema matches downstream exec schemas, making
+        // projection exec redundant.
+        // OptimizeProjections LogicalPlan optimizer is applied during execution which removes any
+        // additional projection execs are present.
+        logical_plan = LogicalPlan::Projection(Projection::try_new(
+            vec![col(ROW_ID_FIELD_NAME.to_string())],
+            Arc::new(logical_plan),
+        ).expect("Failed to create top level projection with ___row_id"));
+    }
+
+    let mut dataframe = match ctx.execute_logical_plan(logical_plan).await {
         Ok(df) => df,
         Err(e) => {
             error!("Failed to execute logical plan: {}", e);
@@ -168,7 +256,26 @@ pub async fn execute_query_with_cross_rt_stream(
         }
     };
 
-    let df_stream = match dataframe.execute_stream().await {
+    let mut physical_plan = dataframe.clone().create_physical_plan().await?;
+
+    // For non-aggregation queries, we need to return absolute row IDs to identify specific rows
+    // The AbsoluteRowIdOptimizer works at the physical plan level to transform relative row IDs
+    // into absolute ones by adding the partition's row_base offset
+    if !is_aggregation_query {
+        // AbsoluteRowIdOptimizer: Transforms ___row_id expressions in the physical plan
+        // It finds expressions that reference ___row_id and replaces them with:
+        // ___row_id + row_base (where row_base comes from partition columns)
+        // This converts file-relative row IDs to globally unique absolute row IDs
+        physical_plan = AbsoluteRowIdOptimizer.optimize(physical_plan, ctx.state().config_options())
+            .expect("Failed to optimize physical plan");
+    }
+
+
+    // println!("Explain show");
+    // let clone_df = dataframe.clone().explain(false, true);
+    // clone_df?.show().await?;
+
+    let df_stream = match execute_stream(physical_plan, ctx.task_ctx()) {
         Ok(stream) => stream,
         Err(e) => {
             error!("Failed to create execution stream: {}", e);
@@ -193,14 +300,52 @@ pub fn get_cross_rt_stream(cpu_executor: DedicatedExecutor, df_stream: SendableR
     Box::into_raw(Box::new(wrapped_stream)) as jlong
 }
 
+/// Executes the fetch phase of a two-phase query execution strategy.
+/// This function takes absolute row IDs (returned from the query phase) and efficiently
+/// retrieves the actual row data using Parquet's row-level access capabilities.
+///
+/// # Two-Phase Query Execution Strategy
+///
+/// **Phase 1 (Query):** `execute_query_with_cross_rt_stream`
+/// - Applies filters and conditions to identify matching rows
+/// - Returns only absolute row IDs (___row_id) for matching rows
+/// - Uses optimizers to ensure row IDs are absolute (not file-relative)
+///
+/// **Phase 2 (Fetch):** This function
+/// - Takes the absolute row IDs from phase 1
+/// - Creates optimized Parquet access plans for targeted row retrieval
+/// - Fetches only the requested columns for the identified rows
+/// - Reconstructs absolute row IDs by adding row_base back to relative IDs
+///
+/// # Arguments
+/// * `table_path` - The URL path to the table data source
+/// * `files_metadata` - Metadata for all files including row counts and base offsets
+/// * `row_ids` - Absolute row IDs to fetch (from query phase)
+/// * `include_fields` - Specific fields to include in the result
+/// * `exclude_fields` - Fields to exclude from the result
+/// * `runtime` - The DataFusion runtime environment
+/// * `cpu_executor` - Dedicated executor for CPU-intensive operations
+///
+/// # Returns
+/// A pointer (as jlong) to the cross-runtime stream containing the fetched row data
+///
+/// # Optimization Details
+/// - Uses ParquetAccessPlan for efficient row-group level access
+/// - Skips entire row groups that don't contain target rows
+/// - Uses RowSelector for precise row-level filtering within row groups
+/// - Reconstructs absolute row IDs using row_base + relative_row_id calculation
 pub async fn execute_fetch_phase(
     table_path: ListingTableUrl,
     files_metadata: Arc<Vec<CustomFileMeta>>,
     row_ids: Vec<jlong>,
-    projections: Vec<String>,
+    include_fields: Vec<String>,
+    exclude_fields: Vec<String>,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
 ) -> Result<jlong, DataFusionError> {
+    // Create optimized Parquet access plans for targeted row retrieval
+    // This converts absolute row IDs back to file-relative positions and creates
+    // efficient access patterns for each file's row groups
     let access_plans = create_access_plans(row_ids, files_metadata.clone()).await?;
 
     let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
@@ -222,22 +367,44 @@ pub async fn execute_fetch_phase(
 
         )
         .build()?;
-    let ctx = SessionContext::new_with_config_rt(SessionConfig::new(), Arc::new(runtime_env));
+
+    let mut config = SessionConfig::new();
+    config.options_mut().execution.parquet.pushdown_filters = true;
+    config.options_mut().execution.target_partitions = 1;
+
+    let state = datafusion::execution::SessionStateBuilder::new()
+        .with_config(config)
+        .with_runtime_env(Arc::from(runtime_env))
+        .with_default_features()
+        .build();
+
+    let ctx = SessionContext::new_with_state(state);
 
     let file_format = ParquetFormat::new();
     let listing_options = ListingOptions::new(Arc::new(file_format)).with_file_extension(".parquet").with_collect_stat(true);
 
     let parquet_schema = listing_options.infer_schema(&ctx.state(), &table_path).await?;
+    let projections = create_projections(include_fields, exclude_fields, parquet_schema.clone());
 
     let partitioned_files: Vec<PartitionedFile> = files_metadata
         .iter()
         .zip(access_plans.iter())
         .map(|(meta, access_plan)| {
-            PartitionedFile::new(
-                meta.object_meta().location.to_string(),
-                meta.object_meta.size,
-            )
-            .with_extensions(Arc::new(access_plan.clone()))
+            PartitionedFile {
+                object_meta:  ObjectMeta {
+                    location: Path::from(meta.object_meta().location.to_string()),
+                    last_modified: chrono::Utc.timestamp_nanos(0),
+                    size: meta.object_meta.size,
+                    e_tag: None,
+                    version: None,
+                },
+                partition_values: vec![ScalarValue::Int64(Some(*meta.row_base))],
+                range: None,
+                statistics: None,
+                extensions: None,
+                metadata_size_hint: None,
+            }
+                .with_extensions(Arc::new(access_plan.clone()))
         })
         .collect();
 
@@ -253,21 +420,152 @@ pub async fn execute_fetch_phase(
         );
     }
 
+    // Ensure ___row_id is always included in projections for absolute row ID reconstruction
+    // Even if not explicitly requested, we need it to rebuild absolute row IDs
+    if(!projections.contains(&ROW_ID_FIELD_NAME.to_string())) {
+        projection_index.push(parquet_schema.index_of(ROW_ID_FIELD_NAME).unwrap());
+    }
+    // Add row_base partition column index for absolute row ID calculation
+    projection_index.push(parquet_schema.fields.len());
+
     let file_scan_config = FileScanConfigBuilder::new(
         ObjectStoreUrl::local_filesystem(),
         parquet_schema.clone(),
         file_source,
     )
-    .with_projection(Option::from(projection_index.clone()))
+    .with_table_partition_cols(vec![Field::new(ROW_BASE_FIELD_NAME, DataType::Int64, false)])
+    .with_projection_indices(Some(projection_index.clone()))
     .with_file_group(file_group)
     .build();
 
-    let parquet_exec = DataSourceExec::from_data_source(file_scan_config);
-    let optimized_plan: Arc<dyn ExecutionPlan> = parquet_exec.clone();
+    let parquet_exec = DataSourceExec::from_data_source(file_scan_config.clone());
+
+    let projection_exprs = build_projection_exprs(file_scan_config.projected_schema())
+        .expect("Failed to build projection expressions");
+
+    let projection_exec = Arc::new(ProjectionExec::try_new(projection_exprs, parquet_exec)
+        .expect("Failed to create ProjectionExec"));
+    let optimized_plan: Arc<dyn ExecutionPlan> = projection_exec.clone();
     let task_ctx = Arc::new(TaskContext::default());
     let stream = optimized_plan.execute(0, task_ctx)?;
 
     Ok(get_cross_rt_stream(cpu_executor, stream))
+}
+
+fn is_aggs_query(plan: &LogicalPlan) -> bool {
+    match plan {
+        LogicalPlan::Aggregate(_) => {
+            true
+        },
+        LogicalPlan::TableScan(_) => {
+            // reached leaf
+            false
+        },
+        // … handle other variants as needed …
+        other => {
+            let mut is_aggs = false;
+            for child in other.inputs() {
+                is_aggs = is_aggs || is_aggs_query(child);
+                if is_aggs {
+                    return is_aggs;
+                }
+            }
+            is_aggs
+        }
+    }
+}
+
+pub fn create_projections(
+    include_fields: Vec<String>,
+    exclude_fields: Vec<String>,
+    schema: SchemaRef,
+) -> Vec<String> {
+
+    // Get all field names from schema
+    let all_fields: Vec<String> = schema.fields().to_vec().iter().map(|f| f.name().to_string()).collect();
+
+    match (include_fields.is_empty(), exclude_fields.is_empty()) {
+
+        // includes empty, excludes empty → all fields
+        (true, true) => all_fields.clone(),
+
+        // includes non-empty → include only these fields
+        (false, _) => include_fields
+            .into_iter()
+            .filter(|f| schema.field_with_name(f).is_ok())     // keep valid fields
+            .collect(),
+
+        // includes empty, excludes non-empty → remove excludes
+        (true, false) => {
+            let exclude_set: HashSet<String> =
+                exclude_fields.into_iter().collect();
+
+            all_fields
+                .into_iter()
+                .filter(|f| !exclude_set.contains(f))
+                .collect()
+        }
+    }
+}
+
+/// Builds projection expressions that reconstruct absolute row IDs during fetch phase.
+/// This function creates the physical expressions needed to convert file-relative row IDs
+/// back to absolute row IDs by adding the row_base offset.
+///
+/// # Absolute Row ID Reconstruction
+/// During the fetch phase, we read data directly from Parquet files, which contain
+/// relative row IDs (0-based within each file). To maintain consistency with the
+/// query phase results, we need to reconstruct the absolute row IDs using:
+///
+/// **absolute_row_id = relative_row_id + row_base**
+///
+/// Where:
+/// - relative_row_id: The ___row_id field from the Parquet file (0-based)
+/// - row_base: The partition column value representing this file's starting offset
+/// - absolute_row_id: The globally unique row identifier
+fn build_projection_exprs(new_schema: SchemaRef) -> std::result::Result<Vec<(Arc<dyn PhysicalExpr>, String)>, DataFusionError> {
+    // Get column indices for the row ID reconstruction calculation
+    let row_id_idx = new_schema.index_of(ROW_ID_FIELD_NAME).expect("Field ___row_id missing");
+    let row_base_idx = new_schema.index_of(ROW_BASE_FIELD_NAME).expect("Field row_base missing");
+
+    // Create the expression: ___row_id + row_base = absolute_row_id
+    // This reconstructs the absolute row ID that was originally returned by the query phase
+    let sum_expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(
+        Arc::new(datafusion::physical_expr::expressions::Column::new(ROW_ID_FIELD_NAME, row_id_idx)),
+        Operator::Plus,
+        Arc::new(datafusion::physical_expr::expressions::Column::new(ROW_BASE_FIELD_NAME, row_base_idx)),
+    ));
+
+    let mut projection_exprs: Vec<(Arc<dyn PhysicalExpr>, String)> = Vec::new();
+
+    let mut has_row_id = false;
+    // Build projection expressions for all requested fields
+    for field_name in new_schema.fields().to_vec() {
+        if field_name.name() == ROW_ID_FIELD_NAME {
+            // For ___row_id field, use the sum expression to get absolute row ID
+            // This ensures the fetch phase returns the same absolute row IDs
+            // that were originally identified in the query phase
+            projection_exprs.push((sum_expr.clone(), field_name.name().clone()));
+            has_row_id = true;
+        } else if(field_name.name() != ROW_BASE_FIELD_NAME) {
+            // For regular data fields, project them directly from the file
+            // Skip row_base as it's only used for calculation, not output
+            let idx = new_schema
+                .index_of(&*field_name.name().clone())
+                .unwrap_or_else(|_| panic!("Field {field_name} missing in schema"));
+            projection_exprs.push((
+                Arc::new(datafusion::physical_expr::expressions::Column::new(&*field_name.name(), idx)),
+                field_name.name().clone(),
+            ));
+        }
+    }
+
+    // Ensure absolute row ID is always available in the output
+    // This maintains consistency between query and fetch phases
+    if !has_row_id {
+        projection_exprs.push((sum_expr.clone(), ROW_ID_FIELD_NAME.parse().unwrap()));
+    }
+    Ok(projection_exprs)
 }
 
 async fn create_access_plans(

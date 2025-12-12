@@ -10,6 +10,7 @@ package org.opensearch.datafusion;
 
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.TimeStampMilliVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ViewVarCharVector;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -42,7 +43,9 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.SearchResultsCollector;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchSubPhase;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
@@ -187,7 +190,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
 
     @Override
-    public Map<String, Object[]> executeQueryPhase(DatafusionContext context) {
+    public void executeQueryPhase(DatafusionContext context) {
         Map<String, Object[]> finalRes = new HashMap<>();
         List<Long> rowIdResult = new ArrayList<>();
         RecordBatchStream stream = null;
@@ -253,9 +256,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 throw new RuntimeException(e);
             }
         }
-
+        context.setDFResults(finalRes);
         context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(), TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(), Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
-        return finalRes;
     }
 
     @Override
@@ -374,9 +376,28 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
         // preprocess
         context.getDatafusionQuery().setFetchPhaseContext(rowIds);
-        List<String> projections = new ArrayList<>(List.of(context.request().source().fetchSource().includes()));
-        projections.add(CompositeDataFormatWriter.ROW_ID);
-        context.getDatafusionQuery().setProjections(projections);
+
+        List<String>  includeFields =
+            Optional.ofNullable(context.request().source())
+                .map(SearchSourceBuilder::fetchSource)
+                .map(FetchSourceContext::includes)
+                .map(list -> new ArrayList<>(Arrays.asList(list)))
+                .orElseGet(ArrayList::new);
+
+        List<String>  excludeFields =
+            Optional.ofNullable(context.request().source())
+                .map(SearchSourceBuilder::fetchSource)
+                .map(FetchSourceContext::excludes)
+                .map(list -> new ArrayList<>(Arrays.asList(list)))
+                .orElseGet(ArrayList::new);
+
+        if(!includeFields.isEmpty()) {
+            includeFields.add(CompositeDataFormatWriter.ROW_ID);
+        }
+        excludeFields.addAll(context.mapperService().documentMapper().mapping().getMetadataStringNames());
+        excludeFields.add(SeqNoFieldMapper.PRIMARY_TERM_NAME); // TODO: check why _primary_term is not part of metadata mapper fields
+
+        context.getDatafusionQuery().setSource(includeFields, excludeFields);
         DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
         long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
         RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator);
@@ -410,15 +431,22 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                             DerivedFieldGenerator derivedFieldGenerator = mapper.derivedFieldGenerator();
 
                             Object value = valueVectors.getObject(i);
-                            if(valueVectors instanceof ViewVarCharVector) {
-                                BytesRef bytesRef = new BytesRef(((ViewVarCharVector) valueVectors).get(i));
-                                derivedFieldGenerator.generate(builder, List.of(bytesRef)); // TODO: // Currently keyword field mapper do not have derived field converter from byte[] to BytesRef
+                            if(value == null) {
+                                builder.nullField(valueVectors.getName());
                             } else {
-                                derivedFieldGenerator.generate(builder, List.of(value));
-                            }
-                            if (valueVectors.getName().equals(IdFieldMapper.NAME)) {
-                                BytesRef idRef = new BytesArray((byte[]) value).toBytesRef();
-                                _id = Uid.decodeId(idRef.bytes, idRef.offset, idRef.length);
+                                if(valueVectors instanceof ViewVarCharVector) {
+                                    BytesRef bytesRef = new BytesRef(((ViewVarCharVector) valueVectors).get(i));
+                                    derivedFieldGenerator.generate(builder, List.of(bytesRef));
+                                } else if (valueVectors instanceof TimeStampMilliVector) {
+                                    long timestamp = ((TimeStampMilliVector) valueVectors).get(i);
+                                    derivedFieldGenerator.generate(builder, List.of(timestamp));
+                                } else {
+                                    derivedFieldGenerator.generate(builder, List.of(value));
+                                }
+                                if (valueVectors.getName().equals(IdFieldMapper.NAME)) {
+                                    BytesRef idRef = new BytesArray((byte[]) value).toBytesRef();
+                                    _id = Uid.decodeId(idRef.bytes, idRef.offset, idRef.length);
+                                }
                             }
                         }
                     } catch (Exception e) {
@@ -428,6 +456,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                         builder.endObject();
                     }
                     assert row_id != null || rowIds.get(i) != null;
+                    assert rowIdToIndex.containsKey(row_id);
                     assert _id != null;
                     BytesReference document = BytesReference.bytes(builder);
                     byteRefs.add(document);

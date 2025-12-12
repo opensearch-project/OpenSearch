@@ -10,7 +10,7 @@ use std::num::NonZeroUsize;
 use std::ptr::addr_of_mut;
 use jni::objects::{JByteArray, JClass, JObject};
 use jni::objects::JLongArray;
-use jni::sys::{jbyteArray, jint, jlong, jstring};
+use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
 use jni::{JNIEnv, JavaVM};
 use std::sync::{Arc, OnceLock};
 use arrow_array::{Array, StructArray};
@@ -32,7 +32,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 mod util;
-mod row_id_optimizer;
+mod absolute_row_id_optimizer;
 mod listing_table;
 mod cache;
 mod custom_cache_manager;
@@ -44,6 +44,7 @@ mod runtime_manager;
 mod cache_jni;
 mod partial_agg_optimizer;
 mod query_executor;
+mod project_row_id_analyzer;
 
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global};
@@ -346,7 +347,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createDat
         }
     };
 
-    let files: Vec<String> = match parse_string_arr(&mut env, files) {
+    let mut files: Vec<String> = match parse_string_arr(&mut env, files) {
         Ok(files) => files,
         Err(e) => {
             let _ = env.throw_new(
@@ -357,6 +358,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createDat
         }
     };
 
+    // TODO: This works since files are named similarly ending with incremental generation count, preferably move this up to DatafusionReaderManager to keep file order
+    files.sort();
     let files_metadata = match create_file_meta_from_filenames(&table_path, files.clone()) {
         Ok(metadata) => metadata,
         Err(err) => {
@@ -660,7 +663,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     _class: JClass,
     shard_view_ptr: jlong,
     values: JLongArray,
-    projections: JObjectArray,
+    include_fields: JObjectArray,
+    exclude_fields: JObjectArray,
     runtime_ptr: jlong,
     callback: JObject,
 ) -> jlong {
@@ -670,8 +674,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     let table_path = shard_view.table_path();
     let files_metadata = shard_view.files_metadata();
 
-    let projections: Vec<String> =
-        parse_string_arr(&mut env, projections).expect("Expected list of files");
+    let include_fields: Vec<String> =
+        parse_string_arr(&mut env, include_fields).expect("Expected list of files");
+    let exclude_fields: Vec<String> =
+        parse_string_arr(&mut env, exclude_fields).expect("Expected list of files");
 
     // Safety checks first
     if values.is_null() {
@@ -726,7 +732,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
             table_path,
             files_metadata,
             row_ids,
-            projections,
+            include_fields,
+            exclude_fields,
             runtime,
             cpu_executor,
         ).await {

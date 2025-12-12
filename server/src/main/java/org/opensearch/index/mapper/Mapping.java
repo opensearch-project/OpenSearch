@@ -46,6 +46,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -162,6 +163,10 @@ public final class Mapping implements ToXContentFragment {
 
     public MetadataFieldMapper getMetadataMapper(String mapperName) {
         return metadataMappersByName.get(mapperName);
+    }
+
+    public List<String> getMetadataStringNames() {
+        return metadataMappersByName.keySet().stream().toList();
     }
 
     @Override
