@@ -20,12 +20,14 @@ public class DatafusionQuery {
     private List<Long> queryPhaseRowIds;
     private List<String> includeFields;
     private List<String> excludeFields;
+    private Boolean isQueryPlanExplainEnabled;
 
     public DatafusionQuery(String indexName, byte[] substraitBytes, List<SearchExecutor> searchExecutors) {
         this.indexName = indexName;
         this.substraitBytes = substraitBytes;
         this.searchExecutors = searchExecutors;
         this.isFetchPhase = false;
+        this.isQueryPlanExplainEnabled = false;
     }
 
     public void setSource(List<String> includeFields, List<String> excludeFields) {
@@ -36,6 +38,14 @@ public class DatafusionQuery {
     public void setFetchPhaseContext(List<Long> queryPhaseRowIds) {
         this.queryPhaseRowIds = queryPhaseRowIds;
         this.isFetchPhase = true;
+    }
+
+    public void setQueryPlanExplainEnabled(Boolean queryPlanExplainEnabled) {
+        isQueryPlanExplainEnabled = queryPlanExplainEnabled;
+    }
+
+    public boolean getQueryPlanExplainEnabled() {
+       return isQueryPlanExplainEnabled;
     }
 
     public boolean isFetchPhase() {

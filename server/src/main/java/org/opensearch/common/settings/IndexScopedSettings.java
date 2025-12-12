@@ -289,6 +289,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_DERIVED_SOURCE_SETTING,
                 IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING,
 
+                IndexSettings.INDEX_SEARCH_QUERY_PLAN_EXPLAIN_SETTING,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();
