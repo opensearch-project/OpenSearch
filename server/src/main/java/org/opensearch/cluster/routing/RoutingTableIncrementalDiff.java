@@ -99,6 +99,7 @@ public class RoutingTableIncrementalDiff implements Diff<RoutingTable>, StringKe
 
         private final Index index;
 
+        // TODO: Add primary term and in-sync allocation ids to remote diff
         public IndexRoutingTableIncrementalDiff(Index index, IndexRoutingTable before, IndexRoutingTable after) {
             this.index = index;
             this.indexShardRoutingTables = DiffableUtils.diff(before.getShards(), after.getShards(), DiffableUtils.getIntKeySerializer());
@@ -114,7 +115,8 @@ public class RoutingTableIncrementalDiff implements Diff<RoutingTable>, StringKe
 
         @Override
         public IndexRoutingTable apply(IndexRoutingTable part) {
-            return new IndexRoutingTable(index, indexShardRoutingTables.apply(part.getShards()));
+            // TODO: fix this for remote publication
+            return new IndexRoutingTable(index, indexShardRoutingTables.apply(part.getShards()), null, null);
         }
 
         @Override

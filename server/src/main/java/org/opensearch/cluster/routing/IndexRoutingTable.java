@@ -33,8 +33,10 @@
 package org.opensearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
@@ -43,6 +45,7 @@ import org.opensearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.opensearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
@@ -51,9 +54,11 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,6 +66,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 
 /**
@@ -95,7 +101,16 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
 
     private final List<ShardRouting> allActiveShards;
 
-    IndexRoutingTable(Index index, final Map<Integer, IndexShardRoutingTable> shards) {
+    private final long[] primaryTerms;
+
+    private final Map<Integer, Set<String>> inSyncAllocationIds;
+
+    IndexRoutingTable(
+        Index index,
+        final Map<Integer, IndexShardRoutingTable> shards,
+        final long[] primaryTerms,
+        final Map<Integer, Set<String>> inSyncAllocationIds
+    ) {
         this.index = index;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = Collections.unmodifiableMap(shards);
@@ -108,6 +123,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
             }
         }
         this.allActiveShards = Collections.unmodifiableList(allActiveShards);
+        this.primaryTerms = primaryTerms;
+        this.inSyncAllocationIds = Collections.unmodifiableMap(inSyncAllocationIds);
     }
 
     /**
@@ -139,6 +156,30 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                 expected.remove(indexShardRoutingTable.shardId().id());
             }
             throw new IllegalStateException("Wrong number of shards in routing table, missing: " + expected);
+        }
+
+        // validate primaryTerms - only if populated
+        if (primaryTerms != null && primaryTerms.length > 0 && primaryTerms.length != indexMetadata.getNumberOfShards()) {
+            throw new IllegalStateException(
+                "Primary terms length ["
+                    + primaryTerms.length
+                    + "] does not match number of shards ["
+                    + indexMetadata.getNumberOfShards()
+                    + "]"
+            );
+        }
+
+        // validate inSyncAllocationIds - only if populated
+        if (inSyncAllocationIds != null
+            && !inSyncAllocationIds.isEmpty()
+            && inSyncAllocationIds.size() != indexMetadata.getNumberOfShards()) {
+            throw new IllegalStateException(
+                "InSyncAllocationIds size ["
+                    + inSyncAllocationIds.size()
+                    + "] does not match number of shards ["
+                    + indexMetadata.getNumberOfShards()
+                    + "]"
+            );
         }
 
         boolean isSearchOnlyClusterBlockEnabled = indexMetadata.getSettings()
@@ -261,6 +302,30 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
     }
 
     /**
+     * The term of the current selected primary. This is a non-negative number incremented when
+     * a primary shard is assigned after a full cluster restart or a replica shard is promoted to a primary.
+     * <p>
+     * Note: since we increment the term every time a shard is assigned, the term for any operational shard (i.e., a shard
+     * that can be indexed into) is larger than 0. See {@link IndexMetadataUpdater#applyChanges}.
+     **/
+    public long getPrimaryTerm(int shardId) {
+        return this.primaryTerms[shardId];
+    }
+
+    public long[] getPrimaryTerms() {
+        return this.primaryTerms.clone();
+    }
+
+    public Set<String> getInSyncAllocationIds(int shardId) {
+        assert shardId >= 0 && shardId < inSyncAllocationIds.size();
+        return inSyncAllocationIds.get(shardId);
+    }
+
+    public Map<Integer, Set<String>> getInSyncAllocationIds() {
+        return inSyncAllocationIds;
+    }
+
+    /**
      * Returns <code>true</code> if all shards are primary and active. Otherwise <code>false</code>.
      */
     public boolean allPrimaryShardsActive() {
@@ -356,7 +421,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
 
         if (!index.equals(that.index)) return false;
         if (!shards.equals(that.shards)) return false;
-
+        if (!Arrays.equals(primaryTerms, that.primaryTerms)) return false;
+        if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) return false;
         return true;
     }
 
@@ -364,12 +430,24 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
     public int hashCode() {
         int result = index.hashCode();
         result = 31 * result + shards.hashCode();
+        result = 31 * result + Arrays.hashCode(primaryTerms);
+        result = 31 * result + inSyncAllocationIds.hashCode();
         return result;
     }
 
     @Override
     public String toString() {
-        return "IndexRoutingTable{" + "shards=" + shards + ", index=" + index + '}';
+        return new StringBuilder().append("IndexRoutingTable{")
+            .append("shards=")
+            .append(shards)
+            .append(", index=")
+            .append(index)
+            .append(", primaryTerms=")
+            .append(Arrays.toString(primaryTerms))
+            .append(", inSyncAllocationIds=")
+            .append(inSyncAllocationIds)
+            .append('}')
+            .toString();
     }
 
     public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
@@ -379,6 +457,16 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             builder.addIndexShard(IndexShardRoutingTable.Builder.readFromThin(in, index));
+        }
+
+        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
+            builder.setPrimaryTerms(in.readLongArray());
+            int inSyncAllocationIdsSize = in.readVInt();
+            for (int i = 0; i < inSyncAllocationIdsSize; i++) {
+                int shardId = in.readVInt();
+                Set<String> allocationIds = DiffableUtils.StringSetValueSerializer.getInstance().read(in, shardId);
+                builder.setInSyncAllocationIds(shardId, allocationIds);
+            }
         }
 
         return builder.build();
@@ -395,11 +483,28 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
         for (IndexShardRoutingTable indexShard : this) {
             IndexShardRoutingTable.Builder.writeToThin(indexShard, out);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+            out.writeVLongArray(primaryTerms);
+            out.writeVInt(inSyncAllocationIds.size());
+            for (final Map.Entry<Integer, Set<String>> cursor : inSyncAllocationIds.entrySet()) {
+                out.writeVInt(cursor.getKey());
+                DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.getValue(), out);
+            }
+        }
     }
 
     public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         index.writeTo(out);
+        // TODO: checksum calculation
         out.writeMapValues(shards, (stream, value) -> IndexShardRoutingTable.Builder.writeVerifiableTo(value, stream));
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+            out.writeVLongArray(primaryTerms);
+            out.writeMap(
+                inSyncAllocationIds,
+                StreamOutput::writeVInt,
+                (stream, val) -> DiffableUtils.StringSetValueSerializer.getInstance().write(new TreeSet<>(val), stream)
+            );
+        }
     }
 
     public static Builder builder(Index index) {
@@ -416,9 +521,61 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
 
         private final Index index;
         private final Map<Integer, IndexShardRoutingTable> shards = new HashMap<>();
+        private long[] primaryTerms = null;;
+        private final Map<Integer, Set<String>> inSyncAllocationIds;
+        private int numberOfShards;
 
         public Builder(Index index) {
             this.index = index;
+            this.inSyncAllocationIds = new HashMap<>();
+        }
+
+        public Builder setPrimaryTerms(final long[] primaryTerms) {
+            this.primaryTerms = primaryTerms.clone();
+            return this;
+        }
+
+        public Builder setPrimaryTerm(int shardId, long primaryTerm) {
+            if (primaryTerms == null) {
+                initializePrimaryTerms();
+            }
+            this.primaryTerms[shardId] = primaryTerm;
+            return this;
+        }
+
+        public long getPrimaryTerm(int shardId) {
+            if (primaryTerms == null) {
+                initializePrimaryTerms();
+            }
+            return this.primaryTerms[shardId];
+        }
+
+        private void initializePrimaryTerms() {
+            assert primaryTerms == null;
+            if (numberOfShards < 0) {
+                throw new IllegalStateException("you must set the number of shards before setting/reading primary terms");
+            }
+            primaryTerms = new long[numberOfShards];
+            Arrays.fill(primaryTerms, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+        }
+
+        public Builder setInSyncAllocationIds(int shardId, Set<String> allocationIds) {
+            inSyncAllocationIds.put(shardId, new HashSet<>(allocationIds));
+            return this;
+        }
+
+        public Builder setInSyncAllocationIds(Map<Integer, Set<String>> inSyncAllocationIds) {
+            this.inSyncAllocationIds.putAll(inSyncAllocationIds);
+            return this;
+        }
+
+        public Set<String> getInSyncAllocationIds(int shardId) {
+            return inSyncAllocationIds.get(shardId);
+        }
+
+        public Builder setNumberOfShards(int numberOfShards) {
+            this.numberOfShards = numberOfShards;
+            return this;
         }
 
         /**
@@ -811,12 +968,40 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
         }
 
         public IndexRoutingTable build() {
-            return new IndexRoutingTable(index, shards);
+            if (primaryTerms == null) {
+                initializePrimaryTerms();
+            } else if (primaryTerms.length != numberOfShards) {
+                throw new IllegalStateException(
+                    "primaryTerms length is [" + primaryTerms.length + "] but should be equal to number of shards [" + numberOfShards + "]"
+                );
+            }
+
+            // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
+            final Map<Integer, Set<String>> filledInSyncAllocationIds = new HashMap<>();
+            for (int i = 0; i < numberOfShards; i++) {
+                if (inSyncAllocationIds.containsKey(i)) {
+                    filledInSyncAllocationIds.put(i, Collections.unmodifiableSet(new HashSet<>(inSyncAllocationIds.get(i))));
+                } else {
+                    filledInSyncAllocationIds.put(i, Collections.emptySet());
+                }
+            }
+            return new IndexRoutingTable(index, shards, primaryTerms, filledInSyncAllocationIds);
         }
     }
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder("-- index [" + index + "]\n");
+
+        if (primaryTerms != null) {
+            sb.append("-- primary terms: ").append(Arrays.toString(primaryTerms)).append("\n");
+        }
+
+        if (inSyncAllocationIds != null && !inSyncAllocationIds.isEmpty()) {
+            sb.append("-- in-sync allocation ids:\n");
+            for (Map.Entry<Integer, Set<String>> entry : inSyncAllocationIds.entrySet()) {
+                sb.append("---- shard ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+            }
+        }
 
         List<IndexShardRoutingTable> ordered = new ArrayList<>();
         for (IndexShardRoutingTable indexShard : this) {
