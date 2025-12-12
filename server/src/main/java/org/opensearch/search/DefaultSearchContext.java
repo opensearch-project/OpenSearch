@@ -226,6 +226,7 @@ final class DefaultSearchContext extends SearchContext {
     private final CardinalityAggregationContext cardinalityAggregationContext;
     private final int bucketSelectionStrategyFactor;
     private final boolean keywordIndexOrDocValuesEnabled;
+    private final boolean prefetchDocsForFetchPhaseEnabled;
 
     private boolean isStreamSearch;
     private StreamSearchChannelListener listener;
@@ -296,6 +297,7 @@ final class DefaultSearchContext extends SearchContext {
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
         this.isStreamSearch = isStreamSearch;
+        this.prefetchDocsForFetchPhaseEnabled = this.indexService.getIndexSettings().isPrefetchDocsEnabled();
     }
 
     DefaultSearchContext(
@@ -770,6 +772,11 @@ final class DefaultSearchContext extends SearchContext {
     public SearchContext collapse(CollapseContext collapse) {
         this.collapse = collapse;
         return this;
+    }
+
+    @Override
+    public boolean isPrefetchDocsEnabled() {
+        return prefetchDocsForFetchPhaseEnabled;
     }
 
     @Override

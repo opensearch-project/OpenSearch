@@ -34,9 +34,12 @@ package org.opensearch.search.fetch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
@@ -172,10 +175,45 @@ public class FetchPhase {
             }
         }
 
+        int prefetchReaderIndex = -1;
+        LeafReaderContext prefetchReaderContext = null;
+        boolean hasSequentialDocs = hasSequentialDocs(docs);
+        boolean useSequentialPrefetch = hasSequentialDocs && docs.length >= 10;
+
+        if (context.isPrefetchDocsEnabled()) {
+            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+                try {
+                    int docId = docs[index].docId;
+                    int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
+                    if (prefetchReaderIndex != readerIndex) {
+                        prefetchReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+                        prefetchReaderIndex = readerIndex;
+                    }
+                    int relativeDocId = docId - prefetchReaderContext.docBase;
+                    int rootId = findRootDocumentIfNested(context, prefetchReaderContext, relativeDocId);
+                    if  (rootId != -1) {
+                        relativeDocId = rootId - prefetchReaderContext.docBase;
+                    }
+
+                    if (prefetchReaderContext.reader() instanceof SequentialStoredFieldsLeafReader lf && useSequentialPrefetch) {
+                        lf.getSequentialStoredFieldsReader().prefetch(relativeDocId);
+                    } else {
+                        if (prefetchReaderContext.reader() instanceof FilterLeafReader filterLeafReader) {
+                            LeafReader leafReader = FilterLeafReader.unwrap(filterLeafReader);
+                            if (leafReader instanceof SegmentReader segmentReader) {
+                                segmentReader.getFieldsReader().prefetch(relativeDocId);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    LOGGER.error("Failed to prefetch the doc, will continue to prefetch the other docs", e);
+                }
+            }
+        }
+
         int currentReaderIndex = -1;
         LeafReaderContext currentReaderContext = null;
         CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader = null;
-        boolean hasSequentialDocs = hasSequentialDocs(docs);
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             if (context.isCancelled()) {
                 throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
