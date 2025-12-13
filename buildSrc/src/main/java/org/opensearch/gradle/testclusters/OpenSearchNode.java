@@ -590,7 +590,9 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private boolean canUseSharedDistribution() {
         // using original location can be too long due to MAX_PATH restrictions on windows CI
         // TODO revisit when moving to shorter paths on CI by using Teamcity
-        return OS.current() != OS.WINDOWS && extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
+        // return OS.current() != OS.WINDOWS && extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
+        // Workaround on Gradle 8.6+ due to JVM GC logging to OpenSearch execution directory in immutable workspace
+        return false;
     }
 
     private void logToProcessStdout(String message) {
