@@ -44,14 +44,14 @@ import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Adaptive variant of {@link OpenSearchTieredMergePolicy} that updates merge policy parameters
- * at merge time based on current segment topology (derived from SegmentInfos). This avoids the
- * need to inject a Store to estimate shard size up-front.
+ * Adaptive merge policy implementation similar to {@link OpenSearchTieredMergePolicy} that updates
+ * merge policy parameters at merge time based on current segment topology (derived from SegmentInfos).
+ * This avoids the need to inject a Store to estimate shard size up-front.
  *
  * Strategy:
  * - On each {@link #findMerges(MergeTrigger, SegmentInfos, MergePolicy.MergeContext)} call, compute the
  *   current total shard size from SegmentInfos and adjust:
- *   - max merged segment (caps at 5GB)
+ *   - max merged segment (caps at 5 GiB)
  *   - floor segment size
  *   - segments per tier
  * - Forced merges continue to respect the OpenSearch behavior (unlimited max for forced merge).
