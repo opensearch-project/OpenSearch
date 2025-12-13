@@ -58,6 +58,7 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
     @Override
     protected void updateCheckpoint(ReplicationCheckpoint checkpoint, BiConsumer<ReplicationCheckpoint, IndexShard> checkpointUpdater) {
         checkpointUpdater.accept(checkpoint, this.indexShard);
+        indexShard.setCurrentSegmentReplicationCheckpoint(checkpoint);
     }
 
     @Override
