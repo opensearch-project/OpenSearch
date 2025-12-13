@@ -119,7 +119,7 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.create(false)) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(false, Settings.EMPTY)) {
                 HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
                 final FullHttpResponse response = client.stream(remoteAddress.address(), request, Arrays.stream(chunks));
                 try {
@@ -159,7 +159,7 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
                 new SharedGroupFactory(Settings.EMPTY),
                 NoopTracer.INSTANCE
             );
-            ReactorHttpClient client = ReactorHttpClient.create(false)
+            ReactorHttpClient client = ReactorHttpClient.create(false, Settings.EMPTY)
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
@@ -240,6 +240,7 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
             }
 
         };
+
     }
 
     private static ToXContent[] newChunks(final String responseString) {

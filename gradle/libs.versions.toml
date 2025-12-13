@@ -149,6 +149,7 @@ netty-codec-dns = { group = "io.netty", name = "netty-codec-dns", version.ref = 
 netty-codec-http = { group = "io.netty", name = "netty-codec-http", version.ref = "netty" }
 netty-codec-http2 = { group = "io.netty", name = "netty-codec-http2", version.ref = "netty" }
 netty-codec-http3 = { group = "io.netty", name = "netty-codec-http3", version.ref = "netty" }
+netty-codec-native-quic = { group = "io.netty", name = "netty-codec-native-quic", version.ref = "netty" }
 netty-codec-classes-quic = { group = "io.netty", name = "netty-codec-classes-quic", version.ref = "netty" }
 netty-common = { group = "io.netty", name = "netty-common", version.ref = "netty" }
 netty-handler = { group = "io.netty", name = "netty-handler", version.ref = "netty" }
