@@ -62,6 +62,9 @@ public class TestDispatcherBuilder {
     }
 
     public HttpServerTransport.Dispatcher build() {
+        DispatchRequest builderDispatchRequest = this.dispatchRequest;
+        DispatchBadRequest buidlerDispatchBadRequest = this.dispatchBadRequest;
+        DispatchHandler builderDispatcherHandler = this.dispatchHandler;
         return new HttpServerTransport.Dispatcher() {
             @Override
             public Optional<RestHandler> dispatchHandler(
@@ -70,17 +73,17 @@ public class TestDispatcherBuilder {
                 RestRequest.Method method,
                 Map<String, String> params
             ) {
-                return dispatchHandler.dispatchHandler(uri, rawPath, method, params);
+                return builderDispatcherHandler.dispatchHandler(uri, rawPath, method, params);
             }
 
             @Override
             public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                dispatchRequest.dispatchRequest(request, channel, threadContext);
+                builderDispatchRequest.dispatchRequest(request, channel, threadContext);
             }
 
             @Override
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                dispatchBadRequest.dispatchBadRequest(channel, threadContext, cause);
+                buidlerDispatchBadRequest.dispatchBadRequest(channel, threadContext, cause);
             }
         };
     }
