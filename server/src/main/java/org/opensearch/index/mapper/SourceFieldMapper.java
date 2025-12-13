@@ -282,6 +282,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return complete;
     }
 
+    public String[] getExcludes() {
+        return excludes.clone();
+    }
+
     @Override
     public void preParse(ParseContext context) throws IOException {
         if (context.indexSettings().isDerivedSourceEnabled()) {
