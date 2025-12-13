@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased 3.x]
 ### Added
 - Add support for forward translog reading ([#20163](https://github.com/opensearch-project/OpenSearch/pull/20163))
+- Add adaptive merge policy to reduce benchmark variance by dynamically adjusting segment merge settings based on shard size ([#11163](https://github.com/opensearch-project/OpenSearch/issues/11163))
 
 ### Changed
 - Handle custom metadata files in subdirectory-store ([#20157](https://github.com/opensearch-project/OpenSearch/pull/20157))
