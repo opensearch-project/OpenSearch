@@ -63,7 +63,7 @@ public class TestDispatcherBuilder {
 
     public HttpServerTransport.Dispatcher build() {
         DispatchRequest builderDispatchRequest = this.dispatchRequest;
-        DispatchBadRequest buidlerDispatchBadRequest = this.dispatchBadRequest;
+        DispatchBadRequest builderDispatchBadRequest = this.dispatchBadRequest;
         DispatchHandler builderDispatcherHandler = this.dispatchHandler;
         return new HttpServerTransport.Dispatcher() {
             @Override
@@ -83,7 +83,7 @@ public class TestDispatcherBuilder {
 
             @Override
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                buidlerDispatchBadRequest.dispatchBadRequest(channel, threadContext, cause);
+                builderDispatchBadRequest.dispatchBadRequest(channel, threadContext, cause);
             }
         };
     }
