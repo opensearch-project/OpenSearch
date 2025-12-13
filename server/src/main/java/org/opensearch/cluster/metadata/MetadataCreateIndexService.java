@@ -957,6 +957,22 @@ public class MetadataCreateIndexService {
                     mappings = templateMapping;
                 } else {
                     XContentHelper.mergeDefaults(mappings, templateMapping);
+                    // Special handling for disable_objects: later templates should override earlier ones.
+                    // mergeDefaults only adds missing keys, so we need to explicitly override disable_objects
+                    // to ensure the last template's value wins (consistent with template priority ordering).
+                    Object templateDocObj = templateMapping.get(MapperService.SINGLE_MAPPING_NAME);
+                    if (templateDocObj instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> templateDoc = (Map<String, Object>) templateDocObj;
+                        if (templateDoc.containsKey("disable_objects")) {
+                            Object mappingsDocObj = mappings.get(MapperService.SINGLE_MAPPING_NAME);
+                            if (mappingsDocObj instanceof Map) {
+                                @SuppressWarnings("unchecked")
+                                Map<String, Object> mappingsDoc = (Map<String, Object>) mappingsDocObj;
+                                mappingsDoc.put("disable_objects", templateDoc.get("disable_objects"));
+                            }
+                        }
+                    }
                 }
             }
         }

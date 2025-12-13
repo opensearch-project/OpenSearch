@@ -3010,6 +3010,166 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(translogBufferInterval, indexSettings.get(INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()));
     }
 
+    public void testTemplateWithDisableObjects() throws Exception {
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            try {
+                builder.putMapping(
+                    "type",
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject(MapperService.SINGLE_MAPPING_NAME)
+                        .field("disable_objects", true)
+                        .startObject("properties")
+                        .startObject("cpu.usage")
+                        .field("type", "float")
+                        .endObject()
+                        .startObject("memory.used")
+                        .field("type", "long")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .toString()
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
+            "",
+            Collections.singletonList(templateMetadata.getMappings()),
+            NamedXContentRegistry.EMPTY
+        );
+
+        assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
+        assertThat(doc, hasKey("disable_objects"));
+        assertEquals(true, doc.get("disable_objects"));
+
+        assertThat(doc, hasKey("properties"));
+        Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+
+        assertThat(properties, hasKey("cpu.usage"));
+        assertThat(properties, hasKey("memory.used"));
+    }
+
+    public void testTemplateWithDisableObjectsAtNestedLevel() throws Exception {
+        // Create a template with disable_objects enabled on a nested object
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            try {
+                builder.putMapping(
+                    "type",
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("user")
+                        .field("type", "object")
+                        .startObject("properties")
+                        .startObject("name")
+                        .field("type", "text")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .startObject("metrics")
+                        .field("type", "object")
+                        .field("disable_objects", true)
+                        .startObject("properties")
+                        .startObject("cpu.usage")
+                        .field("type", "float")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .toString()
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // Parse mappings with the template
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
+            "",
+            Collections.singletonList(templateMetadata.getMappings()),
+            NamedXContentRegistry.EMPTY
+        );
+
+        // Verify the structure
+        assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
+        // assertThat(doc, hasKey("properties"));
+        Map<String, Object> properties = doc;
+        // Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+
+        // Verify user object (without disable_objects)
+        assertThat(properties, hasKey("user"));
+        Map<String, Object> userObject = (Map<String, Object>) properties.get("user");
+        assertThat(userObject, hasKey("properties"));
+
+        // Verify metrics object (with disable_objects)
+        assertThat(properties, hasKey("metrics"));
+        Map<String, Object> metricsObject = (Map<String, Object>) properties.get("metrics");
+        assertThat(metricsObject, hasKey("disable_objects"));
+        assertEquals(true, metricsObject.get("disable_objects"));
+        assertThat(metricsObject, hasKey("properties"));
+        Map<String, Object> metricsProperties = (Map<String, Object>) metricsObject.get("properties");
+        assertThat(metricsProperties, hasKey("cpu.usage"));
+    }
+
+    public void testMultipleTemplatesWithDisableObjects() throws Exception {
+        // Template 1: no disable_objects (defaults to false)
+        CompressedXContent template1Mapping = new CompressedXContent(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("properties")
+                .startObject("field1")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .toString()
+        );
+
+        // Template 2: disable_objects=true
+        CompressedXContent template2Mapping = new CompressedXContent(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .field("disable_objects", true)
+                .startObject("properties")
+                .startObject("field.dotted")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .toString()
+        );
+
+        List<CompressedXContent> templateMappings = Arrays.asList(template1Mapping, template2Mapping);
+
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings("", templateMappings, NamedXContentRegistry.EMPTY);
+
+        assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
+
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
+
+        // disable_objects from last template wins
+        assertThat(doc, hasKey("disable_objects"));
+        assertEquals(true, doc.get("disable_objects"));
+
+        // properties are at root of doc
+        assertThat(doc, hasKey("properties"));
+        Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+
+        assertThat(properties, hasKey("field1"));
+        assertThat(properties, hasKey("field.dotted"));
+    }
+
     private DiscoveryNode getRemoteNode() {
         Map<String, String> attributes = new HashMap<>();
         attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
