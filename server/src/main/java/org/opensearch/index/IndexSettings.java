@@ -104,6 +104,7 @@ public final class IndexSettings {
     public enum IndexMergePolicy {
         TIERED("tiered"),
         LOG_BYTE_SIZE("log_byte_size"),
+        ADAPTIVE("adaptive"),
         DEFAULT_POLICY(IndexSettings.DEFAULT_POLICY);
 
         private final String value;
@@ -925,6 +926,7 @@ public final class IndexSettings {
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final TieredMergePolicyProvider tieredMergePolicyProvider;
     private final LogByteSizeMergePolicyProvider logByteSizeMergePolicyProvider;
+    private final AdaptiveTieredMergePolicyProvider adaptiveTieredMergePolicyProvider;
     private final IndexSortConfig indexSortConfig;
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
@@ -1169,6 +1171,7 @@ public final class IndexSettings {
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.tieredMergePolicyProvider = new TieredMergePolicyProvider(logger, this);
         this.logByteSizeMergePolicyProvider = new LogByteSizeMergePolicyProvider(logger, this);
+        this.adaptiveTieredMergePolicyProvider = new AdaptiveTieredMergePolicyProvider(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
@@ -1978,6 +1981,9 @@ public final class IndexSettings {
             case LOG_BYTE_SIZE:
                 mergePolicyProvider = logByteSizeMergePolicyProvider;
                 break;
+            case ADAPTIVE:
+                mergePolicyProvider = adaptiveTieredMergePolicyProvider;
+                break;
             case DEFAULT_POLICY:
                 if (isTimeSeriesIndex) {
                     String nodeScopedTimeSeriesIndexPolicy = TIME_SERIES_INDEX_MERGE_POLICY.get(nodeSettings);
@@ -1989,6 +1995,9 @@ public final class IndexSettings {
                             break;
                         case LOG_BYTE_SIZE:
                             mergePolicyProvider = logByteSizeMergePolicyProvider;
+                            break;
+                        case ADAPTIVE:
+                            mergePolicyProvider = adaptiveTieredMergePolicyProvider;
                             break;
                     }
                 } else {
@@ -2309,4 +2318,6 @@ public final class IndexSettings {
     public boolean isDerivedSourceEnabled() {
         return derivedSourceEnabled;
     }
+
+    // The adaptive merge policy provider is internal and not exposed via public API.
 }
