@@ -725,12 +725,17 @@ public class OpenSearchNode implements TestClusterConfiguration {
         try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
             LoggedExec.exec(project, spec -> {
                 spec.setEnvironment(getOpenSearchEnvironment());
-                spec.workingDir(getDistroDir());
-                spec.executable(OS.conditionalString().onUnix(() -> "./bin/" + tool).onWindows(() -> "cmd").supply());
+                spec.workingDir(workingDir.toFile());
+                spec.executable(
+                    OS.conditionalString()
+                        .onUnix(() -> getDistroDir().resolve("bin").resolve(tool).toString())
+                        .onWindows(() -> "cmd")
+                        .supply()
+                );
                 spec.args(OS.<List<CharSequence>>conditional().onWindows(() -> {
                     ArrayList<CharSequence> result = new ArrayList<>();
                     result.add("/c");
-                    result.add("bin\\" + tool + ".bat");
+                    result.add(getDistroDir().resolve("bin").resolve(tool + ".bat").toString());
                     result.addAll(Arrays.asList(args));
                     return result;
                 }).onUnix(() -> Arrays.asList(args)).supply());
