@@ -32,6 +32,8 @@
 
 package org.opensearch.transport;
 
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Settings;
@@ -89,9 +91,10 @@ public final class SharedGroupFactory {
             return getGenericGroup();
         } else {
             if (dedicatedHttpGroup == null) {
-                NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(
+                EventLoopGroup eventLoopGroup = new MultiThreadIoEventLoopGroup(
                     httpWorkerCount,
-                    daemonThreadFactory(settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)
+                    daemonThreadFactory(settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX),
+                    NioIoHandler.newFactory()
                 );
                 dedicatedHttpGroup = new SharedGroup(new RefCountedGroup(eventLoopGroup));
             }
@@ -101,9 +104,10 @@ public final class SharedGroupFactory {
 
     private SharedGroup getGenericGroup() {
         if (genericGroup == null) {
-            EventLoopGroup eventLoopGroup = new NioEventLoopGroup(
+            EventLoopGroup eventLoopGroup = new MultiThreadIoEventLoopGroup(
                 workerCount,
-                daemonThreadFactory(settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX)
+                daemonThreadFactory(settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX),
+                NioIoHandler.newFactory()
             );
             this.genericGroup = new RefCountedGroup(eventLoopGroup);
         } else {
