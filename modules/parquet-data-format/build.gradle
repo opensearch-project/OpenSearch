@@ -9,6 +9,11 @@ apply plugin: 'opensearch.internal-cluster-test'
 apply plugin: 'opensearch.pluginzip'
 apply plugin: 'opensearch.java-agent'
 
+configurations {
+  sqlPlugin
+  jobSchedulerPlugin
+}
+
 def pluginName = 'ParquetDataFormat'
 def pluginDescription = 'Parquet data format plugin'
 def packagePath = 'com.parquet'
@@ -85,6 +90,18 @@ configurations.all {
   }
 }
 
+sourceSets {
+  integTest {
+    java.srcDir 'src/integTest/java'
+    resources.srcDir 'src/integTest/resources'
+  }
+}
+
+configurations {
+  integTestImplementation.extendsFrom testImplementation
+  integTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
 dependencies {
   // Vectorized execution SPI for shared JNI utilities (RustLoggerBridge)
   implementation project(':libs:opensearch-vectorized-exec-spi')
@@ -108,14 +125,21 @@ dependencies {
   implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
 
   // Netty dependencies required by Arrow memory management
-  implementation 'io.netty:netty-buffer:4.1.118.Final'
-  implementation 'io.netty:netty-common:4.1.118.Final'
+  implementation 'io.netty:netty-buffer:4.1.125.Final'
+  implementation 'io.netty:netty-common:4.1.125.Final'
 
   // SLF4J logging implementation (required by Apache Arrow)
   implementation 'org.slf4j:slf4j-api:2.0.17'
 
   // Bridge for slf4j<-->log4j compatibility
   implementation "org.apache.logging.log4j:log4j-slf4j2-impl:2.23.1"
+
+  // Plugin ZIP artifacts for cluster installation (no testImplementation needed - plugins loaded via testClusters)
+  sqlPlugin('org.opensearch.plugin:opensearch-sql-plugin:3.3.0.0-SNAPSHOT@zip')
+  jobSchedulerPlugin('org.opensearch.plugin:opensearch-job-scheduler:3.3.0.0-SNAPSHOT@zip')
+
+  // Netty4 transport for HTTP in tests
+  testImplementation project(':modules:transport-netty4')
 }
 
 test {
@@ -129,8 +153,10 @@ test {
 
 task integTest(type: RestIntegTestTask) {
   description = "Run tests against a cluster"
-  testClassesDirs = sourceSets.test.output.classesDirs
-  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.integTest.output.classesDirs
+  classpath = sourceSets.integTest.runtimeClasspath
+
+  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
 tasks.named("check").configure { dependsOn(integTest) }
 
@@ -147,25 +173,76 @@ integTest {
   }
 }
 
+testClusters.integTest {
+  testDistribution = "INTEG_TEST"
+  
+  // Configure 2 nodes for replication testing
+  numberOfNodes = 2
+  
+  // Whitelist repository path
+  setting 'path.repo', "${buildDir}/testclusters/integTest-remote-store"
+  
+  // Configure remote store node attributes
+  setting 'node.attr.remote_store.segment.repository', 'test-rs-repo'
+  setting 'node.attr.remote_store.translog.repository', 'test-rs-repo'
+  setting 'node.attr.remote_store.state.repository', 'test-rs-repo'
+  
+  // Configure remote store repository type and location
+  setting 'node.attr.remote_store.repository.test-rs-repo.type', 'fs'
+  setting 'node.attr.remote_store.repository.test-rs-repo.settings.location', "${buildDir}/testclusters/integTest-remote-store"
+  setting 'node.attr.remote_store.repository.test-rs-repo.settings.system_repository', 'false'
+  
+  // Enable debug logging for replication
+  setting 'logger.org.opensearch.indices.replication', 'DEBUG'
+  setting 'logger.org.opensearch.index.shard.RemoteStoreRefreshListener', 'DEBUG'
+  setting 'logger.org.opensearch.indices.replication.RemoteStoreReplicationSource', 'DEBUG'
+
+  // Install parquet-data-format plugin
+  plugin(project.tasks.bundlePlugin.archiveFile)
+
+  // Install job-scheduler plugin from mavenLocal
+  plugin(provider({
+    new RegularFile() {
+      @Override
+      File getAsFile() {
+        return configurations.jobSchedulerPlugin.asFileTree.matching {
+          include '**/opensearch-job-scheduler*'
+        }.singleFile
+      }
+    }
+  }))
+
+  // Install SQL plugin from mavenLocal
+  plugin(provider({
+    new RegularFile() {
+      @Override
+      File getAsFile() {
+        return configurations.sqlPlugin.asFileTree.matching {
+          include '**/opensearch-sql-plugin*'
+        }.singleFile
+      }
+    }
+  }))
+
+  // Install engine-datafusion plugin
+  plugin(project(':plugins:engine-datafusion').tasks.bundlePlugin.archiveFile)
+}
+
 internalClusterTest {
   // JVM arguments required for Arrow memory access (Java 9+ only)
   if (JavaVersion.current().isJava9Compatible()) {
     jvmArgs '--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED'
     jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
   }
+
+  // Disable setting available processors to avoid Netty conflicts when tests randomize processor counts
+  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
 
 testClusters.all {
   // JVM arguments required for Arrow memory access in cluster nodes
   jvmArgs '--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED'
   jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
-}
-
-testClusters.integTest {
-  testDistribution = "INTEG_TEST"
-
-  // This installs our plugin into the testClusters
-  plugin(project.tasks.bundlePlugin.archiveFile)
 }
 
 run {
