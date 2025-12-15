@@ -398,7 +398,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
     // Primary Shard: track merged segment checkpoints that have been published for pre-warm.
-    // To save memory, the primary shard only records necessary information <segmentName, createdTimeStampInNanos>.
+    // To save memory, the primary shard only records necessary information <segmentName, createdTimeNanos>.
     private final Set<Tuple<String, Long>> primaryMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
 
     // Replica Shard: record the pre-copied merged segment checkpoints, which are not yet refreshed.
@@ -1905,8 +1905,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Remove expired primary merged segment checkpoints to prevent memory leaks
     public void removeExpiredPrimaryMergedSegmentCheckpoints() {
         long retentionTimeInMillis = getRecoverySettings().getMergedSegmentCheckpointRetentionTime().millis();
-        long nowNanos = DateUtils.toLong(Instant.now());
-        primaryMergedSegmentCheckpoints.removeIf(c -> Duration.ofNanos(nowNanos - c.v2()).toMillis() > retentionTimeInMillis);
+        long nowNanosSinceEpoch = DateUtils.toLong(Instant.now());
+        // createdTimeStamp of ReplicationCheckpoint represents nanos since epoch, so it is necessary to maintain unit consistency here.
+        primaryMergedSegmentCheckpoints.removeIf(c -> Duration.ofNanos(nowNanosSinceEpoch - c.v2()).toMillis() > retentionTimeInMillis);
     }
 
     @Deprecated(since = "3.4.0", forRemoval = true)
