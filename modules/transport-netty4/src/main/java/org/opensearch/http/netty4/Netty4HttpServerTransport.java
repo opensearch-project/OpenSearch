@@ -139,6 +139,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
      */
     private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("opensearch.net.mtu", "1500")));
 
+    /**
+     * The size of the http content decompressor buffer that is going to be used with the {@link #createDecompressor()}.
+     */
+    private static final int UNLIMITED_DECOMPRESSOR_BUFFER = 0;
+
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
 
     public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
@@ -310,8 +315,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
             }
 
-            serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
-            serverBootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
+            serverBootstrap.option(ChannelOption.RECVBUF_ALLOCATOR, recvByteBufAllocator);
+            serverBootstrap.childOption(ChannelOption.RECVBUF_ALLOCATOR, recvByteBufAllocator);
 
             final boolean reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
             serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
@@ -575,7 +580,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
      * Used in instances to conditionally decompress depending on the outcome from header verification
      */
     protected ChannelInboundHandlerAdapter createDecompressor() {
-        return new HttpContentDecompressor();
+        return new HttpContentDecompressor(UNLIMITED_DECOMPRESSOR_BUFFER);
     }
 
     /**
