@@ -18,6 +18,9 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * Executor builder for a "threadpool" using per-task virtual threads.
+ */
 public class VirtualThreadExecutorBuilder extends ExecutorBuilder<VirtualThreadExecutorBuilder.VirtualThreadExecutorSettings> {
 
     public VirtualThreadExecutorBuilder(final String name, Settings settings) { // TODO - settings not needed?
