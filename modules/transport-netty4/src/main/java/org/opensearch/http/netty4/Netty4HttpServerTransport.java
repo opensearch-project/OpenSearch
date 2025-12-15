@@ -140,8 +140,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("opensearch.net.mtu", "1500")));
 
     /**
-     * The size of the decompressor buffer for the http content
-     * that is going to be used with the {@link #createDecompressor()}.
+     * The size of the http content decompressor buffer that is going to be used with the {@link #createDecompressor()}.
      */
     private static final int UNLIMITED_DECOMPRESSOR_BUFFER = 0;
 
