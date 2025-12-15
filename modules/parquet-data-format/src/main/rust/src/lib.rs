@@ -15,6 +15,9 @@ pub mod logger;
 pub mod parquet_merge;
 pub use parquet_merge::*;
 
+// Re-export macros from the shared crate at crate root level
+pub use opensearch_vectorized_spi::{rust_log_info, rust_log_warn, rust_log_error, rust_log_debug, rust_log_trace};
+
 lazy_static! {
     static ref WRITER_MANAGER: DashMap<String, Arc<Mutex<ArrowWriter<File>>>> = DashMap::new();
     static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();

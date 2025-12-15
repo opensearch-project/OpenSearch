@@ -6,17 +6,25 @@
  * compatible open source license.
  */
 
-package com.parquet.parquetdataformat.bridge;
+package org.opensearch.vectorized.execution.jni;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Bridge class that allows Rust code to log messages through Java's logging framework.
- * This class delegates to the shared RustLoggerBridge in vectorized-exec-spi.
+ * This class provides static methods that can be called from Rust via JNI to enable
+ * unified logging across Java and native code.
  *
- * @deprecated Use {@link org.opensearch.vectorized.execution.jni.RustLoggerBridge} directly.
- *             This class is kept for backward compatibility with existing Rust JNI code.
+ * <p>The Rust code should call these methods using JNI with the fully qualified class name:
+ * {@code org/opensearch/vectorized/execution/jni/RustLoggerBridge}
+ *
+ * <p>This class is designed to be used by both parquet-data-format and engine-datafusion
+ * modules for consistent logging from their respective Rust JNI implementations.
  */
-@Deprecated
 public class RustLoggerBridge {
+
+    private static final Logger logger = LogManager.getLogger(RustLoggerBridge.class);
 
     /**
      * Log an info level message from Rust code.
@@ -24,7 +32,7 @@ public class RustLoggerBridge {
      * @param message the message to log
      */
     public static void logInfo(String message) {
-        org.opensearch.vectorized.execution.jni.RustLoggerBridge.logInfo(message);
+        logger.info(message);
     }
 
     /**
@@ -33,7 +41,7 @@ public class RustLoggerBridge {
      * @param message the message to log
      */
     public static void logWarn(String message) {
-        org.opensearch.vectorized.execution.jni.RustLoggerBridge.logWarn(message);
+        logger.warn(message);
     }
 
     /**
@@ -42,7 +50,7 @@ public class RustLoggerBridge {
      * @param message the message to log
      */
     public static void logError(String message) {
-        org.opensearch.vectorized.execution.jni.RustLoggerBridge.logError(message);
+        logger.error(message);
     }
 
     /**
@@ -51,6 +59,15 @@ public class RustLoggerBridge {
      * @param message the message to log
      */
     public static void logDebug(String message) {
-        org.opensearch.vectorized.execution.jni.RustLoggerBridge.logDebug(message);
+        logger.debug(message);
+    }
+
+    /**
+     * Log a trace level message from Rust code.
+     *
+     * @param message the message to log
+     */
+    public static void logTrace(String message) {
+        logger.trace(message);
     }
 }

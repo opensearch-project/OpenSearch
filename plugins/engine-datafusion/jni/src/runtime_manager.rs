@@ -1,5 +1,6 @@
 use crate::executor::DedicatedExecutor;
 use crate::io::register_io_runtime;
+use crate::logger::rust_log_info;
 use log::info;
 use std::sync::Arc;
 use datafusion::error::DataFusionError;
@@ -85,7 +86,7 @@ impl RuntimeManager {
     }
 
     pub fn with_config(config: RuntimeConfig) -> Self {
-        println!("Creating RuntimeManager with config: {:?}", config);
+        rust_log_info!("Creating RuntimeManager with config: {:?}", config);
 
         // IO Runtime
         let io_runtime = Arc::new(

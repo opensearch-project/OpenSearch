@@ -5,6 +5,7 @@ use datafusion::execution::cache::cache_manager::{FileMetadataCache};
 use datafusion::execution::cache::cache_unit::{DefaultFilesMetadataCache};
 use datafusion::execution::cache::CacheAccessor;
 use object_store::ObjectMeta;
+use crate::logger::{rust_log_error};
 
 pub const ALL_CACHE_TYPES: &[&str] = &[CACHE_TYPE_METADATA, CACHE_TYPE_STATS];
 
@@ -13,15 +14,16 @@ pub const CACHE_TYPE_METADATA: &str = "METADATA";
 pub const CACHE_TYPE_STATS: &str = "STATISTICS";
 
 // Helper function to handle cache errors
+#[allow(dead_code)]
 fn handle_cache_error(env: &mut JNIEnv, operation: &str, error: &str) {
     let msg = format!("Cache {} failed: {}", operation, error);
-    eprintln!("[CACHE ERROR] {}", msg);
+    rust_log_error!("[CACHE ERROR] {}", msg);
     let _ = env.throw_new("java/lang/DataFusionException", &msg);
 }
 
 // Helper function to log cache operations
 fn log_cache_error(operation: &str, error: &str) {
-    eprintln!("[CACHE ERROR] {} operation failed: {}", operation, error);
+    rust_log_error!("[CACHE ERROR] {} operation failed: {}", operation, error);
 }
 
 // Note: MutexFileMetadataCache wrapper has been removed as DefaultFilesMetadataCache
