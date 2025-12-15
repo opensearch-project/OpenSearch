@@ -9,6 +9,9 @@
 package org.opensearch.index.store;
 
 import org.apache.logging.log4j.Logger;
+
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -16,7 +19,6 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.FileMetadata;
-import org.opensearch.index.engine.exec.coord.Any;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.plugins.PluginsService;
@@ -34,6 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.index.shard.ShardPath.INDEX_FOLDER_NAME;
+import static org.opensearch.index.shard.ShardPath.METADATA_FOLDER_NAME;
+
 /**
  * Composite directory that coordinates multiple format-specific directories.
  * Routes file operations to appropriate format directories based on file type.
@@ -46,25 +51,24 @@ import java.util.Set;
 @PublicApi(since = "3.0.0")
 public class CompositeStoreDirectory implements Closeable {
 
-    private Any dataFormat;
-    private final Path directoryPath;
     public final List<FormatStoreDirectory<?>> delegates = new ArrayList<>();
     public final HashMap<String, FormatStoreDirectory<?>> delegatesMap  = new HashMap<>();
 
     private final Logger logger;
     private final DirectoryFileTransferTracker directoryFileTransferTracker;
-    private final ShardPath shardPath;
 
     /**
      * Simplified constructor for auto-discovery (like CompositeIndexingExecutionEngine)
      */
     public CompositeStoreDirectory(IndexSettings indexSettings, PluginsService pluginsService, ShardPath shardPath, Logger logger) {
-        this.shardPath = shardPath;
         this.logger = logger;
         this.directoryFileTransferTracker = new DirectoryFileTransferTracker();
-        this.directoryPath = shardPath.getDataPath();
 
         try {
+            FormatStoreDirectory<?> metadataDirectory = createMetadataDirectory(shardPath);
+            delegatesMap.put("metadata", metadataDirectory);
+            logger.debug("Created metadata directory pointing to: {}", shardPath.resolveIndex());
+
             pluginsService.filterPlugins(DataSourcePlugin.class).forEach(plugin -> {
                 try {
                     FormatStoreDirectory<?> formatDir = plugin.createFormatStoreDirectory(indexSettings, shardPath);
@@ -84,8 +88,18 @@ public class CompositeStoreDirectory implements Closeable {
         }
     }
 
+    /**
+     * Creates a metadata directory that points to the base Lucene directory where segments_N files are stored.
+     * This directory is at {@code <dataPath>/lucene/} and always exists regardless of active data formats.
+     */
+    private FormatStoreDirectory<?> createMetadataDirectory(ShardPath shardPath) throws IOException {
+        // Create FSDirectory pointing to <dataPath>/lucene/ where segments_N files live
+        Path luceneIndexPath = shardPath.resolveIndex(); // Returns <dataPath>/lucene/
+        Directory luceneDirectory = FSDirectory.open(luceneIndexPath);
+        return new LuceneStoreDirectory(luceneIndexPath, luceneDirectory);
+    }
+
     public void initialize() throws IOException {
-        // Initialize all delegates
         for (FormatStoreDirectory<?> delegate : delegates) {
             delegate.initialize();
         }
@@ -112,9 +126,9 @@ public class CompositeStoreDirectory implements Closeable {
 
         if (directory == null) {
 
-            if(dataFormatName.equalsIgnoreCase("TempMetadata") && !delegates.isEmpty())
+            if(dataFormatName.equalsIgnoreCase(METADATA_FOLDER_NAME) && !delegates.isEmpty())
             {
-                return delegates.getFirst();
+                return delegatesMap.get(INDEX_FOLDER_NAME);
             }
             List<String> availableFormats = new ArrayList<>(delegatesMap.keySet());
 

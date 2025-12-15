@@ -674,6 +674,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             try {
                 directory.innerClose();
                 IOUtils.close(compositeStoreDirectory);
+                //ToDo::@Kamal Add this but with composite Directory directory.close();
             } finally {
                 onClose.accept(shardLock);
             }

@@ -67,6 +67,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.opensearch.index.shard.ShardPath.INDEX_FOLDER_NAME;
+import static org.opensearch.index.shard.ShardPath.METADATA_FOLDER_NAME;
+
 /**
  * Remote segment store directory with format-aware storage capabilities.
  * Uses CompositeRemoteDirectory for all file operations with format-specific routing.
@@ -613,11 +616,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 translogGeneration, metadataUploadCounter.incrementAndGet(),
                 RemoteSegmentMetadata.CURRENT_VERSION, nodeId);
 
-            FileMetadata fileMetadata = new FileMetadata("TempMetadata","", metadataFilename);
+            FileMetadata fileMetadata = new FileMetadata(METADATA_FOLDER_NAME,"", metadataFilename);
 
             try {
                 try (IndexOutput indexOutput = storeDirectory.createOutput(fileMetadata, IOContext.DEFAULT)) {
-                    // TODO: Implement getSegmentToLuceneVersion for CatalogSnapshot when needed
+                    // TODO:
                     // For now, use empty map as placeholder
                     Map<String, Integer> segmentToLuceneVersion = new HashMap<>();
                     Map<FileMetadata, String> uploadedSegments = new HashMap<>();
@@ -639,7 +642,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
                     // Serialize CatalogSnapshot using StreamOutput
                     byte[] catalogSnapshotByteArray;
-                    try (org.opensearch.common.io.stream.BytesStreamOutput streamOutput = 
+                    try (org.opensearch.common.io.stream.BytesStreamOutput streamOutput =
                              new org.opensearch.common.io.stream.BytesStreamOutput()) {
                         catalogSnapshot.writeTo(streamOutput);
                         catalogSnapshotByteArray = streamOutput.bytes().toBytesRef().bytes;

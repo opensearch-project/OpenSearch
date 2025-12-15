@@ -253,6 +253,24 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable, Cl
         return new CatalogSnapshot(getId(), getVersion(), getSegments(), catalogSnapshotMap, indexFileDeleterSupplier);
     }
 
+    /**
+     * Sets user data for this catalog snapshot.
+     *
+     * @param userData the user data map to set
+     * @param doIncrementVersion whether to increment version (for compatibility with SegmentInfos API)
+     */
+    public void setUserData(Map<String, String> userData, boolean doIncrementVersion) {
+        if (userData == null) {
+            this.userData = Collections.emptyMap();
+        } else {
+            this.userData = new HashMap<>(userData);
+        }
+        if (doIncrementVersion) {
+            changed();
+        }
+    }
+
+
     public static class Segment implements Serializable, Writeable {
 
         private final long generation;
