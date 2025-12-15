@@ -177,25 +177,57 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
         indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
 
+        assertBusy(
+            () -> client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForStatus(org.opensearch.cluster.health.ClusterHealthStatus.YELLOW) // don't require GREEN
+                .setWaitForNoInitializingShards(true)
+                .setWaitForNoRelocatingShards(true)
+                .setTimeout(TimeValue.timeValueSeconds(60))
+                .get()
+        );
+
         final String snapshot = "snapshot";
         createFullSnapshot(snapshotRepoName, snapshot);
-        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 0);
+        assertBusy(() -> assertEquals(0, getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length));
 
         indexRandomDocs(indexName, randomIntBetween(20, 100));
 
+        assertBusy(
+            () -> client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForStatus(org.opensearch.cluster.health.ClusterHealthStatus.YELLOW)
+                .setWaitForNoInitializingShards(true)
+                .setWaitForNoRelocatingShards(true)
+                .setTimeout(TimeValue.timeValueSeconds(60))
+                .get()
+        );
+
         final String shallowSnapshot = "shallow-snapshot";
         createFullSnapshot(shallowSnapshotRepoName, shallowSnapshot);
-        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 1);
+        assertBusy(() -> assertEquals(1, getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length));
 
         if (randomBoolean()) {
             assertAcked(admin().indices().prepareDelete(indexName));
+            assertBusy(
+                () -> client().admin()
+                    .cluster()
+                    .prepareHealth()
+                    .setWaitForStatus(org.opensearch.cluster.health.ClusterHealthStatus.YELLOW)
+                    .setWaitForNoInitializingShards(true)
+                    .setWaitForNoRelocatingShards(true)
+                    .setTimeout(TimeValue.timeValueSeconds(60))
+                    .get()
+            );
         }
 
         final String sourceSnapshot = shallowSnapshot;
         final String targetSnapshot = "target-snapshot";
         assertAcked(startClone(shallowSnapshotRepoName, sourceSnapshot, targetSnapshot, indexName, remoteStoreEnabledIndexName).get());
         logger.info("Lock files count: {}", getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length);
-        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 2);
+        assertBusy(() -> assertEquals(2, getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length));
     }
 
     public void testShallowCloneNameAvailability() throws Exception {
