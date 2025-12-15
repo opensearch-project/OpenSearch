@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class Netty4HttpChannelsReleaseIntegTests extends OpenSearchNetty4IntegTestCase {
@@ -66,8 +67,17 @@ public class Netty4HttpChannelsReleaseIntegTests extends OpenSearchNetty4IntegTe
         }
         countDownLatch.await();
 
-        // no channels get closed in this test, hence we expect as many channels as we created in the map
-        assertEquals("All channels remain open", initialHttpChannels + numChannels, RestCancellableNodeClient.getNumChannels());
+        // no channels get closed in this test, hence we expect as many channels as we created in the map at most
+        // it is difficult to match the exact number of HTTP channels since:
+        // - there is 10 connections per route default setting (RestClient)
+        // - there are at least 2 nodes in the cluster (master + data)
+        // - if additional plugins are used (like telemetry), the same HTTP channel may
+        // be wrapped around, inflating the number of HTTP channels being tracked
+        assertThat(
+            "All channels remain open",
+            RestCancellableNodeClient.getNumChannels(),
+            greaterThanOrEqualTo(initialHttpChannels + 10 /* default connections per route */)
+        );
     }
 
     /**
@@ -87,5 +97,4 @@ public class Netty4HttpChannelsReleaseIntegTests extends OpenSearchNetty4IntegTe
             throw new IllegalStateException("Failed to execute the request", e);
         }
     }
-
 }
