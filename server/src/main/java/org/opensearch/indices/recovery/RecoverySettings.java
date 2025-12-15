@@ -114,7 +114,7 @@ public class RecoverySettings {
     public static final Setting<TimeValue> INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME = Setting.timeSetting(
         "indices.merged_segment_checkpoint.retention_time",
         TimeValue.timeValueMinutes(15),
-        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueSeconds(1),
         Property.Dynamic,
         Property.NodeScope
     );
