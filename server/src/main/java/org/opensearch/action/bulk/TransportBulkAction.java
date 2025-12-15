@@ -1014,6 +1014,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return selectedShard.shardId();
         }
         List<ShardRouting> candidates = shardInfos.v2().get(selectedShard.currentNodeId());
+        if (candidates == null || candidates.isEmpty()) {
+            return selectedShard.shardId();
+        }
         return candidates.get(Randomness.get().nextInt(candidates.size())).shardId();
     }
 
