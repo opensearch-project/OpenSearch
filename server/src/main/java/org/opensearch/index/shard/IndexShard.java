@@ -2180,18 +2180,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
-    public EngineSearcherSupplier<Engine.Searcher> acquireSearcherSupplier() {
+    public EngineSearcherSupplier<?> acquireSearcherSupplier() {
         return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL);
     }
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
-    public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
+    public EngineSearcherSupplier<?> acquireSearcherSupplier(Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        currentCompositeEngineReference.get().getPrimaryReadEngine().acquireSearcherSupplier(null, scope);
+        if(currentCompositeEngineReference.get() != null ) {
+            return currentCompositeEngineReference.get().getPrimaryReadEngine().acquireSearcherSupplier(null, scope);
+        }
         return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 

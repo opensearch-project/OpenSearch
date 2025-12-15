@@ -960,7 +960,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final SearchContext finalContext = context;
 
             // Prevent cleanup in this try-catch, will be handled in callback
-            readerContextRelease = null;
+           // readerContextRelease = null;
             context = null;
 
             // Execute native query async
@@ -988,6 +988,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         processFailure(readerContext, exception);
                         onFailure(e);
                     } finally {
+                        finalRelease.close();
                         taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
                     }
                 }
