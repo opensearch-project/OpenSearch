@@ -104,7 +104,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
-        public static final String SEARCH = "search";
+        public static final String SEARCH = "search"; // TODO: "search" vs "index_searcher" is the distinction Saurabh mentioned? or unrelated?
         public static final String STREAM_SEARCH = "stream_search";
         public static final String SEARCH_THROTTLED = "search_throttled";
         public static final String MANAGEMENT = "management";
@@ -142,7 +142,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         FIXED("fixed"),
         RESIZABLE("resizable"),
         SCALING("scaling"),
-        FORK_JOIN("fork_join");
+        FORK_JOIN("fork_join"),
+        VIRTUAL("virtual");
 
         private final String type;
 
@@ -183,7 +184,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.GET, ThreadPoolType.FIXED);
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
         map.put(Names.WRITE, ThreadPoolType.FIXED);
-        map.put(Names.SEARCH, ThreadPoolType.RESIZABLE);
+        //map.put(Names.SEARCH, ThreadPoolType.RESIZABLE);
+        map.put(Names.SEARCH, ThreadPoolType.VIRTUAL);
         map.put(Names.STREAM_SEARCH, ThreadPoolType.RESIZABLE);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
@@ -203,7 +205,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_REFRESH_RETRY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_RECOVERY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_STATE_READ, ThreadPoolType.FIXED);
-        map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
+        //map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
+        map.put(Names.INDEX_SEARCHER, ThreadPoolType.VIRTUAL);
         map.put(Names.REMOTE_STATE_CHECKSUM, ThreadPoolType.FIXED);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
@@ -261,10 +264,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
-        builders.put(
+        /*builders.put(
             Names.SEARCH,
             new ResizableExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, runnableTaskListener)
-        );
+        );*/  // TODO: change this one too?
+        builders.put(Names.SEARCH, new VirtualThreadExecutorBuilder(Names.SEARCH, settings));
         // TODO: configure the appropriate size and explore use of virtual threads
         builders.put(
             Names.STREAM_SEARCH,
@@ -328,13 +332,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.INDEX_SEARCHER,
-            new ResizableExecutorBuilder(
+            // TODO: We probably want to extend some VirtualExecutorBuilder here?
+            new VirtualThreadExecutorBuilder(Names.INDEX_SEARCHER, settings)
+            /*new ResizableExecutorBuilder(
                 settings,
                 Names.INDEX_SEARCHER,
                 twiceAllocatedProcessors(allocatedProcessors),
                 1000,
                 runnableTaskListener
-            )
+            )*/
         );
         builders.put(
             Names.REMOTE_STATE_CHECKSUM,
@@ -358,7 +364,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             if (executors.containsKey(executorHolder.info.getName())) {
                 throw new IllegalStateException("duplicate executors with name [" + executorHolder.info.getName() + "] registered");
             }
-            logger.debug("created thread pool: {}", entry.getValue().formatInfo(executorHolder.info));
+            logger.info("created thread pool: {}", entry.getValue().formatInfo(executorHolder.info)); // TODO: Changing to info for my own testing
             executors.put(entry.getKey(), executorHolder);
         }
 
@@ -456,8 +462,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             }
             Settings tpGroup = entry.getValue();
             ExecutorHolder holder = executors.get(tpName);
-            // Skip validation for ForkJoinPool type since it does not support setting updates
-            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
+            // Skip validation for ForkJoinPool and Virtual thread pools since they do not support setting updates
+            if (holder.info.type == ThreadPoolType.FORK_JOIN || holder.info.type == ThreadPoolType.VIRTUAL) {
                 continue;
             }
             assert holder.executor instanceof OpenSearchThreadPoolExecutor;
@@ -498,7 +504,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             if (holder == null) {
                 throw new IllegalArgumentException("illegal thread_pool name : " + tpName);
             }
-            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
+            if (holder.info.type == ThreadPoolType.FORK_JOIN || holder.info.type == ThreadPoolType.VIRTUAL) {
                 continue;
             }
             assert holder.executor instanceof OpenSearchThreadPoolExecutor;
@@ -551,6 +557,22 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                         .completed(0)
                         .waitTimeNanos(-1)
                         .parallelism(holder.info.getMax())
+                        .build()
+                );
+                continue;
+            }
+            // TODO: Claude added this part - not sure about it
+            if (holder.info.type == ThreadPoolType.VIRTUAL) {
+                stats.add(
+                    new ThreadPoolStats.Stats.Builder().name(name)
+                        .threads(-1)  // Virtual threads don't have a fixed pool size
+                        .queue(0)     // No queue for virtual threads
+                        .active(-1)   // Can't easily track active virtual threads
+                        .rejected(0)  // Virtual threads rarely reject
+                        .largest(-1)
+                        .completed(-1)
+                        .waitTimeNanos(-1)
+                        .parallelism(-1) // TODO: Is this functional? Is it connected to the JVM property?
                         .build()
                 );
                 continue;
@@ -911,7 +933,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public final Info info;
 
         ExecutorHolder(ExecutorService executor, Info info) {
-            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR || executor instanceof ForkJoinPool;
+            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR || executor instanceof ForkJoinPool || info.type == ThreadPoolType.VIRTUAL;
             this.executor = executor;
             this.info = info;
         }
