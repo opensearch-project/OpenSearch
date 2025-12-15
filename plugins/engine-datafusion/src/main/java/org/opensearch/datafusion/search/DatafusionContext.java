@@ -110,7 +110,7 @@ public class DatafusionContext extends SearchContext {
         this.request = request;
         this.task = task;
         this.readEngine = engine;
-        this.engineSearcher = (DatafusionSearcher) readerContext.acquireSearcher("search");//null;//TODO readerContext.contextEngineSearcher();
+        this.engineSearcher = (DatafusionSearcher) readerContext.acquireSearcher("search");
         this.queryResult = new QuerySearchResult(readerContext.id(), searchShardTarget, request);
         this.fetchResult = new FetchSearchResult(readerContext.id(), searchShardTarget);
         this.indexService = readerContext.indexService();
