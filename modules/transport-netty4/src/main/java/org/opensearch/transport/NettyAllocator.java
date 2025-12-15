@@ -117,7 +117,6 @@ public class NettyAllocator {
                         maxOrder = 5;
                     }
                 }
-                int tinyCacheSize = PooledByteBufAllocator.defaultTinyCacheSize();
                 int smallCacheSize = PooledByteBufAllocator.defaultSmallCacheSize();
                 int normalCacheSize = PooledByteBufAllocator.defaultNormalCacheSize();
                 boolean useCacheForAllThreads = PooledByteBufAllocator.defaultUseCacheForAllThreads();
@@ -127,7 +126,6 @@ public class NettyAllocator {
                     0,
                     pageSize,
                     maxOrder,
-                    tinyCacheSize,
                     smallCacheSize,
                     normalCacheSize,
                     useCacheForAllThreads
