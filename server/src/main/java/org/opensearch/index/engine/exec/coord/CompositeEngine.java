@@ -1089,23 +1089,20 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             assert rwl.isWriteLockedByCurrentThread()
                 || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
-                try {
                     IOUtils.close(engine, translogManager, compositeEngineCommitter);
                 } catch (Exception e) {
                     logger.warn("Failed to close translog", e);
-                }
-            } catch (Exception e) {
-                logger.warn("failed to close translog manager", e);
-            } finally {
-                try {
-                    store.decRef();
-                    logger.debug("engine closed [{}]", reason);
                 } finally {
-                    closedLatch.countDown();
+                    try {
+                        store.decRef();
+                        logger.debug("engine closed [{}]", reason);
+                    } finally {
+                        closedLatch.countDown();
+                    }
                 }
-            }
         }
     }
+
 
     /**
      * Acquires the most recent safe index commit snapshot from the currently running engine.

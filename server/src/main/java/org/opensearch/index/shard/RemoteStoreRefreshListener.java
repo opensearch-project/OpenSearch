@@ -478,18 +478,22 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     void uploadMetadata(Collection<FileMetadata> localFilesPostRefresh, CatalogSnapshot catalogSnapshot, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
         final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
+        CatalogSnapshot catalogSnapshotCopy = catalogSnapshot.clone();
 
-        CatalogSnapshot catalogSnapshotCloned = catalogSnapshot.clone();
+        // CRITICAL FIX: Load userData from committed segments to get ALL metadata including HISTORY_UUID_KEY
+        final Map<String, String> segmentUserData = indexShard.store().readLastCommittedSegmentsInfo().getUserData();
 
         // Create mutable copy and update checkpoint fields while preserving ALL existing metadata
-        catalogSnapshotCloned.getUserData().put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
-        catalogSnapshotCloned.getUserData().put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+        final Map<String, String> userData = new HashMap<>(segmentUserData);
+        userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+        catalogSnapshotCopy.setUserData(userData, false);
 
         // Log for verification during debugging
         logger.debug("Uploading metadata with userData: translog_uuid={}, history_uuid={}, all_keys={}",
-                   catalogSnapshotCloned.getUserData().get(Translog.TRANSLOG_UUID_KEY),
-                   catalogSnapshotCloned.getUserData().get(org.opensearch.index.engine.Engine.HISTORY_UUID_KEY),
-                   catalogSnapshotCloned.getUserData().keySet());
+                   userData.get(Translog.TRANSLOG_UUID_KEY),
+                   userData.get(org.opensearch.index.engine.Engine.HISTORY_UUID_KEY),
+                   userData.keySet());
 
         Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {

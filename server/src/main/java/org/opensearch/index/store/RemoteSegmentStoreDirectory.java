@@ -68,6 +68,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.shard.ShardPath.INDEX_FOLDER_NAME;
+import static org.opensearch.index.shard.ShardPath.METADATA_FOLDER_NAME;
+
 /**
  * A RemoteDirectory extension for remote segment store. We need to make sure we don't overwrite a segment file once uploaded.
  * In order to prevent segment overwrite which can occur due to two primary nodes for the same shard at the same time,
