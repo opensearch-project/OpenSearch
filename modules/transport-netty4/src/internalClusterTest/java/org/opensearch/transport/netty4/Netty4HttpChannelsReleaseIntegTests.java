@@ -52,7 +52,6 @@ public class Netty4HttpChannelsReleaseIntegTests extends OpenSearchNetty4IntegTe
         ThreadPool.terminate(threadPool, 5, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/20224")
     public void testAcceptedChannelsGetCleanedUpOnTheNodeShutdown() throws InterruptedException {
         String testIndex = "test_idx";
         assertAcked(client().admin().indices().prepareCreate(testIndex));
