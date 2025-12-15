@@ -73,16 +73,14 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 
     @Override
     public void afterRefresh(boolean didRefresh, CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot) throws IOException {
-        if (didRefresh && catalogSnapshot != null) {
-            DatafusionReader old = this.current;
-            Collection<WriterFileSet> newFiles = catalogSnapshot.getRef().getSearchableFiles(dataFormat);
-            if(old !=null) {
-                release(old);
-                processFileChanges(old.files, newFiles);
-            } else {
-                processFileChanges(List.of(), newFiles);
-            }
-            this.current = new DatafusionReader(this.path, catalogSnapshot, catalogSnapshot.getRef().getSearchableFiles(dataFormat));
+        DatafusionReader old = this.current;
+        Collection<WriterFileSet> newFiles = catalogSnapshot.getRef().getSearchableFiles(dataFormat);
+        this.current = new DatafusionReader(this.path, catalogSnapshot, catalogSnapshot.getRef().getSearchableFiles(dataFormat));
+        if(old !=null) {
+            release(old);
+            processFileChanges(old.files, newFiles);
+        } else {
+            processFileChanges(List.of(), newFiles);
         }
     }
 
