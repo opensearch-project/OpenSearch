@@ -224,6 +224,10 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
             listener = voidListener;
         }
 
+        // Only touch last access when we will actually handle the request (i.e., not a duplicate replay)
+        if (listener != null) {
+            setLastAccessTime();
+        }
         return listener;
     }
 
