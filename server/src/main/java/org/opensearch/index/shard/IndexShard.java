@@ -227,6 +227,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1903,9 +1904,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // Remove expired primary merged segment checkpoints to prevent memory leaks
     public void removeExpiredPrimaryMergedSegmentCheckpoints() {
-        long mergedSegmentRetentionTimeInNanos = getRecoverySettings().getMergedSegmentCheckpointRetentionTime().getNanos();
+        long retentionTimeInMillis = getRecoverySettings().getMergedSegmentCheckpointRetentionTime().millis();
         long nowNanos = DateUtils.toLong(Instant.now());
-        primaryMergedSegmentCheckpoints.removeIf(c -> nowNanos - c.v2() > mergedSegmentRetentionTimeInNanos);
+        primaryMergedSegmentCheckpoints.removeIf(c -> Duration.ofNanos(nowNanos - c.v2()).toMillis() > retentionTimeInMillis);
     }
 
     @Deprecated(since = "3.4.0", forRemoval = true)
