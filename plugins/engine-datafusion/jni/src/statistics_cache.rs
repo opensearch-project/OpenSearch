@@ -404,8 +404,18 @@ impl CacheAccessor<Path, Arc<Statistics>> for CustomStatisticsCache {
         v: Arc<Statistics>,
         e: &Self::Extra,
     ) -> Option<Arc<Statistics>> {
+        // If size_limit is 0, don't cache anything
+        if self.size_limit == 0 {
+            return None;
+        }
+
         let key = k.to_string();
         let memory_size = v.memory_size();
+
+        // If the entry itself is larger than the size limit, don't cache it
+        if memory_size > self.size_limit {
+            return None;
+        }
 
         // Check if eviction is needed BEFORE inserting
         let current_size = self.memory_consumed();
@@ -1003,6 +1013,48 @@ mod tests {
         assert!(cache.hit_count() >= hits_before);
         assert!(cache.miss_count() >= misses_before);
         assert!(cache.hit_count() + cache.miss_count() > hits_before + misses_before);
+    }
+
+    #[test]
+    fn test_zero_size_limit_prevents_caching() {
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 0, 0.8);
+
+        // Try to add an entry
+        let path = create_test_path("file1");
+        let meta = create_test_meta(&path);
+        let stats = Arc::new(create_test_statistics());
+
+        // Put should return None and not cache anything
+        let result = cache.put_with_extra(&path, stats, &meta);
+        assert!(result.is_none());
+
+        // Cache should remain empty
+        assert_eq!(cache.len(), 0);
+        assert_eq!(cache.memory_consumed(), 0);
+
+        // Get should return None (miss)
+        assert!(cache.get(&path).is_none());
+        assert_eq!(cache.miss_count(), 1);
+        assert_eq!(cache.hit_count(), 0);
+    }
+
+    #[test]
+    fn test_entry_larger_than_limit_not_cached() {
+        // Create a cache with a very small limit
+        let cache = CustomStatisticsCache::new(PolicyType::Lru, 10, 0.8);
+
+        // Try to add an entry that's larger than the limit
+        let path = create_test_path("file1");
+        let meta = create_test_meta(&path);
+        let stats = Arc::new(create_test_statistics());
+
+        // The statistics entry is larger than 10 bytes, so it shouldn't be cached
+        let result = cache.put_with_extra(&path, stats, &meta);
+        assert!(result.is_none());
+
+        // Cache should remain empty
+        assert_eq!(cache.len(), 0);
+        assert_eq!(cache.memory_consumed(), 0);
     }
 
     #[test]
