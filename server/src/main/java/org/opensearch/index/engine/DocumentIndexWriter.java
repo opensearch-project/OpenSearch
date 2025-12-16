@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.mapper.ParseContext;
 
@@ -91,4 +92,6 @@ public interface DocumentIndexWriter extends Closeable, ReferenceManager.Refresh
     boolean isWriteLockedByCurrentThread();
 
     Releasable obtainWriteLockOnAllMap();
+
+    String getCriteriaUnderLock(BytesRef uid);
 }
