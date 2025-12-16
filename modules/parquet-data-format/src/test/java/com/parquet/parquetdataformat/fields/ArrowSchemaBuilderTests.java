@@ -9,10 +9,7 @@
 package com.parquet.parquetdataformat.fields;
 
 import com.parquet.parquetdataformat.fields.core.data.number.LongParquetField;
-import com.parquet.parquetdataformat.vsr.ManagedVSR;
-import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -23,7 +20,6 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MappingLookup;
-import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
@@ -36,10 +32,9 @@ import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.junit.Assume.assumeTrue;
 
 /**
- * Comprehensive test suite for ArrowSchemaBuilder covering all must-have scenarios.
+ * Unit Tests for ArrowSchemaBuilder covering all must-have scenarios.
  */
 public class ArrowSchemaBuilderTests extends OpenSearchTestCase {
 
@@ -389,7 +384,7 @@ public class ArrowSchemaBuilderTests extends OpenSearchTestCase {
         when(mapper.copyTo()).thenReturn(copyTo);
         when(copyTo.copyToFields()).thenReturn(java.util.Collections.emptyList());
         when(fieldType.name()).thenReturn(name);
-        when(fieldType.indexAnalyzer()).thenReturn(null); // This will use defaultIndex analyzer
+        when(fieldType.indexAnalyzer()).thenReturn(null);
 
         return mapper;
     }
