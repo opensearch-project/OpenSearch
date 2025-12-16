@@ -27,7 +27,7 @@ fn read_batches(path: &str) -> Vec<RecordBatch> {
 #[test]
 fn test_process_parquet_files_empty_input() {
     let output_path = std::env::temp_dir().join("test_output_empty.parquet");
-    let result = process_parquet_files(&[], output_path.to_str().unwrap());
+    let result = process_parquet_files(&[], output_path.to_str().unwrap(), None, false);
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().to_string(), "No input files provided");
 }
@@ -35,7 +35,7 @@ fn test_process_parquet_files_empty_input() {
 #[test]
 fn test_process_parquet_files_nonexistent_file() {
     let output_path = std::env::temp_dir().join("test_output_nonexistent.parquet");
-    let result = process_parquet_files(&["/nonexistent/file.parquet".to_string()], output_path.to_str().unwrap());
+    let result = process_parquet_files(&["/nonexistent/file.parquet".to_string()], output_path.to_str().unwrap(), None, false);
     assert!(result.is_err());
 }
 
@@ -44,7 +44,7 @@ fn test_process_single_file() {
     let input_path = test_file("small_file1.parquet");
     let output_path = std::env::temp_dir().join("test_output_single.parquet");
 
-    process_parquet_files(&[input_path.clone()], output_path.to_str().unwrap()).unwrap();
+    process_parquet_files(&[input_path.clone()], output_path.to_str().unwrap(), None, false).unwrap();
 
     let batches = read_batches(output_path.to_str().unwrap());
     assert!(!batches.is_empty());
@@ -68,7 +68,7 @@ fn test_merge_files_with_complete_data_verification() {
     let input2 = test_file("small_file2.parquet");
     let output_path = std::env::temp_dir().join("test_output_complete_merge.parquet");
 
-    process_parquet_files(&[input1, input2], output_path.to_str().unwrap()).unwrap();
+    process_parquet_files(&[input1, input2], output_path.to_str().unwrap(), None, false).unwrap();
 
     let batches = read_batches(output_path.to_str().unwrap());
     let mut all_row_ids = vec![];
