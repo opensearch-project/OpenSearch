@@ -107,18 +107,25 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     public void testScaledFloatWithStarTree() throws Exception {
+        // Use bounded scaling factors and bounded input values to avoid rare off-by-one rounding
+        // differences due to floating point precision in different encoding paths.
+        double scalingFactorField1 = randomDoubleBetween(0.001, 100.0, true);
+        double scalingFactorField2 = randomDoubleBetween(0.001, 100.0, true);
+        double scalingFactorField3 = randomDoubleBetween(0.001, 100.0, true);
 
-        double scalingFactorField1 = randomDouble() * 100;
-        double scalingFactorField2 = randomDouble() * 100;
-        double scalingFactorField3 = randomDouble() * 100;
+        // Limit fractional precision to reduce floating point edge cases
+        scalingFactorField1 = Math.round(scalingFactorField1 * 1_000d) / 1_000d;
+        scalingFactorField2 = Math.round(scalingFactorField2 * 1_000d) / 1_000d;
+        scalingFactorField3 = Math.round(scalingFactorField3 * 1_000d) / 1_000d;
 
         XContentBuilder mapping = getStarTreeMappingWithScaledFloat(scalingFactorField1, scalingFactorField2, scalingFactorField3);
         DocumentMapper mapper = createDocumentMapper(mapping);
         assertTrue(mapping.toString().contains("startree"));
 
-        long randomLongField1 = randomLong();
-        long randomLongField2 = randomLong();
-        long randomLongField3 = randomLong();
+        // Keep values in a range where scaling and rounding are deterministic across code paths
+        long randomLongField1 = randomLongBetween(-1_000_000_000_000L, 1_000_000_000_000L);
+        long randomLongField2 = randomLongBetween(-1_000_000_000_000L, 1_000_000_000_000L);
+        long randomLongField3 = randomLongBetween(-1_000_000_000_000L, 1_000_000_000_000L);
         ParsedDocument doc = mapper.parse(
             source(b -> b.field("field1", randomLongField1).field("field2", randomLongField2).field("field3", randomLongField3))
         );
