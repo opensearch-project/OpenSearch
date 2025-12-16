@@ -5293,7 +5293,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert translogManager instanceof InternalTranslogManager;
                 long localCheckpoint = engine.getProcessedLocalCheckpoint();
                 List<Tuple<Future<Integer>, Translog.Snapshot>> translogSnapshotsFutureList = new ArrayList<>();
-                for (int i = 0; i <= totalOperations / batchSize; i++) {
+                for (int i = 0; i < (totalOperations + batchSize - 1) / batchSize; i++) {
                     long start = localCheckpoint + 1 + (long) i * batchSize;
                     long end = (i == totalOperations / batchSize) ? Long.MAX_VALUE : start + batchSize - 1;
                     Translog.Snapshot translogSnapshot = ((InternalTranslogManager) translogManager).getTranslog().newSnapshot(start, end);
@@ -5312,8 +5312,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 for (Tuple<Future<Integer>, Translog.Snapshot> translogSnapshotFuture : translogSnapshotsFutureList) {
                     try {
                         int recoveredOps = translogSnapshotFuture.v1().get();
-                        Translog.Snapshot translogSnapshot = translogSnapshotFuture.v2();
-                        translogSnapshot.close();
                         totalRecovered += recoveredOps;
                     } catch (Exception e) {
                         if (exception == null) {
@@ -5321,6 +5319,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         } else {
                             exception.addSuppressed(e);
                         }
+                    } finally {
+                        Translog.Snapshot translogSnapshot = translogSnapshotFuture.v2();
+                        IOUtils.closeWhileHandlingException(translogSnapshot);
                     }
                 }
                 if (exception != null) {
