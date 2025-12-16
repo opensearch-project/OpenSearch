@@ -214,7 +214,7 @@ public final class IndexSettings {
      */
     public static final Setting<Boolean> INDEX_TRANSLOG_READ_FORWARD_SETTING = Setting.boolSetting(
         "index.translog.read_forward",
-        false,
+        true,
         Property.IndexScope
     );
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING = Setting.boolSetting(
