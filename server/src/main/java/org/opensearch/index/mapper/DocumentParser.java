@@ -233,76 +233,57 @@ final class DocumentParser {
     }
 
     /**
-     * Split a field path, respecting disable_objects settings on parent mappers.
-     * If a parent mapper has disable_objects=true, the path is not split beyond that parent.
+     * Finds a parent in the current stack that has disable_objects=true and should contain the given field.
+     * Returns null if no such parent exists.
+     * 
+     * This method is optimized to minimize overhead in the common case where disable_objects=false.
      */
-    private static String[] splitPathRespectingDisableObjects(String fieldPath, DocumentMapper docMapper) {
-        // if root has disable_objects=true, treat entire path as single field
-        if (docMapper.mapping().root().disableObjects()) {
-            return new String[] { fieldPath };
-        }
-
-        // if no dots, no need to check for disable_objects
-        if (!fieldPath.contains(".")) {
-            return new String[] { fieldPath };
-        }
-
-        String[] allParts = splitAndValidatePath(fieldPath);
-
-        // if only one part after split, return as-is
-        if (allParts.length <= 1) {
-            return allParts;
-        }
-
-        // Only check for disable_objects if we have multiple parts and potential parent mappers
-        Map<String, ObjectMapper> objectMappers = docMapper.objectMappers();
-
-        // Check each level to see if we encounter a mapper with disable_objects=true
-        StringBuilder currentPath = new StringBuilder(allParts[0]);
-
-        // Check first level
-        ObjectMapper parentMapper = objectMappers.get(currentPath.toString());
-        if (parentMapper != null && parentMapper.disableObjects()) {
-            // First level parent has disable_objects=true, join remaining parts
-            if (allParts.length == 2) {
-                return allParts; // Already in correct format [parent, remaining]
+    private static ObjectMapper findDisableObjectsParentInStack(List<ObjectMapper> parentMappers, String[] nameParts, DocumentMapper docMapper) {
+        // Check if any parent in the stack has disable_objects=true
+        // This avoids expensive string operations in the common case
+        boolean hasDisableObjectsParent = false;
+        for (int i = parentMappers.size() - 1; i >= 0; i--) {
+            if (parentMappers.get(i).disableObjects()) {
+                hasDisableObjectsParent = true;
+                break;
             }
-            // Join parts 1 through end
-            StringBuilder remaining = new StringBuilder();
-            for (int j = 1; j < allParts.length; j++) {
-                if (j > 1) {
-                    remaining.append(".");
+        }
+        
+        // Early exit if no parents have disable_objects=true and root doesn't either
+        if (!hasDisableObjectsParent && !docMapper.root().disableObjects()) {
+            return null;
+        }
+        
+        // Only do expensive string operations if we found a potential parent
+        String fieldPath = String.join(".", nameParts);
+        
+        // Check parents from most specific to least specific
+        for (int i = parentMappers.size() - 1; i >= 0; i--) {
+            ObjectMapper parent = parentMappers.get(i);
+            if (parent.disableObjects()) {
+                String parentPath = parent.name();
+                
+                // For root mapper, parentPath might be empty or "_doc"
+                if (parentPath.isEmpty() || parentPath.equals("_doc")) {
+                    return parent; // Root has disable_objects=true, all fields go here
+                } else if (fieldPath.startsWith(parentPath + ".")) {
+                    return parent;
                 }
-                remaining.append(allParts[j]);
-            }
-            return new String[] { allParts[0], remaining.toString() };
-        }
-
-        // Check remaining levels only if first level didn't have disable_objects=true
-        for (int i = 1; i < allParts.length - 1; i++) {
-            currentPath.append(".").append(allParts[i]);
-
-            parentMapper = objectMappers.get(currentPath.toString());
-            if (parentMapper != null && parentMapper.disableObjects()) {
-                // This parent has disable_objects=true, so don't split beyond this point
-                String[] result = new String[i + 2];
-                System.arraycopy(allParts, 0, result, 0, i + 1);
-
-                // Join the remaining parts back together
-                StringBuilder remaining = new StringBuilder();
-                for (int j = i + 1; j < allParts.length; j++) {
-                    if (j > i + 1) {
-                        remaining.append(".");
-                    }
-                    remaining.append(allParts[j]);
-                }
-                result[i + 1] = remaining.toString();
-                return result;
             }
         }
-
-        // No parent with disable_objects=true found, return the fully split path
-        return allParts;
+        
+        // Also check existing mappers in the document mapper for disable_objects parents
+        // This handles cases where the parent exists but isn't in the current stack
+        String[] pathParts = fieldPath.split("\\.");
+        for (int i = pathParts.length - 1; i > 0; i--) {
+            String parentPath = String.join(".", java.util.Arrays.copyOf(pathParts, i));
+            ObjectMapper existingParent = docMapper.objectMappers().get(parentPath);
+            if (existingParent != null && existingParent.disableObjects()) {
+                return existingParent;
+            }
+        }
+        
+        return null;
     }
 
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
@@ -317,7 +298,7 @@ final class DocumentParser {
         Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
         List<ObjectMapper> parentMappers = new ArrayList<>();
         Mapper firstUpdate = dynamicMapperItr.next();
-        parentMappers.add(createUpdate(mapping.root(), splitPathRespectingDisableObjects(firstUpdate.name(), docMapper), 0, firstUpdate));
+        parentMappers.add(createUpdate(mapping.root(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
         Mapper previousMapper = null;
         while (dynamicMapperItr.hasNext()) {
             Mapper newMapper = dynamicMapperItr.next();
@@ -329,7 +310,53 @@ final class DocumentParser {
                 continue;
             }
             previousMapper = newMapper;
-            String[] nameParts = splitPathRespectingDisableObjects(newMapper.name(), docMapper);
+            String[] nameParts = splitAndValidatePath(newMapper.name());
+
+            // Check if this mapper should be added to a disable_objects parent
+            ObjectMapper disableObjectsParent = findDisableObjectsParentInStack(parentMappers, nameParts, docMapper);
+            if (disableObjectsParent != null) {
+                // Handle disable_objects case: add mapper directly to the disable_objects parent
+                // Find the existing update for this parent in the stack and merge the new mapper
+                for (int j = 0; j < parentMappers.size(); j++) {
+                    if (parentMappers.get(j).name().equals(disableObjectsParent.name())) {
+                        ObjectMapper existing = parentMappers.get(j);
+                        ObjectMapper updated = existing.mappingUpdate(newMapper);
+                        parentMappers.set(j, existing.merge(updated));
+                        break;
+                    }
+                }
+                continue; // Skip the normal processing for this mapper
+            }
+            
+            // Additional check: prevent creating intermediate ObjectMappers when any parent has disable_objects=true
+            boolean shouldSkipNormalProcessing = false;
+            
+            // First check if root has disable_objects=true
+            if (docMapper.root().disableObjects()) {
+                // Add mapper directly to root
+                ObjectMapper rootUpdate = parentMappers.get(0).mappingUpdate(newMapper);
+                parentMappers.set(0, parentMappers.get(0).merge(rootUpdate));
+                shouldSkipNormalProcessing = true;
+            } else {
+                // Check nested object mappers
+                for (int k = 1; k < nameParts.length; k++) {
+                    String parentPath = String.join(".", java.util.Arrays.copyOf(nameParts, k));
+                    ObjectMapper existingParent = docMapper.objectMappers().get(parentPath);
+                    if (existingParent != null && existingParent.disableObjects()) {
+                        // This mapper should be added directly to the disable_objects parent
+                        // Create a mapping update for the parent and add it to the root
+                        ObjectMapper parentUpdate = existingParent.mappingUpdate(newMapper);
+                        ObjectMapper rootUpdate = parentMappers.get(0).mappingUpdate(parentUpdate);
+                        parentMappers.set(0, parentMappers.get(0).merge(rootUpdate));
+                        shouldSkipNormalProcessing = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (shouldSkipNormalProcessing) {
+                continue; // Skip the normal processing for this mapper
+            }
 
             // We first need the stack to only contain mappers in common with the previously processed mapper
             // For example, if the first mapper processed was a.b.c, and we now have a.d, the stack will contain
@@ -430,7 +457,15 @@ final class DocumentParser {
             // only prefix with parent mapper if the parent mapper isn't the root (which has a fake name)
             updateParentName = lastParent.name() + '.' + nameParts[i];
         }
+        
         ObjectMapper updateParent = docMapper.objectMappers().get(updateParentName);
+        
+        // Handle disable_objects case: if the intermediate mapper doesn't exist and the last parent has disable_objects=true,
+        // then we should add the field directly to the last parent instead of trying to create intermediate objects
+        if (updateParent == null && lastParent.disableObjects()) {
+            return createUpdate(lastParent, nameParts, i, newMapper);
+        }
+        
         assert updateParent != null : updateParentName + " doesn't exist";
         return createUpdate(updateParent, nameParts, i + 1, newMapper);
     }
@@ -440,6 +475,13 @@ final class DocumentParser {
         List<ObjectMapper> parentMappers = new ArrayList<>();
         ObjectMapper previousIntermediate = parent;
         for (; i < nameParts.length - 1; ++i) {
+            // Check if the current parent has disable_objects=true
+            if (previousIntermediate.disableObjects()) {
+                // With disable_objects=true, we should not traverse further into the path
+                // Instead, treat the remaining path as a flat field name and add the mapper directly
+                break;
+            }
+            
             Mapper intermediate = previousIntermediate.getMapper(nameParts[i]);
             assert intermediate != null : "Field " + previousIntermediate.name() + " does not have a subfield " + nameParts[i];
             assert intermediate instanceof ObjectMapper;
@@ -519,8 +561,8 @@ final class DocumentParser {
                     if (mapper.disableObjects()) {
                         paths = new String[] { currentFieldName };
                     } else {
-                        // Use splitPathRespectingDisableObjects to handle cases where child mappers have disable_objects=true
-                        paths = splitPathRespectingDisableObjects(currentFieldName, context.docMapper());
+                        // Use normal path splitting - getMapper will handle disable_objects internally
+                        paths = splitAndValidatePath(currentFieldName);
                     }
                     if (containsDisabledObjectMapper(mapper, paths)) {
                         parser.nextToken();
@@ -594,10 +636,11 @@ final class DocumentParser {
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String fieldName = parser.currentName();
-                String flattenedFieldName = prefix + "." + fieldName;
+                // Build the full dotted field name by combining prefix with current field name
+                String dottedFieldName = prefix.isEmpty() ? fieldName : prefix + "." + fieldName;
                 token = parser.nextToken(); // Move to the value
 
-                processFlattenedToken(context, mapper, flattenedFieldName, token);
+                processFlattenedToken(context, mapper, dottedFieldName, token);
             } else {
                 throw new MapperParsingException("Unexpected token [" + token + "] while flattening object for field [" + prefix + "]");
             }
@@ -643,13 +686,43 @@ final class DocumentParser {
             // Handle arrays by flattening each element
             flattenArray(context, mapper, fieldName);
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            // Handle null values
-            String[] paths = new String[] { fieldName };
-            parseNullValue(context, mapper, fieldName, paths);
+            // Handle null values - check if mapper already exists for this flattened field
+            Mapper existingMapper = mapper.getMapper(fieldName);
+            if (existingMapper != null) {
+                context.path().add(fieldName);
+                try {
+                    if (existingMapper instanceof FieldMapper fieldMapper) {
+                        fieldMapper.parse(context);
+                    }
+                } finally {
+                    context.path().remove();
+                }
+            } else {
+                // For disable_objects, we don't want to create intermediate object mappers
+                // Just handle this as a dynamic field directly under the parent mapper
+                ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context);
+                if (dynamic == ObjectMapper.Dynamic.STRICT || dynamic == ObjectMapper.Dynamic.STRICT_ALLOW_TEMPLATES) {
+                    throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), mapper.fullPath(), fieldName);
+                }
+                // For null values in disable_objects mode, we typically don't create mappers
+            }
         } else if (token.isValue()) {
-            // Handle primitive values
-            String[] paths = new String[] { fieldName };
-            parseValue(context, mapper, fieldName, token, paths);
+            // Handle primitive values - check if mapper already exists for this flattened field
+            Mapper existingMapper = mapper.getMapper(fieldName);
+            if (existingMapper != null) {
+                context.path().add(fieldName);
+                try {
+                    if (existingMapper instanceof FieldMapper fieldMapper) {
+                        fieldMapper.parse(context);
+                    }
+                } finally {
+                    context.path().remove();
+                }
+            } else {
+                // For disable_objects, create dynamic mapper directly under the parent
+                // without trying to create intermediate object mappers
+                parseDynamicValue(context, mapper, fieldName, token);
+            }
         }
     }
 
@@ -1408,20 +1481,51 @@ final class DocumentParser {
             return mapper;
         }
 
-        for (int i = 0; i < subfields.length - 1; ++i) {
-            mapper = objectMapper.getMapper(subfields[i]);
-            if (!(mapper instanceof ObjectMapper objMapper)) {
-                return null;
+        // Handle root-level disable_objects case
+        if (context.docMapper().mapping().root().disableObjects() && subfields.length > 1) {
+            // Join all subfields into a single flattened field name
+            StringBuilder flatFieldName = new StringBuilder();
+            for (int j = 0; j < subfields.length; j++) {
+                if (j > 0) {
+                    flatFieldName.append(".");
+                }
+                flatFieldName.append(subfields[j]);
             }
-            objectMapper = objMapper;
-            if (objectMapper.nested().isNested()) {
-                throw new MapperParsingException(
-                    "Cannot add a value for field ["
-                        + fieldName
-                        + "] since one of the intermediate objects is mapped as a nested object: ["
-                        + mapper.name()
-                        + "]"
-                );
+            // Modify subfields array to contain just the flattened name, then use final return
+            subfields = new String[] { flatFieldName.toString() };
+        } else {
+            // Normal traversal with disable_objects check
+            for (int i = 0; i < subfields.length - 1; ++i) {
+                mapper = objectMapper.getMapper(subfields[i]);
+                if (!(mapper instanceof ObjectMapper objMapper)) {
+                    return null;
+                }
+                objectMapper = objMapper;
+                
+                // Check for disable_objects and handle flattening
+                if (objectMapper.disableObjects()) {
+                    // Join remaining subfields into a single flattened field name
+                    StringBuilder flatFieldName = new StringBuilder();
+                    for (int j = i + 1; j < subfields.length; j++) {
+                        if (j > i + 1) {
+                            flatFieldName.append(".");
+                        }
+                        flatFieldName.append(subfields[j]);
+                    }
+                    // Modify subfields array to contain just the flattened name, then break to use final return
+                    subfields = new String[] { flatFieldName.toString() };
+                    break;
+                }
+                
+                if (objectMapper.nested().isNested()) {
+                    throw new MapperParsingException(
+                        "Cannot add a value for field ["
+                            + fieldName
+                            + "] since one of the intermediate objects is mapped as a nested object: ["
+                            + mapper.name()
+                            + "]"
+                    );
+                }
             }
         }
         return objectMapper.getMapper(subfields[subfields.length - 1]);
