@@ -25,6 +25,7 @@ import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.Version.V_3_2_0;
 import static org.opensearch.Version.V_3_3_0;
+import static org.opensearch.Version.V_3_4_0;
 
 /**
  * Utility class to register server exceptions
@@ -1248,6 +1249,15 @@ public final class OpenSearchServerException {
                 org.opensearch.index.engine.LookupMapLockAcquisitionException::new,
                 CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 2,
                 V_3_3_0
+            )
+        );
+
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.index.engine.ImmutableCriteriaException.class,
+                org.opensearch.index.engine.ImmutableCriteriaException::new,
+                CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 3,
+                V_3_4_0
             )
         );
     }
