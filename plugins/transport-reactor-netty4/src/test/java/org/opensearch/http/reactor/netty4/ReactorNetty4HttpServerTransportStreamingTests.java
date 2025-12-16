@@ -53,6 +53,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -175,7 +176,7 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
     }
 
     private HttpServerTransport.Dispatcher createStreamingDispatcher(String url, String responseString) {
-        return TestDispatcherBuilder.withDefaults().withDispatchHandler((uri, rawPath, method, params) -> Optional.of(new RestHandler() {
+        return dispatcherBuilderWithDefaults().withDispatchHandler((uri, rawPath, method, params) -> Optional.of(new RestHandler() {
             @Override
             public boolean supportsStreaming() {
                 return true;

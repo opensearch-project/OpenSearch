@@ -37,6 +37,7 @@ import java.util.List;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.util.ReferenceCounted;
 
+import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -60,17 +61,16 @@ public class ReactorNetty4BadRequestTests extends OpenSearchTestCase {
     }
 
     public void testBadParameterEncoding() throws Exception {
-        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults()
-            .withDispatchRequest((request, channel, threadContext) -> fail())
-            .withDispatchBadRequest((channel, threadContext, cause) -> {
-                try {
-                    final Exception e = cause instanceof Exception ? (Exception) cause : new OpenSearchException(cause);
-                    channel.sendResponse(new BytesRestResponse(channel, RestStatus.BAD_REQUEST, e));
-                } catch (final IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            })
-            .build();
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> fail()
+        ).withDispatchBadRequest((channel, threadContext, cause) -> {
+            try {
+                final Exception e = cause instanceof Exception ? (Exception) cause : new OpenSearchException(cause);
+                channel.sendResponse(new BytesRestResponse(channel, RestStatus.BAD_REQUEST, e));
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }).build();
 
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange()).build();
         try (

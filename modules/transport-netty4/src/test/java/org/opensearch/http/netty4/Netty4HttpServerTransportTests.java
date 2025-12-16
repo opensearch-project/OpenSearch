@@ -97,6 +97,7 @@ import static org.opensearch.core.rest.RestStatus.BAD_REQUEST;
 import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -170,13 +171,11 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
         final int contentLength,
         final HttpResponseStatus expectedStatus
     ) throws InterruptedException {
-        HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults()
-            .withDispatchRequest(
-                (request, channel, threadContext) -> channel.sendResponse(
-                    new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))
-                )
+        HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> channel.sendResponse(
+                new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))
             )
-            .build();
+        ).build();
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,
@@ -267,8 +266,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
 
     public void testBadRequest() throws InterruptedException {
         final AtomicReference<Throwable> causeReference = new AtomicReference<>();
-        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults()
-            .withDispatchBadRequest((channel, threadContext, cause) -> {
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchBadRequest(
+            (channel, threadContext, cause) -> {
                 causeReference.set(cause);
                 try {
                     final OpenSearchException e = new OpenSearchException("you sent a bad request and you should feel bad");
@@ -276,8 +275,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 } catch (final IOException e) {
                     throw new AssertionError(e);
                 }
-            })
-            .build();
+            }
+        ).build();
         final Settings settings;
         final int maxInitialLineLength;
         final Setting<ByteSizeValue> httpMaxInitialLineLengthSetting = HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
@@ -329,16 +328,16 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     public void testLargeCompressedResponse() throws InterruptedException {
         final String responseString = randomAlphaOfLength(4 * 1024 * 1024);
         final String url = "/thing";
-        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults()
-            .withDispatchRequest((request, channel, threadContext) -> {
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> {
                 if (url.equals(request.uri())) {
                     channel.sendResponse(new BytesRestResponse(OK, responseString));
                 } else {
                     logger.error("--> Unexpected successful uri [{}]", request.uri());
                     throw new AssertionError();
                 }
-            })
-            .build();
+            }
+        ).build();
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 Settings.EMPTY,
@@ -389,7 +388,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testCorsRequest() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults().build();
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().build();
         final Settings settings = createBuilderWithPort().put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "test-cors.org")
             .build();
@@ -443,7 +442,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testReadTimeout() throws Exception {
-        HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults().build();
+        HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().build();
         Settings settings = createBuilderWithPort().put(
             HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(),
             new TimeValue(randomIntBetween(100, 300))

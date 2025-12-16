@@ -93,6 +93,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -167,13 +168,11 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
         final int contentLength,
         final HttpResponseStatus expectedStatus
     ) throws InterruptedException {
-        HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults()
-            .withDispatchRequest(
-                (request, channel, threadContext) -> channel.sendResponse(
-                    new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))
-                )
+        HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> channel.sendResponse(
+                new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))
             )
-            .build();
+        ).build();
 
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
@@ -254,7 +253,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testBadRequest() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults().build();
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().build();
         final Settings settings;
         final int maxInitialLineLength;
         final Setting<ByteSizeValue> httpMaxInitialLineLengthSetting = HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
@@ -298,11 +297,11 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testDispatchFailed() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults()
-            .withDispatchRequest((request, channel, threadContext) -> {
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> {
                 throw new RuntimeException("Bad things happen");
-            })
-            .build();
+            }
+        ).build();
 
         final Settings settings = createSettings();
         try (
@@ -338,16 +337,16 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
     public void testLargeCompressedResponse() throws InterruptedException {
         final String responseString = randomAlphaOfLength(4 * 1024 * 1024);
         final String url = "/thing/";
-        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults()
-            .withDispatchRequest((request, channel, threadContext) -> {
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> {
                 if (url.equals(request.uri())) {
                     channel.sendResponse(new BytesRestResponse(OK, responseString));
                 } else {
                     logger.error("--> Unexpected successful uri [{}]", request.uri());
                     throw new AssertionError();
                 }
-            })
-            .build();
+            }
+        ).build();
 
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
@@ -398,16 +397,16 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
     public void testConnectionsGettingClosed() throws InterruptedException {
         final String responseString = "ok";
         final String url = "/thing/";
-        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults()
-            .withDispatchRequest((request, channel, threadContext) -> {
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> {
                 if (url.equals(request.uri())) {
                     channel.sendResponse(new BytesRestResponse(OK, responseString));
                 } else {
                     logger.error("--> Unexpected successful uri [{}]", request.uri());
                     throw new AssertionError();
                 }
-            })
-            .build();
+            }
+        ).build();
 
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
@@ -444,7 +443,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testCorsRequest() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults().build();
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().build();
         final Settings settings = createBuilderWithPort().put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "test-cors.org")
             .build();
@@ -498,7 +497,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testConnectTimeout() throws Exception {
-        HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults().build();
+        HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().build();
         Settings settings = createBuilderWithPort().put(
             HttpTransportSettings.SETTING_HTTP_CONNECT_TIMEOUT.getKey(),
             new TimeValue(randomIntBetween(100, 300))
