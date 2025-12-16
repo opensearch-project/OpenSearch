@@ -59,6 +59,7 @@ import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -828,6 +829,7 @@ public class DatafusionContext extends SearchContext {
             case Number number -> (Comparable<?>) rawValue;
             case Text text -> rawValue.toString();
             case Boolean b -> (Comparable<?>) rawValue;
+            case LocalDateTime dateTime -> rawValue.toString();
             case null, default ->
                 throw new IllegalArgumentException("Conversion to Comparable not supported for type " + rawValue.getClass());
         };
