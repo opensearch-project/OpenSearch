@@ -573,11 +573,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             compressor,
             Version.CURRENT
         );
-        when(blobContainer.readBlob(indexName)).thenAnswer(invocation -> remoteIndexRoutingTable.indexRoutingTableFormat.serialize(
-            clusterState.getRoutingTable().getIndicesRouting().get(indexName),
-            uploadedFileName,
-            compressor
-        ).streamInput());
+        when(blobContainer.readBlob(indexName)).thenAnswer(
+            invocation -> remoteIndexRoutingTable.indexRoutingTableFormat.serialize(
+                clusterState.getRoutingTable().getIndicesRouting().get(indexName),
+                uploadedFileName,
+                compressor
+            ).streamInput()
+        );
         TestCapturingListener<IndexRoutingTable> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 

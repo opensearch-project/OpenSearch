@@ -224,7 +224,6 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
             listener = voidListener;
         }
 
-        // Only touch last access when we will actually handle the request (i.e., not a duplicate replay)
         if (listener != null) {
             setLastAccessTime();
         }
@@ -247,10 +246,10 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         final RateLimiter rateLimiter,
         final ActionListener<Void> listener
     ) throws IOException {
-        replicationTarget.setLastAccessTime();
         if (listener == null) {
             return;
         }
+        replicationTarget.setLastAccessTime();
         final ReplicationLuceneIndex indexState = replicationTarget.state().getIndex();
         if (request.sourceThrottleTimeInNanos() != ReplicationLuceneIndex.UNKNOWN) {
             indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
