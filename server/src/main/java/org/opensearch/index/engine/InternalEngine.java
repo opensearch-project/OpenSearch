@@ -781,7 +781,19 @@ public class InternalEngine extends Engine {
             // IndexWriters with parent writers, version will be either present in version map or in parent IndexWriter. So we do not need
             // to resolve version from child level IndexWriters (both from mark for refresh and active IndexWriter).
             try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
-                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), op.uid(), loadSeqNo);
+                String currentCriteria = null;
+                if (op instanceof Index) {
+                    Index index = (Index) op;
+                    assert index.docs() != null && index.docs().isEmpty() == false;
+                    currentCriteria = index.docs().get(0).getGroupingCriteria();
+                }
+
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
+                    searcher.getIndexReader(),
+                    op.uid(),
+                    loadSeqNo,
+                    currentCriteria
+                );
             }
             if (docIdAndVersion != null) {
                 versionValue = new IndexVersionValue(null, docIdAndVersion.version, docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
@@ -790,6 +802,19 @@ public class InternalEngine extends Engine {
             && versionValue.isDelete()
             && (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue) versionValue).time) > getGcDeletesInMillis()) {
                 versionValue = null;
+            } else if (op instanceof Index && versionValue.version > 0) {
+                Index index = (Index) op;
+                assert index.docs() != null && index.docs().isEmpty() == false;
+                String currentCriteria = index.docs().get(0).getGroupingCriteria();
+                String previousCriteria = documentIndexWriter.getCriteriaUnderLock(op.uid().bytes());
+                // previousCriteria may be null in case version is coming from a tombstone. In that case, we should ignore
+                // it.
+                if (previousCriteria != null && previousCriteria.equals(currentCriteria) == false) {
+                    throw new ImmutableCriteriaException(
+                        "Updating grouping criteria is not allowed for context aware enabled indices",
+                        null
+                    );
+                }
             }
         return versionValue;
     }

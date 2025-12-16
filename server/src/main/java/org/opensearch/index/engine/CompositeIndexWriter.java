@@ -627,7 +627,7 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         boolean isCriteriaNotNull = false;
         try {
             indexWriterLookup.mapReadLock.acquire();
-            String criteria = getCriteriaForDoc(uid);
+            String criteria = getCurrentCriteria(uid);
             if (criteria != null) {
                 DisposableIndexWriter disposableIndexWriter = indexWriterLookup.getIndexWriterForCriteria(criteria);
                 if (disposableIndexWriter != null) {
@@ -648,8 +648,23 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
         return liveIndexWriterDeletesMap.hasNewIndexingOrUpdates();
     }
 
-    String getCriteriaForDoc(BytesRef uid) {
-        return liveIndexWriterDeletesMap.getCriteriaForDoc(uid);
+    public String getCurrentCriteria(BytesRef uid) {
+        assertKeyedLockHeldByCurrentThread(uid);
+        return liveIndexWriterDeletesMap.current.getCriteriaForDoc(uid);
+    }
+
+    public String getCriteriaUnderLock(BytesRef uid) {
+        return getCriteriaUnderLock(uid, liveIndexWriterDeletesMap);
+    }
+
+    private String getCriteriaUnderLock(BytesRef uid, LiveIndexWriterDeletesMap currentMap) {
+        // assertKeyedLockHeldByCurrentThread(uid);
+        String criteria = currentMap.current.getCriteriaForDoc(uid);
+        if (criteria != null) {
+            return criteria;
+        }
+
+        return currentMap.old.getCriteriaForDoc(uid);
     }
 
     boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
