@@ -184,14 +184,12 @@ import org.opensearch.index.store.Store.MetadataSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogFactory;
-import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogRecoveryRunner;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.warmer.ShardIndexWarmerService;
@@ -5289,14 +5287,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 && indexSettings.isSegRepEnabledOrRemoteNode()
                 && totalOperations > batchSize
                 && threadPoolNotBusy) {
-                TranslogManager translogManager = engine.translogManager();
-                assert translogManager instanceof InternalTranslogManager;
                 long localCheckpoint = engine.getProcessedLocalCheckpoint();
                 List<Tuple<Future<Integer>, Translog.Snapshot>> translogSnapshotsFutureList = new ArrayList<>();
                 for (int i = 0; i < (totalOperations + batchSize - 1) / batchSize; i++) {
                     long start = localCheckpoint + 1 + (long) i * batchSize;
                     long end = (i == totalOperations / batchSize) ? Long.MAX_VALUE : start + batchSize - 1;
-                    Translog.Snapshot translogSnapshot = ((InternalTranslogManager) translogManager).getTranslog().newSnapshot(start, end);
+                    Translog.Snapshot translogSnapshot = engine.translogManager().newChangesSnapshot(start, end, false);
                     translogSnapshotsFutureList.add(
                         new Tuple<>(
                             threadPool.executor(ThreadPool.Names.TRANSLOG_RECOVERY)

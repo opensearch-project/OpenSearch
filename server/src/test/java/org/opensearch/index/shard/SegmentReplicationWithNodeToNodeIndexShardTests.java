@@ -37,7 +37,6 @@ import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.junit.Assert;
@@ -715,7 +714,6 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         }
     }
 
-    @TestLogging(reason = "Getting trace logs from IndexShard", value = "org.opensearch.index.shard.IndexShard:TRACE")
     public void testPrimaryPromotionWithConcurrentTranslogRecovery() throws Exception {
         final RecoverySettings recoverySettings = new RecoverySettings(
             Settings.builder()
