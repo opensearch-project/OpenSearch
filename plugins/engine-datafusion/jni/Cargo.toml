@@ -49,7 +49,7 @@ thiserror = { workspace = true }
 log ={ workspace = true }
 
 # Shared OpenSearch utilities
-opensearch-vectorized-spi = { path = "../../../libs/vectorized-exec-spi/rust" }
+vectorized-exec-spi = { path = "../../../libs/vectorized-exec-spi/rust" }
 # Parquet support
 parquet = { workspace = true }
 

@@ -11,28 +11,31 @@ use std::sync::OnceLock;
 
 static JAVA_VM: OnceLock<JavaVM> = OnceLock::new();
 
-// Log level constants (must match Java RustLoggerBridge constants)
-pub const LEVEL_TRACE: i32 = 0;
-pub const LEVEL_DEBUG: i32 = 1;
-pub const LEVEL_INFO: i32 = 2;
-pub const LEVEL_WARN: i32 = 3;
-pub const LEVEL_ERROR: i32 = 4;
+/// Log level enum (must match Java RustLoggerBridge.LogLevel ordinals)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(i32)]
+pub enum LogLevel {
+    Debug = 0,
+    Info = 1,
+    Error = 2,
+}
 
-/// Initialize the logger with a JVM reference.
-/// This can be called multiple times safely - only the first call takes effect.
-pub fn init_logger(jvm: JavaVM) {
-    JAVA_VM.set(jvm).ok();
+impl LogLevel {
+    fn as_i32(self) -> i32 {
+        self as i32
+    }
 }
 
 /// Initialize the logger from a JNIEnv reference.
 /// This is a convenience function that extracts the JVM from the env.
 pub fn init_logger_from_env(env: &JNIEnv) {
     if let Ok(jvm) = env.get_java_vm() {
-        init_logger(jvm);
+        JAVA_VM.set(jvm).ok();
     }
 }
 
-pub fn log(level: i32, message: &str) {
+// Private log function - only used by macros
+fn log(level: LogLevel, message: &str) {
     if let Some(jvm) = JAVA_VM.get() {
         if let Ok(mut env) = jvm.attach_current_thread() {
             let result = (|| -> Result<(), Box<dyn std::error::Error>> {
@@ -43,82 +46,48 @@ pub fn log(level: i32, message: &str) {
                     class,
                     "log",
                     "(ILjava/lang/String;)V",
-                    &[JValue::Int(level), (&java_message).into()],
+                    &[JValue::Int(level.as_i32()), (&java_message).into()],
                 )?;
                 Ok(())
             })();
 
             if result.is_err() {
-                // Fallback to stdout if JNI call fails
-                eprintln!("[RUST_LOG_FALLBACK] level={}: {}", level, message);
+                // Fallback to stderr if JNI call fails
+                eprintln!("[RUST_LOG_FALLBACK] {:?}: {}", level, message);
             }
         }
     }
 }
 
-/// Convenience function for logging at INFO level
-pub fn log_info(message: &str) {
-    log(LEVEL_INFO, message);
-}
-
-/// Convenience function for logging at WARN level
-pub fn log_warn(message: &str) {
-    log(LEVEL_WARN, message);
-}
-
-/// Convenience function for logging at ERROR level
-pub fn log_error(message: &str) {
-    log(LEVEL_ERROR, message);
-}
-
-/// Convenience function for logging at DEBUG level
-pub fn log_debug(message: &str) {
-    log(LEVEL_DEBUG, message);
-}
-
-/// Convenience function for logging at TRACE level
-pub fn log_trace(message: &str) {
-    log(LEVEL_TRACE, message);
-}
-
-// Macros for convenient logging with format! syntax
-
-/// Log at INFO level with format! syntax
+/// Log at DEBUG level with format! syntax
+/// Usage: log_debug!("message") or log_debug!("value: {}", x)
 #[macro_export]
-macro_rules! rust_log_info {
+macro_rules! log_debug {
     ($($arg:tt)*) => {
-        $crate::logger::log_info(&format!($($arg)*))
+        $crate::logger::__internal_log($crate::logger::LogLevel::Debug, &format!($($arg)*))
     };
 }
 
-/// Log at WARN level with format! syntax
+/// Log at INFO level with format! syntax
+/// Usage: log_info!("message") or log_info!("value: {}", x)
 #[macro_export]
-macro_rules! rust_log_warn {
+macro_rules! log_info {
     ($($arg:tt)*) => {
-        $crate::logger::log_warn(&format!($($arg)*))
+        $crate::logger::__internal_log($crate::logger::LogLevel::Info, &format!($($arg)*))
     };
 }
 
 /// Log at ERROR level with format! syntax
+/// Usage: log_error!("message") or log_error!("value: {}", x)
 #[macro_export]
-macro_rules! rust_log_error {
+macro_rules! log_error {
     ($($arg:tt)*) => {
-        $crate::logger::log_error(&format!($($arg)*))
+        $crate::logger::__internal_log($crate::logger::LogLevel::Error, &format!($($arg)*))
     };
 }
 
-/// Log at DEBUG level with format! syntax
-#[macro_export]
-macro_rules! rust_log_debug {
-    ($($arg:tt)*) => {
-        $crate::logger::log_debug(&format!($($arg)*))
-    };
-}
-
-/// Log at TRACE level with format! syntax
-#[macro_export]
-macro_rules! rust_log_trace {
-    ($($arg:tt)*) => {
-        $crate::logger::log_trace(&format!($($arg)*))
-    };
+// Internal function used by macros - must be public for macro expansion but not intended for direct use
+#[doc(hidden)]
+pub fn __internal_log(level: LogLevel, message: &str) {
+    log(level, message);
 }

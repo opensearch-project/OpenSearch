@@ -10,7 +10,7 @@ use crate::util::{create_object_meta_from_file};
 use object_store::path::Path;
 use object_store::ObjectMeta;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
-use opensearch_vectorized_spi::{rust_log_debug, rust_log_error};
+use vectorized_exec_spi::{log_debug, log_error};
 
 /// Custom CacheManager that holds cache references directly
 pub struct CustomCacheManager {
@@ -32,13 +32,13 @@ impl CustomCacheManager {
     /// Set the file metadata cache
     pub fn set_file_metadata_cache(&mut self, cache: Arc<MutexFileMetadataCache>) {
         self.file_metadata_cache = Some(cache);
-        rust_log_debug!("[CACHE INFO] File metadata cache set in CustomCacheManager");
+        log_debug!("[CACHE INFO] File metadata cache set in CustomCacheManager");
     }
 
     /// Set the statistics cache
     pub fn set_statistics_cache(&mut self, cache: Arc<CustomStatisticsCache>) {
         self.statistics_cache = Some(cache);
-        rust_log_debug!("[CACHE INFO] Statistics cache set in CustomCacheManager");
+        log_debug!("[CACHE INFO] Statistics cache set in CustomCacheManager");
     }
 
     /// Get the statistics cache
@@ -87,7 +87,7 @@ impl CustomCacheManager {
                     any_success = true;
                 }
                 Ok(false) => {
-                    rust_log_debug!("[CACHE INFO] File not added for metadata cache: {}", file_path);
+                    log_debug!("[CACHE INFO] File not added for metadata cache: {}", file_path);
                 }
                 Err(e) => {
                     errors.push(format!("Metadata cache: {}", e));
@@ -101,7 +101,7 @@ impl CustomCacheManager {
                         any_success = true;
                     }
                     Ok(false) => {
-                        rust_log_debug!("[CACHE INFO] File not added for statistics cache: {}", file_path);
+                        log_debug!("[CACHE INFO] File not added for statistics cache: {}", file_path);
                     }
                     Err(e) => {
                         errors.push(format!("Statistics cache: {}", e));
@@ -141,7 +141,7 @@ impl CustomCacheManager {
                                     if cache_guard.remove(object_meta).is_some() {
                                         any_removed = true;
                                     } else {
-                                        rust_log_debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
+                                        log_debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
                                     }
                                 }
                             }
@@ -197,14 +197,14 @@ impl CustomCacheManager {
                                 found = true;
                             },
                             None => {
-                                rust_log_debug!("No metadata found for: {}", file_path);
+                                log_debug!("No metadata found for: {}", file_path);
                             },
                         }
                     }
                 }
             }
             Err(e) => {
-                rust_log_error!("Failed to get object metadata for {}: {}", file_path, e);
+                log_error!("Failed to get object metadata for {}: {}", file_path, e);
             }
         }
 
@@ -360,7 +360,7 @@ impl CustomCacheManager {
                 if cache_guard.contains_key(object_meta) {
                     Ok(true)
                 } else {
-                    rust_log_debug!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
+                    log_debug!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
                     Ok(false)
                 }
             }
@@ -436,14 +436,14 @@ impl CustomCacheManager {
                     success_count += 1;
                 }
                 Err(e) => {
-                    rust_log_debug!("[STATS CACHE ERROR] Failed to compute statistics for {}: {}", file_path, e);
+                    log_debug!("[STATS CACHE ERROR] Failed to compute statistics for {}: {}", file_path, e);
                     failed_files.push(file_path.clone());
                 }
             }
         }
 
         if !failed_files.is_empty() {
-            rust_log_debug!("[STATS CACHE WARNING] Failed to compute statistics for {} files: {:?}",
+            log_debug!("[STATS CACHE WARNING] Failed to compute statistics for {} files: {:?}",
                       failed_files.len(), failed_files);
         }
 

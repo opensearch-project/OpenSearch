@@ -26,43 +26,43 @@ public class RustLoggerBridge {
 
     private static final Logger logger = LogManager.getLogger(RustLoggerBridge.class);
 
-    /** Log level constant for TRACE */
-    public static final int LEVEL_TRACE = 0;
-    /** Log level constant for DEBUG */
-    public static final int LEVEL_DEBUG = 1;
-    /** Log level constant for INFO */
-    public static final int LEVEL_INFO = 2;
-    /** Log level constant for WARN */
-    public static final int LEVEL_WARN = 3;
-    /** Log level constant for ERROR */
-    public static final int LEVEL_ERROR = 4;
+    /**
+     * Log levels that can be used when logging from Rust code.
+     * The ordinal values (0-2) are used by Rust to specify the log level.
+     */
+    public enum LogLevel {
+        /** Debug level logging */
+        DEBUG,
+        /** Info level logging */
+        INFO,
+        /** Error level logging */
+        ERROR
+    }
 
     /**
      * Log a message at the specified level from Rust code.
      * This method is called by Rust via JNI.
      *
-     * @param level the log level (0=TRACE, 1=DEBUG, 2=INFO, 3=WARN, 4=ERROR)
+     * @param level the log level ordinal (0=DEBUG, 1=INFO, 2=ERROR)
      * @param message the message to log
      */
     public static void log(int level, String message) {
-        switch (level) {
-            case LEVEL_TRACE:
-                logger.trace(message);
-                break;
-            case LEVEL_DEBUG:
+        LogLevel[] levels = LogLevel.values();
+        if (level < 0 || level >= levels.length) {
+            logger.info("[LEVEL_{}] {}", level, message);
+            return;
+        }
+
+        switch (levels[level]) {
+            case DEBUG:
                 logger.debug(message);
                 break;
-            case LEVEL_INFO:
+            case INFO:
                 logger.info(message);
                 break;
-            case LEVEL_WARN:
-                logger.warn(message);
-                break;
-            case LEVEL_ERROR:
+            case ERROR:
                 logger.error(message);
                 break;
-            default:
-                logger.info("[LEVEL_{}] {}", level, message);
         }
     }
 }

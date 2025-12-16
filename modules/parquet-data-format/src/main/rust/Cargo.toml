@@ -38,7 +38,7 @@ thiserror = "1.0"
 log = "0.4"
 
 # Shared OpenSearch utilities
-opensearch-vectorized-spi = { path = "../../../../../libs/vectorized-exec-spi/rust" }
+vectorized-exec-spi = { path = "../../../../../libs/vectorized-exec-spi/rust" }
 
 # Parquet support
 parquet = "54.0.0"

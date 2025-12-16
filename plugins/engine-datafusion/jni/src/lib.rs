@@ -48,7 +48,7 @@ mod project_row_id_analyzer;
 pub mod logger;
 
 // Import logger macros from shared crate
-use opensearch_vectorized_spi::{rust_log_info, rust_log_error, rust_log_debug};
+use vectorized_exec_spi::{log_info, log_error, log_debug};
 
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global};
@@ -130,9 +130,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_initLogge
     _class: JClass,
 ) {
     // Initialize the logger with the JVM for Rust->Java logging bridge
-    // This uses the shared logger from opensearch_vectorized_spi
+    // This uses the shared logger from vectorized_exec_spi
     // The logger stores its own JVM reference internally
-    opensearch_vectorized_spi::logger::init_logger_from_env(&env);
+    vectorized_exec_spi::logger::init_logger_from_env(&env);
 }
 
 #[no_mangle]
@@ -148,7 +148,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_initTokio
     });
 
     TOKIO_RUNTIME_MANAGER.get_or_init(|| {
-        rust_log_info!("Runtime manager initialized with {} CPU threads", cpu_threads);
+        log_info!("Runtime manager initialized with {} CPU threads", cpu_threads);
         Arc::new(RuntimeManager::new(cpu_threads as usize))
     });
 }
@@ -158,10 +158,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_shutdownT
     _env: JNIEnv,
     _class: JClass,
 ) {
-    rust_log_info!("Runtime manager shut down started");
+    log_info!("Runtime manager shut down started");
     if let Some(mgr) = TOKIO_RUNTIME_MANAGER.get() {
         mgr.shutdown();
-        rust_log_info!("Runtime manager shut down successfully");
+        log_info!("Runtime manager shut down successfully");
     }
 }
 
@@ -174,7 +174,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_startToki
     let manager = match TOKIO_RUNTIME_MANAGER.get() {
         Some(m) => m,
         None => {
-            rust_log_info!("Tokio runtime manager not initialized");
+            log_info!("Tokio runtime manager not initialized");
             return;
         }
     };
@@ -199,42 +199,42 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_startToki
 /// Log runtime metrics with performance analysis
 #[allow(dead_code)]
 fn log_runtime_metrics(metrics: &tokio_metrics::RuntimeMetrics) {
-    rust_log_info!("=== Runtime Metrics ===");
-    rust_log_info!("  Workers: {}", metrics.workers_count);
-    rust_log_info!("  Global queue depth: {}", metrics.global_queue_depth);
+    log_info!("=== Runtime Metrics ===");
+    log_info!("  Workers: {}", metrics.workers_count);
+    log_info!("  Global queue depth: {}", metrics.global_queue_depth);
     /*
     //unstable tokio causes build failures, uncomment this when monitoring
 
-    rust_log_info!("  Worker overflow: {}", metrics.total_overflow_count);
-    rust_log_info!("  Remote schedule: {}", metrics.max_local_schedule_count);
-    rust_log_info!("  Worker steal ops: {}", metrics.total_steal_operations);
-    rust_log_info!("  Blocking queue depth: {}", metrics.blocking_queue_depth);
-    rust_log_info!("  Max local queue depth: {}", metrics.max_local_queue_depth);
-    rust_log_info!("  Min local queue depth: {}", metrics.min_local_queue_depth);
-    rust_log_info!("  Max local schedule count: {}", metrics.max_local_schedule_count);
-    rust_log_info!("  Min local schedule count: {}", metrics.min_local_schedule_count);
-    rust_log_info!("  Queue depth: {}", metrics.total_local_queue_depth);
-    rust_log_info!("  Total schedule count: {}", metrics.total_local_schedule_count);
+    log_info!("  Worker overflow: {}", metrics.total_overflow_count);
+    log_info!("  Remote schedule: {}", metrics.max_local_schedule_count);
+    log_info!("  Worker steal ops: {}", metrics.total_steal_operations);
+    log_info!("  Blocking queue depth: {}", metrics.blocking_queue_depth);
+    log_info!("  Max local queue depth: {}", metrics.max_local_queue_depth);
+    log_info!("  Min local queue depth: {}", metrics.min_local_queue_depth);
+    log_info!("  Max local schedule count: {}", metrics.max_local_schedule_count);
+    log_info!("  Min local schedule count: {}", metrics.min_local_schedule_count);
+    log_info!("  Queue depth: {}", metrics.total_local_queue_depth);
+    log_info!("  Total schedule count: {}", metrics.total_local_schedule_count);
     */
     let query_metrics = QUERY_EXECUTION_MONITOR.cumulative();
     log_task_metrics("Query exec (via CrossRtStream)", &query_metrics);
     let stream_metrics = STREAM_NEXT_MONITOR.cumulative();
     log_task_metrics("Stream Next (via CrossRtStream)", &stream_metrics);
-    rust_log_info!("======================");
+    log_info!("======================");
 }
 
 /// Log task metrics with performance analysis
 #[allow(dead_code)]
 fn log_task_metrics(operation: &str, metrics: &tokio_metrics::TaskMetrics) {
-    rust_log_info!("=== Task Metrics: {} ===", operation);
-    rust_log_info!("  Scheduled duration: {:?}", metrics.total_scheduled_duration);
-    rust_log_info!("  Poll duration: {:?}", metrics.total_poll_duration);
-    rust_log_info!("  Idle duration: {:?}", metrics.total_idle_duration);
-    rust_log_info!("  Mean poll duration: {:?}", metrics.mean_poll_duration());
-    rust_log_info!("  Slow poll ratio: {:.2}%", metrics.slow_poll_ratio() * 100.0);
-    rust_log_info!("  Mean first poll delay: {:?}", metrics.mean_first_poll_delay());
-    rust_log_info!("  Total slow polls: {}", metrics.total_slow_poll_count);
-    rust_log_info!("  Total long delays: {}", metrics.total_long_delay_count);
+    log_info!("=== Task Metrics: {} ===", operation);
+    log_info!("  Scheduled duration: {:?}", metrics.total_scheduled_duration);
+    log_info!("  Poll duration: {:?}", metrics.total_poll_duration);
+    log_info!("  Idle duration: {:?}", metrics.total_idle_duration);
+    log_info!("  Mean poll duration: {:?}", metrics.mean_poll_duration());
+    log_info!("  Slow poll ratio: {:.2}%", metrics.slow_poll_ratio() * 100.0);
+    log_info!("  Mean first poll delay: {:?}", metrics.mean_first_poll_delay());
+    log_info!("  Total slow polls: {}", metrics.total_slow_poll_count);
+    log_info!("  Total long delays: {}", metrics.total_long_delay_count);
 }
 
 #[no_mangle]
@@ -259,7 +259,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
 
     let mut builder = DiskManagerBuilder::default()
         .with_max_temp_directory_size(spill_limit as u64);
-    rust_log_info!("Spill Limit is being set to : {}", spill_limit);
+    log_info!("Spill Limit is being set to : {}", spill_limit);
     let builder = builder.with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));
 
     let monitor = Arc::new(Monitor::default());
@@ -495,7 +495,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     let manager = match TOKIO_RUNTIME_MANAGER.get() {
         Some(m) => m,
         None => {
-            rust_log_info!("Runtime manager not initialized");
+            log_info!("Runtime manager not initialized");
             set_action_listener_error(&mut env, listener,
                                     &DataFusionError::Execution("Runtime manager not initialized".to_string()));
             return;
@@ -506,7 +506,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     let table_name: String = match env.get_string(&table_name) {
         Ok(s) => s.into(),
         Err(e) => {
-            rust_log_error!("Failed to get table name: {}", e);
+            log_error!("Failed to get table name: {}", e);
             set_action_listener_error(&mut env, listener,
                                     &DataFusionError::Execution(format!("Failed to get table name: {}", e)));
             return;
@@ -517,7 +517,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     let plan_bytes_vec = match env.convert_byte_array(plan_bytes_obj) {
         Ok(bytes) => bytes,
         Err(e) => {
-            rust_log_error!("Failed to convert plan bytes: {}", e);
+            log_error!("Failed to convert plan bytes: {}", e);
             set_action_listener_error(&mut env, listener,
                                     &DataFusionError::Execution(format!("Failed to convert plan bytes: {}", e)));
             return;
@@ -528,7 +528,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     let listener_ref = match env.new_global_ref(&listener) {
         Ok(r) => r,
         Err(e) => {
-            rust_log_error!("Failed to create global ref: {}", e);
+            log_error!("Failed to create global ref: {}", e);
             set_action_listener_error(&mut env, listener,
                                     &DataFusionError::Execution(format!("Failed to create global ref: {}", e)));
             return;
@@ -562,7 +562,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             }
             Err(e) => {
                 with_jni_env(|env| {
-                    rust_log_error!("Query execution failed: {}", e);
+                    log_error!("Query execution failed: {}", e);
                     set_action_listener_error_global(env, &listener_ref, &e);
                 });
             }
@@ -596,7 +596,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
     let listener_ref = match env.new_global_ref(&listener) {
         Ok(r) => r,
         Err(e) => {
-            rust_log_error!("Failed to create global ref: {}", e);
+            log_error!("Failed to create global ref: {}", e);
             set_action_listener_error(&mut env, listener,
                                     &DataFusionError::Execution(format!("Failed to create global ref: {}", e)));
             return;
@@ -636,7 +636,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
                     set_action_listener_ok_global(env, &listener_ref, 0);
                 }
                 Err(err) => {
-                    rust_log_error!("Stream next failed: {}", err);
+                    log_error!("Stream next failed: {}", err);
                     set_action_listener_error_global(env, &listener_ref, &err);
                 }
             }
@@ -723,7 +723,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     // Copy Java array into Rust buffer
     match env.get_long_array_region(values, 0, &mut row_ids[..]) {
         Ok(_) => {
-            rust_log_debug!("Received array: {:?}", row_ids);
+            log_debug!("Received array: {:?}", row_ids);
         }
         Err(e) => {
             let _ = env.throw_new(
@@ -737,7 +737,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     let manager = match TOKIO_RUNTIME_MANAGER.get() {
         Some(m) => m,
         None => {
-            rust_log_error!("Runtime manager not initialized");
+            log_error!("Runtime manager not initialized");
             set_action_listener_error(&mut env, callback,
                                     &DataFusionError::Execution("Runtime manager not initialized".to_string()));
             return 0;
