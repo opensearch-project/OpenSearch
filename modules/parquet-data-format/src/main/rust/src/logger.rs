@@ -1,10 +1,5 @@
-//! Logger module that re-exports from the shared opensearch-vectorized-spi crate.
-//!
-//! This module provides logging functions that call back to Java's logging framework
-//! through the RustLoggerBridge class.
+// Re-export init_logger from the shared crate's logger module
+pub use opensearch_vectorized_spi::logger::init_logger;
 
-// Re-export everything from the shared crate's logger module
-pub use opensearch_vectorized_spi::logger::*;
-
-// Re-export macros from the shared crate
-pub use opensearch_vectorized_spi::{rust_log_info, rust_log_warn, rust_log_error, rust_log_debug, rust_log_trace};
+// Re-export macros from the shared crate (only the ones actually used)
+pub use opensearch_vectorized_spi::{rust_log_info, rust_log_error, rust_log_debug};

@@ -1,18 +1,18 @@
-use jni::objects::{JClass, JObject, JObjectArray, JString};
-use jni::sys::{jlong, jstring};
+use jni::objects::{JClass, JObjectArray, JString};
+use jni::sys::jlong;
 use jni::{JNIEnv};
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::util::{parse_string_arr};
 use crate::cache;
 use crate::DataFusionRuntime;
-use datafusion::execution::cache::cache_unit::{DefaultFilesMetadataCache, DefaultFileStatisticsCache};
+use datafusion::execution::cache::cache_unit::DefaultFilesMetadataCache;
 use std::sync::Arc;
-use crate::logger::{rust_log_info, rust_log_error, rust_log_debug};
+use opensearch_vectorized_spi::{rust_log_info, rust_log_error, rust_log_debug};
 
 /// Create a CustomCacheManager instance
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createCustomCacheManager(
-    mut env: JNIEnv,
+    _env: JNIEnv,
     _class: JClass,
 ) -> jlong {
     let manager = CustomCacheManager::new();
@@ -22,7 +22,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createCus
 /// Destroy a CustomCacheManager instance
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_destroyCustomCacheManager(
-    mut env: JNIEnv,
+    _env: JNIEnv,
     _class: JClass,
     cache_manager_ptr: jlong,
 ) {
@@ -371,7 +371,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
         Ok(s) => s.into(),
         Err(e) => {
             let msg = format!("Failed to convert cache type string: {}", e);
-            rust_log_debug!("[CACHE ERROR] {}", msg);
+            rust_log_debug!("{}", msg);
             let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
             return;
         }
@@ -416,7 +416,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
         Ok(s) => s.into(),
         Err(e) => {
             let msg = format!("Failed to convert cache type string: {}", e);
-            rust_log_debug!("[CACHE ERROR] {}", msg);
+            rust_log_debug!("{}", msg);
             let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
             return false;
         }
@@ -426,7 +426,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
         Ok(s) => s.into(),
         Err(e) => {
             let msg = format!("Failed to convert file path string: {}", e);
-            rust_log_error!("[CACHE ERROR] {}", msg);
+            rust_log_error!("{}", msg);
             let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
             return false;
         }
@@ -440,7 +440,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
                 }
                 _ => {
                     let msg = format!("Unknown cache type: {}", cache_type);
-                    rust_log_debug!("[CACHE ERROR] {}", msg);
+                    rust_log_debug!("{}", msg);
                     let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
                     false
                 }
@@ -448,7 +448,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
         }
         None => {
             let msg = "No custom cache manager available";
-            rust_log_debug!("[CACHE ERROR] {}", msg);
+            rust_log_debug!("{}", msg);
             let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", msg);
             false
         }

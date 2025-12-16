@@ -19,6 +19,7 @@ public final class NativeBridge {
 
     static {
         NativeLibraryLoader.load("opensearch_datafusion_jni");
+        initLogger();
     }
 
     private NativeBridge() {}
@@ -65,6 +66,9 @@ public final class NativeBridge {
     // Memory monitoring
     public static native void printMemoryPoolAllocation(long runtimePtr);
 
+
+    // Logger initialization
+    public static native void initLogger();
 
     // Other methods
     public static native String getVersionInfo();

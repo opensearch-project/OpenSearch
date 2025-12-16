@@ -10,6 +10,7 @@ use crate::util::{create_object_meta_from_file};
 use object_store::path::Path;
 use object_store::ObjectMeta;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
+use opensearch_vectorized_spi::{rust_log_debug, rust_log_error};
 
 /// Custom CacheManager that holds cache references directly
 pub struct CustomCacheManager {
@@ -31,13 +32,13 @@ impl CustomCacheManager {
     /// Set the file metadata cache
     pub fn set_file_metadata_cache(&mut self, cache: Arc<MutexFileMetadataCache>) {
         self.file_metadata_cache = Some(cache);
-        println!("[CACHE INFO] File metadata cache set in CustomCacheManager");
+        rust_log_debug!("[CACHE INFO] File metadata cache set in CustomCacheManager");
     }
 
     /// Set the statistics cache
     pub fn set_statistics_cache(&mut self, cache: Arc<CustomStatisticsCache>) {
         self.statistics_cache = Some(cache);
-        println!("[CACHE INFO] Statistics cache set in CustomCacheManager");
+        rust_log_debug!("[CACHE INFO] Statistics cache set in CustomCacheManager");
     }
 
     /// Get the statistics cache
@@ -86,7 +87,7 @@ impl CustomCacheManager {
                     any_success = true;
                 }
                 Ok(false) => {
-                    println!("[CACHE INFO] File not added for metadata cache: {}", file_path);
+                    rust_log_debug!("[CACHE INFO] File not added for metadata cache: {}", file_path);
                 }
                 Err(e) => {
                     errors.push(format!("Metadata cache: {}", e));
@@ -100,7 +101,7 @@ impl CustomCacheManager {
                         any_success = true;
                     }
                     Ok(false) => {
-                        println!("[CACHE INFO] File not added for statistics cache: {}", file_path);
+                        rust_log_debug!("[CACHE INFO] File not added for statistics cache: {}", file_path);
                     }
                     Err(e) => {
                         errors.push(format!("Statistics cache: {}", e));
@@ -138,12 +139,9 @@ impl CustomCacheManager {
                                 // Remove the first ObjectMeta from the vector
                                 if let Some(object_meta) = object_metas.first() {
                                     if cache_guard.remove(object_meta).is_some() {
-                                        println!("Cache removed for: {}", file_path);
                                         any_removed = true;
-                                        println!("[CACHE INFO] Removed file from metadata cache: {}", file_path);
                                     } else {
-                                        println!("Item not found in cache: {}", file_path);
-                                        println!("[CACHE INFO] File not found in metadata cache: {}", file_path);
+                                        rust_log_debug!("[CACHE INFO] File not found in metadata cache: {}", file_path);
                                     }
                                 }
                             }
@@ -169,7 +167,6 @@ impl CustomCacheManager {
                     // we need to use the thread-safe DashMap operations
                     if cache.inner().remove(&path).is_some() {
                         any_removed = true;
-                        println!("[CACHE INFO] Removed file from statistics cache: {}", file_path);
                     }
                 }
             }
@@ -197,18 +194,17 @@ impl CustomCacheManager {
                     if let Some(object_meta) = object_metas.first() {
                         match cache.get(object_meta) {
                             Some(metadata) => {
-                                println!("Retrieved metadata for: {} - size: {:?}", file_path, metadata.memory_size());
                                 found = true;
                             },
                             None => {
-                                println!("No metadata found for: {}", file_path);
+                                rust_log_debug!("No metadata found for: {}", file_path);
                             },
                         }
                     }
                 }
             }
             Err(e) => {
-                println!("Failed to get object metadata for {}: {}", file_path, e);
+                rust_log_error!("Failed to get object metadata for {}: {}", file_path, e);
             }
         }
 
@@ -364,7 +360,7 @@ impl CustomCacheManager {
                 if cache_guard.contains_key(object_meta) {
                     Ok(true)
                 } else {
-                    println!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
+                    rust_log_debug!("[CACHE ERROR] Failed to cache metadata for: {}", file_path);
                     Ok(false)
                 }
             }
@@ -381,7 +377,6 @@ impl CustomCacheManager {
 
         // Check if already cached
         if cache.contains_key(&path) {
-            println!("[STATS CACHE INFO] Statistics already cached for: {}", file_path);
             return Ok(true);
         }
 
@@ -399,7 +394,6 @@ impl CustomCacheManager {
                 };
 
                 cache.put_with_extra(&path, Arc::new(stats), &meta);
-                println!("[STATS CACHE INFO] Successfully computed and cached statistics for: {}", file_path);
                 Ok(true)
             }
             Err(e) => {
@@ -442,18 +436,17 @@ impl CustomCacheManager {
                     success_count += 1;
                 }
                 Err(e) => {
-                    eprintln!("[STATS CACHE ERROR] Failed to compute statistics for {}: {}", file_path, e);
+                    rust_log_debug!("[STATS CACHE ERROR] Failed to compute statistics for {}: {}", file_path, e);
                     failed_files.push(file_path.clone());
                 }
             }
         }
 
         if !failed_files.is_empty() {
-            eprintln!("[STATS CACHE WARNING] Failed to compute statistics for {} files: {:?}",
+            rust_log_debug!("[STATS CACHE WARNING] Failed to compute statistics for {} files: {:?}",
                       failed_files.len(), failed_files);
         }
 
-        println!("[STATS CACHE INFO] Successfully computed and cached statistics for {} files", success_count);
         Ok(success_count)
     }
 
@@ -466,7 +459,6 @@ impl CustomCacheManager {
 
         // Check if already cached
         if cache.get(&path).is_some() {
-            println!("[STATS CACHE INFO] Statistics found in cache for: {}", file_path);
             return Ok(true);
         }
 
@@ -502,5 +494,3 @@ impl CustomCacheManager {
         }
     }
 }
-
-

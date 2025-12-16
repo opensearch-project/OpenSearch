@@ -47,8 +47,8 @@ mod query_executor;
 mod project_row_id_analyzer;
 pub mod logger;
 
-// Import logging macros
-use crate::logger::{rust_log_info, rust_log_error, rust_log_debug};
+// Import logger macros from shared crate
+use opensearch_vectorized_spi::{rust_log_info, rust_log_error, rust_log_debug};
 
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global};
@@ -122,22 +122,30 @@ where
     })
 }
 
+/// Initialize the logger for Rust->Java logging bridge.
+/// This should be called once when the native library is loaded.
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_initLogger(
+    env: JNIEnv,
+    _class: JClass,
+) {
+    // Initialize the logger with the JVM for Rust->Java logging bridge
+    // This uses the shared logger from opensearch_vectorized_spi
+    // The logger stores its own JVM reference internally
+    opensearch_vectorized_spi::logger::init_logger_from_env(&env);
+}
+
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_initTokioRuntimeManager(
     env: JNIEnv,
     _class: JClass,
     cpu_threads: jint,
 ) {
-    // Initialize JavaVM once
+    // Initialize JavaVM for async callbacks from Tokio worker threads
+    // This is needed so worker threads can attach to JVM and call ActionListener methods
     JAVA_VM.get_or_init(|| {
         env.get_java_vm().expect("Failed to get JavaVM")
     });
-
-    // Initialize the logger with the JVM for Rust->Java logging bridge
-    // Get a fresh JVM reference for the logger
-    if let Ok(jvm) = env.get_java_vm() {
-        logger::init_logger(jvm);
-    }
 
     TOKIO_RUNTIME_MANAGER.get_or_init(|| {
         rust_log_info!("Runtime manager initialized with {} CPU threads", cpu_threads);

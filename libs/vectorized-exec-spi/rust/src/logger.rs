@@ -5,88 +5,85 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-
+use jni::objects::JValue;
 use jni::{JNIEnv, JavaVM};
 use std::sync::OnceLock;
 
 static JAVA_VM: OnceLock<JavaVM> = OnceLock::new();
 
+// Log level constants (must match Java RustLoggerBridge constants)
+pub const LEVEL_TRACE: i32 = 0;
+pub const LEVEL_DEBUG: i32 = 1;
+pub const LEVEL_INFO: i32 = 2;
+pub const LEVEL_WARN: i32 = 3;
+pub const LEVEL_ERROR: i32 = 4;
+
+/// Initialize the logger with a JVM reference.
+/// This can be called multiple times safely - only the first call takes effect.
 pub fn init_logger(jvm: JavaVM) {
     JAVA_VM.set(jvm).ok();
 }
 
-/// Log an info message through JNI callback to Java.
+/// Initialize the logger from a JNIEnv reference.
+/// This is a convenience function that extracts the JVM from the env.
+pub fn init_logger_from_env(env: &JNIEnv) {
+    if let Ok(jvm) = env.get_java_vm() {
+        init_logger(jvm);
+    }
+}
+
+pub fn log(level: i32, message: &str) {
+    if let Some(jvm) = JAVA_VM.get() {
+        if let Ok(mut env) = jvm.attach_current_thread() {
+            let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+                let class =
+                    env.find_class("org/opensearch/vectorized/execution/jni/RustLoggerBridge")?;
+                let java_message = env.new_string(message)?;
+                env.call_static_method(
+                    class,
+                    "log",
+                    "(ILjava/lang/String;)V",
+                    &[JValue::Int(level), (&java_message).into()],
+                )?;
+                Ok(())
+            })();
+
+            if result.is_err() {
+                // Fallback to stdout if JNI call fails
+                eprintln!("[RUST_LOG_FALLBACK] level={}: {}", level, message);
+            }
+        }
+    }
+}
+
+/// Convenience function for logging at INFO level
 pub fn log_info(message: &str) {
-    if let Some(jvm) = JAVA_VM.get() {
-        if let Ok(mut env) = jvm.attach_current_thread() {
-            call_java_logger(&mut env, "logInfo", message);
-        }
-    }
+    log(LEVEL_INFO, message);
 }
 
-/// Log a warning message through JNI callback to Java.
+/// Convenience function for logging at WARN level
 pub fn log_warn(message: &str) {
-    if let Some(jvm) = JAVA_VM.get() {
-        if let Ok(mut env) = jvm.attach_current_thread() {
-            call_java_logger(&mut env, "logWarn", message);
-        }
-    }
+    log(LEVEL_WARN, message);
 }
 
-/// Log an error message through JNI callback to Java.
+/// Convenience function for logging at ERROR level
 pub fn log_error(message: &str) {
-    if let Some(jvm) = JAVA_VM.get() {
-        if let Ok(mut env) = jvm.attach_current_thread() {
-            call_java_logger(&mut env, "logError", message);
-        }
-    }
+    log(LEVEL_ERROR, message);
 }
 
-/// Log a debug message through JNI callback to Java.
+/// Convenience function for logging at DEBUG level
 pub fn log_debug(message: &str) {
-    if let Some(jvm) = JAVA_VM.get() {
-        if let Ok(mut env) = jvm.attach_current_thread() {
-            call_java_logger(&mut env, "logDebug", message);
-        }
-    }
+    log(LEVEL_DEBUG, message);
 }
 
-/// Log a trace message through JNI callback to Java.
+/// Convenience function for logging at TRACE level
 pub fn log_trace(message: &str) {
-    if let Some(jvm) = JAVA_VM.get() {
-        if let Ok(mut env) = jvm.attach_current_thread() {
-            call_java_logger(&mut env, "logTrace", message);
-        }
-    }
+    log(LEVEL_TRACE, message);
 }
 
-/// Internal function to call the Java logger method
-fn call_java_logger(env: &mut JNIEnv, method_name: &str, message: &str) {
-    let result = (|| -> Result<(), Box<dyn std::error::Error>> {
-        // Find the RustLoggerBridge class in vectorized-exec-spi
-        let class = env.find_class("org/opensearch/vectorized/execution/jni/RustLoggerBridge")?;
+// Macros for convenient logging with format! syntax
 
-        // Convert Rust string to Java string
-        let java_message = env.new_string(message)?;
-
-        // Call the static method
-        env.call_static_method(
-            class,
-            method_name,
-            "(Ljava/lang/String;)V",
-            &[(&java_message).into()],
-        )?;
-
-        Ok(())
-    })();
-
-    // If logging fails, fall back to println as last resort
-    if result.is_err() {
-        println!("[RUST_LOG_FALLBACK] {}: {}", method_name, message);
-    }
-}
-
-/// Macro for easy info logging
+/// Log at INFO level with format! syntax
 #[macro_export]
 macro_rules! rust_log_info {
     ($($arg:tt)*) => {
@@ -94,7 +91,7 @@ macro_rules! rust_log_info {
     };
 }
 
-/// Macro for easy warning logging
+/// Log at WARN level with format! syntax
 #[macro_export]
 macro_rules! rust_log_warn {
     ($($arg:tt)*) => {
@@ -102,7 +99,7 @@ macro_rules! rust_log_warn {
     };
 }
 
-/// Macro for easy error logging
+/// Log at ERROR level with format! syntax
 #[macro_export]
 macro_rules! rust_log_error {
     ($($arg:tt)*) => {
@@ -110,7 +107,7 @@ macro_rules! rust_log_error {
     };
 }
 
-/// Macro for easy debug logging
+/// Log at DEBUG level with format! syntax
 #[macro_export]
 macro_rules! rust_log_debug {
     ($($arg:tt)*) => {
@@ -118,7 +115,7 @@ macro_rules! rust_log_debug {
     };
 }
 
-/// Macro for easy trace logging
+/// Log at TRACE level with format! syntax
 #[macro_export]
 macro_rules! rust_log_trace {
     ($($arg:tt)*) => {

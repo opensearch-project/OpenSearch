@@ -1,6 +1,6 @@
 use crate::executor::DedicatedExecutor;
 use crate::io::register_io_runtime;
-use crate::logger::rust_log_info;
+use opensearch_vectorized_spi::rust_log_info;
 use log::info;
 use std::sync::Arc;
 use datafusion::error::DataFusionError;

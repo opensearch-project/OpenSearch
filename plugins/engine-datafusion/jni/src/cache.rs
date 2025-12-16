@@ -5,7 +5,7 @@ use datafusion::execution::cache::cache_manager::{FileMetadataCache};
 use datafusion::execution::cache::cache_unit::{DefaultFilesMetadataCache};
 use datafusion::execution::cache::CacheAccessor;
 use object_store::ObjectMeta;
-use crate::logger::{rust_log_error};
+use opensearch_vectorized_spi::rust_log_error;
 
 pub const ALL_CACHE_TYPES: &[&str] = &[CACHE_TYPE_METADATA, CACHE_TYPE_STATS];
 
