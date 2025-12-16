@@ -91,82 +91,89 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
 
     public void testMultiTermsWithStarTree() throws IOException {
         // Setup index with star-tree codec
-        Directory directory = newDirectory();
-        IndexWriterConfig conf = newIndexWriterConfig(null);
-        conf.setCodec(getCodec());
-        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig conf = newIndexWriterConfig(null);
+            conf.setCodec(getCodec());
 
-        // Index documents with values for our dimensions and metrics
-        iw.addDocument(doc("a", 1, 10.0f, 100.0));
-        iw.addDocument(doc("a", 1, 10.0f, 100.0));
-        iw.addDocument(doc("a", 2, 20.0f, 200.0));
-        iw.addDocument(doc("b", 1, 10.0f, 100.0));
-        iw.addDocument(doc("b", 3, 30.0f, 300.0));
-        iw.addDocument(doc("c", 2, 20.0f, 200.0));
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf)) {
+                // Index documents with values for our dimensions and metrics
+                iw.addDocument(doc("a", 1, 10.0f, 100.0));
+                iw.addDocument(doc("a", 1, 10.0f, 100.0));
+                iw.addDocument(doc("a", 2, 20.0f, 200.0));
+                iw.addDocument(doc("b", 1, 10.0f, 100.0));
+                iw.addDocument(doc("b", 3, 30.0f, 300.0));
+                iw.addDocument(doc("c", 2, 20.0f, 200.0));
 
-        // Force merge to ensure the star-tree structure is built
-        iw.forceMerge(1);
-        iw.close();
+                // Force merge to ensure the star-tree structure is built, then commit to make segments visible
+                iw.forceMerge(1);
+                iw.commit();
 
-        DirectoryReader ir = DirectoryReader.open(directory);
-        LeafReaderContext context = ir.leaves().get(0);
-        SegmentReader reader = Lucene.segmentReader(context.reader());
-        IndexSearcher indexSearcher = newSearcher(wrapInMockESDirectoryReader(ir), false, false);
+                // Use an NRT reader to avoid rare cases where DirectoryReader.open(directory) sees no leaves yet
+                try (DirectoryReader ir = iw.getReader()) {
+                    assertFalse("expected at least one leaf after indexing", ir.leaves().isEmpty());
 
-        // Extract the star-tree metadata from the segment
-        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
-        CompositeIndexFieldInfo starTree = starTreeDocValuesReader.getCompositeIndexFields().get(0);
+                    LeafReaderContext context = ir.leaves().get(0);
+                    SegmentReader reader = Lucene.segmentReader(context.reader());
+                    IndexSearcher indexSearcher = newSearcher(wrapInMockESDirectoryReader(ir), false, false);
 
-        // Define the dimensions we expect our star-tree to have
-        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = new LinkedHashMap<>();
-        supportedDimensions.put(new OrdinalDimension(KEYWORD_FIELD), KEYWORD_FIELD_TYPE);
-        supportedDimensions.put(new NumericDimension(INT_FIELD), INT_FIELD_TYPE);
-        supportedDimensions.put(new NumericDimension(FLOAT_FIELD), FLOAT_FIELD_TYPE);
-        supportedDimensions.put(new NumericDimension(METRIC_FIELD), METRIC_FIELD_TYPE);
+                    // Extract the star-tree metadata from the segment
+                    CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+                    assertFalse(
+                        "expected composite index fields to be present for star-tree codec",
+                        starTreeDocValuesReader.getCompositeIndexFields().isEmpty()
+                    );
+                    CompositeIndexFieldInfo starTree = starTreeDocValuesReader.getCompositeIndexFields().get(0);
 
-        // Test Case 1: Simple 2-term aggregation
-        testCase(
-            indexSearcher,
-            new MatchAllDocsQuery(),
-            null,
-            new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(KEYWORD_FIELD, INT_FIELD)),
-            starTree,
-            supportedDimensions
-        );
+                    // Define the dimensions we expect our star-tree to have
+                    LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = new LinkedHashMap<>();
+                    supportedDimensions.put(new OrdinalDimension(KEYWORD_FIELD), KEYWORD_FIELD_TYPE);
+                    supportedDimensions.put(new NumericDimension(INT_FIELD), INT_FIELD_TYPE);
+                    supportedDimensions.put(new NumericDimension(FLOAT_FIELD), FLOAT_FIELD_TYPE);
+                    supportedDimensions.put(new NumericDimension(METRIC_FIELD), METRIC_FIELD_TYPE);
 
-        // Test Case 2: 3-term aggregation
-        testCase(
-            indexSearcher,
-            new MatchAllDocsQuery(),
-            null,
-            new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(KEYWORD_FIELD, INT_FIELD, FLOAT_FIELD)),
-            starTree,
-            supportedDimensions
-        );
+                    // Test Case 1: Simple 2-term aggregation
+                    testCase(
+                        indexSearcher,
+                        new MatchAllDocsQuery(),
+                        null,
+                        new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(KEYWORD_FIELD, INT_FIELD)),
+                        starTree,
+                        supportedDimensions
+                    );
 
-        // Test Case 3: Aggregation with a query that filters on a dimension
-        testCase(
-            indexSearcher,
-            SortedSetDocValuesField.newSlowExactQuery(KEYWORD_FIELD, newBytesRef("a")),
-            new TermQueryBuilder(KEYWORD_FIELD, "a"),
-            new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(INT_FIELD, FLOAT_FIELD)),
-            starTree,
-            supportedDimensions
-        );
+                    // Test Case 2: 3-term aggregation
+                    testCase(
+                        indexSearcher,
+                        new MatchAllDocsQuery(),
+                        null,
+                        new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(KEYWORD_FIELD, INT_FIELD, FLOAT_FIELD)),
+                        starTree,
+                        supportedDimensions
+                    );
 
-        // Test Case 4: Aggregation with a sub-aggregation
-        testCase(
-            indexSearcher,
-            new MatchAllDocsQuery(),
-            null,
-            new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(KEYWORD_FIELD, FLOAT_FIELD))
-                .subAggregation(max("max_metric").field(METRIC_FIELD)),
-            starTree,
-            supportedDimensions
-        );
+                    // Test Case 3: Aggregation with a query that filters on a dimension
+                    testCase(
+                        indexSearcher,
+                        SortedSetDocValuesField.newSlowExactQuery(KEYWORD_FIELD, newBytesRef("a")),
+                        new TermQueryBuilder(KEYWORD_FIELD, "a"),
+                        new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(INT_FIELD, FLOAT_FIELD)),
+                        starTree,
+                        supportedDimensions
+                    );
 
-        ir.close();
-        directory.close();
+                    // Test Case 4: Aggregation with a sub-aggregation
+                    testCase(
+                        indexSearcher,
+                        new MatchAllDocsQuery(),
+                        null,
+                        new MultiTermsAggregationBuilder("_name").terms(getSourceConfig(KEYWORD_FIELD, FLOAT_FIELD))
+                            .subAggregation(max("max_metric").field(METRIC_FIELD)),
+                        starTree,
+                        supportedDimensions
+                    );
+                }
+            }
+        }
     }
 
     /**
