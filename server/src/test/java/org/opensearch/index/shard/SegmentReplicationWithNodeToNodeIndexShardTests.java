@@ -764,7 +764,6 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 assertDocCounts(shard, totalDocs, numDocs);
             }
             assertEquals(totalDocs, oldPrimary.translogStats().estimatedNumberOfOperations());
-            assertEquals(totalDocs, oldPrimary.translogStats().estimatedNumberOfOperations());
             assertEquals(totalDocs, nextPrimary.translogStats().estimatedNumberOfOperations());
             assertEquals(totalDocs, replica.translogStats().estimatedNumberOfOperations());
             assertEquals(totalDocs, nextPrimary.translogStats().getUncommittedOperations());

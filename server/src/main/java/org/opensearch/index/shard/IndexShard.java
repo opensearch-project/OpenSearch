@@ -5288,42 +5288,43 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 && totalOperations > batchSize
                 && threadPoolNotBusy) {
                 long localCheckpoint = engine.getProcessedLocalCheckpoint();
-                List<Tuple<Future<Integer>, Translog.Snapshot>> translogSnapshotsFutureList = new ArrayList<>();
-                for (int i = 0; i < (totalOperations + batchSize - 1) / batchSize; i++) {
-                    long start = localCheckpoint + 1 + (long) i * batchSize;
-                    long end = (i == totalOperations / batchSize) ? Long.MAX_VALUE : start + batchSize - 1;
-                    Translog.Snapshot translogSnapshot = engine.translogManager().newChangesSnapshot(start, end, false);
-                    translogSnapshotsFutureList.add(
-                        new Tuple<>(
+                final long batches = (totalOperations + batchSize - 1) / batchSize;
+                List<Translog.Snapshot> translogSnapshotList = new ArrayList<>();
+                List<Future<Integer>> translogRecoveryFutureList = new ArrayList<>();
+                try {
+                    for (int i = 0; i < batches; i++) {
+                        long start = localCheckpoint + 1 + (long) i * batchSize;
+                        long end = (i == batches - 1) ? Long.MAX_VALUE : start + batchSize - 1;
+                        Translog.Snapshot translogSnapshot = engine.translogManager().newChangesSnapshot(start, end, false);
+                        translogSnapshotList.add(translogSnapshot);
+                        translogRecoveryFutureList.add(
                             threadPool.executor(ThreadPool.Names.TRANSLOG_RECOVERY)
                                 .submit(() -> runTranslogRecovery(engine, translogSnapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
                                     // TODO: add a dedicate recovery stats for the reset translog
-                                })),
-                            translogSnapshot
-                        )
-                    );
-                }
-                Exception exception = null;
-                int totalRecovered = 0;
-                for (Tuple<Future<Integer>, Translog.Snapshot> translogSnapshotFuture : translogSnapshotsFutureList) {
-                    try {
-                        int recoveredOps = translogSnapshotFuture.v1().get();
-                        totalRecovered += recoveredOps;
-                    } catch (Exception e) {
-                        if (exception == null) {
-                            exception = e;
-                        } else {
-                            exception.addSuppressed(e);
-                        }
-                    } finally {
-                        Translog.Snapshot translogSnapshot = translogSnapshotFuture.v2();
-                        IOUtils.closeWhileHandlingException(translogSnapshot);
+                                }))
+                        );
                     }
+                    Exception exception = null;
+                    int totalRecovered = 0;
+                    for (Future<Integer> translogRecoveryFuture : translogRecoveryFutureList) {
+                        try {
+                            int recoveredOps = translogRecoveryFuture.get();
+                            totalRecovered += recoveredOps;
+                        } catch (Exception e) {
+                            if (exception == null) {
+                                exception = e;
+                            } else {
+                                exception.addSuppressed(e);
+                            }
+                        }
+                    }
+                    if (exception != null) {
+                        throw new IOException("Failed to concurrent recovery translog", exception);
+                    }
+                    return totalRecovered;
+                } finally {
+                    IOUtils.closeWhileHandlingException(translogSnapshotList);
                 }
-                if (exception != null) {
-                    throw new IOException("generate exception when concurrent translog recovery", exception);
-                }
-                return totalRecovered;
             } else {
                 return runTranslogRecovery(newEngineReference.get(), snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
                     // TODO: add a dedicate recovery stats for the reset translog
