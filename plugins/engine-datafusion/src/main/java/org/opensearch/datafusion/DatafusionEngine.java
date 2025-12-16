@@ -85,8 +85,10 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         this.rootAllocator = new RootAllocator(Long.MAX_VALUE);
         if (this.cacheManager != null) {
             datafusionReaderManager.setOnFilesAdded(files -> {
-                // Handle new files added during refresh
                 cacheManager.addFilesToCacheManager(files);
+            });
+            datafusionReaderManager.setOnFilesDeleted(files -> {
+                cacheManager.removeFilesFromCacheManager(files);
             });
         }
     }

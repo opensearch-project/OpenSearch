@@ -15,14 +15,20 @@ use std::sync::{Arc, Mutex};
 use std::fs::File;
 
 /// Trait to calculate heap memory size for statistics objects
+/// 
+/// IMPORTANT: This trait calculates ONLY the heap-allocated memory, not the stack size.
+/// The stack size of the containing struct is accounted for separately in memory_size().
+/// 
+/// For inline types (primitives, enums stored by value), heap_size() returns 0.
+/// For heap-allocated types (String, Vec buffer), heap_size() returns the heap allocation size.
 trait HeapSize {
     fn heap_size(&self) -> usize;
 }
 
 impl HeapSize for Statistics {
     fn heap_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            + self.num_rows.heap_size()
+        // Only count heap allocations, not the struct's stack size
+        self.num_rows.heap_size()
             + self.total_byte_size.heap_size()
             + self.column_statistics.heap_size()
     }
@@ -32,10 +38,12 @@ impl<T: HeapSize + std::fmt::Debug + Clone + PartialEq + Eq + PartialOrd> HeapSi
 for Precision<T>
 {
     fn heap_size(&self) -> usize {
+        // Precision is an enum stored inline, so no heap allocation for the enum itself.
+        // Only count heap allocations from the inner value.
         match self {
-            Precision::Exact(val) => std::mem::size_of::<Self>() + val.heap_size(),
-            Precision::Inexact(val) => std::mem::size_of::<Self>() + val.heap_size(),
-            Precision::Absent => std::mem::size_of::<Self>(),
+            Precision::Exact(val) => val.heap_size(),
+            Precision::Inexact(val) => val.heap_size(),
+            Precision::Absent => 0,
         }
     }
 }
@@ -48,16 +56,17 @@ impl HeapSize for usize {
 
 impl<T: HeapSize> HeapSize for Vec<T> {
     fn heap_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            + (self.capacity() * std::mem::size_of::<T>())
+        // Vec allocates its buffer on the heap: capacity * element_size
+        // Plus any heap allocations from the elements themselves
+        (self.capacity() * std::mem::size_of::<T>())
             + self.iter().map(|item| item.heap_size()).sum::<usize>()
     }
 }
 
 impl HeapSize for ColumnStatistics {
     fn heap_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            + self.null_count.heap_size()
+        // Only count heap allocations from the fields, not the struct's stack size
+        self.null_count.heap_size()
             + self.max_value.heap_size()
             + self.min_value.heap_size()
             + self.distinct_count.heap_size()
@@ -66,37 +75,48 @@ impl HeapSize for ColumnStatistics {
 
 impl HeapSize for ScalarValue {
     fn heap_size(&self) -> usize {
+        // Only count actual heap allocations
         match self {
             ScalarValue::Utf8(Some(s)) | ScalarValue::LargeUtf8(Some(s)) => {
-                std::mem::size_of::<Self>() + s.capacity()
+                s.capacity() // String's heap buffer
             }
             ScalarValue::Binary(Some(b)) | ScalarValue::LargeBinary(Some(b)) => {
-                std::mem::size_of::<Self>() + b.capacity()
+                b.capacity() // Vec<u8>'s heap buffer
             }
             ScalarValue::List(arr) => {
-                // Estimate list array memory size
-                std::mem::size_of::<Self>() + std::mem::size_of_val(arr.as_ref()) + (arr.len() * 8)
+                // Estimate list array memory size (heap allocation)
+                arr.get_array_memory_size()
             }
             ScalarValue::Struct(arr) => {
-                // Estimate struct array memory size
-                std::mem::size_of::<Self>() + std::mem::size_of_val(arr.as_ref()) + (arr.len() * 16)
+                // Estimate struct array memory size (heap allocation)
+                arr.get_array_memory_size()
             }
-            _ => std::mem::size_of::<Self>(), // Primitive types and nulls
+            _ => 0, // Primitive types and nulls have no heap allocation
         }
     }
 }
 
 /// Extension trait to add memory_size method to Statistics
+/// 
+/// This returns the total memory footprint of a Statistics object,
+/// including both the stack size of the struct and all heap allocations.
 trait StatisticsMemorySize {
     fn memory_size(&self) -> usize;
 }
 
 impl StatisticsMemorySize for Statistics {
     fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            + self.num_rows.heap_size()
-            + self.total_byte_size.heap_size()
-            + self.column_statistics.heap_size()
+        // Total memory = stack size of Statistics struct + all heap allocations
+        // 
+        // The Statistics struct contains:
+        // - num_rows: Precision<usize> (stored inline)
+        // - total_byte_size: Precision<usize> (stored inline)
+        // - column_statistics: Vec<ColumnStatistics> (Vec header inline, buffer on heap)
+        //
+        // So we count:
+        // 1. size_of::<Statistics>() - the stack size of the struct itself
+        // 2. heap_size() - all heap allocations (Vec buffer + any strings/binary in ScalarValues)
+        std::mem::size_of::<Self>() + self.heap_size()
     }
 }
 
