@@ -1399,7 +1399,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 }
             }
         });
-        return new ClusterInfo(diskUsages, null, shardSizes, null, reservedSpace, fileCacheStats, Map.of());
+        return new ClusterInfo(diskUsages, null, shardSizes, null, reservedSpace, fileCacheStats, Map.of() , Map.of());
     }
 
     private static AggregateFileCacheStats createAggregateFileCacheStats(long totalCacheSize, long active, long used) {
