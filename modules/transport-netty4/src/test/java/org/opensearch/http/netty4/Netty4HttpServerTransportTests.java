@@ -32,7 +32,6 @@
 
 package org.opensearch.http.netty4;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
@@ -42,7 +41,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -53,11 +51,8 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.http.NullDispatcher;
 import org.opensearch.rest.BytesRestResponse;
-import org.opensearch.rest.RestChannel;
-import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NettyAllocator;
@@ -118,7 +113,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     private ClusterSettings clusterSettings;
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
@@ -126,7 +121,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     @After
-    public void shutdown() throws Exception {
+    public void shutdown() {
         if (threadPool != null) {
             threadPool.shutdownNow();
         }
@@ -175,21 +170,13 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
         final int contentLength,
         final HttpResponseStatus expectedStatus
     ) throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-            @Override
-            public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
-            }
-
-            @Override
-            public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
-                throw new AssertionError();
-            }
-        };
+        HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults()
+            .withDispatchRequest(
+                (request, channel, threadContext) -> channel.sendResponse(
+                    new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))
+                )
+            )
+            .build();
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,
@@ -280,16 +267,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
 
     public void testBadRequest() throws InterruptedException {
         final AtomicReference<Throwable> causeReference = new AtomicReference<>();
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
-                throw new AssertionError();
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults()
+            .withDispatchBadRequest((channel, threadContext, cause) -> {
                 causeReference.set(cause);
                 try {
                     final OpenSearchException e = new OpenSearchException("you sent a bad request and you should feel bad");
@@ -297,10 +276,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 } catch (final IOException e) {
                     throw new AssertionError(e);
                 }
-            }
-
-        };
-
+            })
+            .build();
         final Settings settings;
         final int maxInitialLineLength;
         final Setting<ByteSizeValue> httpMaxInitialLineLengthSetting = HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
@@ -352,29 +329,16 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     public void testLargeCompressedResponse() throws InterruptedException {
         final String responseString = randomAlphaOfLength(4 * 1024 * 1024);
         final String url = "/thing";
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults()
+            .withDispatchRequest((request, channel, threadContext) -> {
                 if (url.equals(request.uri())) {
                     channel.sendResponse(new BytesRestResponse(OK, responseString));
                 } else {
                     logger.error("--> Unexpected successful uri [{}]", request.uri());
                     throw new AssertionError();
                 }
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
-                throw new AssertionError();
-            }
-
-        };
-
+            })
+            .build();
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 Settings.EMPTY,
@@ -425,25 +389,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testCorsRequest() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
-                throw new AssertionError();
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
-                throw new AssertionError();
-            }
-
-        };
-
+        final HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults().build();
         final Settings settings = createBuilderWithPort().put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "test-cors.org")
             .build();
@@ -497,25 +443,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testReadTimeout() throws Exception {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
-                throw new AssertionError("Should not have received a dispatched request");
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
-                throw new AssertionError("Should not have received a dispatched request");
-            }
-
-        };
-
+        HttpServerTransport.Dispatcher dispatcher = TestDispatcherBuilder.withDefaults().build();
         Settings settings = createBuilderWithPort().put(
             HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(),
             new TimeValue(randomIntBetween(100, 300))
