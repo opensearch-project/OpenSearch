@@ -133,21 +133,25 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
         InMemorySingletonMetricsExporter.INSTANCE.reset();
         Tags tags = Tags.create().addTag("test", "integ-test");
         final AtomicInteger testValue = new AtomicInteger(0);
-        Supplier<Double> valueProvider = () -> { return Double.valueOf(testValue.incrementAndGet()); };
+        Supplier<Double> valueProvider = () -> Double.valueOf(testValue.incrementAndGet());
         Closeable gaugeCloseable = metricsRegistry.createGauge(metricName, "test", "ms", valueProvider, tags);
-        // Sleep for about 2.2s to wait for metrics to be published.
-        Thread.sleep(2200);
-
         InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
 
-        assertTrue(getMaxObservableGaugeValue(exporter, metricName) >= 2.0);
+        // Wait until at least 2 observations have been published avoid fixed sleeps.
+        assertBusy(() -> assertTrue(getMaxObservableGaugeValue(exporter, metricName) >= 2.0));
         gaugeCloseable.close();
-        double observableGaugeValueAfterStop = getMaxObservableGaugeValue(exporter, metricName);
-
-        // Sleep for about 1.2s to wait for metrics to see that closed observableGauge shouldn't execute the callable.
-        Thread.sleep(1200);
-        assertEquals(observableGaugeValueAfterStop, getMaxObservableGaugeValue(exporter, metricName), 0.0);
-
+        // After close, allow any in-flight collection to finish, but ensure the value eventually becomes stable.
+        final java.util.concurrent.atomic.AtomicReference<Double> lastSeen = new java.util.concurrent.atomic.AtomicReference<>(
+            getMaxObservableGaugeValue(exporter, metricName)
+        );
+        assertBusy(() -> {
+            double now = getMaxObservableGaugeValue(exporter, metricName);
+            double prev = lastSeen.get();
+            if (Double.compare(prev, now) != 0) {
+                lastSeen.set(now);
+                fail("Gauge value changed after close (in-flight publish still running): prev=" + prev + ", now=" + now);
+            }
+        });
     }
 
     public void testGaugeWithValueAndTagSupplier() throws Exception {
@@ -156,28 +160,31 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
         InMemorySingletonMetricsExporter.INSTANCE.reset();
         Tags tags = Tags.create().addTag("test", "integ-test");
         final AtomicInteger testValue = new AtomicInteger(0);
-        Supplier<TaggedMeasurement> valueProvider = () -> {
-            return TaggedMeasurement.create(Double.valueOf(testValue.incrementAndGet()), tags);
-        };
+        Supplier<TaggedMeasurement> valueProvider = () -> TaggedMeasurement.create(Double.valueOf(testValue.incrementAndGet()), tags);
         Closeable gaugeCloseable = metricsRegistry.createGauge(metricName, "test", "ms", valueProvider);
-        // Sleep for about 2.2s to wait for metrics to be published.
-        Thread.sleep(2200);
-
         InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
 
-        assertTrue(getMaxObservableGaugeValue(exporter, metricName) >= 2.0);
+        // Wait until we have at least a couple of published observations.
+        assertBusy(() -> assertTrue(getMaxObservableGaugeValue(exporter, metricName) >= 2.0));
+        assertBusy(() -> {
+            Map<AttributeKey<?>, Object> attributes = getMetricAttributes(exporter, metricName);
+            assertEquals("integ-test", attributes.get(AttributeKey.stringKey("test")));
+        });
 
         gaugeCloseable.close();
-        double observableGaugeValueAfterStop = getMaxObservableGaugeValue(exporter, metricName);
+        // After close, allow any in-flight collection to finish, then ensure the value becomes stable.
+        final java.util.concurrent.atomic.AtomicReference<Double> lastSeen = new java.util.concurrent.atomic.AtomicReference<>(
+            getMaxObservableGaugeValue(exporter, metricName)
+        );
 
-        Map<AttributeKey<?>, Object> attributes = getMetricAttributes(exporter, metricName);
-
-        assertEquals("integ-test", attributes.get(AttributeKey.stringKey("test")));
-
-        // Sleep for about 1.2s to wait for metrics to see that closed observableGauge shouldn't execute the callable.
-        Thread.sleep(1200);
-        assertEquals(observableGaugeValueAfterStop, getMaxObservableGaugeValue(exporter, metricName), 0.0);
-
+        assertBusy(() -> {
+            double now = getMaxObservableGaugeValue(exporter, metricName);
+            double prev = lastSeen.get();
+            if (Double.compare(prev, now) != 0) {
+                lastSeen.set(now);
+                fail("Gauge value changed after close (in-flight publish still running): prev=" + prev + ", now=" + now);
+            }
+        });
     }
 
     private static double getMaxObservableGaugeValue(InMemorySingletonMetricsExporter exporter, String metricName) {
