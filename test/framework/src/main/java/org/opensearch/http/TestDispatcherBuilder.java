@@ -23,7 +23,7 @@ import java.util.Optional;
 /**
  * A builder for creating {@link HttpServerTransport.Dispatcher} instances
  * with sensible defaults for testing.
- * <p/>
+ * <p>
  * By default, successful and bad requests will fail with an assertion error,
  * and handler dispatch find no handler. Tests should override these behaviors
  * using the {@code with*} methods.
@@ -48,7 +48,7 @@ public class TestDispatcherBuilder {
     /**
      * Creates a new builder with default settings for creating {@link HttpServerTransport.Dispatcher} instances
      * in tests.
-     * <p/>
+     * <p>
      * Created dispatcher instances could be used with e.g. {@link AbstractHttpServerTransport}.
      * @return the dispatcher builder instance
      */
