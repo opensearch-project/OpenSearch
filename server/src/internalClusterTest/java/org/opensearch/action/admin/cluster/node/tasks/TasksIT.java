@@ -125,7 +125,7 @@ import static org.mockito.Mockito.spy;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class TasksIT extends AbstractTasksIT {
 
-    private static final String SAMPLE_TRACE_PARENT_HEADER = "00-19d538d7c42d09240be001d1e4ff6203-0651eba1347dceea-01";
+    private static final String SAMPLE_TRACE_PARENT_HEADER = "00-19d538d7c42d09240be001d1e4ff6203-0681eba1347dceea-01";
     private static final String SAMPLE_TRACE_ID_HEADER = "19d538d7c42d09240be001d1e4ff6203";
 
     protected final TaskInfo taskInfo = new TaskInfo(
