@@ -231,7 +231,7 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
         }
     }
 
-    public void testConcurrentIndexAndDeleteDuringRefresh() throws IOException, InterruptedException {
+    public void testConcurrentIndexAndDeleteDuringRefresh() throws Exception {
         CompositeIndexWriter compositeIndexWriter = new CompositeIndexWriter(
             config(),
             createWriter(),
@@ -244,6 +244,7 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
         CountDownLatch latch = new CountDownLatch(2);
         AtomicBoolean done = new AtomicBoolean(false);
         AtomicInteger numDeletes = new AtomicInteger();
+        AtomicReference<Throwable> indexerFailure = new AtomicReference<>();
 
         Thread indexer = new Thread(() -> {
             try {
@@ -267,27 +268,36 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
                         numDeletes.incrementAndGet();
                     }
                 }
-            } catch (Exception e) {
-                throw new AssertionError(e);
+            } catch (Throwable t) {
+                indexerFailure.set(t);
             } finally {
                 done.set(true);
             }
         });
 
-        indexer.start();
-        latch.countDown();
-        latch.await();
-        while (done.get() == false) {
-            compositeIndexWriter.beforeRefresh();
-            compositeIndexWriter.afterRefresh(true);
-            Thread.sleep(100);
-        }
+        try {
+            indexer.start();
+            latch.countDown();
+            latch.await();
+            while (done.get() == false) {
+                compositeIndexWriter.beforeRefresh();
+                compositeIndexWriter.afterRefresh(true);
+                Thread.sleep(100);
+            }
 
-        indexer.join();
-        compositeIndexWriter.beforeRefresh();
-        compositeIndexWriter.afterRefresh(true);
-        try (DirectoryReader directoryReader = DirectoryReader.open(compositeIndexWriter.getAccumulatingIndexWriter())) {
-            assertEquals(numDocs - numDeletes.get(), directoryReader.numDocs());
+            indexer.join();
+            Throwable failure = indexerFailure.get();
+            if (failure != null) {
+                throw new AssertionError("indexer thread failed", failure);
+            }
+            final int expectedDocs = numDocs - numDeletes.get();
+            assertBusy(() -> {
+                compositeIndexWriter.beforeRefresh();
+                compositeIndexWriter.afterRefresh(true);
+                try (DirectoryReader directoryReader = DirectoryReader.open(compositeIndexWriter.getAccumulatingIndexWriter())) {
+                    assertEquals(expectedDocs, directoryReader.numDocs());
+                }
+            });
         } finally {
             IOUtils.close(compositeIndexWriter);
         }
