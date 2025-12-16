@@ -104,7 +104,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
-        public static final String SEARCH = "search"; // TODO: "search" vs "index_searcher" is the distinction Saurabh mentioned? or unrelated?
+        public static final String SEARCH = "search";
         public static final String STREAM_SEARCH = "stream_search";
         public static final String SEARCH_THROTTLED = "search_throttled";
         public static final String MANAGEMENT = "management";
@@ -267,7 +267,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         /*builders.put(
             Names.SEARCH,
             new ResizableExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, runnableTaskListener)
-        );*/  // TODO: change this one too?
+        );*/
         builders.put(Names.SEARCH, new VirtualThreadExecutorBuilder(Names.SEARCH, settings));
         // TODO: configure the appropriate size and explore use of virtual threads
         builders.put(
@@ -561,7 +561,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 );
                 continue;
             }
-            // TODO: Claude added this part - not sure about it
             if (holder.info.type == ThreadPoolType.VIRTUAL) {
                 stats.add(
                     new ThreadPoolStats.Stats.Builder().name(name)

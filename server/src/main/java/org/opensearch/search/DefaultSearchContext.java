@@ -270,7 +270,7 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
             concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_AUTO)
-                || concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL) ? executor : null, // TODO: i guess the executor is passed in further iff CSS enabled?
+                || concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL) ? executor : null,
             this
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
