@@ -52,6 +52,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.transport.client.Client;
@@ -171,6 +172,8 @@ public class DiskThresholdMonitor {
         markNodesMissingUsageIneligibleForRelease(routingNodes, usages, indicesNotToAutoRelease);
 
         final List<DiskUsage> usagesOverHighThreshold = new ArrayList<>();
+        final Map<String, ProcessStats> processStats = info.getNodeProcessStats();
+
 
         for (final Map.Entry<String, DiskUsage> entry : usages.entrySet()) {
             final String node = entry.getKey();
@@ -179,6 +182,33 @@ public class DiskThresholdMonitor {
             if (routingNode == null) {
                 continue;
             }
+
+
+            ProcessStats nodeProcessStats = processStats.get(node);
+            if (nodeProcessStats != null) {
+                long openFds = nodeProcessStats.getOpenFileDescriptors();
+                long maxFds = nodeProcessStats.getMaxFileDescriptors();
+
+                if (openFds >= 0 && maxFds > 0) {
+                    double fdUsagePercent = (openFds * 100.0) / maxFds;
+
+                    if (fdUsagePercent >= 85.0) {
+                        for (ShardRouting routing : routingNode) {
+                            String indexName = routing.index().getName();
+                            indicesToMarkReadOnly.add(indexName);
+                            indicesNotToAutoRelease.add(indexName);
+                        }
+                        logger.warn(
+                                "file handle thresold [{}%] ({}/{}) exceeded 85% on node [{}], indices on this node are marked read only.",
+                                String.format("%.1f", fdUsagePercent),
+                                openFds,
+                                maxFds,
+                                node);
+                    }
+
+                }
+            } 
+               
 
             // Only for Dedicated Warm Nodes
             final boolean isWarmNode = REMOTE_CAPABLE.equals(getNodePool(routingNode));

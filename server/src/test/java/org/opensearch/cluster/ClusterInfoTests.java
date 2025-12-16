@@ -45,6 +45,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -61,7 +62,9 @@ public class ClusterInfoTests extends OpenSearchTestCase {
             randomRoutingToDataPath(randomIntBetween(0, 18)),
             randomReservedSpace(randomIntBetween(0, 18)),
             randomFileCacheStats(randomIntBetween(0, 18)),
-            randomNodeResourceUsageStats(randomIntBetween(0, 20))
+            randomNodeResourceUsageStats(randomIntBetween(0, 20)),
+            randomProcessStats(randomIntBetween(0, 20))
+
         );
         BytesStreamOutput output = new BytesStreamOutput();
         clusterInfo.writeTo(output);
@@ -74,6 +77,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         assertEquals(clusterInfo.reservedSpace, result.reservedSpace);
         assertEquals(clusterInfo.getNodeFileCacheStats().size(), result.getNodeFileCacheStats().size());
         assertEquals(clusterInfo.getNodeResourceUsageStats().toString(), result.getNodeResourceUsageStats().toString());
+        assertEquals(clusterInfo.getNodeProcessStats().size(), result.getNodeProcessStats().size());
     }
 
     public void testToXContent() throws Exception {
@@ -84,7 +88,8 @@ public class ClusterInfoTests extends OpenSearchTestCase {
             randomRoutingToDataPath(1),
             randomReservedSpace(1),
             randomFileCacheStats(1),
-            randomNodeResourceUsageStats(1)
+            randomNodeResourceUsageStats(1),
+            randomProcessStats(1)
         );
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -108,6 +113,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
             assertNotNull(node1.get("least_available"));
             assertNotNull(node1.get("most_available"));
             assertNotNull(node1.get("node_resource_usage_stats"));
+            assertNotNull(node1.get("node_process_stats"));
 
             parser.nextToken();
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -153,6 +159,25 @@ public class ClusterInfoTests extends OpenSearchTestCase {
                 randomLongBetween(0, totalBytes)
             );
             builder.put(key, diskUsage);
+        }
+        return builder;
+    }
+
+
+    private static Map<String, ProcessStats> randomProcessStats(int numEntries) {
+        final Map<String, ProcessStats> builder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String key = randomAlphaOfLength(32);
+            ProcessStats.Cpu cpu = new ProcessStats.Cpu((short) randomIntBetween(0, 100), randomLong());
+            ProcessStats.Mem mem = new ProcessStats.Mem(randomLong());
+            ProcessStats processStats = new ProcessStats(
+                System.currentTimeMillis(),
+                randomLongBetween(0, 1000),
+                randomLongBetween(1000, 10000),
+                cpu,
+                mem
+            );
+            builder.put(key, processStats);
         }
         return builder;
     }
