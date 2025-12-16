@@ -103,6 +103,7 @@ import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
 import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
@@ -183,12 +184,14 @@ import org.opensearch.index.store.Store.MetadataSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogRecoveryRunner;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.warmer.ShardIndexWarmerService;
@@ -240,6 +243,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -5274,14 +5278,61 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }
-        final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
-            newEngineReference.get(),
-            snapshot,
-            Engine.Operation.Origin.LOCAL_RESET,
-            () -> {
-                // TODO: add a dedicate recovery stats for the reset translog
+        final TranslogRecoveryRunner translogRunner = (snapshot) -> {
+            Engine engine = newEngineReference.get();
+            assert null != engine;
+            int totalOperations = snapshot.totalOperations();
+            long batchSize = recoverySettings.getTranslogConcurrentRecoveryBatchSize();
+            boolean threadPoolNotBusy = ((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.TRANSLOG_RECOVERY)).getQueue()
+                .isEmpty();
+            if (recoverySettings.isTranslogConcurrentRecoveryEnable()
+                && indexSettings.isSegRepEnabledOrRemoteNode()
+                && totalOperations > batchSize
+                && threadPoolNotBusy) {
+                TranslogManager translogManager = engine.translogManager();
+                assert translogManager instanceof InternalTranslogManager;
+                long localCheckpoint = engine.getProcessedLocalCheckpoint();
+                List<Tuple<Future<Integer>, Translog.Snapshot>> translogSnapshotsFutureList = new ArrayList<>();
+                for (int i = 0; i <= totalOperations / batchSize; i++) {
+                    long start = localCheckpoint + 1 + (long) i * batchSize;
+                    long end = (i == totalOperations / batchSize) ? Long.MAX_VALUE : start + batchSize - 1;
+                    Translog.Snapshot translogSnapshot = ((InternalTranslogManager) translogManager).getTranslog().newSnapshot(start, end);
+                    translogSnapshotsFutureList.add(
+                        new Tuple<>(
+                            threadPool.executor(ThreadPool.Names.TRANSLOG_RECOVERY)
+                                .submit(() -> runTranslogRecovery(engine, translogSnapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
+                                    // TODO: add a dedicate recovery stats for the reset translog
+                                })),
+                            translogSnapshot
+                        )
+                    );
+                }
+                Exception exception = null;
+                int totalRecovered = 0;
+                for (Tuple<Future<Integer>, Translog.Snapshot> translogSnapshotFuture : translogSnapshotsFutureList) {
+                    try {
+                        int recoveredOps = translogSnapshotFuture.v1().get();
+                        Translog.Snapshot translogSnapshot = translogSnapshotFuture.v2();
+                        translogSnapshot.close();
+                        totalRecovered += recoveredOps;
+                    } catch (Exception e) {
+                        if (exception == null) {
+                            exception = e;
+                        } else {
+                            exception.addSuppressed(e);
+                        }
+                    }
+                }
+                if (exception != null) {
+                    throw new IOException("generate exception when concurrent translog recovery", exception);
+                }
+                return totalRecovered;
+            } else {
+                return runTranslogRecovery(newEngineReference.get(), snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
+                    // TODO: add a dedicate recovery stats for the reset translog
+                });
             }
-        );
+        };
 
         // When the new engine is created, translogs are synced from remote store onto local. Since remote store is the source
         // of truth for translog, we play all translogs that exists locally. Otherwise, the recoverUpto happens upto global checkpoint.
