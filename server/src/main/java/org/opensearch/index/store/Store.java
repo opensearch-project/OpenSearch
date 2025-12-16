@@ -202,23 +202,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     };
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
-        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, createTempShardPath(shardId), null);
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, createTempShardPath(shardId));
     }
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock, OnClose onClose, ShardPath shardPath) {
         this(shardId, indexSettings, directory, shardLock, onClose, shardPath, null);
-    }
-
-    public Store(
-        ShardId shardId,
-        IndexSettings indexSettings,
-        Directory directory,
-        ShardLock shardLock,
-        OnClose onClose,
-        ShardPath shardPath,
-        PluginsService pluginsService
-    ) {
-        this(shardId, indexSettings, directory, shardLock, onClose, shardPath, pluginsService, null);
     }
 
     /**
@@ -231,7 +219,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         ShardLock shardLock,
         OnClose onClose,
         ShardPath shardPath,
-        PluginsService pluginsService,
         CompositeStoreDirectory factoryCreatedCompositeDirectory
     ) {
         super(shardId, indexSettings);
