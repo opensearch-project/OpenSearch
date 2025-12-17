@@ -242,9 +242,15 @@ subprojects {
   apply plugin: 'opensearch.internal-distribution-archive-check'
 
   group = "org.opensearch.distribution"
+}
 
-  tasks.named("assemble").configure {
-    dependsOn(tasks.named("installDist"))
+tasks.configureEach { t ->
+  if (t.name ==~ /^build.+Tar$/) {
+    def base = t.name - 'Tar'   // buildLinuxTar -> buildLinux
+    def stage = tasks.findByName(base)
+    if (stage != null) {
+      t.dependsOn(stage)
+    }
   }
 }
 
