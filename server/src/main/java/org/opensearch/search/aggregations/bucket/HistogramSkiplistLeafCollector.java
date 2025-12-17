@@ -181,12 +181,6 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
     }
 
     @Override
-    public void collect(DocIdStream stream) throws IOException {
-        // This will only be called if its the top agg
-        collect(stream, 0);
-    }
-
-    @Override
     public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
         for (;;) {
             int upToExclusive = upToInclusive + 1;
@@ -213,6 +207,38 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
 
             if (stream.mayHaveRemaining()) {
                 advanceSkipper(upToExclusive, owningBucketOrd);
+            } else {
+                break;
+            }
+        }
+    }
+
+    @Override
+    public void collectRange(int min, int max, long bucket) throws IOException {
+        if (upToInclusive < min) {
+            advanceSkipper(min, bucket);
+        }
+
+        for (;;) {
+            int upToExclusive = Integer.min(upToInclusive + 1, max); // Don't collect past max
+            if (upToExclusive < 0) { // overflow
+                upToExclusive = Integer.MAX_VALUE;
+            }
+
+            if (upToSameBucket) {
+                aggregator.incrementBucketDocCount(upToBucketIndex, upToExclusive - min);
+                if (isSubNoOp == false) {
+                    sub.collectRange(min, upToExclusive, upToBucketIndex);
+                }
+            } else {
+                for (int docId = min; docId < upToExclusive; docId++) {
+                    collect(docId, bucket);
+                }
+            }
+
+            if (upToExclusive < max) {
+                min = upToExclusive;
+                advanceSkipper(min, bucket);
             } else {
                 break;
             }

@@ -131,24 +131,29 @@ public abstract class LeafBucketCollector implements LeafCollector {
         collect(stream, 0);
     }
 
+    @Override
+    public void collectRange(int min, int max) throws IOException {
+        collectRange(min, max, 0);
+    }
+
     /**
-     * Collect a range of doc IDs, between {@code min} inclusive and {@code max} exclusive. {@code
-     * max} is guaranteed to be greater than {@code min}.
+     * Collect a range of doc IDs into {@code bucket}, between {@code min} inclusive and {@code max} exclusive.
+     * {@code max} is guaranteed to be greater than {@code min}.
      *
      * <p>Extending this method is typically useful to take advantage of pre-aggregated data exposed
      * in a {@link DocValuesSkipper}.
      *
-     * <p>The default implementation calls {@link #collect(DocIdStream)} on a {@link DocIdStream} that
-     * matches the given range.
+     * <p>The default implementation calls {@link #collect(int, long)} on range of doc IDs, between
+     * {@code min} inclusive and {@code max} exclusive.
      *
-     * @see #collect(int,long)
+     * @see #collect(int, long)
      */
-    @Override
-    public void collectRange(int min, int max) throws IOException {
+    @ExperimentalApi
+    public void collectRange(int min, int max, long bucket) throws IOException {
         // Different aggregator implementations should override this method even if to just delegate to super for
         // helping the performance: when the super call inlines, calls to #collect(int, long) become monomorphic.
         for (int docId = min; docId < max; docId++) {
-            collect(docId, 0);
+            collect(docId, bucket);
         }
     }
 

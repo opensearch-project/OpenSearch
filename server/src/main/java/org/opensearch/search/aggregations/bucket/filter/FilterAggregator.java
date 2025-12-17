@@ -90,8 +90,8 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
             }
 
             @Override
-            public void collectRange(int min, int max) throws IOException {
-                super.collectRange(min, max);
+            public void collectRange(int min, int max, long bucket) throws IOException {
+                super.collectRange(min, max, bucket);
             }
         };
     }
