@@ -385,7 +385,7 @@ public class TasksIT extends AbstractTasksIT {
         // Add trace parent request header
         headers.put(Task.TRACE_PARENT, SAMPLE_TRACE_PARENT_HEADER);
         // Add traceId. This is explicitly not allowed to be passed from outside, but for this test we add this to verify its correct
-        // propagation.
+        // internal propagation.
         headers.put(Task.TRACE_ID, SAMPLE_TRACE_ID_HEADER);
         headers.put("Foo-Header", "bar");
         headers.put("Custom-Task-Header", "my_value");
