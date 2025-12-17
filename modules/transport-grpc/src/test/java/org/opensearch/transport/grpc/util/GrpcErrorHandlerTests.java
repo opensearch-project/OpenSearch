@@ -447,7 +447,7 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
     }
 
     public void testNullExceptionConversion() {
-        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(null);
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(null, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // null -> INTERNAL via case null handling
         assertEquals(Status.INTERNAL.getCode(), result.getStatus().getCode());

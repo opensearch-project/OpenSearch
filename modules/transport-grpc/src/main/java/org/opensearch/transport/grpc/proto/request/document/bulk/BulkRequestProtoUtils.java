@@ -10,6 +10,7 @@ package org.opensearch.transport.grpc.proto.request.document.bulk;
 
 import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.protobufs.BulkRequest;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -90,9 +91,9 @@ public class BulkRequestProtoUtils {
             throw new UnsupportedOperationException("type param is not supported");
         }
 
-        // TODO support global_params
-        if (request.hasGlobalParams()) {
-            throw new UnsupportedOperationException("global_params param is not supported yet");
+        // TODO support global_params.human parameter
+        if (request.getGlobalParams().hasHuman()) {
+            throw new UnsupportedOperationException("global_params.human param is not supported yet");
         }
 
         return bulkRequest;

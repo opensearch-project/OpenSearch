@@ -142,7 +142,8 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
 
     public void testPrepareRequestWithGlobalParamsThrowsUnsupportedOperationException() {
         // Create a protobuf BulkRequest with global_params
-        BulkRequest request = BulkRequest.newBuilder().setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().build()).build();
+        BulkRequest request = BulkRequest.newBuilder().setGlobalParams(
+            org.opensearch.protobufs.GlobalParams.newBuilder().setHuman(true).build()).build();
 
         // Call prepareRequest, should throw UnsupportedOperationException
         UnsupportedOperationException exception = expectThrows(
@@ -150,6 +151,6 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
             () -> BulkRequestProtoUtils.prepareRequest(request)
         );
 
-        assertEquals("global_params param is not supported yet", exception.getMessage());
+        assertEquals("global_params.human param is not supported yet", exception.getMessage());
     }
 }

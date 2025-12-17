@@ -126,7 +126,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
     }
 
     public void testToProtoWithNull() throws IOException {
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(null);
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(null, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
         assertNotNull("ShardFailure should not be null", shardFailure);
         assertFalse("Index should not be set", shardFailure.hasIndex());
         assertFalse("Status should not be set", shardFailure.hasStatus());
