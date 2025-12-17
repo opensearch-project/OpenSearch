@@ -126,4 +126,30 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("BulkRequest should not be null", bulkRequest);
         assertEquals("Refresh policy should be NONE", WriteRequest.RefreshPolicy.NONE, bulkRequest.getRefreshPolicy());
     }
+
+    public void testPrepareRequestWithTypeThrowsUnsupportedOperationException() {
+        // Create a protobuf BulkRequest with deprecated type field
+        BulkRequest request = BulkRequest.newBuilder().setType("_doc").build();
+
+        // Call prepareRequest, should throw UnsupportedOperationException
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> BulkRequestProtoUtils.prepareRequest(request)
+        );
+
+        assertEquals("type param is not supported", exception.getMessage());
+    }
+
+    public void testPrepareRequestWithGlobalParamsThrowsUnsupportedOperationException() {
+        // Create a protobuf BulkRequest with global_params
+        BulkRequest request = BulkRequest.newBuilder().setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().build()).build();
+
+        // Call prepareRequest, should throw UnsupportedOperationException
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> BulkRequestProtoUtils.prepareRequest(request)
+        );
+
+        assertEquals("global_params param is not supported yet", exception.getMessage());
+    }
 }
