@@ -338,6 +338,14 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
+        // When intra-segment search is enabled, multiply shard_size by number of slices
+        // to ensure globally-top buckets are captured in each partition
+        if (searchContext.shouldUseIntraSegmentSearch()) {
+            int sliceCount = searchContext.getTargetMaxSliceCount();
+            if (sliceCount > 1) {
+                bucketCountThresholds.setShardSize(bucketCountThresholds.getShardSize() * sliceCount);
+            }
+        }
         bucketCountThresholds.ensureValidity();
 
         return aggregatorSupplier.build(
@@ -678,5 +686,12 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
+    }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        // Only use intra-segment search when there are sub-aggregations
+        // Without sub-aggs, the term-frequency optimization using precomputation is faster
+        return factories.countAggregators() > 0;
     }
 }

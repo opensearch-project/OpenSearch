@@ -311,6 +311,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return true;
     }
 
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        return true;
+    }
+
     /**
      * The execution mode for the significant terms agg
      *

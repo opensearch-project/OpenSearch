@@ -571,34 +571,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Determines whether intra-segment search should be used for the current search context
-     */
-    private boolean shouldUseIntraSegmentSearch() {
-        // Check if intra-segment search is enabled globally and for this search context
-        // Note: Intra-segment search requires concurrent execution since partitions from the same
-        // segment must be processed by different threads (cannot be in the same slice)
-        // return getIntraSegmentSearchEnabled() && searchContext.shouldUseConcurrentSearch() && !hasComplexAggregations();
-        return getIntraSegmentSearchEnabled() && searchContext.shouldUseConcurrentSearch();
-        // searchContext.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE
-    }
-
-    /**
-     * Check if the search has complex aggregations that might not benefit from intra-segment search
-     */
-    private boolean hasComplexAggregations() {
-        // For now, be conservative and disable intra-segment search when aggregations are present
-        // This can be enhanced later to support specific types of aggregations
-        return searchContext.aggregations() != null && searchContext.aggregations().factories() != null;
-    }
-
-    /**
-     * Get intra-segment search enabled setting from search context
-     */
-    private boolean getIntraSegmentSearchEnabled() {
-        return searchContext.getIntraSegmentSearchEnabled();
-    }
-
-    /**
      * Compute the leaf slices that will be used by concurrent segment search to spread work across threads
      * @param leaves all the segments
      * @return leafSlice group to be executed by different threads
@@ -609,10 +581,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return new LeafSlice[0];
         }
         int targetMaxSlice = searchContext.getTargetMaxSliceCount();
-        if (!shouldUseIntraSegmentSearch()) {
-            return MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
+        if (searchContext.shouldUseIntraSegmentSearch() == false) {
+            LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
+            return slices;
         }
-        return MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, targetMaxSlice, searchContext.getIntraSegmentMinSegmentSize());
+        LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(
+            leaves,
+            targetMaxSlice,
+            searchContext.getIntraSegmentMinSegmentSize()
+        );
+        return slices;
     }
 
     public DirectoryReader getDirectoryReader() {

@@ -38,7 +38,6 @@ final class MaxTargetSliceSupplier {
             throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
         }
         int targetSliceCount = Math.min(targetMaxSlice, leaves.size());
-
         List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
         sortedLeaves.sort(Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().maxDoc())));
         final List<List<LeafReaderContextPartition>> groupedLeaves = new ArrayList<>(targetSliceCount);
@@ -89,14 +88,14 @@ final class MaxTargetSliceSupplier {
                 partitions.add(LeafReaderContextPartition.createForEntireSegment(leaf));
             }
         }
-        return distributePartitionsWithLPT(partitions, targetMaxSlice);
+        return distributePartitions(partitions, targetMaxSlice);
     }
 
     /**
      * Distribute partitions using LPT algorithm while respecting Lucene's constraint
      * that same-segment partitions must be in different slices.
      */
-    private static IndexSearcher.LeafSlice[] distributePartitionsWithLPT(List<LeafReaderContextPartition> partitions, int targetMaxSlice) {
+    private static IndexSearcher.LeafSlice[] distributePartitions(List<LeafReaderContextPartition> partitions, int targetMaxSlice) {
         if (partitions.isEmpty()) {
             return new IndexSearcher.LeafSlice[0];
         }

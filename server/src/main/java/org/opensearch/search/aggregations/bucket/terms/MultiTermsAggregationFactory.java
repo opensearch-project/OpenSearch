@@ -140,7 +140,14 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
-        // TODO: Optimize passing too many value source config derived objects to aggregator
+        // When intra-segment search is enabled, multiply shard_size by number of slices
+        // to ensure globally-top buckets are captured in each partition
+        if (searchContext.shouldUseIntraSegmentSearch()) {
+            int sliceCount = searchContext.getTargetMaxSliceCount();
+            if (sliceCount > 1) {
+                bucketCountThresholds.setShardSize(bucketCountThresholds.getShardSize() * sliceCount);
+            }
+        }
         bucketCountThresholds.ensureValidity();
         return new MultiTermsAggregator(
             name,
@@ -168,6 +175,12 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
 
     @Override
     protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        // Only use intra-segment search when there are sub-aggregations
         return true;
     }
 

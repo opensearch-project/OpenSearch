@@ -277,4 +277,9 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         matchQuery.boost(boost);
         return matchQuery;
     }
+
+    @Override
+    public boolean supportsIntraSegmentSearch() {
+        return true;  // Phrase queries benefit from parallel position matching
+    }
 }

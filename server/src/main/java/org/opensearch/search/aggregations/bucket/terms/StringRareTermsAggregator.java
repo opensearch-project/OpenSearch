@@ -142,6 +142,11 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
 
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        // Skip term frequency optimization when intra-segment search is enabled
+        // because it reads the entire segment's frequencies, not respecting partition boundaries
+        if (context.shouldUseIntraSegmentSearch()) {
+            return false;
+        }
         if (weight == null) {
             return false;
         } else {

@@ -124,8 +124,21 @@ public abstract class AggregatorFactory {
         return false;
     }
 
+    /**
+     * Implementation should override this method and return true if the Aggregator benefits from
+     * intra-segment search (partitioning large segments into doc ID ranges for parallel processing).
+     * Default is false - aggregations must explicitly opt-in.
+     */
+    protected boolean supportsIntraSegmentSearch() {
+        return false;
+    }
+
     public boolean evaluateChildFactories() {
         return factories.allFactoriesSupportConcurrentSearch();
+    }
+
+    public boolean evaluateChildFactoriesForIntraSegment() {
+        return factories.allFactoriesSupportIntraSegmentSearch();
     }
 
     public AggregatorFactories getSubFactories() {

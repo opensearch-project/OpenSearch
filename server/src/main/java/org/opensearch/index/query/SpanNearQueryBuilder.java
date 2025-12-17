@@ -311,6 +311,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         }
     }
 
+    @Override
+    public boolean supportsIntraSegmentSearch() {
+        return true;  // Span queries benefit from parallel position matching
+    }
+
     /**
      * SpanGapQueryBuilder enables gaps in a SpanNearQuery.
      * Since, SpanGapQuery is private to SpanNearQuery, SpanGapQueryBuilder cannot

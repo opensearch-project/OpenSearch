@@ -95,4 +95,9 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        return true;
+    }
 }

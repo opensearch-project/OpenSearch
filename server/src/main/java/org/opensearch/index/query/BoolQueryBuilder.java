@@ -461,4 +461,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
     }
+
+    @Override
+    public boolean supportsIntraSegmentSearch() {
+        return true;
+    }
 }

@@ -597,4 +597,9 @@ public abstract class FilteredSearchContext extends SearchContext {
     public int getIntraSegmentMinSegmentSize() {
         return in.getIntraSegmentMinSegmentSize();
     }
+
+    @Override
+    public boolean shouldUseIntraSegmentSearch() {
+        return in.shouldUseIntraSegmentSearch();
+    }
 }

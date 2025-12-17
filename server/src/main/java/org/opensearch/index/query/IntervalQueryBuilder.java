@@ -178,4 +178,9 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
     public String getWriteableName() {
         return NAME;
     }
+
+    @Override
+    public boolean supportsIntraSegmentSearch() {
+        return true;  // Interval queries benefit from parallel processing
+    }
 }

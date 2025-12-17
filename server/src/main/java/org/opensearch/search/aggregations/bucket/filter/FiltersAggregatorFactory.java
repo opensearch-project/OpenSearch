@@ -150,4 +150,9 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        return true;
+    }
 }

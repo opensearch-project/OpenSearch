@@ -80,6 +80,10 @@ import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.deciders.ConcurrentSearchDecision;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.deciders.ConcurrentSearchVisitor;
+import org.opensearch.search.deciders.DefaultIntraSegmentSearchDecider;
+import org.opensearch.search.deciders.IntraSegmentSearchDecision;
+import org.opensearch.search.deciders.IntraSegmentSearchRequestDecider;
+import org.opensearch.search.deciders.IntraSegmentSearchVisitor;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.FetchSearchResult;
@@ -219,6 +223,7 @@ final class DefaultSearchContext extends SearchContext {
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
     private final String concurrentSearchMode;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
+    private final SetOnce<Boolean> requestShouldUseIntraSegmentSearch = new SetOnce<>();
     private final int maxAggRewriteFilters;
     private final int filterRewriteSegmentThreshold;
     private final int cardinalityAggregationPruningThreshold;
@@ -1316,20 +1321,92 @@ final class DefaultSearchContext extends SearchContext {
 
     /**
      * Returns whether intra-segment search is enabled for this search context.
-     * This checks cluster-level settings to determine if segments should be partitioned for concurrent search.
      */
     @Override
     public boolean getIntraSegmentSearchEnabled() {
-        return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_ENABLED);
+        return indexService.getIndexSettings()
+            .getSettings()
+            .getAsBoolean(
+                IndexSettings.INDEX_INTRA_SEGMENT_SEARCH_ENABLED.getKey(),
+                clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_ENABLED)
+            );
     }
 
     /**
      * Returns the minimum segment size required to enable intra-segment partitioning.
-     * Segments smaller than this threshold will not be partitioned.
-     * This value is retrieved from cluster-level settings.
      */
     @Override
     public int getIntraSegmentMinSegmentSize() {
-        return clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE);
+        return indexService.getIndexSettings()
+            .getSettings()
+            .getAsInt(
+                IndexSettings.INDEX_INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE.getKey(),
+                clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE)
+            );
+    }
+
+    /**
+     * Returns intra-segment search status for the search context.
+     * This should only be used after request parsing, during which requestShouldUseIntraSegmentSearch will be set.
+     */
+    @Override
+    public boolean shouldUseIntraSegmentSearch() {
+        return Boolean.TRUE.equals(requestShouldUseIntraSegmentSearch.get());
+    }
+
+    /**
+     * Evaluate if request should use intra-segment search based on query and aggregation analysis.
+     * Uses the composite decision strategy where aggregation benefit can outweigh query regression.
+     */
+    public void evaluateRequestShouldUseIntraSegmentSearch() {
+        if (getIntraSegmentSearchEnabled() == false || shouldUseConcurrentSearch() == false) {
+            requestShouldUseIntraSegmentSearch.set(false);
+            return;
+        }
+        IntraSegmentSearchDecision queryDecision = evaluateQueryForIntraSegment();
+        IntraSegmentSearchDecision aggDecision = evaluateAggregationsForIntraSegment();
+        boolean hasAggregations = aggregations() != null;
+        IntraSegmentSearchDecision finalDecision = IntraSegmentSearchDecision.getCompositeDecision(
+            queryDecision,
+            aggDecision,
+            hasAggregations
+        );
+        logger.info("intra-segment search decision: query={}, agg={}, final={}", queryDecision, aggDecision, finalDecision);
+        boolean result = finalDecision.getDecisionStatus() == IntraSegmentSearchDecision.DecisionStatus.YES
+            || (finalDecision.getDecisionStatus() == IntraSegmentSearchDecision.DecisionStatus.NO_OP && hasAggregations);
+        requestShouldUseIntraSegmentSearch.set(result);
+    }
+
+    private IntraSegmentSearchDecision evaluateQueryForIntraSegment() {
+        if (request().source() == null || request().source().query() == null) {
+            return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.NO_OP, "no query");
+        }
+        Set<IntraSegmentSearchRequestDecider> deciders = new HashSet<>();
+        deciders.add(new DefaultIntraSegmentSearchDecider());
+        IntraSegmentSearchVisitor visitor = new IntraSegmentSearchVisitor(deciders, indexService.getIndexSettings());
+        request().source().query().visit(visitor);
+        List<IntraSegmentSearchDecision> decisions = new ArrayList<>();
+        for (IntraSegmentSearchRequestDecider decider : deciders) {
+            decisions.add(decider.getIntraSegmentSearchDecision());
+        }
+        return IntraSegmentSearchDecision.getCompositeDecision(decisions);
+    }
+
+    private IntraSegmentSearchDecision evaluateAggregationsForIntraSegment() {
+        if (aggregations() == null || aggregations().factories() == null) {
+            return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.NO_OP, "no aggregations");
+        }
+        boolean allSupport = aggregations().factories().allFactoriesSupportIntraSegmentSearch();
+        if (allSupport) {
+            return new IntraSegmentSearchDecision(
+                IntraSegmentSearchDecision.DecisionStatus.YES,
+                "all aggregations support intra-segment search"
+            );
+        } else {
+            return new IntraSegmentSearchDecision(
+                IntraSegmentSearchDecision.DecisionStatus.NO,
+                "some aggregations do not support intra-segment search"
+            );
+        }
     }
 }
