@@ -17,7 +17,6 @@ import java.util.Map;
  * Plugin interface for registering custom Parquet field implementations.
  * Plugins implementing this interface can register their field types with the ArrowFieldRegistry.
  */
-@FunctionalInterface
 public interface ParquetFieldPlugin {
 
     /**
@@ -25,5 +24,7 @@ public interface ParquetFieldPlugin {
      *
      * @return a map where keys are OpenSearch field type names and values are ParquetField instances
      */
-    Map<String, ParquetField> getParquetFields();
+    default Map<String, ParquetField> getParquetFields() {
+        return Collections.emptyMap();
+    }
 }

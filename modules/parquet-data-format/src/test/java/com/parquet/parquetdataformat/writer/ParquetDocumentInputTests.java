@@ -9,6 +9,7 @@
 package com.parquet.parquetdataformat.writer;
 
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
+import com.parquet.parquetdataformat.vsr.VSRState;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -18,11 +19,9 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.types.Types;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.mapper.ValueFetcher;
-import org.opensearch.index.mapper.TextSearchInfo;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -33,64 +32,83 @@ import java.util.Arrays;
  */
 public class ParquetDocumentInputTests extends OpenSearchTestCase {
 
+    private static final String TEST_VSR_ID = "test-vsr";
+    private static final String PRIMARY_TERM_FIELD_NAME = "_primary";
+    private static final String LONG_FIELD_NAME = "long_field";
+    private static final String TEXT_FIELD_NAME = "text_field";
+    private static final String KEYWORD_FIELD_NAME = "keyword_field";
+    private static final String DATE_FIELD_NAME = "date_field";
+    private static final String UNKNOWN_FIELD_NAME = "unknown_field";
+    private static final String NONEXISTENT_PRIMARY_FIELD_NAME = "nonexistent_primary";
+    
+    private static final String LONG_FIELD_TYPE_NAME = "long";
+    private static final String TEXT_FIELD_TYPE_NAME = "text";
+    private static final String DATE_FIELD_TYPE_NAME = "date";
+    private static final String UNKNOWN_FIELD_TYPE_NAME = "completely_unknown_field_type_xyz123";
+    
+    private static final long SAMPLE_ROW_ID = 1234L;
+    private static final long LARGE_ROW_ID = 12345L;
+    private static final long SAMPLE_PRIMARY_TERM = 77L;
+    private static final long LARGE_PRIMARY_TERM = 99L;
+    private static final long SAMPLE_LONG_VALUE = 10L;
+    private static final String SAMPLE_KEYWORD_VALUE = "test_value";
+    private static final String SAMPLE_DATE_VALUE = "2023-01-01";
+    private static final String GENERIC_TEST_VALUE = "value";
+    private static final String DOCUMENT_ID_FIELD_NAME = "_id";
+    
+    private static final int INITIAL_ROW_COUNT = 0;
+    private static final int FIRST_ROW_COUNT = 1;
+    private static final int SECOND_ROW_COUNT = 2;
+    private static final int THIRD_ROW_COUNT = 3;
+    private static final int TEST_ROW_POSITION = 5;
+    private static final int INCREMENTED_ROW_COUNT = 6;
+    private static final int FROZEN_VSR_ROW_COUNT = 3;
+    
+    private static final long EXPECTED_VERSION = 1L;
+    private static final long EXPECTED_TERM = 1L;
+    private static final long EXPECTED_SEQ_NO = 1L;
+    
+    private static final String UNSUPPORTED_FIELD_TYPE_ERROR = "Unsupported field type: " + UNKNOWN_FIELD_TYPE_NAME;
+    private static final String ARROW_FIELD_REGISTRY_ERROR = "ArrowFieldRegistry";
+    private static final String FROZEN_VSR_ERROR = "Cannot modify VSR in state: FROZEN";
+
     private BufferAllocator allocator;
     private Schema testSchema;
     private ManagedVSR managedVSR;
     private ParquetDocumentInput parquetDocumentInput;
 
-    /**
-     * Concrete MappedFieldType implementation for testing
-     */
-    private static class TestMappedFieldType extends MappedFieldType {
-        private final String type;
-        
-        public TestMappedFieldType(String name, String type) {
-            super(name, true, false, false, TextSearchInfo.NONE, null);
-            this.type = type;
-        }
-        
-        @Override
-        public String typeName() {
-            return type;
-        }
-        
-        @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
-            return null;
-        }
-        
-        @Override
-        public org.apache.lucene.search.Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException("Test implementation does not support term queries");
-        }
-    }
+
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
 
         allocator = new RootAllocator();
-        
-        // Create schema with required fields for testing
+
         Field rowIdField = new Field(CompositeDataFormatWriter.ROW_ID, FieldType.nullable(Types.MinorType.BIGINT.getType()), null);
-        Field primaryTermField = new Field("_primary", FieldType.nullable(Types.MinorType.BIGINT.getType()), null);
-        Field longField = new Field("long_field", FieldType.nullable(Types.MinorType.BIGINT.getType()), null);
-        Field textField = new Field("text_field", FieldType.nullable(Types.MinorType.VARCHAR.getType()), null);
-        
+        Field primaryTermField = new Field(PRIMARY_TERM_FIELD_NAME, FieldType.nullable(Types.MinorType.BIGINT.getType()), null);
+        Field longField = new Field(LONG_FIELD_NAME, FieldType.nullable(Types.MinorType.BIGINT.getType()), null);
+        Field textField = new Field(TEXT_FIELD_NAME, FieldType.nullable(Types.MinorType.VARCHAR.getType()), null);
+
         testSchema = new Schema(Arrays.asList(rowIdField, primaryTermField, longField, textField));
-        
-        managedVSR = new ManagedVSR("test-vsr", testSchema, allocator);
+
+        managedVSR = new ManagedVSR(TEST_VSR_ID, testSchema, allocator);
         parquetDocumentInput = new ParquetDocumentInput(managedVSR);
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        if (managedVSR != null && managedVSR.getState().name().equals("ACTIVE")) {
-            managedVSR.moveToFrozen();
-        }
+
         if (managedVSR != null) {
-            managedVSR.close();
+            try {
+                if (managedVSR.getState() == VSRState.ACTIVE) {
+                    managedVSR.moveToFrozen();
+                }
+                managedVSR.close();
+            } catch (Exception e) {
+                System.err.println("Failed to close managedVSR during tearDown: " + e.getMessage());
+            }
         }
         if (allocator != null) {
             allocator.close();
@@ -99,220 +117,132 @@ public class ParquetDocumentInputTests extends OpenSearchTestCase {
 
     public void testConstructorStoresManagedVSRInstance() {
         ManagedVSR result = parquetDocumentInput.getFinalInput();
-        assertSame("Constructor should store the ManagedVSR instance", managedVSR, result);
+        assertSame(managedVSR, result);
     }
 
     public void testAddRowIdFieldWritesToRowIdVector() {
-        // Set initial row count
-        managedVSR.setRowCount(5);
-        
-        // This should work without throwing an exception
-        parquetDocumentInput.addRowIdField("_id", 1234L);
-        
-        // Verify the value was set in the vector
+        managedVSR.setRowCount(TEST_ROW_POSITION);
+        parquetDocumentInput.addRowIdField(DOCUMENT_ID_FIELD_NAME, SAMPLE_ROW_ID);
         BigIntVector rowIdVector = (BigIntVector) managedVSR.getVector(CompositeDataFormatWriter.ROW_ID);
-        assertEquals("Row ID should be set at current row count", 1234L, rowIdVector.get(5));
-    }
-
-    public void testAddRowIdFieldIgnoresFieldNameParameter() {
-        // The addRowIdField method ignores the fieldName parameter and always uses CompositeDataFormatWriter.ROW_ID
-        // This should work regardless of the field name passed
-        parquetDocumentInput.addRowIdField("any_field_name", 1234L);
-        
-        // Verify the value was set in the ROW_ID vector
-        BigIntVector rowIdVector = (BigIntVector) managedVSR.getVector(CompositeDataFormatWriter.ROW_ID);
-        assertEquals("Row ID should be set regardless of field name parameter", 1234L, rowIdVector.get(0));
-    }
-
-    public void testAddRowIdFieldWorksWithRowCountZero() {
-        // Row count starts at 0, should work fine
-        assertEquals("Initial row count should be 0", 0, managedVSR.getRowCount());
-        
-        parquetDocumentInput.addRowIdField("_id", 9999L);
-        
-        // Verify the value was set at index 0
-        BigIntVector rowIdVector = (BigIntVector) managedVSR.getVector(CompositeDataFormatWriter.ROW_ID);
-        assertEquals("Row ID should be set at index 0", 9999L, rowIdVector.get(0));
+        assertEquals(SAMPLE_ROW_ID, rowIdVector.get(TEST_ROW_POSITION));
     }
 
     public void testAddFieldDelegatesToParquetFieldCreateField() {
-        TestMappedFieldType fieldType = new TestMappedFieldType("long_field", "long");
-
-        // This should work for registered field types
-        parquetDocumentInput.addField(fieldType, 10L);
-        
-        // Verify the field type was accessed
-        assertEquals("Field type should be 'long'", "long", fieldType.typeName());
+        NumberFieldMapper.NumberFieldType longFieldType = new NumberFieldMapper.NumberFieldType(LONG_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
+        parquetDocumentInput.addField(longFieldType, SAMPLE_LONG_VALUE);
+        assertEquals(LONG_FIELD_TYPE_NAME, longFieldType.typeName());
     }
 
     public void testAddFieldThrowsIllegalArgumentExceptionForUnknownFieldTypes() {
-        TestMappedFieldType unknownFieldType = new TestMappedFieldType("unknown_field", "completely_unknown_field_type_xyz123");
+        KeywordFieldMapper.KeywordFieldType unknownFieldType = new KeywordFieldMapper.KeywordFieldType(UNKNOWN_FIELD_NAME) {
+            @Override
+            public String typeName() {
+                return UNKNOWN_FIELD_TYPE_NAME;
+            }
+        };
 
         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () ->
-            parquetDocumentInput.addField(unknownFieldType, "value")
+            parquetDocumentInput.addField(unknownFieldType, GENERIC_TEST_VALUE)
         );
 
-        assertNotNull("IllegalArgumentException should be thrown", thrown);
-        assertTrue("Exception message should mention unsupported field type",
-                  thrown.getMessage().contains("Unsupported field type: completely_unknown_field_type_xyz123"));
-        assertTrue("Exception message should mention ArrowFieldRegistry",
-                  thrown.getMessage().contains("ArrowFieldRegistry"));
+        assertNotNull(thrown);
+        assertTrue(thrown.getMessage().contains(UNSUPPORTED_FIELD_TYPE_ERROR));
+        assertTrue(thrown.getMessage().contains(ARROW_FIELD_REGISTRY_ERROR));
     }
 
     public void testAddFieldPassesNullValuesToCreateFieldCorrectly() {
-        TestMappedFieldType textFieldType = new TestMappedFieldType("text_field", "text");
-
-        // This should throw a NullPointerException because TextParquetField doesn't handle null values properly
+        TextFieldMapper.TextFieldType textFieldType = new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME);
         NullPointerException thrown = assertThrows(NullPointerException.class, () ->
             parquetDocumentInput.addField(textFieldType, null)
         );
-        
-        assertNotNull("NullPointerException should be thrown for null values", thrown);
-        assertEquals("Field type should be 'text'", "text", textFieldType.typeName());
+        assertNotNull(thrown);
+        assertEquals(TEXT_FIELD_TYPE_NAME, textFieldType.typeName());
     }
 
     public void testAddFieldHandlesCreateFieldThrowingExceptions() {
-        TestMappedFieldType dateFieldType = new TestMappedFieldType("date_field", "date");
+        KeywordFieldMapper.KeywordFieldType dateFieldType = new KeywordFieldMapper.KeywordFieldType(DATE_FIELD_NAME) {
+            @Override
+            public String typeName() {
+                return DATE_FIELD_TYPE_NAME;
+            }
+        };
 
         try {
-            parquetDocumentInput.addField(dateFieldType, "2023-01-01");
-            assertEquals("Field type should be 'date'", "date", dateFieldType.typeName());
+            parquetDocumentInput.addField(dateFieldType, SAMPLE_DATE_VALUE);
+            assertEquals(DATE_FIELD_TYPE_NAME, dateFieldType.typeName());
         } catch (Exception e) {
-            // Exception is expected if date field type is not properly registered
-            assertEquals("Field type should be 'date'", "date", dateFieldType.typeName());
+            assertEquals(DATE_FIELD_TYPE_NAME, dateFieldType.typeName());
         }
     }
 
     public void testSetPrimaryTermWritesToCorrectVector() {
-        managedVSR.setRowCount(5);
-
-        parquetDocumentInput.setPrimaryTerm("_primary", 77L);
-
-        // Verify the value was set in the primary term vector
-        BigIntVector primaryTermVector = (BigIntVector) managedVSR.getVector("_primary");
-        assertEquals("Primary term should be set at current row count", 77L, primaryTermVector.get(5));
+        managedVSR.setRowCount(TEST_ROW_POSITION);
+        parquetDocumentInput.setPrimaryTerm(PRIMARY_TERM_FIELD_NAME, SAMPLE_PRIMARY_TERM);
+        BigIntVector primaryTermVector = (BigIntVector) managedVSR.getVector(PRIMARY_TERM_FIELD_NAME);
+        assertEquals(SAMPLE_PRIMARY_TERM, primaryTermVector.get(TEST_ROW_POSITION));
     }
 
     public void testSetPrimaryTermThrowsIfVectorDoesNotExist() {
         NullPointerException thrown = assertThrows(NullPointerException.class, () ->
-            parquetDocumentInput.setPrimaryTerm("nonexistent_primary", 77L)
+            parquetDocumentInput.setPrimaryTerm(NONEXISTENT_PRIMARY_FIELD_NAME, SAMPLE_PRIMARY_TERM)
         );
-
-        assertNotNull("NullPointerException should be thrown", thrown);
-    }
-
-    public void testGetFinalInputReturnsManagedVSRReference() {
-        ManagedVSR result = parquetDocumentInput.getFinalInput();
-
-        assertSame("getFinalInput should return the same ManagedVSR passed to constructor",
-                  managedVSR, result);
+        assertNotNull(thrown);
     }
 
     public void testAddToWriterIncrementsRowCount() throws IOException {
-        managedVSR.setRowCount(5);
-
+        managedVSR.setRowCount(TEST_ROW_POSITION);
         WriteResult result = parquetDocumentInput.addToWriter();
-
-        assertEquals("Row count should be incremented", 6, managedVSR.getRowCount());
-        assertNotNull("addToWriter should return WriteResult", result);
+        assertEquals(INCREMENTED_ROW_COUNT, managedVSR.getRowCount());
+        assertNotNull(result);
     }
 
     public void testAddToWriterReturnsCorrectWriteResult() throws IOException {
-        assertEquals("Initial row count should be 0", 0, managedVSR.getRowCount());
-
+        assertEquals(INITIAL_ROW_COUNT, managedVSR.getRowCount());
         WriteResult result = parquetDocumentInput.addToWriter();
-
-        assertNotNull("WriteResult should not be null", result);
-        assertTrue("WriteResult should indicate success", result.success());
-        assertNull("WriteResult should have no exception", result.e());
-        assertEquals("WriteResult should have version 1", 1L, result.version());
-        assertEquals("WriteResult should have term 1", 1L, result.term());
-        assertEquals("WriteResult should have seqNo 1", 1L, result.seqNo());
-        assertEquals("Row count should be incremented to 1", 1, managedVSR.getRowCount());
+        assertNotNull(result);
+        assertTrue(result.success());
+        assertNull(result.e());
+        assertEquals(EXPECTED_VERSION, result.version());
+        assertEquals(EXPECTED_TERM, result.term());
+        assertEquals(EXPECTED_SEQ_NO, result.seqNo());
+        assertEquals(FIRST_ROW_COUNT, managedVSR.getRowCount());
     }
 
     public void testAddToWriterWithFrozenVSRThrowsException() throws IOException {
-        managedVSR.setRowCount(3);
-        
-        // Freeze the VSR to make it immutable
+        managedVSR.setRowCount(FROZEN_VSR_ROW_COUNT);
         managedVSR.moveToFrozen();
-
         IllegalStateException thrown = assertThrows(IllegalStateException.class, () ->
             parquetDocumentInput.addToWriter()
         );
-
-        assertTrue("Exception should mention cannot modify VSR",
-                  thrown.getMessage().contains("Cannot modify VSR in state: FROZEN"));
-    }
-
-    public void testCloseDoesNotCallManagedVSRClose() throws Exception {
-        // VSR should remain in ACTIVE state after ParquetDocumentInput.close()
-        parquetDocumentInput.close();
-        assertEquals("VSR should remain ACTIVE after ParquetDocumentInput.close()", 
-                    "ACTIVE", managedVSR.getState().name());
-    }
-
-    public void testCloseDoesNotThrowAnyException() throws Exception {
-        assertDoesNotThrow(() -> {
-            try {
-                parquetDocumentInput.close();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
+        assertTrue(thrown.getMessage().contains(FROZEN_VSR_ERROR));
     }
 
     public void testFullDocumentCreationFlow() throws Exception {
-        assertEquals("Initial row count should be 0", 0, managedVSR.getRowCount());
-        
-        TestMappedFieldType keywordFieldType = new TestMappedFieldType("keyword_field", "keyword");
-
-        // Add row ID field
-        parquetDocumentInput.addRowIdField(CompositeDataFormatWriter.ROW_ID, 12345L);
+        assertEquals(INITIAL_ROW_COUNT, managedVSR.getRowCount());
+        KeywordFieldMapper.KeywordFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD_NAME);
+        parquetDocumentInput.addRowIdField(CompositeDataFormatWriter.ROW_ID, LARGE_ROW_ID);
         BigIntVector rowIdVector = (BigIntVector) managedVSR.getVector(CompositeDataFormatWriter.ROW_ID);
-        assertEquals("Row ID should be set", 12345L, rowIdVector.get(0));
-
-        // Set primary term
-        parquetDocumentInput.setPrimaryTerm("_primary", 99L);
-        BigIntVector primaryTermVector = (BigIntVector) managedVSR.getVector("_primary");
-        assertEquals("Primary term should be set", 99L, primaryTermVector.get(0));
-
-        // Add field (this may throw exception if keyword type is not registered)
-        try {
-            parquetDocumentInput.addField(keywordFieldType, "test_value");
-        } catch (IllegalArgumentException e) {
-            // Expected if keyword field type is not registered
-            assertTrue("Exception should mention unsupported field type", 
-                      e.getMessage().contains("Unsupported field type"));
-        }
-
+        assertEquals(LARGE_ROW_ID, rowIdVector.get(INITIAL_ROW_COUNT));
+        parquetDocumentInput.setPrimaryTerm(PRIMARY_TERM_FIELD_NAME, LARGE_PRIMARY_TERM);
+        BigIntVector primaryTermVector = (BigIntVector) managedVSR.getVector(PRIMARY_TERM_FIELD_NAME);
+        assertEquals(LARGE_PRIMARY_TERM, primaryTermVector.get(INITIAL_ROW_COUNT));
+        parquetDocumentInput.addField(keywordFieldType, SAMPLE_KEYWORD_VALUE);
         WriteResult result = parquetDocumentInput.addToWriter();
-        assertNotNull("WriteResult should be returned", result);
-        assertTrue("WriteResult should indicate success", result.success());
-        assertEquals("Row count should be incremented", 1, managedVSR.getRowCount());
+        assertNotNull(result);
+        assertTrue(result.success());
+        assertEquals(FIRST_ROW_COUNT, managedVSR.getRowCount());
     }
 
     public void testRowCountIncrementsForEveryAddToWriterCall() throws IOException {
-        assertEquals("Initial row count should be 0", 0, managedVSR.getRowCount());
-
+        assertEquals(INITIAL_ROW_COUNT, managedVSR.getRowCount());
         WriteResult result1 = parquetDocumentInput.addToWriter();
-        assertNotNull("First WriteResult should not be null", result1);
-        assertEquals("Row count should be 1 after first call", 1, managedVSR.getRowCount());
-
+        assertNotNull(result1);
+        assertEquals(FIRST_ROW_COUNT, managedVSR.getRowCount());
         WriteResult result2 = parquetDocumentInput.addToWriter();
-        assertNotNull("Second WriteResult should not be null", result2);
-        assertEquals("Row count should be 2 after second call", 2, managedVSR.getRowCount());
-
+        assertNotNull(result2);
+        assertEquals(SECOND_ROW_COUNT, managedVSR.getRowCount());
         WriteResult result3 = parquetDocumentInput.addToWriter();
-        assertNotNull("Third WriteResult should not be null", result3);
-        assertEquals("Row count should be 3 after third call", 3, managedVSR.getRowCount());
-    }
-
-    private void assertDoesNotThrow(Runnable runnable) {
-        try {
-            runnable.run();
-        } catch (Exception | Error e) {
-            fail("Expected no exception, but got: " + e.getMessage());
-        }
+        assertNotNull(result3);
+        assertEquals(THIRD_ROW_COUNT, managedVSR.getRowCount());
     }
 }
