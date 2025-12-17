@@ -5283,6 +5283,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             long batchSize = recoverySettings.getTranslogConcurrentRecoveryBatchSize();
             boolean threadPoolNotBusy = ((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.TRANSLOG_RECOVERY)).getQueue()
                 .isEmpty();
+            // When the total totalOperations <= batchSize, there is no need to use concurrent execution.
             if (recoverySettings.isTranslogConcurrentRecoveryEnable()
                 && indexSettings.isSegRepEnabledOrRemoteNode()
                 && totalOperations > batchSize
@@ -5292,6 +5293,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 List<Translog.Snapshot> translogSnapshotList = new ArrayList<>();
                 List<Future<Integer>> translogRecoveryFutureList = new ArrayList<>();
                 try {
+                    // Since the translog does not change at this time, it is safe to re-partition the translog snapshot here.
                     for (int i = 0; i < batches; i++) {
                         long start = localCheckpoint + 1 + (long) i * batchSize;
                         long end = (i == batches - 1) ? Long.MAX_VALUE : start + batchSize - 1;
