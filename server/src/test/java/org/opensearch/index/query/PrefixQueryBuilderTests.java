@@ -43,6 +43,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.index.query.QueryBuilders.prefixQuery;
@@ -64,12 +65,12 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     protected Map<String, PrefixQueryBuilder> getAlternateVersions() {
         Map<String, PrefixQueryBuilder> alternateVersions = new HashMap<>();
         PrefixQueryBuilder prefixQuery = randomPrefixQuery();
-        String contentString = """
+        String contentString = String.format(Locale.ROOT, """
             {
                 "prefix" : {
                     "%s" : "%s"
                 }
-            }""".formatted(prefixQuery.fieldName(), prefixQuery.value());
+            }""", prefixQuery.fieldName(), prefixQuery.value());
         alternateVersions.put(contentString, prefixQuery);
         return alternateVersions;
     }

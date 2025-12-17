@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -83,12 +84,12 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
     protected Map<String, RegexpQueryBuilder> getAlternateVersions() {
         Map<String, RegexpQueryBuilder> alternateVersions = new HashMap<>();
         RegexpQueryBuilder regexpQuery = randomRegexpQuery();
-        String contentString = """
+        String contentString = String.format(Locale.ROOT, """
             {
                 "regexp" : {
                     "%s" : "%s"
                 }
-            }""".formatted(regexpQuery.fieldName(), regexpQuery.value());
+            }""", regexpQuery.fieldName(), regexpQuery.value());
         alternateVersions.put(contentString, regexpQuery);
         return alternateVersions;
     }

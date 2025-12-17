@@ -38,6 +38,7 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.test.VersionUtils;
 
 import java.util.Collections;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -87,9 +88,9 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseSkipSectionVersionNoFeature() throws Exception {
         Version version = VersionUtils.randomVersion(random());
-        parser = createParser(YamlXContent.yamlXContent, """
+        parser = createParser(YamlXContent.yamlXContent, String.format(Locale.ROOT, """
             version:     " - %s"
-            reason:      Delete ignores the parent param""".formatted(version));
+            reason:      Delete ignores the parent param""", version));
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());

@@ -48,6 +48,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -88,13 +89,13 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         internalCluster().startClusterManagerOnlyNode();
         final String pipelineId = "foo";
-        client().admin().cluster().preparePutPipeline(pipelineId, new BytesArray("""
+        client().admin().cluster().preparePutPipeline(pipelineId, new BytesArray(String.format(Locale.ROOT, """
             {
               "processors" : [
               {"set" : {"field": "any_field", "value": "any_value"}},
               {"set" : {    "if" : {"lang": "%s", "source": "throwing_script"},    "field": "any_field2",    "value": "any_value2"}  }
               ]
-            }""".formatted(MockScriptEngine.NAME)), MediaTypeRegistry.JSON).get();
+            """, MockScriptEngine.NAME)), MediaTypeRegistry.JSON).get();
 
         Exception e = expectThrows(
             Exception.class,
@@ -126,12 +127,12 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         String pipelineIdWithScript = pipelineIdWithoutScript + "_script";
         internalCluster().startNode();
 
-        BytesReference pipelineWithScript = new BytesArray("""
+        BytesReference pipelineWithScript = new BytesArray(String.format(Locale.ROOT, """
             {
               "processors" : [
                   {"script" : {"lang": "%s", "source": "my_script"}}
               ]
-            }""".formatted(MockScriptEngine.NAME));
+            """, MockScriptEngine.NAME));
         BytesReference pipelineWithoutScript = new BytesArray("""
             {
               "processors" : [
@@ -203,8 +204,8 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
     public void testPipelineWithScriptProcessorThatHasStoredScript() throws Exception {
         internalCluster().startNode();
 
-        client().admin().cluster().preparePutStoredScript().setId("1").setContent(new BytesArray("""
-            {"script": {"lang": "%s", "source": "my_script"} }""".formatted(MockScriptEngine.NAME)), MediaTypeRegistry.JSON).get();
+        client().admin().cluster().preparePutStoredScript().setId("1").setContent(new BytesArray(String.format(Locale.ROOT, """
+            {"script": {"lang": "%s", "source": "my_script"} }""", MockScriptEngine.NAME)), MediaTypeRegistry.JSON).get();
         BytesReference pipeline = new BytesArray("""
             {
               "processors" : [

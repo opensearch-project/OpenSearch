@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
@@ -77,12 +78,12 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         QueryBuilder innerQuery = createTestQueryBuilder().innerQueries().get(0);
         DisMaxQueryBuilder expectedQuery = new DisMaxQueryBuilder();
         expectedQuery.add(innerQuery);
-        String contentString = """
+        String contentString = String.format(Locale.ROOT, """
             {
                 "dis_max" : {
                     "queries" : %s    }
             }
-            """.formatted(innerQuery.toString());
+            """, innerQuery.toString());
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
     }
@@ -93,7 +94,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     public void testToQueryInnerPrefixQuery() throws Exception {
-        String queryAsString = """
+        String queryAsString = String.format(Locale.ROOT, """
             {
                 "dis_max":{
                     "queries":[
@@ -108,7 +109,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                     ]
                 }
             }
-            """.formatted(TEXT_FIELD_NAME);
+            """, TEXT_FIELD_NAME);
         Query query = parseQuery(queryAsString).toQuery(createShardContext());
         Query expected = new DisjunctionMaxQuery(
             List.of(new BoostQuery(new PrefixQuery(new Term(TEXT_FIELD_NAME, "sh"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE), 1.2f)),
