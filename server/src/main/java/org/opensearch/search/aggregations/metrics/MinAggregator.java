@@ -181,15 +181,15 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             }
 
             @Override
-            public void collectRange(int min, int max) throws IOException {
-                growMins(0);
-                double minimum = mins.get(0);
+            public void collectRange(int min, int max, long bucket) throws IOException {
+                growMins(bucket);
+                double minimum = mins.get(bucket);
                 for (int doc = min; doc < max; doc++) {
                     if (values.advanceExact(doc)) {
                         minimum = Math.min(minimum, values.doubleValue());
                     }
                 }
-                mins.set(0, minimum);
+                mins.set(bucket, minimum);
             }
 
             private void growMins(long bucket) {

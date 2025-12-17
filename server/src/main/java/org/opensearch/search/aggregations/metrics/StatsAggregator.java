@@ -154,11 +154,11 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             }
 
             @Override
-            public void collectRange(int min, int max) throws IOException {
-                growStats(0);
+            public void collectRange(int min, int max, long bucket) throws IOException {
+                growStats(bucket);
 
-                double minimum = mins.get(0);
-                double maximum = maxes.get(0);
+                double minimum = mins.get(bucket);
+                double maximum = maxes.get(bucket);
                 for (int doc = min; doc < maximum; doc++) {
                     if (values.advanceExact(doc)) {
                         final int valuesCount = values.docValueCount();
@@ -172,10 +172,10 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
                         }
                     }
                 }
-                sums.set(0, kahanSummation.value());
-                compensations.set(0, kahanSummation.delta());
-                mins.set(0, minimum);
-                maxes.set(0, maximum);
+                sums.set(bucket, kahanSummation.value());
+                compensations.set(bucket, kahanSummation.delta());
+                mins.set(bucket, minimum);
+                maxes.set(bucket, maximum);
             }
 
             private void growStats(long bucket) {
