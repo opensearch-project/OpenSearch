@@ -400,7 +400,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         String json = """
             {
               "simple_query_string" : {
-                "query" : "\"fried eggs\" +(eggplant | potato) -frittata",
+                "query" : "\\\"fried eggs\\\" +(eggplant | potato) -frittata",
                 "fields" : [ "body^5.0" ],
                 "analyzer" : "snowball",
                 "flags" : -1,

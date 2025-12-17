@@ -51,6 +51,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -251,20 +252,12 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
               "f2": 47
             }
             """ };
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "bulk:\n"
-                + "    refresh: true\n"
-                + "    body: |\n"
-                + "        "
-                + bodies[0]
-                + "        "
-                + bodies[1]
-                + "        "
-                + bodies[2]
-                + "        "
-                + bodies[3]
-        );
+        String bulkBody = Arrays.stream(bodies)
+            .map(l -> l.strip().replace("\n", ""))
+            .map(l -> "      " + l)
+            .collect(Collectors.joining("\n"))
+            + "\n";
+        parser = createParser(YamlXContent.yamlXContent, "bulk:\n" + "    refresh: true\n" + "    body: |\n" + bulkBody);
 
         DoSection doSection = DoSection.parse(parser);
         ApiCallSection apiCallSection = doSection.getApiCallSection();

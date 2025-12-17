@@ -92,10 +92,10 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         client().admin().cluster().preparePutPipeline(pipelineId, new BytesArray(String.format(Locale.ROOT, """
             {
               "processors" : [
-              {"set" : {"field": "any_field", "value": "any_value"}},
-              {"set" : {    "if" : {"lang": "%s", "source": "throwing_script"},    "field": "any_field2",    "value": "any_value2"}  }
+                {"set" : {"field": "any_field", "value": "any_value"}},
+                {"set" : {"if" : {"lang": "%s", "source": "throwing_script"},    "field": "any_field2",    "value": "any_value2"}  }
               ]
-            """, MockScriptEngine.NAME)), MediaTypeRegistry.JSON).get();
+            }""", MockScriptEngine.NAME)), MediaTypeRegistry.JSON).get();
 
         Exception e = expectThrows(
             Exception.class,
@@ -132,7 +132,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
               "processors" : [
                   {"script" : {"lang": "%s", "source": "my_script"}}
               ]
-            """, MockScriptEngine.NAME));
+            }""", MockScriptEngine.NAME));
         BytesReference pipelineWithoutScript = new BytesArray("""
             {
               "processors" : [
