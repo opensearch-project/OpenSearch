@@ -280,6 +280,6 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
 
     @Override
     public boolean supportsIntraSegmentSearch() {
-        return true;  // Phrase queries benefit from parallel position matching
+        return true;
     }
 }

@@ -313,7 +313,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     @Override
     public boolean supportsIntraSegmentSearch() {
-        return true;  // Span queries benefit from parallel position matching
+        return true;
     }
 
     /**

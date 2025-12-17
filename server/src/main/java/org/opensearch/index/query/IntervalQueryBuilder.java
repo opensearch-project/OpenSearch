@@ -181,6 +181,6 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
 
     @Override
     public boolean supportsIntraSegmentSearch() {
-        return true;  // Interval queries benefit from parallel processing
+        return true;
     }
 }

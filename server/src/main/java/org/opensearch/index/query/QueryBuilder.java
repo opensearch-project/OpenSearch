@@ -123,14 +123,13 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
      * into doc ID ranges for parallel processing).
      *
      * Override to return {@code true} for compute-heavy queries that parallelize well
-     * (e.g., span queries, phrase queries, boolean with scoring).
      *
      * Default is {@code false} (conservative) - queries must explicitly opt-in.
      *
      * @return {@code true} if query benefits, {@code false} otherwise
      */
     default boolean supportsIntraSegmentSearch() {
-        return false;  // Conservative default - must opt-in
+        return false;
     }
 
 }

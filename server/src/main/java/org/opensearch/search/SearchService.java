@@ -2069,9 +2069,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @return the computed default slice count
      */
     private static int computeDefaultSliceCount() {
-        // int sliceCount = Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
-        // logger.info("The computeDefaultSliceCount is {}", sliceCount);
-        // return sliceCount;
         return Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
     }
 

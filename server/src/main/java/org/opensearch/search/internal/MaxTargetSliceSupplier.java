@@ -21,10 +21,10 @@ import java.util.PriorityQueue;
 import java.util.Set;
 
 /**
- * Supplier to compute leaf slices based on passed in leaves and max target slice count.
- *
- * Uses threshold-based automatic partitioning: only segments that are too large relative
- * to the target slice size get partitioned.
+ * Supplier to compute leaf slices based on passed in leaves and max target slice count to limit the number of computed slices. It sorts
+ * all the leaves based on document count and then assign each leaf in round-robin fashion to the target slice count slices. Based on
+ * experiment results as shared in <a href=https://github.com/opensearch-project/OpenSearch/issues/7358>issue-7358</a>
+ * we can see this mechanism helps to achieve better tail/median latency over default lucene slice computation.
  *
  * @opensearch.internal
  */

@@ -990,6 +990,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     @Override
     public boolean supportsIntraSegmentSearch() {
-        return true;  // Query string benefits from parallel processing
+        return true;
     }
 }
