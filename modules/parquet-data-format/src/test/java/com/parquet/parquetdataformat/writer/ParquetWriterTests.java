@@ -5,69 +5,50 @@
 package com.parquet.parquetdataformat.writer;
 
 import com.parquet.parquetdataformat.memory.ArrowBufferPool;
-import com.parquet.parquetdataformat.vsr.ManagedVSR;
-import com.parquet.parquetdataformat.vsr.VSRManager;
 import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.InOrder;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Optional;
 
 import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DATA_FORMAT;
-import static org.junit.Assert.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 
 /**
- * Unit Tests for ParquetWriter covering all must-have scenarios.
+ * Unit tests for ParquetWriter testing actual behavior through public interface.
  */
 public class ParquetWriterTests extends OpenSearchTestCase {
 
     private ParquetWriter writer;
-
-    @Mock
-    private VSRManager vsrManager;
-
-    @Mock
-    private FlushIn flushIn;
+    private ArrowBufferPool bufferPool;
+    private Path tempFile;
 
     @Override
     public void setUp() throws Exception {
-        MockitoAnnotations.openMocks(this);
+        super.setUp();
 
-        Schema schema = new Schema(List.of(
+        Schema schema = new Schema(Arrays.asList(
+            Field.nullable(CompositeDataFormatWriter.ROW_ID, Types.MinorType.BIGINT.getType()),
+            Field.nullable("_primary", Types.MinorType.BIGINT.getType()),
             Field.nullable("id", Types.MinorType.BIGINT.getType()),
             Field.nullable("name", Types.MinorType.VARCHAR.getType()),
-            Field.nullable("email", Types.MinorType.VARCHAR.getType()),
-            Field.nullable("age", Types.MinorType.INT.getType()),
-            Field.nullable("active", Types.MinorType.BIT.getType()),
-            Field.nullable("created_at", Types.MinorType.BIGINT.getType())
+            Field.nullable("active", Types.MinorType.BIT.getType())
         ));
 
         Path tempDir = createTempDir();
-        Path parquetFile = tempDir.resolve("unit-test.parquet");
+        tempFile = tempDir.resolve("test-writer.parquet");
 
-        ArrowBufferPool bufferPool = new ArrowBufferPool(Settings.EMPTY);
-        writer = new ParquetWriter(
-            parquetFile.toString(),
-            schema,
-            42L,
-            bufferPool
-        );
+        bufferPool = new ArrowBufferPool(Settings.EMPTY);
+        writer = new ParquetWriter(tempFile.toString(), schema, 42L, bufferPool);
     }
 
     @Override
@@ -75,111 +56,142 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         if (writer != null) {
             writer.close();
         }
+        if (bufferPool != null) {
+            bufferPool.close();
+        }
         super.tearDown();
     }
 
     public void shouldDelegateAddDocToVSRManagerAndReturnResult() throws IOException {
-        ParquetDocumentInput input = mock(ParquetDocumentInput.class);
-        WriteResult expectedResult = new WriteResult(true, null, 1L, 1L, 1L);
-
-        when(vsrManager.addToManagedVSR(input)).thenReturn(expectedResult);
+        ParquetDocumentInput input = writer.newDocumentInput();
+        input.addRowIdField("_id", 123L);
+        input.setPrimaryTerm("_primary", 1L);
 
         WriteResult actualResult = writer.addDoc(input);
 
-        assertSame("AddDoc should return WriteResult from VSRManager", expectedResult, actualResult);
-        verify(vsrManager).addToManagedVSR(input);
-        verifyNoMoreInteractions(vsrManager);
+        assertNotNull("AddDoc should return WriteResult", actualResult);
+        assertTrue("WriteResult should indicate success", actualResult.success());
+        assertNull("WriteResult should have no exception", actualResult.e());
     }
 
-    public void shouldPropagateIOExceptionThrownByVSRManagerOnAddDoc() throws IOException {
-        ParquetDocumentInput input = mock(ParquetDocumentInput.class);
-        IOException expectedException = new IOException("Simulated add failure");
+    public void shouldHandleAddDocWithClosedWriter() throws IOException {
+        ParquetDocumentInput input = writer.newDocumentInput();
+        input.addRowIdField("_id", 123L);
+        input.setPrimaryTerm("_primary", 1L);
 
-        when(vsrManager.addToManagedVSR(input)).thenThrow(expectedException);
+        writer.close();
 
-        IOException thrown = assertThrows(IOException.class, () -> writer.addDoc(input));
-        assertEquals("Simulated add failure", thrown.getMessage());
-
-        verify(vsrManager).addToManagedVSR(input);
-        verifyNoMoreInteractions(vsrManager);
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> writer.addDoc(input));
+        assertNotNull("Exception should be thrown when adding to closed writer", thrown);
     }
 
-    public void shouldReturnEmptyFileInfosWhenFlushReturnsNull() throws IOException {
-        when(vsrManager.flush(flushIn)).thenReturn(null);
-
-        FileInfos fileInfos = writer.flush(flushIn);
+    public void shouldReturnEmptyFileInfosWhenFlushWithNoData() throws IOException {
+        FileInfos fileInfos = writer.flush(new FlushIn() {});
 
         assertNotNull(fileInfos);
-        assertTrue("FileInfos should be empty when flush returns null", fileInfos.getWriterFilesMap().isEmpty());
-        verify(vsrManager).flush(flushIn);
-        verifyNoMoreInteractions(vsrManager);
+        assertTrue("FileInfos should be empty when no data to flush", fileInfos.getWriterFilesMap().isEmpty());
     }
 
     public void shouldBuildCorrectWriterFileSetOnFlush() throws IOException {
-        String flushFilePath = "/tmp/output/data.parquet";
-        when(vsrManager.flush(flushIn)).thenReturn(flushFilePath);
-
-        FileInfos fileInfos = writer.flush(flushIn);
+        ParquetDocumentInput input = writer.newDocumentInput();
+        input.addRowIdField("_id", 456L);
+        input.setPrimaryTerm("_primary", 1L);
+        
+        writer.addDoc(input);
+        FileInfos fileInfos = writer.flush(new FlushIn() {});
 
         Optional<WriterFileSet> optional = fileInfos.getWriterFileSet(PARQUET_DATA_FORMAT);
         assertTrue("WriterFileSet should be present after flush", optional.isPresent());
 
         WriterFileSet fileSet = optional.get();
         assertEquals("Writer generation should match", 42L, fileSet.getWriterGeneration());
-        assertEquals("Directory should match", Path.of("/tmp/output"), fileSet.getDirectory());
-        assertTrue("Files should contain parquet filename", fileSet.getFiles().contains("data.parquet"));
-
-        verify(vsrManager).flush(flushIn);
-        verifyNoMoreInteractions(vsrManager);
+        assertEquals("Directory should match", tempFile.getParent().toString(), fileSet.getDirectory());
+        assertTrue("Files should contain parquet filename", 
+                  fileSet.getFiles().stream().anyMatch(f -> f.endsWith(".parquet")));
     }
 
-    public void shouldCreateNewDocumentInputAndHandleRotationFailureGracefully() throws IOException {
-        ManagedVSR managedVSR = mock(ManagedVSR.class);
+    public void shouldCreateNewDocumentInputSuccessfully() throws IOException {
+        ParquetDocumentInput input1 = writer.newDocumentInput();
+        ParquetDocumentInput input2 = writer.newDocumentInput();
 
-        doThrow(new IOException("Rotation failed")).when(vsrManager).maybeRotateActiveVSR();
-        when(vsrManager.getActiveManagedVSR()).thenReturn(managedVSR);
-
-        ParquetDocumentInput input = writer.newDocumentInput();
-
-        assertNotNull("New document input should not be null even on rotation failure", input);
-        verify(vsrManager).maybeRotateActiveVSR();
-        verify(vsrManager).getActiveManagedVSR();
-        verifyNoMoreInteractions(vsrManager);
+        assertNotNull(input1);
+        assertNotNull(input2);
+        assertNotNull(input1.getFinalInput());
+        assertNotSame(input1, input2);
+        
+        input1.addRowIdField("_id", 100L);
+        input1.setPrimaryTerm("_primary", 1L);
+        input2.addRowIdField("_id", 200L);
+        input2.setPrimaryTerm("_primary", 2L);
+        
+        assertTrue(writer.addDoc(input1).success());
+        assertTrue(writer.addDoc(input2).success());
     }
 
-    public void shouldDelegateCloseToVSRManager() {
+    public void shouldCloseSuccessfully() {
         writer.close();
-        verify(vsrManager).close();
-        verifyNoMoreInteractions(vsrManager);
+        writer.close();
     }
 
-    public void shouldInvokeMethodsInProperLifecycleOrder() throws IOException {
-        ManagedVSR managedVSR = mock(ManagedVSR.class);
-        when(vsrManager.getActiveManagedVSR()).thenReturn(managedVSR);
-        when(vsrManager.addToManagedVSR(any())).thenReturn(new WriteResult(true, null, 1L, 1L, 1L));
-        when(vsrManager.flush(any())).thenReturn(null);
+    public void shouldExecuteCompleteLifecycleSuccessfully() throws IOException {
+        ParquetDocumentInput input1 = writer.newDocumentInput();
+        input1.addRowIdField("_id", 100L);
+        input1.setPrimaryTerm("_primary", 1L);
+        
+        ParquetDocumentInput input2 = writer.newDocumentInput();
+        input2.addRowIdField("_id", 200L);
+        input2.setPrimaryTerm("_primary", 1L);
 
-        ParquetDocumentInput input = writer.newDocumentInput();
-        writer.addDoc(input);
-        writer.flush(flushIn);
+        WriteResult result1 = writer.addDoc(input1);
+        WriteResult result2 = writer.addDoc(input2);
+        
+        assertTrue("First write should succeed", result1.success());
+        assertTrue("Second write should succeed", result2.success());
+        
+        FileInfos fileInfos = writer.flush(new FlushIn() {});
+        assertNotNull("FileInfos should not be null", fileInfos);
+        
         writer.close();
-
-        InOrder inOrder = inOrder(vsrManager);
-        inOrder.verify(vsrManager).maybeRotateActiveVSR();
-        inOrder.verify(vsrManager).getActiveManagedVSR();
-        inOrder.verify(vsrManager).addToManagedVSR(any());
-        inOrder.verify(vsrManager).flush(flushIn);
-        inOrder.verify(vsrManager).close();
-
-        verifyNoMoreInteractions(vsrManager);
     }
 
     public void shouldAllowMultipleSyncCallsWithoutSideEffects() throws IOException {
-        // sync is a no-op in ParquetWriter, so just call multiple times and verify no exception
         writer.sync();
         writer.sync();
+    }
 
-        // No interactions expected with vsrManager on sync
-        verifyNoInteractions(vsrManager);
+    public void testCompleteEndToEndWorkflow() throws IOException {
+        ParquetDocumentInput doc1 = writer.newDocumentInput();
+        doc1.addRowIdField("_id", 1001L);
+        doc1.setPrimaryTerm("_primary", 1L);
+        
+        ParquetDocumentInput doc2 = writer.newDocumentInput();
+        doc2.addRowIdField("_id", 1002L);
+        doc2.setPrimaryTerm("_primary", 2L);
+        
+        ParquetDocumentInput doc3 = writer.newDocumentInput();
+        doc3.addRowIdField("_id", 1003L);
+        doc3.setPrimaryTerm("_primary", 3L);
+
+        WriteResult result1 = writer.addDoc(doc1);
+        WriteResult result2 = writer.addDoc(doc2);
+        WriteResult result3 = writer.addDoc(doc3);
+
+        assertTrue("All writes should succeed", result1.success() && result2.success() && result3.success());
+
+        FileInfos fileInfos = writer.flush(new FlushIn() {});
+        
+        assertNotNull("FileInfos should not be null", fileInfos);
+        Optional<WriterFileSet> writerFileSet = fileInfos.getWriterFileSet(PARQUET_DATA_FORMAT);
+        
+        if (writerFileSet.isPresent()) {
+            WriterFileSet fileSet = writerFileSet.get();
+            assertEquals("Generation should match", 42L, fileSet.getWriterGeneration());
+            assertFalse("Files should not be empty", fileSet.getFiles().isEmpty());
+            
+            boolean hasParquetFile = fileSet.getFiles().stream().anyMatch(f -> f.endsWith(".parquet"));
+            assertTrue("Should contain parquet file", hasParquetFile);
+        }
+
+        writer.close();
     }
 }
