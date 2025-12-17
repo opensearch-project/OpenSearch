@@ -270,7 +270,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 Map<String, Object[]> finalRes = new HashMap<>();
                 List<Long> rowIdResult = new ArrayList<>();
                 if(streamPointer == null) {
-                    throw new RuntimeException(error);
+                    listener.onFailure(new RuntimeException(error));
+                    return;
                 }
                 RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
                 RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
