@@ -49,7 +49,7 @@ public class SearchResponseProtoUtils {
      *
      * @param response The SearchResponse to convert
      * @param searchResponseProtoBuilder The builder to populate with the SearchResponse data
-     * @param params
+     * @param params The global gRPC request parameters
      * @throws IOException if there's an error during conversion
      */
     public static void toProto(
