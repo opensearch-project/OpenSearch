@@ -85,6 +85,9 @@ configurations.all {
 }
 
 dependencies {
+  // Vectorized execution SPI for shared JNI utilities (RustLoggerBridge)
+  implementation project(':libs:opensearch-vectorized-exec-spi')
+
   // Apache Arrow dependencies (using stable version with unsafe allocator)
   implementation 'org.apache.arrow:arrow-vector:17.0.0'
   implementation 'org.apache.arrow:arrow-memory-core:17.0.0'

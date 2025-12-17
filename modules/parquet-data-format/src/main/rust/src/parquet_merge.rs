@@ -14,7 +14,7 @@ use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::arrow_writer::ArrowWriter;
 
-use crate::{rust_log_info, rust_log_error};
+use crate::{log_info, log_error};
 
 // Constants
 const READER_BATCH_SIZE: usize = 8192;
@@ -69,11 +69,11 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
             .map_err(|e| format!("Failed to get output file string: {}", e))?
             .into();
 
-        log_info(&format!("Starting merge of {} files to {}", input_files_vec.len(), output_path));
+        log_info!("Starting merge of {} files to {}", input_files_vec.len(), output_path);
 
         process_parquet_files(&input_files_vec, &output_path)?;
 
-        log_info("Merge completed successfully");
+        log_info!("Merge completed successfully");
         Ok(())
     });
 
@@ -81,13 +81,13 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
         Ok(Ok(_)) => 0,
         Ok(Err(e)) => {
             let error_msg = format!("Error processing Parquet files: {}", e);
-            log_error(&error_msg);
+            log_error!("{}", error_msg);
             let _ = env.throw_new("java/lang/RuntimeException", &error_msg);
             -1
         }
         Err(e) => {
             let error_msg = format!("Rust panic occurred: {:?}", e);
-            log_error(&error_msg);
+            log_error!("{}", error_msg);
             let _ = env.throw_new("java/lang/RuntimeException", &error_msg);
             -1
         }
@@ -101,7 +101,7 @@ pub fn process_parquet_files(input_files: &[String], output_path: &str) -> Resul
 
     // Read schema from first file
     let schema = read_schema_from_file(&input_files[0])?;
-    log_info(&format!("Schema read successfully: {:?}", schema));
+    log_info!("Schema read successfully: {:?}", schema);
 
     // Create writer
     let mut writer = create_writer(output_path, schema.clone())?;
@@ -113,10 +113,10 @@ pub fn process_parquet_files(input_files: &[String], output_path: &str) -> Resul
     writer.close()
         .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to close writer: {}", e)))?;
 
-    log_info(&format!(
+    log_info!(
         "Processing complete: {} files, {} rows, {} batches",
         stats.files_processed, stats.total_rows, stats.total_batches
-    ));
+    );
 
     Ok(())
 }
@@ -175,7 +175,7 @@ fn process_files(
     };
 
     for path in input_files {
-        log_info(&format!("Processing file: {}", path));
+        log_info!("Processing file: {}", path);
 
         let file = File::open(path)
             .map_err(|e| ParquetMergeError::InvalidFile(format!("{}: {}", path, e)))?;
@@ -209,7 +209,7 @@ fn process_files(
         stats.total_rows += file_rows;
         stats.total_batches += file_batches;
 
-        log_info(&format!("File processed: {} rows, {} batches", file_rows, file_batches));
+        log_info!("File processed: {} rows, {} batches", file_rows, file_batches);
     }
 
     Ok(stats)
@@ -269,14 +269,6 @@ fn catch_unwind<F: FnOnce() -> Result<(), Box<dyn Error>>>(
     std::panic::catch_unwind(AssertUnwindSafe(f))
 }
 
-// Logging functions
-fn log_info(message: &str) {
-    rust_log_info!("{}", message);
-}
-
-fn log_error(message: &str) {
-    rust_log_error!("{}", message);
-}
 
 // Close function
 // #[no_mangle]

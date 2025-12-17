@@ -1,0 +1,12 @@
+[package]
+name = "vectorized-exec-spi"
+version = "0.1.0"
+edition = "2021"
+description = "Shared Rust utilities for OpenSearch vectorized execution"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+jni = "0.21"

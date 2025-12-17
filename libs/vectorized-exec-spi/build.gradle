@@ -14,6 +14,9 @@ dependencies {
   api project(':libs:opensearch-core')
   api project(':libs:opensearch-common')
 
+  // Log4j for RustLoggerBridge - used by JNI code to log from Rust
+  implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'vectorized-exec-spi'
   }

@@ -5,20 +5,17 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use datafusion::arrow::array::RecordBatch;
-use datafusion::execution::cache::cache_manager::FileMetadata;
 use jni::objects::{GlobalRef, JObject, JObjectArray, JString};
 use jni::sys::jlong;
 use jni::JNIEnv;
-use object_store::{path::Path as ObjectPath, ObjectMeta, ObjectStore};
+use object_store::{path::Path as ObjectPath, ObjectMeta};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use datafusion::error::DataFusionError;
 use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use crate::CustomFileMeta;
-use std::sync::Arc;
-use datafusion::datasource::physical_plan::parquet::CachedParquetMetaData;
-use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
+
 
 /// Set error message from a result using a Consumer<String> Java callback
 pub fn set_error_message_batch<Err: Error>(
@@ -149,7 +146,7 @@ pub fn create_file_meta_from_filenames(
 
             let file_size = fs::metadata(&full_path).map(|m| m.len()).unwrap_or(0);
             let file_result = fs::File::open(&full_path.clone());
-            if (file_result.is_err()) {
+            if file_result.is_err() {
                 return Err(DataFusionError::Execution(format!(
                     "{} {}",
                     file_result.unwrap_err().to_string(),
