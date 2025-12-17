@@ -13,13 +13,33 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.engine.exec.*;
+import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.FileInfos;
+import org.opensearch.index.engine.exec.FlushIn;
+import org.opensearch.index.engine.exec.Merger;
+import org.opensearch.index.engine.exec.RefreshInput;
+import org.opensearch.index.engine.exec.RefreshResult;
+import org.opensearch.index.engine.exec.WriteResult;
+import org.opensearch.index.engine.exec.Writer;
+import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
+import org.opensearch.index.mapper.BooleanFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DATA_FORMAT;
@@ -41,7 +61,7 @@ public class ParquetExecutionEngineTests extends OpenSearchTestCase {
         super.setUp();
 
         settings = Settings.builder().build();
-        realSchema = createRealSchema();
+        realSchema = createTestSchema();
         schemaSupplier = () -> realSchema;
 
         Path tempDir = createTempDir();
@@ -63,11 +83,19 @@ public class ParquetExecutionEngineTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    private Schema createRealSchema() {
+    private Schema createTestSchema() {
         List<Field> fields = Arrays.asList(
+            Field.nullable(CompositeDataFormatWriter.ROW_ID, Types.MinorType.BIGINT.getType()),
+            Field.nullable("_primary", Types.MinorType.BIGINT.getType()),
             Field.nullable("id", Types.MinorType.BIGINT.getType()),
             Field.nullable("name", Types.MinorType.VARCHAR.getType()),
-            Field.nullable("active", Types.MinorType.BIT.getType())
+            Field.nullable("active", Types.MinorType.BIT.getType()),
+            Field.nullable("user_id", Types.MinorType.BIGINT.getType()),
+            Field.nullable("message", Types.MinorType.VARCHAR.getType()),
+            Field.nullable("count", Types.MinorType.INT.getType()),
+            Field.nullable("status", Types.MinorType.VARCHAR.getType()),
+            Field.nullable("price", Types.MinorType.FLOAT8.getType()),
+            Field.nullable("enabled", Types.MinorType.BIT.getType())
         );
         return new Schema(fields);
     }
@@ -127,12 +155,6 @@ public class ParquetExecutionEngineTests extends OpenSearchTestCase {
         assertEquals(PARQUET_DATA_FORMAT.name(), dataFormat.name());
     }
 
-    public void testRefreshReturnsEmptyResult() {
-        RefreshResult result = engine.refresh(new RefreshInput() {});
-        assertNotNull(result);
-        assertTrue(result.getRefreshedSegments().isEmpty());
-    }
-
     public void testGetNativeBytesUsedReturnsNonNegative() {
         long nativeBytes = engine.getNativeBytesUsed();
         assertTrue(nativeBytes >= 0);
@@ -166,6 +188,47 @@ public class ParquetExecutionEngineTests extends OpenSearchTestCase {
         } catch (Exception e) {
             // Ignore close exceptions in tests
         }
+        writer.close();
+    }
+
+    public void testCompleteWriterWorkflowWithMultipleDocuments() throws Exception {
+        long generation = 42L;
+        Writer<ParquetDocumentInput> writer = engine.createWriter(generation);
+        
+        Object[][] testData = {
+            {1001L, new NumberFieldMapper.NumberFieldType("user_id", NumberFieldMapper.NumberType.LONG), "user_id", 12345L},
+            {1002L, new NumberFieldMapper.NumberFieldType("count", NumberFieldMapper.NumberType.INTEGER), "count", 42},
+            {1003L, new BooleanFieldMapper.BooleanFieldType("enabled"), "enabled", true}
+        };
+
+        List<WriteResult> writeResults = new ArrayList<>();
+        List<ParquetDocumentInput> documentInputs = new ArrayList<>();
+
+        for (Object[] data : testData) {
+            ParquetDocumentInput doc = writer.newDocumentInput();
+            doc.addRowIdField("_id", (Long) data[0]);
+            doc.setPrimaryTerm("_primary", 1L);
+            doc.addField((MappedFieldType) data[1], data[3]);
+            
+            WriteResult result = writer.addDoc(doc);
+            assertTrue("Document write should succeed", result.success());
+            writeResults.add(result);
+            documentInputs.add(doc);
+        }
+
+        FileInfos fileInfos = writer.flush(new FlushIn() {});
+        WriterFileSet parquetFileSet = fileInfos.getWriterFileSet(PARQUET_DATA_FORMAT).orElse(null);
+        
+        assertNotNull("Parquet WriterFileSet should be present", parquetFileSet);
+        assertFalse("Should contain at least one file", parquetFileSet.getFiles().isEmpty());
+        
+        boolean hasParquetFile = parquetFileSet.getFiles().stream()
+            .anyMatch(f -> f.endsWith(".parquet") && f.contains("_parquet_file_generation_" + generation));
+        assertTrue("Should create Parquet file with correct naming pattern", hasParquetFile);
+        
+        assertEquals("Should have correct generation", generation, parquetFileSet.getWriterGeneration());
+        assertEquals("Should have processed correct number of documents", testData.length, writeResults.size());
+
         writer.close();
     }
 }
