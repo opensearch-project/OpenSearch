@@ -242,6 +242,10 @@ subprojects {
   apply plugin: 'opensearch.internal-distribution-archive-check'
 
   group = "org.opensearch.distribution"
+
+  tasks.named("assemble").configure {
+    dependsOn(tasks.named("installDist"))
+  }
 }
 
 tasks.each {
