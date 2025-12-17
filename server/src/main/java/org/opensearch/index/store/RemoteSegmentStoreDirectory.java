@@ -87,7 +87,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Always present - never null
      */
     private final CompositeRemoteDirectory compositeRemoteDirectory;
-    RemoteDirectory remoteDataDirectory;
 
     /**
      * remoteMetadataDirectory is used to store metadata files at path: cluster_UUID/index_UUID/shardId/segments/metadata
@@ -151,7 +150,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     ) throws IOException {
         super(remoteDirectory);
         this.compositeRemoteDirectory = null;
-        this.remoteDataDirectory = remoteDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
