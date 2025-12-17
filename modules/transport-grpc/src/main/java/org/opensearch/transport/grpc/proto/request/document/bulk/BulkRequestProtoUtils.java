@@ -10,7 +10,6 @@ package org.opensearch.transport.grpc.proto.request.document.bulk;
 
 import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.protobufs.BulkRequest;
-import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
