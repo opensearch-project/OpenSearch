@@ -146,6 +146,7 @@ thirdPartyAudit {
     'io.netty.channel.uring.IoUringIoHandler',
     'io.netty.channel.uring.IoUringServerSocketChannel',
     'io.netty.channel.uring.IoUringSocketChannel',
+    'io.netty.handler.codec.quic.Quic',
     'io.netty.handler.codec.quic.QuicChannel',
     'io.netty.handler.codec.quic.QuicChannelBootstrap',
     'io.netty.handler.codec.quic.QuicClientCodecBuilder',

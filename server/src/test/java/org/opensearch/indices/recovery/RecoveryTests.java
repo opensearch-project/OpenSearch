@@ -529,4 +529,45 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             }
         }
     }
+
+    public void testRecoveryTrimsLocalTranslogWithReadForward() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_READ_FORWARD_SETTING.getKey(), true).build();
+        try (ReplicationGroup shards = createGroup(between(1, 2), settings, new InternalEngineFactory())) {
+            shards.startAll();
+            IndexShard oldPrimary = shards.getPrimary();
+            shards.indexDocs(scaledRandomIntBetween(1, 100));
+            if (randomBoolean()) {
+                shards.flush();
+            }
+            int inflightDocs = scaledRandomIntBetween(1, 100);
+            for (int i = 0; i < inflightDocs; i++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_" + i).source("{}", MediaTypeRegistry.JSON);
+                final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
+                for (IndexShard replica : randomSubsetOf(shards.getReplicas())) {
+                    indexOnReplica(bulkShardRequest, shards, replica);
+                }
+                if (rarely()) {
+                    shards.flush();
+                }
+            }
+            shards.syncGlobalCheckpoint();
+            shards.promoteReplicaToPrimary(randomFrom(shards.getReplicas())).get();
+            oldPrimary.close("demoted", false, false);
+            oldPrimary.store().close();
+            oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
+            shards.recoverReplica(oldPrimary);
+            for (IndexShard shard : shards) {
+                assertConsistentHistoryBetweenTranslogAndLucene(shard);
+            }
+            final List<DocIdSeqNoAndSource> docsAfterRecovery = getDocIdAndSeqNos(shards.getPrimary());
+            for (IndexShard shard : shards.getReplicas()) {
+                assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
+            }
+            shards.promoteReplicaToPrimary(oldPrimary).get();
+            for (IndexShard shard : shards) {
+                assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
+                assertConsistentHistoryBetweenTranslogAndLucene(shard);
+            }
+        }
+    }
 }
