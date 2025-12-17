@@ -41,7 +41,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     public DatafusionReaderManager(String path, Collection<FileMetadata> files, String dataFormat) throws IOException {
         WriterFileSet writerFileSet = new WriterFileSet(Path.of(URI.create("file:///" + path)), 1);
         files.forEach(fileMetadata -> writerFileSet.add(fileMetadata.file()));
-        this.current = new DatafusionReader(path, List.of(writerFileSet));;
+        this.current = new DatafusionReader(path, null, List.of(writerFileSet));
         this.path = path;
         this.dataFormat = dataFormat;
     }
@@ -76,7 +76,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 
     @Override
     public void afterRefresh(boolean didRefresh, CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot) throws IOException {
-        logger.info("--> AfterRefresh current files {}", current.files.stream().toList().getFirst().getFiles());
+       // logger.info("--> AfterRefresh current files {}", current.files.stream().toList().getFirst().getFiles());
         if (didRefresh && catalogSnapshot != null) {
             DatafusionReader old = this.current;
             Collection<WriterFileSet> newFiles = catalogSnapshot.getRef().getSearchableFiles(dataFormat);
