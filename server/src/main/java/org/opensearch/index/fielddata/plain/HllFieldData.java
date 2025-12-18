@@ -158,7 +158,8 @@ public class HllFieldData implements IndexFieldData<HllFieldData.HllLeafFieldDat
          * Get the HLL++ sketch for the given document ID.
          *
          * @param docId the document ID
-         * @return the HLL++ sketch, or null if the document doesn't have a value
+         * @return the HLL++ sketch, or null if the document doesn't have a value.
+         * The caller is responsible for closing the returned sketch to release resources.
          * @throws IOException if an error occurs reading the sketch
          */
         public AbstractHyperLogLogPlusPlus getSketch(int docId) throws IOException {
