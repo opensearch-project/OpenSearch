@@ -666,9 +666,6 @@ final class DocumentParser {
     /**
      * Flattens a nested object structure to dotted field notation when disable_objects is enabled.
      * For example, {"foo": {"bar": 6}} becomes "foo.bar": 6
-     *
-     * @param context the parse context
-     * @param mapper the object mapper with disable_objects enabled
      */
     private static void flattenObjectForDisableObjects(ParseContext context, ObjectMapper mapper, String prefix) throws IOException {
         XContentParser parser = context.parser();
@@ -842,8 +839,6 @@ final class DocumentParser {
      * Parses fields as flat fields when disable_objects is enabled.
      * This method treats dotted field names (e.g., "user.name", "metrics.cpu.usage") as flat fields
      * rather than expanding them into nested object hierarchies.
-     * @param mapper the object mapper with disable_objects enabled
-     * @throws IOException if parsing fails
      */
     private static void parseDisableObjectsFields(ParseContext context, ObjectMapper mapper) throws IOException {
         if (mapper.isEnabled() == false) {
