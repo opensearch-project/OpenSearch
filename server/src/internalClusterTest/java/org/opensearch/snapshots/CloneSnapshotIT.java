@@ -177,16 +177,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
         indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
 
-        assertBusy(
-            () -> client().admin()
-                .cluster()
-                .prepareHealth()
-                .setWaitForStatus(org.opensearch.cluster.health.ClusterHealthStatus.YELLOW) // don't require GREEN
-                .setWaitForNoInitializingShards(true)
-                .setWaitForNoRelocatingShards(true)
-                .setTimeout(TimeValue.timeValueSeconds(60))
-                .get()
-        );
+        ensureYellow(indexName, remoteStoreEnabledIndexName);
+        client().admin().cluster().prepareHealth().setWaitForNoInitializingShards(true).setWaitForNoRelocatingShards(true).get();
 
         final String snapshot = "snapshot";
         createFullSnapshot(snapshotRepoName, snapshot);
@@ -194,16 +186,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         indexRandomDocs(indexName, randomIntBetween(20, 100));
 
-        assertBusy(
-            () -> client().admin()
-                .cluster()
-                .prepareHealth()
-                .setWaitForStatus(org.opensearch.cluster.health.ClusterHealthStatus.YELLOW)
-                .setWaitForNoInitializingShards(true)
-                .setWaitForNoRelocatingShards(true)
-                .setTimeout(TimeValue.timeValueSeconds(60))
-                .get()
-        );
+        ensureYellow(indexName, remoteStoreEnabledIndexName);
+        client().admin().cluster().prepareHealth().setWaitForNoInitializingShards(true).setWaitForNoRelocatingShards(true).get();
 
         final String shallowSnapshot = "shallow-snapshot";
         createFullSnapshot(shallowSnapshotRepoName, shallowSnapshot);
@@ -211,16 +195,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         if (randomBoolean()) {
             assertAcked(admin().indices().prepareDelete(indexName));
-            assertBusy(
-                () -> client().admin()
-                    .cluster()
-                    .prepareHealth()
-                    .setWaitForStatus(org.opensearch.cluster.health.ClusterHealthStatus.YELLOW)
-                    .setWaitForNoInitializingShards(true)
-                    .setWaitForNoRelocatingShards(true)
-                    .setTimeout(TimeValue.timeValueSeconds(60))
-                    .get()
-            );
+            ensureYellow(remoteStoreEnabledIndexName);
+            client().admin().cluster().prepareHealth().setWaitForNoInitializingShards(true).setWaitForNoRelocatingShards(true).get();
         }
 
         final String sourceSnapshot = shallowSnapshot;
