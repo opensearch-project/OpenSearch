@@ -64,6 +64,11 @@ url = { workspace = true }
 # Substrait support
 substrait = { workspace = true }
 
+# Monitor pool
+snafu = "0.8"
+tikv-jemalloc-ctl = { version = "0.5.4", features = ["use_std", "disable_initial_exec_tls"] }
+tikv-jemallocator = "0.5.4"
+
 # Temporary directory support
 tempfile ={ workspace = true }
 chrono = { workspace = true }

@@ -7,102 +7,64 @@
  */
 use std::result;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use datafusion::common::DataFusionError;
+use crate::jemalloc_monitor::{AllocationMonitor, AllocationMonitorError};
 
 pub type Result<T, E = DataFusionError> = result::Result<T, E>;
 
 
-/// Wrapper around MonitoredMemoryPool providing access to memory monitoring capabilities.
 #[derive(Debug)]
-pub struct CustomMemoryPool {
-    memory_pool: Arc<MonitoredMemoryPool>
-}
-
-impl CustomMemoryPool {
-    pub fn new(memory_pool: Arc<MonitoredMemoryPool>) -> Self {
-        Self { memory_pool }
-    }
-
-    pub fn get_monitor(&self) -> Arc<Monitor> {
-        self.memory_pool.get_monitor()
-    }
-
-    pub fn get_memory_pool(&self) -> Arc<dyn MemoryPool> {
-        self.memory_pool.clone()
-    }
-}
-
-/// Tracks current and peak memory usage atomically.
-#[derive(Debug, Default)]
-pub(crate) struct Monitor {
-    pub(crate) value: AtomicUsize,
-    pub(crate) max: AtomicUsize,
-}
-
-impl Monitor {
-    pub(crate) fn max(&self) -> usize {
-        self.max.load(Ordering::Relaxed)
-    }
-
-    fn grow(&self, amount: usize) {
-        let old = self.value.fetch_add(amount, Ordering::Relaxed);
-        self.max.fetch_max(old + amount, Ordering::Relaxed);
-    }
-
-    fn shrink(&self, amount: usize) {
-        self.value.fetch_sub(amount, Ordering::Relaxed);
-    }
-
-    fn get_current_val(&self) -> usize {
-        self.value.load(Ordering::Relaxed)
-    }
-}
-
-/// MemoryPool implementation that wraps another pool and tracks memory usage via Monitor.
-#[derive(Debug)]
-pub struct MonitoredMemoryPool {
+pub struct AllocationMonitoringMemoryPool {
     inner: Arc<dyn MemoryPool>,
-    monitor: Arc<Monitor>,
+    monitor: Arc<AllocationMonitor>,
 }
 
-impl MonitoredMemoryPool {
-    pub fn new(inner: Arc<dyn MemoryPool>, monitor: Arc<Monitor>) -> Self {
+impl AllocationMonitoringMemoryPool {
+    pub fn new(inner: Arc<dyn MemoryPool>, monitor: Arc<AllocationMonitor>) -> Self {
         Self { inner, monitor }
     }
-
-    pub fn get_monitor(&self) -> Arc<Monitor> {
-        self.monitor.clone()
-    }
 }
 
-impl MemoryPool for MonitoredMemoryPool {
-    fn register(&self, _consumer: &MemoryConsumer) {
-        self.inner.register(_consumer)
-    }
-
-    fn unregister(&self, _consumer: &MemoryConsumer) {
-        self.inner.unregister(_consumer)
-    }
-
+impl MemoryPool for AllocationMonitoringMemoryPool {
     fn grow(&self, reservation: &MemoryReservation, additional: usize) {
+        self.monitor.reserve(additional);
         self.inner.grow(reservation, additional);
-        self.monitor.grow(additional)
     }
 
     fn shrink(&self, reservation: &MemoryReservation, shrink: usize) {
-        self.monitor.shrink(shrink);
+        // Shrinking doesn't update the monitor. This means that the
+        // monitor will always see the memory reservation is increasing
+        // causing the statistics to be polled from jemalloc
+        // occasionally, keeping the statistics more accurate.
         self.inner.shrink(reservation, shrink);
     }
 
-    fn try_grow(&self, reservation: &MemoryReservation, additional: usize) -> Result<()> {
-        self.inner.try_grow(reservation, additional)?;
-        self.monitor.grow(additional);
-        Ok(())
+    fn try_grow(
+        &self,
+        reservation: &MemoryReservation,
+        additional: usize,
+    ) -> Result<()> {
+        self.monitor.try_reserve(additional).map_err(|e| match e {
+            AllocationMonitorError::Jemalloc { source } => {
+                DataFusionError::External(Box::new(source))
+            }
+            AllocationMonitorError::HeapExhausted => {
+                DataFusionError::ResourcesExhausted(e.to_string())
+            }
+        })?;
+        self.inner.try_grow(reservation, additional)
     }
 
     fn reserved(&self) -> usize {
         self.inner.reserved()
+    }
+
+    fn register(&self, consumer: &MemoryConsumer) {
+        self.inner.register(consumer)
+    }
+
+    fn unregister(&self, consumer: &MemoryConsumer) {
+        self.inner.unregister(consumer)
     }
 }
