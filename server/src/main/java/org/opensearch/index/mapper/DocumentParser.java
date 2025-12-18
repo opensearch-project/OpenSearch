@@ -916,10 +916,6 @@ final class DocumentParser {
      * Processes a field when disable_objects is enabled, handling both existing mappers and dynamic mapping.
      * This method consolidates the logic for field processing in disable_objects mode.
      * @param parentMapper the parent object mapper with disable_objects enabled
-     * @param fieldName the field name (may contain dots)
-     * @param existingMapper the existing mapper for this field, or null if none exists
-     * @param token the current parser token (the field value)
-     * @throws IOException if parsing fails
      */
     private static void processFieldWithDisableObjects(
         ParseContext context,
