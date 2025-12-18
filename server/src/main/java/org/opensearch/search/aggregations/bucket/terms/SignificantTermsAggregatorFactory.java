@@ -280,6 +280,16 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             // such are impossible to differentiate from non-significant terms
             // at that early stage.
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
+
+            // When intra-segment search is enabled, multiply shard_size by number of slices
+            // TODO: partition aware shard_size
+            if (searchContext.shouldUseIntraSegmentSearch()) {
+                int sliceCount = searchContext.getTargetMaxSliceCount();
+                if (sliceCount > 1) {
+                    bucketCountThresholds.setShardSize(bucketCountThresholds.getShardSize() * sliceCount);
+                }
+            }
+
         }
 
         SignificanceLookup lookup = new SignificanceLookup(

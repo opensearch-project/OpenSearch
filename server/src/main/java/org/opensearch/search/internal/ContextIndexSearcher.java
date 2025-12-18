@@ -581,16 +581,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return new LeafSlice[0];
         }
         int targetMaxSlice = searchContext.getTargetMaxSliceCount();
-        if (searchContext.shouldUseIntraSegmentSearch() == false) {
-            LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
-            return slices;
+        if (targetMaxSlice == 0) {
+            // use the default lucene slice calculation
+            return super.slices(leaves);
         }
-        LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(
+        if (searchContext.shouldUseIntraSegmentSearch() == false) {
+            return MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
+        }
+        return MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(
             leaves,
             targetMaxSlice,
             searchContext.getIntraSegmentMinSegmentSize()
         );
-        return slices;
     }
 
     public DirectoryReader getDirectoryReader() {

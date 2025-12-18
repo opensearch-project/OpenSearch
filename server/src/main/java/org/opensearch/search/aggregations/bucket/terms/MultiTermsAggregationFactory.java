@@ -139,16 +139,19 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
+
+            // When intra-segment search is enabled, multiply shard_size by number of slices
+            // to ensure globally-top buckets are captured in each partition
+            // TODO: partition aware shard_size
+            if (searchContext.shouldUseIntraSegmentSearch()) {
+                int sliceCount = searchContext.getTargetMaxSliceCount();
+                if (sliceCount > 1) {
+                    bucketCountThresholds.setShardSize(bucketCountThresholds.getShardSize() * sliceCount);
+                }
+            }
+
         }
         // TODO: Optimize passing too many value source config derived objects to aggregator
-        // When intra-segment search is enabled, multiply shard_size by number of slices
-        // to ensure globally-top buckets are captured in each partition
-        if (searchContext.shouldUseIntraSegmentSearch()) {
-            int sliceCount = searchContext.getTargetMaxSliceCount();
-            if (sliceCount > 1) {
-                bucketCountThresholds.setShardSize(bucketCountThresholds.getShardSize() * sliceCount);
-            }
-        }
         bucketCountThresholds.ensureValidity();
         return new MultiTermsAggregator(
             name,
