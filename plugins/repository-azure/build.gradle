@@ -146,6 +146,7 @@ thirdPartyAudit {
     'io.netty.channel.uring.IoUringIoHandler',
     'io.netty.channel.uring.IoUringServerSocketChannel',
     'io.netty.channel.uring.IoUringSocketChannel',
+    'io.netty.handler.codec.quic.Quic',
     'io.netty.handler.codec.quic.QuicChannel',
     'io.netty.handler.codec.quic.QuicChannelBootstrap',
     'io.netty.handler.codec.quic.QuicClientCodecBuilder',
@@ -331,6 +332,10 @@ Map<String, Object> expansions = [
   'container': azureContainer,
   'base_path': azureBasePath + "_integration_tests"
 ]
+
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false }
+}
 
 processYamlRestTestResources {
   inputs.properties(expansions)

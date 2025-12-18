@@ -761,7 +761,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         }
         boolean success = false;
         try {
-            Snapshot result = new MultiSnapshot(snapshots, onClose);
+            boolean readForward = indexSettings().isTranslogReadForward();
+            Snapshot result = new MultiSnapshot(snapshots, onClose, readForward);
             success = true;
             return result;
         } finally {

@@ -64,6 +64,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregationContext;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
@@ -553,6 +554,10 @@ public abstract class SearchContext implements Releasable {
 
     public int cardinalityAggregationPruningThreshold() {
         return 0;
+    }
+
+    public CardinalityAggregationContext cardinalityAggregationContext() {
+        return new CardinalityAggregationContext(false, Runtime.getRuntime().maxMemory() / 100);
     }
 
     public int bucketSelectionStrategyFactor() {

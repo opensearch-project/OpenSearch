@@ -107,28 +107,13 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= counts.size()) {
-                    final long from = counts.size();
-                    final long overSize = BigArrays.overSize(bucket + 1);
-                    counts = bigArrays.resize(counts, overSize);
-                    sums = bigArrays.resize(sums, overSize);
-                    compensations = bigArrays.resize(compensations, overSize);
-                    mins = bigArrays.resize(mins, overSize);
-                    maxes = bigArrays.resize(maxes, overSize);
-                    mins.fill(from, overSize, Double.POSITIVE_INFINITY);
-                    maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
-                }
+                growStats(bucket);
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
                     counts.increment(bucket, valuesCount);
                     double min = mins.get(bucket);
                     double max = maxes.get(bucket);
-                    // Compute the sum of double values with Kahan summation algorithm which is more
-                    // accurate than naive summation.
-                    double sum = sums.get(bucket);
-                    double compensation = compensations.get(bucket);
-                    kahanSummation.reset(sum, compensation);
 
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
@@ -144,13 +129,73 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
+            public void collect(DocIdStream stream, long bucket) throws IOException {
+                growStats(bucket);
+
+                double[] min = { mins.get(bucket) };
+                double[] max = { maxes.get(bucket) };
+                stream.forEach((doc) -> {
+                    if (values.advanceExact(doc)) {
+                        final int valuesCount = values.docValueCount();
+                        counts.increment(bucket, valuesCount);
+
+                        for (int i = 0; i < valuesCount; i++) {
+                            double value = values.nextValue();
+                            kahanSummation.add(value);
+                            min[0] = Math.min(min[0], value);
+                            max[0] = Math.max(max[0], value);
+                        }
+                    }
+                });
+                sums.set(bucket, kahanSummation.value());
+                compensations.set(bucket, kahanSummation.delta());
+                mins.set(bucket, min[0]);
+                maxes.set(bucket, max[0]);
             }
 
             @Override
             public void collectRange(int min, int max) throws IOException {
-                super.collectRange(min, max);
+                growStats(0);
+
+                double minimum = mins.get(0);
+                double maximum = maxes.get(0);
+                for (int doc = min; doc < maximum; doc++) {
+                    if (values.advanceExact(doc)) {
+                        final int valuesCount = values.docValueCount();
+                        counts.increment(0, valuesCount);
+
+                        for (int i = 0; i < valuesCount; i++) {
+                            double value = values.nextValue();
+                            kahanSummation.add(value);
+                            minimum = Math.min(minimum, value);
+                            maximum = Math.max(maximum, value);
+                        }
+                    }
+                }
+                sums.set(0, kahanSummation.value());
+                compensations.set(0, kahanSummation.delta());
+                mins.set(0, minimum);
+                maxes.set(0, maximum);
+            }
+
+            private void growStats(long bucket) {
+                if (bucket >= counts.size()) {
+                    final long from = counts.size();
+                    final long overSize = BigArrays.overSize(bucket + 1);
+                    counts = bigArrays.resize(counts, overSize);
+                    sums = bigArrays.resize(sums, overSize);
+                    compensations = bigArrays.resize(compensations, overSize);
+                    mins = bigArrays.resize(mins, overSize);
+                    maxes = bigArrays.resize(maxes, overSize);
+                    mins.fill(from, overSize, Double.POSITIVE_INFINITY);
+                    maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
+                }
+
+                // Compute the sum of double values with Kahan summation algorithm which is more
+                // accurate than naive summation.
+                double sum = sums.get(bucket);
+                double compensation = compensations.get(bucket);
+                kahanSummation.reset(sum, compensation);
             }
         };
     }

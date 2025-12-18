@@ -157,6 +157,65 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
         ensureGreen(indexName);
     }
 
+    public void testConsumerSettingUpdateWithMultipleProcessorThreads() throws Exception {
+        // Create index with num_processor_threads = 5, pointer.init.reset to offset 100, and auto.offset.reset = none
+        // This should cause consumer initialization to fail
+        createIndexWithMappingSource(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "reset_by_offset")
+                .put("ingestion_source.pointer.init.reset.value", "100")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.param.auto.offset.reset", "none")
+                .put("ingestion_source.num_processor_threads", 5)
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            mappings
+        );
+
+        ensureGreen(indexName);
+
+        // Wait for paused status due to consumer error
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getShardStates()[0].isPollerPaused()
+                && stats != null
+                && stats.getConsumerStats().totalConsumerErrorCount() >= 1L;
+        });
+
+        // Publish 5 messages
+        for (int i = 0; i < 5; i++) {
+            produceData(
+                "{\"_id\":\"" + i + "\",\"_version\":\"1\",\"_op_type\":\"index\",\"_source\":{\"name\":\"name" + i + "\", \"age\": 25}}"
+            );
+        }
+
+        // Update auto.offset.reset to earliest
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("ingestion_source.param.auto.offset.reset", "earliest"))
+            .get();
+
+        // Resume ingestion
+        client().admin().indices().resumeIngestion(Requests.resumeIngestionRequest(indexName)).get();
+
+        // Wait for 5 searchable docs
+        waitForState(() -> {
+            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(0);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            return response.getHits().getTotalHits().value() == 5;
+        });
+    }
+
     private void setupKafka() {
         kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.2.1"))
             // disable topic auto creation

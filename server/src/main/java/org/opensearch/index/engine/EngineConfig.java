@@ -354,7 +354,8 @@ public final class EngineConfig {
             .leafSorter(this.leafSorter)
             .documentMapperForTypeSupplier(this.documentMapperForTypeSupplier)
             .indexReaderWarmer(this.indexReaderWarmer)
-            .clusterApplierService(this.clusterApplierService);
+            .clusterApplierService(this.clusterApplierService)
+            .mergedSegmentTransferTracker(this.mergedSegmentTransferTracker);
     }
 
     /**

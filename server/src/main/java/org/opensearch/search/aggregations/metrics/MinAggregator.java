@@ -157,14 +157,9 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
-
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= mins.size()) {
-                    long from = mins.size();
-                    mins = bigArrays.grow(mins, bucket + 1);
-                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
-                }
+                growMins(bucket);
                 if (values.advanceExact(doc)) {
                     final double value = values.doubleValue();
                     double min = mins.get(bucket);
@@ -174,13 +169,35 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
+            public void collect(DocIdStream stream, long bucket) throws IOException {
+                growMins(bucket);
+                final double[] min = { mins.get(bucket) };
+                stream.forEach((doc) -> {
+                    if (values.advanceExact(doc)) {
+                        min[0] = Math.min(min[0], values.doubleValue());
+                    }
+                });
+                mins.set(bucket, min[0]);
             }
 
             @Override
             public void collectRange(int min, int max) throws IOException {
-                super.collectRange(min, max);
+                growMins(0);
+                double minimum = mins.get(0);
+                for (int doc = min; doc < max; doc++) {
+                    if (values.advanceExact(doc)) {
+                        minimum = Math.min(minimum, values.doubleValue());
+                    }
+                }
+                mins.set(0, minimum);
+            }
+
+            private void growMins(long bucket) {
+                if (bucket >= mins.size()) {
+                    long from = mins.size();
+                    mins = bigArrays.grow(mins, bucket + 1);
+                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+                }
             }
         };
     }
