@@ -819,7 +819,7 @@ public final class IndexSettings {
     @ExperimentalApi
     public static final Setting<Boolean> INDEX_INTRA_SEGMENT_SEARCH_ENABLED = Setting.boolSetting(
         "index.search.intra_segment_search.enabled",
-        false,
+        true,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -835,7 +835,7 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
         "index.optimize_doc_id_lookup.fuzzy_set.enabled",
-        true,
+        false,
         Property.IndexScope,
         Property.Dynamic
     );
