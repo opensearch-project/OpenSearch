@@ -193,23 +193,20 @@ public class HllFieldMapper extends ParametrizedFieldMapper {
      */
     private void validateSketchData(BytesRef sketchBytes) throws MapperParsingException {
         try (StreamInput in = new BytesArray(sketchBytes.bytes, sketchBytes.offset, sketchBytes.length).streamInput()) {
-            AbstractHyperLogLogPlusPlus sketch = AbstractHyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
-
-            // Verify the precision matches the field's configured precision
-            if (sketch.precision() != precision) {
-                throw new MapperParsingException(
-                    "HLL++ sketch precision mismatch for field ["
-                        + fieldType().name()
-                        + "]: "
-                        + "expected "
-                        + precision
-                        + ", got "
-                        + sketch.precision()
-                );
+            try (AbstractHyperLogLogPlusPlus sketch = AbstractHyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE)) {
+                // Verify the precision matches the field's configured precision
+                if (sketch.precision() != precision) {
+                    throw new MapperParsingException(
+                            "HLL++ sketch precision mismatch for field ["
+                                    + fieldType().name()
+                                    + "]: "
+                                    + "expected "
+                                    + precision
+                                    + ", got "
+                                    + sketch.precision()
+                    );
+                }
             }
-
-            // Close the sketch to release resources
-            sketch.close();
         } catch (MapperParsingException e) {
             throw e;
         } catch (Exception e) {
