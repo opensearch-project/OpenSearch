@@ -6,9 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.vectorized.execution.search.spi;
-
-import org.opensearch.vectorized.execution.search.DataFormat;
+package org.opensearch.plugins.spi.vectorized;
 
 /**
  * Service Provider Interface for DataFusion data source codecs.

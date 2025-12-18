@@ -37,7 +37,7 @@ import org.opensearch.index.engine.exec.coord.IndexFileDeleter;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.search.aggregations.SearchResultsCollector;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.vectorized.execution.search.DataFormat;
+import org.opensearch.plugins.spi.vectorized.DataFormat;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

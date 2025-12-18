@@ -38,6 +38,7 @@ import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.mapper.*;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.spi.vectorized.DataFormat;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -50,7 +51,6 @@ import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SourceLookup;
-import org.opensearch.vectorized.execution.search.DataFormat;
 
 import java.io.Closeable;
 import java.io.IOException;

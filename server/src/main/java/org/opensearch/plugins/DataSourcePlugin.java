@@ -12,13 +12,13 @@ import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
 
 import java.util.Map;
 import java.util.Optional;
 
 public interface DataSourcePlugin {
-    default Optional<Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec>> getDataSourceCodecs() {
+    default Optional<Map<org.opensearch.plugins.spi.vectorized.DataFormat, DataSourceCodec>> getDataSourceCodecs() {
         return Optional.empty();
     }
 

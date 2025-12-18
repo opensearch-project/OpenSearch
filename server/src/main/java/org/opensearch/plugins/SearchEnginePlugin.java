@@ -21,8 +21,8 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
-import org.opensearch.vectorized.execution.search.DataFormat;
-import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.plugins.spi.vectorized.DataFormat;
+import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;

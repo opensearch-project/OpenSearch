@@ -10,8 +10,8 @@ package org.opensearch.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.vectorized.execution.search.DataFormat;
-import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.plugins.spi.vectorized.DataFormat;
+import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -15,8 +15,8 @@ import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.datafusion.core.DataFusionRuntimeEnv;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.datafusion.search.cache.CacheManager;
-import org.opensearch.vectorized.execution.search.DataFormat;
-import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.plugins.spi.vectorized.DataFormat;
+import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
 
 import java.util.Map;
 

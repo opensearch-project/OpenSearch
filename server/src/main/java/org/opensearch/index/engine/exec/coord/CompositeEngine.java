@@ -77,6 +77,7 @@ import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchEnginePlugin;
+import org.opensearch.plugins.spi.vectorized.DataFormat;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -142,7 +143,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private final List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
     private final List<CatalogSnapshotAwareRefreshListener> catalogSnapshotAwareRefreshListeners = new ArrayList<>();
     private final Map<String, List<FileDeletionListener>> fileDeletionListeners = new HashMap<>();
-    private final Map<org.opensearch.vectorized.execution.search.DataFormat, List<SearchExecEngine<?, ?, ?, ?>>> readEngines =
+    private final Map<DataFormat, List<SearchExecEngine<?, ?, ?, ?>>> readEngines =
         new HashMap<>();
     private final MergeScheduler mergeScheduler;
     private final MergeHandler mergeHandler;
@@ -296,7 +297,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             // Create read specific engines for each format which is associated with shard
             List<SearchEnginePlugin> searchEnginePlugins = pluginsService.filterPlugins(SearchEnginePlugin.class);
             for (SearchEnginePlugin searchEnginePlugin : searchEnginePlugins) {
-                for (org.opensearch.vectorized.execution.search.DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
+                for (DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
                     List<SearchExecEngine<?, ?, ?, ?>> currentSearchEngines = readEngines.getOrDefault(dataFormat, new ArrayList<>());
                     SearchExecEngine<?, ?, ?, ?> newSearchEngine =
                         searchEnginePlugin.createEngine(dataFormat, Collections.emptyList(), shardPath);
@@ -400,7 +401,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         return localCheckpointTracker;
     }
 
-    public SearchExecEngine<?, ?, ?, ?> getReadEngine(org.opensearch.vectorized.execution.search.DataFormat dataFormat) {
+    public SearchExecEngine<?, ?, ?, ?> getReadEngine(DataFormat dataFormat) {
         return readEngines.getOrDefault(dataFormat, new ArrayList<>()).getFirst();
     }
 
