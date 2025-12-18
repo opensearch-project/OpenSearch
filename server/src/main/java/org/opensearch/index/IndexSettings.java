@@ -835,7 +835,7 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
         "index.optimize_doc_id_lookup.fuzzy_set.enabled",
-        false,
+        true,
         Property.IndexScope,
         Property.Dynamic
     );
