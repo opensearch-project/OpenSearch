@@ -8,9 +8,14 @@
 
 package org.opensearch.index.engine.exec.merge;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.MergeSchedulerConfig;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
@@ -22,26 +27,30 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MergeScheduler {
 
-    private static final Logger logger = LogManager.getLogger(MergeScheduler.class);
-
+    private static Logger logger;
     private final MergeHandler mergeHandler;
     private final CompositeEngine compositeEngine;
+    protected int mergeThreadCounter = 0;
     private final List<MergeThread> mergeThreads = new CopyOnWriteArrayList<>();
     private final AtomicInteger activeMerges = new AtomicInteger(0);
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private volatile int maxConcurrentMerges;
     private volatile int maxMergeCount;
+    private final ShardId shardId;
+    private final Settings indexSettings;
 
-    public MergeScheduler(MergeHandler mergeHandler, CompositeEngine compositeEngine) {
-//        this(mergeHandler, compositeEngine, Math.max(1, Runtime.getRuntime().availableProcessors() / 4));
-        this(mergeHandler, compositeEngine, 2);
-
-    }
-
-    public MergeScheduler(MergeHandler mergeHandler, CompositeEngine compositeEngine, int maxConcurrentMerges) {
+    public MergeScheduler(
+        MergeHandler mergeHandler,
+        CompositeEngine compositeEngine,
+        ShardId shardId,
+        IndexSettings indexSettings
+    ) {
+        logger = Loggers.getLogger(getClass(), shardId);
         this.mergeHandler = mergeHandler;
         this.compositeEngine = compositeEngine;
-        this.maxConcurrentMerges = maxConcurrentMerges;
+        this.indexSettings = indexSettings.getSettings();
+        this.shardId = shardId;
+        this.maxConcurrentMerges = 2;
         this.maxMergeCount = maxConcurrentMerges + 5;
     }
 
@@ -58,8 +67,8 @@ public class MergeScheduler {
             return;
         }
 
-        logger.info("Updating merge scheduler config: maxThreadCount {} -> {}, maxMergeCount {} -> {}",
-            this.maxConcurrentMerges, newMaxThreadCount, this.maxMergeCount, newMaxMergeCount);
+        logger.info(() -> new ParameterizedMessage("Updating merge scheduler config: maxThreadCount {} -> {}, " +
+            "maxMergeCount {} -> {}", this.maxConcurrentMerges, newMaxThreadCount, this.maxMergeCount, newMaxMergeCount));
 
         this.maxConcurrentMerges = newMaxThreadCount;
         this.maxMergeCount = newMaxMergeCount;
@@ -81,7 +90,8 @@ public class MergeScheduler {
     }
 
     public void forceMerge(int maxNumSegment) throws IOException {
-        if(mergeThreads.size() > 0) {
+        if(!mergeThreads.isEmpty()) {
+            logger.warn("Cannot force merge while background merges are active");
             throw new IllegalStateException("Cannot force merge while background merges are active");
         }
         Collection<OneMerge> oneMerges = mergeHandler.findForceMerges(maxNumSegment);
@@ -121,9 +131,11 @@ public class MergeScheduler {
     private void submitMergeTask(OneMerge oneMerge) {
         activeMerges.incrementAndGet();
         MergeThread thread = new MergeThread(oneMerge);
+        thread.setName(
+            OpenSearchExecutors.threadName(indexSettings, "[" + shardId.getIndexName() + "][" + shardId.id() + "]: Merge thread #" + mergeThreadCounter++)
+        );
         mergeThreads.add(thread);
         thread.start();
-        System.out.println("Total merge threads : " + mergeThreads.size() + " Active merges : " + activeMerges.get());
     }
 
     /**
@@ -133,7 +145,7 @@ public class MergeScheduler {
         private final OneMerge oneMerge;
 
         MergeThread(OneMerge oneMerge) {
-            super("merge-scheduler-" + (mergeThreads.size()+1));
+            super();
             this.oneMerge = oneMerge;
             setDaemon(true);
         }
@@ -146,7 +158,7 @@ public class MergeScheduler {
                     return;
                 }
 
-                logger.info("[{}] Starting merge for: {}", getName(), oneMerge);
+                logger.debug("[{}] Starting merge for: {}", getName(), oneMerge);
                 long startTime = System.nanoTime();
 
                 MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
@@ -154,7 +166,8 @@ public class MergeScheduler {
                 mergeHandler.onMergeFinished(oneMerge);
 
                 long durationMs = (System.nanoTime() - startTime) / 1_000_000;
-                logger.info("[{}] Merge completed in {}ms for: {}", getName(), durationMs, oneMerge);
+                logger.info("[{}] Merge completed in {}ms for: {} and output is stored in: {}",
+                    getName(), durationMs, oneMerge, mergeResult);
 
             } catch (Exception e) {
                 logger.error("[{}] Unexpected error during merge for: {}", getName(), oneMerge, e);

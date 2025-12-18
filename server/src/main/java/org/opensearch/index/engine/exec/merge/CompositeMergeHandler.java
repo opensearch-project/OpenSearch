@@ -8,6 +8,10 @@
 
 package org.opensearch.index.engine.exec.merge;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
 import org.opensearch.index.engine.exec.coord.Any;
@@ -23,18 +27,21 @@ public class CompositeMergeHandler extends MergeHandler {
     private final CompositeMergePolicy mergePolicy;
     private final CompositeEngine compositeEngine;
     private final CompositeIndexingExecutionEngine compositeIndexingExecutionEngine;
+    private final Logger logger;
 
     public CompositeMergeHandler(
         CompositeEngine compositeEngine,
         CompositeIndexingExecutionEngine compositeIndexingExecutionEngine,
         Any dataFormats,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        ShardId shardId
     ) {
-        super(compositeEngine, compositeIndexingExecutionEngine, dataFormats);
+        super(compositeEngine, compositeIndexingExecutionEngine, dataFormats, shardId);
+        this.logger = Loggers.getLogger(getClass(), shardId);
         this.compositeEngine = compositeEngine;
         this.compositeIndexingExecutionEngine = compositeIndexingExecutionEngine;
 
-        mergePolicy = new CompositeMergePolicy(indexSettings.getMergePolicy(true));
+        mergePolicy = new CompositeMergePolicy(indexSettings.getMergePolicy(true), shardId);
     }
 
     @Override
@@ -52,6 +59,7 @@ public class CompositeMergeHandler extends MergeHandler {
                 oneMerges.add(new OneMerge(mergeGroup));
             }
         } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("Failed to acquire snapshots", e));
             throw new RuntimeException(e);
         }
         return oneMerges;
@@ -72,7 +80,7 @@ public class CompositeMergeHandler extends MergeHandler {
                 oneMerges.add(new OneMerge(mergeGroup));
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.warn(() -> new ParameterizedMessage("Failed to acquire snapshots", e));
             throw new RuntimeException(e);
         }
         return oneMerges;

@@ -26,4 +26,12 @@ public class RowIdMapping {
     public String getFileId() {
         return fileId;
     }
+
+    @Override
+    public String toString() {
+        return "RowIdMapping{" +
+            "mapping=" + mapping +
+            ", fileId='" + fileId + '\'' +
+            '}';
+    }
 }

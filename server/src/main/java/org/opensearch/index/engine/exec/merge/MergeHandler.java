@@ -8,6 +8,10 @@
 
 package org.opensearch.index.engine.exec.merge;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -26,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 public abstract class MergeHandler {
 
     private final Any compositeDataFormat;
@@ -37,8 +40,15 @@ public abstract class MergeHandler {
     private Map<DataFormat, Merger> dataFormatMergerMap;
     private final Deque<OneMerge> mergingSegments = new ArrayDeque<>();
     private final Set<CatalogSnapshot.Segment> currentlyMergingSegments = new HashSet<>();
+    private final Logger logger;
 
-    public MergeHandler(CompositeEngine compositeEngine, CompositeIndexingExecutionEngine compositeIndexingExecutionEngine, Any dataFormats) {
+    public MergeHandler(
+        CompositeEngine compositeEngine,
+        CompositeIndexingExecutionEngine compositeIndexingExecutionEngine,
+        Any dataFormats,
+        ShardId shardId
+    ) {
+        this.logger = Loggers.getLogger(getClass(), shardId);
         this.compositeDataFormat = dataFormats;
         this.compositeIndexingExecutionEngine = compositeIndexingExecutionEngine;
         this.compositeEngine = compositeEngine;
@@ -48,6 +58,8 @@ public abstract class MergeHandler {
             try {
                 dataFormatMergerMap.put(engine.getDataFormat(), engine.getMerger());
             } catch (Exception e) {
+                logger.error(() -> new ParameterizedMessage("Failed to create merger for data format [{}]",
+                    engine.getDataFormat(), e));
                 throw new RuntimeException(e);
             }
         });
@@ -83,22 +95,24 @@ public abstract class MergeHandler {
                 }
             }
         } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("Failed to acquire snapshots", e));
             throw new RuntimeException(e);
         }
         mergingSegments.add(merge);
         currentlyMergingSegments.addAll(merge.getSegmentsToMerge());
+        logger.debug(() -> new ParameterizedMessage("Registered merge [{}], mergingSegments: [{}]", 
+            merge, mergingSegments));
     }
 
     public boolean hasPendingMerges() {
-        return mergingSegments.size() > 0;
+        return !mergingSegments.isEmpty();
     }
 
     public synchronized OneMerge getNextMerge() {
         if(mergingSegments.isEmpty()) {
             return null;
         }
-        OneMerge oneMerge = mergingSegments.removeFirst();
-        return oneMerge;
+        return mergingSegments.removeFirst();
     }
 
     public synchronized void onMergeFinished(OneMerge oneMerge) {
@@ -108,42 +122,36 @@ public abstract class MergeHandler {
 
     public synchronized void onMergeFailure(OneMerge oneMerge) {
         removeMergingSegments(oneMerge);
-        System.out.println("Merge FAILED for oneMerge: " + oneMerge);
+        logger.warn(() -> new ParameterizedMessage("Merge failed for OneMerge [{}]", oneMerge));
     }
 
     private synchronized void removeMergingSegments(OneMerge oneMerge) {
         mergingSegments.remove(oneMerge);
-        currentlyMergingSegments.removeAll(oneMerge.getSegmentsToMerge());
+        oneMerge.getSegmentsToMerge().forEach(currentlyMergingSegments::remove);
     }
 
     public MergeResult doMerge(OneMerge oneMerge) {
 
         long mergedWriterGeneration = compositeIndexingExecutionEngine.getNextWriterGeneration();
         Map<DataFormat, WriterFileSet> mergedWriterFileSet = new HashMap<>();
-        try(CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot = compositeEngine.acquireSnapshot()) {
+        List<WriterFileSet> filesToMerge = getFilesToMerge(oneMerge, compositeDataFormat.getPrimaryDataFormat());
 
-            List<WriterFileSet> filesToMerge = getFilesToMerge(oneMerge, compositeDataFormat.getPrimaryDataFormat());
-
-            // Merging primary data format
-            MergeResult primaryMergeResult = dataFormatMergerMap.get(compositeDataFormat.getPrimaryDataFormat()).merge(filesToMerge, mergedWriterGeneration);
-            mergedWriterFileSet.put(compositeDataFormat.getPrimaryDataFormat(), primaryMergeResult.getMergedWriterFileSetForDataformat(compositeDataFormat.getPrimaryDataFormat()));
-            // Merging other format as per the old segment + row id -> new row id mapping.
-            compositeIndexingExecutionEngine.getDelegates().stream()
-                    .filter(engine -> !engine.getDataFormat().equals(compositeDataFormat.getPrimaryDataFormat()))
-                    .forEach(indexingExecutionEngine -> {
-                        DataFormat dataFormat = indexingExecutionEngine.getDataFormat();
-                        List<WriterFileSet> files = getFilesToMerge(oneMerge, dataFormat);
-                        MergeResult secondaryMergeResult = dataFormatMergerMap.get(dataFormat).merge(files, primaryMergeResult.getRowIdMapping(), mergedWriterGeneration);
-                        mergedWriterFileSet.put(dataFormat, secondaryMergeResult.getMergedWriterFileSetForDataformat(dataFormat));
-                    });
-            return new MergeResult(primaryMergeResult.getRowIdMapping(), mergedWriterFileSet);
-
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        // Merging primary data format
+        MergeResult primaryMergeResult = dataFormatMergerMap.get(compositeDataFormat.getPrimaryDataFormat()).merge(filesToMerge, mergedWriterGeneration);
+        mergedWriterFileSet.put(compositeDataFormat.getPrimaryDataFormat(), primaryMergeResult.getMergedWriterFileSetForDataformat(compositeDataFormat.getPrimaryDataFormat()));
+        // Merging other format as per the old segment + row id -> new row id mapping.
+        compositeIndexingExecutionEngine.getDelegates().stream()
+                .filter(engine -> !engine.getDataFormat().equals(compositeDataFormat.getPrimaryDataFormat()))
+                .forEach(indexingExecutionEngine -> {
+                    DataFormat dataFormat = indexingExecutionEngine.getDataFormat();
+                    List<WriterFileSet> files = getFilesToMerge(oneMerge, dataFormat);
+                    MergeResult secondaryMergeResult = dataFormatMergerMap.get(dataFormat).merge(files, primaryMergeResult.getRowIdMapping(), mergedWriterGeneration);
+                    mergedWriterFileSet.put(dataFormat, secondaryMergeResult.getMergedWriterFileSetForDataformat(dataFormat));
+                });
+        return new MergeResult(primaryMergeResult.getRowIdMapping(), mergedWriterFileSet);
     }
 
-    public List<WriterFileSet> getFilesToMerge(OneMerge oneMerge, DataFormat dataFormat) {
+    private List<WriterFileSet> getFilesToMerge(OneMerge oneMerge, DataFormat dataFormat) {
         List<WriterFileSet> writerFileSets = new ArrayList<>();
         for (CatalogSnapshot.Segment segment : oneMerge.getSegmentsToMerge()) {
             writerFileSets.add(segment.getDFGroupedSearchableFiles().get(dataFormat.name()));
