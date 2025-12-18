@@ -35,10 +35,13 @@ public class IntraSegmentSearchDecision {
         return decisionReason;
     }
 
+    /**
+     * Status indicating whether intra-segment search should be used.
+     */
     @ExperimentalApi
     public enum DecisionStatus {
-        YES,    // benefits from intra-segment search
-        NO,     // regresses with intra-segment search
+        YES,    // Use intra-segment search
+        NO,     // don't use intra-segment search
         NO_OP   // no preference
     }
 

@@ -45,6 +45,9 @@ public class DefaultIntraSegmentSearchDecider extends IntraSegmentSearchRequestD
         return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.NO, reason);
     }
 
+    /**
+     * Factory for creating DefaultIntraSegmentSearchDecider instances.
+     */
     @ExperimentalApi
     public static class Factory implements IntraSegmentSearchRequestDecider.Factory {
         @Override
