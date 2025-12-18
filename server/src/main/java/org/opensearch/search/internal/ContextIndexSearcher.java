@@ -588,11 +588,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (searchContext.shouldUseIntraSegmentSearch() == false) {
             return MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
         }
-        return MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(
-            leaves,
-            targetMaxSlice,
-            searchContext.getIntraSegmentMinSegmentSize()
-        );
+        return MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, targetMaxSlice, searchContext.getIntraSegmentMinSegmentSize());
     }
 
     public DirectoryReader getDirectoryReader() {
