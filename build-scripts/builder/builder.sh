@@ -26,7 +26,7 @@ function check_project_root_folder() {
 # ====
 function parse_args() {
 
-    while getopts ":p:r:R:s:d:a:Dh" arg; do
+    while getopts ":p:r:s:R:S:d:a:Dh" arg; do
         case $arg in
         h)
             usage
@@ -38,10 +38,13 @@ function parse_args() {
         r)
             INDEXER_REPORTING_BRANCH=$OPTARG
             ;;
+        s)
+            SECURITY_ANALYTICS_BRANCH=$OPTARG
+            ;;
         R)
             REVISION=$OPTARG
             ;;
-        s)
+        S)
             IS_STAGE=$OPTARG
             ;;
         d)
@@ -68,6 +71,7 @@ function parse_args() {
     ## Set defaults:
     [ -z "$INDEXER_PLUGINS_BRANCH" ] && INDEXER_PLUGINS_BRANCH="main"
     [ -z "$INDEXER_REPORTING_BRANCH" ] && INDEXER_REPORTING_BRANCH="main"
+    [ -z "$SECURITY_ANALYTICS_BRANCH" ] && SECURITY_ANALYTICS_BRANCH="main"
     [ -z "$REVISION" ] && REVISION="0"
     [ -z "$IS_STAGE" ] && IS_STAGE="false"
     [ -z "$DISTRIBUTION" ] && DISTRIBUTION="rpm"
@@ -84,8 +88,9 @@ function usage() {
     echo "Arguments:"
     echo -e "-p INDEXER_PLUGINS_BRANCH\t[Optional] wazuh-indexer-plugins repo branch, default is 'main'."
     echo -e "-r INDEXER_REPORTING_BRANCH\t[Optional] wazuh-indexer-reporting repo branch, default is 'main'."
+    echo -e "-s SECURITY_ANALYTICS_BRANCH\t[Optional] wazuh-indexer-security-analytics repo branch, default is 'main'."
     echo -e "-R REVISION\t[Optional] Package revision, default is '0'."
-    echo -e "-s STAGE\t[Optional] Staging build, default is 'false'."
+    echo -e "-S STAGE\t[Optional] Staging build, default is 'false'."
     echo -e "-d DISTRIBUTION\t[Optional] Distribution, default is 'rpm'."
     echo -e "-a ARCHITECTURE\t[Optional] Architecture, default is 'x64'."
     echo -e "-D\tDestroy the docker environment"
@@ -105,6 +110,7 @@ function main() {
     export VERSION
     export INDEXER_PLUGINS_BRANCH
     export INDEXER_REPORTING_BRANCH
+    export SECURITY_ANALYTICS_BRANCH
     export REVISION
     export IS_STAGE
     export DISTRIBUTION

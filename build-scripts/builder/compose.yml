@@ -8,6 +8,7 @@ services:
     environment:
       - INDEXER_PLUGINS_BRANCH=${INDEXER_PLUGINS_BRANCH:-main}
       - INDEXER_REPORTING_BRANCH=${INDEXER_REPORTING_BRANCH:-main}
+      - SECURITY_ANALYTICS_BRANCH=${SECURITY_ANALYTICS_BRANCH:-main}
       - REVISION=${REVISION:-0}
       - IS_STAGE=${IS_STAGE:-false}
       - DISTRIBUTION=${DISTRIBUTION:-rpm}
@@ -16,9 +17,11 @@ services:
       - ${REPO_PATH}:/home/wazuh-indexer
       - wazuh-indexer-plugins:/home/wazuh-indexer/wazuh-indexer-plugins
       - wazuh-indexer-reporting:/home/wazuh-indexer/wazuh-indexer-reporting
+      - wazuh-indexer-security-analytics:/home/wazuh-indexer/wazuh-indexer-security-analytics
     entrypoint: ["/bin/bash", "/entrypoint.sh"]
     user: "1000:1000"
     working_dir: /home/wazuh-indexer
 volumes:
   wazuh-indexer-plugins:
   wazuh-indexer-reporting:
+  wazuh-indexer-security-analytics:
