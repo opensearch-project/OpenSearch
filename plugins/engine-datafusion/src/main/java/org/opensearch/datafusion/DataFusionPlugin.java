@@ -37,6 +37,8 @@ import org.opensearch.datafusion.search.cache.CacheSettings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.spi.vectorized.DataFormat;
+import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
 import org.opensearch.search.ContextEngineSearcher;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
@@ -49,8 +51,6 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
-import org.opensearch.vectorized.execution.search.DataFormat;
-import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 import org.opensearch.watcher.ResourceWatcherService;
 

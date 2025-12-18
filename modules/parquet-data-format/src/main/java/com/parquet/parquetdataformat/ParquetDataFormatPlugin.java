@@ -28,11 +28,11 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
-import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
@@ -111,8 +111,8 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     }
 
     @Override
-    public Optional<Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec>> getDataSourceCodecs() {
-        Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec> codecs = new HashMap<>();
+    public Optional<Map<org.opensearch.plugins.spi.vectorized.DataFormat, DataSourceCodec>> getDataSourceCodecs() {
+        Map<org.opensearch.plugins.spi.vectorized.DataFormat, DataSourceCodec> codecs = new HashMap<>();
         ParquetDataSourceCodec parquetDataSourceCodec = new ParquetDataSourceCodec();
         // TODO : version it correctly - similar to lucene codecs?
         codecs.put(parquetDataSourceCodec.getDataFormat(), new ParquetDataSourceCodec());

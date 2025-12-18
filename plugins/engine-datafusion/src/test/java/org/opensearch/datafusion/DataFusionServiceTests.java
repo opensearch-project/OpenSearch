@@ -40,6 +40,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.spi.vectorized.DataFormat;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.SearchResultsCollector;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -53,7 +54,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.vectorized.execution.search.DataFormat;
 
 import java.io.IOException;
 import java.io.InputStream;

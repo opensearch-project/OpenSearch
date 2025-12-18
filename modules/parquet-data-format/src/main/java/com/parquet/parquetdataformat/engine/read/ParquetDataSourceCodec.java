@@ -10,11 +10,8 @@ package com.parquet.parquetdataformat.engine.read;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.vectorized.execution.search.DataFormat;
-import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
-
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import org.opensearch.plugins.spi.vectorized.DataFormat;
+import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
 
 /**
  * Datasource codec implementation for parquet files

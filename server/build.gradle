@@ -72,7 +72,6 @@ dependencies {
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
-  api project(':libs:opensearch-vectorized-exec-spi')
 
   compileOnly project(":libs:agent-sm:bootstrap")
   compileOnly project(':libs:opensearch-plugin-classloader')

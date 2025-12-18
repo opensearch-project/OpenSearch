@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.vectorized.execution.search;
+package org.opensearch.plugins.spi.vectorized;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
