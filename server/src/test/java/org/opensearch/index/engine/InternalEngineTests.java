@@ -3513,7 +3513,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testUnreferencedFileCleanUpOnSegmentMergeFailureWithCleanUpEnabledWithIndexSort() throws Exception {
         MockDirectoryWrapper wrapper = newMockDirectory();
         final CountDownLatch cleanupCompleted = new CountDownLatch(1);
-        Sort indexSort = new Sort(new SortedSetSortField("foo1", false));
+        Sort indexSort = new Sort(new SortedSetSortField("foo", false));
         final Settings indexSettings = Settings.builder().put("index.sort.field", "foo").build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", indexSettings);
         MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
