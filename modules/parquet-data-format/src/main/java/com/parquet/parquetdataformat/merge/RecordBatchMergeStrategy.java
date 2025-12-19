@@ -11,21 +11,19 @@ package com.parquet.parquetdataformat.merge;
 import com.parquet.parquetdataformat.engine.ParquetDataFormat;
 import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
 import org.opensearch.index.engine.exec.DataFormat;
-import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.RowId;
 import org.opensearch.index.engine.exec.merge.RowIdMapping;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import static com.parquet.parquetdataformat.bridge.RustBridge.mergeParquetFilesInRust;
 
@@ -35,7 +33,7 @@ import static com.parquet.parquetdataformat.bridge.RustBridge.mergeParquetFilesI
 public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
 
     @Override
-    public MergeResult mergeParquetFiles(List<WriterFileSet> files, long writerGeneration) {
+        public MergeResult mergeParquetFiles(List<WriterFileSet> files, long writerGeneration) throws IOException {
 
         if (files.isEmpty()) {
             throw new IllegalArgumentException("No files to merge");
@@ -49,27 +47,32 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         String mergedFilePath = getMergedFilePath(writerGeneration, outputDirectory);
         String mergedFileName = getMergedFileName(writerGeneration);
 
-        // Merge files in Rust
-        mergeParquetFilesInRust(filePaths, mergedFilePath);
+        try {
+            // Merge files in Rust
+            mergeParquetFilesInRust(filePaths, mergedFilePath);
 
-        // Build row ID mapping
-        Map<RowId, Long> rowIdMapping = new HashMap<>();
+            // Build row ID mapping
+            Map<RowId, Long> rowIdMapping = new HashMap<>();
 
-        WriterFileSet mergedWriterFileSet =
+            WriterFileSet mergedWriterFileSet =
             WriterFileSet.builder().directory(Path.of(outputDirectory)).addFile(mergedFileName).writerGeneration(writerGeneration).build();
 
+            Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(
+                new ParquetDataFormat(),
+                mergedWriterFileSet
+            );
 
-        Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(
-            new ParquetDataFormat(),
-            mergedWriterFileSet
-        );
+            return new MergeResult(new RowIdMapping(rowIdMapping, mergedFileName), mergedWriterFileSetMap);
 
-        return new MergeResult(new RowIdMapping(rowIdMapping, mergedFileName), mergedWriterFileSetMap);
+        } catch (Exception e) {
+            Files.deleteIfExists(Path.of(mergedFilePath));
+            throw e;
+        }
+
     }
 
     private String getMergedFileName(long generation) {
-        // TODO
-        // For debuging we have added extra "merged" in file name, later we can remove and keep same as writer
+        // TODO: For debugging we have added extra "merged" in file name, later we can remove and keep same as writer
         return ParquetExecutionEngine.FILE_NAME_PREFIX + "_merged_" + generation + ParquetExecutionEngine.FILE_NAME_EXT;
     }
 
