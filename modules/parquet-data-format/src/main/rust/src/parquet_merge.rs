@@ -13,6 +13,7 @@ use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::arrow_writer::ArrowWriter;
+use crate::rate_limited_writer::RateLimitedWriter;
 
 use crate::{log_info, log_error};
 
@@ -148,7 +149,7 @@ fn read_schema_from_file(file_path: &str) -> Result<SchemaRef, Box<dyn Error>> {
 }
 
 // Writer creation
-fn create_writer(output_path: &str, schema: SchemaRef) -> Result<ArrowWriter<File>, Box<dyn Error>> {
+fn create_writer(output_path: &str, schema: SchemaRef) -> Result<ArrowWriter<RateLimitedWriter<File>>, Box<dyn Error>> {
     let props = WriterProperties::builder()
         .set_write_batch_size(WRITER_BATCH_SIZE)
         .set_compression(Compression::ZSTD(Default::default()))
@@ -157,7 +158,10 @@ fn create_writer(output_path: &str, schema: SchemaRef) -> Result<ArrowWriter<Fil
     let out_file = File::create(output_path)
         .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to create output file: {}", e)))?;
 
-    ArrowWriter::try_new(out_file, schema, Some(props))
+    let throttled_writer = RateLimitedWriter::new(out_file, 20.0 * 1024.0 * 1024.0)
+        .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to create rate limiter: {}", e)))?;
+
+    ArrowWriter::try_new(throttled_writer, schema, Some(props))
         .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to create writer: {}", e)).into())
 }
 
@@ -165,7 +169,7 @@ fn create_writer(output_path: &str, schema: SchemaRef) -> Result<ArrowWriter<Fil
 fn process_files(
     input_files: &[String],
     schema: &SchemaRef,
-    writer: &mut ArrowWriter<File>,
+    writer: &mut ArrowWriter<RateLimitedWriter<File>>,
 ) -> Result<ProcessingStats, Box<dyn Error>> {
     let mut current_row_id: i64 = 0;
     let mut stats = ProcessingStats {

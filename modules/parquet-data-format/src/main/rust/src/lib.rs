@@ -13,6 +13,8 @@ use std::sync::{Arc, Mutex};
 
 pub mod logger;
 pub mod parquet_merge;
+pub mod rate_limited_writer;
+
 pub use parquet_merge::*;
 
 // Re-export macros from the shared crate for logging
@@ -385,7 +387,7 @@ mod tests {
         let result = NativeParquetWriter::create_writer(invalid_path.to_string(), schema_ptr);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("No such file or directory"));
-        
+
         cleanup_ffi_schema(schema_ptr);
     }
 
