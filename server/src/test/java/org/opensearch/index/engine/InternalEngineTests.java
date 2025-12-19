@@ -3510,6 +3510,107 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testUnreferencedFileCleanUpOnSegmentMergeFailureWithCleanUpEnabledWithIndexSort() throws Exception {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        final CountDownLatch cleanupCompleted = new CountDownLatch(1);
+        Sort indexSort = new Sort(new SortedSetSortField("foo", false));
+        final Settings indexSettings = Settings.builder().put("index.sort.field", "foo").build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", indexSettings);
+        MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
+            @Override
+            public void eval(MockDirectoryWrapper dir) throws IOException {
+                // Fail segment merge with diskfull during merging terms
+                if (callStackContainsAnyOf("mergeTerms")) {
+                    throw new IOException("No space left on device");
+                }
+            }
+        };
+
+        wrapper.failOn(fail);
+        try {
+            Store store = createStore(idxSettings, wrapper);
+            final Engine.EventListener eventListener = new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {
+                    try {
+                        // extra0 file is added as a part of
+                        // https://lucene.apache.org/core/7_2_1/test-framework/org/apache/lucene/mockfile/ExtrasFS.html
+                        // Safe to remove from file count along with write.lock without impacting the test.
+                        long fileCount = Arrays.stream(store.directory().listAll())
+                            .filter(file -> file.equals("write.lock") == false && ExtrasFS.isExtra(file) == false)
+                            .count();
+
+                        // Since only one document is committed and unreferenced files are cleaned up,
+                        // there are 4 files (*cfs, *cfe, *si and segments_*).
+                        assertThat(fileCount, equalTo(4L));
+                        wrapper.close();
+                        store.close();
+                        engine.close();
+                        cleanupCompleted.countDown();
+                    } catch (IOException ex) {
+                        throw new AssertionError(ex);
+                    }
+                }
+            };
+
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+            final AtomicLong retentionLeasesVersion = new AtomicLong();
+            final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(
+                new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), Collections.emptyList())
+            );
+
+            // Just allow force merge so that regular merge does not close the shard first before any any other operation
+            //
+            InternalEngine engine = createEngine(
+                config(
+                    idxSettings,
+                    store,
+                    createTempDir(),
+                    newForceMergePolicy(),
+                    null,
+                    null,
+                    indexSort, // testing index sort
+                    globalCheckpoint::get,
+                    retentionLeasesHolder::get,
+                    new NoneCircuitBreakerService(),
+                    eventListener
+                )
+            );
+
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
+
+            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            engine.index(indexForDoc(doc));
+            engine.refresh("test");
+            engine.flush();
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+
+            ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
+            engine.index(indexForDoc(doc2));
+            engine.refresh("test");
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+
+            // IndexWriter can throw either IOException or IllegalStateException depending on whether tragedy is set or not.
+            expectThrowsAnyOf(
+                Arrays.asList(IOException.class, IllegalStateException.class),
+                () -> engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID())
+            );
+
+            assertTrue(cleanupCompleted.await(10, TimeUnit.SECONDS));
+            // Cleanup count will be incremented whenever cleanup is performed correctly.
+            long unreferencedFileCleanUpsPerformed = engine.unreferencedFileCleanUpsPerformed();
+            assertThat(unreferencedFileCleanUpsPerformed, equalTo(1L));
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
     public void testUnreferencedFileCleanUpOnSegmentMergeFailureWithCleanUpDisabled() throws Exception {
         MockDirectoryWrapper wrapper = newMockDirectory();
         final CountDownLatch cleanupCompleted = new CountDownLatch(1);

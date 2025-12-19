@@ -20,7 +20,7 @@ jobs:
     - if: failure()
       run: cat server/build/reports/java-compatibility/report.txt
     - if: failure()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: java-compatibility-report.html
         path: ${{ github.workspace }}/server/build/reports/java-compatibility/report.html
