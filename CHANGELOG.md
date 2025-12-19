@@ -45,5 +45,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove identity-shiro from plugins folder ([#20305](https://github.com/opensearch-project/OpenSearch/pull/20305))
 
 [Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.4...main
-
-[Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.4...main

@@ -32,6 +32,8 @@
 
 package org.opensearch.index;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
@@ -60,6 +62,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
 
+    private static final Logger logger = LogManager.getLogger(AdaptiveOpenSearchTieredMergePolicy.class);
+
     final TieredMergePolicy regularMergePolicy;
     final TieredMergePolicy forcedMergePolicy;
     private final ReentrantReadWriteLock settingsLock;
@@ -80,11 +84,52 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
     public MergeSpecification findMerges(MergeTrigger mergeTrigger, SegmentInfos infos, MergeContext mergeContext) throws IOException {
         // Recompute adaptive settings from the current topology before planning merges
         long totalSizeBytes = 0L;
+        int failedSegments = 0;
+        int totalSegments = infos.size();
+
         for (SegmentCommitInfo info : infos) {
             try {
                 totalSizeBytes += info.sizeInBytes();
             } catch (IOException e) {
-                // best-effort: skip segments we cannot size
+                // Best-effort: skip segments we cannot size. This can happen if segment files
+                // are temporarily unavailable (e.g., during remote store replication).
+                // If many segments fail, the shard size will be underestimated, leading to
+                // smaller adaptive settings than optimal. Fallback: if totalSizeBytes is 0,
+                // the calculation methods will clamp to 1 byte, producing the smallest settings.
+                failedSegments++;
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Failed to get size for segment [{}], skipping from shard size calculation", info.info.name, e);
+                }
+            }
+        }
+
+        // Log warning if significant number of segments failed or all segments failed
+        if (failedSegments > 0) {
+            double failureRate = (double) failedSegments / totalSegments;
+            if (totalSizeBytes == 0L) {
+                // All segments failed - this will produce minimum adaptive settings
+                logger.warn(
+                    "All {} segments failed to report size during adaptive merge policy calculation. "
+                        + "Using minimum adaptive settings (50 MiB max segment, 10 MiB floor, 5 segments per tier). "
+                        + "This may result in suboptimal merge behavior.",
+                    totalSegments
+                );
+            } else if (failureRate > 0.5) {
+                // More than half failed - significant underestimation likely
+                logger.warn(
+                    "{} of {} segments ({:.1f}%) failed to report size during adaptive merge policy calculation. "
+                        + "Shard size may be significantly underestimated, leading to smaller adaptive settings than optimal.",
+                    failedSegments,
+                    totalSegments,
+                    String.format("%.1f", failureRate * 100.0)
+                );
+            } else if (logger.isTraceEnabled()) {
+                // Log at trace level for minor failures
+                logger.trace(
+                    "{} of {} segments failed to report size (shard size may be slightly underestimated)",
+                    failedSegments,
+                    totalSegments
+                );
             }
         }
 
