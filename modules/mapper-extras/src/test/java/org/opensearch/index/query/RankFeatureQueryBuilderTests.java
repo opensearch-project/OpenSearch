@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
@@ -122,13 +123,23 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     public void testDefaultScoreFunction() throws IOException {
-        String query = "{\n" + "    \"rank_feature\" : {\n" + "        \"field\": \"my_feature_field\"\n" + "    }\n" + "}";
+        String query = """
+            {
+                "rank_feature" : {
+                    "field": "my_feature_field"
+                }
+            }""";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
         assertEquals(FeatureField.newSaturationQuery("_feature", "my_feature_field"), parsedQuery);
     }
 
     public void testIllegalField() throws IOException {
-        String query = "{\n" + "    \"rank_feature\" : {\n" + "        \"field\": \"" + TEXT_FIELD_NAME + "\"\n" + "    }\n" + "}";
+        String query = String.format(Locale.ROOT, """
+            {
+                "rank_feature" : {
+                    "field": "%s"
+                }
+            }""", TEXT_FIELD_NAME);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
         assertEquals(
             "[rank_feature] query only works on [rank_feature] fields and features of [rank_features] fields, not [text]",
@@ -137,14 +148,15 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     public void testIllegalCombination() throws IOException {
-        String query = "{\n"
-            + "    \"rank_feature\" : {\n"
-            + "        \"field\": \"my_negative_feature_field\",\n"
-            + "        \"log\" : {\n"
-            + "            \"scaling_factor\": 4.5\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        String query = """
+            {
+                "rank_feature" : {
+                    "field": "my_negative_feature_field",
+                    "log" : {
+                        "scaling_factor": 4.5
+                    }
+                }
+            }""";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
         assertEquals(
             "Cannot use the [log] function with a field that has a negative score impact as it would trigger negative scores",

@@ -45,6 +45,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.repositories.s3.utils.Protocol;
+import org.opensearch.secure_sm.AccessController;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -309,7 +310,7 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(settings.get("other").region, is(region));
         try (
             S3Service s3Service = new S3Service(configPath());
-            S3Client other = SocketAccess.doPrivileged(() -> s3Service.buildClient(settings.get("other")).client());
+            S3Client other = AccessController.doPrivileged(() -> s3Service.buildClient(settings.get("other")).client());
         ) {
             assertThat(other.serviceClientConfiguration().region(), is(Region.of(region)));
         }
@@ -325,13 +326,13 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").signerOverride, is(signerOverride));
 
-        ClientOverrideConfiguration defaultConfiguration = SocketAccess.doPrivileged(
+        ClientOverrideConfiguration defaultConfiguration = AccessController.doPrivileged(
             () -> S3Service.buildOverrideConfiguration(settings.get("default"), null)
         );
         Optional<Signer> defaultSigner = defaultConfiguration.advancedOption(SdkAdvancedClientOption.SIGNER);
         assertFalse(defaultSigner.isPresent());
 
-        ClientOverrideConfiguration configuration = SocketAccess.doPrivileged(
+        ClientOverrideConfiguration configuration = AccessController.doPrivileged(
             () -> S3Service.buildOverrideConfiguration(settings.get("other"), null)
         );
         Optional<Signer> otherSigner = configuration.advancedOption(SdkAdvancedClientOption.SIGNER);

@@ -8,7 +8,6 @@
 
 package org.opensearch.http.reactor.netty4;
 
-import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpRequest;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,12 +29,12 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
     private final HttpServerResponse response;
     private final CompositeByteBuf content;
     private final Publisher<HttpContent> publisher;
-    private final AbstractHttpServerTransport transport;
+    private final ReactorNetty4HttpServerTransport transport;
     private final AtomicBoolean disposed = new AtomicBoolean(false);
     private volatile FluxSink<HttpContent> emitter;
 
     ReactorNetty4NonStreamingRequestConsumer(
-        AbstractHttpServerTransport transport,
+        ReactorNetty4HttpServerTransport transport,
         HttpServerRequest request,
         HttpServerResponse response,
         int maxCompositeBufferComponents
@@ -73,6 +72,7 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
             final HttpRequest r = createRequest(request, content);
 
             try {
+                transport.serverAcceptedChannel(channel);
                 transport.incomingRequest(r, channel);
             } catch (Exception ex) {
                 emitter.error(ex);
