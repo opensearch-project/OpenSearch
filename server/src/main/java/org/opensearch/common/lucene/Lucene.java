@@ -197,7 +197,8 @@ public class Lucene {
      * a write lock from the directory while pruning unused files. This method expects an existing index in the given directory that has
      * the given segments file.
      */
-    public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory) throws IOException {
+    public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory, boolean isParentFieldEnabled)
+        throws IOException {
         final SegmentInfos si = readSegmentInfos(segmentsFileName, directory);
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             int foundSegmentFiles = 0;
@@ -222,16 +223,15 @@ public class Lucene {
             }
         }
         final IndexCommit cp = getIndexCommit(si, directory);
-        try (
-            IndexWriter writer = new IndexWriter(
-                directory,
-                new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                    .setIndexCommit(cp)
-                    .setCommitOnClose(false)
-                    .setMergePolicy(NoMergePolicy.INSTANCE)
-                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-            )
-        ) {
+        IndexWriterConfig iwc = new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setIndexCommit(cp)
+            .setCommitOnClose(false)
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        if (isParentFieldEnabled) {
+            iwc.setParentField(Lucene.PARENT_FIELD);
+        }
+        try (IndexWriter writer = new IndexWriter(directory, iwc)) {
             // do nothing and close this will kick off IndexFileDeleter which will remove all pending files
         }
         return si;
