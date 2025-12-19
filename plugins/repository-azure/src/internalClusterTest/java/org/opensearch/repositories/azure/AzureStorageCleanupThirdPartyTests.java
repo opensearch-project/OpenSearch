@@ -81,7 +81,6 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         ensureGreen();
     }
 
-
     @Override
     public void tearDown() throws Exception {
         try {
