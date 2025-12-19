@@ -8,38 +8,57 @@
 
 package org.opensearch.index.engine.exec.merge;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MergeTrigger;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 public class CompositeMergePolicy implements MergePolicy.MergeContext {
     private final MergePolicy luceneMergePolicy;
     private final InfoStream infoStream;
+    private final Logger logger;
 
     private static final HashSet<SegmentCommitInfo> mergingSegments = new HashSet<>();
 
-    public CompositeMergePolicy(MergePolicy mergePolicy) {
+    public CompositeMergePolicy(
+        MergePolicy mergePolicy,
+        ShardId shardId
+    ) {
         this.luceneMergePolicy = mergePolicy;
-        System.out.println("Merge Policy : " + mergePolicy);
+        this.logger = Loggers.getLogger(getClass(), shardId);
+        logger.info("Initialized merge policy: {}", mergePolicy);
         this.infoStream = new InfoStream() {
             @Override
-            public void message(String s, String s1) {
-                // TODO: Add logger
-//                 System.out.println("Parquet merge: " + s + " : " + s1);
+            public void message(String component, String message) {
+                logger.trace(() -> new ParameterizedMessage("Merge [{}]: {}", component, message));
             }
 
             @Override
-            public boolean isEnabled(String s) {
-                return true;
+            public boolean isEnabled(String component) {
+                return logger.isDebugEnabled();
             }
 
             @Override
@@ -49,84 +68,67 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
     }
 
     public List<List<CatalogSnapshot.Segment>> findForceMergeCandidates(List<CatalogSnapshot.Segment> segments, int maxSegmentCount) throws IOException {
-        // Convert segments to Lucene-style segments
-        List<SegmentCommitInfo> luceneSegments = new ArrayList<>();
         Map<SegmentCommitInfo, CatalogSnapshot.Segment> segmentMap = new HashMap<>();
+        SegmentInfos segmentInfos = convertToSegmentInfos(segments, segmentMap);
+
         Map<SegmentCommitInfo, Boolean> segmentsToMerge = new HashMap<>();
+        segmentInfos.forEach(seg -> segmentsToMerge.put(seg, true));
 
-        for(CatalogSnapshot.Segment segment : segments) {
-            SegmentWrapper wrapper = new SegmentWrapper(segment, calculateSegmentSize(segment));
-            luceneSegments.add(wrapper);
-            segmentMap.put(wrapper, segment);
-            segmentsToMerge.put(wrapper, true);
-        }
-
-        // Create SegmentInfos (required by Lucene 10)
-        SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
-        luceneSegments.forEach(segmentInfos::add);
-
-        // Find merge candidates using Lucene's policy
-        List<List<CatalogSnapshot.Segment>> merges = new ArrayList<>();
         try {
-            MergePolicy.MergeSpecification mergeSpecification = luceneMergePolicy.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, this);
-
-            if(mergeSpecification != null) {
-                List<MergePolicy.OneMerge> luceneMerges = mergeSpecification.merges;
-
-                // Convert back to segments
-                for (MergePolicy.OneMerge merge : luceneMerges) {
-                    List<CatalogSnapshot.Segment> segmentMerge = new ArrayList<>();
-
-                    for(SegmentCommitInfo segment : merge.segments) {
-                        segmentMerge.add(segmentMap.get(segment));
-                    }
-                    merges.add(segmentMerge);
-                }
-            }
+            MergePolicy.MergeSpecification mergeSpec = luceneMergePolicy.findForcedMerges(
+                segmentInfos, maxSegmentCount, segmentsToMerge, this
+            );
+            return convertMergeSpecification(mergeSpec, segmentMap);
         } catch (Exception e) {
-            throw new RuntimeException("Error finding merge candidates", e);
+            logger.error(() -> new ParameterizedMessage("Error finding force merge candidates", e));
+            throw new RuntimeException("Error finding force merge candidates", e);
         }
-        return merges;
     }
 
     public List<List<CatalogSnapshot.Segment>> findMergeCandidates(List<CatalogSnapshot.Segment> segments) throws IOException {
-
-        // Convert segments to Lucene-style segments
-        List<SegmentCommitInfo> luceneSegments = new ArrayList<>();
         Map<SegmentCommitInfo, CatalogSnapshot.Segment> segmentMap = new HashMap<>();
+        SegmentInfos segmentInfos = convertToSegmentInfos(segments, segmentMap);
 
-        for(CatalogSnapshot.Segment segment : segments) {
+        try {
+            MergePolicy.MergeSpecification mergeSpec = luceneMergePolicy.findMerges(
+                MergeTrigger.COMMIT, segmentInfos, this
+            );
+            return convertMergeSpecification(mergeSpec, segmentMap);
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("Error finding merge candidates", e));
+            throw new RuntimeException("Error finding merge candidates", e);
+        }
+    }
+
+    private SegmentInfos convertToSegmentInfos(
+        List<CatalogSnapshot.Segment> segments,
+        Map<SegmentCommitInfo, CatalogSnapshot.Segment> segmentMap
+    ) throws IOException {
+        SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
+
+        for (CatalogSnapshot.Segment segment : segments) {
             SegmentWrapper wrapper = new SegmentWrapper(segment, calculateSegmentSize(segment));
-            luceneSegments.add(wrapper);
+            segmentInfos.add(wrapper);
             segmentMap.put(wrapper, segment);
         }
 
-        // Create SegmentInfos (required by Lucene 10)
-        SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
-        luceneSegments.forEach(segmentInfos::add);
+        return segmentInfos;
+    }
 
-        // Find merge candidates using Lucene's policy
+    private List<List<CatalogSnapshot.Segment>> convertMergeSpecification(
+        MergePolicy.MergeSpecification mergeSpecification,
+        Map<SegmentCommitInfo, CatalogSnapshot.Segment> segmentMap
+    ) {
         List<List<CatalogSnapshot.Segment>> merges = new ArrayList<>();
-        try {
-            // Get merge candidates from Lucene's policy
-            MergePolicy.MergeSpecification mergeSpecification = luceneMergePolicy.findMerges(MergeTrigger.COMMIT, segmentInfos
-                , this);
 
-            if(mergeSpecification != null) {
-                List<MergePolicy.OneMerge> luceneMerges = mergeSpecification.merges;
-
-                // Convert back to segments
-                for (MergePolicy.OneMerge merge : luceneMerges) {
-                    List<CatalogSnapshot.Segment> segmentMerge = new ArrayList<>();
-
-                    for(SegmentCommitInfo segment : merge.segments) {
-                        segmentMerge.add(segmentMap.get(segment));
-                    }
-                    merges.add(segmentMerge);
+        if (mergeSpecification != null) {
+            for (MergePolicy.OneMerge merge : mergeSpecification.merges) {
+                List<CatalogSnapshot.Segment> segmentMerge = new ArrayList<>();
+                for (SegmentCommitInfo segment : merge.segments) {
+                    segmentMerge.add(segmentMap.get(segment));
                 }
+                merges.add(segmentMerge);
             }
-        } catch (Exception e) {
-            throw new RuntimeException("Error finding merge candidates", e);
         }
 
         return merges;
@@ -165,7 +167,7 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
             }
         } catch (Exception e) {
             // Log error but continue with 0 size
-            System.err.println("Error calculating segment size: " + e.getMessage());
+            logger.warn(() -> new ParameterizedMessage("Error calculating segment size", e));
         }
         return totalSize;
     }
@@ -177,7 +179,7 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
                 mergingSegments.add(wrapper);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error(() -> new ParameterizedMessage("Failed to add merging segments", e));
             throw new RuntimeException(e);
         }
     }
@@ -190,9 +192,9 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
                 SegmentWrapper wrapper = new SegmentWrapper(segment, calculateSegmentSize(segment));
                 segmentToRemove.add(wrapper);
             }
-            segmentToRemove.forEach(segment -> mergingSegments.remove(segment));
+            segmentToRemove.forEach(mergingSegments::remove);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error(() -> new ParameterizedMessage("Failed to remove merging segments", e));
             throw new RuntimeException(e);
         }
     }

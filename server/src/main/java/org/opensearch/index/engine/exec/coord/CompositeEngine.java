@@ -287,8 +287,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             );
             this.throttle = new IndexThrottle();
             this.historyUUID = loadHistoryUUID(userData);
-            this.mergeHandler = new CompositeMergeHandler(this, this.engine, this.engine.getDataFormat(), indexSettings);
-            this.mergeScheduler = new MergeScheduler(this.mergeHandler, this);
+            this.mergeHandler = new CompositeMergeHandler(this, this.engine, this.engine.getDataFormat(), indexSettings, shardId);
+            this.mergeScheduler = new MergeScheduler(this.mergeHandler, this, shardId, indexSettings);
 
             // Refresh here so that catalog snapshot gets initialized
             // TODO : any better way to do this ?

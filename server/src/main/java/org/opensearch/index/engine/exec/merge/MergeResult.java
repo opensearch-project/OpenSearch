@@ -16,9 +16,9 @@ import java.util.Map;
 
 public class MergeResult {
 
-    private RowIdMapping rowIdMapping;
+    private final RowIdMapping rowIdMapping;
 
-    private Map<DataFormat, WriterFileSet> mergedWriterFileSet = new HashMap<>();
+    private Map<DataFormat, WriterFileSet> mergedWriterFileSet;
 
     public MergeResult(RowIdMapping rowIdMapping, Map<DataFormat, WriterFileSet> mergedWriterFileSet) {
         this.rowIdMapping = rowIdMapping;
@@ -35,5 +35,13 @@ public class MergeResult {
 
     public WriterFileSet getMergedWriterFileSetForDataformat (DataFormat dataFormat) {
         return mergedWriterFileSet.get(dataFormat);
+    }
+
+    @Override
+    public String toString() {
+        return "MergeResult{" +
+            "rowIdMapping=" + rowIdMapping +
+            ", mergedWriterFileSet=" + mergedWriterFileSet +
+            '}';
     }
 }
