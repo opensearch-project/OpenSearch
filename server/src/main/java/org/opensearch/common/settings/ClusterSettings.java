@@ -866,7 +866,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER,
                 StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
-                StreamSearchTransportService.STREAM_SEARCH_ENABLED
+                StreamSearchTransportService.STREAM_SEARCH_ENABLED,
+
+                SearchService.CLUSTER_SEARCH_QUERY_PLAN_EXPLAIN_SETTING
             )
         )
     );

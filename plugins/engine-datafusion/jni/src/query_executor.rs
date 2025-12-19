@@ -107,6 +107,7 @@ pub async fn execute_query_with_cross_rt_stream(
     files_meta: Arc<Vec<CustomFileMeta>>,
     table_name: String,
     plan_bytes_vec: Vec<u8>,
+    is_query_plan_explain_enabled: bool,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
 ) -> Result<jlong, DataFusionError> {
@@ -271,9 +272,11 @@ pub async fn execute_query_with_cross_rt_stream(
     }
 
 
-    // println!("Explain show");
-    // let clone_df = dataframe.clone().explain(false, true);
-    // clone_df?.show().await?;
+    if is_query_plan_explain_enabled {
+        println!("---- Explain plan ----");
+        let clone_df = dataframe.clone().explain(false, true).expect("Failed to explain plan");
+        clone_df.show().await?;
+    }
 
     let df_stream = match execute_stream(physical_plan, ctx.task_ctx()) {
         Ok(stream) => stream,

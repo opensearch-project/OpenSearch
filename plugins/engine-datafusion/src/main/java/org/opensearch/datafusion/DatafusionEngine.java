@@ -22,6 +22,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.BigArrays;
@@ -92,8 +93,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     }
 
     @Override
-    public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext) throws IOException {
-        DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, searchShardTarget, task, this, bigArrays, originalContext);
+    public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext, ClusterService clusterService) throws IOException {
+        DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, searchShardTarget, task, this, bigArrays, originalContext, clusterService);
         // Parse source
         datafusionContext.datafusionQuery(new DatafusionQuery(request.shardId().getIndexName(), request.source().queryPlanIR(), new ArrayList<>()));
         return datafusionContext;
@@ -264,6 +265,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<Map<String, Object[]>> listener) {
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
+            context.getDatafusionQuery().setQueryPlanExplainEnabled(context.evaluateSearchQueryExplainMode());
+
             datafusionSearcher.searchAsync(context.getDatafusionQuery(), datafusionService.getRuntimePointer()).whenCompleteAsync((streamPointer, error)-> {
                 Map<String, Object[]> finalRes = new HashMap<>();
                 List<Long> rowIdResult = new ArrayList<>();
@@ -395,7 +398,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             includeFields.add(CompositeDataFormatWriter.ROW_ID);
         }
         excludeFields.addAll(context.mapperService().documentMapper().mapping().getMetadataStringNames());
-        excludeFields.add(SeqNoFieldMapper.PRIMARY_TERM_NAME); // TODO: check why _primary_term is not part of metadata mapper fields
+        excludeFields.add(SeqNoFieldMapper.PRIMARY_TERM_NAME);
 
         context.getDatafusionQuery().setSource(includeFields, excludeFields);
         DatafusionSearcher datafusionSearcher = context.getEngineSearcher();

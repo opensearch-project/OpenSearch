@@ -15,11 +15,15 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -65,6 +69,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.opensearch.search.SearchService.CLUSTER_SEARCH_QUERY_PLAN_EXPLAIN_SETTING;
+
 /**
  * Search context for Datafusion engine
  */
@@ -90,6 +96,7 @@ public class DatafusionContext extends SearchContext {
     private int from;
     private int size;
     private final SearchContext originalContext;
+    private final ClusterService clusterService;
 
     /**
      * Constructor
@@ -105,7 +112,8 @@ public class DatafusionContext extends SearchContext {
         SearchShardTask task,
         DatafusionEngine engine,
         BigArrays bigArrays,
-        SearchContext originalContext) {
+        SearchContext originalContext,
+        ClusterService clusterService) {
         this.readerContext = readerContext;
         this.indexShard = readerContext.indexShard();
         this.request = request;
@@ -127,6 +135,7 @@ public class DatafusionContext extends SearchContext {
         this.originalContext = originalContext;
         this.size(Optional.ofNullable(request.source()).isPresent() ? request.source().size() : 0);
         this.from(Optional.ofNullable(request.source()).isPresent() ? request.source().from() : 0);
+        this.clusterService = clusterService;
     }
 
     /**
@@ -833,5 +842,19 @@ public class DatafusionContext extends SearchContext {
             case null, default ->
                 throw new IllegalArgumentException("Conversion to Comparable not supported for type " + rawValue.getClass());
         };
+    }
+
+    public boolean evaluateSearchQueryExplainMode() {
+        Settings indexSettings = this.indexService.getIndexSettings().getSettings();
+        if (clusterService == null) {
+            return this.indexService.getIndexSettings().isSearchQueryPlaneExplainEnabled();
+        }
+
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+
+        return indexSettings.getAsBoolean(
+            IndexSettings.INDEX_SEARCH_QUERY_PLAN_EXPLAIN_SETTING.getKey(),
+            clusterSettings.get(CLUSTER_SEARCH_QUERY_PLAN_EXPLAIN_SETTING)
+        );
     }
 }

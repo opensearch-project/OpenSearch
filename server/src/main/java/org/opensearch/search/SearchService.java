@@ -278,6 +278,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Deprecated
     );
 
+    public static final Setting<Boolean> CLUSTER_SEARCH_QUERY_PLAN_EXPLAIN_SETTING = Setting.boolSetting(
+        "search.query_plan.explain",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final Setting<Boolean> QUERY_REWRITING_ENABLED_SETTING = Setting.boolSetting(
         "search.query_rewriting.enabled",
         false,
@@ -1460,7 +1467,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             request.getClusterAlias(),
             OriginalIndices.NONE
         );
-        SearchContext context = searchExecEngine.createContext(readerContext, request, shardTarget, task, bigArrays, originalContext);
+        SearchContext context = searchExecEngine.createContext(readerContext, request, shardTarget, task, bigArrays, originalContext, clusterService);
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
