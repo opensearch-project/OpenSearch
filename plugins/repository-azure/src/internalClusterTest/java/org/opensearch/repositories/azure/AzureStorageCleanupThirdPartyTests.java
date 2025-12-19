@@ -54,6 +54,7 @@ import org.junit.Before;
 import java.net.HttpURLConnection;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import reactor.core.scheduler.Schedulers;
