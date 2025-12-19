@@ -856,14 +856,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             //context.aggregations(context1.aggregations());
             // TODO Execute plan here
             // TODO : figure out how to tie this
-            byte[] substraitQuery = request.source().queryPlanIR();
-            context.queryResult().from(context.from());
-            context.queryResult().size(context.size());
-            if (substraitQuery != null) {
-                // setDFResults in context
-                Map<String, Object[]> result = searchExecEngine.executeQueryPhase(context);
-                context.setDFResults(result);
-            }
+        byte[] substraitQuery = request.source().queryPlanIR();
+        context.queryResult().from(context.from());
+        context.queryResult().size(context.size());
+        logger.info("[DATAFUSION-DEBUG] SearchService.executeQueryPhase - queryPlanIR is null: {}, shard: {}", 
+                    substraitQuery == null, context.shardTarget());
+        if (substraitQuery != null) {
+            logger.info("[DATAFUSION-DEBUG] SearchService - Calling searchExecEngine.executeQueryPhase to pre-set topDocs, shard: {}", 
+                        context.shardTarget());
+            // setDFResults in context
+            Map<String, Object[]> result = searchExecEngine.executeQueryPhase(context);
+            context.setDFResults(result);
+            logger.info("[DATAFUSION-DEBUG] SearchService - topDocs pre-set by engine, shard: {}", context.shardTarget());
+        } else {
+            logger.info("[DATAFUSION-DEBUG] SearchService - Skipping engine executeQueryPhase (queryPlanIR is null), topDocs NOT pre-set, shard: {}", 
+                        context.shardTarget());
+        }
             return executeQueryPhase(
                 context,
                 readerContext,

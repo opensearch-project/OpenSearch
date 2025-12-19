@@ -157,7 +157,17 @@ public class QueryPhase {
         // here to make sure it happens during the QUERY phase
         aggregationProcessor.preProcess(searchContext.getOriginalContext());
 
-        if(Optional.ofNullable(searchContext.queryResult().topDocs().topDocs.totalHits).isEmpty() || searchContext.queryResult().topDocs().topDocs.totalHits.value() == 0) {
+        LOGGER.info("[DATAFUSION-DEBUG] QueryPhase.execute - About to check topDocs, shard: {}", searchContext.shardTarget());
+        boolean topDocsIsNull = false;
+        try {
+            searchContext.queryResult().topDocs();
+            LOGGER.info("[DATAFUSION-DEBUG] QueryPhase - topDocs is NOT null (already pre-set), shard: {}", searchContext.shardTarget());
+        } catch (IllegalStateException e) {
+            topDocsIsNull = true;
+            LOGGER.info("[DATAFUSION-DEBUG] QueryPhase - topDocs is NULL (not pre-set), will throw error, shard: {}", searchContext.shardTarget());
+        }
+
+        if(!topDocsIsNull && (Optional.ofNullable(searchContext.queryResult().topDocs().topDocs.totalHits).isEmpty() || searchContext.queryResult().topDocs().topDocs.totalHits.value() == 0)) {
             searchContext.queryResult()
                 .topDocs(
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),

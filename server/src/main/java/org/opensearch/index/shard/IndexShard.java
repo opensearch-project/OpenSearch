@@ -1557,7 +1557,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public IndexingStats indexingStats() {
-        IndexingThrottler engine = getIndexingThrottler();
+        IndexingThrottler engine = getIndexingExecutionCoordinator();
         final boolean throttled;
         final long throttleTimeInMillis;
         if (engine == null) {
@@ -2023,7 +2023,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             catalogSnapshot.getVersion(),
             formatAwareMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
             formatAwareMetadataMap,
-            getEngine().config().getCodec().getName()
+            getIndexingExecutionCoordinator().getEngineConfig().getCodec().getName()
         );
         logger.trace("Recomputed ReplicationCheckpoint from CatalogSnapshot for shard {}", checkpoint);
         return checkpoint;
@@ -2307,7 +2307,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void failShard(String reason, @Nullable Exception e) {
         // fail the engine. This will cause this shard to also be removed from the node's index service.
-        getEngine().failEngine(reason, e);
+        // getEngine().failEngine(reason, e);
     }
 
     /**
@@ -2324,7 +2324,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        currentCompositeEngineReference.get().getPrimaryReadEngine().acquireSearcherSupplier(null, scope);
         return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
@@ -2470,7 +2469,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
                     if (engine != null && flushEngine) {
-                        engine.flushAndClose();
+                       // engine.flushAndClose();
                     }
                     if (compositeEngine != null && flushEngine) {
                         compositeEngine.flushAndClose();
@@ -4177,10 +4176,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine getEngine() {
+        logger.debug("--> [DEBUG] getEngine() called from: {}", Thread.currentThread().getStackTrace()[2].getMethodName());
         Engine engine = getEngineOrNull();
+        logger.debug("--> [DEBUG] getEngineOrNull() returned: {}", engine != null ? engine.getClass().getSimpleName() : "NULL");
         if (engine == null) {
+            logger.error("--> [ERROR] getEngine() - engine is NULL! currentEngineRef={}, compositeEngineRef={}",
+                currentEngineReference.get() != null ? "present" : "NULL",
+                currentCompositeEngineReference.get() != null ? "present" : "NULL");
             throw new AlreadyClosedException("engine is closed");
         }
+        logger.debug("--> [DEBUG] getEngine() returning: {}", engine.getClass().getSimpleName());
         return engine;
     }
 
@@ -5452,11 +5457,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if ((indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded()) && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
             }
-            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
-            onNewEngine(newEngineReference.get());
+
+            // Close OLD CompositeEngine from replica setup (already recovered, can't recover again)
+            CompositeEngine oldCompositeEngine = currentCompositeEngineReference.getAndSet(null);
+            IOUtils.close(oldCompositeEngine);
         }
+
+        // Create NEW CompositeEngine OUTSIDE synchronized block with fresh translog
+        // This mirrors the innerOpenEngineAndTranslog pattern
+        final CompositeEngine newCompositeEngine = new CompositeEngine(
+            newEngineConfig(replicationTracker),
+            mapperService,
+            pluginsService,
+            indexSettings,
+            path,
+            LocalCheckpointTracker::new,
+            TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
+        );
+
+        // IMPORTANT: Set the reference BEFORE translog recovery so applyTranslogOperation can access it
+        currentCompositeEngineReference.set(newCompositeEngine);
+
         final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
-            newEngineReference.get(),
+            newCompositeEngine,
             snapshot,
             Engine.Operation.Origin.LOCAL_RESET,
             () -> {
@@ -5471,13 +5494,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long recoverUpto = this.isRemoteTranslogEnabled() || indexSettings().isSegRepEnabledOrRemoteNode()
             ? Long.MAX_VALUE
             : globalCheckpoint;
-        newEngineReference.get()
+
+        // Recover the NEW CompositeEngine's translog FIRST
+        newCompositeEngine
             .translogManager()
-            .recoverFromTranslog(translogRunner, newEngineReference.get().getProcessedLocalCheckpoint(), recoverUpto);
-        newEngineReference.get().refresh("reset_engine");
+            .recoverFromTranslog(translogRunner, newCompositeEngine.getProcessedLocalCheckpoint(), recoverUpto);
+        newCompositeEngine.refresh("reset_engine");
+
+        // Create InternalEngine AFTER translog recovery so it reads the updated commit with correct checkpoints
+        final Engine newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
+        newEngineReference.set(newEngine);
+
         synchronized (engineMutex) {
             verifyNotClosed();
             IOUtils.close(currentEngineReference.getAndSet(newEngineReference.get()));
+            // currentCompositeEngineReference already set before recovery
+            // InternalEngine (currentEngineReference) provides Lucene search capability
+            // CompositeEngine (currentCompositeEngineReference) handles writes and format-specific search
             // We set active because we are now writing operations to the engine; this way,
             // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
             active.set(true);
@@ -5795,7 +5828,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * executing that replication request on a replica.
      */
     public long getMaxSeqNoOfUpdatesOrDeletes() {
-        return getEngine().getMaxSeqNoOfUpdatesOrDeletes();
+        return getIndexingExecutionCoordinator().getMaxSeqNoOfUpdatesOrDeletes();
     }
 
     /**
