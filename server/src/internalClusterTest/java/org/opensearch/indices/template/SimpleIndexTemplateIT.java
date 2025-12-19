@@ -1077,5 +1077,5 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             manageReplicaSettingForDefaultReplica(false);
         }
     }
-    
+
 }
