@@ -37,6 +37,7 @@ import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.BlobStorageException;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.MockSecureSettings;
@@ -62,6 +63,34 @@ import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
+
+    @AfterClass
+    public static void cleanupAzureBlobs() throws Exception {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.default.account", System.getProperty("test.azure.account"));
+
+        if (Strings.hasText(System.getProperty("test.azure.sas_token"))) {
+            secureSettings.setString("azure.client.default.sas_token", System.getProperty("test.azure.sas_token"));
+        } else {
+            secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key"));
+        }
+
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+
+        try (AzureStorageService storageService = new AzureStorageService(settings)) {
+
+            String container = System.getProperty("test.azure.container");
+            Tuple<BlobServiceClient, Supplier<Context>> client = storageService.client("default");
+            BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
+
+            if (blobContainer.exists()) {
+                blobContainer.listBlobs().forEach(blob -> { blobContainer.getBlobClient(blob.getName()).delete(); });
+
+                assertBusy(() -> assertFalse(blobContainer.listBlobs().iterator().hasNext()));
+            }
+        }
+    }
+
     @AfterClass
     public static void shutdownSchedulers() {
         Schedulers.shutdownNow();
@@ -70,21 +99,56 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     @BeforeClass
     public static void waitForAzureFixtureReady() throws Exception {
         assertBusy(() -> {
+            assertThat(System.getProperty("test.azure.account"), not(blankOrNullString()));
+
+            final boolean hasSasToken = Strings.hasText(System.getProperty("test.azure.sas_token"));
+            if (hasSasToken == false) {
+                assertThat(System.getProperty("test.azure.key"), not(blankOrNullString()));
+            } else {
+                assertThat(System.getProperty("test.azure.key"), blankOrNullString());
+            }
+
             assertThat(System.getProperty("test.azure.container"), not(blankOrNullString()));
             assertThat(System.getProperty("test.azure.base"), not(blankOrNullString()));
+        }, 60, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            String container = System.getProperty("test.azure.container");
+
+            MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString("azure.client.default.account", System.getProperty("test.azure.account"));
+
+            final boolean hasSasToken = Strings.hasText(System.getProperty("test.azure.sas_token"));
+            if (hasSasToken) {
+                secureSettings.setString("azure.client.default.sas_token", System.getProperty("test.azure.sas_token", ""));
+            } else {
+                secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key", ""));
+            }
+
+            Settings s = Settings.builder().setSecureSettings(secureSettings).build();
+
+            try (AzureStorageService storageService = new AzureStorageService(s)) {
+                Tuple<BlobServiceClient, Supplier<Context>> client = storageService.client("default");
+                BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
+
+                blobContainer.existsWithResponse(null, client.v2().get());
+            } catch (Exception e) {
+                throw new AssertionError("Azure container not ready yet: " + e.getMessage(), e);
+            }
         }, 60, TimeUnit.SECONDS);
     }
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ensureGreen();
+        ensureGreen("_all");
     }
 
     @Override
     public void tearDown() throws Exception {
         try {
-            client().admin().indices().prepareDelete("*").get();
+            client().admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
+
             client().admin().cluster().prepareDeleteRepository("_all").get();
         } finally {
             super.tearDown();
