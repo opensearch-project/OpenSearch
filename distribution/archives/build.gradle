@@ -244,6 +244,16 @@ subprojects {
   group = "org.opensearch.distribution"
 }
 
+tasks.configureEach { t ->
+  if (t.name ==~ /^build.+Tar$/) {
+    def base = t.name - 'Tar'   // buildLinuxTar -> buildLinux
+    def stage = tasks.findByName(base)
+    if (stage != null) {
+      t.dependsOn(stage)
+    }
+  }
+}
+
 tasks.each {
   if (it.name.startsWith("build")) {
     it.dependsOn project(':libs:agent-sm:agent').assemble
