@@ -72,12 +72,11 @@ impl AllocationMonitor {
 
     /// Update the stats for the heap monitor
     fn try_refresh(&self) -> Result<(), AllocationMonitorError> {
-        let reserved = self.reserved.load(Ordering::Acquire);
         self.allocated.store(
             jemalloc_stats::refresh_allocated().context(JemallocSnafu)?,
             Ordering::SeqCst,
         );
-        self.reserved.fetch_sub(reserved, Ordering::Release);
+        self.reserved.store(0, Ordering::Release);
         Ok(())
     }
 
@@ -85,17 +84,16 @@ impl AllocationMonitor {
     /// amount of memory allocated will exceed the maximum if the
     /// allocation were to be allowed.
     pub fn try_reserve(&self, sz: usize) -> Result<(), AllocationMonitorError> {
-        let reserved = self.reserved.fetch_add(sz, Ordering::AcqRel) + sz;
-        if self.allocated.load(Ordering::Acquire) + MEMORY_RESERVATION_RECHECK_FACTOR * reserved
-            > self.max
-        {
+        let reserved = self.reserved.fetch_add(sz, Ordering::AcqRel);
+        let allocated = self.allocated.load(Ordering::Acquire);
+        
+        if allocated + MEMORY_RESERVATION_RECHECK_FACTOR * (reserved + sz) > self.max {
             log_debug!("Refreshing stats sz: {}, reserved: {}, max: {}", sz, reserved + sz, self.max);
-            // We have used more than a quarter of the memory that was considered
-            // free last time we checkes the stats. Refresh the stats and check again.
             self.try_refresh()?;
+            
             let allocated = self.allocated.load(Ordering::Acquire);
-            let reserved = self.reserved.fetch_add(sz, Ordering::Acquire);
-
+            let reserved = self.reserved.load(Ordering::Acquire);
+            
             log_debug!("New Allocated stats: {}, sz: {}, reserved: {}, max: {}", allocated, sz, reserved, self.max);
             if allocated + sz + reserved > self.max {
                 return Err(AllocationMonitorError::HeapExhausted);
