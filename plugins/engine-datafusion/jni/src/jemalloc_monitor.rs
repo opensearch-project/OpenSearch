@@ -8,7 +8,7 @@
 
 use snafu::{ResultExt, Snafu};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use vectorized_exec_spi::log_info;
+use vectorized_exec_spi::{log_debug, log_info};
 
 #[global_allocator]
 static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -89,14 +89,14 @@ impl AllocationMonitor {
         if self.allocated.load(Ordering::Acquire) + MEMORY_RESERVATION_RECHECK_FACTOR * reserved
             > self.max
         {
-            log_info!("Refreshing stats sz: {}, reserved: {}, max: {}", sz, reserved + sz, self.max);
+            log_debug!("Refreshing stats sz: {}, reserved: {}, max: {}", sz, reserved + sz, self.max);
             // We have used more than a quarter of the memory that was considered
             // free last time we checkes the stats. Refresh the stats and check again.
             self.try_refresh()?;
             let allocated = self.allocated.load(Ordering::Acquire);
             let reserved = self.reserved.fetch_add(sz, Ordering::Acquire);
 
-            log_info!("New Allocated stats: {}, sz: {}, reserved: {}, max: {}", allocated, sz, reserved, self.max);
+            log_debug!("New Allocated stats: {}, sz: {}, reserved: {}, max: {}", allocated, sz, reserved, self.max);
             if allocated + sz + reserved > self.max {
                 return Err(AllocationMonitorError::HeapExhausted);
             }
