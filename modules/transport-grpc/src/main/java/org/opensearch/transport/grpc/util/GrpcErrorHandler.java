@@ -21,8 +21,10 @@ import org.opensearch.core.compress.NotXContentException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 import io.grpc.Status;
@@ -34,6 +36,10 @@ import io.grpc.StatusRuntimeException;
 public class GrpcErrorHandler {
     private static final Logger logger = LogManager.getLogger(GrpcErrorHandler.class);
 
+    private static final ToXContent.MapParams INCLUDE_STACK_TRACES = new ToXContent.MapParams(
+        Map.of(OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false")
+    );
+
     private GrpcErrorHandler() {
         // Utility class, no instances
     }
@@ -44,58 +50,78 @@ public class GrpcErrorHandler {
      * with enhanced XContent details for OpenSearchExceptions and full stack traces for debugging.
      *
      * @param e The exception to convert
+     * @param params
      * @return StatusRuntimeException with appropriate gRPC status and enhanced error details
      */
-    public static StatusRuntimeException convertToGrpcError(Exception e) {
+    public static StatusRuntimeException convertToGrpcError(Exception e, GlobalParams params) {
+        boolean shouldIncludeDetailedStackTrace = GrpcParamsHandler.isDetailedStackTraceRequested(params);
         // ========== OpenSearch Business Logic Exceptions ==========
         // Custom OpenSearch exceptions which extend {@link OpenSearchException}.
         // Uses {@link RestToGrpcStatusConverter} for REST -> gRPC status mapping and
         // follows {@link OpenSearchException#generateFailureXContent} unwrapping logic
         switch (e) {
             case OpenSearchException ose -> {
-                return handleOpenSearchException(ose);
+                return handleOpenSearchException(ose, shouldIncludeDetailedStackTrace);
             }
 
             // ========== OpenSearch Core System Exceptions ==========
             // Low-level OpenSearch exceptions that don't extend OpenSearchException - include full details
             case OpenSearchRejectedExecutionException osree -> {
-                return Status.RESOURCE_EXHAUSTED.withDescription(ExceptionsHelper.stackTrace(osree)).asRuntimeException();
+                return Status.RESOURCE_EXHAUSTED.withDescription(getErrorDetailsForConfig(osree, shouldIncludeDetailedStackTrace))
+                    .asRuntimeException();
             }
             case NotXContentException notXContentException -> {
-                return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(notXContentException)).asRuntimeException();
+                return Status.INVALID_ARGUMENT.withDescription(
+                    getErrorDetailsForConfig(notXContentException, shouldIncludeDetailedStackTrace)
+                ).asRuntimeException();
             }
             case NotCompressedException notCompressedException -> {
-                return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(notCompressedException)).asRuntimeException();
+                return Status.INVALID_ARGUMENT.withDescription(
+                    getErrorDetailsForConfig(notCompressedException, shouldIncludeDetailedStackTrace)
+                ).asRuntimeException();
             }
 
             // ========== 3. Third-party Library Exceptions ==========
             // External library exceptions (Jackson JSON parsing) - include full details
             case InputCoercionException inputCoercionException -> {
-                return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(inputCoercionException)).asRuntimeException();
+                return Status.INVALID_ARGUMENT.withDescription(
+                    getErrorDetailsForConfig(inputCoercionException, shouldIncludeDetailedStackTrace)
+                ).asRuntimeException();
             }
             case JsonParseException jsonParseException -> {
-                return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(jsonParseException)).asRuntimeException();
+                return Status.INVALID_ARGUMENT.withDescription(
+                    getErrorDetailsForConfig(jsonParseException, shouldIncludeDetailedStackTrace)
+                ).asRuntimeException();
             }
 
             // ========== 4. Standard Java Exceptions ==========
             // Generic Java runtime exceptions - include full exception details for debugging
             case IllegalArgumentException illegalArgumentException -> {
-                return Status.INVALID_ARGUMENT.withDescription(ExceptionsHelper.stackTrace(illegalArgumentException)).asRuntimeException();
+                return Status.INVALID_ARGUMENT.withDescription(
+                    getErrorDetailsForConfig(illegalArgumentException, shouldIncludeDetailedStackTrace)
+                ).asRuntimeException();
             }
             case IllegalStateException illegalStateException -> {
-                return Status.FAILED_PRECONDITION.withDescription(ExceptionsHelper.stackTrace(illegalStateException)).asRuntimeException();
+                return Status.FAILED_PRECONDITION.withDescription(
+                    getErrorDetailsForConfig(illegalStateException, shouldIncludeDetailedStackTrace)
+                ).asRuntimeException();
             }
             case SecurityException securityException -> {
-                return Status.PERMISSION_DENIED.withDescription(ExceptionsHelper.stackTrace(securityException)).asRuntimeException();
+                return Status.PERMISSION_DENIED.withDescription(
+                    getErrorDetailsForConfig(securityException, shouldIncludeDetailedStackTrace)
+                ).asRuntimeException();
             }
             case TimeoutException timeoutException -> {
-                return Status.DEADLINE_EXCEEDED.withDescription(ExceptionsHelper.stackTrace(timeoutException)).asRuntimeException();
+                return Status.DEADLINE_EXCEEDED.withDescription(getErrorDetailsForConfig(timeoutException, shouldIncludeDetailedStackTrace))
+                    .asRuntimeException();
             }
             case InterruptedException interruptedException -> {
-                return Status.CANCELLED.withDescription(ExceptionsHelper.stackTrace(interruptedException)).asRuntimeException();
+                return Status.CANCELLED.withDescription(getErrorDetailsForConfig(interruptedException, shouldIncludeDetailedStackTrace))
+                    .asRuntimeException();
             }
             case IOException ioException -> {
-                return Status.INTERNAL.withDescription(ExceptionsHelper.stackTrace(ioException)).asRuntimeException();
+                return Status.INTERNAL.withDescription(getErrorDetailsForConfig(ioException, shouldIncludeDetailedStackTrace))
+                    .asRuntimeException();
             }
             case null -> {
                 logger.warn("Unexpected null exception type, treating as INTERNAL error");
@@ -105,7 +131,7 @@ public class GrpcErrorHandler {
             // Safety fallback for any unexpected exception to {@code Status.INTERNAL} with full debugging info
             default -> {
                 logger.warn("Unmapped exception type: {}, treating as INTERNAL error", e.getClass().getSimpleName());
-                return Status.INTERNAL.withDescription(ExceptionsHelper.stackTrace(e)).asRuntimeException();
+                return Status.INTERNAL.withDescription(getErrorDetailsForConfig(e, shouldIncludeDetailedStackTrace)).asRuntimeException();
             }
         }
     }
@@ -119,7 +145,7 @@ public class GrpcErrorHandler {
      * @param ose The OpenSearchException to convert
      * @return StatusRuntimeException with mapped gRPC status and HTTP-identical error message
      */
-    private static StatusRuntimeException handleOpenSearchException(OpenSearchException ose) {
+    private static StatusRuntimeException handleOpenSearchException(OpenSearchException ose, boolean shouldIncludeDetailedStackTrace) {
         Status grpcStatus = RestToGrpcStatusConverter.convertRestToGrpcStatus(ose.status());
 
         // Use existing HTTP logic but enhance description with metadata from XContent
@@ -127,7 +153,7 @@ public class GrpcErrorHandler {
         String baseDescription = ExceptionsHelper.summaryMessage(unwrapped);
 
         // Extract metadata using the same XContent infrastructure as HTTP
-        String enhancedDescription = enhanceDescriptionWithXContentMetadata(unwrapped, baseDescription);
+        String enhancedDescription = enhanceDescriptionWithXContentMetadata(unwrapped, baseDescription, shouldIncludeDetailedStackTrace);
 
         return grpcStatus.withDescription(enhancedDescription).asRuntimeException();
     }
@@ -142,7 +168,11 @@ public class GrpcErrorHandler {
      * @param baseDescription The base description from ExceptionsHelper.summaryMessage()
      * @return Enhanced description with full JSON metadata from XContent
      */
-    private static String enhanceDescriptionWithXContentMetadata(Throwable exception, String baseDescription) {
+    private static String enhanceDescriptionWithXContentMetadata(
+        Throwable exception,
+        String baseDescription,
+        boolean shouldIncludeDetailedStackTrace
+    ) {
         try {
             // Use the exact same method as HTTP error responses
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -151,7 +181,13 @@ public class GrpcErrorHandler {
 
                 // Use the same method as HTTP REST responses (BytesRestResponse.build)
                 // This includes root_cause analysis, just like HTTP
-                OpenSearchException.generateFailureXContent(builder, ToXContent.EMPTY_PARAMS, (Exception) exception, true);
+                ToXContent.Params params = shouldIncludeDetailedStackTrace ? INCLUDE_STACK_TRACES : ToXContent.EMPTY_PARAMS;
+                OpenSearchException.generateFailureXContent(
+                    builder,
+                    params,
+                    (Exception) exception,
+                    GrpcParamsHandler.isDetailedErrorsEnabled()
+                );
 
                 // Add status field like HTTP does
                 org.opensearch.core.rest.RestStatus restStatus = ExceptionsHelper.status((Exception) exception);
@@ -175,4 +211,15 @@ public class GrpcErrorHandler {
             return baseDescription;
         }
     }
+
+    /**
+     * Gets either a full stack trace of an error or just a message based on the flag that comes from the gRPC request Global Params.
+     * @param exception The exception to get details from
+     * @param shouldIncludeDetailedStackTrace Flag indicating whether to include full stack trace
+     * @return String with either full stack trace or just the error message
+     */
+    private static String getErrorDetailsForConfig(Throwable exception, boolean shouldIncludeDetailedStackTrace) {
+        return shouldIncludeDetailedStackTrace ? ExceptionsHelper.stackTrace(exception) : exception.getMessage();
+    }
+
 }

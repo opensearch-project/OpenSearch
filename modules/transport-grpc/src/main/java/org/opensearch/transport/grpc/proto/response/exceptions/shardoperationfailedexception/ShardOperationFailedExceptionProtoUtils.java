@@ -13,6 +13,7 @@ import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ShardFailure;
 import org.opensearch.snapshots.SnapshotShardFailure;
 
@@ -32,14 +33,15 @@ public class ShardOperationFailedExceptionProtoUtils {
      * This method is overridden by various exception classes, which are hardcoded here.
      *
      * @param exception The ShardOperationFailedException to convert metadata from
+     * @param params The global gRPC request parameters
      * @return ShardFailure
      */
-    public static ShardFailure toProto(ShardOperationFailedException exception) throws IOException {
+    public static ShardFailure toProto(ShardOperationFailedException exception, GlobalParams params) throws IOException {
         return switch (exception) {
-            case ShardSearchFailure ssf -> ShardSearchFailureProtoUtils.toProto(ssf);
-            case SnapshotShardFailure ssf -> SnapshotShardFailureProtoUtils.toProto(ssf);
-            case DefaultShardOperationFailedException dsofe -> DefaultShardOperationFailedExceptionProtoUtils.toProto(dsofe);
-            case ReplicationResponse.ShardInfo.Failure sf -> ReplicationResponseShardInfoFailureProtoUtils.toProto(sf);
+            case ShardSearchFailure ssf -> ShardSearchFailureProtoUtils.toProto(ssf, params);
+            case SnapshotShardFailure ssf -> SnapshotShardFailureProtoUtils.toProto(ssf, params);
+            case DefaultShardOperationFailedException dsofe -> DefaultShardOperationFailedExceptionProtoUtils.toProto(dsofe, params);
+            case ReplicationResponse.ShardInfo.Failure sf -> ReplicationResponseShardInfoFailureProtoUtils.toProto(sf, params);
             case null -> throw new UnsupportedOperationException(
                 "Unsupported ShardOperationFailedException [null] cannot be converted to proto."
             );

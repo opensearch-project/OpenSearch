@@ -18,6 +18,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
+import static org.opensearch.transport.grpc.TestFixtures.GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE;
+
 public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithDefaultShardOperationFailedException() throws IOException {
@@ -29,7 +31,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
         );
 
         // Call the method under test
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception);
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the result
         assertNotNull("ShardFailure should not be null", shardFailure);
@@ -49,7 +51,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
         );
 
         // Call the method under test
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception);
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the result
         assertNotNull("ShardFailure should not be null", shardFailure);
@@ -70,7 +72,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
         );
 
         // Call the method under test
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception);
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the result
         assertNotNull("ShardFailure should not be null", shardFailure);
@@ -91,7 +93,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
         );
 
         // Call the method under test
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception);
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the result
         assertNotNull("ShardFailure should not be null", shardFailure);
@@ -112,7 +114,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
         );
 
         // Call the method under test
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception);
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the result
         assertNotNull("ShardFailure should not be null", shardFailure);
@@ -124,7 +126,7 @@ public class DefaultShardOperationFailedExceptionProtoUtilsTests extends OpenSea
     }
 
     public void testToProtoWithNull() throws IOException {
-        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(null);
+        ShardFailure shardFailure = DefaultShardOperationFailedExceptionProtoUtils.toProto(null, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
         assertNotNull("ShardFailure should not be null", shardFailure);
         assertFalse("Index should not be set", shardFailure.hasIndex());
         assertFalse("Status should not be set", shardFailure.hasStatus());

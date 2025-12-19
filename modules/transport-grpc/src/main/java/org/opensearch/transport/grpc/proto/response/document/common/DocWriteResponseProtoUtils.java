@@ -10,6 +10,7 @@ package org.opensearch.transport.grpc.proto.response.document.common;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.ResponseItem;
 import org.opensearch.protobufs.ShardInfo;
 
@@ -31,10 +32,11 @@ public class DocWriteResponseProtoUtils {
      * This method is equivalent to the {@link DocWriteResponse#innerToXContent(XContentBuilder, ToXContent.Params)}
      *
      * @param response The DocWriteResponse to convert
+     * @param params The global gRPC request parameters
      * @return A ResponseItem.Builder with the DocWriteResponse data
      *
      */
-    public static ResponseItem.Builder toProto(DocWriteResponse response) throws IOException {
+    public static ResponseItem.Builder toProto(DocWriteResponse response, GlobalParams params) throws IOException {
         ResponseItem.Builder responseItem = ResponseItem.newBuilder();
 
         // Set the index name
@@ -56,7 +58,7 @@ public class DocWriteResponseProtoUtils {
             responseItem.setForcedRefresh(true);
         }
         // Handle shard information
-        ShardInfo shardInfo = ShardInfoProtoUtils.toProto(response.getShardInfo());
+        ShardInfo shardInfo = ShardInfoProtoUtils.toProto(response.getShardInfo(), params);
         responseItem.setXShards(shardInfo);
 
         // Set sequence number and primary term if available
