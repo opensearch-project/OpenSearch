@@ -28,7 +28,7 @@
  * under the License.
  */
 
-import org.opensearch.gradle.JavaPackageType 
+import org.opensearch.gradle.JavaPackageType
 
 apply plugin: 'opensearch.internal-distribution-archive-setup'
 
@@ -193,7 +193,7 @@ distribution_archives {
     }
   }
 
-  
+
   linuxPpc64leTar {
     archiveClassifier = 'linux-ppc64le'
     content {
@@ -242,6 +242,16 @@ subprojects {
   apply plugin: 'opensearch.internal-distribution-archive-check'
 
   group = "org.opensearch.distribution"
+}
+
+tasks.configureEach { t ->
+  if (t.name ==~ /^build.+Tar$/) {
+    def base = t.name - 'Tar'   // buildLinuxTar -> buildLinux
+    def stage = tasks.findByName(base)
+    if (stage != null) {
+      t.dependsOn(stage)
+    }
+  }
 }
 
 tasks.each {
