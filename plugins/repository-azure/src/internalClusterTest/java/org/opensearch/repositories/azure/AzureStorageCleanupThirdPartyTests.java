@@ -76,6 +76,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     }
 
     @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+    }
+
+    @Override
     public void tearDown() throws Exception {
         try {
             client().admin().indices().prepareDelete("*").get();
