@@ -224,7 +224,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
             // if following condition does not exist. The segments created as part of translog replay will not be present
             // in the remote store.
-            return indexShard.state() != IndexShardState.STARTED || !(indexShard.getEngine() instanceof InternalEngine);
+            return indexShard.state() != IndexShardState.STARTED || indexShard.getIndexingExecutionCoordinator() == null;
         }
         beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
@@ -258,7 +258,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 }
                 // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                 // move.
-                long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
+
+                long lastRefreshedCheckpoint = indexShard.getIndexingExecutionCoordinator().lastRefreshedCheckpoint();
 
                 Collection<FileMetadata> localFilesPostRefresh = catalogSnapshot.getFileMetadataList();
 
@@ -429,8 +430,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         updateRemoteRefreshTimeAndSeqNo(refreshTimeMs, refreshClockTimeMs, refreshSeqNo);
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
+        indexShard.getIndexingExecutionCoordinator().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint+1);
         // Set the minimum sequence number for keeping translog
-        indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        // indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
         logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
@@ -477,7 +479,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     // ToDo:@Kamal Update MaxSeqNo
     void uploadMetadata(Collection<FileMetadata> localFilesPostRefresh, CatalogSnapshot catalogSnapshot, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
-        final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
+        final long maxSeqNo = indexShard.getIndexingExecutionCoordinator().currentOngoingRefreshCheckpoint();
         CatalogSnapshot catalogSnapshotCopy = catalogSnapshot.clone();
 
         // CRITICAL FIX: Load userData from committed segments to get ALL metadata including HISTORY_UUID_KEY
@@ -495,7 +497,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                    userData.get(org.opensearch.index.engine.Engine.HISTORY_UUID_KEY),
                    userData.keySet());
 
-        Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
+        Translog.TranslogGeneration translogGeneration = indexShard.getIndexingExecutionCoordinator().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {
