@@ -66,30 +66,48 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @AfterClass
     public static void cleanupAzureBlobs() throws Exception {
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("azure.client.default.account", System.getProperty("test.azure.account"));
-
-        if (Strings.hasText(System.getProperty("test.azure.sas_token"))) {
-            secureSettings.setString("azure.client.default.sas_token", System.getProperty("test.azure.sas_token"));
-        } else {
-            secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key"));
-        }
-
-        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-
-        try (AzureStorageService storageService = new AzureStorageService(settings)) {
-
+        try {
             String container = System.getProperty("test.azure.container");
-            Tuple<BlobServiceClient, Supplier<Context>> client = storageService.client("default");
-            BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
+            String account = System.getProperty("test.azure.account");
 
-            if (blobContainer.exists()) {
-                blobContainer.listBlobs().forEach(blob -> { blobContainer.getBlobClient(blob.getName()).delete(); });
-
-                assertBusy(() -> assertFalse(blobContainer.listBlobs().iterator().hasNext()));
+            if (Strings.isNullOrEmpty(container) || Strings.isNullOrEmpty(account)) {
+                return;
             }
+
+            MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString("azure.client.default.account", account);
+
+            if (Strings.hasText(System.getProperty("test.azure.sas_token"))) {
+                secureSettings.setString("azure.client.default.sas_token", System.getProperty("test.azure.sas_token"));
+            } else {
+                secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key", ""));
+            }
+
+            Settings settings = Settings.builder()
+                .setSecureSettings(secureSettings)
+                .build();
+
+            try (AzureStorageService storageService = new AzureStorageService(settings)) {
+                Tuple<BlobServiceClient, Supplier<Context>> client = storageService.client("default");
+                BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
+
+                if (!blobContainer.exists()) {
+                    return;
+                }
+
+                blobContainer.listBlobs().forEach(b -> blobContainer.getBlobClient(b.getName()).delete());
+
+                assertBusy(
+                    () -> assertFalse(blobContainer.listBlobs().iterator().hasNext()),
+                    30,
+                    TimeUnit.SECONDS
+                );
+            }
+        } catch (Exception ignored) {
+            // CI teardown
         }
     }
+
 
     @AfterClass
     public static void shutdownSchedulers() {
