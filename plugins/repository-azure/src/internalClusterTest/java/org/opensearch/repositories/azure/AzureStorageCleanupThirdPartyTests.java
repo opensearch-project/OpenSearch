@@ -83,9 +83,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                 secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key", ""));
             }
 
-            Settings settings = Settings.builder()
-                .setSecureSettings(secureSettings)
-                .build();
+            Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
 
             try (AzureStorageService storageService = new AzureStorageService(settings)) {
                 Tuple<BlobServiceClient, Supplier<Context>> client = storageService.client("default");
@@ -97,17 +95,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
                 blobContainer.listBlobs().forEach(b -> blobContainer.getBlobClient(b.getName()).delete());
 
-                assertBusy(
-                    () -> assertFalse(blobContainer.listBlobs().iterator().hasNext()),
-                    30,
-                    TimeUnit.SECONDS
-                );
+                assertBusy(() -> assertFalse(blobContainer.listBlobs().iterator().hasNext()), 30, TimeUnit.SECONDS);
             }
         } catch (Exception ignored) {
             // CI teardown
         }
     }
-
 
     @AfterClass
     public static void shutdownSchedulers() {
