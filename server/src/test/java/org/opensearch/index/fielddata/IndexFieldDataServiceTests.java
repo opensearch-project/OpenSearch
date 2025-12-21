@@ -185,6 +185,10 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         LeafFieldData loadField1 = ifd1.load(leafReaderContext);
         LeafFieldData loadField2 = ifd2.load(leafReaderContext);
 
+        // Force materialization so both hit the shared cache
+        loadField1.getBytesValues();
+        loadField2.getBytesValues();
+
         assertEquals(2, indicesService.getIndicesFieldDataCache().getCache().count());
 
         // Remove index
