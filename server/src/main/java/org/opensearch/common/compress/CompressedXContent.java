@@ -41,6 +41,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.compress.CompressedData;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -62,7 +64,14 @@ import java.util.zip.CheckedOutputStream;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class CompressedXContent {
+public final class CompressedXContent implements CompressedData {
+
+    /**
+     * Reader constant for deserializing CompressedXContent instances.
+     * This can be used with {@link CompressedData#readFrom(StreamInput, Writeable.Reader)}
+     * to deserialize CompressedXContent through the CompressedData interface.
+     */
+    public static final Writeable.Reader<CompressedXContent> READER = CompressedXContent::readCompressedString;
 
     private static int crc32(BytesReference data) {
         CRC32 crc32 = new CRC32();

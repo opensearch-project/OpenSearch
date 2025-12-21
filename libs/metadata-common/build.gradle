@@ -1,0 +1,24 @@
+apply plugin: 'opensearch.publish'
+
+base {
+  archivesName = 'opensearch-metadata-common'
+}
+
+dependencies {
+    api project(':libs:opensearch-common')
+    api project(':libs:opensearch-core')
+
+    compileOnly project(':libs:opensearch-common') // for @PublicApi annotation
+}
+
+thirdPartyAudit.enabled = false
+
+tasks.withType(de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis) {
+    enabled = false
+}
+
+test.enabled = false
+testingConventions.enabled = false
+
+// Disable jarHell to avoid classpath conflicts between build classes and jar
+jarHell.enabled = false

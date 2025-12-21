@@ -65,35 +65,29 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
 public class MappingMetadata extends AbstractDiffable<MappingMetadata> implements VerifiableWriteable {
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
 
-    private final String type;
-
-    private final CompressedXContent source;
-
-    private final boolean routingRequired;
+    private final MappingMetadataModel model;
 
     public MappingMetadata(DocumentMapper docMapper) {
-        this.type = docMapper.type();
-        this.source = docMapper.mappingSource();
-        this.routingRequired = docMapper.routingFieldMapper().required();
+        this.model = new MappingMetadataModel(docMapper.type(), docMapper.mappingSource(), docMapper.routingFieldMapper().required());
     }
 
     @SuppressWarnings("unchecked")
     public MappingMetadata(CompressedXContent mapping) {
-        this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
         if (mappingMap.size() != 1) {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
-        this.type = mappingMap.keySet().iterator().next();
-        this.routingRequired = isRoutingRequired((Map<String, Object>) mappingMap.get(this.type));
+        String type = mappingMap.keySet().iterator().next();
+        boolean routingRequired = isRoutingRequired((Map<String, Object>) mappingMap.get(type));
+        this.model = new MappingMetadataModel(type, mapping, routingRequired);
     }
 
     @SuppressWarnings("unchecked")
     public MappingMetadata(String type, Map<String, Object> mapping) {
-        this.type = type;
+        CompressedXContent source;
         try {
             XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
-            this.source = new CompressedXContent(BytesReference.bytes(mappingBuilder));
+            source = new CompressedXContent(BytesReference.bytes(mappingBuilder));
         } catch (IOException e) {
             throw new UncheckedIOException(e);  // XContent exception, should never happen
         }
@@ -101,7 +95,9 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
-        this.routingRequired = isRoutingRequired(withoutType);
+        boolean routingRequired = isRoutingRequired(withoutType);
+
+        this.model = new MappingMetadataModel(type, source, routingRequired);
     }
 
     @SuppressWarnings("unchecked")
@@ -128,18 +124,18 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
     }
 
     public String type() {
-        return this.type;
+        return model.type();
     }
 
     public CompressedXContent source() {
-        return this.source;
+        return (CompressedXContent) model.source();
     }
 
     /**
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
     public Map<String, Object> sourceAsMap() throws OpenSearchParseException {
-        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
+        Map<String, Object> mapping = XContentHelper.convertToMap(source().compressedReference(), true).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {
             // the type name is the root value, reduce it
             mapping = (Map<String, Object>) mapping.get(type());
@@ -155,22 +151,19 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
     }
 
     public boolean routingRequired() {
-        return this.routingRequired;
+        return model.routingRequired();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(type());
-        source().writeTo(out);
-        // routing
-        out.writeBoolean(routingRequired);
+        model.writeTo(out);
     }
 
     @Override
     public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         out.writeString(type());
         source().writeVerifiableTo(out);
-        out.writeBoolean(routingRequired);
+        out.writeBoolean(routingRequired());
     }
 
     @Override
@@ -179,24 +172,16 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
         if (o == null || getClass() != o.getClass()) return false;
 
         MappingMetadata that = (MappingMetadata) o;
-
-        if (!Objects.equals(this.routingRequired, that.routingRequired)) return false;
-        if (!source.equals(that.source)) return false;
-        if (!type.equals(that.type)) return false;
-
-        return true;
+        return Objects.equals(model, that.model);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, source, routingRequired);
+        return model.hashCode();
     }
 
     public MappingMetadata(StreamInput in) throws IOException {
-        type = in.readString();
-        source = CompressedXContent.readCompressedString(in);
-        // routing
-        routingRequired = in.readBoolean();
+        this.model = new MappingMetadataModel(in, CompressedXContent.READER);
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {
