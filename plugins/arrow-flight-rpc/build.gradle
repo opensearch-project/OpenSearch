@@ -57,7 +57,6 @@ dependencies {
   runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
   implementation "io.grpc:grpc-stub:${versions.grpc}"
   implementation "io.grpc:grpc-netty:${versions.grpc}"
-  implementation "com.google.errorprone:error_prone_annotations:2.31.0"
 
   runtimeOnly "com.google.code.findbugs:jsr305:3.0.2"
   annotationProcessor 'org.immutables:value:2.10.1'
