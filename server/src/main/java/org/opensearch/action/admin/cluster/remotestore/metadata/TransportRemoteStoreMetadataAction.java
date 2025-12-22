@@ -23,7 +23,6 @@ import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
