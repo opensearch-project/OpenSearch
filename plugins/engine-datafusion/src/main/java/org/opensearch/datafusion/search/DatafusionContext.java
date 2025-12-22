@@ -187,6 +187,7 @@ public class DatafusionContext extends SearchContext {
     @Override
     protected void doClose() {
         Releasables.close(engineSearcher);
+        originalContext.close();
     }
 
     /**

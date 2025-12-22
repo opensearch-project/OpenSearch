@@ -988,6 +988,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         processFailure(readerContext, exception);
                         onFailure(e);
                     } finally {
+                        finalContext.close();
                         finalRelease.close();
                         taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
                     }
