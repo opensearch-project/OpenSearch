@@ -114,7 +114,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(ParseContext context) {
         for (String field : context.getIgnoredFields()) {
-            if (isPluggableDataFormatFeatureEnabled()) {
+            if (isPluggableDataFormatFeatureEnabled(context)) {
                 context.compositeDocumentInput().addField(fieldType(), field);
             } else {
                 context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));

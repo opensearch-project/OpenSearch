@@ -390,7 +390,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        if (isPluggableDataFormatFeatureEnabled()) {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
             context.compositeDocumentInput().addField(fieldType(), value);
         } else {
             if (indexed) {

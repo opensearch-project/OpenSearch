@@ -862,7 +862,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             value = normalizeValue(normalizer, name(), value);
         }
 
-        if (isPluggableDataFormatFeatureEnabled()) {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
             context.compositeDocumentInput().addField(fieldType(), value);
         } else {
             // convert to utf8 only once before feeding postings/dv/stored fields

@@ -85,6 +85,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.engine.SearchExecEngine;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolverFactory;
 import org.opensearch.index.query.InnerHitContextBuilder;
@@ -840,10 +841,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // Till here things are generic but for datafusion , we need to abstract out and get the read engine specific implementation
         // it could be reusing existing
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
+        CompositeEngine compositeEngine = readerContext.indexShard().getIndexingExecutionCoordinator();
         @SuppressWarnings("unchecked")
-        SearchExecEngine searchExecEngine = readerContext.indexShard()
-            .getIndexingExecutionCoordinator()
-            .getPrimaryReadEngine();
+        SearchExecEngine searchExecEngine = compositeEngine != null ? compositeEngine.getPrimaryReadEngine() : null;
         SearchShardTarget shardTarget = new SearchShardTarget(
             clusterService.localNode().getId(),
             readerContext.indexShard().shardId(),
@@ -863,9 +863,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             //context.aggregations(context1.aggregations());
             // TODO Execute plan here
             // TODO : figure out how to tie this
-            byte[] substraitQuery = request.source().queryPlanIR();
             context.queryResult().from(context.from());
             context.queryResult().size(context.size());
+            byte[] substraitQuery = request.source().queryPlanIR();
             if (substraitQuery != null) {
                 // setDFResults in context
                 searchExecEngine.executeQueryPhase(context);
@@ -1468,14 +1468,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             request.getClusterAlias(),
             OriginalIndices.NONE
         );
-        SearchContext context = searchExecEngine.createContext(readerContext, request, shardTarget, task, bigArrays, originalContext, clusterService);
+        SearchContext context = searchExecEngine == null ? originalContext : searchExecEngine.createContext(readerContext, request, shardTarget, task, bigArrays, originalContext, clusterService);
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
             }
             // FIXME : We don't need to do both, but commenting the one on Datafusion Context hangs up the JVM need to debug.
             parseSource(context, request.source(), includeAggregations);
-            parseSource(context.getOriginalContext(), request.source(), includeAggregations);
+            if (searchExecEngine != null) {
+                parseSource(context.getOriginalContext(), request.source(), includeAggregations);
+            }
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {
