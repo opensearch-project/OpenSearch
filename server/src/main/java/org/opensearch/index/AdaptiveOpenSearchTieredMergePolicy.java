@@ -198,6 +198,14 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
     }
 
     public double getForceMergeDeletesPctAllowed() {
+        if (settingsLock != null) {
+            settingsLock.readLock().lock();
+            try {
+                return regularMergePolicy.getForceMergeDeletesPctAllowed();
+            } finally {
+                settingsLock.readLock().unlock();
+            }
+        }
         return regularMergePolicy.getForceMergeDeletesPctAllowed();
     }
 
@@ -217,6 +225,14 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
     }
 
     public double getFloorSegmentMB() {
+        if (settingsLock != null) {
+            settingsLock.readLock().lock();
+            try {
+                return regularMergePolicy.getFloorSegmentMB();
+            } finally {
+                settingsLock.readLock().unlock();
+            }
+        }
         return regularMergePolicy.getFloorSegmentMB();
     }
 
@@ -236,6 +252,14 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
     }
 
     public int getMaxMergeAtOnce() {
+        if (settingsLock != null) {
+            settingsLock.readLock().lock();
+            try {
+                return regularMergePolicy.getMaxMergeAtOnce();
+            } finally {
+                settingsLock.readLock().unlock();
+            }
+        }
         return regularMergePolicy.getMaxMergeAtOnce();
     }
 
@@ -254,6 +278,14 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
     }
 
     public double getMaxMergedSegmentMB() {
+        if (settingsLock != null) {
+            settingsLock.readLock().lock();
+            try {
+                return regularMergePolicy.getMaxMergedSegmentMB();
+            } finally {
+                settingsLock.readLock().unlock();
+            }
+        }
         return regularMergePolicy.getMaxMergedSegmentMB();
     }
 
@@ -273,6 +305,14 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
     }
 
     public double getSegmentsPerTier() {
+        if (settingsLock != null) {
+            settingsLock.readLock().lock();
+            try {
+                return regularMergePolicy.getSegmentsPerTier();
+            } finally {
+                settingsLock.readLock().unlock();
+            }
+        }
         return regularMergePolicy.getSegmentsPerTier();
     }
 
@@ -292,6 +332,14 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
     }
 
     public double getDeletesPctAllowed() {
+        if (settingsLock != null) {
+            settingsLock.readLock().lock();
+            try {
+                return regularMergePolicy.getDeletesPctAllowed();
+            } finally {
+                settingsLock.readLock().unlock();
+            }
+        }
         return regularMergePolicy.getDeletesPctAllowed();
     }
 
