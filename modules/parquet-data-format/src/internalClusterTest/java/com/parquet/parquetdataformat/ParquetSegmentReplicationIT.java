@@ -13,6 +13,7 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
@@ -76,6 +77,7 @@ public class ParquetSegmentReplicationIT extends RemoteStoreBaseIntegTestCase {
                 Settings.builder()
                     .put(remoteStoreIndexSettings(replicaCount, 1))
                     .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                    .put(IndexSettings.OPTIMIZED_INDEX_ENABLED_SETTING.getKey(), true)
                     .build()
             )
             .setMapping(

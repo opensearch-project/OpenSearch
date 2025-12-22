@@ -43,7 +43,8 @@ public class ParquetPPLSearchIT extends OpenSearchRestTestCase {
                     "number_of_shards": 1,
                     "number_of_replicas": 1,
                     "replication.type": "SEGMENT",
-                    "refresh_interval": -1
+                    "refresh_interval": -1,
+                    "optimized.enabled": true
                 },
                 "mappings": {
                     "properties": {

@@ -10,8 +10,10 @@ package com.parquet.parquetdataformat;
 
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
@@ -67,7 +69,12 @@ public class ParquetRemoteStoreUploadIT extends RemoteStoreBaseIntegTestCase {
      */
     private void createIndexWithMapping(String indexName, int replicaCount, int shardCount) throws Exception {
         client().admin().indices().prepareCreate(indexName)
-            .setSettings(remoteStoreIndexSettings(replicaCount, shardCount))
+            .setSettings(
+                Settings.builder()
+                    .put(remoteStoreIndexSettings(replicaCount, shardCount))
+                    .put(IndexSettings.OPTIMIZED_INDEX_ENABLED_SETTING.getKey(), true)
+                    .build()
+            )
             .setMapping(
                 "id", "type=keyword",
                 "field", "type=text",
