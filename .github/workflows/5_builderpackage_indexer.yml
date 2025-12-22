@@ -145,7 +145,7 @@ jobs:
           # Extracts the Opensearch version using the upstream-version.sh script
           opensearch_version=$(bash ./build-scripts/upstream-version.sh)
           echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
-  
+
   get-versions-wazuh-indexer-plugins:
     needs: [branches]
     runs-on: ubuntu-24.04
@@ -166,7 +166,7 @@ jobs:
           # Extracts the Opensearch version
           opensearch_version=$(bash ./tools/opensearch_version.sh "setup")
           echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
-        
+
   get-versions-wazuh-indexer-reporting:
     needs: [branches]
     runs-on: ubuntu-24.04
@@ -187,7 +187,7 @@ jobs:
             # Extracts the Opensearch version
             opensearch_version=$(bash tools/opensearch_version.sh)
             echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
-  
+
   get-versions-wazuh-indexer-security-analytics:
     needs: [branches]
     runs-on: ubuntu-24.04
@@ -282,6 +282,30 @@ jobs:
       - name: Get version
         id: version
         run: echo "version=$(jq .version -r VERSION.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Clone Security Analytics repository
+        if: ${{ matrix.plugins == 'content-manager' }}
+        uses: actions/checkout@v6
+        with:
+          repository: wazuh/wazuh-indexer-security-analytics
+          ref: ${{ needs.branches.outputs.security_analytics_plugin_ref }}
+          path: sap-repo
+
+      - name: Publish commons library to mavenLocal
+        if: ${{ matrix.plugins == 'content-manager' }}
+        working-directory: sap-repo/commons
+        run: |
+          ../gradlew publishToMavenLocal -x check \
+            -Dversion=${{ steps.version.outputs.version }} \
+            -Drevision=${{ inputs.revision }}
+
+      - name: Publish Security Analytics plugin zip to mavenLocal
+        if: ${{ matrix.plugins == 'content-manager' }}
+        working-directory: sap-repo
+        run: |
+          ./gradlew publishToMavenLocal -x check \
+            -Dversion=${{ steps.version.outputs.version }} \
+            -Drevision=${{ inputs.revision }}
 
       - name: Build with Gradle
         working-directory: ./plugins/${{ matrix.plugins }}
@@ -384,7 +408,7 @@ jobs:
           name: ${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
           path: build/distributions/${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
           if-no-files-found: error
-  
+
   build:
     needs: [setup, build-wazuh-plugins, build-reporting-plugin, build-security-analytics-plugin, branches]
     runs-on: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'ubuntu-24.04' }}
@@ -474,7 +498,7 @@ jobs:
           options: -v ${{ github.workspace }}/artifacts/dist:/artifacts/dist
           run: |
             yum localinstall "/artifacts/dist/${{ steps.package.outputs.name }}" -y
-          
+
 
       - name: Test RPM package uninstallation
         if: ${{ matrix.distribution == 'rpm' }}
@@ -491,7 +515,7 @@ jobs:
         uses: addnab/docker-run-action@v3
         with:
           image: redhat/ubi9:latest
-          options: 
+          options:
             -v ${{ github.workspace }}/artifacts/dist:/artifacts/dist
             -v ${{ github.workspace }}/build-scripts/:/build-scripts/
           run: |
@@ -513,7 +537,7 @@ jobs:
         uses: addnab/docker-run-action@v3
         with:
           image: redhat/ubi9:latest
-          options: 
+          options:
             -v ${{ github.workspace }}/artifacts/dist:/artifacts/dist
             -v ${{ github.workspace }}/build-scripts/:/build-scripts/
           run: |
