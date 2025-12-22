@@ -551,13 +551,12 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             false
         );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
-        );
-        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
-        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
-        assertThat(e.getCause().getMessage(), containsString("duplicate codebases"));
+        // This should not throw an exception - shared transitive dependencies are allowed
+        PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        // Verify the transitive URLs were correctly populated
+        Set<URL> deps = transitiveDeps.get("myplugin");
+        assertNotNull(deps);
+        assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dupJar.toUri().toURL()));
     }
 
     // Note: testing dup codebase with core is difficult because it requires a symlink, but we have mock filesystems and security manager
