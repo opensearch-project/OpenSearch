@@ -34,6 +34,7 @@ package org.opensearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
@@ -42,6 +43,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.TieredMergePolicy;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -98,7 +100,13 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
                 // the calculation methods will clamp to 1 byte, producing the smallest settings.
                 failedSegments++;
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Failed to get size for segment [{}], skipping from shard size calculation", info.info.name, e);
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "Failed to get size for segment [{}], skipping from shard size calculation",
+                            info.info.name
+                        ),
+                        e
+                    );
                 }
             }
         }
@@ -117,11 +125,11 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
             } else if (failureRate > 0.5) {
                 // More than half failed - significant underestimation likely
                 logger.warn(
-                    "{} of {} segments ({:.1f}%) failed to report size during adaptive merge policy calculation. "
+                    "{} of {} segments ({}%) failed to report size during adaptive merge policy calculation. "
                         + "Shard size may be significantly underestimated, leading to smaller adaptive settings than optimal.",
                     failedSegments,
                     totalSegments,
-                    String.format("%.1f", failureRate * 100.0)
+                    String.format(Locale.ROOT, "%.1f", failureRate * 100.0)
                 );
             } else if (logger.isTraceEnabled()) {
                 // Log at trace level for minor failures
