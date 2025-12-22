@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.UploadedSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
@@ -136,13 +137,13 @@ public class ParquetSegmentReplicationIT extends RemoteStoreBaseIntegTestCase {
 
             // Verify replica has Parquet files
             RemoteSegmentStoreDirectory replicaRemoteDir = replica.getRemoteDirectory();
-            Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> replicaSegments =
+            Map<String, UploadedSegmentMetadata> replicaSegments =
                 replicaRemoteDir.getSegmentsUploadedToRemoteStore();
 
             assertFalse("Replica should have uploaded segments", replicaSegments.isEmpty());
 
             Set<String> replicaFormats = replicaSegments.keySet().stream()
-                .map(FileMetadata::dataFormat)
+                .map(file -> new FileMetadata(file).dataFormat())
                 .collect(Collectors.toSet());
 
             logger.info("--> Replica formats: {}", replicaFormats);
@@ -187,11 +188,11 @@ public class ParquetSegmentReplicationIT extends RemoteStoreBaseIntegTestCase {
 
             // Verify replica has Parquet files
             RemoteSegmentStoreDirectory replicaRemoteDir = replicaShard.getRemoteDirectory();
-            Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> replicaSegments =
+            Map<String, UploadedSegmentMetadata> replicaSegments =
                 replicaRemoteDir.getSegmentsUploadedToRemoteStore();
 
             Set<String> replicaFormats = replicaSegments.keySet().stream()
-                .map(FileMetadata::dataFormat)
+                .map(file -> new FileMetadata(file).dataFormat())
                 .collect(Collectors.toSet());
 
             logger.info("--> Replica formats: {}", replicaFormats);
@@ -276,26 +277,27 @@ public class ParquetSegmentReplicationIT extends RemoteStoreBaseIntegTestCase {
             RemoteSegmentMetadata replicaMetadata = replicaShard.getRemoteDirectory().readLatestMetadataFile();
 
             // Verify format information is preserved in metadata
-            Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> primaryMetadataMap =
+            Map<String, UploadedSegmentMetadata> primaryMetadataMap =
                 primaryMetadata.getMetadata();
-            Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> replicaMetadataMap =
+            Map<String, UploadedSegmentMetadata> replicaMetadataMap =
                 replicaMetadata.getMetadata();
 
             // Check that FileMetadata keys have format information
-            for (FileMetadata fm : replicaMetadataMap.keySet()) {
-                assertNotNull("FileMetadata should have format", fm.dataFormat());
+            for (String file : replicaMetadataMap.keySet()) {
+                FileMetadata fileMetadata = new FileMetadata(file);
+                assertNotNull("FileMetadata should have format", fileMetadata.dataFormat());
                 assertEquals("Format should match in uploaded metadata",
-                    fm.dataFormat(),
-                    replicaMetadataMap.get(fm).getDataFormat()
+                    fileMetadata.dataFormat(),
+                    replicaMetadataMap.get(file).getDataFormat()
                 );
             }
 
             // Verify replica has same formats as primary
             Set<String> primaryFormats = primaryMetadataMap.keySet().stream()
-                .map(FileMetadata::dataFormat)
+                .map(file -> new FileMetadata(file).dataFormat())
                 .collect(Collectors.toSet());
             Set<String> replicaFormats = replicaMetadataMap.keySet().stream()
-                .map(FileMetadata::dataFormat)
+                .map(file -> new FileMetadata(file).dataFormat())
                 .collect(Collectors.toSet());
 
             assertEquals("Replica should have same formats as primary", primaryFormats, replicaFormats);
@@ -369,11 +371,11 @@ public class ParquetSegmentReplicationIT extends RemoteStoreBaseIntegTestCase {
 
             // Verify replica has Parquet files
             RemoteSegmentStoreDirectory replicaRemoteDir = replicaShard.getRemoteDirectory();
-            Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> replicaSegments =
+            Map<String, UploadedSegmentMetadata> replicaSegments =
                 replicaRemoteDir.getSegmentsUploadedToRemoteStore();
 
             Set<String> formats = replicaSegments.keySet().stream()
-                .map(FileMetadata::dataFormat)
+                .map(file -> new FileMetadata(file).dataFormat())
                 .collect(Collectors.toSet());
 
             assertTrue("Recovered replica should have Parquet files", formats.contains("parquet"));

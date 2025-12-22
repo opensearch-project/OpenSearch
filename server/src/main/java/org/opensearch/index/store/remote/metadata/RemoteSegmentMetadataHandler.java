@@ -34,7 +34,7 @@ public class RemoteSegmentMetadataHandler implements IndexIOStreamHandler<Remote
      */
     @Override
     public RemoteSegmentMetadata readContent(IndexInput indexInput) throws IOException {
-        return RemoteSegmentMetadata.read(indexInput, version);
+        return RemoteSegmentMetadata.readV2(indexInput, version);
     }
 
     /**

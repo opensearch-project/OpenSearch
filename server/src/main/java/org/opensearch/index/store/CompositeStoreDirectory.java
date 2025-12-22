@@ -9,9 +9,7 @@
 package org.opensearch.index.store;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.*;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
@@ -21,7 +19,6 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.plugins.PluginsService;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Path;
@@ -33,6 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Composite directory that coordinates multiple format-specific directories.
@@ -44,7 +42,7 @@ import java.util.Set;
  * @opensearch.api
  */
 @PublicApi(since = "3.0.0")
-public class CompositeStoreDirectory implements Closeable {
+public class CompositeStoreDirectory extends Directory {
 
     private Any dataFormat;
     private final Path directoryPath;
@@ -135,28 +133,13 @@ public class CompositeStoreDirectory implements Closeable {
     }
 
     // Directory interface implementation with routing
-    public FileMetadata[] listAll() throws IOException {
+    public FileMetadata[] listFileMetadata() throws IOException {
         Set<FileMetadata> allFiles = new HashSet<>();
         for (FormatStoreDirectory<?> directory : delegates) {
             allFiles.addAll(Arrays.asList(directory.listAll()));
         }
         return allFiles.toArray(new FileMetadata[0]);
     }
-
-    public void sync(Collection<FileMetadata> fileMetadataList) throws IOException {
-        // Group files by directory and sync each directory
-        Map<FormatStoreDirectory<?>, List<String>> filesByDirectory = new HashMap<>();
-
-        for (var fileMetadata : fileMetadataList) {
-            FormatStoreDirectory<?> directory = getDirectoryForFormat(fileMetadata.dataFormat());
-            filesByDirectory.computeIfAbsent(directory, k -> new ArrayList<>()).add(fileMetadata.file());
-        }
-
-        for (Map.Entry<FormatStoreDirectory<?>, List<String>> entry : filesByDirectory.entrySet()) {
-            entry.getKey().sync(entry.getValue());
-        }
-    }
-
 
     public long getChecksumOfLocalFile(FileMetadata fileMetadata) throws IOException {
         logger.debug("Getting checksum of local file: {}", fileMetadata.file());
@@ -222,7 +205,7 @@ public class CompositeStoreDirectory implements Closeable {
 
         logger.debug("Copying file {} to format directory: {}", fileName, targetDirectory.getDataFormat().name());
 
-        try (IndexInput input = source.openInput(fileMetadata, context);
+        try (IndexInput input = source.openInput(fileMetadata.serialize(), context);
              IndexOutput output = createOutput(fileMetadata, context)) {
 
             output.copyBytes(input, input.length());
@@ -254,6 +237,73 @@ public class CompositeStoreDirectory implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.close(delegates);
+    }
+
+    @Override
+    public Set<String> getPendingDeletions() throws IOException {
+        return Set.of();
+    }
+
+    @Override
+    public String[] listAll() throws IOException {
+        return Arrays.stream(listFileMetadata()).map(FileMetadata::serialize).collect(Collectors.toList()).toArray(new String[0]);
+    }
+
+    @Override
+    public void deleteFile(String name) throws IOException {
+        deleteFile(new FileMetadata(name));
+    }
+
+    @Override
+    public long fileLength(String name) throws IOException {
+        return fileLength(new FileMetadata(name));
+    }
+
+    @Override
+    public IndexOutput createOutput(String name, IOContext context) throws IOException {
+        return createOutput(new FileMetadata(name), context);
+    }
+
+    @Override
+    public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void sync(Collection<String> names) throws IOException {
+        Collection<FileMetadata> fileMetadataList = names.stream().map(FileMetadata::new).collect(Collectors.toList());
+
+        // Group files by directory and sync each directory
+        Map<FormatStoreDirectory<?>, List<String>> filesByDirectory = new HashMap<>();
+
+        for (var fileMetadata : fileMetadataList) {
+            FormatStoreDirectory<?> directory = getDirectoryForFormat(fileMetadata.dataFormat());
+            filesByDirectory.computeIfAbsent(directory, k -> new ArrayList<>()).add(fileMetadata.file());
+        }
+
+        for (Map.Entry<FormatStoreDirectory<?>, List<String>> entry : filesByDirectory.entrySet()) {
+            entry.getKey().sync(entry.getValue());
+        }
+    }
+
+    @Override
+    public void syncMetaData() throws IOException {
+
+    }
+
+    @Override
+    public void rename(String source, String dest) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public IndexInput openInput(String name, IOContext context) throws IOException {
+        return openInput(new FileMetadata(name), context);
+    }
+
+    @Override
+    public Lock obtainLock(String name) throws IOException {
+        throw new UnsupportedOperationException();
     }
 }
 

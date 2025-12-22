@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -157,12 +156,12 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
      */
     public void testUploadSegmentsSuccessWithHighPriorityUpload() throws Exception {
         Collection<FileMetadata> segments = Arrays.asList(
-            new FileMetadata("lucene", "", "segment1"),
-            new FileMetadata("lucene", "", "segment2")
+            new FileMetadata("lucene", "segment1"),
+            new FileMetadata("lucene", "segment2")
         );
         Map<FileMetadata, Long> segmentSizeMap = new HashMap<>();
-        segmentSizeMap.put(new FileMetadata("lucene", "", "segment1"), 100L);
-        segmentSizeMap.put(new FileMetadata("lucene", "", "segment2"), 200L);
+        segmentSizeMap.put(new FileMetadata("lucene", "segment1"), 100L);
+        segmentSizeMap.put(new FileMetadata("lucene", "segment2"), 200L);
 
         // Create a fresh mock IndexShard
         IndexShard freshMockShard = mock(IndexShard.class);
@@ -220,12 +219,12 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
      */
     public void testUploadSegmentsSuccessWithLowPriorityUpload() throws Exception {
         Collection<FileMetadata> segments = Arrays.asList(
-            new FileMetadata("lucene", "", "segment1"),
-            new FileMetadata("lucene", "", "segment2")
+            new FileMetadata("lucene", "segment1"),
+            new FileMetadata("lucene", "segment2")
         );
         Map<FileMetadata, Long> segmentSizeMap = new HashMap<>();
-        segmentSizeMap.put(new FileMetadata("lucene", "", "segment1"), 100L);
-        segmentSizeMap.put(new FileMetadata("lucene", "", "segment2"), 200L);
+        segmentSizeMap.put(new FileMetadata("lucene", "segment1"), 100L);
+        segmentSizeMap.put(new FileMetadata("lucene", "segment2"), 200L);
 
         // Create a fresh mock IndexShard
         IndexShard freshMockShard = mock(IndexShard.class);
@@ -283,9 +282,9 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
      * @throws Exception if the test fails
      */
     public void testUploadSegmentsWithCompositeDirectory() throws Exception {
-        Collection<FileMetadata> segments = Arrays.asList(new FileMetadata("lucene", "", "segment1"));
+        Collection<FileMetadata> segments = Arrays.asList(new FileMetadata("lucene", "segment1"));
         Map<FileMetadata, Long> segmentSizeMap = new HashMap<>();
-        segmentSizeMap.put(new FileMetadata("lucene", "", "segment1"), 100L);
+        segmentSizeMap.put(new FileMetadata("lucene", "segment1"), 100L);
 
         // Create a fresh mock IndexShard
         IndexShard freshMockShard = mock(IndexShard.class);
@@ -347,9 +346,9 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
      * @throws Exception if the test fails
      */
     public void testUploadSegmentsWithCorruptIndexException() throws Exception {
-        Collection<FileMetadata> segments = Arrays.asList(new FileMetadata("lucene", "", "segment1"));
+        Collection<FileMetadata> segments = Arrays.asList(new FileMetadata("lucene", "segment1"));
         Map<FileMetadata, Long> segmentSizeMap = new HashMap<>();
-        segmentSizeMap.put(new FileMetadata("lucene", "", "segment1"), 100L);
+        segmentSizeMap.put(new FileMetadata("lucene", "segment1"), 100L);
 
         // Create a fresh mock IndexShard
         IndexShard freshMockShard = mock(IndexShard.class);
@@ -411,9 +410,9 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
      * @throws Exception if the test fails
      */
     public void testUploadSegmentsWithGenericException() throws Exception {
-        Collection<FileMetadata> segments = Arrays.asList(new FileMetadata("lucene", "", "segment1"));
+        Collection<FileMetadata> segments = Arrays.asList(new FileMetadata("lucene", "segment1"));
         Map<FileMetadata, Long> segmentSizeMap = new HashMap<>();
-        segmentSizeMap.put(new FileMetadata("lucene", "", "segment1"), 100L);
+        segmentSizeMap.put(new FileMetadata("lucene", "segment1"), 100L);
 
         // Create a fresh mock IndexShard
         IndexShard freshMockShard = mock(IndexShard.class);

@@ -49,8 +49,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -185,14 +183,9 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
-import org.opensearch.index.store.CompositeStoreDirectory;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory;
-import org.opensearch.index.store.RemoteStoreFileDownloader;
-import org.opensearch.index.store.Store;
+import org.opensearch.index.store.*;
 import org.opensearch.index.store.Store.MetadataSnapshot;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.RemoteTranslogStats;
@@ -225,7 +218,6 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.plugins.PluginsService;
-import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -2051,7 +2043,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 // Normalize directory to empty string for replication comparison
                 // Directory paths are node-specific and not serialized in ReplicationCheckpoint
-                FileMetadata normalizedKey = new FileMetadata(fileMetadata.dataFormat(), "", fileMetadata.file());
+                FileMetadata normalizedKey = new FileMetadata(fileMetadata.dataFormat(), fileMetadata.file());
                 formatAwareMap.put(normalizedKey, storeFileMetadata);
             } catch (IOException e) {
                 logger.warn("Failed to create StoreFileMetadata for {}", fileMetadata, e);
@@ -2510,7 +2502,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             RemoteSegmentStoreDirectory directory = getRemoteDirectory();
             if (directory.readLatestMetadataFile() != null) {
-                Collection<FileMetadata> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
+                Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
                     Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
                     Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
@@ -4556,7 +4548,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentStoreDirectory rd = getRemoteDirectory();
         AtomicBoolean segment_n_uploaded = new AtomicBoolean(false);
         rd.getSegmentsUploadedToRemoteStore().forEach((key, value) -> {
-            if (key.file().startsWith("segments")) {
+            if (key.startsWith("segments")) {
                 segment_n_uploaded.set(true);
             }
         });
@@ -5578,11 +5570,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // are uploaded to the remote segment store.
         RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
 
-        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
+        Map<String, UploadedSegmentMetadata> uploadedSegments = remoteDirectory
             .getSegmentsUploadedToRemoteStore()
             .entrySet()
             .stream()
-            .filter(entry -> entry.getKey().file().startsWith(IndexFileNames.SEGMENTS) == false)
+            .filter(entry -> entry.getKey().startsWith(IndexFileNames.SEGMENTS) == false)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         store.incRef();
         remoteStore.incRef();
@@ -5590,12 +5582,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final Directory storeDirectory;
             if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
                 storeDirectory = new StoreRecovery.StatsDirectoryWrapper(store.directory(), recoveryState.getIndex());
-                for (FileMetadata file : uploadedSegments.keySet()) {
+                for (String file : uploadedSegments.keySet()) {
                     long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
-                    if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
-                        recoveryState.getIndex().addFileDetail(file.file(), uploadedSegments.get(file).getLength(), false);
+                    FileMetadata fileMetadata = new FileMetadata(file);
+                    if (overrideLocal || localDirectoryContains(storeDirectory, fileMetadata, checksum) == false) {
+                        recoveryState.getIndex().addFileDetail(fileMetadata.file(), uploadedSegments.get(file).getLength(), false);
                     } else {
-                        recoveryState.getIndex().addFileDetail(file.file(), uploadedSegments.get(file).getLength(), true);
+                        recoveryState.getIndex().addFileDetail(fileMetadata.file(), uploadedSegments.get(file).getLength(), true);
                     }
                 }
             } else {
@@ -5658,7 +5651,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         CompositeStoreDirectory storeDirectory,
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
-        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments,
+        Map<FileMetadata, UploadedSegmentMetadata> uploadedSegments,
         boolean overrideLocal,
         final Runnable onFileSync
     ) throws IOException {
@@ -5668,7 +5661,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         try {
             if (overrideLocal) {
-                for (FileMetadata file : storeDirectory.listAll()) {
+                for (FileMetadata file : storeDirectory.listFileMetadata()) {
                     storeDirectory.deleteFile(file);
                 }
             }

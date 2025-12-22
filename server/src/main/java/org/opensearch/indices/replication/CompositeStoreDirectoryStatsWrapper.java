@@ -10,6 +10,7 @@ package org.opensearch.indices.replication;
 
 import org.apache.lucene.store.IOContext;
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.store.CompositeRemoteSegmentStoreDirectory;
 import org.opensearch.index.store.CompositeStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
@@ -43,7 +44,7 @@ public final class CompositeStoreDirectoryStatsWrapper {
 
         try {
             // Get file size for progress tracking
-            long fileSize = from.getFileLength(fileMetadata);
+            long fileSize = from.fileLength(fileMetadata.serialize());
 
             // Report start of copy operation
             fileProgressTracker.accept(fileName, 0L);
@@ -66,9 +67,9 @@ public final class CompositeStoreDirectoryStatsWrapper {
      * Legacy copyFrom method for backward compatibility with existing download APIs.
      * Converts String filenames to FileMetadata with default "lucene" format.
      */
-    public void copyFrom(RemoteSegmentStoreDirectory from, String src, String dest, IOContext context) throws IOException {
+    public void copyFrom(CompositeRemoteSegmentStoreDirectory from, String src, String dest, IOContext context) throws IOException {
         // Convert to FileMetadata with default format for backward compatibility
-        FileMetadata destFileMetadata = new FileMetadata("lucene", "", dest);
+        FileMetadata destFileMetadata = new FileMetadata("lucene", dest);
         copyFrom(destFileMetadata, from, context);
     }
 

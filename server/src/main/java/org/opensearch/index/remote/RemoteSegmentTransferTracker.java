@@ -384,7 +384,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
                 } catch (IOException e) {
                     logger.warn(new ParameterizedMessage("Exception while reading the fileLength of file={}", file), e);
                 }
-                FileMetadata fileMetadata = new FileMetadata("lucene", "", file);
+                FileMetadata fileMetadata = new FileMetadata("lucene", file);
                 latestLocalFileNameLengthMap.put(fileMetadata, fileSize);
             });
         Set<String> fileSet = new HashSet<>(segmentFiles);

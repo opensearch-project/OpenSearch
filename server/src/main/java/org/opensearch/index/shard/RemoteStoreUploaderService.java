@@ -123,7 +123,7 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
                 batchUploadListener.onFailure(ex);
             });
             statsListener.beforeUpload(fileMetadata);
-            remoteDirectory.copyFrom(fileMetadata, storeDirectory, IOContext.DEFAULT, aggregatedListener, isLowPriorityUpload);
+            remoteDirectory.copyFrom(storeDirectory, fileMetadata.serialize(), IOContext.DEFAULT, aggregatedListener, isLowPriorityUpload);
         }
     }
 }

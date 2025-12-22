@@ -171,6 +171,7 @@ import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
 import org.opensearch.index.store.IndexStoreListener;
+import org.opensearch.index.store.CompositeRemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
@@ -969,7 +970,7 @@ public class Node implements Closeable {
 
             final CompositeIndexSettings compositeIndexSettings = new CompositeIndexSettings(settings, settingsModule.getClusterSettings());
 
-            final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+            final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new CompositeRemoteSegmentStoreDirectoryFactory(
                 repositoriesServiceReference::get,
                 threadPool,
                 remoteStoreSettings.getSegmentsPathFixedPrefix(),

@@ -26,6 +26,7 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.CompositeRemoteSegmentStoreDirectory;
 import org.opensearch.index.store.CompositeStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
@@ -496,7 +497,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         } else {
             long translogFileGeneration = translogGeneration.translogFileGeneration;
             remoteDirectory.uploadMetadata(
-                localFilesPostRefresh,
+                localFilesPostRefresh.stream().map(FileMetadata::serialize).collect(Collectors.toList()),
                 catalogSnapshotCloned,
                 compositeStoreDirectory,
                 translogFileGeneration,
@@ -519,7 +520,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private boolean skipUpload(FileMetadata fileMetadata) {
         try {
             // Exclude files that are already uploaded and the exclude files to come up with the list of files to be uploaded.
-            return EXCLUDE_FILES.contains(fileMetadata.file()) || remoteDirectory.containsFile(fileMetadata, getChecksumOfLocalFile(fileMetadata));
+            return EXCLUDE_FILES.contains(fileMetadata.file()) || remoteDirectory.containsFile(fileMetadata.serialize(), getChecksumOfLocalFile(fileMetadata));
         } catch (IOException e) {
             logger.error(
                 "Exception while reading checksum of local segment file: {}, format: {}, ignoring the exception and re-uploading the file",
@@ -609,7 +610,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // During failover, the uploaded metadata would have names of files that have been uploaded to remote store.
             // Here we update the tracker with latest remote uploaded files.
             if (uploadedMetadata != null) {
-                segmentTracker.setLatestUploadedFiles(uploadedMetadata.getMetadata().keySet());
+                segmentTracker.setLatestUploadedFiles(uploadedMetadata.getMetadata().keySet().stream().map(FileMetadata::new).collect(Collectors.toSet()));
             }
         }
     }

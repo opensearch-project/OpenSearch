@@ -8,21 +8,14 @@
 
 package org.opensearch.index.engine.exec.coord;
 
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.core.common.io.stream.*;
 import org.opensearch.index.engine.exec.FileMetadata;
-import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
-import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -168,7 +161,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable, Cl
         return segmentList;
     }
 
-    public Collection<FileMetadata> getFileMetadataList() {
+    public Collection<FileMetadata> getFileMetadataList() throws IOException {
         Collection<Segment> segments = getSegments();
         Collection<FileMetadata> allFileMetadata = new ArrayList<>();
 
@@ -179,8 +172,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable, Cl
                     String fileName = file.getName();
                     FileMetadata fileMetadata = new FileMetadata(
                         dataFormatName,
-                        writerFileSet.getDirectory(),
-                        fileName
+                            fileName
                     );
                     allFileMetadata.add(fileMetadata);
                 }
@@ -286,7 +278,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable, Cl
             List<FileMetadata> searchableFiles = new ArrayList<>();
             String directory = dfGroupedSearchableFiles.get(df).getDirectory();
             for(String file : dfGroupedSearchableFiles.get(df).getFiles()) {
-                searchableFiles.add(new FileMetadata(df ,directory, file));
+                searchableFiles.add(new FileMetadata(df , file));
             }
             return searchableFiles;
         }

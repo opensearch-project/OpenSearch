@@ -8,8 +8,8 @@
 
 package org.opensearch.index.store;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.store.Directory;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -17,7 +17,9 @@ import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.index.store.remote.CompositeRemoteDirectory;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -35,25 +37,34 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 
 /**
- * Factory for a remote store directory
+ * Factory for composite remote segment store directory.
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "2.3.0")
-public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+public class CompositeRemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     private final Supplier<RepositoriesService> repositoriesService;
     private final String segmentsPathFixedPrefix;
-
     private final ThreadPool threadPool;
+    private final PluginsService pluginsService;
 
-    public RemoteSegmentStoreDirectoryFactory(
+    public CompositeRemoteSegmentStoreDirectoryFactory(
         Supplier<RepositoriesService> repositoriesService,
         ThreadPool threadPool,
         String segmentsPathFixedPrefix
     ) {
+        this(repositoriesService, threadPool, segmentsPathFixedPrefix, null);
+    }
+
+    public CompositeRemoteSegmentStoreDirectoryFactory(
+        Supplier<RepositoriesService> repositoriesService,
+        ThreadPool threadPool,
+        String segmentsPathFixedPrefix,
+        PluginsService pluginsService
+    ) {
         this.repositoriesService = repositoriesService;
         this.segmentsPathFixedPrefix = segmentsPathFixedPrefix;
         this.threadPool = threadPool;
+        this.pluginsService = pluginsService;
     }
 
     @Override
@@ -82,7 +93,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
             BlobPath repositoryBasePath = blobStoreRepository.basePath();
             String shardIdStr = String.valueOf(shardId.id());
-            Map<String, String> pendingDownloadMergedSegments = new ConcurrentHashMap<>();
+            Map<org.opensearch.index.engine.exec.FileMetadata, String> pendingDownloadMergedSegments = new ConcurrentHashMap<>();
 
             RemoteStorePathStrategy.ShardDataPathInput dataPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
                 .basePath(repositoryBasePath)
@@ -93,15 +104,19 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .fixedPrefix(segmentsPathFixedPrefix)
                 .indexFixedPrefix(indexFixedPrefix)
                 .build();
-            // Derive the path for data directory of SEGMENTS
+
             BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
-            RemoteDirectory dataDirectory = new RemoteDirectory(
-                blobStoreRepository.blobStore().blobContainer(dataPath),
+
+            CompositeRemoteDirectory compositeDataDirectory = new CompositeRemoteDirectory(
+                blobStoreRepository.blobStore(),
+                dataPath,
                 blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
                 blobStoreRepository::maybeRateLimitLowPriorityRemoteUploadTransfers,
                 blobStoreRepository::maybeRateLimitRemoteDownloadTransfers,
                 blobStoreRepository::maybeRateLimitLowPriorityDownloadTransfers,
-                pendingDownloadMergedSegments
+                pendingDownloadMergedSegments,
+                LogManager.getLogger("index.store.remote.composite." + shardId),
+                pluginsService
             );
 
             RemoteStorePathStrategy.ShardDataPathInput mdPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
@@ -113,11 +128,10 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .fixedPrefix(segmentsPathFixedPrefix)
                 .indexFixedPrefix(indexFixedPrefix)
                 .build();
-            // Derive the path for metadata directory of SEGMENTS
+
             BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
             RemoteDirectory metadataDirectory = new RemoteDirectory(blobStoreRepository.blobStore().blobContainer(mdPath));
 
-            // The path for lock is derived within the RemoteStoreLockManagerFactory
             RemoteStoreLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
                 repositoriesService.get(),
                 repositoryName,
@@ -128,8 +142,8 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 indexFixedPrefix
             );
 
-            return new RemoteSegmentStoreDirectory(
-                dataDirectory,
+            return new CompositeRemoteSegmentStoreDirectory(
+                compositeDataDirectory,
                 metadataDirectory,
                 mdLockManager,
                 threadPool,
@@ -144,5 +158,4 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     public Supplier<RepositoriesService> getRepositoriesService() {
         return this.repositoriesService;
     }
-
 }

@@ -177,7 +177,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
 
             @Override
             public void onSuccess(FileMetadata file) {
-                localToRemoteStoreFilenames.put(file, indexShard.getRemoteDirectory().getExistingRemoteFilename(file));
+                localToRemoteStoreFilenames.put(file, indexShard.getRemoteDirectory().getExistingRemoteFilename(file.serialize()));
             }
 
             @Override

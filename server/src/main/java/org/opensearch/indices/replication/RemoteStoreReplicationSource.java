@@ -106,14 +106,14 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 .stream()
                 .collect(
                     Collectors.toMap(
-                        e -> e.getKey().file(),
+                        e -> new FileMetadata(e.getKey()).file(),
                         e -> new StoreFileMetadata(
                             e.getValue().getOriginalFilename(),
                             e.getValue().getLength(),
                             Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
                             version,
                             null,
-                            e.getKey().dataFormat()
+                            new FileMetadata(e.getKey()).dataFormat()
                         )
                     )
                 );
@@ -140,7 +140,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
             logger.debug("Downloading format-aware segment files from remote store {}", filesToFetch);
             if (remoteMetadataExists()) {
                 final CompositeStoreDirectory storeDirectory = indexShard.store().compositeStoreDirectory();
-                final List<FileMetadata> directoryFiles = List.of(storeDirectory.listAll());
+                final List<FileMetadata> directoryFiles = List.of(storeDirectory.listFileMetadata());
 
                 final List<FileMetadata> toDownloadFileMetadata = new ArrayList<>();
 
@@ -149,7 +149,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                     String dataFormat = storeFileMetadata.dataFormat() != null ? storeFileMetadata.dataFormat() : "lucene";
 
                     // Create FileMetadata for format-aware operations
-                    FileMetadata fileMetadata = new FileMetadata(dataFormat, "", fileName);
+                    FileMetadata fileMetadata = new FileMetadata(dataFormat, fileName);
 
                     // Verify file doesn't already exist in local directory
                     if (directoryFiles.contains(fileMetadata)) {

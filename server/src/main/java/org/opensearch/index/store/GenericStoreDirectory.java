@@ -26,13 +26,9 @@ import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
-import java.util.Set;
 import java.util.stream.StreamSupport;
 
 /**
@@ -90,7 +86,7 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
                 .map(Path::getFileName)
                 .map(Path::toString)
                 .filter(name -> !Files.isDirectory(directoryPath.resolve(name)))
-                .map(fileName -> new FileMetadata(this.dataFormat.name(), "", fileName))  // Create FileMetadata with format + filename
+                .map(fileName -> new FileMetadata(this.dataFormat.name(), fileName))  // Create FileMetadata with format + filename
                 .toArray(FileMetadata[]::new);
         } catch (IOException e) {
             throw new MultiFormatStoreException(

@@ -15,6 +15,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.UploadedSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.plugins.Plugin;
@@ -145,14 +146,14 @@ public class ParquetRemoteStoreUploadIT extends RemoteStoreBaseIntegTestCase {
         RemoteSegmentStoreDirectory remoteDirectory = primaryShard.getRemoteDirectory();
 
         // Verify format-aware metadata
-        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments =
+        Map<String, UploadedSegmentMetadata> uploadedSegments =
             remoteDirectory.getSegmentsUploadedToRemoteStore();
 
         logger.info("--> Uploaded segments: {}", uploadedSegments.keySet());
 
         // Verify both Lucene and Parquet files are uploaded
         Set<String> formats = uploadedSegments.keySet().stream()
-            .map(FileMetadata::dataFormat)
+            .map(file -> new FileMetadata(file).dataFormat())
             .collect(Collectors.toSet());
 
         logger.info("--> Data formats found in uploaded segments: {}", formats);
@@ -224,9 +225,9 @@ public class ParquetRemoteStoreUploadIT extends RemoteStoreBaseIntegTestCase {
             assertTrue("CatalogSnapshot should not be empty", catalogSnapshotBytes.length > 0);
 
             // Verify metadata contains files from both formats
-            Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadataMap = metadata.getMetadata();
+            Map<String, UploadedSegmentMetadata> metadataMap = metadata.getMetadata();
             Set<String> formats = metadataMap.keySet().stream()
-                .map(FileMetadata::dataFormat)
+                .map(file -> new FileMetadata(file).dataFormat())
                 .collect(Collectors.toSet());
 
             logger.info("--> Formats in metadata: {}", formats);
@@ -339,24 +340,25 @@ public class ParquetRemoteStoreUploadIT extends RemoteStoreBaseIntegTestCase {
             RemoteSegmentMetadata metadata = remoteDirectory.readLatestMetadataFile();
             assertNotNull("Metadata file should exist", metadata);
 
-            Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadataMap = metadata.getMetadata();
+            Map<String, UploadedSegmentMetadata> metadataMap = metadata.getMetadata();
 
             // Verify FileMetadata keys have correct format information
-            for (FileMetadata fm : metadataMap.keySet()) {
-                assertNotNull("FileMetadata should have dataFormat", fm.dataFormat());
-                assertFalse("DataFormat should not be empty", fm.dataFormat().isEmpty());
+            for (String file : metadataMap.keySet()) {
+                FileMetadata fileMetadata = new FileMetadata(file);
+                assertNotNull("FileMetadata should have dataFormat", fileMetadata.dataFormat());
+                assertFalse("DataFormat should not be empty", fileMetadata.dataFormat().isEmpty());
 
-                RemoteSegmentStoreDirectory.UploadedSegmentMetadata uploadedMeta = metadataMap.get(fm);
+                UploadedSegmentMetadata uploadedMeta = metadataMap.get(file);
                 assertEquals("UploadedSegmentMetadata format should match FileMetadata",
-                    fm.dataFormat(), uploadedMeta.getDataFormat());
+                    fileMetadata.dataFormat(), uploadedMeta.getDataFormat());
 
                 logger.debug("--> File: {}, Format: {}, RemoteFile: {}",
-                    fm.file(), fm.dataFormat(), uploadedMeta.getUploadedFilename());
+                    fileMetadata.file(), fileMetadata.dataFormat(), uploadedMeta.getUploadedFilename());
             }
 
             // Verify we have Parquet entries
             long parquetCount = metadataMap.keySet().stream()
-                .filter(fm -> "parquet".equals(fm.dataFormat()))
+                .filter(fm -> "parquet".equals(new FileMetadata(fm).dataFormat()))
                 .count();
 
             assertTrue("Should have Parquet files in metadata", parquetCount > 0);

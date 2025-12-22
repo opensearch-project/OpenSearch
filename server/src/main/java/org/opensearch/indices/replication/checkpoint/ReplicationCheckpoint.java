@@ -112,7 +112,7 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         Map<FileMetadata, StoreFileMetadata> convertedMap = new HashMap<>();
         for (Map.Entry<String, StoreFileMetadata> entry : legacyMetadataMap.entrySet()) {
             String dataFormat = entry.getValue().dataFormat() != null ? entry.getValue().dataFormat() : "lucene";
-            FileMetadata fileMetadata = new FileMetadata(dataFormat, "", entry.getKey());
+            FileMetadata fileMetadata = new FileMetadata(dataFormat, entry.getKey());
             convertedMap.put(fileMetadata, entry.getValue());
         }
         this.formatAwareMetadataMap = convertedMap;
@@ -141,7 +141,7 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         Map<FileMetadata, StoreFileMetadata> convertedMap = new HashMap<>();
         for (Map.Entry<String, StoreFileMetadata> entry : legacyMetadataMap.entrySet()) {
             String dataFormat = entry.getValue().dataFormat() != null ? entry.getValue().dataFormat() : "lucene";
-            FileMetadata fileMetadata = new FileMetadata(dataFormat, "", entry.getKey());
+            FileMetadata fileMetadata = new FileMetadata(dataFormat, entry.getKey());
             convertedMap.put(fileMetadata, entry.getValue());
         }
         this.formatAwareMetadataMap = convertedMap;
@@ -222,7 +222,7 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         if (in.getVersion().onOrAfter(FILEMETADATA_AWARE_VERSION)) {
             // Read FileMetadata-aware format
             this.formatAwareMetadataMap = in.readMap(
-                streamInput -> new FileMetadata(streamInput.readString(), "", streamInput.readString()),
+                streamInput -> new FileMetadata(streamInput.readString(), streamInput.readString()),
                 StoreFileMetadata::new
             );
         } else if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
@@ -231,7 +231,7 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
             Map<FileMetadata, StoreFileMetadata> convertedMap = new HashMap<>();
             for (Map.Entry<String, StoreFileMetadata> entry : legacyMap.entrySet()) {
                 String dataFormat = entry.getValue().dataFormat() != null ? entry.getValue().dataFormat() : "lucene";
-                FileMetadata fileMetadata = new FileMetadata(dataFormat, "", entry.getKey());
+                FileMetadata fileMetadata = new FileMetadata(dataFormat, entry.getKey());
                 convertedMap.put(fileMetadata, entry.getValue());
             }
             this.formatAwareMetadataMap = convertedMap;

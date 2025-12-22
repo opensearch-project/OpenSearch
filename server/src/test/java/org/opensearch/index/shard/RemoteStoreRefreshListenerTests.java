@@ -35,7 +35,7 @@ import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils;
+import org.opensearch.index.store.MetadataFilenameUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
@@ -867,14 +867,14 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     private void verifyUploadedSegments(RemoteSegmentStoreDirectory remoteSegmentStoreDirectory) throws IOException {
-        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteSegmentStoreDirectory
+        Map<FileMetadata, UploadedSegmentMetadata> uploadedSegments = remoteSegmentStoreDirectory
             .getSegmentsUploadedToRemoteStore();
         String segmentsNFilename = null;
         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
             SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
             for (String file : segmentInfos.files(true)) {
                 if (!RemoteStoreRefreshListener.EXCLUDE_FILES.contains(file)) {
-                    FileMetadata fileMetadata = new FileMetadata("lucene", "", file);
+                    FileMetadata fileMetadata = new FileMetadata("lucene", file);
                     assertTrue(uploadedSegments.containsKey(fileMetadata));
                 }
                 if (file.startsWith(IndexFileNames.SEGMENTS)) {

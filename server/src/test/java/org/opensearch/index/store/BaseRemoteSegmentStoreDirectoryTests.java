@@ -44,9 +44,9 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     protected SegmentInfos segmentInfos;
     protected ThreadPool threadPool;
 
-    protected String metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(12, 23, 34, 1, 1, "node-1");
+    protected String metadataFilename = MetadataFilenameUtils.getMetadataFilename(12, 23, 34, 1, 1, "node-1");
 
-    protected String metadataFilenameDup = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+    protected String metadataFilenameDup = MetadataFilenameUtils.getMetadataFilename(
         12,
         23,
         34,
@@ -54,9 +54,9 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         1,
         "node-2"
     );
-    protected String metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(12, 13, 34, 1, 1, "node-1");
-    protected String metadataFilename3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(10, 38, 34, 1, 1, "node-1");
-    protected String metadataFilename4 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(10, 36, 34, 1, 1, "node-1");
+    protected String metadataFilename2 = MetadataFilenameUtils.getMetadataFilename(12, 13, 34, 1, 1, "node-1");
+    protected String metadataFilename3 = MetadataFilenameUtils.getMetadataFilename(10, 38, 34, 1, 1, "node-1");
+    protected String metadataFilename4 = MetadataFilenameUtils.getMetadataFilename(10, 36, 34, 1, 1, "node-1");
 
     public void setupRemoteSegmentStoreDirectory() throws IOException {
         remoteDataDirectory = mock(RemoteDirectory.class);
@@ -98,13 +98,13 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         when(
             remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                MetadataFilenameUtils.METADATA_PREFIX,
                 METADATA_FILES_TO_FETCH
             )
         ).thenReturn(List.of(metadataFilename));
         when(
             remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                MetadataFilenameUtils.METADATA_PREFIX,
                 Integer.MAX_VALUE
             )
         ).thenReturn(metadataFiles);

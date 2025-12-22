@@ -210,7 +210,7 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
             RemoteSegmentMetadata segmentMetadata = entry.getValue();
 
             Map<String, Object> segmentMetadataMap = new HashMap<>();
-            Map<FileMetadata, Object> filesMap = new HashMap<>();
+            Map<String, Object> filesMap = new HashMap<>();
             segmentMetadata.getMetadata().forEach((file, meta) -> {
                 Map<String, Object> metaMap = new HashMap<>();
                 metaMap.put("original_name", meta.getOriginalFilename());

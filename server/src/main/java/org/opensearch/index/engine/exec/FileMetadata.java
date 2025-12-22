@@ -10,9 +10,55 @@ package org.opensearch.index.engine.exec;
 
 import reactor.util.annotation.NonNull;
 
-public record FileMetadata(String dataFormat, String directory, String file) {
+import java.util.Objects;
+
+public class FileMetadata {
+
+    public static final String DELIMITER = ":::";
+
+    private final String file;
+    private final String dataFormat;
+
+    public FileMetadata(String dataFormat, String file) {
+        this.file = file;
+        this.dataFormat = dataFormat;
+    }
+
+    public FileMetadata(String dataFormatAwareFile) {
+        String[] parts = dataFormatAwareFile.split(DELIMITER);
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Expected FileMetadata string to have 2 parts: " + dataFormatAwareFile);
+        }
+        this.file = parts[0];
+        this.dataFormat = parts[1];
+    }
+
+    public String serialize() {
+        return file + DELIMITER + dataFormat;
+    }
+
     @Override
     public @NonNull String toString() {
-        return "FileMetadata {" + "directory='" + directory + '\'' + ", file='" + file + '\'' + ", format='" + dataFormat + '\'' + '}';
+        return serialize();
+    }
+
+    public String file() {
+        return file;
+    }
+
+    public String dataFormat() {
+        return dataFormat;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        FileMetadata that = (FileMetadata) o;
+        return Objects.equals(file, that.file) && Objects.equals(dataFormat, that.dataFormat);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(file, dataFormat);
     }
 }

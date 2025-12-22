@@ -58,11 +58,11 @@ public class CheckpointInfoResponse extends TransportResponse {
 
     public CheckpointInfoResponse(StreamInput in) throws IOException {
         this.checkpoint = new ReplicationCheckpoint(in);
-        
+
         if (in.getVersion().onOrAfter(FORMAT_AWARE_VERSION)) {
             // Read format-aware metadata directly
             this.formatAwareMetadataMap = in.readMap(
-                streamInput -> new FileMetadata(streamInput.readString(), "", streamInput.readString()),
+                streamInput -> new FileMetadata(streamInput.readString(), streamInput.readString()),
                 StoreFileMetadata::new
             );
             // Build legacy map for backward compatibility
@@ -75,14 +75,14 @@ public class CheckpointInfoResponse extends TransportResponse {
             this.legacyMetadataMap = in.readMap(StreamInput::readString, StoreFileMetadata::new);
             this.formatAwareMetadataMap = convertLegacyToFormatAware(legacyMetadataMap);
         }
-        
+
         this.infosBytes = in.readByteArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         checkpoint.writeTo(out);
-        
+
         if (out.getVersion().onOrAfter(FORMAT_AWARE_VERSION)) {
             // Write format-aware metadata
             out.writeMap(formatAwareMetadataMap,
@@ -96,7 +96,7 @@ public class CheckpointInfoResponse extends TransportResponse {
             // Write legacy format for backward compatibility
             out.writeMap(legacyMetadataMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
         }
-        
+
         out.writeByteArray(infosBytes);
     }
 
@@ -111,7 +111,7 @@ public class CheckpointInfoResponse extends TransportResponse {
 
             // Use the dataFormat from StoreFileMetadata if available, otherwise default to "lucene"
             String dataFormat = storeMetadata.dataFormat() != null ? storeMetadata.dataFormat() : "lucene";
-            FileMetadata fileMetadata = new FileMetadata(dataFormat, "", fileName);
+            FileMetadata fileMetadata = new FileMetadata(dataFormat, fileName);
             formatAwareMap.put(fileMetadata, storeMetadata);
         }
         return formatAwareMap;

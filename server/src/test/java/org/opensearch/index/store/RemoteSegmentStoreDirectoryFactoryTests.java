@@ -98,7 +98,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
             assertEquals("base_path/uuid_1/0/segments/lock_files/", blobPaths.get(2).buildAsString());
 
             verify(blobContainer).listBlobsByPrefixInSortedOrder(
-                eq(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX),
+                eq(MetadataFilenameUtils.METADATA_PREFIX),
                 eq(METADATA_FILES_TO_FETCH),
                 eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
                 any()

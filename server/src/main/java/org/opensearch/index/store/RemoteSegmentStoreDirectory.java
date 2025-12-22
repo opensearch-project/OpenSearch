@@ -11,6 +11,7 @@ package org.opensearch.index.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
@@ -35,25 +36,24 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
-import org.opensearch.index.store.remote.CompositeRemoteDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,15 +66,21 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
- * Remote segment store directory with format-aware storage capabilities.
- * Uses CompositeRemoteDirectory for all file operations with format-specific routing.
+ * A RemoteDirectory extension for remote segment store. We need to make sure we don't overwrite a segment file once uploaded.
+ * In order to prevent segment overwrite which can occur due to two primary nodes for the same shard at the same time,
+ * a unique suffix is added to the uploaded segment file. This class keeps track of filename of segments stored
+ * in remote segment store vs filename in local filesystem and provides the consistent Directory interface so that
+ * caller will be accessing segment files in the same way as {@code FSDirectory}. Apart from storing actual segment files,
+ * remote segment store also keeps track of refresh checkpoints as metadata in a separate path which is handled by
+ * another instance of {@code RemoteDirectory}.
  *
  * @opensearch.api
  */
 @PublicApi(since = "2.3.0")
-public final class RemoteSegmentStoreDirectory extends FilterDirectory implements RemoteStoreCommitLevelLockManager {
+public class RemoteSegmentStoreDirectory extends FilterDirectory implements RemoteStoreCommitLevelLockManager {
 
     /**
      * Each segment file is uploaded with unique suffix.
@@ -83,32 +89,32 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     public static final String SEGMENT_NAME_UUID_SEPARATOR = "__";
 
     /**
-     * compositeRemoteDirectory is used to store segment files with format-specific routing
-     * Always present - never null
+     * remoteDataDirectory is used to store segment files at path: cluster_UUID/index_UUID/shardId/segments/data
      */
-    private final CompositeRemoteDirectory compositeRemoteDirectory;
-
+    private final RemoteDirectory remoteDataDirectory;
     /**
      * remoteMetadataDirectory is used to store metadata files at path: cluster_UUID/index_UUID/shardId/segments/metadata
      */
     private final RemoteDirectory remoteMetadataDirectory;
 
     private final RemoteStoreLockManager mdLockManager;
+
     private final Map<Long, String> metadataFilePinnedTimestampMap;
+
     private final ThreadPool threadPool;
 
     /**
-     * Only relevant for remote-store-enabled domains on replica shards
-     * to store localSegmentFilename -> remoteSegmentFilename mappings
+     Only relevant for remote-store-enabled domains on replica shards
+     to store localSegmentFilename -> remoteSegmentFilename mappings
      */
-    private final Map<FileMetadata, String> pendingDownloadMergedSegments;
+    private final Map<String, String> pendingDownloadMergedSegments;
 
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
      * This map acts as a cache layer for uploaded segment filenames which helps avoid calling listAll() each time.
      * It is important to initialize this map on creation of RemoteSegmentStoreDirectory and update it on each upload and delete.
      */
-    private Map<FileMetadata, UploadedSegmentMetadata> segmentsUploadedToRemoteStore;
+    private Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore;
 
     private static final VersionedCodecStreamWrapper<RemoteSegmentMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
         new RemoteSegmentMetadataHandlerFactory(),
@@ -118,13 +124,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     );
 
     private static final Logger staticLogger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
-    private final Logger logger;
+
+    final Logger logger;
 
     /**
      * AtomicBoolean that ensures only one staleCommitDeletion activity is scheduled at a time.
      * Visible for testing
      */
-    protected final AtomicBoolean canDeleteStaleCommits = new AtomicBoolean(true);
+    final AtomicBoolean canDeleteStaleCommits = new AtomicBoolean(true);
+
     private final AtomicLong metadataUploadCounter = new AtomicLong(0);
 
     public static final int METADATA_FILES_TO_FETCH = 10;
@@ -141,43 +149,21 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     @InternalApi
     public RemoteSegmentStoreDirectory(
-        RemoteDirectory remoteDirectory,
+        RemoteDirectory remoteDataDirectory,
         RemoteDirectory remoteMetadataDirectory,
         RemoteStoreLockManager mdLockManager,
         ThreadPool threadPool,
         ShardId shardId,
-        @Nullable Map<FileMetadata, String> pendingDownloadMergedSegments
+        @Nullable Map<String, String> pendingDownloadMergedSegments
     ) throws IOException {
-        super(remoteDirectory);
-        this.compositeRemoteDirectory = null;
+        super(remoteDataDirectory);
+        this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
         this.metadataFilePinnedTimestampMap = new HashMap<>();
         this.logger = Loggers.getLogger(getClass(), shardId);
-        this.pendingDownloadMergedSegments = pendingDownloadMergedSegments != null ?
-            new ConcurrentHashMap<>(pendingDownloadMergedSegments) : new ConcurrentHashMap<>();
-        init();
-    }
-
-    @InternalApi
-    public RemoteSegmentStoreDirectory(
-        CompositeRemoteDirectory compositeRemoteDirectory,
-        RemoteDirectory remoteMetadataDirectory,
-        RemoteStoreLockManager mdLockManager,
-        ThreadPool threadPool,
-        ShardId shardId,
-        @Nullable Map<FileMetadata, String> pendingDownloadMergedSegments
-    ) throws IOException {
-        super(null);
-        this.compositeRemoteDirectory = compositeRemoteDirectory;
-        this.remoteMetadataDirectory = remoteMetadataDirectory;
-        this.mdLockManager = mdLockManager;
-        this.threadPool = threadPool;
-        this.metadataFilePinnedTimestampMap = new HashMap<>();
-        this.logger = Loggers.getLogger(getClass(), shardId);
-        this.pendingDownloadMergedSegments = pendingDownloadMergedSegments != null ?
-            new ConcurrentHashMap<>(pendingDownloadMergedSegments) : new ConcurrentHashMap<>();
+        this.pendingDownloadMergedSegments = pendingDownloadMergedSegments;
         init();
     }
 
@@ -202,28 +188,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     /**
-     * Read the latest metadata file to get the list of segments uploaded to the remote segment store.
-     * Delegates to CompositeRemoteDirectory when available for better format-aware metadata handling.
-     */
-    public RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
-        if (compositeRemoteDirectory != null) {
-            logger.debug("Reading latest metadata file from CompositeRemoteDirectory for better format-aware handling");
-            return compositeRemoteDirectory.readLatestMetadataFile();
-        } else {
-            logger.info("No CompositeRemoteDirectory found");
-            return null;
-        }
-    }
-
-    private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
-        try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(metadataFilename)) {
-            byte[] metadataBytes = inputStream.readAllBytes();
-            return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
-        }
-    }
-
-    /**
-     * Initializes the cache to a specific commit which keeps track of all the segment files uploaded to the remote segment store.
+     * Initializes the cache to a specific commit which keeps track of all the segment files uploaded to the
+     * remote segment store.
+     * this is currently used to restore snapshots, where we want to copy segment files from a given commit.
+     * TODO: check if we can return read only RemoteSegmentStoreDirectory object from here.
+     *
+     * @throws IOException if there were any failures in reading the metadata file
      */
     public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration, String acquirerId) throws IOException {
         String metadataFilePrefix = MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, commitGeneration);
@@ -249,7 +219,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             MetadataFilenameUtils.METADATA_PREFIX,
             Integer.MAX_VALUE
         );
-
         Set<String> lockedMetadataFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
             metadataFiles,
             Set.of(timestamp),
@@ -257,7 +226,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen,
             true
         );
-
         if (lockedMetadataFiles.isEmpty()) {
             return null;
         }
@@ -274,6 +242,47 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>();
         }
         return remoteSegmentMetadata;
+    }
+
+    /**
+     * Read the latest metadata file to get the list of segments uploaded to the remote segment store.
+     * We upload a metadata file per refresh, but it is not unique per refresh. Refresh metadata file is unique for a given commit.
+     * The format of refresh metadata filename is: refresh_metadata__PrimaryTerm__Generation__UUID
+     * Refresh metadata files keep track of active segments for the shard at the time of refresh.
+     * In order to get the list of segment files uploaded to the remote segment store, we need to read the latest metadata file.
+     * Each metadata file contains a map where
+     * Key is - Segment local filename and
+     * Value is - local filename::uploaded filename::checksum
+     *
+     * @return Map of segment filename to uploaded filename with checksum
+     * @throws IOException if there were any failures in reading the metadata file
+     */
+    public RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
+        RemoteSegmentMetadata remoteSegmentMetadata = null;
+
+        List<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+            MetadataFilenameUtils.METADATA_PREFIX,
+            METADATA_FILES_TO_FETCH
+        );
+
+        RemoteStoreUtils.verifyNoMultipleWriters(metadataFiles, MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen);
+
+        if (metadataFiles.isEmpty() == false) {
+            String latestMetadataFile = metadataFiles.get(0);
+            logger.trace("Reading latest Metadata file {}", latestMetadataFile);
+            remoteSegmentMetadata = readMetadataFile(latestMetadataFile);
+        } else {
+            logger.trace("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
+        }
+
+        return remoteSegmentMetadata;
+    }
+
+    private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
+        try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(metadataFilename)) {
+            byte[] metadataBytes = inputStream.readAllBytes();
+            return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
+        }
     }
 
     /**
@@ -305,131 +314,105 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     /**
-     * Metadata of a segment that is uploaded to remote segment store.
+     * Returns list of all the segment files uploaded to remote segment store till the last refresh checkpoint.
+     * Any segment file that is uploaded without corresponding metadata file will not be visible as part of listAll().
+     * We chose not to return cache entries for listAll as cache can have entries for stale segments as well.
+     * Even if we plan to delete stale segments from remote segment store, it will be a periodic operation.
+     *
+     * @return segment filenames stored in remote segment store
+     * @throws IOException if there were any failures in reading the metadata file
      */
-    @PublicApi(since = "2.3.0")
-    public static class UploadedSegmentMetadata {
-        static final String SEPARATOR = "::";
+    @Override
+    public String[] listAll() throws IOException {
+        return readLatestMetadataFile().getMetadata().keySet().toArray(new String[0]);
+    }
 
-        private final String originalFilename;
-        private final String uploadedFilename;
-        private final String checksum;
-        private final String dataFormat;
-        private final long length;
-        private int writtenByMajor;
-
-        UploadedSegmentMetadata(String originalFilename, String uploadedFilename, String checksum, long length, String dataFormat) {
-            this.originalFilename = originalFilename;
-            this.uploadedFilename = uploadedFilename;
-            this.checksum = checksum;
-            this.length = length;
-            this.dataFormat = dataFormat;
-        }
-
-        @Override
-        public String toString() {
-            return String.join(SEPARATOR,
-                originalFilename,
-                uploadedFilename,
-                checksum,
-                String.valueOf(length),
-                String.valueOf(writtenByMajor),
-                dataFormat
-            );
-        }
-
-        public String getChecksum() { return this.checksum; }
-        public long getLength() { return this.length; }
-        public String getOriginalFilename() { return originalFilename; }
-        public String getUploadedFilename() { return uploadedFilename; }
-        public String getDataFormat() { return dataFormat; }
-
-        public void setWrittenByMajor(int writtenByMajor) {
-            if (writtenByMajor <= Version.LATEST.major && writtenByMajor >= Version.MIN_SUPPORTED_MAJOR) {
-                this.writtenByMajor = writtenByMajor;
-            } else {
-                throw new IllegalArgumentException("Lucene major version supplied (" + writtenByMajor + ") is incorrect.");
-            }
-        }
-
-        public static UploadedSegmentMetadata fromString(String uploadedFilename) {
-            File file = new File(uploadedFilename);
-            var filename = file.getName();
-            String[] values = filename.split(SEPARATOR);
-
-            // Extract dataFormat from position 5, default to "lucene" for backward compatibility
-            String dataFormat = values.length >= 6 ? values[5] : "lucene";
-
-            // Use correct 5-parameter constructor including dataFormat
-            UploadedSegmentMetadata metadata = new UploadedSegmentMetadata(
-                values[0],                  // originalFilename
-                values[1],                  // uploadedFilename
-                values[2],                  // checksum
-                Long.parseLong(values[3]),  // length
-                dataFormat                  // dataFormat
-            );
-
-            // Set writtenByMajor if present
-            if (values.length >= 5) {
-                // metadata.setWrittenByMajor(Integer.parseInt(values[4]));
-            }
-
-            return metadata;
+    /**
+     * Delete segment file from remote segment store.
+     *
+     * @param name the name of an existing segment file in local filesystem.
+     * @throws IOException if the file exists but could not be deleted.
+     */
+    @Override
+    public void deleteFile(String name) throws IOException {
+        String remoteFilename = getExistingRemoteFilename(name);
+        if (remoteFilename != null) {
+            remoteDataDirectory.deleteFile(remoteFilename);
+            segmentsUploadedToRemoteStore.remove(name);
         }
     }
 
     /**
-     * Gets metadata files to filter active segments during stale cleanup
+     * Returns the byte length of a segment file in the remote segment store.
+     *
+     * @param name the name of an existing segment file in local filesystem.
+     * @throws IOException         in case of I/O error
+     * @throws NoSuchFileException if the file does not exist in the cache or remote segment store
      */
-    Set<String> getMetadataFilesToFilterActiveSegments(int lastNMetadataFilesToKeep,
-                                                      List<String> sortedMetadataFiles,
-                                                      Set<String> lockedMetadataFiles) {
-        final Set<String> metadataFilesToFilterActiveSegments = new HashSet<>();
-        for (int idx = lastNMetadataFilesToKeep; idx < sortedMetadataFiles.size(); idx++) {
-            if (!lockedMetadataFiles.contains(sortedMetadataFiles.get(idx))) {
-                String prevMetadata = (idx - 1) >= 0 ? sortedMetadataFiles.get(idx - 1) : null;
-                String nextMetadata = (idx + 1) < sortedMetadataFiles.size() ? sortedMetadataFiles.get(idx + 1) : null;
-
-                if (prevMetadata != null && (lockedMetadataFiles.contains(prevMetadata) || idx == lastNMetadataFilesToKeep)) {
-                    metadataFilesToFilterActiveSegments.add(prevMetadata);
-                }
-                if (nextMetadata != null && lockedMetadataFiles.contains(nextMetadata)) {
-                    metadataFilesToFilterActiveSegments.add(nextMetadata);
-                }
-            }
+    @Override
+    public long fileLength(String name) throws IOException {
+        if (segmentsUploadedToRemoteStore.containsKey(name)) {
+            return segmentsUploadedToRemoteStore.get(name).getLength();
         }
-        return metadataFilesToFilterActiveSegments;
+        String remoteFilename = getExistingRemoteFilename(name);
+        if (remoteFilename != null) {
+            return remoteDataDirectory.fileLength(remoteFilename);
+        }
+        throw new NoSuchFileException(name);
     }
 
+    /**
+     * Creates and returns a new instance of {@link RemoteIndexOutput} which will be used to copy files to the remote
+     * segment store.
+     *
+     * @param name the name of the file to create.
+     * @throws IOException in case of I/O error
+     */
+    @Override
+    public IndexOutput createOutput(String name, IOContext context) throws IOException {
+        return remoteDataDirectory.createOutput(getNewRemoteSegmentFilename(name), context);
+    }
 
     /**
-     * Todo:@Kamal will be updated while Ultra-Warm implementation
-     * Opens a stream for reading one block from the existing file - always uses compositeRemoteDirectory
+     * Opens a stream for reading an existing file and returns {@link RemoteIndexInput} enclosing the stream.
+     *
+     * @param name the name of an existing file.
+     * @param context desired {@link IOContext} context
+     * @throws IOException         in case of I/O error
+     * @throws NoSuchFileException if the file does not exist either in cache or remote segment store
      */
+    @Override
+    public IndexInput openInput(String name, IOContext context) throws IOException {
+        String remoteFilename = getExistingRemoteFilename(name);
+        long fileLength = fileLength(name);
+        if (remoteFilename != null) {
+            return remoteDataDirectory.openInput(remoteFilename, fileLength, context);
+        } else {
+            throw new NoSuchFileException(name);
+        }
+    }
+
+    /**
+     * Opens a stream for reading one block from the existing file and returns {@link RemoteIndexInput} enclosing
+     * the block stream.
+     * @param name the name of an existing file.
+     * @param position block start position
+     * @param length block length
+     * @param context desired {@link IOContext} context
+     * @return the {@link RemoteIndexInput} enclosing the block stream
+     * @throws IOException in case of I/O error
+     * @throws NoSuchFileException if the file does not exist
+     */
+
     public IndexInput openBlockInput(String name, long position, long length, IOContext context) throws IOException {
-//        String remoteFilename = getExistingRemoteFilename(name);
-//        if (remoteFilename != null) {
-//            long fileLength = compositeRemoteDirectory.fileLength(name, null);
-//            return compositeRemoteDirectory.openBlockInput(remoteFilename, null, position, length, fileLength, context);
-//        } else {
-//            throw new NoSuchFileException(name);
-//        }
-        throw new UnsupportedOperationException();
+        String remoteFilename = getExistingRemoteFilename(name);
+        long fileLength = fileLength(name);
+        if (remoteFilename != null) {
+            return remoteDataDirectory.openBlockInput(remoteFilename, position, length, fileLength, context);
+        } else {
+            throw new NoSuchFileException(name);
+        }
     }
-
-    /**
-     * Opens a stream for reading one block from the existing file - always uses compositeRemoteDirectory
-     * TODO: @Kamal, needs update, currently it's not integrated
-     */
-//    public IndexInput openBlockInput(String name, String dfName, long position, long length, IOContext context) throws IOException {
-//        String remoteFilename = getExistingRemoteFilename(name);
-//        if (remoteFilename != null) {
-//            long fileLength = compositeRemoteDirectory.fileLength(name, dfName);
-//            return compositeRemoteDirectory.openBlockInput(remoteFilename, dfName, position, length, fileLength, context);
-//        } else {
-//            throw new NoSuchFileException(name);
-//        }
-//    }
 
     /**
      * Copies a file from the source directory to a remote based on multi-stream upload support.
@@ -442,21 +425,21 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param context  IOContext to be used to open IndexInput of file during remote upload
      * @param listener Listener to handle upload callback events
      */
-    public void copyFrom(CompositeStoreDirectory from, FileMetadata src, IOContext context, ActionListener<Void> listener, boolean lowPriorityUpload) {
+    public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener, boolean lowPriorityUpload) {
         try {
-            final String remoteFileName = getNewRemoteSegmentFilename(src.file());
+            final String remoteFileName = getNewRemoteSegmentFilename(src);
             boolean uploaded = false;
-            if (src.file().startsWith(IndexFileNames.SEGMENTS) == false) {
-                uploaded = compositeRemoteDirectory.copyFrom(from, src, remoteFileName, context, () -> {
+            if (src.startsWith(IndexFileNames.SEGMENTS) == false) {
+                uploaded = remoteDataDirectory.copyFrom(from, src, remoteFileName, context, () -> {
                     try {
-                        postUpload(from, src, remoteFileName, Long.toString(from.getChecksumOfLocalFile(src)));
+                        postUpload(from, src, remoteFileName, getChecksumOfLocalFile(from, src));
                     } catch (IOException e) {
                         throw new RuntimeException("Exception in segment postUpload for file " + src, e);
                     }
                 }, listener, lowPriorityUpload);
             }
             if (uploaded == false) {
-                copyFrom(from, src, src.file(), context);
+                copyFrom(from, src, src, context);
                 listener.onResponse(null);
             }
         } catch (Exception e) {
@@ -466,130 +449,254 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     /**
+     * This acquires a lock on a given commit by creating a lock file in lock directory using {@code FileLockInfo}
+     *
+     * @param primaryTerm Primary Term of index at the time of commit.
+     * @param generation  Commit Generation
+     * @param acquirerId  Lock Acquirer ID which wants to acquire lock on the commit.
+     * @throws IOException         will be thrown in case i) listing file failed or ii) Writing the lock file failed.
+     * @throws NoSuchFileException when metadata file is not present for given commit point.
+     */
+    @Override
+    public void acquireLock(long primaryTerm, long generation, String acquirerId) throws IOException {
+        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
+        mdLockManager.acquire(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).withAcquirerId(acquirerId).build());
+    }
+
+    /**
+     * Releases a lock which was acquired on given segment commit.
+     *
+     * @param primaryTerm Primary Term of index at the time of commit.
+     * @param generation  Commit Generation
+     * @param acquirerId  Acquirer ID for which lock needs to be released.
+     * @throws IOException         will be thrown in case i) listing lock files failed or ii) deleting the lock file failed.
+     * @throws NoSuchFileException when metadata file is not present for given commit point.
+     */
+    @Override
+    public void releaseLock(long primaryTerm, long generation, String acquirerId) throws IOException {
+        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
+        mdLockManager.release(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).withAcquirerId(acquirerId).build());
+    }
+
+    /**
+     * Checks if a specific commit have any corresponding lock file.
+     *
+     * @param primaryTerm Primary Term of index at the time of commit.
+     * @param generation  Commit Generation
+     * @return True if there is at least one lock for given primary term and generation.
+     * @throws IOException         will be thrown in case listing lock files failed.
+     * @throws NoSuchFileException when metadata file is not present for given commit point.
+     */
+    @Override
+    public Boolean isLockAcquired(long primaryTerm, long generation) throws IOException {
+        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
+        return isLockAcquired(metadataFile);
+    }
+
+    // Visible for testing
+    Boolean isLockAcquired(String metadataFile) throws IOException {
+        return mdLockManager.isAcquired(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).build());
+    }
+
+    // Visible for testing
+    String getMetadataFileForCommit(long primaryTerm, long generation) throws IOException {
+        List<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+            MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, generation),
+            1
+        );
+
+        if (metadataFiles.isEmpty()) {
+            throw new NoSuchFileException(
+                "Metadata file is not present for given primary term " + primaryTerm + " and generation " + generation
+            );
+        }
+        if (metadataFiles.size() != 1) {
+            throw new IllegalStateException(
+                "there should be only one metadata file for given primary term "
+                    + primaryTerm
+                    + "and generation "
+                    + generation
+                    + " but found "
+                    + metadataFiles.size()
+            );
+        }
+        return metadataFiles.get(0);
+    }
+
+    private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
+        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
+        segmentsUploadedToRemoteStore.put(src, segmentMetadata);
+    }
+
+    /**
      * Copies an existing src file from directory from to a non-existent file dest in this directory.
      * Once the segment is uploaded to remote segment store, update the cache accordingly.
      */
-    public void copyFrom(CompositeStoreDirectory from, FileMetadata src, String dest, IOContext context) throws IOException {
+    @Override
+    public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
         String remoteFilename = getNewRemoteSegmentFilename(dest);
-        compositeRemoteDirectory.copyFrom(from, src, remoteFilename, context);
+        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
         postUpload(from, src, remoteFilename, getChecksumOfLocalFile(from, src));
     }
 
-    private String getChecksumOfLocalFile(CompositeStoreDirectory from, FileMetadata src) throws IOException {
-        return Long.toString(from.getChecksumOfLocalFile(src));
-    }
-
-    private void postUpload(CompositeStoreDirectory from, FileMetadata fileMetadata, String remoteFilename, String checksum) throws IOException {
-        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(fileMetadata.file(), remoteFilename, checksum, from.fileLength(fileMetadata), fileMetadata.dataFormat());
-        segmentsUploadedToRemoteStore.put(fileMetadata, segmentMetadata);
-    }
-
-    // ===== Primary FileMetadata-based copyFrom API =====
-
     /**
-     * Enhanced copyFrom method accepting FileMetadata for format-aware uploads.
-     * Always uses CompositeRemoteDirectory - no null checks needed.
+     * Checks if the file exists in the uploadedSegments cache and the checksum matches.
+     * It is important to match the checksum as the same segment filename can be used for different
+     * segments due to a concurrency issue.
+     *
+     * @param localFilename filename of segment stored in local filesystem
+     * @param checksum      checksum of the segment file
+     * @return true if file exists in cache and checksum matches.
      */
-    public void copyFrom(FileMetadata fileMetadata, CompositeStoreDirectory from,
-                        IOContext context, ActionListener<Void> listener, boolean lowPriorityUpload) {
-
-        String fileName = fileMetadata.file();
-        File file = new File(fileName);
-        String remoteFileName = getNewRemoteSegmentFilename(file.getName());
-
-        logger.debug("FileMetadata-based upload initiated: file={}, format={}, remoteFileName={}",
-                    fileName, fileMetadata.dataFormat(), remoteFileName);
-
-        try {
-            // Create postUploadRunner for cache updates using CompositeStoreDirectory FileMetadata methods
-            Runnable postUploadRunner = () -> {
-                try {
-                    String checksum = from.calculateUploadChecksum(fileMetadata);
-                    long fileLength = from.fileLength(fileMetadata);
-
-                    UploadedSegmentMetadata metadata = new UploadedSegmentMetadata(
-                        fileName, remoteFileName, checksum, fileLength, fileMetadata.dataFormat());
-                    segmentsUploadedToRemoteStore.put(fileMetadata, metadata);
-
-                    logger.debug("Cache updated after upload: file={}, format={}, checksum={}, length={}",
-                                fileName, fileMetadata.dataFormat(), checksum, fileLength);
-                } catch (IOException e) {
-                    logger.error("Post-upload cache update failed: file={}, format={}, error={}",
-                                fileName, fileMetadata.dataFormat(), e.getMessage(), e);
-                    throw new RuntimeException("Post-upload processing failed", e);
-                }
-            };
-
-            // Call CompositeRemoteDirectory - always available, no null checks
-            boolean uploaded = compositeRemoteDirectory.copyFrom(
-                from, fileMetadata, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload);
-
-            if (!uploaded) {
-                logger.warn("Upload not supported by BlobContainer for file={}, format={}",
-                           fileName, fileMetadata.dataFormat());
-                copyFrom(from, fileMetadata, remoteFileName, context);
-                listener.onResponse(null);
-            }
-        } catch (Exception e) {
-            logger.error("FileMetadata-based upload failed: file={}, format={}, error={}",
-                        fileName, fileMetadata.dataFormat(), e.getMessage(), e);
-            listener.onFailure(new SegmentUploadFailedException(
-                String.format("Failed to upload file %s with format %s", fileName, fileMetadata.dataFormat()), e));
-        }
-    }
-
-    /**
-     * Gets file length using FileMetadata for format-aware operations.
-     * First checks the uploaded segments cache, then falls back to compositeRemoteDirectory.
-     */
-    public long getFileLength(FileMetadata fileMetadata) throws IOException {
-        // Primary: Check uploaded segments cache
-        UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(fileMetadata);
-        if (metadata != null) {
-            return metadata.getLength();
-        }
-
-        // Secondary: Use compositeRemoteDirectory if available
-        if (compositeRemoteDirectory != null) {
-            return compositeRemoteDirectory.fileLength(fileMetadata);
-        }
-
-        throw new FileNotFoundException("File length unavailable for: " + fileMetadata.file() + " format: " + fileMetadata.dataFormat());
-    }
-
-    public IndexInput openInput(FileMetadata fileMetadata, IOContext context) throws IOException {
-        long fileLength = getFileLength(fileMetadata);
-        String remoteFilename = getExistingRemoteFilename(fileMetadata);
-        FileMetadata remoteFileMetadata = new FileMetadata(fileMetadata.dataFormat(), "", remoteFilename);
-        return compositeRemoteDirectory.openInput(remoteFileMetadata, fileLength, context);
-
-    }
-
-
-    /**
-     * @deprecated Use {@link #copyFrom(FileMetadata, CompositeStoreDirectory, IOContext, ActionListener, boolean)} instead
-     */
-    @Deprecated
-    public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
-        throw new UnsupportedOperationException(
-            "Synchronous copyFrom is deprecated. Use copyFrom(FileMetadata, CompositeStoreDirectory, ...) instead");
-    }
-
     public boolean containsFile(String localFilename, String checksum) {
         return segmentsUploadedToRemoteStore.containsKey(localFilename)
-            && segmentsUploadedToRemoteStore.get(localFilename).checksum.equals(checksum);
+            && segmentsUploadedToRemoteStore.get(localFilename).getChecksum().equals(checksum);
     }
 
-    public boolean containsFile(FileMetadata fileMetadata, String checksum) {
-        return segmentsUploadedToRemoteStore.containsKey(fileMetadata)
-            && segmentsUploadedToRemoteStore.get(fileMetadata).checksum.equals(checksum);
+    public void uploadMetadata(
+        Collection<String> segmentFiles,
+        CatalogSnapshot catalogSnapshot,
+        Directory storeDirectory,
+        long translogGeneration,
+        ReplicationCheckpoint replicationCheckpoint,
+        String nodeId
+    ) throws IOException {
+        if (!(catalogSnapshot instanceof SegmentInfosCatalogSnapshot)) {
+            throw new IllegalArgumentException("CatalogSnapshot is not a SegmentInfosCatalogSnapshot: " + catalogSnapshot);
+        }
+        uploadMetadata(segmentFiles, ((SegmentInfosCatalogSnapshot) catalogSnapshot).getSegmentInfos(), storeDirectory, translogGeneration, replicationCheckpoint, nodeId);
     }
 
-    public String getExistingRemoteFilename(FileMetadata localFileMetadata) {
-        if (segmentsUploadedToRemoteStore.containsKey(localFileMetadata)) {
-            return segmentsUploadedToRemoteStore.get(localFileMetadata).uploadedFilename;
-        } else if (isMergedSegmentPendingDownload(localFileMetadata)) {
-            return pendingDownloadMergedSegments.get(localFileMetadata);
+    /**
+     * Upload metadata file
+     *
+     * @param segmentFiles         segment files that are part of the shard at the time of the latest refresh
+     * @param segmentInfosSnapshot SegmentInfos bytes to store as part of metadata file
+     * @param storeDirectory instance of local directory to temporarily create metadata file before upload
+     * @param translogGeneration translog generation
+     * @param replicationCheckpoint ReplicationCheckpoint of primary shard
+     * @param nodeId node id
+     * @throws IOException in case of I/O error while uploading the metadata file
+     */
+    public void uploadMetadata(
+        Collection<String> segmentFiles,
+        SegmentInfos segmentInfosSnapshot,
+        Directory storeDirectory,
+        long translogGeneration,
+        ReplicationCheckpoint replicationCheckpoint,
+        String nodeId
+    ) throws IOException {
+        synchronized (this) {
+            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
+                replicationCheckpoint.getPrimaryTerm(),
+                segmentInfosSnapshot.getGeneration(),
+                translogGeneration,
+                metadataUploadCounter.incrementAndGet(),
+                RemoteSegmentMetadata.CURRENT_VERSION,
+                nodeId
+            );
+            try {
+                try (IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT)) {
+                    Map<String, Integer> segmentToLuceneVersion = getSegmentToLuceneVersion(segmentFiles, segmentInfosSnapshot);
+                    Map<String, String> uploadedSegments = new HashMap<>();
+                    for (String file : segmentFiles) {
+                        if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                            UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
+                            metadata.setWrittenByMajor(segmentToLuceneVersion.get(metadata.getOriginalFilename()));
+                            uploadedSegments.put(file, metadata.toString());
+                        } else {
+                            throw new NoSuchFileException(file);
+                        }
+                    }
+
+                    ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
+                    segmentInfosSnapshot.write(
+                        new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos")
+                    );
+                    byte[] segmentInfoSnapshotByteArray = byteBuffersIndexOutput.toArrayCopy();
+
+                    metadataStreamWrapper.writeStream(
+                        indexOutput,
+                        new RemoteSegmentMetadata(
+                            RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments).entrySet().stream().collect(
+                                Collectors.toMap(
+                                    entry -> new FileMetadata(entry.getKey() + FileMetadata.DELIMITER + "lucene"),
+                                    Map.Entry::getValue
+                                )
+                            ),
+                            segmentInfoSnapshotByteArray,
+                            replicationCheckpoint
+                        )
+                    );
+                }
+                storeDirectory.sync(Collections.singleton(metadataFilename));
+                remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
+            } finally {
+                tryAndDeleteLocalFile(metadataFilename, storeDirectory);
+            }
+        }
+    }
+
+    /**
+     * Parses the provided SegmentInfos to retrieve a mapping of the provided segment files to
+     * the respective Lucene major version that wrote the segments
+     *
+     * @param segmentFiles         List of segment files for which the Lucene major version is needed
+     * @param segmentInfosSnapshot SegmentInfos instance to parse
+     * @return Map of the segment file to its Lucene major version
+     */
+    private Map<String, Integer> getSegmentToLuceneVersion(Collection<String> segmentFiles, SegmentInfos segmentInfosSnapshot) {
+        Map<String, Integer> segmentToLuceneVersion = new HashMap<>();
+        for (SegmentCommitInfo segmentCommitInfo : segmentInfosSnapshot) {
+            SegmentInfo info = segmentCommitInfo.info;
+            Set<String> segFiles = info.files();
+            for (String file : segFiles) {
+                segmentToLuceneVersion.put(file, info.getVersion().major);
+            }
+        }
+
+        for (String file : segmentFiles) {
+            if (segmentToLuceneVersion.containsKey(file) == false) {
+                if (file.equals(segmentInfosSnapshot.getSegmentsFileName())) {
+                    segmentToLuceneVersion.put(file, segmentInfosSnapshot.getCommitLuceneVersion().major);
+                } else {
+                    // Fallback to the Lucene major version of the respective segment's .si file
+                    String segmentInfoFileName = RemoteStoreUtils.getSegmentName(file) + ".si";
+                    segmentToLuceneVersion.put(file, segmentToLuceneVersion.get(segmentInfoFileName));
+                }
+            }
+        }
+
+        return segmentToLuceneVersion;
+    }
+
+    /**
+     * Try to delete file from local store. Fails silently on failures
+     *
+     * @param filename: name of the file to be deleted
+     */
+    private void tryAndDeleteLocalFile(String filename, Directory directory) {
+        try {
+            logger.debug("Deleting file: " + filename);
+            directory.deleteFile(filename);
+        } catch (NoSuchFileException | FileNotFoundException e) {
+            logger.trace("Exception while deleting. Missing file : " + filename, e);
+        } catch (IOException e) {
+            logger.warn("Exception while deleting: " + filename, e);
+        }
+    }
+
+    private String getChecksumOfLocalFile(Directory directory, String file) throws IOException {
+        try (IndexInput indexInput = directory.openInput(file, IOContext.READONCE)) {
+            return Long.toString(CodecUtil.retrieveChecksum(indexInput));
+        }
+    }
+
+    public String getExistingRemoteFilename(String localFilename) {
+        if (segmentsUploadedToRemoteStore.containsKey(localFilename)) {
+            return segmentsUploadedToRemoteStore.get(localFilename).getUploadedFilename();
+        } else if (isMergedSegmentPendingDownload(localFilename)) {
+            return pendingDownloadMergedSegments.get(localFilename);
         }
         return null;
     }
@@ -598,83 +705,188 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return localFilename + SEGMENT_NAME_UUID_SEPARATOR + UUIDs.base64UUID();
     }
 
-    public Map<FileMetadata, UploadedSegmentMetadata> getSegmentsUploadedToRemoteStore() {
+    private String getLocalSegmentFilename(String remoteFilename) {
+        return remoteFilename.split(SEGMENT_NAME_UUID_SEPARATOR)[0];
+    }
+
+    // Visible for testing
+    public Map<String, UploadedSegmentMetadata> getSegmentsUploadedToRemoteStore() {
         return Collections.unmodifiableMap(this.segmentsUploadedToRemoteStore);
     }
 
-    public void uploadMetadata(Collection<FileMetadata> fileMetadataCollection, CatalogSnapshot catalogSnapshot,
-                               CompositeStoreDirectory storeDirectory, long translogGeneration,
-                               ReplicationCheckpoint replicationCheckpoint, String nodeId) throws IOException {
-        synchronized (this) {
-            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
-                replicationCheckpoint.getPrimaryTerm(), catalogSnapshot.getGeneration(),
-                translogGeneration, metadataUploadCounter.incrementAndGet(),
-                RemoteSegmentMetadata.CURRENT_VERSION, nodeId);
+    // Visible for testing
+    Set<String> getMetadataFilesToFilterActiveSegments(
+        final int lastNMetadataFilesToKeep,
+        final List<String> sortedMetadataFiles,
+        final Set<String> lockedMetadataFiles
+    ) {
+        // the idea here is for each deletable md file, we can consider the segments present in non-deletable md file
+        // before this and non-deletable md file after this to compute the active segment files.
+        // For ex:
+        // lastNMetadataFilesToKeep = 3
+        // sortedMetadataFiles = [m1, m2, m3, m4, m5, m6(locked), m7(locked), m8(locked), m9(locked), m10]
+        // lockedMetadataFiles = m6, m7, m8, m9
+        // then the returned set will be (m3, m6, m9)
+        final Set<String> metadataFilesToFilterActiveSegments = new HashSet<>();
+        for (int idx = lastNMetadataFilesToKeep; idx < sortedMetadataFiles.size(); idx++) {
+            if (lockedMetadataFiles.contains(sortedMetadataFiles.get(idx)) == false) {
+                String prevMetadata = (idx - 1) >= 0 ? sortedMetadataFiles.get(idx - 1) : null;
+                String nextMetadata = (idx + 1) < sortedMetadataFiles.size() ? sortedMetadataFiles.get(idx + 1) : null;
 
-            FileMetadata fileMetadata = new FileMetadata("TempMetadata","", metadataFilename);
-
-            try {
-                try (IndexOutput indexOutput = storeDirectory.createOutput(fileMetadata, IOContext.DEFAULT)) {
-                    // TODO: Implement getSegmentToLuceneVersion for CatalogSnapshot when needed
-                    // For now, use empty map as placeholder
-                    Map<String, Integer> segmentToLuceneVersion = new HashMap<>();
-                    Map<FileMetadata, String> uploadedSegments = new HashMap<>();
-
-                    for (FileMetadata file : fileMetadataCollection) {
-                        if (segmentsUploadedToRemoteStore.containsKey(file)) {
-                            UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
-                            if (segmentToLuceneVersion.get(metadata.originalFilename) == null) {
-                                // Todo
-                                 // metadata.setWrittenByMajor(10);
-                            } else {
-                                metadata.setWrittenByMajor(segmentToLuceneVersion.get(metadata.originalFilename));
-                            }
-                            uploadedSegments.put(file, metadata.toString());
-                        } else {
-                            throw new NoSuchFileException(file.file());
-                        }
-                    }
-
-                    // Serialize CatalogSnapshot using StreamOutput
-                    byte[] catalogSnapshotByteArray;
-                    try (org.opensearch.common.io.stream.BytesStreamOutput streamOutput = 
-                             new org.opensearch.common.io.stream.BytesStreamOutput()) {
-                        catalogSnapshot.writeTo(streamOutput);
-                        catalogSnapshotByteArray = streamOutput.bytes().toBytesRef().bytes;
-                    }
-
-                    metadataStreamWrapper.writeStream(indexOutput, new RemoteSegmentMetadata(
-                        RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
-                        catalogSnapshotByteArray, replicationCheckpoint));
+                if (prevMetadata != null && (lockedMetadataFiles.contains(prevMetadata) || idx == lastNMetadataFilesToKeep)) {
+                    // if previous metadata of deletable md is locked, add it to md files for active segments.
+                    metadataFilesToFilterActiveSegments.add(prevMetadata);
                 }
-
-                storeDirectory.sync(Collections.singleton(fileMetadata));
-                compositeRemoteDirectory.copyFrom(storeDirectory, fileMetadata, metadataFilename, IOContext.DEFAULT);
-            } finally {
-                tryAndDeleteLocalFile(fileMetadata, storeDirectory);
+                if (nextMetadata != null && lockedMetadataFiles.contains(nextMetadata)) {
+                    // if next metadata of deletable md is locked, add it to md files for active segments.
+                    metadataFilesToFilterActiveSegments.add(nextMetadata);
+                }
             }
         }
+        return metadataFilesToFilterActiveSegments;
     }
 
+    /**
+     * Delete stale segment and metadata files
+     * One metadata file is kept per commit (refresh updates the same file). To read segments uploaded to remote store,
+     * we just need to read the latest metadata file.
+     * Assumptions:
+     * (1) if a segment file is not present in a md file, it will never be present in any md file created after that, and
+     * (2) if (md1, md2, md3) are in sorted order, it is not possible that a segment file will be in md1 and md3 but not in md2.
+     * <p>
+     * for each deletable md file, segments present in non-deletable md file before this and non-deletable md file
+     * after this are sufficient to compute the list of active or non-deletable segment files referenced by a deletable
+     * md file
+     *
+     * @param lastNMetadataFilesToKeep number of metadata files to keep
+     * @throws IOException in case of I/O error while reading from / writing to remote segment store
+     */
     public void deleteStaleSegments(int lastNMetadataFilesToKeep) throws IOException {
         if (lastNMetadataFilesToKeep == -1) {
-            logger.info("Stale segment deletion is disabled if cluster.remote_store.index.segment_metadata.retention.max_count is set to -1");
+            logger.info(
+                "Stale segment deletion is disabled if cluster.remote_store.index.segment_metadata.retention.max_count is set to -1"
+            );
             return;
         }
 
         List<String> sortedMetadataFileList = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-            MetadataFilenameUtils.METADATA_PREFIX, Integer.MAX_VALUE);
-
+            MetadataFilenameUtils.METADATA_PREFIX,
+            Integer.MAX_VALUE
+        );
         if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
-            logger.debug("Number of commits in remote segment store={}, lastNMetadataFilesToKeep={}",
-                sortedMetadataFileList.size(), lastNMetadataFilesToKeep);
+            logger.debug(
+                "Number of commits in remote segment store={}, lastNMetadataFilesToKeep={}",
+                sortedMetadataFileList.size(),
+                lastNMetadataFilesToKeep
+            );
             return;
         }
 
-        // Implementation continues... (keeping existing logic but using compositeRemoteDirectory directly)
-        Set<String> deletedSegmentFiles = new HashSet<>();
-        // ... stale segment deletion logic using compositeRemoteDirectory.deleteFile() directly
+        // Check last fetch status of pinned timestamps. If stale, return.
+        if (lastNMetadataFilesToKeep != 0 && RemoteStoreUtils.isPinnedTimestampStateStale()) {
+            logger.warn("Skipping remote segment store garbage collection as last fetch of pinned timestamp is stale");
+            return;
+        }
 
+        Tuple<Long, Set<Long>> pinnedTimestampsState = RemoteStorePinnedTimestampService.getPinnedTimestamps();
+
+        Set<Long> pinnedTimestamps = new HashSet<>(pinnedTimestampsState.v2());
+        pinnedTimestamps.add(pinnedTimestampsState.v1());
+        Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
+            sortedMetadataFileList,
+            pinnedTimestamps,
+            metadataFilePinnedTimestampMap,
+            MetadataFilenameUtils::getTimestamp,
+            MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
+        );
+        final Set<String> allLockFiles = new HashSet<>(implicitLockedFiles);
+
+        try {
+            allLockFiles.addAll(
+                ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFiles(MetadataFilenameUtils.METADATA_PREFIX)
+            );
+        } catch (Exception e) {
+            logger.error("Exception while fetching segment metadata lock files, skipping deleteStaleSegments", e);
+            return;
+        }
+
+        List<String> metadataFilesEligibleToDelete = new ArrayList<>(
+            sortedMetadataFileList.subList(lastNMetadataFilesToKeep, sortedMetadataFileList.size())
+        );
+
+        // Along with last N files, we need to keep files since last successful run of scheduler
+        long lastSuccessfulFetchOfPinnedTimestamps = pinnedTimestampsState.v1();
+        metadataFilesEligibleToDelete = RemoteStoreUtils.filterOutMetadataFilesBasedOnAge(
+            metadataFilesEligibleToDelete,
+            MetadataFilenameUtils::getTimestamp,
+            lastSuccessfulFetchOfPinnedTimestamps
+        );
+
+        if (metadataFilesEligibleToDelete.isEmpty()) {
+            logger.debug("No metadata files are eligible to be deleted based on lastNMetadataFilesToKeep and age");
+            return;
+        }
+
+        List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream()
+            .filter(metadataFile -> allLockFiles.contains(metadataFile) == false)
+            .collect(Collectors.toList());
+
+        logger.debug(
+            "metadataFilesEligibleToDelete={} metadataFilesToBeDeleted={}",
+            metadataFilesEligibleToDelete,
+            metadataFilesToBeDeleted
+        );
+
+        Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();
+        Set<String> activeSegmentRemoteFilenames = new HashSet<>();
+
+        final Set<String> metadataFilesToFilterActiveSegments = getMetadataFilesToFilterActiveSegments(
+            sortedMetadataFileList.indexOf(metadataFilesEligibleToDelete.get(0)),
+            sortedMetadataFileList,
+            allLockFiles
+        );
+
+        for (String metadataFile : metadataFilesToFilterActiveSegments) {
+            Map<String, UploadedSegmentMetadata> segmentMetadataMap = readMetadataFile(metadataFile).getMetadata();
+            activeSegmentFilesMetadataMap.putAll(segmentMetadataMap);
+            activeSegmentRemoteFilenames.addAll(
+                segmentMetadataMap.values().stream().map(metadata -> metadata.getUploadedFilename()).collect(Collectors.toSet())
+            );
+        }
+        Set<String> deletedSegmentFiles = new HashSet<>();
+        for (String metadataFile : metadataFilesToBeDeleted) {
+            Map<String, UploadedSegmentMetadata> staleSegmentFilesMetadataMap = readMetadataFile(metadataFile).getMetadata();
+            Set<String> staleSegmentRemoteFilenames = staleSegmentFilesMetadataMap.values()
+                .stream()
+                .map(metadata -> metadata.getUploadedFilename())
+                .collect(Collectors.toSet());
+            AtomicBoolean deletionSuccessful = new AtomicBoolean(true);
+            staleSegmentRemoteFilenames.stream()
+                .filter(file -> activeSegmentRemoteFilenames.contains(file) == false)
+                .filter(file -> deletedSegmentFiles.contains(file) == false)
+                .forEach(file -> {
+                    try {
+                        remoteDataDirectory.deleteFile(file);
+                        deletedSegmentFiles.add(file);
+                        if (!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
+                            segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
+                        }
+                    } catch (NoSuchFileException e) {
+                        logger.info("Segment file {} corresponding to metadata file {} does not exist in remote", file, metadataFile);
+                    } catch (IOException e) {
+                        deletionSuccessful.set(false);
+                        logger.warn(
+                            "Exception while deleting segment file {} corresponding to metadata file {}. Deletion will be re-tried",
+                            file,
+                            metadataFile
+                        );
+                    }
+                });
+            if (deletionSuccessful.get()) {
+                logger.debug("Deleting stale metadata file {} from remote segment store", metadataFile);
+                remoteMetadataDirectory.deleteFile(metadataFile);
+            }
+        }
         logger.debug("deletedSegmentFiles={}", deletedSegmentFiles);
     }
 
@@ -682,6 +894,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         deleteStaleSegmentsAsync(lastNMetadataFilesToKeep, ActionListener.wrap(r -> {}, e -> {}));
     }
 
+    /**
+     * Delete stale segment and metadata files asynchronously.
+     * This method calls {@link RemoteSegmentStoreDirectory#deleteStaleSegments(int)} in an async manner.
+     *
+     * @param lastNMetadataFilesToKeep number of metadata files to keep
+     */
     public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep, ActionListener<Void> listener) {
         if (canDeleteStaleCommits.compareAndSet(true, false)) {
             try {
@@ -690,7 +908,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                         deleteStaleSegments(lastNMetadataFilesToKeep);
                         listener.onResponse(null);
                     } catch (Exception e) {
-                        logger.error("Exception while deleting stale commits from remote segment store", e);
+                        logger.error(
+                            "Exception while deleting stale commits from remote segment store, will retry delete post next commit",
+                            e
+                        );
                         listener.onFailure(e);
                     } finally {
                         canDeleteStaleCommits.set(true);
@@ -704,170 +925,21 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
-    public boolean delete() {
-        try {
-            compositeRemoteDirectory.delete();  // Always call compositeRemoteDirectory - no null checks
-            remoteMetadataDirectory.delete();
-            mdLockManager.delete();
-            return true;
-        } catch (Exception e) {
-            logger.error("Exception occurred while deleting directory", e);
-            return false;
-        }
-    }
-
-    public void close() throws IOException {
-        deleteStaleSegmentsAsync(0, ActionListener.wrap(r -> {
-            try { deleteIfEmpty(); } catch (IOException ex) {
-                logger.error("Failed to delete empty directory on close", ex);
-            }
-        }, e -> logger.error("Failed to cleanup remote directory", e)));
-    }
-
-    private boolean deleteIfEmpty() throws IOException {
-        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-            MetadataFilenameUtils.METADATA_PREFIX, 1);
-        if (metadataFiles.size() != 0) {
-            logger.info("Remote directory still has files, not deleting the path");
-            return false;
-        }
-        return delete();
-    }
-
-
-    @Override
-    public void acquireLock(long primaryTerm, long generation, String acquirerId) throws IOException {
-        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
-        mdLockManager.acquire(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).withAcquirerId(acquirerId).build());
-    }
-
-    @Override
-    public void releaseLock(long primaryTerm, long generation, String acquirerId) throws IOException {
-        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
-        mdLockManager.release(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).withAcquirerId(acquirerId).build());
-    }
-
-    @Override
-    public Boolean isLockAcquired(long primaryTerm, long generation) throws IOException {
-        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
-        return mdLockManager.isAcquired(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).build());
-    }
-
-    String getMetadataFileForCommit(long primaryTerm, long generation) throws IOException {
-        List<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-            MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, generation), 1);
-
-        if (metadataFiles.isEmpty()) {
-            throw new NoSuchFileException("Metadata file is not present for given primary term " + primaryTerm + " and generation " + generation);
-        }
-        if (metadataFiles.size() != 1) {
-            throw new IllegalStateException("there should be only one metadata file for given primary term " + primaryTerm +
-                "and generation " + generation + " but found " + metadataFiles.size());
-        }
-        return metadataFiles.get(0);
-    }
-
-    public void markMergedSegmentsPendingDownload(Map<FileMetadata, String> localToRemoteFilesMetadata) {
-        pendingDownloadMergedSegments.putAll(localToRemoteFilesMetadata);
-    }
-
-    public void unmarkMergedSegmentsPendingDownload(Set<String> localFilenames) {
-        localFilenames.forEach(pendingDownloadMergedSegments::remove);
-    }
-
-    public boolean isMergedSegmentPendingDownload(FileMetadata fileMetadata) {
-        return pendingDownloadMergedSegments.containsKey(fileMetadata);
-    }
-
-    private Map<String, Integer> getSegmentToLuceneVersion(Collection<String> segmentFiles, SegmentInfos segmentInfosSnapshot) {
-        Map<String, Integer> segmentToLuceneVersion = new HashMap<>();
-        for (SegmentCommitInfo segmentCommitInfo : segmentInfosSnapshot) {
-            SegmentInfo info = segmentCommitInfo.info;
-            Set<String> segFiles = info.files();
-            for (String file : segFiles) {
-                segmentToLuceneVersion.put(file, info.getVersion().major);
-            }
-        }
-        return segmentToLuceneVersion;
-    }
-
-    private void tryAndDeleteLocalFile(FileMetadata fileMetadata, CompositeStoreDirectory directory) {
-        try {
-            directory.deleteFile(fileMetadata);
-        } catch (NoSuchFileException | FileNotFoundException e) {
-            logger.trace("Exception while deleting. Missing file : " + fileMetadata.file(), e);
-        } catch (IOException e) {
-            logger.warn("Exception while deleting: " + fileMetadata.file(), e);
-        }
-    }
-
-    /**
-     * Contains utility methods for metadata filename handling
-     */
-    public static class MetadataFilenameUtils {
-        public static final String SEPARATOR = "__";
-        public static final String METADATA_PREFIX = "metadata";
-
-        static String getMetadataFilePrefixForCommit(long primaryTerm, long generation) {
-            return String.join(SEPARATOR, METADATA_PREFIX,
-                RemoteStoreUtils.invertLong(primaryTerm), RemoteStoreUtils.invertLong(generation));
-        }
-
-        public static String getMetadataFilename(long primaryTerm, long generation, long translogGeneration,
-                                                long uploadCounter, int metadataVersion, String nodeId) {
-            return getMetadataFilename(primaryTerm, generation, translogGeneration, uploadCounter,
-                metadataVersion, nodeId, System.currentTimeMillis());
-        }
-
-        public static String getMetadataFilename(long primaryTerm, long generation, long translogGeneration,
-                                                long uploadCounter, int metadataVersion, String nodeId,
-                                                long creationTimestamp) {
-            return String.join(SEPARATOR,
-                METADATA_PREFIX,
-                RemoteStoreUtils.invertLong(primaryTerm),
-                RemoteStoreUtils.invertLong(generation),
-                RemoteStoreUtils.invertLong(translogGeneration),
-                RemoteStoreUtils.invertLong(uploadCounter),
-                String.valueOf(Objects.hash(nodeId)),
-                RemoteStoreUtils.invertLong(creationTimestamp),
-                String.valueOf(metadataVersion)
-            );
-        }
-
-        public static long getTimestamp(String filename) {
-            String[] filenameTokens = filename.split(SEPARATOR);
-            return RemoteStoreUtils.invertLong(filenameTokens[filenameTokens.length - 2]);
-        }
-
-        public static Tuple<String, String> getNodeIdByPrimaryTermAndGen(String filename) {
-            String[] tokens = filename.split(SEPARATOR);
-            if (tokens.length < 8) {
-                return null; // For versions < 2.11, we don't have node id
-            }
-            String primaryTermAndGen = String.join(SEPARATOR, tokens[1], tokens[2], tokens[3]);
-            String nodeId = tokens[5];
-            return new Tuple<>(primaryTermAndGen, nodeId);
-        }
-
-        // Visible for testing
-        static long getPrimaryTerm(String[] filenameTokens) {
-            return RemoteStoreUtils.invertLong(filenameTokens[1]);
-        }
-
-        // Visible for testing
-        static long getGeneration(String[] filenameTokens) {
-            return RemoteStoreUtils.invertLong(filenameTokens[2]);
-        }
-    }
-
-
-    public static void remoteDirectoryCleanup(RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
-                                            String remoteStoreRepoForIndex, String indexUUID,
-                                            ShardId shardId, RemoteStorePathStrategy pathStrategy, boolean forceClean) {
+    public static void remoteDirectoryCleanup(
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
+        String remoteStoreRepoForIndex,
+        String indexUUID,
+        ShardId shardId,
+        RemoteStorePathStrategy pathStrategy,
+        boolean forceClean
+    ) {
         try {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
-                remoteStoreRepoForIndex, indexUUID, shardId, pathStrategy);
-
+                remoteStoreRepoForIndex,
+                indexUUID,
+                shardId,
+                pathStrategy
+            );
             if (forceClean) {
                 remoteSegmentStoreDirectory.delete();
             } else {
@@ -877,5 +949,67 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         } catch (Exception e) {
             staticLogger.error("Exception occurred while deleting directory", e);
         }
+    }
+
+    /*
+    Tries to delete shard level directory if it is empty
+    Return true if it deleted it successfully
+     */
+    private boolean deleteIfEmpty() throws IOException {
+        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+            MetadataFilenameUtils.METADATA_PREFIX,
+            1
+        );
+        if (metadataFiles.size() != 0) {
+            logger.info("Remote directory still has files, not deleting the path");
+            return false;
+        }
+        return delete();
+    }
+
+    public boolean delete() {
+        try {
+            remoteDataDirectory.delete();
+            remoteMetadataDirectory.delete();
+            mdLockManager.delete();
+        } catch (Exception e) {
+            logger.error("Exception occurred while deleting directory", e);
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public void close() throws IOException {
+        deleteStaleSegmentsAsync(0, ActionListener.wrap(r -> deleteIfEmpty(), e -> logger.error("Failed to cleanup remote directory")));
+    }
+
+    /**
+     * [REPLICA SHARD] Marks merged segments that are pending download from the remote store.
+     * We mark segments as pending-download after receiving a MergedSegmentCheckpoint from the primary shard.
+     *
+     * @param localToRemoteFilenames Map of local filenames to their corresponding remote filenames
+     */
+    public void markMergedSegmentsPendingDownload(Map<String, String> localToRemoteFilenames) {
+        pendingDownloadMergedSegments.putAll(localToRemoteFilenames);
+    }
+
+    /**
+     * [REPLICA SHARD] Removes segments from the pending download list after they have been downloaded.
+     *
+     * @param localFilenames Set of local filenames to remove from pending downloads
+     */
+    public void unmarkMergedSegmentsPendingDownload(Set<String> localFilenames) {
+        localFilenames.forEach(pendingDownloadMergedSegments::remove);
+    }
+
+    /**
+     * [REPLICA SHARD] Checks if a segment is a merged segment in pending-download state.
+     *
+     * @param localFilename Local filename to check
+     * @return true if segment is pending download, false otherwise
+     */
+    public boolean isMergedSegmentPendingDownload(String localFilename) {
+        return pendingDownloadMergedSegments != null && pendingDownloadMergedSegments.containsKey(localFilename);
     }
 }
