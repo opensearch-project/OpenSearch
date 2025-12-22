@@ -81,6 +81,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     /**
      * Creates a new ParametrizedFieldMapper
+     * All fields are currently hardcoded to validate against "parquet" data format
      */
     protected ParametrizedFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, new FieldType(), mappedFieldType, multiFields, copyTo);
@@ -689,6 +690,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     iterator.remove();
                     continue;
                 }
+                // TODO: Add "dataformat" parsing here when ready to support per-field data formats
+                // For now, all fields are hardcoded to validate against "parquet"
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
                     deprecationLogger.deprecate(

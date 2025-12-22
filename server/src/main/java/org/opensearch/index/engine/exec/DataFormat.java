@@ -23,6 +23,8 @@ public interface DataFormat {
 
     void configureStore();
 
+    boolean isDataFormatSupported(String fieldTypeName);
+
     static class LuceneDataFormat implements DataFormat {
         @Override
         public Setting<Settings> dataFormatSettings() {
@@ -42,6 +44,11 @@ public interface DataFormat {
         @Override
         public void configureStore() {
 
+        }
+
+        @Override
+        public boolean isDataFormatSupported(String fieldTypeName) {
+            return false;
         }
     }
 

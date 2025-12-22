@@ -68,6 +68,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.InvalidTypeNameException;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.script.ScriptService;
 
 import java.io.Closeable;
@@ -226,6 +227,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private final BooleanSupplier idFieldDataEnabled;
 
+    private final PluginsService pluginsService;
+
     private volatile Set<CompositeMappedFieldType> compositeMappedFieldTypes;
     private volatile Set<String> fieldsPartOfCompositeMappings;
     private volatile Set<String> nestedFieldsPartOfCompositeMappings;
@@ -238,12 +241,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<QueryShardContext> queryShardContextSupplier,
         BooleanSupplier idFieldDataEnabled,
-        ScriptService scriptService
+        ScriptService scriptService,
+        PluginsService pluginsService
     ) {
         super(indexSettings);
 
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
+        this.pluginsService = pluginsService;
         this.documentParser = new DocumentMapperParser(
             indexSettings,
             this,
@@ -281,6 +286,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public IndexAnalyzers getIndexAnalyzers() {
         return this.indexAnalyzers;
+    }
+
+    public PluginsService getPluginsService() {
+        return this.pluginsService;
     }
 
     public NamedAnalyzer getNamedAnalyzer(String analyzerName) {

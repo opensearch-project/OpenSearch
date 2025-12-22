@@ -95,7 +95,8 @@ public class MapperTestUtils {
             mapperRegistry,
             () -> null,
             () -> false,
-            null
+            null,
+            null  // pluginsService
         );
     }
 
@@ -123,7 +124,8 @@ public class MapperTestUtils {
             mapperRegistry,
             () -> null,
             () -> false,
-            null
+            null,
+            null  // pluginsService
         );
     }
 

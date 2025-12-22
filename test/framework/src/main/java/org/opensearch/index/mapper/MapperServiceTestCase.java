@@ -163,7 +163,8 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
                 throw new UnsupportedOperationException();
             },
             () -> true,
-            scriptService
+            scriptService,
+            null  // pluginsService not available in test context
         );
         merge(mapperService, mapping);
         return mapperService;
