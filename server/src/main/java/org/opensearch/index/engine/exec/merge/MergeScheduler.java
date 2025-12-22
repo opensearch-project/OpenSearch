@@ -37,6 +37,7 @@ public class MergeScheduler {
     private volatile int maxConcurrentMerges;
     private volatile int maxMergeCount;
     private final ShardId shardId;
+    private final MergeSchedulerConfig mergeSchedulerConfig;
     private final Settings indexSettings;
 
     public MergeScheduler(
@@ -49,9 +50,9 @@ public class MergeScheduler {
         this.mergeHandler = mergeHandler;
         this.compositeEngine = compositeEngine;
         this.indexSettings = indexSettings.getSettings();
+        this.mergeSchedulerConfig = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
-        this.maxConcurrentMerges = 2;
-        this.maxMergeCount = maxConcurrentMerges + 5;
+        refreshConfig();
     }
 
     //TODO use this function to refresh the config from IndexSettings.MergeSchedulerConfig
@@ -59,15 +60,15 @@ public class MergeScheduler {
      * Refreshes merge scheduler configuration from MergeSchedulerConfig.
      * Updates max thread count and max merge count dynamically.
      */
-    public synchronized void refreshConfig(MergeSchedulerConfig config) {
-        int newMaxThreadCount = config.getMaxThreadCount();
-        int newMaxMergeCount = config.getMaxMergeCount();
+    public synchronized void refreshConfig() {
+        int newMaxThreadCount = mergeSchedulerConfig.getMaxThreadCount();
+        int newMaxMergeCount = mergeSchedulerConfig.getMaxMergeCount();
 
         if (newMaxThreadCount == this.maxConcurrentMerges && newMaxMergeCount == this.maxMergeCount) {
             return;
         }
 
-        logger.info(() -> new ParameterizedMessage("Updating merge scheduler config: maxThreadCount {} -> {}, " +
+        logger.info(() -> new ParameterizedMessage("Updating from merge scheduler config: maxThreadCount {} -> {}, " +
             "maxMergeCount {} -> {}", this.maxConcurrentMerges, newMaxThreadCount, this.maxMergeCount, newMaxMergeCount));
 
         this.maxConcurrentMerges = newMaxThreadCount;
@@ -104,7 +105,7 @@ public class MergeScheduler {
 
     private void executeMerge() {
         // Submit merges up to available capacity
-        while(mergeThreads.size() < maxConcurrentMerges && mergeHandler.hasPendingMerges()) {
+        while(activeMerges.get() < maxConcurrentMerges && mergeHandler.hasPendingMerges()) {
             OneMerge oneMerge = mergeHandler.getNextMerge();
             if (oneMerge == null) {
                 return;
