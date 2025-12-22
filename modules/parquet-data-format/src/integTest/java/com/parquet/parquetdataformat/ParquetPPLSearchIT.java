@@ -163,6 +163,12 @@ public class ParquetPPLSearchIT extends OpenSearchRestTestCase {
                     minified.contains("\"datarows\":[[" + expectedSum + "]]"));
             }
         }
+
+        // Cleanup
+        Response deleteResponse = client().performRequest(new Request("DELETE", "/" + INDEX_NAME));
+        String deleteBody = new String(deleteResponse.getEntity().getContent().readAllBytes());
+        logger.info("--> Delete response: {}", deleteBody);
+        assertTrue("Index deletion should be acknowledged", deleteBody.contains("\"acknowledged\":true"));
     }
 
     /**
