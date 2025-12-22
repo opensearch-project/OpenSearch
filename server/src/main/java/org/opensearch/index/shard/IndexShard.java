@@ -2191,9 +2191,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-//        if(currentCompositeEngineReference.get() != null ) {
-//            return currentCompositeEngineReference.get().getPrimaryReadEngine().acquireSearcherSupplier(null, scope);
-//        }
+        if(currentCompositeEngineReference.get() != null ) {
+            return currentCompositeEngineReference.get().getPrimaryReadEngine().acquireSearcherSupplier(null, scope);
+        }
         return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
