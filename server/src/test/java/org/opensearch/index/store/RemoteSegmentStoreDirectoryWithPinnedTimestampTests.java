@@ -91,7 +91,7 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
     }
 
     private void metadataWithOlderTimestamp() {
-        metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        metadataFilename = MetadataFilenameUtils.getMetadataFilename(
             12,
             23,
             34,
@@ -100,7 +100,7 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
             "node-1",
             System.currentTimeMillis() - 300000
         );
-        metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        metadataFilename2 = MetadataFilenameUtils.getMetadataFilename(
             12,
             13,
             34,
@@ -109,7 +109,7 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
             "node-1",
             System.currentTimeMillis() - 400000
         );
-        metadataFilename3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        metadataFilename3 = MetadataFilenameUtils.getMetadataFilename(
             10,
             38,
             34,
@@ -118,7 +118,7 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
             "node-1",
             System.currentTimeMillis() - 500000
         );
-        metadataFilename4 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        metadataFilename4 = MetadataFilenameUtils.getMetadataFilename(
             10,
             36,
             34,
@@ -130,7 +130,7 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
     }
 
     public void testDeleteStaleCommitsNoPinnedTimestampMdFilesLatest() throws Exception {
-        metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        metadataFilename = MetadataFilenameUtils.getMetadataFilename(
             12,
             23,
             34,
@@ -139,7 +139,7 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
             "node-1",
             System.currentTimeMillis()
         );
-        metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        metadataFilename2 = MetadataFilenameUtils.getMetadataFilename(
             12,
             13,
             34,
@@ -148,7 +148,7 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
             "node-1",
             System.currentTimeMillis()
         );
-        metadataFilename3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        metadataFilename3 = MetadataFilenameUtils.getMetadataFilename(
             10,
             38,
             34,
@@ -160,7 +160,7 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
 
         when(
             remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-                eq(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX),
+                eq(MetadataFilenameUtils.METADATA_PREFIX),
                 anyInt()
             )
         ).thenReturn(List.of(metadataFilename, metadataFilename2, metadataFilename3));
@@ -182,12 +182,12 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
     public void testDeleteStaleCommitsPinnedTimestampMdFile() throws Exception {
         when(
             remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-                eq(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX),
+                eq(MetadataFilenameUtils.METADATA_PREFIX),
                 anyInt()
             )
         ).thenReturn(List.of(metadataFilename, metadataFilename2, metadataFilename3));
 
-        long pinnedTimestampMatchingMetadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getTimestamp(metadataFilename2) + 10;
+        long pinnedTimestampMatchingMetadataFilename2 = MetadataFilenameUtils.getTimestamp(metadataFilename2) + 10;
         String blobName = "snapshot1__" + pinnedTimestampMatchingMetadataFilename2;
         when(blobContainer.listBlobs()).thenReturn(Map.of(blobName, new PlainBlobMetadata(blobName, 100)));
 
@@ -195,7 +195,7 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
         final List<String> filesToBeDeleted = metadataFilenameContentMapping.get(metadataFilename3)
             .values()
             .stream()
-            .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+            .map(metadata -> metadata.split(UploadedSegmentMetadata.SEPARATOR)[1])
             .collect(Collectors.toList());
 
         updatePinnedTimstampTask.run();

@@ -9,12 +9,15 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
@@ -41,6 +44,7 @@ import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.VersionValue;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
@@ -338,6 +342,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
         }
         logger.trace("created new CompositeEngine");
+
+        initializeRefreshListeners(engineConfig);
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
@@ -399,6 +405,43 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
     LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
+    }
+
+    public void updateSearchEngine() throws IOException {
+        catalogSnapshotAwareRefreshListeners.forEach(ref -> {
+            try {
+                ref.afterRefresh(true, catalogSnapshotManager.acquireSnapshot());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    /**
+     * Initialize refresh listeners from EngineConfig after all dependencies are ready.
+     * This method should be called after remote store stats trackers have been created.
+     * ToDo: Added as part of upload flow test, Need to discuss.
+     */
+    public void initializeRefreshListeners(EngineConfig engineConfig) {
+        // Add EngineConfig refresh listeners to catalogSnapshotAwareRefreshListeners
+        if (engineConfig.getInternalRefreshListener() != null) {
+            for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
+                if (listener instanceof CatalogSnapshotAwareRefreshListener) {
+                    catalogSnapshotAwareRefreshListeners.add((CatalogSnapshotAwareRefreshListener) listener);
+                }
+            }
+        }
+
+        // Also check external refresh listeners
+        if (engineConfig.getExternalRefreshListener() != null) {
+            for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
+                if (listener instanceof CatalogSnapshotAwareRefreshListener) {
+                    catalogSnapshotAwareRefreshListeners.add((CatalogSnapshotAwareRefreshListener) listener);
+                }
+            }
+        }
+
+        logger.trace("CompositeEngine initialized with {} catalog snapshot aware refresh listeners", catalogSnapshotAwareRefreshListeners.size());
     }
 
     public SearchExecEngine<?, ?, ?, ?> getReadEngine(DataFormat dataFormat) {
@@ -674,6 +717,11 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
     public void triggerPossibleMerges() {
         mergeScheduler.triggerMerges();
+    }
+
+    public void finalizeReplication(CatalogSnapshot catalogSnapshot, ShardPath shardPath) throws IOException {
+        catalogSnapshotManager.applyReplicationChanges(catalogSnapshot, shardPath);
+        updateSearchEngine();
     }
 
     // This should get wired into searcher acquireSnapshot for initializing reader context later
@@ -1056,6 +1104,22 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                     closedLatch.countDown();
                 }
             }
+        }
+    }
+
+    /**
+     * Acquires the most recent safe index commit snapshot from the currently running engine.
+     * All index files referenced by this commit won't be freed until the commit/snapshot is closed.
+     * This method is required for replica recovery operations.
+     */
+    public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
+        ensureOpen();
+        if (compositeEngineCommitter instanceof LuceneCommitEngine) {
+            LuceneCommitEngine luceneCommitEngine = (LuceneCommitEngine) compositeEngineCommitter;
+            // Delegate to the LuceneCommitEngine's acquireSafeIndexCommit method
+            return luceneCommitEngine.acquireSafeIndexCommit();
+        } else {
+            throw new EngineException(shardId, "CompositeEngine committer is not a LuceneCommitEngine");
         }
     }
 }

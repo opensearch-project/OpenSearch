@@ -576,7 +576,7 @@ public class IngestionEngine extends InternalEngine {
         }
 
         if (streamPoller.getConsumer() == null) {
-            throw new IllegalStateException("Consumer is not yet initialized");
+            throw new EngineNotInitializedException("Consumer is not yet initialized");
         }
 
         try {

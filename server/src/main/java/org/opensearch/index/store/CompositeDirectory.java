@@ -333,7 +333,7 @@ public class CompositeDirectory extends FilterDirectory {
                 this::toString,
                 () -> name
             );
-            RemoteSegmentStoreDirectory.UploadedSegmentMetadata uploadedSegmentMetadata = remoteDirectory.getSegmentsUploadedToRemoteStore()
+            UploadedSegmentMetadata uploadedSegmentMetadata = remoteDirectory.getSegmentsUploadedToRemoteStore()
                 .get(name);
             if (uploadedSegmentMetadata == null) {
                 throw new NoSuchFileException("File " + name + " not found in directory");

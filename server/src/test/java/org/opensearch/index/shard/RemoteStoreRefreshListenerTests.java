@@ -29,11 +29,13 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils;
+import org.opensearch.index.store.MetadataFilenameUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
@@ -781,7 +783,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 throw new RuntimeException("Inducing failure in upload");
             }
             return indexShard.getLatestReplicationCheckpoint();
-        })).when(shard).computeReplicationCheckpoint(any());
+        })).when(shard).computeReplicationCheckpoint(any(CatalogSnapshot.class));
 
         doAnswer((invocationOnMock -> {
             if (closeShard && counter.get() == closeShardAfterAttempt) {
@@ -865,14 +867,15 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     private void verifyUploadedSegments(RemoteSegmentStoreDirectory remoteSegmentStoreDirectory) throws IOException {
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteSegmentStoreDirectory
+        Map<FileMetadata, UploadedSegmentMetadata> uploadedSegments = remoteSegmentStoreDirectory
             .getSegmentsUploadedToRemoteStore();
         String segmentsNFilename = null;
         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
             SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
             for (String file : segmentInfos.files(true)) {
                 if (!RemoteStoreRefreshListener.EXCLUDE_FILES.contains(file)) {
-                    assertTrue(uploadedSegments.containsKey(file));
+                    FileMetadata fileMetadata = new FileMetadata("lucene", file);
+                    assertTrue(uploadedSegments.containsKey(fileMetadata));
                 }
                 if (file.startsWith(IndexFileNames.SEGMENTS)) {
                     segmentsNFilename = file;

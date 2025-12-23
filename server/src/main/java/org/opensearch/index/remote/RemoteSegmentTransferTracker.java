@@ -19,6 +19,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.store.DirectoryFileTransferTracker;
 
 import java.io.IOException;
@@ -102,19 +103,38 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
 
     /**
      * Keeps track of segment files and their size in bytes which are part of the most recent refresh.
+     * Uses FileMetadata for format-aware tracking.
      */
-    private final Map<String, Long> latestLocalFileNameLengthMap = ConcurrentCollections.newConcurrentMap();
+    private final Map<FileMetadata, Long> latestLocalFileNameLengthMap = ConcurrentCollections.newConcurrentMap();
 
     /**
      * This contains the files from the last successful remote refresh and ongoing uploads. This gets reset to just the
      * last successful remote refresh state on successful remote refresh.
+     * Uses FileMetadata for format-aware tracking.
      */
-    private final Set<String> latestUploadedFiles = ConcurrentCollections.newConcurrentSet();
+    private final Set<FileMetadata> latestUploadedFiles = ConcurrentCollections.newConcurrentSet();
+
+    /**
+     * Tracks format-specific upload statistics for monitoring and troubleshooting.
+     * Maps format name to upload count for format-aware monitoring.
+     */
+    private final Map<String, AtomicLong> formatUploadCounts = ConcurrentCollections.newConcurrentMap();
+
+    /**
+     * Tracks format-specific upload bytes for detailed monitoring.
+     * Maps format name to total bytes uploaded for that format.
+     */
+    private final Map<String, AtomicLong> formatUploadBytes = ConcurrentCollections.newConcurrentMap();
 
     /**
      * Keeps the bytes lag computed so that we do not compute it for every request.
      */
     private volatile long bytesLag;
+
+    /**
+     * Keeps track of format-specific upload failures for better error analysis and recovery.
+     */
+    private final Map<String, AtomicLong> formatFailureCountMap = ConcurrentCollections.newConcurrentMap();
 
     /**
      * Holds count of consecutive failures until last success. Gets reset to zero if there is a success.
@@ -159,6 +179,19 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     public void incrementTotalUploadsSucceeded() {
         super.incrementTotalUploadsSucceeded();
         failures.record(false);
+    }
+
+    /**
+     * Gets all format failure counts for monitoring and debugging.
+     *
+     * @return a map of format names to failure counts
+     */
+    public Map<String, Long> getAllFormatFailureCounts() {
+        return formatFailureCountMap.entrySet().stream()
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> entry.getValue().get()
+            ));
     }
 
     public long getLocalRefreshSeqNo() {
@@ -292,15 +325,35 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         incrementRejectionCount();
     }
 
-    long getRejectionCount(String rejectionReason) {
-        return rejectionCountMap.get(rejectionReason).get();
-    }
-
-    public Map<String, Long> getLatestLocalFileNameLengthMap() {
-        return Collections.unmodifiableMap(latestLocalFileNameLengthMap);
-    }
-
     /**
+     * Updates the latestLocalFileNameLengthMap directly from FileMetadata map.
+     * Uses same conditional logic as the original String-based method - only updates files not in map or with size 0.
+     *
+     * @param fileMetadataToSizeMap map of FileMetadata to their sizes
+     */
+    public void updateLatestLocalFileNameLengthMap(Map<FileMetadata, Long> fileMetadataToSizeMap) {
+        logger.debug(
+            "fileMetadataPostRefresh={} latestLocalFileNamesBeforeMapUpdate={}",
+            fileMetadataToSizeMap.keySet(),
+            latestLocalFileNameLengthMap.keySet()
+        );
+
+        // Update the map - SAME CONDITIONAL LOGIC as original String-based method
+        fileMetadataToSizeMap.entrySet().stream()
+            .filter(entry -> EXCLUDE_FILES.contains(entry.getKey().file()) == false)
+            .filter(entry -> latestLocalFileNameLengthMap.containsKey(entry.getKey()) == false ||
+                            latestLocalFileNameLengthMap.get(entry.getKey()) == 0L)
+            .forEach(entry -> {
+                latestLocalFileNameLengthMap.put(entry.getKey(), entry.getValue());
+            });
+
+        Set<FileMetadata> fileMetadataSet = new HashSet<>(fileMetadataToSizeMap.keySet());
+        latestLocalFileNameLengthMap.entrySet().removeIf(entry -> fileMetadataSet.contains(entry.getKey()) == false);
+
+        computeBytesLag();
+    }
+
+    /** ToDo: Remove this API, Tests still uses this API
      * Updates the latestLocalFileNameLengthMap by adding file name and it's size to the map.
      * The method is given a function as an argument which is used for determining the file size (length in bytes).
      * This method is also provided the collection of segment files which are the latest refresh local segment files.
@@ -331,35 +384,86 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
                 } catch (IOException e) {
                     logger.warn(new ParameterizedMessage("Exception while reading the fileLength of file={}", file), e);
                 }
-                latestLocalFileNameLengthMap.put(file, fileSize);
+                FileMetadata fileMetadata = new FileMetadata("lucene", file);
+                latestLocalFileNameLengthMap.put(fileMetadata, fileSize);
             });
         Set<String> fileSet = new HashSet<>(segmentFiles);
         // Remove keys from the fileSizeMap that do not exist in the latest segment files
         latestLocalFileNameLengthMap.entrySet().removeIf(entry -> fileSet.contains(entry.getKey()) == false);
         computeBytesLag();
-        return Collections.unmodifiableMap(latestLocalFileNameLengthMap);
+        return null;
     }
 
+    /**
+     * Adds a file to latestUploadedFiles using FileMetadata.
+     * @param fileMetadata the file metadata to add
+     */
+    public void addToLatestUploadedFiles(FileMetadata fileMetadata) {
+        this.latestUploadedFiles.add(fileMetadata);
+        computeBytesLag();
+    }
+
+    /**
+     * ToDo: @Remove this API, currently used in Tests.
+     * String-based method for backward compatibility.
+     * Searches for matching FileMetadata with this filename and adds it.
+     * @param file the filename to add
+     */
     public void addToLatestUploadedFiles(String file) {
-        this.latestUploadedFiles.add(file);
+        // Find matching FileMetadata for this filename
+        latestLocalFileNameLengthMap.keySet().stream()
+            .filter(fm -> fm.file().equals(file))
+            .forEach(this.latestUploadedFiles::add);
         computeBytesLag();
     }
 
-    public void setLatestUploadedFiles(Set<String> files) {
+    /**
+     * Sets latestUploadedFiles using FileMetadata.
+     * @param fileMetadataSet the set of FileMetadata to set
+     */
+    public void setLatestUploadedFiles(Set<FileMetadata> fileMetadataSet) {
         this.latestUploadedFiles.clear();
-        this.latestUploadedFiles.addAll(files);
+        this.latestUploadedFiles.addAll(fileMetadataSet);
         computeBytesLag();
+    }
+
+    /**
+     * Gets all format upload statistics as an immutable map.
+     * @return map of format name to upload count
+     */
+    public Map<String, Long> getFormatUploadCounts() {
+        return formatUploadCounts.entrySet().stream()
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> entry.getValue().get()
+            ));
+    }
+
+    /**
+     * Gets all format upload byte statistics as an immutable map.
+     * @return map of format name to total bytes uploaded
+     */
+    public Map<String, Long> getFormatUploadBytesMap() {
+        return formatUploadBytes.entrySet().stream()
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> entry.getValue().get()
+            ));
     }
 
     private void computeBytesLag() {
         if (latestLocalFileNameLengthMap.isEmpty()) {
             return;
         }
-        Set<String> filesNotYetUploaded = latestLocalFileNameLengthMap.keySet()
+        // Now using FileMetadata for format-aware tracking
+        Set<FileMetadata> filesNotYetUploaded = latestLocalFileNameLengthMap.keySet()
             .stream()
-            .filter(f -> !latestUploadedFiles.contains(f))
+            .filter(fileMetadata -> !latestUploadedFiles.contains(fileMetadata))
             .collect(Collectors.toSet());
-        this.bytesLag = filesNotYetUploaded.stream().map(latestLocalFileNameLengthMap::get).mapToLong(Long::longValue).sum();
+        this.bytesLag = filesNotYetUploaded.stream()
+            .map(latestLocalFileNameLengthMap::get)
+            .mapToLong(Long::longValue)
+            .sum();
     }
 
     int getConsecutiveFailureCount() {
@@ -392,7 +496,10 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
             uploadTimeMsMovingAverageReference.get().getAverage(),
             getBytesLag(),
             totalUploadTimeInMillis.get(),
-            directoryFileTransferTracker.stats()
+            directoryFileTransferTracker.stats(),
+            getFormatUploadCounts(),
+            getFormatUploadBytesMap(),
+            getAllFormatFailureCounts()
         );
     }
 
@@ -425,6 +532,9 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         public final double uploadTimeMovingAverage;
         public final long bytesLag;
         public final DirectoryFileTransferTracker.Stats directoryFileTransferTrackerStats;
+        public final Map<String, Long> formatUploadCounts;
+        public final Map<String, Long> formatUploadBytes;
+        public final Map<String, Long> formatFailureCounts;
 
         public Stats(
             ShardId shardId,
@@ -447,7 +557,10 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
             double uploadTimeMovingAverage,
             long bytesLag,
             long totalUploadTimeInMs,
-            DirectoryFileTransferTracker.Stats directoryFileTransferTrackerStats
+            DirectoryFileTransferTracker.Stats directoryFileTransferTrackerStats,
+            Map<String, Long> formatUploadCounts,
+            Map<String, Long> formatUploadBytes,
+            Map<String, Long> formatFailureCounts
         ) {
             this.shardId = shardId;
             this.localRefreshClockTimeMs = localRefreshClockTimeMs;
@@ -470,6 +583,9 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
             this.bytesLag = bytesLag;
             this.totalUploadTimeInMs = totalUploadTimeInMs;
             this.directoryFileTransferTrackerStats = directoryFileTransferTrackerStats;
+            this.formatUploadCounts = Collections.unmodifiableMap(formatUploadCounts);
+            this.formatUploadBytes = Collections.unmodifiableMap(formatUploadBytes);
+            this.formatFailureCounts = Collections.unmodifiableMap(formatFailureCounts);
         }
 
         public Stats(StreamInput in) throws IOException {
@@ -495,6 +611,11 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
                 this.bytesLag = in.readLong();
                 this.totalUploadTimeInMs = in.readLong();
                 this.directoryFileTransferTrackerStats = in.readOptionalWriteable(DirectoryFileTransferTracker.Stats::new);
+
+                // Read format-aware statistics (with backward compatibility)
+                this.formatUploadCounts = in.readMap(StreamInput::readString, StreamInput::readLong);
+                this.formatUploadBytes = in.readMap(StreamInput::readString, StreamInput::readLong);
+                this.formatFailureCounts = in.readMap(StreamInput::readString, StreamInput::readLong);
             } catch (IOException e) {
                 throw e;
             }
@@ -523,6 +644,11 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
             out.writeLong(bytesLag);
             out.writeLong(totalUploadTimeInMs);
             out.writeOptionalWriteable(directoryFileTransferTrackerStats);
+
+            // Write format-aware statistics
+            out.writeMap(formatUploadCounts, StreamOutput::writeString, StreamOutput::writeLong);
+            out.writeMap(formatUploadBytes, StreamOutput::writeString, StreamOutput::writeLong);
+            out.writeMap(formatFailureCounts, StreamOutput::writeString, StreamOutput::writeLong);
         }
 
         @Override
@@ -551,7 +677,10 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
                 && Double.compare(this.uploadTimeMovingAverage, other.uploadTimeMovingAverage) == 0
                 && this.bytesLag == other.bytesLag
                 && this.totalUploadTimeInMs == other.totalUploadTimeInMs
-                && this.directoryFileTransferTrackerStats.equals(other.directoryFileTransferTrackerStats);
+                && this.directoryFileTransferTrackerStats.equals(other.directoryFileTransferTrackerStats)
+                && this.formatUploadCounts.equals(other.formatUploadCounts)
+                && this.formatUploadBytes.equals(other.formatUploadBytes)
+                && this.formatFailureCounts.equals(other.formatFailureCounts);
         }
 
         @Override
@@ -577,7 +706,10 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
                 uploadTimeMovingAverage,
                 bytesLag,
                 totalUploadTimeInMs,
-                directoryFileTransferTrackerStats
+                directoryFileTransferTrackerStats,
+                formatUploadCounts,
+                formatUploadBytes,
+                formatFailureCounts
             );
         }
 
@@ -626,6 +758,12 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
                 + bytesLag
                 + ", directoryFileTransferTrackerStats="
                 + directoryFileTransferTrackerStats
+                + ", formatUploadCounts="
+                + formatUploadCounts
+                + ", formatUploadBytes="
+                + formatUploadBytes
+                + ", formatFailureCounts="
+                + formatFailureCounts
                 + '}';
         }
     }

@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
-import org.opensearch.index.shard.ShardPath;
 
 import java.io.Closeable;
 import java.io.IOException;
