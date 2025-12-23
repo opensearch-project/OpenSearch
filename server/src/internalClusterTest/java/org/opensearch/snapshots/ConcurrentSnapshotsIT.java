@@ -202,13 +202,30 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 hasItem(equalTo("cluster:admin/snapshot/delete"))
             )
         );
+
+        // Stronger ordering: wait until cluster state shows the repository is in-use due to deletion
+        assertBusy(() -> {
+            final org.opensearch.cluster.ClusterState state = client().admin().cluster().prepareState().get().getState();
+            final org.opensearch.cluster.SnapshotDeletionsInProgress deletions = state.custom(
+                org.opensearch.cluster.SnapshotDeletionsInProgress.TYPE
+            );
+
+            assertThat("SnapshotDeletionsInProgress must be present once delete starts", deletions, org.hamcrest.Matchers.notNullValue());
+            assertThat(
+                deletions.getEntries().stream().map(org.opensearch.cluster.SnapshotDeletionsInProgress.Entry::repository).toList(),
+                hasItem(equalTo(repoName))
+            );
+        });
+
         assertFalse(future.isDone()); // Ensure the delete operation is still in progress
         // Attempt to update the repository settings while the delete operation is in progress
         Settings.Builder newSettings = randomRepositorySettings();
         newSettings.put("chunk_size", 2000, ByteSizeUnit.BYTES);
-        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> updateRepository(repoName, "mock", newSettings));
-        // Verify that the update fails with an appropriate exception
-        assertEquals("trying to modify or unregister repository that is currently used", ex.getMessage());
+        // Transport can wrap the real exception; assert on the unwrapped root cause
+        final Exception ex = assertThrows(Exception.class, () -> updateRepository(repoName, "mock", newSettings));
+        final Throwable cause = org.opensearch.ExceptionsHelper.unwrapCause(ex);
+        assertThat(cause, org.hamcrest.Matchers.instanceOf(IllegalStateException.class));
+        assertEquals("trying to modify or unregister repository that is currently used", cause.getMessage());
         unblockNode(repoName, clusterManagerName); // Unblock the delete operation
         assertAcked(future.actionGet()); // Wait for the delete operation to complete
     }
