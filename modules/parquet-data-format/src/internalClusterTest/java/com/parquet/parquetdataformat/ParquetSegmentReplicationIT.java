@@ -21,6 +21,7 @@ import org.opensearch.index.store.UploadedSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.datafusion.DataFusionPlugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -55,7 +56,10 @@ public class ParquetSegmentReplicationIT extends RemoteStoreBaseIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(
             super.nodePlugins().stream(),
-            Stream.of(ParquetDataFormatPlugin.class)
+            Stream.of(
+                ParquetDataFormatPlugin.class,
+                DataFusionPlugin.class
+            )
         ).collect(Collectors.toList());
     }
 
