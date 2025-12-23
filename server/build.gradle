@@ -94,6 +94,10 @@ dependencies {
   api libs.log4japi
   api libs.log4jjul
   api libs.log4jcore, optional
+
+  compileOnlyApi "org.jspecify:jspecify:1.0.0"
+  compileOnlyApi "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
+
   annotationProcessor libs.log4jcore
   annotationProcessor project(':libs:opensearch-common')
 
@@ -229,6 +233,7 @@ tasks.named("thirdPartyAudit").configure {
         *[
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',
+            'com.fasterxml.jackson.databind.util.ClassUtil',
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
@@ -255,6 +260,7 @@ tasks.named("thirdPartyAudit").configure {
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
             'com.lmax.disruptor.EventFactory',
+            'com.lmax.disruptor.EventHandler',
             'com.lmax.disruptor.EventTranslator',
             'com.lmax.disruptor.EventTranslatorTwoArg',
             'com.lmax.disruptor.EventTranslatorVararg',
@@ -305,6 +311,7 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.ServiceReference',
             'org.osgi.framework.ServiceRegistration',
             'org.osgi.framework.SynchronousBundleListener',
+            'org.osgi.framework.wiring.BundleRevision',
             'org.osgi.framework.wiring.BundleWire',
             'org.osgi.framework.wiring.BundleWiring',
             'org.zeromq.SocketType',
