@@ -518,7 +518,6 @@ thirdPartyAudit {
     'org.conscrypt.Conscrypt',
     'org.conscrypt.HandshakeListener',
 
-    'org.slf4j.ext.EventData',
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
 
