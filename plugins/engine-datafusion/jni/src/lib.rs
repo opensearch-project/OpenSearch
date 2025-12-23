@@ -8,7 +8,7 @@ use std::num::NonZeroUsize;
  * compatible open source license.
  */
 use std::ptr::addr_of_mut;
-use jni::objects::{JByteArray, JClass, JObject};
+use jni::objects::{JByteArray, JClass, JMap, JObject};
 use jni::objects::JLongArray;
 use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
 use jni::{JNIEnv, JavaVM};
@@ -51,7 +51,7 @@ pub mod logger;
 use vectorized_exec_spi::{log_info, log_error, log_debug};
 
 use crate::custom_cache_manager::CustomCacheManager;
-use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global};
+use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global, set_action_listener_ok_global_with_map};
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 
 use crate::statistics_cache::CustomStatisticsCache;
@@ -482,6 +482,29 @@ impl CustomFileMeta {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileStats {
+    /// Total file size in bytes
+    pub size: u64,
+
+    /// Total number of rows in the file
+    pub num_rows: i64,
+}
+
+impl FileStats {
+    pub fn new(size: u64, num_rows: i64) -> Self {
+        Self { size, num_rows }
+    }
+
+    pub fn size(&self) -> u64 {
+        self.size
+    }
+
+    pub fn num_rows(&self) -> i64 {
+        self.num_rows
+    }
+}
+
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQueryPhaseAsync(
     mut env: JNIEnv,
@@ -574,6 +597,55 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     });
 }
 
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_fetchSegmentStats(
+    mut env: JNIEnv,
+    _class: JClass,
+    shard_view_ptr: jlong,
+    listener: JObject,
+) {
+    let manager = match TOKIO_RUNTIME_MANAGER.get() {
+        Some(m) => m,
+        None => {
+            log_info!("Runtime manager not initialized");
+            set_action_listener_error(&mut env, listener,
+                                    &DataFusionError::Execution("Runtime manager not initialized".to_string()));
+            return;
+        }
+    };
+
+    // Convert listener to GlobalRef (thread-safe)
+    let listener_ref = match env.new_global_ref(&listener) {
+        Ok(r) => r,
+        Err(e) => {
+            log_error!("Failed to create global ref: {}", e);
+            set_action_listener_error(&mut env, listener,
+                                    &DataFusionError::Execution(format!("Failed to create global ref: {}", e)));
+            return;
+        }
+    };
+    let io_runtime = manager.io_runtime.clone();
+
+    let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
+    let files_meta = shard_view.files_metadata();
+
+    io_runtime.block_on(async move {
+        let file_stats = util::fetch_segment_statistics(files_meta).await;
+        match file_stats {
+            Ok(map) => {
+                with_jni_env(|env| {
+                    set_action_listener_ok_global_with_map(env, &listener_ref, &map);
+                });
+            }
+            Err(e) => {
+                with_jni_env(|env| {
+                    log_error!("Collecting file stats failed: {}", e);
+                    set_action_listener_error_global(env, &listener_ref, &e);
+                });
+            }
+        }
+    });
+}
 
 
 #[no_mangle]

@@ -4157,7 +4157,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public StatsHolder getStatsHolder() {
-        return getEngine();
+        return getIndexingExecutionCoordinator();
     }
 
     public IndexingThrottler getIndexingThrottler() {
@@ -4182,7 +4182,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public StatsHolder getStatsHolderOrNull() {
-        return getEngineOrNull();
+        return getIndexingExecutionCoordinator();
     }
 
     public IndexingThrottler getIndexingThrottlerOrNull() {
