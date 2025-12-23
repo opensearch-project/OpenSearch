@@ -61,6 +61,7 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
 
     private String scrollId;
     private Scroll scroll;
+    private transient ParsedScrollId parsedScrollId;
 
     public SearchScrollRequest() {}
 
@@ -103,7 +104,10 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
     }
 
     public ParsedScrollId parseScrollId() {
-        return TransportSearchHelper.parseScrollId(scrollId);
+        if (parsedScrollId == null && scrollId != null) {
+            parsedScrollId = TransportSearchHelper.parseScrollId(scrollId);
+        }
+        return parsedScrollId;
     }
 
     /**
