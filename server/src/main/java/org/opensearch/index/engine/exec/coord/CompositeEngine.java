@@ -281,8 +281,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 lastCommittedWriterGeneration.set(Long.parseLong(lastCommittedData.get(CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY)));
             }
 
-            System.out.println("While initialising Composite Engine - lst commit generation : " + lastCommittedWriterGeneration.get());
-
             // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
             this.engine = new CompositeIndexingExecutionEngine(
                 mapperService,
@@ -908,27 +906,13 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 if (force || shouldFlush() || shouldPeriodicallyFlush || getProcessedLocalCheckpoint() > Long.parseLong(
                     readLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))) {
 
-                    logger.info(
-                        "[COMPOSITE ENGINE FLUSH] Starting flush. force={}, shouldFlush={}, shouldPeriodicallyFlush={}, " +
-                        "processedLocalCheckpoint={}, lastCommittedCheckpoint={}",
-                        force, shouldFlush(), shouldPeriodicallyFlush,
-                        getProcessedLocalCheckpoint(),
-                        readLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
-                    );
-
                     translogManager.ensureCanFlush();
 
                     try {
-                        logger.info("[COMPOSITE ENGINE FLUSH] About to roll translog generation");
                         translogManager.rollTranslogGeneration();
-                        logger.info("[COMPOSITE ENGINE FLUSH] Successfully rolled translog generation");
                         logger.trace("starting commit for flush; commitTranslog=true");
                         CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotToFlushRef = catalogSnapshotManager.acquireSnapshot();
                         final CatalogSnapshot catalogSnapshotToFlush = catalogSnapshotToFlushRef.getRef();
-                        System.out.println("FLUSH called, current snapshot to commit : " + catalogSnapshotToFlush.getId()
-                            + ", previous commited snapshot : " + ((lastCommitedCatalogSnapshotRef != null)
-                                                                   ? lastCommitedCatalogSnapshotRef.getRef().getId()
-                                                                   : -1));
                         final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
                         final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
 

@@ -4176,16 +4176,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine getEngine() {
-        logger.debug("--> [DEBUG] getEngine() called from: {}", Thread.currentThread().getStackTrace()[2].getMethodName());
         Engine engine = getEngineOrNull();
-        logger.debug("--> [DEBUG] getEngineOrNull() returned: {}", engine != null ? engine.getClass().getSimpleName() : "NULL");
         if (engine == null) {
-            logger.error("--> [ERROR] getEngine() - engine is NULL! currentEngineRef={}, compositeEngineRef={}",
+            logger.error("-->getEngine() - engine is NULL! currentEngineRef={}, compositeEngineRef={}",
                 currentEngineReference.get() != null ? "present" : "NULL",
                 currentCompositeEngineReference.get() != null ? "present" : "NULL");
             throw new AlreadyClosedException("engine is closed");
         }
-        logger.debug("--> [DEBUG] getEngine() returning: {}", engine.getClass().getSimpleName());
         return engine;
     }
 
