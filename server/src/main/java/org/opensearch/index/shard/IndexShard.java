@@ -4153,15 +4153,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public CheckpointState getCheckpointState() {
-        return (CheckpointState) getIndexer();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
     }
 
     public StatsHolder getStatsHolder() {
-        return getIndexingExecutionCoordinator();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator(): currentEngineReference.get();
     }
 
     public IndexingThrottler getIndexingThrottler() {
-        return getEngine();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
     }
 
     public Engine getEngine() {
@@ -4182,7 +4182,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public StatsHolder getStatsHolderOrNull() {
-        return getIndexingExecutionCoordinator();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
     }
 
     public IndexingThrottler getIndexingThrottlerOrNull() {
