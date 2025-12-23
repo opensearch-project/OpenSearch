@@ -33,6 +33,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Nullable;
@@ -73,10 +74,6 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         this.model = new AliasMetadataModel(aliasMetadata.model, alias);
     }
 
-    public AliasMetadata(StreamInput in) throws IOException {
-        this.model = new AliasMetadataModel(in, CompressedXContent.READER);
-    }
-
     public String alias() {
         return model.alias();
     }
@@ -86,7 +83,15 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     }
 
     public CompressedXContent filter() {
-        return (CompressedXContent) model.filter();
+        if (model.filter() == null) {
+            return null;
+        }
+
+        try {
+            return new CompressedXContent(model.filter());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public CompressedXContent getFilter() {
@@ -94,7 +99,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     }
 
     public boolean filteringRequired() {
-        return model.filteringRequired();
+        return filter() != null;
     }
 
     public String getSearchRouting() {
@@ -158,7 +163,36 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        model.writeTo(out);
+        if (out.getVersion().after(Version.V_3_4_0)) {
+            model.writeTo(out);
+        } else {
+            out.writeString(alias());
+            if (filter() != null) {
+                out.writeBoolean(true);
+                filter().writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
+            out.writeOptionalString(indexRouting());
+            out.writeOptionalString(searchRouting());
+            out.writeOptionalBoolean(writeIndex());
+            out.writeOptionalBoolean(isHidden());
+        }
+    }
+
+    public AliasMetadata(StreamInput in) throws IOException {
+        if (in.getVersion().after(Version.V_3_4_0)) {
+            this.model = new AliasMetadataModel(in);
+        } else {
+            this.model = new AliasMetadataModel(
+                in.readString(),
+                in.readBoolean() ? CompressedXContent.readCompressedString(in).string() : null,
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalBoolean(),
+                in.readOptionalBoolean()
+            );
+        }
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
@@ -195,7 +229,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
 
         public Builder filter(CompressedXContent filter) {
-            modelBuilder.filter(filter);
+            modelBuilder.filter(filter != null ? filter.string() : null);
             return this;
         }
 
@@ -214,7 +248,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             }
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder().map(filter);
-                modelBuilder.filter(new CompressedXContent(BytesReference.bytes(builder)));
+                modelBuilder.filter(new CompressedXContent(BytesReference.bytes(builder)).string());
                 return this;
             } catch (IOException e) {
                 throw new OpenSearchGenerationException("Failed to build json for alias request", e);

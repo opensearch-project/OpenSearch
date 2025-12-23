@@ -8,13 +8,13 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.compress.CompressedData;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,50 +27,50 @@ import java.util.Set;
  * <p>
  * AliasMetadataModel stores all essential properties of an alias including:
  * <ul>
- *   <li>alias - the alias name (required)</li>
- *   <li>filter - compressed JSON filter for the alias (optional)</li>
- *   <li>indexRouting - routing value for index operations (optional)</li>
- *   <li>searchRouting - routing value for search operations (optional)</li>
- *   <li>writeIndex - whether this alias is the write index (optional)</li>
- *   <li>isHidden - whether this alias is hidden from wildcard queries (optional)</li>
+ *   <li>alias - the alias name</li>
+ *   <li>filter - filter for the alias</li>
+ *   <li>indexRouting - routing value for index operations</li>
+ *   <li>searchRouting - routing value for search operations</li>
+ *   <li>writeIndex - whether this alias is the write index</li>
+ *   <li>isHidden - whether this alias is hidden from wildcard queries</li>
  * </ul>
  * <p>
  * This class is immutable and thread-safe. Use the {@link Builder} to construct instances.
  *
  * @opensearch.api
- * @since 1.0.0
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "3.4.0")
 public final class AliasMetadataModel implements Writeable {
 
     private final String alias;
-    private final CompressedData filter;
+    private final String filter;
     private final String indexRouting;
     private final String searchRouting;
     private final Set<String> searchRoutingValues;
+    @Nullable
     private final Boolean writeIndex;
+    @Nullable
     private final Boolean isHidden;
 
     /**
      * Primary constructor for AliasMetadataModel.
      *
-     * @param alias the alias name (required, must not be null)
-     * @param filter the compressed JSON filter for the alias (optional, may be null)
-     * @param indexRouting the routing value for index operations (optional, may be null)
-     * @param searchRouting the routing value for search operations (optional, may be null)
-     * @param writeIndex whether this alias is the write index (optional, may be null)
-     * @param isHidden whether this alias is hidden from wildcard queries (optional, may be null)
-     * @throws NullPointerException if alias is null
+     * @param alias the alias name
+     * @param filter the filter for the alias
+     * @param indexRouting the routing value for index operations
+     * @param searchRouting the routing value for search operations
+     * @param writeIndex whether this alias is the write index
+     * @param isHidden whether this alias is hidden from wildcard queries
      */
     public AliasMetadataModel(
         String alias,
-        CompressedData filter,
+        String filter,
         String indexRouting,
         String searchRouting,
-        Boolean writeIndex,
-        Boolean isHidden
+        @Nullable Boolean writeIndex,
+        @Nullable Boolean isHidden
     ) {
-        this.alias = Objects.requireNonNull(alias, "alias must not be null");
+        this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
         this.searchRouting = searchRouting;
@@ -85,7 +85,6 @@ public final class AliasMetadataModel implements Writeable {
      *
      * @param other the source AliasMetadataModel to copy from
      * @param newAlias the new alias name
-     * @throws NullPointerException if other or newAlias is null
      */
     public AliasMetadataModel(AliasMetadataModel other, String newAlias) {
         this(newAlias, other.filter, other.indexRouting, other.searchRouting, other.writeIndex, other.isHidden);
@@ -95,12 +94,10 @@ public final class AliasMetadataModel implements Writeable {
      * Deserialization constructor that reads an AliasMetadataModel from a stream.
      *
      * @param in the stream to read from
-     * @param compressedDataReader the reader for CompressedData
-     * @throws IOException if an I/O error occurs during deserialization
      */
-    public <T extends CompressedData> AliasMetadataModel(StreamInput in, Writeable.Reader<T> compressedDataReader) throws IOException {
+    public AliasMetadataModel(StreamInput in) throws IOException {
         this.alias = in.readString();
-        this.filter = compressedDataReader.read(in);
+        this.filter = in.readOptionalString();
         this.indexRouting = in.readOptionalString();
         this.searchRouting = in.readOptionalString();
         this.searchRoutingValues = parseSearchRoutingValues(searchRouting);
@@ -122,8 +119,6 @@ public final class AliasMetadataModel implements Writeable {
         return Collections.unmodifiableSet(Sets.newHashSet(Strings.splitStringByCommaToArray(searchRouting)));
     }
 
-    // Getters
-
     /**
      * Returns the alias name.
      *
@@ -134,29 +129,11 @@ public final class AliasMetadataModel implements Writeable {
     }
 
     /**
-     * Returns the alias name (alternative getter for compatibility).
-     *
-     * @return the alias name (never null)
-     */
-    public String getAlias() {
-        return alias;
-    }
-
-    /**
-     * Returns the compressed JSON filter for the alias.
+     * Returns the filter for the alias.
      *
      * @return the filter, or null if no filter is set
      */
-    public CompressedData filter() {
-        return filter;
-    }
-
-    /**
-     * Returns the compressed JSON filter for the alias (alternative getter for compatibility).
-     *
-     * @return the filter, or null if no filter is set
-     */
-    public CompressedData getFilter() {
+    public String filter() {
         return filter;
     }
 
@@ -170,29 +147,11 @@ public final class AliasMetadataModel implements Writeable {
     }
 
     /**
-     * Returns the routing value for index operations (alternative getter for compatibility).
-     *
-     * @return the index routing value, or null if not set
-     */
-    public String getIndexRouting() {
-        return indexRouting;
-    }
-
-    /**
      * Returns the routing value for search operations.
      *
      * @return the search routing value, or null if not set
      */
     public String searchRouting() {
-        return searchRouting;
-    }
-
-    /**
-     * Returns the routing value for search operations (alternative getter for compatibility).
-     *
-     * @return the search routing value, or null if not set
-     */
-    public String getSearchRouting() {
         return searchRouting;
     }
 
@@ -211,16 +170,8 @@ public final class AliasMetadataModel implements Writeable {
      *
      * @return true if this is the write index, false if explicitly not, null if not set
      */
+    @Nullable
     public Boolean writeIndex() {
-        return writeIndex;
-    }
-
-    /**
-     * Returns whether this alias is the write index (alternative getter for compatibility).
-     *
-     * @return true if this is the write index, false if explicitly not, null if not set
-     */
-    public Boolean getWriteIndex() {
         return writeIndex;
     }
 
@@ -229,6 +180,7 @@ public final class AliasMetadataModel implements Writeable {
      *
      * @return true if hidden, false if not hidden, null if not set
      */
+    @Nullable
     public Boolean isHidden() {
         return isHidden;
     }
@@ -243,8 +195,6 @@ public final class AliasMetadataModel implements Writeable {
         return filter != null;
     }
 
-    // Serialization (Task 5)
-
     /**
      * Writes this AliasMetadataModel to a stream.
      * The serialization format is compatible with AliasMetadata.
@@ -255,14 +205,12 @@ public final class AliasMetadataModel implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(alias);
-        filter.writeTo(out);
+        out.writeOptionalString(filter);
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
         out.writeOptionalBoolean(writeIndex);
         out.writeOptionalBoolean(isHidden);
     }
-
-    // Object methods (Task 6)
 
     /**
      * Compares this AliasMetadataModel with another object for equality.
@@ -298,52 +246,27 @@ public final class AliasMetadataModel implements Writeable {
     }
 
     /**
-     * Returns a string representation of this AliasMetadataModel.
-     *
-     * @return a readable string representation
-     */
-    @Override
-    public String toString() {
-        return "AliasMetadataModel{"
-            + "alias='"
-            + alias
-            + '\''
-            + ", filter="
-            + (filter != null ? "present" : "null")
-            + ", indexRouting='"
-            + indexRouting
-            + '\''
-            + ", searchRouting='"
-            + searchRouting
-            + '\''
-            + ", writeIndex="
-            + writeIndex
-            + ", isHidden="
-            + isHidden
-            + '}';
-    }
-
-    // Builder (Task 7)
-
-    /**
      * Builder for constructing AliasMetadataModel instances.
      * <p>
      * Example usage:
      * <pre>{@code
      * AliasMetadataModel model = new AliasMetadataModel.Builder("my-alias")
-     *     .filter(compressedFilter)
+     *     .filter(filter)
      *     .routing("1")
      *     .writeIndex(true)
      *     .isHidden(false)
      *     .build();
      * }</pre>
      */
+    @PublicApi(since = "3.4.0")
     public static class Builder {
         private final String alias;
-        private CompressedData filter;
+        private String filter;
         private String indexRouting;
         private String searchRouting;
+        @Nullable
         private Boolean writeIndex;
+        @Nullable
         private Boolean isHidden;
 
         /**
@@ -356,27 +279,12 @@ public final class AliasMetadataModel implements Writeable {
         }
 
         /**
-         * Creates a new builder from an existing model (copy builder).
-         * All fields from the model are copied to the builder.
+         * Sets the filter for the alias.
          *
-         * @param model the model to copy from
-         */
-        public Builder(AliasMetadataModel model) {
-            this.alias = model.alias;
-            this.filter = model.filter;
-            this.indexRouting = model.indexRouting;
-            this.searchRouting = model.searchRouting;
-            this.writeIndex = model.writeIndex;
-            this.isHidden = model.isHidden;
-        }
-
-        /**
-         * Sets the compressed filter for the alias.
-         *
-         * @param filter the compressed filter
+         * @param filter the filter
          * @return this builder
          */
-        public Builder filter(CompressedData filter) {
+        public Builder filter(String filter) {
             this.filter = filter;
             return this;
         }
@@ -421,7 +329,7 @@ public final class AliasMetadataModel implements Writeable {
          * @param writeIndex true if this is the write index, false otherwise
          * @return this builder
          */
-        public Builder writeIndex(Boolean writeIndex) {
+        public Builder writeIndex(@Nullable Boolean writeIndex) {
             this.writeIndex = writeIndex;
             return this;
         }
@@ -432,7 +340,7 @@ public final class AliasMetadataModel implements Writeable {
          * @param isHidden true if hidden, false otherwise
          * @return this builder
          */
-        public Builder isHidden(Boolean isHidden) {
+        public Builder isHidden(@Nullable Boolean isHidden) {
             this.isHidden = isHidden;
             return this;
         }

@@ -12,7 +12,6 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.compress.CompressedData;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,17 +23,17 @@ import java.util.Objects;
  * This class contains only the essential data fields:
  * <ul>
  *   <li>type - the mapping type name</li>
- *   <li>source - the compressed mapping source</li>
+ *   <li>source - the mapping source</li>
  *   <li>routingRequired - whether routing is required</li>
  * </ul>
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "3.4.0")
 public final class MappingMetadataModel implements Writeable {
 
     private final String type;
-    private final CompressedData source;
+    private final String source;
     private final boolean routingRequired;
 
     /**
@@ -44,7 +43,7 @@ public final class MappingMetadataModel implements Writeable {
      * @param source the compressed mapping source
      * @param routingRequired whether routing is required
      */
-    public MappingMetadataModel(String type, CompressedData source, boolean routingRequired) {
+    public MappingMetadataModel(String type, String source, boolean routingRequired) {
         this.type = type;
         this.source = source;
         this.routingRequired = routingRequired;
@@ -54,12 +53,11 @@ public final class MappingMetadataModel implements Writeable {
      * Deserialization constructor.
      *
      * @param in the stream input
-     * @param compressedDataReader the reader for CompressedData
      * @throws IOException if deserialization fails
      */
-    public <T extends CompressedData> MappingMetadataModel(StreamInput in, Writeable.Reader<T> compressedDataReader) throws IOException {
+    public MappingMetadataModel(StreamInput in) throws IOException {
         this.type = in.readString();
-        this.source = compressedDataReader.read(in);
+        this.source = in.readString();
         this.routingRequired = in.readBoolean();
     }
 
@@ -73,11 +71,11 @@ public final class MappingMetadataModel implements Writeable {
     }
 
     /**
-     * Returns the compressed mapping source.
+     * Returns the mapping source.
      *
-     * @return the compressed source
+     * @return the source
      */
-    public CompressedData source() {
+    public String source() {
         return source;
     }
 
@@ -93,7 +91,7 @@ public final class MappingMetadataModel implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type);
-        source.writeTo(out);
+        out.writeString(source);
         out.writeBoolean(routingRequired);
     }
 
@@ -110,18 +108,5 @@ public final class MappingMetadataModel implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(type, source, routingRequired);
-    }
-
-    @Override
-    public String toString() {
-        return "MappingMetadataModel{"
-            + "type='"
-            + type
-            + '\''
-            + ", source="
-            + (source != null ? "[present]" : "[null]")
-            + ", routingRequired="
-            + routingRequired
-            + '}';
     }
 }

@@ -33,6 +33,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.annotation.PublicApi;
@@ -68,7 +69,11 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
     private final MappingMetadataModel model;
 
     public MappingMetadata(DocumentMapper docMapper) {
-        this.model = new MappingMetadataModel(docMapper.type(), docMapper.mappingSource(), docMapper.routingFieldMapper().required());
+        this.model = new MappingMetadataModel(
+            docMapper.type(),
+            docMapper.mappingSource().string(),
+            docMapper.routingFieldMapper().required()
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -79,7 +84,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
         }
         String type = mappingMap.keySet().iterator().next();
         boolean routingRequired = isRoutingRequired((Map<String, Object>) mappingMap.get(type));
-        this.model = new MappingMetadataModel(type, mapping, routingRequired);
+        this.model = new MappingMetadataModel(type, mapping.string(), routingRequired);
     }
 
     @SuppressWarnings("unchecked")
@@ -97,7 +102,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
         }
         boolean routingRequired = isRoutingRequired(withoutType);
 
-        this.model = new MappingMetadataModel(type, source, routingRequired);
+        this.model = new MappingMetadataModel(type, source.string(), routingRequired);
     }
 
     @SuppressWarnings("unchecked")
@@ -128,7 +133,11 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
     }
 
     public CompressedXContent source() {
-        return (CompressedXContent) model.source();
+        try {
+            return new CompressedXContent(model.source());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -156,7 +165,13 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        model.writeTo(out);
+        if (out.getVersion().after(Version.V_3_4_0)) {
+            model.writeTo(out);
+        } else {
+            out.writeString(type());
+            source().writeTo(out);
+            out.writeBoolean(routingRequired());
+        }
     }
 
     @Override
@@ -181,7 +196,11 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
     }
 
     public MappingMetadata(StreamInput in) throws IOException {
-        this.model = new MappingMetadataModel(in, CompressedXContent.READER);
+        if (in.getVersion().after(Version.V_3_4_0)) {
+            this.model = new MappingMetadataModel(in);
+        } else {
+            this.model = new MappingMetadataModel(in.readString(), CompressedXContent.readCompressedString(in).string(), in.readBoolean());
+        }
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {
