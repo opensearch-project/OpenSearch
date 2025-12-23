@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -210,6 +211,13 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             multiBucketConsumer.accept(size);
         }
 
+        public CircuitBreaker getBreaker() {
+            // Extract breaker from MultiBucketConsumer if available
+            if (multiBucketConsumer instanceof MultiBucketConsumerService.MultiBucketConsumer) {
+                return ((MultiBucketConsumerService.MultiBucketConsumer) multiBucketConsumer).getBreaker();
+            }
+            return null;
+        }
     }
 
     protected final String name;
