@@ -194,7 +194,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             ActionListener<Void> callback = invocation.getArgument(3);
             callback.onResponse(null);
             return null;
-        }).when(remoteSegmentStoreDirectory).copyFrom(any(FileMetadata.class), any(CompositeStoreDirectory.class), any(), any(), any(Boolean.class));
+        }).when(remoteSegmentStoreDirectory).copyFrom(any(Directory.class), any(String.class), any(), any(), any(Boolean.class));
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -257,7 +257,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             ActionListener<Void> callback = invocation.getArgument(3);
             callback.onResponse(null);
             return null;
-        }).when(remoteSegmentStoreDirectory).copyFrom(any(FileMetadata.class), any(CompositeStoreDirectory.class), any(), any(), any(Boolean.class));
+        }).when(remoteSegmentStoreDirectory).copyFrom(any(Directory.class), any(String.class), any(), any(), any(Boolean.class));
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -322,7 +322,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             ActionListener<Void> callback = invocation.getArgument(3);
             callback.onResponse(null);
             return null;
-        }).when(remoteSegmentStoreDirectory).copyFrom(any(FileMetadata.class), any(CompositeStoreDirectory.class), any(), any(), any(Boolean.class));
+        }).when(remoteSegmentStoreDirectory).copyFrom(any(Directory.class), any(String.class), any(), any(), any(Boolean.class));
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -388,7 +388,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             ActionListener<Void> callback = invocation.getArgument(3);
             callback.onFailure(corruptException);
             return null;
-        }).when(remoteSegmentStoreDirectory).copyFrom(any(FileMetadata.class), any(CompositeStoreDirectory.class), any(), any(), any(Boolean.class));
+        }).when(remoteSegmentStoreDirectory).copyFrom(any(Directory.class), any(String.class), any(), any(), any(Boolean.class));
 
         ActionListener<Void> listener = ActionListener.wrap(response -> fail("Should not succeed with corrupt index"), exception -> {
             assertEquals(corruptException, exception);
@@ -452,7 +452,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             ActionListener<Void> callback = invocation.getArgument(3);
             callback.onFailure(genericException);
             return null;
-        }).when(remoteSegmentStoreDirectory).copyFrom(any(FileMetadata.class), any(CompositeStoreDirectory.class), any(), any(), any(Boolean.class));
+        }).when(remoteSegmentStoreDirectory).copyFrom(any(Directory.class), any(String.class), any(), any(), any(Boolean.class));
 
         ActionListener<Void> listener = ActionListener.wrap(response -> fail("Should not succeed with generic exception"), exception -> {
             assertEquals(genericException, exception);

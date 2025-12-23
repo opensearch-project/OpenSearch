@@ -2908,8 +2908,7 @@ public class IndexShardTests extends IndexShardTestCase {
         RemoteSegmentStoreDirectory remoteStoreDirectory = ((RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) target
             .remoteStore()
             .directory()).getDelegate()).getDelegate());
-        Collection<String> uploadFiles = remoteStoreDirectory.getSegmentsUploadedToRemoteStore().keySet().stream()
-            .map(fm -> fm.file()).collect(java.util.stream.Collectors.toList());
+        Collection<String> uploadFiles = new ArrayList<>(remoteStoreDirectory.getSegmentsUploadedToRemoteStore().keySet());
         assertTrue(uploadFiles.containsAll(lastCommitedSegmentsInSource));
         assertTrue(
             "Failed to sync all files to new shard",

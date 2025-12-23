@@ -196,19 +196,14 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
         Map<String, String> localToRemoteFilenameMap = new HashMap<>() {
             {
-                Map<FileMetadata, UploadedSegmentMetadata> segmentsUploadedToRemoteStore = primaryShard.getRemoteDirectory()
+                Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore = primaryShard.getRemoteDirectory()
                     .getSegmentsUploadedToRemoteStore();
-                segmentsUploadedToRemoteStore.forEach((fileMetadata, metadata) -> {
-                    String segment = fileMetadata.file();
+                segmentsUploadedToRemoteStore.forEach((segment, metadata) -> {
                     if (segment.startsWith("segments_") == false) put(segment, metadata.getUploadedFilename());
                 });
             }
         };
-        Map<FileMetadata, String> fileMetadataMap = new HashMap<>();
-        for (Map.Entry<String, String> entry : localToRemoteFilenameMap.entrySet()) {
-            fileMetadataMap.put(new FileMetadata("lucene", entry.getKey()), entry.getValue());
-        }
-        replicaShard.getRemoteDirectory().markMergedSegmentsPendingDownload(fileMetadataMap);
+        replicaShard.getRemoteDirectory().markMergedSegmentsPendingDownload(localToRemoteFilenameMap);
         RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
             new MergedSegmentCheckpoint(
                 replicaShard.shardId(),
@@ -242,19 +237,14 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
         Map<String, String> localToRemoteFilenameMap = new HashMap<>() {
             {
-                Map<FileMetadata, UploadedSegmentMetadata> segmentsUploadedToRemoteStore = primaryShard.getRemoteDirectory()
+                Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore = primaryShard.getRemoteDirectory()
                     .getSegmentsUploadedToRemoteStore();
-                segmentsUploadedToRemoteStore.forEach((fileMetadata, metadata) -> {
-                    String segment = fileMetadata.file();
+                segmentsUploadedToRemoteStore.forEach((segment, metadata) -> {
                     if (segment.startsWith("segments_") == false) put(segment, metadata.getUploadedFilename());
                 });
             }
         };
-        Map<FileMetadata, String> fileMetadataMap = new HashMap<>();
-        for (Map.Entry<String, String> entry : localToRemoteFilenameMap.entrySet()) {
-            fileMetadataMap.put(new FileMetadata("lucene", entry.getKey()), entry.getValue());
-        }
-        replicaShard.getRemoteDirectory().markMergedSegmentsPendingDownload(fileMetadataMap);
+        replicaShard.getRemoteDirectory().markMergedSegmentsPendingDownload(localToRemoteFilenameMap);
         RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
             new MergedSegmentCheckpoint(
                 replicaShard.shardId(),

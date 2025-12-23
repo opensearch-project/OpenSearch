@@ -20,6 +20,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
@@ -107,16 +108,16 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096);
 
         Map<String, String> expectedOutput = getDummyData();
-        Map<org.opensearch.index.engine.exec.FileMetadata, String> fileMetadataMap = new java.util.HashMap<>();
+        Map<FileMetadata, String> fileMetadataMap = new java.util.HashMap<>();
         for (Map.Entry<String, String> entry : expectedOutput.entrySet()) {
-            fileMetadataMap.put(new org.opensearch.index.engine.exec.FileMetadata("lucene", entry.getKey()), entry.getValue());
+            fileMetadataMap.put(new FileMetadata("lucene", entry.getKey()), entry.getValue());
         }
         ByteBuffersIndexOutput segmentInfosOutput = new ByteBuffersIndexOutput(new ByteBuffersDataOutput(), "test", "resource");
         segmentInfos.write(segmentInfosOutput);
         byte[] segmentInfosBytes = segmentInfosOutput.toArrayCopy();
 
         RemoteSegmentMetadata remoteSegmentMetadata = new RemoteSegmentMetadata(
-            RemoteSegmentMetadata.fromMapOfStrings(fileMetadataMap),
+            RemoteSegmentMetadata.fromMapOfStringsV2(fileMetadataMap),
             segmentInfosBytes,
             indexShard.getLatestReplicationCheckpoint()
         );
