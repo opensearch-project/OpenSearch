@@ -9,8 +9,8 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
@@ -28,6 +28,7 @@ import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
+import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineCreationFailureException;
@@ -39,33 +40,38 @@ import org.opensearch.index.engine.IndexingStrategy;
 import org.opensearch.index.engine.IndexingStrategyPlanner;
 import org.opensearch.index.engine.LifecycleAware;
 import org.opensearch.index.engine.LiveVersionMap;
+import org.opensearch.index.engine.MergeFailedEngineException;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.VersionValue;
-import org.opensearch.index.engine.*;
+import org.opensearch.index.engine.exec.FileStats;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.bridge.CheckpointState;
 import org.opensearch.index.engine.exec.bridge.Indexer;
 import org.opensearch.index.engine.exec.bridge.IndexingThrottler;
+import org.opensearch.index.engine.exec.bridge.StatsHolder;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.LuceneCommitEngine;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
+import org.opensearch.index.engine.exec.merge.CompositeMergeHandler;
 import org.opensearch.index.engine.exec.merge.MergeHandler;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.MergeScheduler;
 import org.opensearch.index.engine.exec.merge.OneMerge;
-import org.opensearch.index.engine.exec.merge.CompositeMergeHandler;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
@@ -78,9 +84,11 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
+import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -89,9 +97,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -102,15 +112,18 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.function.Supplier;
 
 import static org.opensearch.index.engine.Engine.HISTORY_UUID_KEY;
 import static org.opensearch.index.engine.Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID;
+import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNAPSHOT_ID;
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNAPSHOT_KEY;
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY;
 
 @ExperimentalApi
-public class CompositeEngine implements LifecycleAware, Closeable, Indexer, CheckpointState, IndexingThrottler {
+public class CompositeEngine implements LifecycleAware, Closeable, Indexer, CheckpointState, IndexingThrottler, StatsHolder {
 
     private static final Consumer<ReferenceManager.RefreshListener> PRE_REFRESH_LISTENER_CONSUMER = refreshListener -> {
         try {
@@ -134,6 +147,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             throw new RuntimeException(e);
         }
     };
+    private static final Function<String, String> extractSegmentName = name -> name.substring(name.lastIndexOf('_'), name.lastIndexOf('.'));
 
     private final ShardId shardId;
     private final CompositeIndexingExecutionEngine engine;
@@ -257,7 +271,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             final AtomicLong lastCommittedWriterGeneration = new AtomicLong(-1);
             Map<String, String> lastCommittedData = this.compositeEngineCommitter.getLastCommittedData();
             if (lastCommittedData.containsKey(LAST_COMPOSITE_WRITER_GEN_KEY)) {
-                lastCommittedWriterGeneration.set(Long.parseLong(lastCommittedData.get(CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY)));
+                lastCommittedWriterGeneration.set(Long.parseLong(lastCommittedData.get(LAST_COMPOSITE_WRITER_GEN_KEY)));
             }
 
             System.out.println("While initialising Composite Engine - lst commit generation : " + lastCommittedWriterGeneration.get());
@@ -446,7 +460,10 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
         }
 
-        logger.trace("CompositeEngine initialized with {} catalog snapshot aware refresh listeners", catalogSnapshotAwareRefreshListeners.size());
+        logger.trace(
+            "CompositeEngine initialized with {} catalog snapshot aware refresh listeners",
+            catalogSnapshotAwareRefreshListeners.size()
+        );
     }
 
     public SearchExecEngine<?, ?, ?, ?> getReadEngine(DataFormat dataFormat) {
@@ -693,7 +710,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             refreshListeners.forEach(PRE_REFRESH_LISTENER_CONSUMER);
 
             RefreshInput refreshInput = new RefreshInput();
-            refreshInput.setExistingSegments(catalogSnapshotReleasableRef.getRef().getSegments());
+            refreshInput.setExistingSegments(new ArrayList<>(catalogSnapshotReleasableRef.getRef().getSegments()));
             RefreshResult refreshResult = engine.refresh(refreshInput);
             if (refreshResult == null) {
                 return;
@@ -809,7 +826,31 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
     @Override
     public List<Segment> segments(boolean verbose) {
-        return List.of();
+        try {
+            List<Segment> segments = new ArrayList<>();
+            Set<Long> committedSegments = new HashSet<>();
+            if (lastCommitedCatalogSnapshotRef != null && lastCommitedCatalogSnapshotRef.getRef() != null) {
+                lastCommitedCatalogSnapshotRef.getRef()
+                    .getSegments()
+                    .stream()
+                    .map(CatalogSnapshot.Segment::getGeneration)
+                    .collect(Collectors.toCollection(() -> committedSegments));
+            }
+            Map<String, FileStats> segmentStats = getPrimaryReadEngine().fetchSegmentStats();
+            segmentStats.forEach((name, fileStats) -> {
+                Segment segment = new Segment(extractSegmentName.apply(name));
+                segment.docCount = Math.toIntExact(fileStats.getDocCount());
+                segment.sizeInBytes = fileStats.getSize();
+                segment.search = true;
+                segment.committed = committedSegments.contains(segment.getGeneration());
+                segment.version = null; // not implemented since it refers lucene version
+                segment.delDocCount = 0; // deletion not supported yet
+                segments.add(segment);
+            });
+            return List.copyOf(segments);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -882,9 +923,11 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                         final String serializedCatalogSnapshot = catalogSnapshotToFlush.serializeToString();
                         final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
                         final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+                        final long id = catalogSnapshotToFlush.getId();
                         compositeEngineCommitter.commit(
                             () -> {
                                 final Map<String, String> commitData = new HashMap<>(7);
+                                commitData.put(CATALOG_SNAPSHOT_ID, Long.toString(id));
                                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
                                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
@@ -923,6 +966,60 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     }
 
     @Override
+    public CommitStats commitStats() {
+        return compositeEngineCommitter.getCommitStats();
+    }
+
+    @Override
+    public DocsStats docStats() {
+        try {
+            Map<String, FileStats> segmentStats = getPrimaryReadEngine().fetchSegmentStats();
+            long docCount = segmentStats.values().stream().mapToLong(FileStats::getDocCount).sum();
+            long size = segmentStats.values().stream().mapToLong(FileStats::getSize).sum();
+            return new DocsStats(docCount, 0, size);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        ensureOpen();
+        try {
+            Map<String, FileStats> segmentStats = getPrimaryReadEngine().fetchSegmentStats();
+            SegmentsStats stats = new SegmentsStats();
+            segmentStats.forEach((key, value) -> {
+                stats.add(1);
+                if (includeSegmentFileSizes) {
+                    stats.addFileSizes(segmentStats.entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(e -> extractSegmentName.apply(e.getKey()), e -> e.getValue().getSize())));
+                }
+            });
+            stats.addVersionMapMemoryInBytes(0);
+            stats.addIndexWriterMemoryInBytes(0);
+            return stats;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public CompletionStats completionStats(String... fieldNamePatterns) {
+        return null;
+    }
+
+    @Override
+    public PollingIngestStats pollingIngestStats() {
+        return null;
+    }
+
+    @Override
+    public MergeStats getMergeStats() {
+        return null;
+    }
+
+    @Override
     public long getLastWriteNanos() {
         return lastWriteNanos;
     }
@@ -943,11 +1040,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     }
 
     private Map<String, String> readLastCommittedData() {
-        try {
-            return this.compositeEngineCommitter.getLastCommittedData();
-        } catch (IOException e) {
-            throw new FlushFailedEngineException(shardId, e);
-        }
+        return this.compositeEngineCommitter.getLastCommittedData();
     }
 
     @Override
