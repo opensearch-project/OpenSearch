@@ -31,6 +31,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShardTestUtils;
+import org.opensearch.index.store.MetadataFilenameUtils;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.indices.RemoteStoreSettings;
