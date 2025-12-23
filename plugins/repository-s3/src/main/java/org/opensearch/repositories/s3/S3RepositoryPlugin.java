@@ -345,7 +345,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-            // named s3 client configuration settings
+            // s3 client configuration settings
             S3ClientSettings.ACCESS_KEY_SETTING,
             S3ClientSettings.SECRET_KEY_SETTING,
             S3ClientSettings.SESSION_TOKEN_SETTING,
@@ -363,6 +363,17 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.ACCESS_KEY_SETTING,
             S3Repository.SECRET_KEY_SETTING,
             S3ClientSettings.SIGNER_OVERRIDE,
+
+            // additional s3 client configuration settings added in this PR
+            S3ClientSettings.REQUEST_TIMEOUT_SETTING,
+            S3ClientSettings.CONNECTION_TIMEOUT_SETTING,
+            S3ClientSettings.CONNECTION_TTL_SETTING,
+            S3ClientSettings.MAX_CONNECTIONS_SETTING,
+            S3ClientSettings.MAX_SYNC_CONNECTIONS_SETTING,
+            S3ClientSettings.CONNECTION_ACQUISITION_TIMEOUT,
+            S3ClientSettings.MAX_PENDING_CONNECTION_ACQUIRES,
+            S3ClientSettings.DISABLE_CHUNKED_ENCODING,
+
             S3ClientSettings.REGION,
             S3ClientSettings.ROLE_ARN_SETTING,
             S3ClientSettings.IDENTITY_TOKEN_FILE_SETTING,
