@@ -181,7 +181,7 @@ public class InternalEngine extends Engine {
     protected final LiveVersionMap versionMap = new LiveVersionMap();
 
     @Nullable
-    protected final String historyUUID;
+    protected String historyUUID;
 
     private final OpenSearchConcurrentMergeScheduler mergeScheduler;
     private final ExternalReaderManager externalReaderManager;
@@ -270,8 +270,10 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
-                // Interim solution: Skipping trimming of unsafe commits until IndexShard integration of CompositeEngine is completed.
-                // store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
+                // Interim solution: IndexShard should bypass initialization of the InternalEngine based on this setting; until that is implemented, we are using the setting here.
+                if (!engineConfig.getIndexSettings().isOptimizedIndex()) {
+                    store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
+                }
                 final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
                 String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
                 TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
@@ -311,10 +313,17 @@ public class InternalEngine extends Engine {
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 writer = createWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
-                // Interim solution: Skipping loading historyUUID and forceMergeUUID until IndexShard integration of CompositeEngine is completed.
                 final Map<String, String> commitData = commitDataAsMap(writer);
                 historyUUID = null;
+                // Interim solution: IndexShard should bypass initialization of the InternalEngine based on this setting; until that is implemented, we are using the setting here.
+                if (!engineConfig.getIndexSettings().isOptimizedIndex()) {
+                    historyUUID = loadHistoryUUID(commitData);
+                }
+                // Interim solution: IndexShard should bypass initialization of the InternalEngine based on this setting; until that is implemented, we are using the setting here.
                 forceMergeUUID = null;
+                if (!engineConfig.getIndexSettings().isOptimizedIndex()) {
+                    forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
+                }
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -1893,14 +1902,21 @@ public class InternalEngine extends Engine {
         }
     }
 
-    // Interim solution: Configure InternalEngine to use a temporary directory to prevent IndexWriter conflicts with LuceneCommitEngine.
     private IndexWriter createWriter() throws IOException {
         try {
-            IndexWriterConfig iwc = new IndexWriterConfig(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                .setCommitOnClose(false)
-                .setMergePolicy(NoMergePolicy.INSTANCE)
-                .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-            Directory directory = new NIOFSDirectory(Files.createTempDirectory("tmp-internal-engine-"));
+            IndexWriterConfig iwc;
+            Directory directory;
+            // Interim solution: IndexShard should bypass initialization of the InternalEngine based on this setting; until that is implemented, we are using the setting here.
+            if (engineConfig.getIndexSettings().isOptimizedIndex()) {
+                iwc = new IndexWriterConfig(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                    .setCommitOnClose(false)
+                    .setMergePolicy(NoMergePolicy.INSTANCE)
+                    .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+                directory = new NIOFSDirectory(Files.createTempDirectory("tmp-internal-engine-"));
+            } else {
+                iwc = getIndexWriterConfig();
+                directory = store.directory();
+            }
             return createWriter(directory, iwc);
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);
@@ -2169,8 +2185,10 @@ public class InternalEngine extends Engine {
                 return commitData.entrySet().iterator();
             });
             shouldPeriodicallyFlushAfterBigMerge.set(false);
-            // Interim solution: Skipping commit until IndexShard integration of CompositeEngine is completed.
-            // writer.commit();
+            // Interim solution: IndexShard should bypass initialization of the InternalEngine based on this setting; until that is implemented, we are using the setting here.
+            if (!engineConfig.getIndexSettings().isOptimizedIndex()) {
+                writer.commit();
+            }
         } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);
