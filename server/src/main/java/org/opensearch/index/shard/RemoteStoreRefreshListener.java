@@ -217,7 +217,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      @return false if retry is needed
      */
     private boolean syncSegments() {
+        logger.info("[SEGMENT_UPLOAD_DEBUG] syncSegments() called");
         if (isReadyForUpload() == false) {
+            logger.info("[SEGMENT_UPLOAD_DEBUG] Not ready for upload, returning early");
             // Following check is required to enable retry and make sure that we do not lose this refresh event
             // When primary shard is restored from remote store, the recovery happens first followed by changing
             // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
@@ -225,6 +227,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // in the remote store.
             return indexShard.state() != IndexShardState.STARTED || indexShard.getIndexingExecutionCoordinator() == null;
         }
+        logger.info("[SEGMENT_UPLOAD_DEBUG] Ready for upload, proceeding with sync");
         beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
@@ -244,6 +247,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
                 CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshotFromEngine();
                 CatalogSnapshot catalogSnapshot = catalogSnapshotRef.getRef();
+                
+                logger.info("[SEGMENT_UPLOAD_DEBUG] CatalogSnapshot obtained, generation={}", 
+                           catalogSnapshot.getGeneration());
+                
                 final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(catalogSnapshot);
                 if (checkpoint.getPrimaryTerm() != indexShard.getOperationPrimaryTerm()) {
                     throw new IllegalStateException(
@@ -269,8 +276,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         Collectors.counting()
                     ));
 
-                logger.debug("Format-aware segment upload initiated: totalFiles={}, formatBreakdown={}",
-                    localFilesPostRefresh.size(), formatCounts);
+                logger.info("[SEGMENT_UPLOAD_DEBUG] Files to upload: totalFiles={}, formatBreakdown={}, files={}",
+                    localFilesPostRefresh.size(), formatCounts, 
+                    localFilesPostRefresh.stream().map(FileMetadata::file).collect(Collectors.toList()));
 
                 Map<FileMetadata, Long> fileMetadataToSizeMap = updateLocalSizeMapAndTracker(localFilesPostRefresh);
 
@@ -280,10 +288,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         @Override
                         public void onResponse(Void unused) {
                             try {
-                                logger.debug("New segments upload successful");
+                                logger.info("[SEGMENT_UPLOAD_DEBUG] New segments upload successful");
                                 // Start metadata file upload
                                 uploadMetadata(localFilesPostRefresh, catalogSnapshot, checkpoint);
-                                logger.debug("Metadata upload successful");
+                                logger.info("[SEGMENT_UPLOAD_DEBUG] Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localFilesPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,

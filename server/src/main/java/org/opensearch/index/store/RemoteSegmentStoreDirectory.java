@@ -195,14 +195,18 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @throws IOException if there were any failures in reading the metadata file
      */
     public RemoteSegmentMetadata init() throws IOException {
-        logger.debug("Start initialisation of remote segment metadata");
+        logger.info("[SEGMENT_UPLOAD_DEBUG] Start initialisation of remote segment metadata");
         RemoteSegmentMetadata remoteSegmentMetadata = readLatestMetadataFile();
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
+            logger.info("[SEGMENT_UPLOAD_DEBUG] Initialized with {} segments from metadata", 
+                       segmentsUploadedToRemoteStore.size());
         } else {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>();
+            logger.info("[SEGMENT_UPLOAD_DEBUG] No metadata found, initialized with empty map");
         }
-        logger.debug("Initialisation of remote segment metadata completed");
+        logger.info("[SEGMENT_UPLOAD_DEBUG] Initialisation completed, segmentsUploadedToRemoteStore.size={}", 
+                   segmentsUploadedToRemoteStore.size());
         return remoteSegmentMetadata;
     }
 
@@ -212,10 +216,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     public RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
         if (compositeRemoteDirectory != null) {
-            logger.debug("Reading latest metadata file from CompositeRemoteDirectory for better format-aware handling");
-            return compositeRemoteDirectory.readLatestMetadataFile();
+            logger.info("[SEGMENT_UPLOAD_DEBUG] Reading latest metadata file from CompositeRemoteDirectory");
+            RemoteSegmentMetadata result = compositeRemoteDirectory.readLatestMetadataFile();
+            logger.info("[SEGMENT_UPLOAD_DEBUG] readLatestMetadataFile returned: {}", 
+                       result != null ? "metadata with " + result.getMetadata().size() + " files" : "null");
+            return result;
         } else {
-            logger.info("No CompositeRemoteDirectory found");
+            logger.info("[SEGMENT_UPLOAD_DEBUG] No CompositeRemoteDirectory found, returning null");
             return null;
         }
     }
@@ -487,6 +494,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private void postUpload(CompositeStoreDirectory from, FileMetadata fileMetadata, String remoteFilename, String checksum) throws IOException {
         UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(fileMetadata.file(), remoteFilename, checksum, from.fileLength(fileMetadata), fileMetadata.dataFormat());
         segmentsUploadedToRemoteStore.put(fileMetadata, segmentMetadata);
+        logger.info("[SEGMENT_UPLOAD_DEBUG] postUpload called: file={}, format={}, remoteFilename={}, segmentsUploadedToRemoteStore.size={}", 
+                   fileMetadata.file(), fileMetadata.dataFormat(), remoteFilename, segmentsUploadedToRemoteStore.size());
     }
 
     // ===== Primary FileMetadata-based copyFrom API =====
