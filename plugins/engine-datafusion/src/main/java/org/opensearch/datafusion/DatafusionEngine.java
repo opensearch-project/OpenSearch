@@ -36,6 +36,7 @@ import org.opensearch.datafusion.search.AsyncRecordBatchIterator;
 import org.opensearch.datafusion.search.cache.CacheManager;
 import org.opensearch.index.engine.*;
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.FileStats;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.mapper.*;
 import org.opensearch.index.shard.ShardPath;
@@ -80,7 +81,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService, ShardPath shardPath) throws IOException {
         this.dataFormat = dataFormat;
         this.datafusionReaderManager = new DatafusionReaderManager(
-            shardPath.getDataPath().resolve(dataFormat.getName()).toString(), formatCatalogSnapshot, dataFormat.getName()
+            shardPath.getDataPath().resolve(dataFormat.getName()).toString(), formatCatalogSnapshot, dataFormat.getName(), dataFusionService
         );
         this.datafusionService = dataFusionService;
         this.cacheManager = datafusionService.getCacheManager();
@@ -487,6 +488,19 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
             } catch (Exception e) {
                 logger.error("Failed to close stream", e);
                 throw new RuntimeException(e);
+            }
+        }
+    }
+
+    @Override
+    public Map<String, FileStats> fetchSegmentStats() throws IOException {
+        DatafusionReader datafusionReader = null;
+        try {
+            datafusionReader = datafusionReaderManager.acquire();
+            return datafusionReader.fetchSegmentStats();
+        } finally {
+            if (datafusionReader != null) {
+                datafusionReaderManager.release(datafusionReader);
             }
         }
     }

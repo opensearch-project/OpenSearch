@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.datafusion.DataFusionService;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.EngineReaderManager;
 import org.opensearch.index.engine.FileDeletionListener;
@@ -36,13 +37,15 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     private String path;
     private String dataFormat;
     private Consumer<List<String>> onFilesAdded;
+    private final DataFusionService dataFusionService;
 //    private final Lock refreshLock = new ReentrantLock();
 //    private final List<ReferenceManager.RefreshListener> refreshListeners = new CopyOnWriteArrayList();
 
-    public DatafusionReaderManager(String path, Collection<FileMetadata> files, String dataFormat) throws IOException {
+    public DatafusionReaderManager(String path, Collection<FileMetadata> files, String dataFormat, DataFusionService dataFusionService) throws IOException {
         WriterFileSet writerFileSet = new WriterFileSet(Path.of(URI.create("file:///" + path)), 1);
         files.forEach(fileMetadata -> writerFileSet.add(fileMetadata.file()));
-        this.current = new DatafusionReader(path, null, List.of(writerFileSet));
+        this.dataFusionService = dataFusionService;
+        this.current = new DatafusionReader(path, null, List.of(writerFileSet), dataFusionService.getRuntimePointer());
         this.path = path;
         this.dataFormat = dataFormat;
     }
@@ -85,7 +88,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
                 return;
             }
             Collection<WriterFileSet> newFiles = catalogSnapshot.getRef().getSearchableFiles(dataFormat);
-            this.current = new DatafusionReader(this.path, catalogSnapshot, catalogSnapshot.getRef().getSearchableFiles(dataFormat));
+            this.current = new DatafusionReader(this.path, catalogSnapshot, catalogSnapshot.getRef().getSearchableFiles(dataFormat), dataFusionService.getRuntimePointer());
             if (old != null) {
                 release(old);
                 processFileChanges(old.files, newFiles);
