@@ -425,6 +425,7 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
             // Flush to create a new Parquet generation file
             logger.info("--> Flushing to create generation-{}.parquet", gen);
             client().admin().indices().prepareFlush(INDEX_NAME).get();
+            client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
             // Brief wait to ensure flush completes
             Thread.sleep(500);
@@ -464,6 +465,14 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         // Start new data node
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
+
+        // Explicitly restore index from remote store
+        logger.info("--> Explicitly restoring index from remote store");
+        assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(true), PlainActionFuture.newFuture());
+
         ensureGreen(INDEX_NAME);
 
         // Step 7: Validate recovery of all Parquet generations
