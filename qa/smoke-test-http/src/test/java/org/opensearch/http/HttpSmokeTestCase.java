@@ -33,6 +33,7 @@ package org.opensearch.http;
 
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.Netty4ModulePlugin;
@@ -78,6 +79,14 @@ public abstract class HttpSmokeTestCase extends OpenSearchIntegTestCase {
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
+    }
+
+    // Disable telemetry for all test cases as it creates a trace-id and injects into header which causes assertion issues in some tests.
+    @Override
+    protected Settings featureFlagSettings() {
+        Settings.Builder featureSettings = Settings.builder();
+        featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), false);
+        return featureSettings.build();
     }
 
     @Override

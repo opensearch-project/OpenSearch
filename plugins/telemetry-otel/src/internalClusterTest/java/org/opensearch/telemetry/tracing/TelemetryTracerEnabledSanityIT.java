@@ -11,6 +11,7 @@ package org.opensearch.telemetry.tracing;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.IntegrationTestOTelTelemetryPlugin;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
@@ -18,6 +19,7 @@ import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.telemetry.tracing.TelemetryValidators;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveCorrectTraceId;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
 import org.opensearch.test.telemetry.tracing.validators.NumberOfTraceIDsEqualToRequests;
 import org.opensearch.test.telemetry.tracing.validators.TotalRootSpansEqualToRequests;
@@ -25,6 +27,8 @@ import org.opensearch.transport.client.Client;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 
@@ -74,9 +78,22 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
         ensureGreen();
         refresh();
 
+        Map<String, String> headers = new HashMap<>();
+        headers.put(Task.TRACE_PARENT, "00-19d538d7c42d09240be001d1e4ff6203-0651eba1347dceea-01");
+
         // Make the search calls; adding the searchType and PreFilterShardSize to make the query path predictable across all the runs.
-        client.prepareSearch().setSearchType("dfs_query_then_fetch").setPreFilterShardSize(2).setQuery(queryStringQuery("fox")).get();
-        client.prepareSearch().setSearchType("dfs_query_then_fetch").setPreFilterShardSize(2).setQuery(queryStringQuery("jumps")).get();
+        client.filterWithHeader(headers)
+            .prepareSearch()
+            .setSearchType("dfs_query_then_fetch")
+            .setPreFilterShardSize(2)
+            .setQuery(queryStringQuery("fox"))
+            .get();
+        client.filterWithHeader(headers)
+            .prepareSearch()
+            .setSearchType("dfs_query_then_fetch")
+            .setPreFilterShardSize(2)
+            .setQuery(queryStringQuery("jumps"))
+            .get();
 
         // Sleep for about 3s to wait for traces are published, delay is (the delay is 1s).
         Thread.sleep(3000);
@@ -86,7 +103,11 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
                 new AllSpansAreEndedProperly(),
                 new AllSpansHaveUniqueId(),
                 new NumberOfTraceIDsEqualToRequests(Attributes.create().addAttribute("action", "indices:data/read/search[phase/query]")),
-                new TotalRootSpansEqualToRequests()
+                new TotalRootSpansEqualToRequests(),
+                new AllSpansHaveCorrectTraceId(
+                    "19d538d7c42d09240be001d1e4ff6203",
+                    Attributes.create().addAttribute("action", "indices:data/read/search[phase/query]")
+                )
             )
         );
 
