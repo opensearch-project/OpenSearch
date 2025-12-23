@@ -39,6 +39,7 @@ import org.opensearch.transport.SharedGroupFactory;
 import org.opensearch.transport.netty4.Netty4Utils;
 
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLEngine;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -73,6 +74,7 @@ import io.netty.handler.codec.http3.Http3ServerConnectionHandler;
 import io.netty.handler.codec.quic.QuicChannel;
 import io.netty.handler.codec.quic.QuicSslContext;
 import io.netty.handler.codec.quic.QuicSslContextBuilder;
+import io.netty.handler.codec.quic.QuicSslEngine;
 import io.netty.handler.codec.quic.QuicStreamChannel;
 import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.timeout.ReadTimeoutException;
@@ -279,35 +281,37 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
                     io.netty.handler.codec.http3.Http3.supportedApplicationProtocols()
                 ).build();
 
-                ch.pipeline()
-                    .addLast(
-                        Http3.newQuicServerCodecBuilder()
-                            .sslContext(sslContext)
-                            .maxIdleTimeout(connectTimeoutMillis, TimeUnit.MILLISECONDS)
-                            .initialMaxData(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes())
-                            .initialMaxStreamDataBidirectionalLocal(SETTING_H3_MAX_STREAM_LOCAL_LENGTH.get(settings).getBytes())
-                            .initialMaxStreamDataBidirectionalRemote(SETTING_H3_MAX_STREAM_REMOTE_LENGTH.get(settings).getBytes())
-                            .initialMaxStreamsBidirectional(SETTING_H3_MAX_STREAMS.get(settings).longValue())
-                            .tokenHandler(new SecureQuicTokenHandler())
-                            .handler(new ChannelInitializer<QuicChannel>() {
-                                @Override
-                                protected void initChannel(QuicChannel ch) {
-                                    // Called for each connection
-                                    ch.pipeline()
-                                        .addLast(
-                                            new Http3ServerConnectionHandler(
-                                                new HttpChannelHandler(Netty4Http3ServerTransport.this, handlingSettings)
-                                            )
-                                        );
-                                }
-                            })
-                            .build()
-                    );
+                ch.pipeline().addLast(Http3.newQuicServerCodecBuilder().sslEngineProvider(q -> {
+                    final QuicSslEngine engine = sslContext.newEngine(q.alloc());
+                    q.attr(HTTP_SERVER_ENGINE_KEY).set(engine);
+                    return engine;
+                })
+                    .maxIdleTimeout(connectTimeoutMillis, TimeUnit.MILLISECONDS)
+                    .initialMaxData(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes())
+                    .initialMaxStreamDataBidirectionalLocal(SETTING_H3_MAX_STREAM_LOCAL_LENGTH.get(settings).getBytes())
+                    .initialMaxStreamDataBidirectionalRemote(SETTING_H3_MAX_STREAM_REMOTE_LENGTH.get(settings).getBytes())
+                    .initialMaxStreamsBidirectional(SETTING_H3_MAX_STREAMS.get(settings).longValue())
+                    .tokenHandler(new SecureQuicTokenHandler())
+                    .handler(new ChannelInitializer<QuicChannel>() {
+                        @Override
+                        protected void initChannel(QuicChannel ch) {
+                            // Called for each connection
+                            ch.pipeline()
+                                .addLast(
+                                    new Http3ServerConnectionHandler(
+                                        new HttpChannelHandler(Netty4Http3ServerTransport.this, handlingSettings)
+                                    )
+                                );
+                        }
+                    })
+                    .build());
             }
         };
     }
 
     public static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("opensearch-quic-channel");
+    protected static final AttributeKey<SSLEngine> HTTP_SERVER_ENGINE_KEY = AttributeKey.newInstance("opensearch-quic-server-ssl-engine");
+
     protected static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance(
         "opensearch-quic-server-channel"
     );
@@ -336,7 +340,7 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
 
         @Override
         protected void initChannel(QuicStreamChannel ch) throws Exception {
-            Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
+            final Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch, HTTP_SERVER_ENGINE_KEY);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
             ch.pipeline().addLast("byte_buf_sizer", byteBufSizer);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
