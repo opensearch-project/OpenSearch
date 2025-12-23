@@ -179,24 +179,44 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
      * @throws IOException if there were any failures in reading the metadata file
      */
     public RemoteSegmentMetadata init() throws IOException {
-        logger.debug("Start initialisation of remote segment metadata");
+        logger.info("[SEGMENT_UPLOAD_DEBUG] Start initialisation of remote segment metadata");
         RemoteSegmentMetadata remoteSegmentMetadata = readLatestMetadataFile();
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
+            logger.info("[SEGMENT_UPLOAD_DEBUG] Initialized with {} segments from metadata", 
+                       segmentsUploadedToRemoteStore.size());
         } else {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>();
+            logger.info("[SEGMENT_UPLOAD_DEBUG] No metadata found, initialized with empty map");
         }
-        logger.debug("Initialisation of remote segment metadata completed");
+        logger.info("[SEGMENT_UPLOAD_DEBUG] Initialisation completed, segmentsUploadedToRemoteStore.size={}", 
+                   segmentsUploadedToRemoteStore.size());
         return remoteSegmentMetadata;
     }
 
     /**
-     * Initializes the cache to a specific commit which keeps track of all the segment files uploaded to the
-     * remote segment store.
-     * this is currently used to restore snapshots, where we want to copy segment files from a given commit.
-     * TODO: check if we can return read only RemoteSegmentStoreDirectory object from here.
-     *
-     * @throws IOException if there were any failures in reading the metadata file
+     * Read the latest metadata file to get the list of segments uploaded to the remote segment store.
+     * Delegates to CompositeRemoteDirectory when available for better format-aware metadata handling.
+     */
+    public RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
+        if (compositeRemoteDirectory != null) {
+            logger.debug("Reading latest metadata file from CompositeRemoteDirectory for better format-aware handling");
+            return compositeRemoteDirectory.readLatestMetadataFile();
+        } else {
+            logger.info("No CompositeRemoteDirectory found");
+            return null;
+        }
+    }
+
+    private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
+        try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(metadataFilename)) {
+            byte[] metadataBytes = inputStream.readAllBytes();
+            return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
+        }
+    }
+
+    /**
+     * Initializes the cache to a specific commit which keeps track of all the segment files uploaded to the remote segment store.
      */
     public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration, String acquirerId) throws IOException {
         String metadataFilePrefix = MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, commitGeneration);
@@ -526,9 +546,9 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
         return metadataFiles.get(0);
     }
 
-    private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
-        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
-        segmentsUploadedToRemoteStore.put(src, segmentMetadata);
+    private void postUpload(CompositeStoreDirectory from, FileMetadata fileMetadata, String remoteFilename, String checksum) throws IOException {
+        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(fileMetadata.file(), remoteFilename, checksum, from.fileLength(fileMetadata), fileMetadata.dataFormat());
+        segmentsUploadedToRemoteStore.put(fileMetadata, segmentMetadata);
     }
 
     /**

@@ -418,20 +418,25 @@ public class CompositeRemoteDirectory implements Closeable {
      */
     public RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
         try {
+            logger.info("[SEGMENT_UPLOAD_DEBUG] CompositeRemoteDirectory.readLatestMetadataFile() called, searching with prefix={}", METADATA_FOLDER_NAME);
             List<BlobMetadata> metadataFiles = metadataBlobContainer.listBlobsByPrefixInSortedOrder(
                 METADATA_FOLDER_NAME, 10, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
 
+            logger.info("[SEGMENT_UPLOAD_DEBUG] Found {} metadata files with prefix={}", metadataFiles.size(), METADATA_FOLDER_NAME);
             if (metadataFiles.isEmpty()) {
-                logger.debug("No metadata files found in composite remote directory");
+                logger.info("[SEGMENT_UPLOAD_DEBUG] No metadata files found in composite remote directory");
                 return null;
             }
 
             // Get the latest (first in reverse lexicographic order)
             String latestMetadataFile = metadataFiles.get(0).name();
-            logger.debug("Reading latest metadata file: {}", latestMetadataFile);
-            return readMetadataFile(latestMetadataFile);
+            logger.info("[SEGMENT_UPLOAD_DEBUG] Reading latest metadata file: {}", latestMetadataFile);
+            RemoteSegmentMetadata result = readMetadataFile(latestMetadataFile);
+            logger.info("[SEGMENT_UPLOAD_DEBUG] Read metadata file successfully, contains {} segments", 
+                       result != null ? result.getMetadata().size() : 0);
+            return result;
         } catch (Exception e) {
-            logger.error("Failed to read latest metadata file from composite directory", e);
+            logger.error("[SEGMENT_UPLOAD_DEBUG] Failed to read latest metadata file from composite directory", e);
             throw new IOException("Failed to read latest metadata file", e);
         }
     }

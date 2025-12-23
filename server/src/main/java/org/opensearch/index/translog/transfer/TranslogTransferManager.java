@@ -277,21 +277,15 @@ public class TranslogTransferManager {
     }
 
     public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
-        logger.trace(
-            "Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}",
-            primaryTerm,
-            generation,
-            location
-        );
         String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
+        
         if (isTranslogMetadataEnabled == false) {
-            // Download Checkpoint file, translog file from remote to local FS
             downloadToFS(ckpFileName, location, primaryTerm, false);
             downloadToFS(translogFilename, location, primaryTerm, false);
         } else {
-            // Download translog.tlog file with object metadata from remote to local FS
             Map<String, String> metadata = downloadToFS(translogFilename, location, primaryTerm, true);
+            
             try {
                 assert metadata != null && !metadata.isEmpty() && metadata.containsKey(CHECKPOINT_FILE_DATA_KEY);
                 recoverCkpFileUsingMetadata(metadata, location, generation, translogFilename);
@@ -299,6 +293,7 @@ public class TranslogTransferManager {
                 throw new IOException("Failed to recover checkpoint file from remote", e);
             }
         }
+        
         return true;
     }
 
@@ -409,9 +404,12 @@ public class TranslogTransferManager {
         SetOnce<TranslogTransferMetadata> metadataSetOnce = new SetOnce<>();
         SetOnce<IOException> exceptionSetOnce = new SetOnce<>();
         final CountDownLatch latch = new CountDownLatch(1);
+        
         LatchedActionListener<List<BlobMetadata>> latchedActionListener = new LatchedActionListener<>(
             ActionListener.wrap(blobMetadataList -> {
-                if (blobMetadataList.isEmpty()) return;
+                if (blobMetadataList.isEmpty()) {
+                    return;
+                }
                 String filename = getMetadataFileToRead.apply(blobMetadataList);
                 if (filename == null) {
                     return;
@@ -439,6 +437,7 @@ public class TranslogTransferManager {
                 numberOfFilesToFetch,
                 latchedActionListener
             );
+            
             if (latch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
                 throw new RuntimeException("Timed out reading metadata file");
             }

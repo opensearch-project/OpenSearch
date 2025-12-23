@@ -508,7 +508,7 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
 
         // TODO: Search queries currently broken due to executeInternal() being commented out in QueryPhase
         // Once QueryPhase.execute() is fixed to uncomment executeInternal() at line 158, these queries should work.
-        
+
         // Verify each generation's data is queryable
         // for (int gen = 1; gen <= numGenerations; gen++) {
         //     var searchResponse = client().prepareSearch(INDEX_NAME)
@@ -657,15 +657,15 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
 
         // TODO: Search queries currently broken due to executeInternal() being commented out in QueryPhase
         // This is a separate bug from replica promotion. Search queries fail because topDocs is never
-        // initialized when queryPlanIR is null. Once QueryPhase.execute() is fixed to uncomment 
+        // initialized when queryPlanIR is null. Once QueryPhase.execute() is fixed to uncomment
         // executeInternal() at line 158, these queries should work.
-        
+
         // Query old data (from when it was replica)
         // var oldDataResponse = client().prepareSearch(INDEX_NAME)
         //     .setQuery(org.opensearch.index.query.QueryBuilders.termQuery("phase", "primary"))
         //     .setSize(10)
         //     .get();
-        // 
+        //
         // logger.info("--> Verifying query functionality on promoted primary oldDataResponse {}", oldDataResponse);
         // assertHitCount(oldDataResponse, 5);
         //
@@ -824,7 +824,7 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
 
         // TODO: Search queries currently broken due to executeInternal() being commented out in QueryPhase
         // Once QueryPhase.execute() is fixed to uncomment executeInternal() at line 158, these queries should work.
-        
+
         // Query initial data (should be preserved)
         // var initialDataResponse = client().prepareSearch(INDEX_NAME)
         //     .setQuery(org.opensearch.index.query.QueryBuilders.termQuery("stage", "initial"))
