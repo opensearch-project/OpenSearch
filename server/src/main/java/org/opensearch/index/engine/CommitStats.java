@@ -78,6 +78,14 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         numDocs = in.readInt();
     }
 
+    public CommitStats(Map<String, String> userData, long generation, String id, int numDocs) {
+        // clone the map to protect against concurrent changes
+        this.userData = MapBuilder.<String, String>newMapBuilder().putAll(userData).immutableMap();
+        this.generation = generation;
+        this.id = id;
+        this.numDocs = numDocs;
+    }
+
     public static CommitStats readOptionalCommitStatsFrom(StreamInput in) throws IOException {
         return in.readOptionalWriteable(CommitStats::new);
     }

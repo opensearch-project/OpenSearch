@@ -12,12 +12,15 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
+import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
-import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -26,6 +29,7 @@ import org.opensearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.LongSupplier;
@@ -36,6 +40,7 @@ public class LuceneCommitEngine implements Committer {
     private final IndexWriter indexWriter;
     private final CombinedDeletionPolicy combinedDeletionPolicy;
     private final Store store;
+    private volatile SegmentInfos lastCommittedSegmentInfos;
 
     public LuceneCommitEngine(Store store, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier)
         throws IOException {
@@ -44,6 +49,7 @@ public class LuceneCommitEngine implements Committer {
         IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
         indexWriterConfig.setIndexDeletionPolicy(combinedDeletionPolicy);
         this.store = store;
+        this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         this.indexWriter = new IndexWriter(store.directory(), indexWriterConfig);
     }
 
@@ -60,12 +66,13 @@ public class LuceneCommitEngine implements Committer {
     }
 
     @Override
-    public CommitPoint commit(Iterable<Map.Entry<String, String>> commitData, CatalogSnapshot catalogSnapshot) {
+    public synchronized CommitPoint commit(Iterable<Map.Entry<String, String>> commitData, CatalogSnapshot catalogSnapshot) {
         addLuceneIndexes(catalogSnapshot);
         indexWriter.setLiveCommitData(commitData);
         try {
             indexWriter.commit();
             IndexCommit indexCommit = combinedDeletionPolicy.getLastCommit();
+            refreshLastCommittedSegmentInfos();
             return CommitPoint.builder()
                 .commitFileName(indexCommit.getSegmentsFileName())
                 .fileNames(indexCommit.getFileNames())
@@ -78,9 +85,27 @@ public class LuceneCommitEngine implements Committer {
         }
     }
 
+    private void refreshLastCommittedSegmentInfos() {
+        store.incRef();
+        try {
+            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+        } catch (Exception e) {
+            throw new RuntimeException("failed to read latest segment infos on commit", e);
+        } finally {
+            store.decRef();
+        }
+    }
+
     @Override
-    public Map<String, String> getLastCommittedData() throws IOException {
-        return store.readLastCommittedSegmentsInfo().getUserData();
+    public Map<String, String> getLastCommittedData() {
+        return MapBuilder.<String, String>newMapBuilder().putAll(lastCommittedSegmentInfos.getUserData()).immutableMap();
+    }
+
+    @Override
+    public CommitStats getCommitStats() {
+        String segmentId = Base64.getEncoder().encodeToString(lastCommittedSegmentInfos.getId());
+        // TODO: Implement numDocs
+        return new CommitStats(lastCommittedSegmentInfos.getUserData(), lastCommittedSegmentInfos.getLastGeneration(), segmentId, 0);
     }
 
     @Override

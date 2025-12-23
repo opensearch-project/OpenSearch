@@ -8,11 +8,6 @@
 
 package org.opensearch.datafusion.search;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.function.Consumer;
-import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.EngineReaderManager;
 import org.opensearch.index.engine.FileDeletionListener;
@@ -24,8 +19,12 @@ import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
 
 public class DatafusionReaderManager implements EngineReaderManager<DatafusionReader>, CatalogSnapshotAwareRefreshListener, FileDeletionListener {
     private DatafusionReader current;
