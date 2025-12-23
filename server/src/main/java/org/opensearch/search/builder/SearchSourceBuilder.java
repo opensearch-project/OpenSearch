@@ -625,7 +625,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Applies when there are named queries, to return the scores along as well
      * Defaults to {@code false}.
      */
-    public SearchSourceBuilder includeNamedQueriesScores(boolean includeNamedQueriesScore) {
+    public SearchSourceBuilder includeNamedQueriesScores(Boolean includeNamedQueriesScore) {
         this.includeNamedQueriesScore = includeNamedQueriesScore;
         return this;
     }
@@ -633,8 +633,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Indicates whether scores will be returned as part of every search matched query.s
      */
-    public boolean includeNamedQueriesScore() {
-        return includeNamedQueriesScore != null && includeNamedQueriesScore;
+    public Boolean includeNamedQueriesScore() {
+        return includeNamedQueriesScore;
     }
 
     /**
