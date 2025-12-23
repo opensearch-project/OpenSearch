@@ -83,6 +83,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testParallelRestoreOperations() {
@@ -979,28 +985,43 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .actionGet();
             assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-            ClusterBlocks blocks = client.admin().cluster().prepareState().clear().setBlocks(true).get().getState().blocks();
-            // compute current index settings (as we cannot query them if they contain SETTING_BLOCKS_METADATA)
-            Settings mergedSettings = Settings.builder().put(initialSettings).put(changedSettings).build();
-            logger.info("--> merged block settings {}", mergedSettings);
-
             logger.info("--> checking consistency between settings and blocks");
-            assertThat(
-                mergedSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_METADATA, false),
-                is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_METADATA_BLOCK))
-            );
-            assertThat(
-                mergedSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false),
-                is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_READ_BLOCK))
-            );
-            assertThat(
-                mergedSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_WRITE, false),
-                is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_WRITE_BLOCK))
-            );
-            assertThat(
-                mergedSettings.getAsBoolean(IndexMetadata.SETTING_READ_ONLY, false),
-                is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_READ_ONLY_BLOCK))
-            );
+            assertBusy(() -> {
+                final ClusterState state = client.admin()
+                    .cluster()
+                    .prepareState()
+                    .clear()
+                    .setMetadata(true)
+                    .setBlocks(true)
+                    .setIndices("test-idx")
+                    .get()
+                    .getState();
+
+                final ClusterBlocks blocks = state.blocks();
+                final IndexMetadata indexMetadata = state.metadata().index("test-idx");
+                assertNotNull("test-idx must exist in cluster state", indexMetadata);
+
+                final Settings effectiveSettings = indexMetadata.getSettings();
+                logger.info("--> effective block settings {}", effectiveSettings);
+
+                assertThat(
+                    effectiveSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_METADATA, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_METADATA_BLOCK))
+                );
+                assertThat(
+                    effectiveSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_READ_BLOCK))
+                );
+                assertThat(
+                    effectiveSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_WRITE, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_WRITE_BLOCK))
+                );
+                assertThat(
+                    effectiveSettings.getAsBoolean(IndexMetadata.SETTING_READ_ONLY, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_READ_ONLY_BLOCK))
+                );
+            });
+
         } finally {
             logger.info("--> cleaning up blocks");
             disableIndexBlock("test-idx", IndexMetadata.SETTING_BLOCKS_METADATA);
