@@ -9,9 +9,6 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 
-# DataFusion dependencies
-datafusion = "49.0.0"
-datafusion-substrait = "49.0.0"
 arrow = { version = "54.0.0", features = ["ffi"] }
 
 arrow-array = "54.0.0"
