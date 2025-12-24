@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static java.util.Base64.getEncoder;
+
 /**
  * A {@link FieldMapper} for HyperLogLog++ sketch fields.
  * This field type stores pre-aggregated cardinality data using HLL++ sketch data structures.
@@ -72,6 +74,26 @@ public class HllFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
+        // HLL fields are always stored as doc values and cannot be indexed or stored separately
+        private final Parameter<Boolean> index = Parameter.indexParam(m -> false, false).setValidator(v -> {
+            if (v) {
+                throw new MapperParsingException("Cannot set [index] on field of type [" + CONTENT_TYPE + "]");
+            }
+        });
+
+        private final Parameter<Boolean> store = Parameter.storeParam(m -> false, false).setValidator(v -> {
+            if (v) {
+                throw new MapperParsingException("Cannot set [store] on field of type [" + CONTENT_TYPE + "]");
+            }
+        });
+
+        // Doc values are always enabled for HLL fields (this is how the data is stored)
+        private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> true, true).setValidator(v -> {
+            if (!v) {
+                throw new MapperParsingException("Cannot disable [doc_values] on field of type [" + CONTENT_TYPE + "]");
+            }
+        });
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -80,7 +102,7 @@ public class HllFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(precision, meta);
+            return Arrays.asList(precision, index, store, docValues, meta);
         }
 
         @Override
@@ -130,7 +152,7 @@ public class HllFieldMapper extends ParametrizedFieldMapper {
                 protected Object parseSourceValue(Object value) {
                     // Return the binary sketch data as base64 for readability
                     if (value instanceof BytesRef) {
-                        return java.util.Base64.getEncoder().encodeToString(((BytesRef) value).bytes);
+                        return getEncoder().encodeToString(((BytesRef) value).bytes);
                     }
                     return value;
                 }
@@ -197,13 +219,13 @@ public class HllFieldMapper extends ParametrizedFieldMapper {
                 // Verify the precision matches the field's configured precision
                 if (sketch.precision() != precision) {
                     throw new MapperParsingException(
-                            "HLL++ sketch precision mismatch for field ["
-                                    + fieldType().name()
-                                    + "]: "
-                                    + "expected "
-                                    + precision
-                                    + ", got "
-                                    + sketch.precision()
+                        "HLL++ sketch precision mismatch for field ["
+                            + fieldType().name()
+                            + "]: "
+                            + "expected "
+                            + precision
+                            + ", got "
+                            + sketch.precision()
                     );
                 }
             }

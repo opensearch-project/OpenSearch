@@ -19,6 +19,7 @@ import org.opensearch.search.aggregations.metrics.AbstractHyperLogLogPlusPlus;
 import org.opensearch.search.aggregations.metrics.HyperLogLogPlusPlus;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -39,7 +40,8 @@ public class HllFieldMapperTests extends MapperTestCase {
             // Serialize the sketch
             BytesStreamOutput out = new BytesStreamOutput();
             sketch.writeTo(0, out);
-            builder.value(out.bytes().toBytesRef().bytes);
+            BytesRef bytesRef = out.bytes().toBytesRef();
+            builder.value(Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length));
         } finally {
             sketch.close();
         }
@@ -84,6 +86,129 @@ public class HllFieldMapperTests extends MapperTestCase {
             e.getMessage(),
             containsString("precision must be between " + AbstractHyperLogLog.MIN_PRECISION + " and " + AbstractHyperLogLog.MAX_PRECISION)
         );
+    }
+
+    public void testIndexParameterRejected() {
+        // Test that setting index=true is rejected
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "hll");
+            b.field("index", true);
+        })));
+        assertThat(e.getMessage(), containsString("Cannot set [index] on field of type [hll]"));
+    }
+
+    public void testStoreParameterRejected() {
+        // Test that setting store=true is rejected
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "hll");
+            b.field("store", true);
+        })));
+        assertThat(e.getMessage(), containsString("Cannot set [store] on field of type [hll]"));
+    }
+
+    public void testDocValuesCannotBeDisabled() {
+        // Test that setting doc_values=false is rejected
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "hll");
+            b.field("doc_values", false);
+        })));
+        assertThat(e.getMessage(), containsString("Cannot disable [doc_values] on field of type [hll]"));
+    }
+
+    public void testIndexFalseIsAccepted() throws IOException {
+        // Test that explicitly setting index=false is accepted (it's the default)
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "hll");
+            b.field("index", false);
+        }));
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper, instanceOf(HllFieldMapper.class));
+    }
+
+    public void testStoreFalseIsAccepted() throws IOException {
+        // Test that explicitly setting store=false is accepted (it's the default)
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "hll");
+            b.field("store", false);
+        }));
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper, instanceOf(HllFieldMapper.class));
+    }
+
+    public void testDocValuesTrueIsAccepted() throws IOException {
+        // Test that explicitly setting doc_values=true is accepted (it's the default)
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "hll");
+            b.field("doc_values", true);
+        }));
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper, instanceOf(HllFieldMapper.class));
+    }
+
+    public void testCopyToIsSupported() throws IOException {
+        // Test that copy_to is supported (inherited from ParametrizedFieldMapper.Builder)
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field1").field("type", "hll").field("copy_to", "field2").endObject();
+            b.startObject("field2").field("type", "hll").endObject();
+        }));
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field1");
+        assertThat(mapper, instanceOf(HllFieldMapper.class));
+    }
+
+    public void testPrecisionCannotBeChanged() throws IOException {
+        // Test that changing precision after field creation is rejected
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "hll");
+            b.field("precision", 11);
+        }));
+
+        // Verify initial precision
+        HllFieldMapper mapper = (HllFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.fieldType().precision(), equalTo(11));
+
+        // Attempt to change precision should fail
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> {
+            b.field("type", "hll");
+            b.field("precision", 14);
+        })));
+
+        assertThat(e.getMessage(), containsString("Mapper for [field] conflicts with existing mapper"));
+    }
+
+    public void testPrecisionChangeRejectedWithExistingData() throws IOException {
+        // Test that precision cannot be changed even with a more realistic scenario
+        // where the field already has data
+
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "hll");
+            b.field("precision", 12);
+        }));
+
+        // Create a sketch with precision 12
+        HyperLogLogPlusPlus sketch = new HyperLogLogPlusPlus(12, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        try {
+            sketch.collect(0, 1L);
+            sketch.collect(0, 2L);
+
+            BytesStreamOutput out = new BytesStreamOutput();
+            sketch.writeTo(0, out);
+            BytesRef bytesRef = out.bytes().toBytesRef();
+            byte[] serialized = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
+
+            // Index a document with the sketch
+            ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", serialized)));
+            assertNotNull(doc);
+
+            // Now try to change precision - should fail
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> {
+                b.field("type", "hll");
+                b.field("precision", 14);
+            })));
+
+            assertThat(e.getMessage(), containsString("Mapper for [field] conflicts with existing mapper"));
+        } finally {
+            sketch.close();
+        }
     }
 
     public void testDefaultPrecision() throws Exception {
@@ -145,7 +270,8 @@ public class HllFieldMapperTests extends MapperTestCase {
                     // Serialize the sketch
                     BytesStreamOutput out = new BytesStreamOutput();
                     originalSketch.writeTo(0, out);
-                    byte[] serialized = out.bytes().toBytesRef().bytes;
+                    BytesRef bytesRef = out.bytes().toBytesRef();
+                    byte[] serialized = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
 
                     // Create a mapper with the same precision
                     MapperService mapperService = createMapperService(fieldMapping(b -> {
@@ -226,7 +352,8 @@ public class HllFieldMapperTests extends MapperTestCase {
             wrongPrecisionSketch.collect(0, 1L);
             BytesStreamOutput out = new BytesStreamOutput();
             wrongPrecisionSketch.writeTo(0, out);
-            byte[] wrongPrecisionData = out.bytes().toBytesRef().bytes;
+            BytesRef bytesRef = out.bytes().toBytesRef();
+            byte[] wrongPrecisionData = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
 
             MapperParsingException e2 = expectThrows(
                 MapperParsingException.class,
@@ -262,7 +389,8 @@ public class HllFieldMapperTests extends MapperTestCase {
                     // Serialize the sketch
                     BytesStreamOutput out = new BytesStreamOutput();
                     originalSketch.writeTo(0, out);
-                    byte[] serialized = out.bytes().toBytesRef().bytes;
+                    BytesRef bytesRef = out.bytes().toBytesRef();
+                    byte[] serialized = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
 
                     // Store the sketch in a document
                     ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", serialized)));
@@ -522,7 +650,8 @@ public class HllFieldMapperTests extends MapperTestCase {
             // Serialize using cardinality aggregation format
             BytesStreamOutput out = new BytesStreamOutput();
             cardinalitySketch.writeTo(0, out);
-            byte[] serialized = out.bytes().toBytesRef().bytes;
+            BytesRef bytesRef = out.bytes().toBytesRef();
+            byte[] serialized = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
 
             // Store in HLL field
             MapperService mapperService = createMapperService(fieldMapping(b -> {
