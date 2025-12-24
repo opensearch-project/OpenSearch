@@ -84,6 +84,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -428,12 +431,17 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         ClusterService clusterManagerClsService = internalCluster().getInstance(ClusterService.class, clusterManager);
         clusterManagerClsService.addStateApplier(event -> {
             if (event.nodesRemoved()) {
+                logger.info("Adding a 3 sec delay on cluster manager applier thread");
+                CountDownLatch latch = new CountDownLatch(1);
+                ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+                executor.schedule(() -> { latch.countDown(); }, 3, TimeUnit.SECONDS);
                 try {
-                    logger.info("Adding a 3 sec delay on cluster manager applier thread");
-                    Thread.sleep(3000);
+                    latch.await();
                 } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                    logger.info("Interrupted while waiting for cluster manager applier delay");
+                    Thread.currentThread().interrupt();
                 }
+                executor.shutdown();
             }
         });
         testLogsAppender.addMessagesToCapture(Set.of("Sleeping for 30 seconds", "NodeRemovalClusterStateTaskExecutor", "reason: lagging"));
@@ -496,13 +504,17 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
     private ClusterStateListener createDelayListener(ClusterApplierService applierService) {
         return event -> applierService.runOnApplierThread("NodeJoinLeftIT", clusterState -> {
+            logger.info("Sleeping for 30 seconds");
+            CountDownLatch latch = new CountDownLatch(1);
+            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+            executor.schedule(() -> { latch.countDown(); }, 30, TimeUnit.SECONDS);
             try {
-                logger.info("Sleeping for 30 seconds");
-                Thread.sleep(30 * 1000);
+                latch.await();
             } catch (InterruptedException e) {
                 logger.info("Interrupted while waiting for cluster state applier");
                 Thread.currentThread().interrupt();
             }
+            executor.shutdown();
         }, (source, e) -> logger.error(() -> new ParameterizedMessage("{} unexpected error in listener wait", source), e));
     }
 
@@ -584,18 +596,24 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
                     shardId
                 );
                 // Add slow operation to simulate delay
-                try {
-                    Thread.sleep(SHARD_DELETE_DELAY_SECONDS * 1000);
+                CountDownLatch latch = new CountDownLatch(1);
+                ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+                executor.schedule(() -> {
                     logger.info(
                         "{}: Done sleeping for {} sec before deleting data for shard: {}",
                         Thread.currentThread().getName(),
                         SHARD_DELETE_DELAY_SECONDS,
                         shardId
                     );
+                    latch.countDown();
+                }, SHARD_DELETE_DELAY_SECONDS, TimeUnit.SECONDS);
+                try {
+                    latch.await();
                 } catch (InterruptedException e) {
-                    logger.info("Interrupted while waiting for cluster state applier listener");
+                    logger.info("Interrupted while waiting for shard deletion delay");
                     Thread.currentThread().interrupt();
                 }
+                executor.shutdown();
             }
         }
 
