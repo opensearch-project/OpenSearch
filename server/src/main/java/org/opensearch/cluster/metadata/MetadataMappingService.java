@@ -293,7 +293,7 @@ public class MetadataMappingService {
                 // we use the exact same indexService and metadata we used to validate above here to actually apply the update
                 final Index index = indexMetadata.getIndex();
                 final MapperService mapperService = indexMapperServices.get(index);
-                boolean isCompositeFieldPresent = !mapperService.getCompositeFieldTypes().isEmpty();
+                boolean isCompositeFieldPresent = !mapperService.getCompositeDataCubeFieldTypes().isEmpty();
                 CompressedXContent existingSource = null;
                 DocumentMapper existingMapper = mapperService.documentMapper();
                 if (existingMapper != null) {

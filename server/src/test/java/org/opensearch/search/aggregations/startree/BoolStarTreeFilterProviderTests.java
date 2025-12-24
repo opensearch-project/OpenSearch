@@ -136,7 +136,7 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
         when(searchContext.mapperService()).thenReturn(mapperService);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
-        when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(compositeFieldType));
+        when(mapperService.getCompositeDataCubeFieldTypes()).thenReturn(Set.of(compositeFieldType));
 
         // Setup field types
         KeywordFieldMapper.KeywordFieldType methodType = new KeywordFieldMapper.KeywordFieldType(METHOD);

@@ -181,7 +181,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -447,7 +446,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when((compositeMappedFieldType).getDimensions()).thenReturn(new ArrayList<>(supportedDimensions.keySet()));
         when((compositeMappedFieldType).getMetrics()).thenReturn(supportedMetrics);
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.getCompositeFieldTypes()).thenReturn(compositeFieldTypes);
+        when(mapperService.getCompositeDataCubeFieldTypes()).thenReturn(compositeFieldTypes);
         when(searchContext.mapperService()).thenReturn(mapperService);
 
         for (Dimension dimension : supportedDimensions.keySet()) {

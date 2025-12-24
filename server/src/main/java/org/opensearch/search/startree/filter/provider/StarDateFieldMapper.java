@@ -38,7 +38,7 @@ class StarDateFieldMapper implements DimensionFilterMapper {
     public StarDateFieldMapper(SearchContext searchContext) {
         this.nowSupplier = () -> searchContext.getQueryShardContext().nowInMillis();
         this.compositeDataCubeFieldType = (CompositeDataCubeFieldType) searchContext.mapperService()
-            .getCompositeFieldTypes()
+            .getCompositeDataCubeFieldTypes()
             .iterator()
             .next();
         // Single date-field is used as of now

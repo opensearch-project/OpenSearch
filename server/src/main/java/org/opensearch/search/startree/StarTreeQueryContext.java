@@ -60,7 +60,7 @@ public class StarTreeQueryContext {
     public StarTreeQueryContext(SearchContext context, QueryBuilder baseQueryBuilder) {
         this.baseQueryBuilder = baseQueryBuilder;
         // TODO : We need to select the most appropriate one from multiple star tree field types.
-        compositeMappedFieldType = (CompositeDataCubeFieldType) context.mapperService().getCompositeFieldTypes().iterator().next();
+        compositeMappedFieldType = (CompositeDataCubeFieldType) context.mapperService().getCompositeDataCubeFieldTypes().iterator().next();
         // need to cache star tree values only for multiple aggregations
         boolean cacheStarTreeValues = context.aggregations().factories().getFactories().length > 1;
         int cacheSize = cacheStarTreeValues ? context.indexShard().segments(false).size() : -1;
