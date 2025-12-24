@@ -52,7 +52,6 @@ use vectorized_exec_spi::{log_info, log_error, log_debug};
 
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global};
-use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 
 use crate::statistics_cache::CustomStatisticsCache;
 use datafusion::execution::cache::cache_manager::CacheManagerConfig;
@@ -60,27 +59,30 @@ use object_store::ObjectMeta;
 use tokio::runtime::Runtime;
 use std::result;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
+use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use datafusion::sql::sqlparser::keywords::Keyword::ALLOCATE;
 use futures::TryStreamExt;
 
 pub type Result<T, E = DataFusionError> = result::Result<T, E>;
 
 // NativeBridge JNI implementations
 use jni::objects::{JObjectArray, JString};
-use log::error;
 use once_cell::sync::Lazy;
 use tokio_metrics::TaskMonitor;
 use crate::cross_rt_stream::CrossRtStream;
-use crate::memory::{Monitor, MonitoredMemoryPool};
+use crate::jemalloc_monitor::AllocationMonitor;
+use crate::memory::{AllocationMonitoringMemoryPool};
 use crate::runtime_manager::RuntimeManager;
 
 mod statistics_cache;
 mod eviction_policy;
+mod jemalloc_monitor;
 
 struct DataFusionRuntime {
     runtime_env: RuntimeEnv,
     custom_cache_manager: Option<CustomCacheManager>,
-    monitor: Arc<Monitor>,
+    monitor: Arc<AllocationMonitor>,
 }
 
 // TASK monitorint metrics
@@ -262,14 +264,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
     log_info!("Spill Limit is being set to : {}", spill_limit);
     let builder = builder.with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));
 
-    let monitor = Arc::new(Monitor::default());
-    let memory_pool = Arc::new(MonitoredMemoryPool::new(
-        Arc::new(TrackConsumersPool::new(
-            GreedyMemoryPool::new(memory_pool_limit as usize),
-            NonZeroUsize::new(5).unwrap(),
-        )),
-        monitor.clone(),
-    ));
 
     let (cache_manager_config, custom_cache_manager) = match cache_manager_ptr {
         0 => {
@@ -281,14 +275,26 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         }
     };
 
-    let runtime_env = RuntimeEnvBuilder::new()
+    let mut runtime_env_builder = RuntimeEnvBuilder::new()
         .with_cache_manager(cache_manager_config)
-        .with_memory_pool(memory_pool.clone())
-        .with_disk_manager_builder(builder)
-        .build().unwrap();
+        .with_disk_manager_builder(builder);
+
+    log_info!("Memory pool limit is being set to : {}", memory_pool_limit);
+    let monitor = AllocationMonitor::try_new(memory_pool_limit as usize)
+        .expect("AllocationMonitor creation error failing");
+    let monitor = Arc::new(monitor);
+
+    let memory_pool = runtime_env_builder
+        .memory_pool
+        .as_ref()
+        .cloned()
+        .unwrap_or_else(|| Arc::new(UnboundedMemoryPool::default()));
+    runtime_env_builder = runtime_env_builder.with_memory_pool(Arc::new(
+        AllocationMonitoringMemoryPool::new(memory_pool, monitor.clone()),
+    ));
 
     let runtime = DataFusionRuntime {
-        runtime_env,
+        runtime_env: runtime_env_builder.build().unwrap(),
         custom_cache_manager,
         monitor,
     };
