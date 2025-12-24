@@ -32,6 +32,7 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable, Cl
 
     public static final String CATALOG_SNAPSHOT_KEY = "_catalog_snapshot_";
     public static final String LAST_COMPOSITE_WRITER_GEN_KEY = "_last_composite_writer_gen_";
+    public static final String CATALOG_SNAPSHOT_ID = "_id";
     private final long id;
     private long version;
     private Map<String, String> userData;
