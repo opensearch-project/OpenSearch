@@ -16,16 +16,16 @@ import java.util.List;
 public interface Merger {
     /**
      *
-     * @param fileMetadataList List of FileMetadata to merge
+     * @param mergeInput Merge Input
      * @return MergeResult - having RowIdMapping and mergedFileMetadata
      */
-    MergeResult merge(List<WriterFileSet> fileMetadataList, long writerGeneration);
+    MergeResult merge(MergeInput mergeInput);
 
     /**
      *
-     * @param fileMetadataList List of FileMetadata to merge
+     * @param mergeInput MergeInput
      * @param rowIdMapping Mapping of old segment + old rowId to new rowId
      * @return MergeResult - having mergedFileMetadata
      */
-    MergeResult merge(List<WriterFileSet> fileMetadataList, RowIdMapping rowIdMapping, long writerGeneration);
+    MergeResult merge(MergeInput mergeInput, RowIdMapping rowIdMapping);
 }

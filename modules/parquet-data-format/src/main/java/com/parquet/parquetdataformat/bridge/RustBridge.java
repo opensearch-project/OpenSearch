@@ -38,5 +38,5 @@ public class RustBridge {
 
 
     // Native method declarations - these will be implemented in the JNI library
-    public static native void mergeParquetFilesInRust(List<Path> inputFiles, String outputFile);
+    public static native void mergeParquetFilesInRust(List<Path> inputFiles, String outputFile, String sortKey, boolean isReverse);
 }

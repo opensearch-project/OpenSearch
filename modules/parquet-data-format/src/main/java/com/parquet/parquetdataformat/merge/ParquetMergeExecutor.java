@@ -9,6 +9,7 @@
 package com.parquet.parquetdataformat.merge;
 
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.MergeInput;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import java.util.Collection;
@@ -26,8 +27,8 @@ public class ParquetMergeExecutor extends ParquetMerger {
     }
 
     @Override
-    public MergeResult merge(List<WriterFileSet> fileMetadataList, long writerGeneration) {
-        MergeResult result = strategy.mergeParquetFiles(fileMetadataList, writerGeneration);
+    public MergeResult merge(MergeInput mergeInput) {
+        MergeResult result = strategy.mergeParquetFiles(mergeInput);
         strategy.postMerge();
         return result;
     }

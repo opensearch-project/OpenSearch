@@ -14,6 +14,7 @@ import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
+import org.opensearch.index.engine.exec.MergeInput;
 import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
@@ -127,7 +128,7 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
     public static class TextMerger implements Merger {
 
         @Override
-        public MergeResult merge(List<WriterFileSet> fileMetadataList, long writerGeneration) {
+        public MergeResult merge(MergeInput mergeInput) {
             // Here we will implementation of logic for merging files and reassign the row-ids
             // and creating the mapping of the old segment+id to new row id.
             //
@@ -136,7 +137,7 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
         }
 
         @Override
-        public MergeResult merge(List<WriterFileSet> fileMetadataList, RowIdMapping rowIdMapping, long writerGeneration) {
+        public MergeResult merge(MergeInput mergeInput, RowIdMapping rowIdMapping) {
             // Here we will have implementation of the merge logic where we will have the mapping of the old row id to new id
             // and merging the files.
             //

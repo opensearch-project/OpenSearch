@@ -1886,9 +1886,9 @@ public final class IndexSettings {
                     IndexMergePolicy nodeMergePolicy = IndexMergePolicy.fromString(nodeScopedTimeSeriesIndexPolicy);
                     switch (nodeMergePolicy) {
                         case TIERED:
-                        case DEFAULT_POLICY:
                             mergePolicyProvider = tieredMergePolicyProvider;
                             break;
+                        case DEFAULT_POLICY:
                         case LOG_BYTE_SIZE:
                             mergePolicyProvider = logByteSizeMergePolicyProvider;
                             break;

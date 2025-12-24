@@ -11,6 +11,7 @@ package com.parquet.parquetdataformat.merge;
 import com.parquet.parquetdataformat.engine.ParquetDataFormat;
 import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
 import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.MergeInput;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.RowId;
@@ -31,8 +32,10 @@ import static com.parquet.parquetdataformat.bridge.RustBridge.mergeParquetFilesI
 public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
 
     @Override
-    public MergeResult mergeParquetFiles(List<WriterFileSet> files, long writerGeneration) {
+    public MergeResult mergeParquetFiles(MergeInput mergeInput) {
 
+        List<WriterFileSet> files = mergeInput.getFileMetadataList();
+        long writerGeneration = mergeInput.getWriterGeneration();
         if (files.isEmpty()) {
             throw new IllegalArgumentException("No files to merge");
         }
@@ -46,7 +49,7 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         String mergedFileName = getMergedFileName(writerGeneration);
 
         // Merge files in Rust
-        mergeParquetFilesInRust(filePaths, mergedFilePath);
+        mergeParquetFilesInRust(filePaths, mergedFilePath, mergeInput.getSortingField(), mergeInput.isReverseSort());
 
         // Build row ID mapping
         Map<RowId, Long> rowIdMapping = new HashMap<>();
