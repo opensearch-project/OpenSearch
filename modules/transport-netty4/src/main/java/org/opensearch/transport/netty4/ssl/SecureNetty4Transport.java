@@ -50,13 +50,18 @@ import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.netty4.Netty4Transport;
 import org.opensearch.transport.netty4.ssl.SecureConnectionTestUtil.SSLConnectionTestResult;
 
+import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLParameters;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.List;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
@@ -181,6 +186,7 @@ public class SecureNetty4Transport extends Netty4Transport {
         private final SecureTransportSettingsProvider secureTransportSettingsProvider;
         private final boolean hostnameVerificationEnabled;
         private final boolean hostnameVerificationResovleHostName;
+        private final String serverName;
 
         private ClientSSLHandler(
             final Settings settings,
@@ -192,6 +198,21 @@ public class SecureNetty4Transport extends Netty4Transport {
             this.secureTransportSettingsProvider = secureTransportSettingsProvider;
             this.hostnameVerificationEnabled = hostnameVerificationEnabled;
             this.hostnameVerificationResovleHostName = hostnameVerificationResovleHostName;
+            this.serverName = null;
+        }
+
+        private ClientSSLHandler(
+            final Settings settings,
+            final SecureTransportSettingsProvider secureTransportSettingsProvider,
+            final boolean hostnameVerificationEnabled,
+            final boolean hostnameVerificationResovleHostName,
+            final String serverName
+        ) {
+            this.settings = settings;
+            this.secureTransportSettingsProvider = secureTransportSettingsProvider;
+            this.hostnameVerificationEnabled = hostnameVerificationEnabled;
+            this.hostnameVerificationResovleHostName = hostnameVerificationResovleHostName;
+            this.serverName = serverName;
         }
 
         @Override
@@ -242,6 +263,13 @@ public class SecureNetty4Transport extends Netty4Transport {
                 }
             } catch (final SSLException e) {
                 throw ExceptionsHelper.convertToOpenSearchException(e);
+            }
+            if (serverName != null) {
+                SSLParameters params = sslEngine.getSSLParameters();
+                List<SNIServerName> serverNames = new ArrayList<>(1);
+                serverNames.add(new SNIHostName(serverName));
+                params.setServerNames(serverNames);
+                sslEngine.setSSLParameters(params);
             }
 
             final SslHandler sslHandler = new SslHandler(sslEngine);
@@ -299,7 +327,8 @@ public class SecureNetty4Transport extends Netty4Transport {
                             settings,
                             secureTransportSettingsProvider,
                             hostnameVerificationEnabled,
-                            hostnameVerificationResolveHostName
+                            hostnameVerificationResolveHostName,
+                            node.getAttributes().get("server_name")
                         )
                     );
             } else {
