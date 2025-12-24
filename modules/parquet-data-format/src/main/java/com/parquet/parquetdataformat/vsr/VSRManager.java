@@ -46,6 +46,7 @@ public class VSRManager implements AutoCloseable {
     private final String fileName;
     private final VSRPool vsrPool;
     private NativeParquetWriter writer;
+    private volatile boolean writerClosed = false;
 
 
     public VSRManager(String fileName, Schema schema, ArrowBufferPool arrowBufferPool) {
@@ -108,7 +109,7 @@ public class VSRManager implements AutoCloseable {
         }
     }
 
-    public String flush(FlushIn flushIn) throws IOException {
+    public ParquetFileMetadata flush(FlushIn flushIn) throws IOException {
         ManagedVSR currentVSR = managedVSR.get();
         logger.info("Flush called for {}, row count: {}", fileName, currentVSR.getRowCount());
         try {
@@ -121,15 +122,18 @@ public class VSRManager implements AutoCloseable {
             // Transition VSR to FROZEN state before flushing
             currentVSR.moveToFrozen();
             logger.info("Flushing {} rows for {}", currentVSR.getRowCount(), fileName);
+            ParquetFileMetadata metadata;
 
             // Write through native writer handle
             try (ArrowExport export = currentVSR.exportToArrow()) {
-                ParquetFileMetadata fileMetadata = writer.write(export.getArrayAddress(), export.getSchemaAddress());
+                writer.write(export.getArrayAddress(), export.getSchemaAddress());
                 writer.close();
+                writerClosed = true;
+                metadata = writer.getMetadata();
             }
-            logger.info("Successfully flushed data for {}", fileName);
+            logger.debug("Successfully flushed data for {} with metadata: {}", fileName, metadata);
 
-            return fileName;
+            return metadata;
         } catch (Exception e) {
             logger.error("Error in flush for {}: {}", fileName, e.getMessage(), e);
             throw new IOException("Failed to flush data: " + e.getMessage(), e);
@@ -139,9 +143,10 @@ public class VSRManager implements AutoCloseable {
     @Override
     public void close() {
         try {
-            if (writer != null) {
+            if (writer != null && !writerClosed) {
                 writer.flush();
                 writer.close();
+                writerClosed = true;
             }
 
             // Close VSR Pool - handle IllegalStateException specially
