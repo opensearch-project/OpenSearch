@@ -183,36 +183,15 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
         RemoteSegmentMetadata remoteSegmentMetadata = readLatestMetadataFile();
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
-            logger.info("[SEGMENT_UPLOAD_DEBUG] Initialized with {} segments from metadata", 
+            logger.info("[SEGMENT_UPLOAD_DEBUG] Initialized with {} segments from metadata",
                        segmentsUploadedToRemoteStore.size());
         } else {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>();
             logger.info("[SEGMENT_UPLOAD_DEBUG] No metadata found, initialized with empty map");
         }
-        logger.info("[SEGMENT_UPLOAD_DEBUG] Initialisation completed, segmentsUploadedToRemoteStore.size={}", 
+        logger.info("[SEGMENT_UPLOAD_DEBUG] Initialisation completed, segmentsUploadedToRemoteStore.size={}",
                    segmentsUploadedToRemoteStore.size());
         return remoteSegmentMetadata;
-    }
-
-    /**
-     * Read the latest metadata file to get the list of segments uploaded to the remote segment store.
-     * Delegates to CompositeRemoteDirectory when available for better format-aware metadata handling.
-     */
-    public RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
-        if (compositeRemoteDirectory != null) {
-            logger.debug("Reading latest metadata file from CompositeRemoteDirectory for better format-aware handling");
-            return compositeRemoteDirectory.readLatestMetadataFile();
-        } else {
-            logger.info("No CompositeRemoteDirectory found");
-            return null;
-        }
-    }
-
-    private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
-        try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(metadataFilename)) {
-            byte[] metadataBytes = inputStream.readAllBytes();
-            return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
-        }
     }
 
     /**
@@ -546,9 +525,9 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
         return metadataFiles.get(0);
     }
 
-    private void postUpload(CompositeStoreDirectory from, FileMetadata fileMetadata, String remoteFilename, String checksum) throws IOException {
-        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(fileMetadata.file(), remoteFilename, checksum, from.fileLength(fileMetadata), fileMetadata.dataFormat());
-        segmentsUploadedToRemoteStore.put(fileMetadata, segmentMetadata);
+    private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
+        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
+        segmentsUploadedToRemoteStore.put(src, segmentMetadata);
     }
 
     /**

@@ -512,7 +512,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             long translogFileGeneration = translogGeneration.translogFileGeneration;
             remoteDirectory.uploadMetadata(
                 localFilesPostRefresh.stream().map(FileMetadata::serialize).collect(Collectors.toList()),
-                catalogSnapshotCloned,
+                catalogSnapshotCopy,
                 compositeStoreDirectory,
                 translogFileGeneration,
                 replicationCheckpoint,

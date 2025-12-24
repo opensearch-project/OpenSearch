@@ -20,7 +20,9 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.CompositeRemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.UploadedSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
@@ -148,8 +150,14 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         RemoteSegmentStoreDirectory remoteDir = shard.getRemoteDirectory();
         assertNotNull("RemoteSegmentStoreDirectory should not be null", remoteDir);
 
-        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments =
+        Map<String, UploadedSegmentMetadata> uploadedSegmentsRaw =
             remoteDir.getSegmentsUploadedToRemoteStore();
+        // Convert to FileMetadata keys for validation
+        Map<FileMetadata, UploadedSegmentMetadata> uploadedSegments = uploadedSegmentsRaw.entrySet().stream()
+            .collect(java.util.stream.Collectors.toMap(
+                e -> new FileMetadata("lucene", e.getKey()),
+                java.util.Map.Entry::getValue
+            ));
 
         logger.info("--> Found {} uploaded segments at stage: {}", uploadedSegments.size(), stageName);
         assertFalse("Should have uploaded segments", uploadedSegments.isEmpty());
@@ -436,8 +444,13 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         validateRemoteStoreSegments(indexShard, "before recovery - generation " + numGenerations);
 
         RemoteSegmentStoreDirectory remoteDir = indexShard.getRemoteDirectory();
-        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments =
+        Map<String, UploadedSegmentMetadata> uploadedSegmentsRaw2 =
             remoteDir.getSegmentsUploadedToRemoteStore();
+        Map<FileMetadata, UploadedSegmentMetadata> uploadedSegments = uploadedSegmentsRaw2.entrySet().stream()
+            .collect(java.util.stream.Collectors.toMap(
+                e -> new FileMetadata("lucene", e.getKey()),
+                java.util.Map.Entry::getValue
+            ));
 
         // Count Parquet files (should have multiple generations)
         long parquetFileCount = uploadedSegments.keySet().stream()
@@ -486,8 +499,12 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         validateRemoteStoreSegments(recoveredIndexShard, "after recovery - all generations");
 
         RemoteSegmentStoreDirectory recoveredRemoteDir = recoveredIndexShard.getRemoteDirectory();
-        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> recoveredSegments =
-            recoveredRemoteDir.getSegmentsUploadedToRemoteStore();
+        Map<String, UploadedSegmentMetadata> recoveredSegmentsRaw = recoveredRemoteDir.getSegmentsUploadedToRemoteStore();
+        Map<FileMetadata, UploadedSegmentMetadata> recoveredSegments = recoveredSegmentsRaw.entrySet().stream()
+            .collect(java.util.stream.Collectors.toMap(
+                e -> new FileMetadata("lucene", e.getKey()),
+                java.util.Map.Entry::getValue
+            ));
 
         long recoveredParquetFileCount = recoveredSegments.keySet().stream()
             .filter(fm -> "parquet".equals(fm.dataFormat()))
@@ -637,8 +654,12 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         validateCatalogSnapshot(promotedShard, "after promotion to primary");
 
         RemoteSegmentStoreDirectory promotedRemoteDir = promotedShard.getRemoteDirectory();
-        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> promotedSegments =
-            promotedRemoteDir.getSegmentsUploadedToRemoteStore();
+        Map<String, UploadedSegmentMetadata> promotedSegmentsRaw = promotedRemoteDir.getSegmentsUploadedToRemoteStore();
+        Map<FileMetadata, UploadedSegmentMetadata> promotedSegments = promotedSegmentsRaw.entrySet().stream()
+            .collect(java.util.stream.Collectors.toMap(
+                e -> new FileMetadata("lucene", e.getKey()),
+                java.util.Map.Entry::getValue
+            ));
 
         // Verify Parquet files exist with correct format
         Set<String> formats = promotedSegments.keySet().stream()
@@ -740,8 +761,12 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
 
         // Step 4: Capture state before creating extra commits
         RemoteSegmentStoreDirectory remoteDir = indexShard.getRemoteDirectory();
-        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> initialSegments =
-            remoteDir.getSegmentsUploadedToRemoteStore();
+        Map<String, UploadedSegmentMetadata> initialSegmentsRaw = remoteDir.getSegmentsUploadedToRemoteStore();
+        Map<FileMetadata, UploadedSegmentMetadata> initialSegments = initialSegmentsRaw.entrySet().stream()
+            .collect(java.util.stream.Collectors.toMap(
+                e -> new FileMetadata("lucene", e.getKey()),
+                java.util.Map.Entry::getValue
+            ));
 
         long initialParquetCount = initialSegments.keySet().stream()
             .filter(fm -> "parquet".equals(fm.dataFormat()))
@@ -807,8 +832,12 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         validateCatalogSnapshot(recoveredShard, "after restart with extra commits");
 
         RemoteSegmentStoreDirectory recoveredRemoteDir = recoveredShard.getRemoteDirectory();
-        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> recoveredSegments =
-            recoveredRemoteDir.getSegmentsUploadedToRemoteStore();
+        Map<String, UploadedSegmentMetadata> recoveredSegmentsRaw2 = recoveredRemoteDir.getSegmentsUploadedToRemoteStore();
+        Map<FileMetadata, UploadedSegmentMetadata> recoveredSegments = recoveredSegmentsRaw2.entrySet().stream()
+            .collect(java.util.stream.Collectors.toMap(
+                e -> new FileMetadata("lucene", e.getKey()),
+                java.util.Map.Entry::getValue
+            ));
 
         // Verify Parquet files are consistent
         long recoveredParquetCount = recoveredSegments.keySet().stream()

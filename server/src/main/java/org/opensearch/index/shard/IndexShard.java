@@ -5605,12 +5605,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // are uploaded to the remote segment store.
         RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
 
-        Map<FileMetadata, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
+        Map<FileMetadata, UploadedSegmentMetadata> uploadedSegments = remoteDirectory
             .getSegmentsUploadedToRemoteStore()
             .entrySet()
             .stream()
-            .filter(entry -> entry.getKey().file().startsWith(IndexFileNames.SEGMENTS) == false)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            .filter(entry -> entry.getKey().startsWith(IndexFileNames.SEGMENTS) == false)
+            .collect(Collectors.toMap(
+                entry -> new FileMetadata("lucene", entry.getKey()),  // Convert String key to FileMetadata with default lucene format
+                Map.Entry::getValue
+            ));
         store.incRef();
         remoteStore.incRef();
         try {

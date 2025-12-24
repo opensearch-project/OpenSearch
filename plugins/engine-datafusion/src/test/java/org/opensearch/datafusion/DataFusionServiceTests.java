@@ -150,7 +150,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
             Index index = new Index("index-7", "index-7");
             final Path path = Path.of(resourceUrl.toURI()).resolve("index-7").resolve("0");
             ShardPath shardPath = new ShardPath(false, path, path, new ShardId(index, 0));
-            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(DataFormat.PARQUET.getName(), DataFormat.CSV.toString(), "generation-1.parquet")), service, shardPath);
+            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(DataFormat.PARQUET.getName(), "generation-1.parquet")), service, shardPath);
             datafusionSearcher = engine.acquireSearcher("search");
 
             byte[] protoContent;
@@ -209,7 +209,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
             Index index = new Index("index-7", "index-7");
             final Path path = Path.of(resourceUrl.toURI()).resolve("index-7").resolve("0");
             ShardPath shardPath = new ShardPath(false, path, path, new ShardId(index, 0));
-            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata("parquet", DataFormat.CSV.toString(), "generation-1.parquet"), new FileMetadata("parquet", DataFormat.CSV.toString(), "generation-2.parquet")), service, shardPath);
+            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata("parquet", "generation-1.parquet"), new FileMetadata("parquet", "generation-2.parquet")), service, shardPath);
             datafusionSearcher = engine.acquireSearcher("Search");
 
             byte[] protoContent;
@@ -288,7 +288,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
         Index index = new Index("index-7", "index-7");
         final Path path = Path.of(resourceUrl.toURI()).resolve("index-7").resolve("0");
         ShardPath shardPath = new ShardPath(false, path, path, new ShardId(index, 0));
-        DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata("parquet", DataFormat.CSV.toString(), "generation-1.parquet"), new FileMetadata("parquet", DataFormat.CSV.toString(), "generation-2.parquet")), service, shardPath);
+        DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata("parquet", "generation-1.parquet"), new FileMetadata("parquet", "generation-2.parquet")), service, shardPath);
 
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).source(new SearchSourceBuilder().size(9).fetchSource(List.of("message").toArray(String[]::new), null));
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
