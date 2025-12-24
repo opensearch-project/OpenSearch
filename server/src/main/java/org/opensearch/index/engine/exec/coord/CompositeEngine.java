@@ -899,7 +899,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
     @Override
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
-
+        mergeScheduler.refreshConfig();
     }
 
     @Override

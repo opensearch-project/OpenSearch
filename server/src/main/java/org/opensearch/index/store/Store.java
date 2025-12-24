@@ -603,7 +603,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     @Override
     public final void incRef() {
         refCounter.incRef();
-        logger.info("refCount after incRef for store {}: {}", this, refCounter.refCount());
     }
 
     /**
@@ -632,9 +631,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     @Override
     public final boolean decRef() {
-        boolean decRef = refCounter.decRef();
-        logger.info("refCount after decRef for store {}: {}", this, refCounter.refCount());
-        return decRef;
+        return refCounter.decRef();
     }
 
     @Override
