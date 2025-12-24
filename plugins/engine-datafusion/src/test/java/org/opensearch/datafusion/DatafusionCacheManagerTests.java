@@ -109,11 +109,15 @@ public class DatafusionCacheManagerTests extends OpenSearchSingleNodeTestCase {
 
         cacheManager.addFilesToCacheManager(List.of(fileName));
         assertTrue( cacheManager.getEntryFromCacheType(CacheUtils.CacheType.METADATA,fileName));
+        assertTrue( cacheManager.getEntryFromCacheType(CacheUtils.CacheType.STATISTICS,fileName));
 
-        cacheManager.updateSizeLimit(CacheUtils.CacheType.METADATA,50);
+        cacheManager.updateSizeLimit(CacheUtils.CacheType.METADATA,10);
+        cacheManager.updateSizeLimit(CacheUtils.CacheType.STATISTICS,10);
 
         assertFalse(cacheManager.getEntryFromCacheType(CacheUtils.CacheType.METADATA,fileName));
+        assertFalse(cacheManager.getEntryFromCacheType(CacheUtils.CacheType.STATISTICS,fileName));
         service.doStop();
+
     }
 
     public void testCacheClear() {
@@ -125,9 +129,11 @@ public class DatafusionCacheManagerTests extends OpenSearchSingleNodeTestCase {
         assertTrue(cacheManager.getEntryFromCacheType(CacheUtils.CacheType.METADATA,fileName));
 
         cacheManager.clearCacheForCacheType(CacheUtils.CacheType.METADATA);
+        cacheManager.clearCacheForCacheType(CacheUtils.CacheType.STATISTICS);
 
         assertFalse(cacheManager.getEntryFromCacheType(CacheUtils.CacheType.METADATA,fileName));
         assertEquals(0, cacheManager.getMemoryConsumed(CacheUtils.CacheType.METADATA));
+        assertEquals(0, cacheManager.getMemoryConsumed(CacheUtils.CacheType.STATISTICS));
         service.doStop();
     }
 

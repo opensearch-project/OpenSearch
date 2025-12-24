@@ -12,7 +12,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
-import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.EngineReaderManager;
 import org.opensearch.index.engine.FileDeletionListener;
@@ -32,6 +31,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     private String path;
     private String dataFormat;
     private Consumer<List<String>> onFilesAdded;
+    private Consumer<List<String>> onFilesDeleted;
 //    private final Lock refreshLock = new ReentrantLock();
 //    private final List<ReferenceManager.RefreshListener> refreshListeners = new CopyOnWriteArrayList();
 
@@ -48,6 +48,10 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
      */
     public void setOnFilesAdded(Consumer<List<String>> onFilesAdded) {
         this.onFilesAdded = onFilesAdded;
+    }
+
+    public void setOnFilesDeleted(Consumer<List<String>> onFilesDeleted) {
+        this.onFilesDeleted = onFilesDeleted;
     }
 
     @Override
@@ -93,10 +97,6 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
         Set<String> filesToAdd = new HashSet<>(newFilePaths);
         filesToAdd.removeAll(oldFilePaths);
 
-        // TODO: Either remove files periodically or let eviction handle stale files
-        Set<String> filesToRemove = new HashSet<>(oldFilePaths);
-        filesToRemove.removeAll(newFilePaths);
-
         if (!filesToAdd.isEmpty() && onFilesAdded != null) {
             onFilesAdded.accept(List.copyOf(filesToAdd));
         }
@@ -115,6 +115,9 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     @Override
     public void onFileDeleted(Collection<String> files) throws IOException {
         // TODO - Hook cache eviction with deletion here
+        if (files != null && !files.isEmpty()) {
+            onFilesDeleted.accept(List.copyOf(files));
+        }
         System.out.println("onFileDeleted call from DatafusionReader Manager: " + files);
     }
 }

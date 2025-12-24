@@ -265,8 +265,18 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
         Some(manager) => {
             match cache_type.as_str() {
                 cache::CACHE_TYPE_METADATA => {
+                    println!("[CACHE INFO] Updating metadata cache size limit to {}", new_size_limit);
                     manager.update_metadata_cache_limit(new_size_limit as usize);
                     true
+                }
+                cache::CACHE_TYPE_STATS => {
+                    match manager.update_statistics_cache_limit(new_size_limit as usize) {
+                        Ok(_) => true,
+                        Err(e) => {
+                            eprintln!("[CACHE ERROR] Failed to update statistics cache limit: {}", e);
+                            false
+                        }
+                    }
                 }
                 _ => {
                     let msg = format!("Unknown cache type: {}", cache_type);
@@ -436,7 +446,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
         Some(manager) => {
             match cache_type.as_str() {
                 cache::CACHE_TYPE_METADATA => {
-                    manager.contains_file(&file_path)
+                    manager.check_file_exists_metadata_cache(&file_path)
+                }
+                cache::CACHE_TYPE_STATS => {
+                    manager.check_file_exists_statistics_cache(&file_path)
                 }
                 _ => {
                     let msg = format!("Unknown cache type: {}", cache_type);
