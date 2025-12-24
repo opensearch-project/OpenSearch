@@ -29,6 +29,7 @@ import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
+import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineCreationFailureException;
@@ -45,6 +46,7 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.VersionValue;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
@@ -52,6 +54,7 @@ import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.bridge.CheckpointState;
 import org.opensearch.index.engine.exec.bridge.Indexer;
 import org.opensearch.index.engine.exec.bridge.IndexingThrottler;
+import org.opensearch.index.engine.exec.bridge.StatsHolder;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.LuceneCommitEngine;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
@@ -64,9 +67,11 @@ import org.opensearch.index.engine.exec.merge.CompositeMergeHandler;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
@@ -79,9 +84,11 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
+import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -110,7 +117,7 @@ import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNA
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY;
 
 @ExperimentalApi
-public class CompositeEngine implements LifecycleAware, Closeable, Indexer, CheckpointState, IndexingThrottler {
+public class CompositeEngine implements LifecycleAware, Closeable, Indexer, CheckpointState, IndexingThrottler, StatsHolder {
 
     private static final Consumer<ReferenceManager.RefreshListener> PRE_REFRESH_LISTENER_CONSUMER = refreshListener -> {
         try {
@@ -742,6 +749,36 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 fileDeletionListener.onFileDeleted(dfFilesToDelete.get(dataFormat));
             }
         }
+    }
+
+    @Override
+    public CommitStats commitStats() {
+        return null;
+    }
+
+    @Override
+    public DocsStats docStats() {
+        return null;
+    }
+
+    @Override
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        return null;
+    }
+
+    @Override
+    public CompletionStats completionStats(String... fieldNamePatterns) {
+        return null;
+    }
+
+    @Override
+    public PollingIngestStats pollingIngestStats() {
+        return null;
+    }
+
+    @Override
+    public MergeStats getMergeStats() {
+        return mergeScheduler.stats();
     }
 
     @ExperimentalApi

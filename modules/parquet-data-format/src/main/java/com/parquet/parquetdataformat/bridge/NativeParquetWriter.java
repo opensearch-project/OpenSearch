@@ -47,6 +47,8 @@ public class NativeParquetWriter implements Closeable {
         RustBridge.flushToDisk(filePath);
     }
 
+    private ParquetFileMetadata metadata;
+
     @Override
     public void close() {
         try {
@@ -54,6 +56,10 @@ public class NativeParquetWriter implements Closeable {
         } catch (IOException e) {
             throw new RuntimeException("Failed to close Parquet writer for " + filePath, e);
         }
+    }
+
+    public ParquetFileMetadata getMetadata() {
+        return metadata;
     }
 
     public String getFilePath() {

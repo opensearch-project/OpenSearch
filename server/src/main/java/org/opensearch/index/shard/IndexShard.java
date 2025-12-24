@@ -1578,7 +1578,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public MergeStats mergeStats() {
-        final StatsHolder engine = getStatsHolderOrNull();
+        final StatsHolder engine = (StatsHolder) getCompositeEngineOrNull();
         if (engine == null) {
             return new MergeStats();
         }
@@ -4195,6 +4195,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     protected Engine getEngineOrNull() {
         return this.currentEngineReference.get();
+    }
+
+    /**
+     * NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
+     * closed.
+     */
+    protected CompositeEngine getCompositeEngineOrNull() {
+        return this.currentCompositeEngineReference.get();
     }
 
     public void startRecovery(
