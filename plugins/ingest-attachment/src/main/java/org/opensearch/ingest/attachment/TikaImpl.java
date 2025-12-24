@@ -198,7 +198,7 @@ final class TikaImpl {
         Permissions perms = new Permissions();
         // property/env access needed for parsing
         perms.add(new PropertyPermission("*", "read"));
-        perms.add(new RuntimePermission("getenv.TIKA_CONFIG"));
+        perms.add(new RuntimePermission("getenv.*"));
 
         try {
             // add permissions for resource access:
