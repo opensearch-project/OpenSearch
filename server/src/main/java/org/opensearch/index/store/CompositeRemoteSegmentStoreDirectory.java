@@ -533,7 +533,8 @@ public final class CompositeRemoteSegmentStoreDirectory extends RemoteSegmentSto
                 translogGeneration, metadataUploadCounter.incrementAndGet(),
                 RemoteSegmentMetadata.CURRENT_VERSION, nodeId);
 
-            FileMetadata fileMetadata = new FileMetadata("TempMetadata", metadataFilename);
+            // Use "metadata" format instead of "TempMetadata" - temp metadata files use the same directory as metadata files
+            FileMetadata fileMetadata = new FileMetadata("metadata", metadataFilename);
 
             try {
                 try (IndexOutput indexOutput = storeDirectory.createOutput(fileMetadata, IOContext.DEFAULT)) {

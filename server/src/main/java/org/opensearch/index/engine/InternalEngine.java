@@ -529,7 +529,7 @@ public class InternalEngine extends Engine {
                 case "segments_stats":
                     break;
                 default:
-//                    assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";
+//                     assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";
             }
         }
         return true;
@@ -1686,8 +1686,14 @@ public class InternalEngine extends Engine {
             flush(false, true);
             logger.trace("finish flush for snapshot");
         }
-        final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
-        return new GatedCloseable<>(lastCommit, () -> releaseIndexCommit(lastCommit));
+        try {
+            final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+            return new GatedCloseable<>(lastCommit, () -> releaseIndexCommit(lastCommit));
+        } catch (EngineNotInitializedException e) {
+            // No commits exist yet - this can happen during initial index creation before any documents are indexed
+            logger.debug("No commits available yet for acquireLastIndexCommit - returning null");
+            return null;
+        }
     }
 
     @Override

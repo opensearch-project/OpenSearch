@@ -218,14 +218,17 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      @return false if retry is needed
      */
     private boolean syncSegments() {
+        logger.info("[SEGMENT_UPLOAD_DEBUG] syncSegments() called");
         if (isReadyForUpload() == false) {
+            logger.info("[SEGMENT_UPLOAD_DEBUG] Not ready for upload, returning early");
             // Following check is required to enable retry and make sure that we do not lose this refresh event
             // When primary shard is restored from remote store, the recovery happens first followed by changing
             // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
             // if following condition does not exist. The segments created as part of translog replay will not be present
             // in the remote store.
-            return indexShard.state() != IndexShardState.STARTED || !(indexShard.getEngine() instanceof InternalEngine);
+            return indexShard.state() != IndexShardState.STARTED || indexShard.getIndexingExecutionCoordinator() == null;
         }
+        logger.info("[SEGMENT_UPLOAD_DEBUG] Ready for upload, proceeding with sync");
         beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
@@ -245,6 +248,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
                 CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshotFromEngine();
                 CatalogSnapshot catalogSnapshot = catalogSnapshotRef.getRef();
+                
+                logger.info("[SEGMENT_UPLOAD_DEBUG] CatalogSnapshot obtained, generation={}", 
+                           catalogSnapshot.getGeneration());
+                
                 final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(catalogSnapshot);
                 if (checkpoint.getPrimaryTerm() != indexShard.getOperationPrimaryTerm()) {
                     throw new IllegalStateException(
@@ -258,7 +265,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 }
                 // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                 // move.
-                long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
+
+                long lastRefreshedCheckpoint = indexShard.getIndexingExecutionCoordinator().lastRefreshedCheckpoint();
 
                 Collection<FileMetadata> localFilesPostRefresh = catalogSnapshot.getFileMetadataList();
 
@@ -269,8 +277,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         Collectors.counting()
                     ));
 
-                logger.debug("Format-aware segment upload initiated: totalFiles={}, formatBreakdown={}",
-                    localFilesPostRefresh.size(), formatCounts);
+                logger.info("[SEGMENT_UPLOAD_DEBUG] Files to upload: totalFiles={}, formatBreakdown={}, files={}",
+                    localFilesPostRefresh.size(), formatCounts, 
+                    localFilesPostRefresh.stream().map(FileMetadata::file).collect(Collectors.toList()));
 
                 Map<FileMetadata, Long> fileMetadataToSizeMap = updateLocalSizeMapAndTracker(localFilesPostRefresh);
 
@@ -280,10 +289,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         @Override
                         public void onResponse(Void unused) {
                             try {
-                                logger.debug("New segments upload successful");
+                                logger.info("[SEGMENT_UPLOAD_DEBUG] New segments upload successful");
                                 // Start metadata file upload
                                 uploadMetadata(localFilesPostRefresh, catalogSnapshot, checkpoint);
-                                logger.debug("Metadata upload successful");
+                                logger.info("[SEGMENT_UPLOAD_DEBUG] Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localFilesPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
@@ -429,8 +438,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         updateRemoteRefreshTimeAndSeqNo(refreshTimeMs, refreshClockTimeMs, refreshSeqNo);
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
+        indexShard.getIndexingExecutionCoordinator().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint+1);
         // Set the minimum sequence number for keeping translog
-        indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        // indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
         logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
@@ -477,28 +487,32 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     // ToDo:@Kamal Update MaxSeqNo
     void uploadMetadata(Collection<FileMetadata> localFilesPostRefresh, CatalogSnapshot catalogSnapshot, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
-        final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
+        final long maxSeqNo = indexShard.getIndexingExecutionCoordinator().currentOngoingRefreshCheckpoint();
+        CatalogSnapshot catalogSnapshotCopy = catalogSnapshot.clone();
 
-        CatalogSnapshot catalogSnapshotCloned = catalogSnapshot.clone();
+        // CRITICAL FIX: Load userData from committed segments to get ALL metadata including HISTORY_UUID_KEY
+        final Map<String, String> segmentUserData = indexShard.store().readLastCommittedSegmentsInfo().getUserData();
 
         // Create mutable copy and update checkpoint fields while preserving ALL existing metadata
-        catalogSnapshotCloned.getUserData().put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
-        catalogSnapshotCloned.getUserData().put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+        final Map<String, String> userData = new HashMap<>(segmentUserData);
+        userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+        catalogSnapshotCopy.setUserData(userData, false);
 
         // Log for verification during debugging
         logger.debug("Uploading metadata with userData: translog_uuid={}, history_uuid={}, all_keys={}",
-                   catalogSnapshotCloned.getUserData().get(Translog.TRANSLOG_UUID_KEY),
-                   catalogSnapshotCloned.getUserData().get(org.opensearch.index.engine.Engine.HISTORY_UUID_KEY),
-                   catalogSnapshotCloned.getUserData().keySet());
+                   userData.get(Translog.TRANSLOG_UUID_KEY),
+                   userData.get(org.opensearch.index.engine.Engine.HISTORY_UUID_KEY),
+                   userData.keySet());
 
-        Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
+        Translog.TranslogGeneration translogGeneration = indexShard.getIndexingExecutionCoordinator().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {
             long translogFileGeneration = translogGeneration.translogFileGeneration;
             remoteDirectory.uploadMetadata(
                 localFilesPostRefresh.stream().map(FileMetadata::serialize).collect(Collectors.toList()),
-                catalogSnapshotCloned,
+                catalogSnapshotCopy,
                 compositeStoreDirectory,
                 translogFileGeneration,
                 replicationCheckpoint,

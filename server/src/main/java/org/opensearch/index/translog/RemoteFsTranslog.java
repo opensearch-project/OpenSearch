@@ -39,7 +39,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -255,11 +257,12 @@ public class RemoteFsTranslog extends Translog {
         boolean seedRemote,
         long timestamp
     ) throws IOException {
-        logger.debug("Downloading translog files from remote");
         RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
         long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
         long prevDownloadTimeInMillis = statsTracker.getTotalDownloadTimeInMillis();
+        
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata(timestamp);
+        
         if (translogMetadata != null) {
             if (Files.notExists(location)) {
                 Files.createDirectories(location);
@@ -271,15 +274,14 @@ public class RemoteFsTranslog extends Translog {
             }
 
             Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
-            for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
+            long minGen = translogMetadata.getMinTranslogGeneration();
+            long maxGen = translogMetadata.getGeneration();
+            
+            for (long i = maxGen; i >= minGen; i--) {
                 String generation = Long.toString(i);
-                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
+                String primaryTerm = generationToPrimaryTermMapper.get(generation);
+                translogTransferManager.downloadTranslog(primaryTerm, generation, location);
             }
-            logger.info(
-                "Downloaded translog and checkpoint files from={} to={}",
-                translogMetadata.getMinTranslogGeneration(),
-                translogMetadata.getGeneration()
-            );
 
             statsTracker.recordDownloadStats(prevDownloadBytesSucceeded, prevDownloadTimeInMillis);
 

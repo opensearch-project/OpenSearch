@@ -134,5 +134,17 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeDataForm
     @Override
     public void close() throws IOException {
         this.closed = true;
+
+//        // Close all writers in the pool to prevent resource leakage
+//        synchronized (this) {
+//            for (CompositeDataFormatWriter writer : writers) {
+//                try {
+//                    writer.close();
+//                } catch (Exception e) {
+//                    System.err.println("Warning: Failed to close CompositeDataFormatWriter: " + e.getMessage());
+//                }
+//            }
+//            writers.clear();
+//        }
     }
 }
