@@ -1450,6 +1450,8 @@ public class MetadataCreateIndexService {
         if (request.dataStreamName() != null) {
             MetadataCreateDataStreamService.validateTimestampFieldMapping(mapperService);
         }
+
+        indexService.verifyMappings();
     }
 
     private static void validateActiveShardCount(ActiveShardCount waitForActiveShards, IndexMetadata indexMetadata) {

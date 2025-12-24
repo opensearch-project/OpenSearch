@@ -14,6 +14,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
@@ -38,4 +39,7 @@ public interface DataSourcePlugin {
     BlobContainer createBlobContainer(BlobStore blobStore, BlobPath blobPath) throws IOException;
 
     DataFormat getDataFormat();
+
+    default void canSupportFieldType(Mapper mapperType) {
+    }
 }

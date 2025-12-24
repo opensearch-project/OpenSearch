@@ -1065,6 +1065,9 @@ final class DocumentParser {
 
     // find what the dynamic setting is given the current parse context and parent
     private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper parentMapper, ParseContext context) {
+        if (context.indexSettings().isOptimizedIndex()) {
+            return ObjectMapper.Dynamic.STRICT;
+        }
         ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
         while (dynamic == null) {
             int lastDotNdx = parentMapper.name().lastIndexOf('.');

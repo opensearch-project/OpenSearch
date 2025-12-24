@@ -91,7 +91,6 @@ import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
-import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.Any;
