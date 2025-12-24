@@ -103,14 +103,15 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         DatafusionEngine engine = new DatafusionEngine(DataFormat.PARQUET, Collections.emptyList(), service, shardPath);
         DatafusionReaderManager readerManager = engine.getReferenceManager(INTERNAL);
 
+        Path parquetDir = shardPath.getDataPath().resolve("parquet");
         CatalogSnapshot.Segment segment = new CatalogSnapshot.Segment(1);
-        WriterFileSet writerFileSet = new WriterFileSet(shardPath.getDataPath(), 1);
-        writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
-        writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
+        WriterFileSet writerFileSet = new WriterFileSet(parquetDir, 1);
+        writerFileSet.add(parquetDir + "/parquet_file_generation_0.parquet");
+        writerFileSet.add(parquetDir + "/parquet_file_generation_1.parquet");
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
+                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher = engine.acquireSearcher("test");
         DatafusionReader reader = searcher.getReader();
@@ -133,13 +134,14 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         DatafusionEngine engine = new DatafusionEngine(DataFormat.PARQUET, Collections.emptyList(), service, shardPath);
         DatafusionReaderManager readerManager = engine.getReferenceManager(INTERNAL);
 
+        Path parquetDir = shardPath.getDataPath().resolve("parquet");
         CatalogSnapshot.Segment segment = new CatalogSnapshot.Segment(1);
-        WriterFileSet writerFileSet = new WriterFileSet(shardPath.getDataPath(), 1);
-        writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
+        WriterFileSet writerFileSet = new WriterFileSet(parquetDir, 1);
+        writerFileSet.add(parquetDir + "/parquet_file_generation_0.parquet");
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
+                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
@@ -163,13 +165,14 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         DatafusionEngine engine = new DatafusionEngine(DataFormat.PARQUET, Collections.emptyList(), service, shardPath);
         DatafusionReaderManager readerManager = engine.getReferenceManager(INTERNAL);
 
+        Path parquetDir = shardPath.getDataPath().resolve("parquet");
         CatalogSnapshot.Segment segment = new CatalogSnapshot.Segment(1);
-        WriterFileSet writerFileSet = new WriterFileSet(shardPath.getDataPath(), 1);
-        writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
+        WriterFileSet writerFileSet = new WriterFileSet(parquetDir, 1);
+        writerFileSet.add(parquetDir + "/parquet_file_generation_0.parquet");
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
+                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
@@ -192,15 +195,17 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         DatafusionEngine engine = new DatafusionEngine(DataFormat.PARQUET, Collections.emptyList(), service, shardPath);
         DatafusionReaderManager readerManager = engine.getReferenceManager(INTERNAL);
 
+        Path parquetDir = shardPath.getDataPath().resolve("parquet");
+
         // Initial refresh
         CatalogSnapshot.Segment segment1 = new CatalogSnapshot.Segment(1);
-        WriterFileSet writerFileSet1 = new WriterFileSet(shardPath.getDataPath(), 1);
+        WriterFileSet writerFileSet1 = new WriterFileSet(parquetDir, 1);
         addFilesToShardPath(shardPath, "parquet_file_generation_0.parquet");
-        writerFileSet1.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
+        writerFileSet1.add(parquetDir + "/parquet_file_generation_0.parquet");
         segment1.addSearchableFiles(getMockDataFormat().name(), writerFileSet1);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment1), new HashMap<>(), noOpFileDeleterSupplier)));
+                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment1), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionReader reader1 = searcher1.getReader();
@@ -209,13 +214,13 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         // Add new file and refresh
         addFilesToShardPath(shardPath, "parquet_file_generation_1.parquet");
         CatalogSnapshot.Segment segment2 = new CatalogSnapshot.Segment(2);
-        WriterFileSet writerFileSet2 = new WriterFileSet(shardPath.getDataPath(), 2);
-        writerFileSet2.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
-        writerFileSet2.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
+        WriterFileSet writerFileSet2 = new WriterFileSet(parquetDir, 2);
+        writerFileSet2.add(parquetDir + "/parquet_file_generation_0.parquet");
+        writerFileSet2.add(parquetDir + "/parquet_file_generation_1.parquet");
         segment2.addSearchableFiles(getMockDataFormat().name(), writerFileSet2);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
+                getCatalogSnapshotRef(new CatalogSnapshot(2, 2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
         DatafusionReader reader2 = searcher2.getReader();
@@ -241,13 +246,14 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         DatafusionEngine engine = new DatafusionEngine(DataFormat.PARQUET, Collections.emptyList(), service, shardPath);
         DatafusionReaderManager readerManager = engine.getReferenceManager(INTERNAL);
 
+        Path parquetDir = shardPath.getDataPath().resolve("parquet");
         CatalogSnapshot.Segment segment = new CatalogSnapshot.Segment(1);
-        WriterFileSet writerFileSet = new WriterFileSet(shardPath.getDataPath(), 1);
-        writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_2.parquet");
+        WriterFileSet writerFileSet = new WriterFileSet(parquetDir, 1);
+        writerFileSet.add(parquetDir + "/parquet_file_generation_2.parquet");
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
+                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher = engine.acquireSearcher("test");
         DatafusionReader reader = searcher.getReader();
@@ -270,14 +276,15 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
             DatafusionEngine engine = new DatafusionEngine(DataFormat.PARQUET, Collections.emptyList(), service, shardPath);
             DatafusionReaderManager readerManager = engine.getReferenceManager(INTERNAL);
 
+            Path parquetDir = shardPath.getDataPath().resolve("parquet");
             CatalogSnapshot.Segment segment = new CatalogSnapshot.Segment(1);
-            WriterFileSet writerFileSet = new WriterFileSet(shardPath.getDataPath(), 1);
-            writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_2.parquet");
-            writerFileSet.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
+            WriterFileSet writerFileSet = new WriterFileSet(parquetDir, 1);
+            writerFileSet.add(parquetDir + "/parquet_file_generation_2.parquet");
+            writerFileSet.add(parquetDir + "/parquet_file_generation_1.parquet");
             segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
             readerManager.afterRefresh(true,
-                    getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
+                    getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
             // DatafusionReader readerR1 = readerManager.acquire();
             DatafusionSearcher datafusionSearcherS1 = engine.acquireSearcher("Search");
@@ -294,13 +301,13 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
             addFilesToShardPath(shardPath, "parquet_file_generation_0.parquet");
             // now trigger refresh to have new Reader with F2, F3
             CatalogSnapshot.Segment segment2 = new CatalogSnapshot.Segment(2);
-            WriterFileSet writerFileSet2 = new WriterFileSet(shardPath.getDataPath(), 2);
-            writerFileSet2.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
-            writerFileSet2.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
+            WriterFileSet writerFileSet2 = new WriterFileSet(parquetDir, 2);
+            writerFileSet2.add(parquetDir + "/parquet_file_generation_1.parquet");
+            writerFileSet2.add(parquetDir + "/parquet_file_generation_0.parquet");
             segment2.addSearchableFiles(getMockDataFormat().name(), writerFileSet2);
 
             readerManager.afterRefresh(true,
-                    getCatalogSnapshotRef(new CatalogSnapshot(2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
+                    getCatalogSnapshotRef(new CatalogSnapshot(2, 2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
 
             // now check if new Reader is created with F2, F3
             // DatafusionReader readerR2 = readerManager.acquire();
@@ -337,14 +344,15 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         DatafusionEngine engine = new DatafusionEngine(DataFormat.PARQUET, Collections.emptyList(), service, shardPath);
         DatafusionReaderManager readerManager = engine.getReferenceManager(INTERNAL);
 
-        // Initial refresh
-        CatalogSnapshot.Segment segment1 = new CatalogSnapshot.Segment(1);
-        WriterFileSet writerFileSet1 = new WriterFileSet(shardPath.getDataPath(), 1);
-        writerFileSet1.add(shardPath.getDataPath() + "/parquet_file_generation_0.parquet");
+        // Initial refresh - files are in the parquet subdirectory
+        Path parquetDir = shardPath.getDataPath().resolve("parquet");
+        CatalogSnapshot.Segment segment1 = new CatalogSnapshot.Segment(0);
+        WriterFileSet writerFileSet1 = new WriterFileSet(parquetDir, 0);
+        writerFileSet1.add(parquetDir + "/parquet_file_generation_0.parquet");
         segment1.addSearchableFiles(getMockDataFormat().name(), writerFileSet1);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, List.of(segment1), new HashMap<>(), noOpFileDeleterSupplier)));
+                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment1), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("search");
         DatafusionReader reader1 = searcher1.getReader();
@@ -368,13 +376,13 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         logger.info("AFTER REFRESH");
 
         addFilesToShardPath(shardPath, "parquet_file_generation_1.parquet");
-        CatalogSnapshot.Segment segment2 = new CatalogSnapshot.Segment(2);
-        WriterFileSet writerFileSet2 = new WriterFileSet(shardPath.getDataPath(), 2);
-        writerFileSet2.add(shardPath.getDataPath() + "/parquet_file_generation_1.parquet");
+        CatalogSnapshot.Segment segment2 = new CatalogSnapshot.Segment(1);
+        WriterFileSet writerFileSet2 = new WriterFileSet(parquetDir, 1);
+        writerFileSet2.add(parquetDir + "/parquet_file_generation_1.parquet");
         segment2.addSearchableFiles(getMockDataFormat().name(), writerFileSet2);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
+                getCatalogSnapshotRef(new CatalogSnapshot(2, 1, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
 
         expectedResults = new HashMap<>();
         expectedResults.put("min", 3L);
@@ -428,7 +436,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
     private void addFilesToShardPath(ShardPath shardPath, String... fileNames) throws IOException {
         for (String resourceFileName : fileNames) {
             try (InputStream is = getClass().getResourceAsStream("/" + resourceFileName)) {
-                Path targetPath = shardPath.getDataPath().resolve(resourceFileName);
+                Path targetPath = shardPath.getDataPath().resolve("parquet").resolve(resourceFileName);
                 java.nio.file.Files.createDirectories(targetPath.getParent());
                 if (is != null) {
                     java.nio.file.Files.copy(is, targetPath);
@@ -444,7 +452,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
 
         for (String resourceFileName : resourceFileNames) {
             try (InputStream is = getClass().getResourceAsStream("/" + resourceFileName)) {
-                Path targetPath = shardPath.getDataPath().resolve(resourceFileName);
+                Path targetPath = shardPath.getDataPath().resolve("parquet").resolve(resourceFileName);
                 java.nio.file.Files.createDirectories(targetPath.getParent());
                 if (is != null) {
                     java.nio.file.Files.copy(is, targetPath);
@@ -524,9 +532,3 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         };
     }
 }
-
-
-
-
-
-
