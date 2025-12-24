@@ -7,6 +7,19 @@
  */
 package org.opensearch.transport.grpc;
 
+import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.*;
+import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.*;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -44,33 +57,7 @@ import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.watcher.ResourceWatcherService;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
 import io.grpc.BindableService;
-
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_HOST;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_KEEPALIVE_TIMEOUT;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONNECTION_AGE;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONNECTION_IDLE;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_MSG_SIZE;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PORT;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_HOST;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT;
-import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.GRPC_SECURE_TRANSPORT_SETTING_KEY;
-import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT;
 
 /**
  * Main class for the gRPC plugin.
@@ -183,7 +170,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
 
         return Collections.singletonMap(GRPC_TRANSPORT_SETTING_KEY, () -> {
             List<BindableService> grpcServices = new ArrayList<>(
-                List.of(new DocumentServiceImpl(client, circuitBreakerService), new SearchServiceImpl(client, queryUtils))
+                List.of(new DocumentServiceImpl(client, circuitBreakerService), new SearchServiceImpl(client, queryUtils, circuitBreakerService))
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
                 List<BindableService> pluginServices = serviceFac.initClient(client)
@@ -234,7 +221,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         }
         return Collections.singletonMap(GRPC_SECURE_TRANSPORT_SETTING_KEY, () -> {
             List<BindableService> grpcServices = new ArrayList<>(
-                List.of(new DocumentServiceImpl(client, circuitBreakerService), new SearchServiceImpl(client, queryUtils))
+                List.of(new DocumentServiceImpl(client, circuitBreakerService), new SearchServiceImpl(client, queryUtils, circuitBreakerService))
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
                 List<BindableService> pluginServices = serviceFac.initClient(client)
