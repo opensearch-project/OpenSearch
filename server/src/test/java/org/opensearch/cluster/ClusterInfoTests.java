@@ -163,7 +163,6 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         return builder;
     }
 
-
     private static Map<String, ProcessStats> randomProcessStats(int numEntries) {
         final Map<String, ProcessStats> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {

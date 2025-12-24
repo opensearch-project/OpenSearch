@@ -59,8 +59,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
-import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.threadpool.ThreadPool;
@@ -117,7 +117,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile Map<String, AggregateFileCacheStats> nodeFileCacheStats;
     private volatile Map<String, NodeResourceUsageStats> nodeResourceUsageStats;
-    private volatile Map<String, ProcessStats> nodeProcessStats ;
+    private volatile Map<String, ProcessStats> nodeProcessStats;
 
     private volatile IndicesStatsSummary indicesStatsSummary;
     // null if this node is not currently the cluster-manager
@@ -299,9 +299,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 );
 
                 nodeProcessStats = Collections.unmodifiableMap(
-                        adjustNodesStats(nodesStatsResponse.getNodes()).stream()
-                                .filter(nodeStats -> nodeStats.getProcess() != null)
-                                .collect(Collectors.toMap(nodeStats -> nodeStats.getNode().getId(), NodeStats::getProcess))
+                    adjustNodesStats(nodesStatsResponse.getNodes()).stream()
+                        .filter(nodeStats -> nodeStats.getProcess() != null)
+                        .collect(Collectors.toMap(nodeStats -> nodeStats.getNode().getId(), NodeStats::getProcess))
                 );
 
                 final Map<String, NodeResourceUsageStats> nodeResourceUsageStatsBuilder = new HashMap<>();
@@ -326,7 +326,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     leastAvailableSpaceUsages = Map.of();
                     mostAvailableSpaceUsages = Map.of();
                     nodeResourceUsageStats = Map.of();
-                    nodeProcessStats = Map.of();   
+                    nodeProcessStats = Map.of();
                 }
             }
         });

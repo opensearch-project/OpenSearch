@@ -48,7 +48,7 @@ import java.io.IOException;
  *
  * @opensearch.api
  */
-@PublicApi(since = "2.8.0")
+@PublicApi(since = "3.4.0")
 public class ProcessStats implements Writeable, ToXContentFragment {
 
     private final long timestamp;
@@ -144,7 +144,7 @@ public class ProcessStats implements Writeable, ToXContentFragment {
      *
      * @opensearch.api
      */
-    @PublicApi(since = "2.8.0")
+    @PublicApi(since = "3.4.0")
     public static class Mem implements Writeable {
 
         private final long totalVirtual;
@@ -172,7 +172,7 @@ public class ProcessStats implements Writeable, ToXContentFragment {
      *
      * @opensearch.api
      */
-    @PublicApi(since = "2.8.0")
+    @PublicApi(since = "3.4.0")
     public static class Cpu implements Writeable {
 
         private final short percent;

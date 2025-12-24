@@ -47,7 +47,6 @@ import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.NodeResourceUsageStats;
 
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
@@ -74,8 +73,6 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     final Map<String, AggregateFileCacheStats> nodeFileCacheStats;
     private final Map<String, NodeResourceUsageStats> nodeResourceUsageStats;
     private final Map<String, ProcessStats> nodeProcessStats;
-
-
 
     private long avgTotalBytes;
     private long avgFreeByte;
@@ -107,7 +104,16 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         final Map<String, ProcessStats> nodeProcessStats
 
     ) {
-        this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, routingToDataPath, reservedSpace, nodeFileCacheStats,Map.of(), Map.of());
+        this(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            routingToDataPath,
+            reservedSpace,
+            nodeFileCacheStats,
+            Map.of(),
+            Map.of()
+        );
     }
 
     /**
@@ -128,7 +134,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         final Map<NodeAndPath, ReservedSpace> reservedSpace,
         final Map<String, AggregateFileCacheStats> nodeFileCacheStats,
         final Map<String, NodeResourceUsageStats> nodeResourceUsageStats,
-        final Map<String, ProcessStats> nodeProcessStats  
+        final Map<String, ProcessStats> nodeProcessStats
 
     ) {
         this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
@@ -138,7 +144,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.reservedSpace = reservedSpace;
         this.nodeFileCacheStats = nodeFileCacheStats;
         this.nodeResourceUsageStats = nodeResourceUsageStats;
-        this.nodeProcessStats = nodeProcessStats;  
+        this.nodeProcessStats = nodeProcessStats;
 
         calculateAvgFreeAndTotalBytes(mostAvailableSpaceUsage);
     }
@@ -168,7 +174,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             this.nodeResourceUsageStats = Map.of();
         }
 
-         if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
             this.nodeProcessStats = in.readMap(StreamInput::readString, ProcessStats::new);
         } else {
             this.nodeProcessStats = Map.of();
@@ -221,7 +227,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
             out.writeMap(this.nodeResourceUsageStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
-        if (out.getVersion().onOrAfter(Version.V_2_8_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
             out.writeMap(this.nodeProcessStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
     }
@@ -322,10 +328,10 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public Map<String, NodeResourceUsageStats> getNodeResourceUsageStats() {
         return Collections.unmodifiableMap(this.nodeResourceUsageStats);
     }
-    
-      /**
-     * Returns a node id to process stats mapping.
-     */
+
+    /**
+    * Returns a node id to process stats mapping.
+    */
     public Map<String, ProcessStats> getNodeProcessStats() {
         return Collections.unmodifiableMap(this.nodeProcessStats);
     }
