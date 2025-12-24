@@ -24,7 +24,6 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -107,7 +106,7 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
         SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
 
         for (CatalogSnapshot.Segment segment : segments) {
-            SegmentWrapper wrapper = new SegmentWrapper(segment, calculateSegmentSize(segment));
+            SegmentWrapper wrapper = new SegmentWrapper(segment, calculateTotalSize(segment), calculateNumDocs(segment));
             segmentInfos.add(wrapper);
             segmentMap.put(wrapper, segment);
         }
@@ -154,28 +153,36 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
         return Collections.unmodifiableSet(mergingSegments);
     }
 
-    private long calculateSegmentSize(CatalogSnapshot.Segment segment) {
-        long totalSize = 0;
+    private long calculateNumDocs(CatalogSnapshot.Segment segment) {
         try {
-            for (WriterFileSet writerFileSet : segment.getDFGroupedSearchableFiles().values()) {
-                for (String fileName : writerFileSet.getFiles()) {
-                    Path filePath = Path.of(writerFileSet.getDirectory(), fileName);
-                    if (java.nio.file.Files.exists(filePath)) {
-                        totalSize += java.nio.file.Files.size(filePath);
-                    }
-                }
-            }
+            return segment.getDFGroupedSearchableFiles().values()
+                .stream()
+                .mapToLong(WriterFileSet::getNumRows)
+                .sum();
         } catch (Exception e) {
             // Log error but continue with 0 size
             logger.warn(() -> new ParameterizedMessage("Error calculating segment size", e));
         }
-        return totalSize;
+        return 0;
+    }
+
+    private long calculateTotalSize(CatalogSnapshot.Segment segment) {
+        try {
+            return segment.getDFGroupedSearchableFiles().values()
+                .stream()
+                .mapToLong(WriterFileSet::getTotalSize)
+                .sum();
+        } catch (Exception e) {
+            // Log error but continue with 0 size
+            logger.warn(() -> new ParameterizedMessage("Error calculating segment size", e));
+        }
+        return 0;
     }
 
     public synchronized void addMergingSegment(Collection<CatalogSnapshot.Segment> segments) {
         try {
             for (CatalogSnapshot.Segment segment : segments) {
-                SegmentWrapper wrapper = new SegmentWrapper(segment, calculateSegmentSize(segment));
+                SegmentWrapper wrapper = new SegmentWrapper(segment, calculateTotalSize(segment), calculateNumDocs(segment));
                 mergingSegments.add(wrapper);
             }
         } catch (Exception e) {
@@ -189,7 +196,7 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
         try {
 
             for (CatalogSnapshot.Segment segment : segments) {
-                SegmentWrapper wrapper = new SegmentWrapper(segment, calculateSegmentSize(segment));
+                SegmentWrapper wrapper = new SegmentWrapper(segment, calculateTotalSize(segment), calculateNumDocs(segment));
                 segmentToRemove.add(wrapper);
             }
             segmentToRemove.forEach(mergingSegments::remove);
@@ -202,7 +209,7 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
     private static class SegmentWrapper extends SegmentCommitInfo {
         private final long totalSizeBytes;
 
-        public SegmentWrapper(CatalogSnapshot.Segment segment, long totalSizeBytes) throws IOException {
+        public SegmentWrapper(CatalogSnapshot.Segment segment, long totalSizeBytes, long totalNumDocs) throws IOException {
             super(
                 // SegmentInfo
                 new org.apache.lucene.index.SegmentInfo(
@@ -215,8 +222,7 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
                     // segment name
                     "segment_" + segment.getGeneration(),
                     // maxDoc - total document count across all files in segment
-                    // TODO: Get correct total doc from catalogSnaoshot or Segment
-                    (int)(totalSizeBytes / 1000),
+                    (int)(totalNumDocs),
                     // isCompound - false as we don't need compound file format
                     false,
                     // has block

@@ -1,5 +1,6 @@
 package com.parquet.parquetdataformat.writer;
 
+import com.parquet.parquetdataformat.bridge.ParquetFileMetadata;
 import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.vsr.VSRManager;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -58,16 +59,17 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
 
     @Override
     public FileInfos flush(FlushIn flushIn) throws IOException {
-        String fileName = vsrManager.flush(flushIn);
+        ParquetFileMetadata parquetFileMetadata = vsrManager.flush(flushIn);
         // no data flushed
-        if (fileName == null) {
+        if (file == null) {
             return FileInfos.empty();
         }
-        Path file = Path.of(fileName);
+        Path filePath = Path.of(file);
         WriterFileSet writerFileSet = WriterFileSet.builder()
-            .directory(file.getParent())
+            .directory(filePath.getParent())
             .writerGeneration(writerGeneration)
-            .addFile(file.getFileName().toString())
+            .addFile(filePath.getFileName().toString())
+            .addNumRows(parquetFileMetadata.numRows())
             .build();
         return FileInfos.builder().putWriterFileSet(PARQUET_DATA_FORMAT, writerFileSet).build();
     }

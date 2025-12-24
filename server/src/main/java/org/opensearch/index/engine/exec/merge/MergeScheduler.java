@@ -10,13 +10,17 @@ package org.opensearch.index.engine.exec.merge;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.index.merge.MergeStats;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -39,6 +43,15 @@ public class MergeScheduler {
     private final ShardId shardId;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final Settings indexSettings;
+
+    private final MeanMetric totalMerges = new MeanMetric();
+    private final CounterMetric totalMergesNumDocs = new CounterMetric();
+    private final CounterMetric totalMergesSizeInBytes = new CounterMetric();
+    private final CounterMetric currentMerges = new CounterMetric();
+    private final CounterMetric currentMergesNumDocs = new CounterMetric();
+    private final CounterMetric currentMergesSizeInBytes = new CounterMetric();
+    private final CounterMetric totalMergeStoppedTime = new CounterMetric();
+    private final CounterMetric totalMergeThrottledTime = new CounterMetric();
 
     public MergeScheduler(
         MergeHandler mergeHandler,
@@ -153,33 +166,73 @@ public class MergeScheduler {
 
         @Override
         public void run() {
+            long totalSizeInBytes = oneMerge.getTotalSizeInBytes();
+            long totalNumDocs = oneMerge.getTotalNumDocs();
+            long timeNS = System.nanoTime();
+            long tookMS = 0;
             try {
                 if (isShutdown.get()) {
                     logger.debug("[{}] MergeScheduler is shutdown, skipping merge", getName());
                     return;
                 }
 
+                currentMerges.inc();
+                currentMergesNumDocs.inc(totalNumDocs);
+                currentMergesSizeInBytes.inc(totalSizeInBytes);
+
                 logger.debug("[{}] Starting merge for: {}", getName(), oneMerge);
-                long startTime = System.nanoTime();
 
                 MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
                 compositeEngine.applyMergeChanges(mergeResult, oneMerge);
                 mergeHandler.onMergeFinished(oneMerge);
 
-                long durationMs = (System.nanoTime() - startTime) / 1_000_000;
+                tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));
                 logger.info("[{}] Merge completed in {}ms for: {} and output is stored in: {}",
-                    getName(), durationMs, oneMerge, mergeResult);
+                    getName(), tookMS, oneMerge, mergeResult);
 
             } catch (Exception e) {
                 logger.error("[{}] Unexpected error during merge for: {}", getName(), oneMerge, e);
                 mergeHandler.onMergeFailure(oneMerge);
             } finally {
+
+
+                currentMerges.dec();
+                currentMergesNumDocs.dec(totalNumDocs);
+                currentMergesSizeInBytes.dec(totalSizeInBytes);
+
+                totalMergesNumDocs.inc(totalNumDocs);
+                totalMergesSizeInBytes.inc(totalSizeInBytes);
+                totalMerges.inc(tookMS);
+
                 activeMerges.decrementAndGet();
                 mergeThreads.remove(this);
                 // triggering merge at the end
                 executeMerge();
             }
         }
+    }
+
+    public MergeStats stats() {
+        final MergeStats mergeStats = new MergeStats();
+        mergeStats.add(
+            totalMerges.count(),
+            totalMerges.sum(),
+            totalMergesNumDocs.count(),
+            totalMergesSizeInBytes.count(),
+            currentMerges.count(),
+            currentMergesNumDocs.count(),
+            currentMergesSizeInBytes.count(),
+            //TODO: update the below values from the Rust
+            totalMergeStoppedTime.count(),
+            totalMergeThrottledTime.count(),
+            mergeSchedulerConfig.isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY
+        );
+        return mergeStats;
+    }
+
+    public synchronized double getIORateLimitMBPerSec() {
+        // TODO: return the value from the Rust if the doAutoIOThrottle is enabled else INFINITY
+        return Double.POSITIVE_INFINITY;
     }
 
     /**

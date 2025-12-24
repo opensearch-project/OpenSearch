@@ -13,17 +13,13 @@ import com.parquet.parquetdataformat.bridge.NativeParquetWriter;
 import com.parquet.parquetdataformat.bridge.ParquetFileMetadata;
 import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
-import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -108,7 +104,7 @@ public class VSRManager implements AutoCloseable {
         }
     }
 
-    public String flush(FlushIn flushIn) throws IOException {
+    public ParquetFileMetadata flush(FlushIn flushIn) throws IOException {
         ManagedVSR currentVSR = managedVSR.get();
         logger.info("Flush called for {}, row count: {}", fileName, currentVSR.getRowCount());
         try {
@@ -121,15 +117,17 @@ public class VSRManager implements AutoCloseable {
             // Transition VSR to FROZEN state before flushing
             currentVSR.moveToFrozen();
             logger.info("Flushing {} rows for {}", currentVSR.getRowCount(), fileName);
+            ParquetFileMetadata metadata;
 
             // Write through native writer handle
             try (ArrowExport export = currentVSR.exportToArrow()) {
-                ParquetFileMetadata fileMetadata = writer.write(export.getArrayAddress(), export.getSchemaAddress());
+                writer.write(export.getArrayAddress(), export.getSchemaAddress());
                 writer.close();
+                metadata = writer.getMetadata();
             }
-            logger.info("Successfully flushed data for {}", fileName);
+            logger.debug("Successfully flushed data for {} with metadata: {}", fileName, metadata);
 
-            return fileName;
+            return metadata;
         } catch (Exception e) {
             logger.error("Error in flush for {}: {}", fileName, e.getMessage(), e);
             throw new IOException("Failed to flush data: " + e.getMessage(), e);
