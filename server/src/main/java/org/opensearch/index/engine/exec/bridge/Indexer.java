@@ -156,6 +156,14 @@ public interface Indexer {
      */
     int fillSeqNoGaps(long primaryTerm) throws IOException;
 
+    default long lastRefreshedCheckpoint() {
+        throw new UnsupportedOperationException();
+    }
+
+    default long currentOngoingRefreshCheckpoint() {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * Performs a force merge operation on this engine.
      */

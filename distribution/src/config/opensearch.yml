@@ -125,3 +125,11 @@ ${path.logs}
 #
 # Limits the memory pool for datafusion which it uses for query execution.
 #datafusion.search.memory_pool: 1GB
+#node.attr.remote_store.segment.repository: my-repo-1
+#node.attr.remote_store.translog.repository: my-repo-1
+#node.attr.remote_store.state.repository: my-repo-1
+#cluster.remote_store.state.enabled: true
+#node.attr.remote_store.repository.my-repo-1.type: fs
+#path.repo: /tmp/remote-store-repo
+#node.attr.remote_store.repository.my-repo-1.settings.location: /tmp/remote-store-repo
+
