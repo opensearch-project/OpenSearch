@@ -20,6 +20,7 @@ import org.opensearch.search.aggregations.metrics.HyperLogLogPlusPlus;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.opensearch.common.util.BitMixer.mix64;
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
@@ -96,7 +97,8 @@ public class HllFieldMapperIntegrationTests extends OpenSearchSingleNodeTestCase
             // Serialize the sketch
             BytesStreamOutput out = new BytesStreamOutput();
             sketch.writeTo(0, out);
-            byte[] sketchBytes = out.bytes().toBytesRef().bytes;
+            org.apache.lucene.util.BytesRef bytesRef = out.bytes().toBytesRef();
+            byte[] sketchBytes = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
 
             // Index a document with the pre-aggregated sketch
             client().prepareIndex(indexName)
@@ -155,7 +157,8 @@ public class HllFieldMapperIntegrationTests extends OpenSearchSingleNodeTestCase
 
                 BytesStreamOutput out = new BytesStreamOutput();
                 sketch.writeTo(0, out);
-                byte[] sketchBytes = out.bytes().toBytesRef().bytes;
+                org.apache.lucene.util.BytesRef bytesRef = out.bytes().toBytesRef();
+                byte[] sketchBytes = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
 
                 client().prepareIndex(indexName)
                     .setSource(
@@ -217,7 +220,8 @@ public class HllFieldMapperIntegrationTests extends OpenSearchSingleNodeTestCase
 
                     BytesStreamOutput out = new BytesStreamOutput();
                     sketch.writeTo(0, out);
-                    byte[] sketchBytes = out.bytes().toBytesRef().bytes;
+                    org.apache.lucene.util.BytesRef bytesRef = out.bytes().toBytesRef();
+                    byte[] sketchBytes = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
 
                     client().prepareIndex(indexName)
                         .setSource(XContentFactory.jsonBuilder().startObject().field("hourly_users", sketchBytes).endObject())
@@ -286,7 +290,8 @@ public class HllFieldMapperIntegrationTests extends OpenSearchSingleNodeTestCase
 
                 BytesStreamOutput out = new BytesStreamOutput();
                 sketch.writeTo(0, out);
-                byte[] sketchBytes = out.bytes().toBytesRef().bytes;
+                org.apache.lucene.util.BytesRef bytesRef = out.bytes().toBytesRef();
+                byte[] sketchBytes = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
 
                 client().prepareIndex(indexName)
                     .setSource(
@@ -370,14 +375,18 @@ public class HllFieldMapperIntegrationTests extends OpenSearchSingleNodeTestCase
             // Index both sketches
             BytesStreamOutput out1 = new BytesStreamOutput();
             sketch1.writeTo(0, out1);
+            org.apache.lucene.util.BytesRef bytesRef1 = out1.bytes().toBytesRef();
+            byte[] sketchBytes1 = Arrays.copyOfRange(bytesRef1.bytes, bytesRef1.offset, bytesRef1.offset + bytesRef1.length);
             client().prepareIndex(indexName)
-                .setSource(XContentFactory.jsonBuilder().startObject().field("sketch", out1.bytes().toBytesRef().bytes).endObject())
+                .setSource(XContentFactory.jsonBuilder().startObject().field("sketch", sketchBytes1).endObject())
                 .get();
 
             BytesStreamOutput out2 = new BytesStreamOutput();
             sketch2.writeTo(0, out2);
+            org.apache.lucene.util.BytesRef bytesRef2 = out2.bytes().toBytesRef();
+            byte[] sketchBytes2 = Arrays.copyOfRange(bytesRef2.bytes, bytesRef2.offset, bytesRef2.offset + bytesRef2.length);
             client().prepareIndex(indexName)
-                .setSource(XContentFactory.jsonBuilder().startObject().field("sketch", out2.bytes().toBytesRef().bytes).endObject())
+                .setSource(XContentFactory.jsonBuilder().startObject().field("sketch", sketchBytes2).endObject())
                 .get();
 
             client().admin().indices().prepareRefresh(indexName).get();
