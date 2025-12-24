@@ -140,6 +140,9 @@ dependencies {
 
   // Netty4 transport for HTTP in tests
   testImplementation project(':modules:transport-netty4')
+  
+  // DataFusion plugin for internalClusterTest
+  internalClusterTestImplementation project(':plugins:engine-datafusion')
 }
 
 test {
