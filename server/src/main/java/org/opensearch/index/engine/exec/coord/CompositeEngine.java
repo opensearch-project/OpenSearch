@@ -11,7 +11,6 @@ package org.opensearch.index.engine.exec.coord;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
@@ -44,7 +43,6 @@ import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.Segment;
-import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.VersionValue;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
@@ -103,6 +101,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.opensearch.index.engine.Engine.HISTORY_UUID_KEY;
 import static org.opensearch.index.engine.Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID;
@@ -126,7 +125,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             throw new RuntimeException(e);
         }
     };
-    private static final BiConsumer<ReleasableRef<CatalogSnapshot>, CatalogSnapshotAwareRefreshListener>
+    private static final BiConsumer<Supplier<ReleasableRef<CatalogSnapshot>>, CatalogSnapshotAwareRefreshListener>
         POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER = (catalogSnapshot, catalogSnapshotAwareRefreshListener) -> {
         try {
             catalogSnapshotAwareRefreshListener.afterRefresh(true, catalogSnapshot);
@@ -156,6 +155,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     protected final String historyUUID;
 
     private final LocalCheckpointTracker localCheckpointTracker;
+    private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
     private final ReentrantLock failEngineLock = new ReentrantLock();
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
@@ -215,6 +215,9 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
             // initialize local checkpoint tracker and translog manager
             this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
+            this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker);
+            refreshListeners.add(lastRefreshedCheckpointListener);
+
             final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
             String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
@@ -326,7 +329,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 }
             }
             catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.accept(
-                acquireSnapshot(),
+                this::acquireSnapshot,
                 refreshListener
             ));
             success = true;
@@ -344,6 +347,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         logger.trace("created new CompositeEngine");
 
         initializeRefreshListeners(engineConfig);
+
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
@@ -410,7 +414,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     public void updateSearchEngine() throws IOException {
         catalogSnapshotAwareRefreshListeners.forEach(ref -> {
             try {
-                ref.afterRefresh(true, catalogSnapshotManager.acquireSnapshot());
+                ref.afterRefresh(true, catalogSnapshotManager::acquireSnapshot);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -695,7 +699,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
             catalogSnapshotManager.applyRefreshResult(refreshResult);
             catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.accept(
-                acquireSnapshot(),
+                this::acquireSnapshot,
                 refreshListener
             ));
 
@@ -795,6 +799,16 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         return 0;
+    }
+
+    @Override
+    public long lastRefreshedCheckpoint() {
+        return lastRefreshedCheckpointListener.getRefreshedCheckpoint();
+    }
+
+    @Override
+    public long currentOngoingRefreshCheckpoint() {
+        return lastRefreshedCheckpointListener.getPendingCheckpoint();
     }
 
     @Override
