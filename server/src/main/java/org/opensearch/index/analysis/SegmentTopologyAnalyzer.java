@@ -14,6 +14,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.index.AdaptiveMergePolicyCalculator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -156,9 +157,9 @@ public class SegmentTopologyAnalyzer implements Writeable {
         boolean hasTooFewSegments = segments.size() < 3; // Too few segments
 
         // Calculate recommended settings (smooth interpolation, capped at 5GB)
-        long recommendedMaxSegmentSize = calculateSmoothMaxSegmentSize(totalSizeBytes);
-        long recommendedFloorSegmentSize = calculateSmoothFloorSegmentSize(totalSizeBytes);
-        int optimalSegmentCount = (int) Math.round(calculateSmoothSegmentsPerTier(totalSizeBytes));
+        long recommendedMaxSegmentSize = AdaptiveMergePolicyCalculator.calculateSmoothMaxSegmentSize(totalSizeBytes);
+        long recommendedFloorSegmentSize = AdaptiveMergePolicyCalculator.calculateSmoothFloorSegmentSize(totalSizeBytes);
+        int optimalSegmentCount = (int) Math.round(AdaptiveMergePolicyCalculator.calculateSmoothSegmentsPerTier(totalSizeBytes));
 
         return new MergePolicyRecommendations(
             hasVarianceIssue,
@@ -172,89 +173,6 @@ public class SegmentTopologyAnalyzer implements Writeable {
             recommendedFloorSegmentSize,
             optimalSegmentCount
         );
-    }
-
-    /**
-     * Calculate smooth max segment size using logarithmic interpolation
-     * to avoid dramatic jumps at category boundaries. Values are capped at 5GB.
-     */
-    private long calculateSmoothMaxSegmentSize(long shardSizeBytes) {
-        // Reference points: 50MB@100MB, 200MB@1GB, 1GB@10GB, 5GB@100GB
-        double logSize = Math.log10(shardSizeBytes);
-
-        if (logSize < 8.0) { // < 100MB
-            return 50 * 1024 * 1024; // 50MB
-        } else if (logSize < 9.0) { // 100MB - 1GB
-            // Linear interpolation between 50MB and 200MB
-            double ratio = (logSize - 8.0) / 1.0;
-            long smallSize = 50 * 1024 * 1024;
-            long mediumSize = 200 * 1024 * 1024;
-            return (long) (smallSize + ratio * (mediumSize - smallSize));
-        } else if (logSize < 10.0) { // 1GB - 10GB
-            // Linear interpolation between 200MB and 1GB
-            double ratio = (logSize - 9.0) / 1.0;
-            long mediumSize = 200 * 1024 * 1024;
-            long largeSize = 1024 * 1024 * 1024;
-            return (long) (mediumSize + ratio * (largeSize - mediumSize));
-        } else if (logSize < 11.0) { // 10GB - 100GB
-            // Linear interpolation between 1GB and 5GB
-            double ratio = (logSize - 10.0) / 1.0;
-            long largeSize = 1024 * 1024 * 1024;
-            long veryLargeSize = 5L * 1024 * 1024 * 1024;
-            return (long) (largeSize + ratio * (veryLargeSize - largeSize));
-        } else { // >= 100GB
-            return 5L * 1024 * 1024 * 1024; // 5GB
-        }
-    }
-
-    /**
-     * Calculate smooth floor segment size using logarithmic interpolation
-     */
-    private long calculateSmoothFloorSegmentSize(long shardSizeBytes) {
-        double logSize = Math.log10(shardSizeBytes);
-
-        if (logSize < 8.0) { // < 100MB
-            return 10 * 1024 * 1024; // 10MB
-        } else if (logSize < 9.0) { // 100MB - 1GB
-            double ratio = (logSize - 8.0) / 1.0;
-            long smallSize = 10 * 1024 * 1024;
-            long mediumSize = 25 * 1024 * 1024;
-            return (long) (smallSize + ratio * (mediumSize - smallSize));
-        } else if (logSize < 10.0) { // 1GB - 10GB
-            double ratio = (logSize - 9.0) / 1.0;
-            long mediumSize = 25 * 1024 * 1024;
-            long largeSize = 50 * 1024 * 1024;
-            return (long) (mediumSize + ratio * (largeSize - mediumSize));
-        } else if (logSize < 11.0) { // 10GB - 100GB
-            double ratio = (logSize - 10.0) / 1.0;
-            long largeSize = 50 * 1024 * 1024;
-            long veryLargeSize = 100 * 1024 * 1024;
-            return (long) (largeSize + ratio * (veryLargeSize - largeSize));
-        } else { // >= 100GB
-            return 100 * 1024 * 1024; // 100MB
-        }
-    }
-
-    /**
-     * Calculate smooth segments per tier using logarithmic interpolation
-     */
-    private double calculateSmoothSegmentsPerTier(long shardSizeBytes) {
-        double logSize = Math.log10(shardSizeBytes);
-
-        if (logSize < 8.0) { // < 100MB
-            return 5.0;
-        } else if (logSize < 9.0) { // 100MB - 1GB
-            double ratio = (logSize - 8.0) / 1.0;
-            return 5.0 + ratio * (8.0 - 5.0);
-        } else if (logSize < 10.0) { // 1GB - 10GB
-            double ratio = (logSize - 9.0) / 1.0;
-            return 8.0 + ratio * (10.0 - 8.0);
-        } else if (logSize < 11.0) { // 10GB - 100GB
-            double ratio = (logSize - 10.0) / 1.0;
-            return 10.0 + ratio * (12.0 - 10.0);
-        } else { // >= 100GB
-            return 12.0;
-        }
     }
 
     // Getters
