@@ -66,7 +66,6 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
             BulkRequestActionListener listener = new BulkRequestActionListener(wrappedObserver);
             client.bulk(bulkRequest, listener);
         } catch (CircuitBreakingException e) {
-            breaker.addWithoutBreaking(-requestSize);
             logger.debug("Circuit breaker tripped for gRPC bulk request: {}", e.getMessage());
             StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
             responseObserver.onError(grpcError);

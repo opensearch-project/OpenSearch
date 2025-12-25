@@ -170,9 +170,6 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         // Verify client.search was NOT called (request was rejected before processing)
         verify(client, never()).search(any(org.opensearch.action.search.SearchRequest.class), any());
 
-        // Verify bytes were released after rejection
-        verify(circuitBreaker).addWithoutBreaking(anyLong());
-
         // Verify error was sent to client
         verify(responseObserver).onError(any());
     }
