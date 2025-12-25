@@ -7,10 +7,10 @@
  */
 package org.opensearch.transport.grpc.util;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.grpc.stub.StreamObserver;
 
@@ -34,11 +34,7 @@ public class CircuitBreakerStreamObserver<T> implements StreamObserver<T> {
      * @param circuitBreakerService The circuit breaker service for tracking in-flight requests
      * @param requestSize The size of the request in bytes that was added to the circuit breaker
      */
-    public CircuitBreakerStreamObserver(
-        StreamObserver<T> delegate,
-        CircuitBreakerService circuitBreakerService,
-        int requestSize
-    ) {
+    public CircuitBreakerStreamObserver(StreamObserver<T> delegate, CircuitBreakerService circuitBreakerService, int requestSize) {
         this.delegate = delegate;
         this.circuitBreakerService = circuitBreakerService;
         this.requestSize = requestSize;
@@ -82,4 +78,3 @@ public class CircuitBreakerStreamObserver<T> implements StreamObserver<T> {
         breaker.addWithoutBreaking(-requestSize);
     }
 }
-

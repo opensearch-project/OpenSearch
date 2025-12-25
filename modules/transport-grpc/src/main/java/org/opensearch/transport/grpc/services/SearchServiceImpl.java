@@ -8,8 +8,6 @@
 
 package org.opensearch.transport.grpc.services;
 
-import java.io.IOException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -22,6 +20,8 @@ import org.opensearch.transport.grpc.proto.request.search.SearchRequestProtoUtil
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.util.CircuitBreakerStreamObserver;
 import org.opensearch.transport.grpc.util.GrpcErrorHandler;
+
+import java.io.IOException;
 
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -77,8 +77,11 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
         try {
             breaker.addEstimateBytesAndMaybeBreak(requestSize, "<grpc_request>");
 
-            StreamObserver<org.opensearch.protobufs.SearchResponse> wrappedObserver =
-                new CircuitBreakerStreamObserver<>(responseObserver, circuitBreakerService, requestSize);
+            StreamObserver<org.opensearch.protobufs.SearchResponse> wrappedObserver = new CircuitBreakerStreamObserver<>(
+                responseObserver,
+                circuitBreakerService,
+                requestSize
+            );
 
             org.opensearch.action.search.SearchRequest searchRequest = SearchRequestProtoUtils.prepareRequest(request, client, queryUtils);
             SearchRequestActionListener listener = new SearchRequestActionListener(wrappedObserver);

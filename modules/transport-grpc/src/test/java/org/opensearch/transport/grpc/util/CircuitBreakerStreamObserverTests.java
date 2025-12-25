@@ -7,6 +7,15 @@
  */
 package org.opensearch.transport.grpc.util;
 
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
+
+import io.grpc.stub.StreamObserver;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -14,15 +23,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import org.junit.Before;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
-import org.opensearch.test.OpenSearchTestCase;
-
-import io.grpc.stub.StreamObserver;
 
 /**
  * Tests for CircuitBreakerStreamObserver wrapper.
@@ -59,34 +59,34 @@ public class CircuitBreakerStreamObserverTests extends OpenSearchTestCase {
 
     public void testOnCompletedReleasesBytes() {
         wrapperObserver.onCompleted();
-        
+
         // Verify delegate was called
         verify(delegateObserver).onCompleted();
-        
+
         // Verify bytes were released exactly once
-        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long)-REQUEST_SIZE));
+        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long) -REQUEST_SIZE));
     }
 
     public void testOnErrorReleasesBytes() {
         Throwable error = new RuntimeException("Test error");
         wrapperObserver.onError(error);
-        
+
         // Verify delegate was called
         verify(delegateObserver).onError(error);
-        
+
         // Verify bytes were released exactly once
-        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long)-REQUEST_SIZE));
+        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long) -REQUEST_SIZE));
     }
 
     public void testBytesReleasedExactlyOnceOnMultipleCalls() {
         // Call onCompleted first
         wrapperObserver.onCompleted();
-        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long)-REQUEST_SIZE));
-        
+        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long) -REQUEST_SIZE));
+
         // Call onError - should not release again
         wrapperObserver.onError(new RuntimeException("Error"));
-        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long)-REQUEST_SIZE));
-        
+        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long) -REQUEST_SIZE));
+
         // Verify delegate was called for both
         verify(delegateObserver).onCompleted();
         verify(delegateObserver).onError(any());
@@ -95,12 +95,12 @@ public class CircuitBreakerStreamObserverTests extends OpenSearchTestCase {
     public void testBytesReleasedExactlyOnceOnErrorThenCompleted() {
         // Call onError first
         wrapperObserver.onError(new RuntimeException("Error"));
-        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long)-REQUEST_SIZE));
-        
+        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long) -REQUEST_SIZE));
+
         // Call onCompleted - should not release again
         wrapperObserver.onCompleted();
-        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long)-REQUEST_SIZE));
-        
+        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long) -REQUEST_SIZE));
+
         // Verify delegate was called for both
         verify(delegateObserver).onError(any());
         verify(delegateObserver).onCompleted();
@@ -110,7 +110,7 @@ public class CircuitBreakerStreamObserverTests extends OpenSearchTestCase {
         wrapperObserver.onNext("value1");
         wrapperObserver.onNext("value2");
         wrapperObserver.onNext("value3");
-        
+
         verify(delegateObserver, times(3)).onNext(any());
         verify(circuitBreaker, never()).addWithoutBreaking(anyLong());
     }
@@ -119,10 +119,9 @@ public class CircuitBreakerStreamObserverTests extends OpenSearchTestCase {
         wrapperObserver.onNext("value1");
         wrapperObserver.onNext("value2");
         wrapperObserver.onCompleted();
-        
+
         verify(delegateObserver, times(2)).onNext(any());
         verify(delegateObserver).onCompleted();
-        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long)-REQUEST_SIZE));
+        verify(circuitBreaker, times(1)).addWithoutBreaking(eq((long) -REQUEST_SIZE));
     }
 }
-

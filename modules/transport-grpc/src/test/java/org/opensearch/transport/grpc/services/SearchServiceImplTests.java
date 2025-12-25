@@ -8,22 +8,6 @@
 
 package org.opensearch.transport.grpc.services;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.io.IOException;
-
-import org.junit.Before;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
 import org.opensearch.common.unit.TimeValue;
@@ -37,8 +21,24 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
+import org.junit.Before;
+
+import java.io.IOException;
 
 import io.grpc.stub.StreamObserver;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class SearchServiceImplTests extends OpenSearchTestCase {
 
@@ -67,21 +67,30 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
 
     public void testConstructorWithNullClient() {
         // Test that constructor throws IllegalArgumentException when client is null
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(null, queryUtils, circuitBreakerService));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchServiceImpl(null, queryUtils, circuitBreakerService)
+        );
 
         assertEquals("Client cannot be null", exception.getMessage());
     }
 
     public void testConstructorWithNullQueryUtils() {
         // Test that constructor throws IllegalArgumentException when queryUtils is null
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(client, null, circuitBreakerService));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchServiceImpl(client, null, circuitBreakerService)
+        );
 
         assertEquals("Query utils cannot be null", exception.getMessage());
     }
 
     public void testConstructorWithNullCircuitBreakerService() {
         // Test that constructor throws IllegalArgumentException when circuitBreakerService is null
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(client, queryUtils, null));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchServiceImpl(client, queryUtils, null)
+        );
 
         assertEquals("Circuit breaker service cannot be null", exception.getMessage());
     }
@@ -89,7 +98,10 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
     public void testConstructorWithBothNull() {
         // Test that constructor throws IllegalArgumentException when both parameters are null
         // Should fail on the first null check (client)
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(null, null, circuitBreakerService));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchServiceImpl(null, null, circuitBreakerService)
+        );
 
         assertEquals("Client cannot be null", exception.getMessage());
     }

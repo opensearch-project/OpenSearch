@@ -56,8 +56,11 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
         try {
             breaker.addEstimateBytesAndMaybeBreak(requestSize, "<grpc_request>");
 
-            StreamObserver<org.opensearch.protobufs.BulkResponse> wrappedObserver =
-                new CircuitBreakerStreamObserver<>(responseObserver, circuitBreakerService, requestSize);
+            StreamObserver<org.opensearch.protobufs.BulkResponse> wrappedObserver = new CircuitBreakerStreamObserver<>(
+                responseObserver,
+                circuitBreakerService,
+                requestSize
+            );
 
             org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
             BulkRequestActionListener listener = new BulkRequestActionListener(wrappedObserver);
