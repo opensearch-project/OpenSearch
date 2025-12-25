@@ -8,7 +8,9 @@
 
 package org.opensearch.transport.grpc.ssl;
 
+import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.fips.FipsMode;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -17,13 +19,13 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
+import java.security.NoSuchProviderException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -32,13 +34,13 @@ import java.util.Optional;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
-import static org.opensearch.test.OpenSearchTestCase.randomFrom;
-
 public class SecureSettingsHelpers {
-    private static final String TEST_PASS = "password"; // used for all keystores
-    static final String SERVER_KEYSTORE = "/netty4-server-secure.jks";
-    static final String CLIENT_KEYSTORE = "/netty4-client-secure.jks";
-    static final String[] DEFAULT_SSL_PROTOCOLS = { "TLSv1.3", "TLSv1.2", "TLSv1.1" };
+    private static final String keyStoreType = FipsMode.CHECK.isFipsEnabled() ? "BCFKS" : "JKS";
+    private static final String fileExtension = FipsMode.CHECK.isFipsEnabled() ? ".bcfks" : ".jks";
+    private static final String provider = FipsMode.CHECK.isFipsEnabled() ? "BCJSSE" : "SunJSSE";
+    private static final char[] TEST_PASS = "password".toCharArray(); // used for all keystores
+    static final String SERVER_KEYSTORE = "/netty4-server-secure";
+    static final String CLIENT_KEYSTORE = "/netty4-client-secure";
     static final String[] DEFAULT_CIPHERS = {
         "TLS_AES_128_GCM_SHA256",
         "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
@@ -78,27 +80,30 @@ public class SecureSettingsHelpers {
     }
 
     public static KeyManagerFactory getTestKeyManagerFactory(String keystorePath) {
-        KeyManagerFactory keyManagerFactory;
-        try {
-            final KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-            keyStore.load(SecureNetty4GrpcServerTransport.class.getResourceAsStream(keystorePath), TEST_PASS.toCharArray());
-            keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            keyManagerFactory.init(keyStore, TEST_PASS.toCharArray());
-        } catch (UnrecoverableKeyException | CertificateException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
+        try (InputStream keyStoreFile = SecureNetty4GrpcServerTransport.class.getResourceAsStream(keystorePath + fileExtension)) {
+            KeyStore keyStore = KeyStore.getInstance(keyStoreType);
+            keyStore.load(keyStoreFile, TEST_PASS);
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(keyStore, TEST_PASS);
+            return keyManagerFactory;
+        } catch (GeneralSecurityException e) {
             throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        return keyManagerFactory;
     }
 
     static TrustManagerFactory getTestTrustManagerFactory(String keystorePath) {
-        try {
-            final KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
-            trustStore.load(SecureNetty4GrpcServerTransport.class.getResourceAsStream(keystorePath), TEST_PASS.toCharArray());
+        try (InputStream trustStoreFile = SecureNetty4GrpcServerTransport.class.getResourceAsStream(keystorePath + fileExtension);) {
+            final KeyStore trustStore = KeyStore.getInstance(keyStoreType);
+            trustStore.load(trustStoreFile, TEST_PASS);
             TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             trustManagerFactory.init(trustStore);
             return trustManagerFactory;
-        } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException e) {
+        } catch (GeneralSecurityException e) {
             throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -111,14 +116,11 @@ public class SecureSettingsHelpers {
             @Override
             public Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, String auxTransportType)
                 throws SSLException {
-                // Choose a random protocol from among supported test defaults
-                String protocol = randomFrom(DEFAULT_SSL_PROTOCOLS);
-                // Default JDK provider
                 SSLContext testContext;
                 try {
-                    testContext = SSLContext.getInstance(protocol);
-                    testContext.init(keyMngerFactory.getKeyManagers(), trustMngerFactory.getTrustManagers(), new SecureRandom());
-                } catch (NoSuchAlgorithmException | KeyManagementException e) {
+                    testContext = SSLContext.getInstance("TLS", provider);
+                    testContext.init(keyMngerFactory.getKeyManagers(), trustMngerFactory.getTrustManagers(), Randomness.createSecure());
+                } catch (NoSuchAlgorithmException | KeyManagementException | NoSuchProviderException e) {
                     throw new SSLException("Failed to build mock provider", e);
                 }
                 return Optional.of(testContext);

@@ -1361,15 +1361,14 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * commit.
      */
     private void cleanUpUnreferencedFiles() {
-        try (
-            IndexWriter writer = new IndexWriter(
-                store.directory(),
-                new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                    .setCommitOnClose(false)
-                    .setMergePolicy(NoMergePolicy.INSTANCE)
-                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-            )
-        ) {
+        IndexWriterConfig iwc = new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setCommitOnClose(false)
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        if (store.shouldSetParentField()) {
+            iwc.setParentField(Lucene.PARENT_FIELD);
+        }
+        try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
             // do nothing except increasing metric count and close this will kick off IndexFileDeleter which will
             // remove all unreferenced files
             totalUnreferencedFileCleanUpsPerformed.inc();

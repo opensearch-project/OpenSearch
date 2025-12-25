@@ -87,19 +87,20 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(workloadGroupList, RestStatus.OK);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
-        String expected = "{\n"
-            + "  \"workload_groups\" : [\n"
-            + "    {\n"
-            + "      \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
-            + "      \"name\" : \"workload_group_one\",\n"
-            + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"resource_limits\" : {\n"
-            + "        \"memory\" : 0.3\n"
-            + "      },\n"
-            + "      \"updated_at\" : 4513232413\n"
-            + "    }\n"
-            + "  ]\n"
-            + "}";
+        String expected = """
+            {
+              "workload_groups" : [
+                {
+                  "_id" : "AgfUO5Ja9yfsYlONlYi3TQ==",
+                  "name" : "workload_group_one",
+                  "resiliency_mode" : "monitor",
+                  "resource_limits" : {
+                    "memory" : 0.3
+                  },
+                  "updated_at" : 4513232413
+                }
+              ]
+            }""";
         assertEquals(expected, actual);
     }
 
@@ -113,28 +114,29 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(workloadGroupList, RestStatus.OK);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
-        String expected = "{\n"
-            + "  \"workload_groups\" : [\n"
-            + "    {\n"
-            + "      \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
-            + "      \"name\" : \"workload_group_one\",\n"
-            + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"resource_limits\" : {\n"
-            + "        \"memory\" : 0.3\n"
-            + "      },\n"
-            + "      \"updated_at\" : 4513232413\n"
-            + "    },\n"
-            + "    {\n"
-            + "      \"_id\" : \"G5iIqHy4g7eK1qIAAAAIH53=1\",\n"
-            + "      \"name\" : \"workload_group_two\",\n"
-            + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"resource_limits\" : {\n"
-            + "        \"memory\" : 0.6\n"
-            + "      },\n"
-            + "      \"updated_at\" : 4513232415\n"
-            + "    }\n"
-            + "  ]\n"
-            + "}";
+        String expected = """
+            {
+              "workload_groups" : [
+                {
+                  "_id" : "AgfUO5Ja9yfsYlONlYi3TQ==",
+                  "name" : "workload_group_one",
+                  "resiliency_mode" : "monitor",
+                  "resource_limits" : {
+                    "memory" : 0.3
+                  },
+                  "updated_at" : 4513232413
+                },
+                {
+                  "_id" : "G5iIqHy4g7eK1qIAAAAIH53=1",
+                  "name" : "workload_group_two",
+                  "resiliency_mode" : "monitor",
+                  "resource_limits" : {
+                    "memory" : 0.6
+                  },
+                  "updated_at" : 4513232415
+                }
+              ]
+            }""";
         assertEquals(expected, actual);
     }
 
@@ -145,7 +147,10 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         GetWorkloadGroupResponse otherResponse = new GetWorkloadGroupResponse(new ArrayList<>(), RestStatus.OK);
         String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
-        String expected = "{\n" + "  \"workload_groups\" : [ ]\n" + "}";
+        String expected = """
+            {
+              "workload_groups" : [ ]
+            }""";
         assertEquals(expected, actual);
     }
 }

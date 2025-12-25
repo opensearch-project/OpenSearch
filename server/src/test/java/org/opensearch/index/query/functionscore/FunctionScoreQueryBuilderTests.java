@@ -780,44 +780,55 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testQueryMalformedArrayNotSupported() throws IOException {
-        String json = "{\n" + "  \"function_score\" : {\n" + "    \"not_supported\" : []\n" + "  }\n" + "}";
+        String json = """
+            {
+              "function_score" : {
+                "not_supported" : []
+              }
+            }""";
 
         expectParsingException(json, "array [not_supported] is not supported");
     }
 
     public void testQueryMalformedFieldNotSupported() throws IOException {
-        String json = "{\n" + "  \"function_score\" : {\n" + "    \"not_supported\" : \"value\"\n" + "  }\n" + "}";
+        String json = """
+            {
+              "function_score" : {
+                "not_supported" : "value"
+              }
+            }""";
 
         expectParsingException(json, "field [not_supported] is not supported");
     }
 
     public void testMalformedQueryFunctionFieldNotSupported() throws IOException {
-        String json = "{\n"
-            + "  \"function_score\" : {\n"
-            + "    \"functions\" : [ {\n"
-            + "      \"not_supported\" : 23.0\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "function_score" : {
+                "functions" : [ {
+                  "not_supported" : 23.0
+                }
+              }
+            }""";
 
         expectParsingException(json, "field [not_supported] is not supported");
     }
 
     public void testMalformedQueryMultipleQueryObjects() throws IOException {
         // verify that an error is thrown rather than setting the query twice (https://github.com/elastic/elasticsearch/issues/16583)
-        String json = "{\n"
-            + "    \"function_score\":{\n"
-            + "        \"query\":{\n"
-            + "            \"bool\":{\n"
-            + "                \"must\":{\"match\":{\"field\":\"value\"}}"
-            + "             },\n"
-            + "            \"ignored_field_name\": {\n"
-            + "                {\"match\":{\"field\":\"value\"}}\n"
-            + "            }\n"
-            + "            }\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        String json = """
+            {
+                "function_score":{
+                    "query":{
+                        "bool":{
+                            "must":{"match":{"field":"value"}}             },
+                        "ignored_field_name": {
+                            {"match":{"field":"value"}}
+                        }
+                        }
+                    }
+                }
+            }""";
         expectParsingException(json, equalTo("[bool] malformed query, expected [END_OBJECT] but found [FIELD_NAME]"));
     }
 

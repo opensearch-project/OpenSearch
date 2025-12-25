@@ -249,6 +249,9 @@ class TermsQueryBuilderProtoUtils {
         if (lookup.hasRouting()) {
             tl.routing(lookup.getRouting());
         }
+        if (lookup.hasStore()) {
+            tl.store(lookup.getStore());
+        }
         return tl;
     }
 }
