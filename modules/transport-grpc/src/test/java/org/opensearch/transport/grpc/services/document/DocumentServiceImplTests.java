@@ -128,9 +128,6 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
         // Verify client.bulk was NOT called (request was rejected before processing)
         verify(client, never()).bulk(any(org.opensearch.action.bulk.BulkRequest.class), any());
 
-        // Verify bytes were released after rejection
-        verify(circuitBreaker).addWithoutBreaking(anyLong());
-
         // Verify error was sent to client
         verify(responseObserver).onError(any());
     }

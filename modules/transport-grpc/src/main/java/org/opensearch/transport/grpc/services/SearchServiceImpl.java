@@ -87,7 +87,6 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
             SearchRequestActionListener listener = new SearchRequestActionListener(wrappedObserver);
             client.search(searchRequest, listener);
         } catch (CircuitBreakingException e) {
-            breaker.addWithoutBreaking(-requestSize);
             logger.debug("Circuit breaker tripped for gRPC search request: {}", e.getMessage());
             StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
             responseObserver.onError(grpcError);
