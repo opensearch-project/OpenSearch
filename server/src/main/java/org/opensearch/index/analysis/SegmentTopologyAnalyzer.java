@@ -8,6 +8,9 @@
 
 package org.opensearch.index.analysis;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.common.annotation.PublicApi;
@@ -20,6 +23,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Analyzes segment topology to identify problematic distributions that cause
@@ -38,6 +42,8 @@ import java.util.List;
 @PublicApi(since = "3.3.0")
 public class SegmentTopologyAnalyzer implements Writeable {
 
+    private static final Logger logger = LogManager.getLogger(SegmentTopologyAnalyzer.class);
+
     private final List<Segment> segments;
     private final SegmentMetrics metrics;
     private final String indexName;
@@ -50,6 +56,8 @@ public class SegmentTopologyAnalyzer implements Writeable {
 
         long totalSize = 0;
         int totalDocCount = 0;
+        int failedSegments = 0;
+        int totalSegments = segmentInfos.size();
 
         for (SegmentCommitInfo segmentInfo : segmentInfos) {
             try {
@@ -69,7 +77,50 @@ public class SegmentTopologyAnalyzer implements Writeable {
                 totalSize += segmentSize;
                 totalDocCount += docCount;
             } catch (IOException e) {
-                // Skip segments we can't analyze
+                failedSegments++;
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "Failed to analyze segment [{}] for index [{}], skipping: {}",
+                            segmentInfo.info.name,
+                            indexName,
+                            e.getMessage()
+                        ),
+                        e
+                    );
+                }
+            }
+        }
+
+        // Log warning if significant number of segments failed or all segments failed
+        if (failedSegments > 0) {
+            double failureRate = (double) failedSegments / totalSegments;
+            if (tempSegments.isEmpty()) {
+                // All segments failed - analysis will be based on empty data
+                logger.warn(
+                    "All {} segments failed to analyze for index [{}]. "
+                        + "Segment topology analysis will be based on empty data, which may lead to incorrect recommendations.",
+                    totalSegments,
+                    indexName
+                );
+            } else if (failureRate > 0.5) {
+                // More than half failed - significant data loss
+                logger.warn(
+                    "{} of {} segments ({}%) failed to analyze for index [{}]. "
+                        + "Segment topology analysis may be based on incomplete data, which could lead to suboptimal recommendations.",
+                    failedSegments,
+                    totalSegments,
+                    String.format(Locale.ROOT, "%.1f", failureRate * 100.0),
+                    indexName
+                );
+            } else if (logger.isTraceEnabled()) {
+                // Log at trace level for minor failures
+                logger.trace(
+                    "{} of {} segments failed to analyze for index [{}] (analysis may be slightly incomplete)",
+                    failedSegments,
+                    totalSegments,
+                    indexName
+                );
             }
         }
 
