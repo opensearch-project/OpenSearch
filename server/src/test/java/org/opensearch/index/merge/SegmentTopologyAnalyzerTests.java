@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.analysis;
+package org.opensearch.index.merge;
 
 import org.opensearch.test.OpenSearchTestCase;
 
