@@ -568,7 +568,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected Releasable checkPrimaryLimits(BulkShardRequest request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
-        if (force(request) == false) {
+        if (force(request) == false && isWarmNode == false) {
             if (segmentReplicationPressureService.isSegmentReplicationBackpressureEnabled()) {
                 segmentReplicationPressureService.isSegrepLimitBreached(request.shardId());
             }
