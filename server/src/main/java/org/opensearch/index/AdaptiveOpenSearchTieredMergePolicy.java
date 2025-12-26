@@ -84,8 +84,7 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
     }
 
     @Override
-    public MergeSpecification findMerges(MergeTrigger mergeTrigger, SegmentInfos infos, MergeContext mergeContext)
-            throws IOException {
+    public MergeSpecification findMerges(MergeTrigger mergeTrigger, SegmentInfos infos, MergeContext mergeContext) throws IOException {
         // Recompute adaptive settings from the current topology before planning merges
         long totalSizeBytes = 0L;
         int failedSegments = 0;
@@ -104,10 +103,12 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
                 failedSegments++;
                 if (logger.isDebugEnabled()) {
                     logger.debug(
-                            () -> new ParameterizedMessage(
-                                    "Failed to get size for segment [{}], skipping from shard size calculation",
-                                    info.info.name),
-                            e);
+                        () -> new ParameterizedMessage(
+                            "Failed to get size for segment [{}], skipping from shard size calculation",
+                            info.info.name
+                        ),
+                        e
+                    );
                 }
             }
         }
@@ -118,32 +119,33 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
             if (totalSizeBytes == 0L) {
                 // All segments failed - this will produce minimum adaptive settings
                 logger.warn(
-                        "All {} segments failed to report size during adaptive merge policy calculation. "
-                                + "Using minimum adaptive settings (50 MiB max segment, 10 MiB floor, 5 segments per tier). "
-                                + "This may result in suboptimal merge behavior.",
-                        totalSegments);
+                    "All {} segments failed to report size during adaptive merge policy calculation. "
+                        + "Using minimum adaptive settings (50 MiB max segment, 10 MiB floor, 5 segments per tier). "
+                        + "This may result in suboptimal merge behavior.",
+                    totalSegments
+                );
             } else if (failureRate > 0.5) {
                 // More than half failed - significant underestimation likely
                 logger.warn(
-                        "{} of {} segments ({}%) failed to report size during adaptive merge policy calculation. "
-                                + "Shard size may be significantly underestimated, leading to smaller adaptive settings than optimal.",
-                        failedSegments,
-                        totalSegments,
-                        String.format(Locale.ROOT, "%.1f", failureRate * 100.0));
+                    "{} of {} segments ({}%) failed to report size during adaptive merge policy calculation. "
+                        + "Shard size may be significantly underestimated, leading to smaller adaptive settings than optimal.",
+                    failedSegments,
+                    totalSegments,
+                    String.format(Locale.ROOT, "%.1f", failureRate * 100.0)
+                );
             } else if (logger.isTraceEnabled()) {
                 // Log at trace level for minor failures
                 logger.trace(
-                        "{} of {} segments failed to report size (shard size may be slightly underestimated)",
-                        failedSegments,
-                        totalSegments);
+                    "{} of {} segments failed to report size (shard size may be slightly underestimated)",
+                    failedSegments,
+                    totalSegments
+                );
             }
         }
 
         // Apply smooth interpolation-based settings
-        double maxMergedSegmentMB = bytesToMB(
-                AdaptiveMergePolicyCalculator.calculateSmoothMaxSegmentSize(totalSizeBytes));
-        double floorSegmentMB = bytesToMB(
-                AdaptiveMergePolicyCalculator.calculateSmoothFloorSegmentSize(totalSizeBytes));
+        double maxMergedSegmentMB = bytesToMB(AdaptiveMergePolicyCalculator.calculateSmoothMaxSegmentSize(totalSizeBytes));
+        double floorSegmentMB = bytesToMB(AdaptiveMergePolicyCalculator.calculateSmoothFloorSegmentSize(totalSizeBytes));
         double segmentsPerTier = AdaptiveMergePolicyCalculator.calculateSmoothSegmentsPerTier(totalSizeBytes);
 
         // Synchronize settings updates to prevent race conditions with concurrent
@@ -163,16 +165,16 @@ final class AdaptiveOpenSearchTieredMergePolicy extends FilterMergePolicy {
 
     @Override
     public MergeSpecification findForcedMerges(
-            SegmentInfos infos,
-            int maxSegmentCount,
-            Map<SegmentCommitInfo, Boolean> segmentsToMerge,
-            MergeContext mergeContext) throws IOException {
+        SegmentInfos infos,
+        int maxSegmentCount,
+        Map<SegmentCommitInfo, Boolean> segmentsToMerge,
+        MergeContext mergeContext
+    ) throws IOException {
         return forcedMergePolicy.findForcedMerges(infos, maxSegmentCount, segmentsToMerge, mergeContext);
     }
 
     @Override
-    public MergeSpecification findForcedDeletesMerges(SegmentInfos infos, MergeContext mergeContext)
-            throws IOException {
+    public MergeSpecification findForcedDeletesMerges(SegmentInfos infos, MergeContext mergeContext) throws IOException {
         return regularMergePolicy.findForcedDeletesMerges(infos, mergeContext);
     }
 
