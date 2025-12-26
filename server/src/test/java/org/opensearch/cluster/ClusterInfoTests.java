@@ -146,6 +146,18 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         }
     }
 
+    public void testGetNodeProcessStats() {
+        Map<String, ProcessStats> processStats = randomProcessStats(5);
+        ClusterInfo clusterInfo = new ClusterInfo(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), processStats);
+
+        assertEquals(processStats, clusterInfo.getNodeProcessStats());
+        assertEquals(5, clusterInfo.getNodeProcessStats().size());
+
+        // Test with empty map
+        ClusterInfo emptyInfo = new ClusterInfo(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        assertTrue(emptyInfo.getNodeProcessStats().isEmpty());
+    }
+
     private static Map<String, DiskUsage> randomDiskUsage(int numEntries) {
         final Map<String, DiskUsage> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
