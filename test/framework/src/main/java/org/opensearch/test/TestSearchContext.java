@@ -718,6 +718,21 @@ public class TestSearchContext extends SearchContext {
         return indexService != null && indexService.getIndexSettings().getStarTreeIndexEnabled();
     }
 
+    @Override
+    public boolean getIntraSegmentSearchEnabled() {
+        return false;
+    }
+
+    @Override
+    public int getIntraSegmentMinSegmentSize() {
+        return 500000;
+    }
+
+    @Override
+    public boolean shouldUseIntraSegmentSearch() {
+        return false;
+    }
+
     /**
      * Clean the query results by consuming all of it
      */

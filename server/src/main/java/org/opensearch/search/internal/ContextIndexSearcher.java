@@ -577,7 +577,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return slicesInternal(leaves, searchContext.getTargetMaxSliceCount());
+        if (leaves == null || leaves.isEmpty()) {
+            return new LeafSlice[0];
+        }
+        int targetMaxSlice = searchContext.getTargetMaxSliceCount();
+        if (targetMaxSlice == 0) {
+            // use the default lucene slice calculation
+            return super.slices(leaves);
+        }
+        if (searchContext.shouldUseIntraSegmentSearch() == false) {
+            return MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
+        }
+        return MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, targetMaxSlice, searchContext.getIntraSegmentMinSegmentSize());
     }
 
     public DirectoryReader getDirectoryReader() {
@@ -647,6 +658,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     // package-private for testing
+    // Disable the usage of slicesInternal for now (temp).
     LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, int targetMaxSlice) {
         LeafSlice[] leafSlices;
         if (targetMaxSlice == 0) {

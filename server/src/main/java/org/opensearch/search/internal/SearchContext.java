@@ -599,4 +599,18 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
+    public boolean getIntraSegmentSearchEnabled() {
+        return false;
+    }
+
+    public int getIntraSegmentMinSegmentSize() {
+        return 500_000;
+    }
+
+    /**
+     * Evaluates whether this request should use intra-segment search based on query and aggregation analysis.
+     */
+    public boolean shouldUseIntraSegmentSearch() {
+        return false;
+    }
 }
