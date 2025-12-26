@@ -97,6 +97,7 @@ configure([
   project(":client:client-benchmark-noop-api-plugin"),
   project(":client:rest-high-level"),
   project(":client:test"),
+  project(":libs:opensearch-metadata-common"),
   project(":libs:opensearch-cli"),
   project(":libs:opensearch-dissect"),
   project(":libs:opensearch-geo"),
