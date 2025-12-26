@@ -33,6 +33,7 @@
 package org.opensearch.painless.spi;
 
 import org.opensearch.painless.spi.annotation.AllowlistAnnotationParser;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
@@ -40,8 +41,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -513,8 +512,7 @@ public final class AllowlistLoader {
             }
         }
 
-        @SuppressWarnings("removal")
-        ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>) resource::getClassLoader);
+        ClassLoader loader = AccessController.doPrivileged(resource::getClassLoader);
 
         return new Allowlist(loader, allowlistClasses, allowlistStatics, allowlistClassBindings, Collections.emptyList());
     }
