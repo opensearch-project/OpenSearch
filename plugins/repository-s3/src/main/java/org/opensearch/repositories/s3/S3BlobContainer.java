@@ -64,7 +64,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.CryptoMetadata;
-import org.opensearch.cluster.metadata.KmsCryptoMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
@@ -240,9 +239,9 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         String indexKmsKey = null;
         String indexEncContext = null;
 
-        if (crypto instanceof KmsCryptoMetadata kmsMetadata) {
-            indexKmsKey = kmsMetadata.getKmsKeyArn().orElse(null);
-            indexEncContext = kmsMetadata.getKmsEncryptionContext().orElse(null);
+        if (crypto != null) {
+            indexKmsKey = crypto.getKeyArn().orElse(null);
+            indexEncContext = crypto.getEncryptionContext().orElse(null);
         }
         String mergeEncContext = SseKmsUtil.mergeAndEncodeEncryptionContexts(
             indexEncContext,

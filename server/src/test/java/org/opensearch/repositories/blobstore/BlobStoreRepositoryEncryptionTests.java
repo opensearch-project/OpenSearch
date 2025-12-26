@@ -11,12 +11,11 @@ package org.opensearch.repositories.blobstore;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.KmsCryptoMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 /**
- * Tests for BlobStoreRepository encryption functionality with KmsCryptoMetadata.
+ * Tests for BlobStoreRepository encryption functionality with CryptoMetadata.
  * These tests verify that crypto metadata is correctly extracted from index settings
  * and can be used for encrypted blob operations.
  */
@@ -34,21 +33,18 @@ public class BlobStoreRepositoryEncryptionTests extends OpenSearchTestCase {
         // Extract crypto metadata using the static factory method
         CryptoMetadata cryptoMetadata = CryptoMetadata.fromIndexSettings(indexSettings);
 
-        // Verify it's a KmsCryptoMetadata instance
+        // Verify it's a valid CryptoMetadata instance
         assertNotNull(cryptoMetadata);
-        assertTrue(cryptoMetadata instanceof KmsCryptoMetadata);
 
-        KmsCryptoMetadata kmsCrypto = (KmsCryptoMetadata) cryptoMetadata;
-        assertEquals("aws-kms-provider", kmsCrypto.keyProviderName());
-        assertEquals("aws-kms", kmsCrypto.keyProviderType());
-        assertTrue(kmsCrypto.isIndexLevel());
+        assertEquals("aws-kms-provider", cryptoMetadata.keyProviderName());
+        assertEquals("aws-kms", cryptoMetadata.keyProviderType());
 
-        // Verify KMS-specific settings
-        assertTrue(kmsCrypto.getKmsKeyArn().isPresent());
-        assertEquals("arn:aws:kms:us-east-1:123456789:key/test-key", kmsCrypto.getKmsKeyArn().get());
+        // Verify KMS-specific settings through generic getters
+        assertTrue(cryptoMetadata.getKeyArn().isPresent());
+        assertEquals("arn:aws:kms:us-east-1:123456789:key/test-key", cryptoMetadata.getKeyArn().get());
 
-        assertTrue(kmsCrypto.getKmsEncryptionContext().isPresent());
-        assertEquals("tenant=test,env=prod", kmsCrypto.getKmsEncryptionContext().get());
+        assertTrue(cryptoMetadata.getEncryptionContext().isPresent());
+        assertEquals("tenant=test,env=prod", cryptoMetadata.getEncryptionContext().get());
     }
 
     public void testResolveCryptoMetadataReturnsNullForNonEncryptedIndex() {
@@ -74,7 +70,7 @@ public class BlobStoreRepositoryEncryptionTests extends OpenSearchTestCase {
         assertNull(cryptoMetadata);
     }
 
-    public void testKmsCryptoMetadataFromCompleteIndexMetadata() {
+    public void testCryptoMetadataFromCompleteIndexMetadata() {
         // Create full IndexMetadata with KMS encryption settings
         Settings indexSettings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
@@ -90,18 +86,18 @@ public class BlobStoreRepositoryEncryptionTests extends OpenSearchTestCase {
             .numberOfReplicas(0)
             .build();
 
-        // Use KmsCryptoMetadata.fromIndexSettings which internally uses CryptoMetadata.fromIndexSettings
-        KmsCryptoMetadata kmsCrypto = KmsCryptoMetadata.fromIndexSettings(indexMetadata.getSettings());
+        // Use CryptoMetadata.fromIndexSettings
+        CryptoMetadata cryptoMetadata = CryptoMetadata.fromIndexSettings(indexMetadata.getSettings());
 
-        assertNotNull(kmsCrypto);
-        assertEquals("kms-provider", kmsCrypto.keyProviderName());
-        assertEquals("aws-kms", kmsCrypto.keyProviderType());
+        assertNotNull(cryptoMetadata);
+        assertEquals("kms-provider", cryptoMetadata.keyProviderName());
+        assertEquals("aws-kms", cryptoMetadata.keyProviderType());
 
-        assertTrue(kmsCrypto.getKmsKeyArn().isPresent());
-        assertEquals("arn:aws:kms:us-west-2:987654321:key/prod-key", kmsCrypto.getKmsKeyArn().get());
+        assertTrue(cryptoMetadata.getKeyArn().isPresent());
+        assertEquals("arn:aws:kms:us-west-2:987654321:key/prod-key", cryptoMetadata.getKeyArn().get());
 
-        assertTrue(kmsCrypto.getKmsEncryptionContext().isPresent());
-        assertEquals("classification=secret", kmsCrypto.getKmsEncryptionContext().get());
+        assertTrue(cryptoMetadata.getEncryptionContext().isPresent());
+        assertEquals("classification=secret", cryptoMetadata.getEncryptionContext().get());
     }
 
     public void testDifferentIndicesCanHaveDifferentKmsKeys() {
@@ -121,17 +117,17 @@ public class BlobStoreRepositoryEncryptionTests extends OpenSearchTestCase {
             .put("index.store.crypto.kms.encryption_context", "tenant=globex")
             .build();
 
-        KmsCryptoMetadata cryptoA = KmsCryptoMetadata.fromIndexSettings(indexASettings);
-        KmsCryptoMetadata cryptoB = KmsCryptoMetadata.fromIndexSettings(indexBSettings);
+        CryptoMetadata cryptoA = CryptoMetadata.fromIndexSettings(indexASettings);
+        CryptoMetadata cryptoB = CryptoMetadata.fromIndexSettings(indexBSettings);
 
         // Verify both are valid but different
         assertNotNull(cryptoA);
         assertNotNull(cryptoB);
 
-        assertNotEquals(cryptoA.getKmsKeyArn().get(), cryptoB.getKmsKeyArn().get());
-        assertNotEquals(cryptoA.getKmsEncryptionContext().get(), cryptoB.getKmsEncryptionContext().get());
+        assertNotEquals(cryptoA.getKeyArn().get(), cryptoB.getKeyArn().get());
+        assertNotEquals(cryptoA.getEncryptionContext().get(), cryptoB.getEncryptionContext().get());
 
-        assertEquals("arn:aws:kms:us-east-1:111:key/key-a", cryptoA.getKmsKeyArn().get());
-        assertEquals("arn:aws:kms:us-west-2:222:key/key-b", cryptoB.getKmsKeyArn().get());
+        assertEquals("arn:aws:kms:us-east-1:111:key/key-a", cryptoA.getKeyArn().get());
+        assertEquals("arn:aws:kms:us-west-2:222:key/key-b", cryptoB.getKeyArn().get());
     }
 }

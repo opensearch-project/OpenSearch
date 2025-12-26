@@ -13,7 +13,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 import org.opensearch.cluster.metadata.CryptoMetadata;
-import org.opensearch.cluster.metadata.KmsCryptoMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.repositories.blobstore.EncryptionContextUtils;
 import org.opensearch.repositories.s3.S3BlobStore;
@@ -45,10 +44,9 @@ public class SseKmsUtil {
             String indexKmsKey = null;
             String indexEncContext = null;
 
-            if (cryptoMetadata instanceof KmsCryptoMetadata) {
-                KmsCryptoMetadata kmsMetadata = (KmsCryptoMetadata) cryptoMetadata;
-                indexKmsKey = kmsMetadata.getKmsKeyArn().orElse(null);
-                indexEncContext = kmsMetadata.getKmsEncryptionContext().orElse(null);
+            if (cryptoMetadata != null) {
+                indexKmsKey = cryptoMetadata.getKeyArn().orElse(null);
+                indexEncContext = cryptoMetadata.getEncryptionContext().orElse(null);
             }
 
             String kmsKey = (indexKmsKey != null) ? indexKmsKey : blobStore.serverSideEncryptionKmsKey();
@@ -72,9 +70,9 @@ public class SseKmsUtil {
             String indexKmsKey = null;
             String indexEncContext = null;
 
-            if (cryptoMetadata instanceof KmsCryptoMetadata kmsMetadata) {
-                indexKmsKey = kmsMetadata.getKmsKeyArn().orElse(null);
-                indexEncContext = kmsMetadata.getKmsEncryptionContext().orElse(null);
+            if (cryptoMetadata != null) {
+                indexKmsKey = cryptoMetadata.getKeyArn().orElse(null);
+                indexEncContext = cryptoMetadata.getEncryptionContext().orElse(null);
             }
 
             String kmsKey = (indexKmsKey != null) ? indexKmsKey : blobStore.serverSideEncryptionKmsKey();

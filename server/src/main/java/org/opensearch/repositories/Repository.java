@@ -436,7 +436,7 @@ public interface Repository extends LifecycleComponent {
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
         ActionListener<String> listener,
-        IndexMetadata indexMetadata
+        @Nullable IndexMetadata indexMetadata
     );
 
     /**

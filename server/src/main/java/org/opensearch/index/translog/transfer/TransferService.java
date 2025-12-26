@@ -37,7 +37,8 @@ public interface TransferService {
      * @param fileSnapshot   the file snapshot to upload
      * @param remotePath     the remote path where upload should be made
      * @param listener       the callback to be invoked once upload completes successfully/fails
-     * @param cryptoMetadata
+     * @param writePriority  priority by which content needs to be written
+     * @param cryptoMetadata encryption metadata for server-side encryption settings, may be null
      */
     void uploadBlob(
         String threadPoolName,
@@ -54,7 +55,8 @@ public interface TransferService {
      * @param fileSnapshots  the file snapshots to upload
      * @param blobPaths      Primary term to {@link BlobPath} map
      * @param listener       the callback to be invoked once uploads complete successfully/fail
-     * @param cryptoMetadata
+     * @param writePriority  priority by which content needs to be written
+     * @param cryptoMetadata encryption metadata for server-side encryption settings, may be null
      */
     void uploadBlobs(
         Set<TransferFileSnapshot> fileSnapshots,
@@ -69,8 +71,8 @@ public interface TransferService {
      *
      * @param fileSnapshot   the file snapshot to upload
      * @param remotePath     the remote path where upload should be made
-     * @param writePriority  Priority by which content needs to be written.
-     * @param cryptoMetadata
+     * @param writePriority  priority by which content needs to be written
+     * @param cryptoMetadata encryption metadata for server-side encryption settings, may be null
      * @throws IOException the exception while transferring the data
      */
     void uploadBlob(
