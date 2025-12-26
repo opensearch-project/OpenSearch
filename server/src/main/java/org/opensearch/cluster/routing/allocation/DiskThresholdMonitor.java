@@ -54,6 +54,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.transport.client.Client;
 
 import java.util.ArrayList;
@@ -111,6 +112,11 @@ public class DiskThresholdMonitor {
      */
     private final Set<String> nodesOverHighThresholdAndRelocating = Sets.newConcurrentHashSet();
 
+    /**
+     * The IDs of the nodes that were over the file descriptor threshold in the last check.
+     */
+    private final Set<String> nodesOverFileDescriptorThreshold = Sets.newConcurrentHashSet();
+
     public DiskThresholdMonitor(
         Settings settings,
         Supplier<ClusterState> clusterStateSupplier,
@@ -162,6 +168,7 @@ public class DiskThresholdMonitor {
         cleanUpRemovedNodes(nodes, nodesOverLowThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThresholdAndRelocating);
+        cleanUpRemovedNodes(nodes, nodesOverFileDescriptorThreshold);
 
         final ClusterState state = clusterStateSupplier.get();
         final Set<String> indicesToMarkReadOnly = new HashSet<>();
@@ -211,6 +218,46 @@ public class DiskThresholdMonitor {
                             usage
                         );
                     }
+            }
+
+            // Check for file descriptor usage
+            ProcessStats processStats = info.getNodeProcessStats().get(usage.getNodeId());
+            if (processStats != null) {
+                long openFDs = processStats.getOpenFileDescriptors();
+                long maxFDs = processStats.getMaxFileDescriptors();
+
+                if (maxFDs > 0) {
+                    double fdUsagePercent = (openFDs * 100.0) / maxFDs;
+
+                    // Applying write block at 85%
+                    if (fdUsagePercent >= 85.0) {
+                        if (nodesOverFileDescriptorThreshold.add(node)) {
+                            logger.warn(
+                                "file descriptor usage [{}%] exceeded 85% threshold on {}, marking indices read-only",
+                                String.format("%.1f", fdUsagePercent),
+                                usage.getNodeName()
+                            );
+                        }
+                        if (routingNode != null) {
+                            for (ShardRouting routing : routingNode) {
+                                String indexName = routing.index().getName();
+                                indicesToMarkReadOnly.add(indexName);
+                                indicesNotToAutoRelease.add(indexName); // Prevent auto-release
+                            }
+                        }
+                    }
+                    // Releasing write block at 75%
+                    else if (fdUsagePercent <= 75.0
+                        && !nodeDiskEvaluator.isNodeExceedingFloodStageWatermark(usage)
+                        && !nodeDiskEvaluator.isNodeExceedingHighWatermark(usage)
+                        && nodesOverFileDescriptorThreshold.remove(node)) {
+                            logger.info(
+                                "file descriptor usage [{}%] dropped below 75% on {}, indices eligible for write block release",
+                                String.format("%.1f", fdUsagePercent),
+                                usage.getNodeName()
+                            );
+                        }
+                }
             }
 
             if (nodeDiskEvaluator.isNodeExceedingFloodStageWatermark(usage)) {

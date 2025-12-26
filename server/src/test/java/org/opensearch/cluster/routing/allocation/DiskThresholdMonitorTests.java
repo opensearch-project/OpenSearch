@@ -56,6 +56,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 
@@ -337,7 +338,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 120000
             )
         );
-        monitor.onNewInfo(clusterInfo(allDisksOk, reservedSpaces, Map.of()));
+        monitor.onNewInfo(clusterInfo(allDisksOk, reservedSpaces, Map.of(), Map.of()));
         assertNotNull(listenerReference.get());
         listenerReference.getAndSet(null).onResponse(null);
     }
@@ -413,7 +414,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         Map<String, DiskUsage> builder = new HashMap<>();
         builder.put("hot_node_1", new DiskUsage("hot_node_1", "hot_node_1", "/foo/bar", 100, between(0, 4)));
         builder.put("hot_node_2", new DiskUsage("hot_node_2", "hot_node_2", "/foo/bar", 100, between(0, 4)));
-        monitor.onNewInfo(clusterInfo(builder, reservedSpaces, Map.of()));
+        monitor.onNewInfo(clusterInfo(builder, reservedSpaces, Map.of(), Map.of()));
         assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indicesToMarkReadOnly.get());
         assertNull(indicesToReleaseReadOnlyBlock.get());
 
@@ -423,7 +424,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         builder = new HashMap<>();
         builder.put("hot_node_1", new DiskUsage("hot_node_1", "hot_node_1", "/foo/bar", 100, between(5, 90)));
         builder.put("hot_node_2", new DiskUsage("hot_node_2", "hot_node_2", "/foo/bar", 100, between(5, 90)));
-        monitor.onNewInfo(clusterInfo(builder, reservedSpaces, Map.of()));
+        monitor.onNewInfo(clusterInfo(builder, reservedSpaces, Map.of(), Map.of()));
         assertNull(indicesToMarkReadOnly.get());
         assertNull(indicesToReleaseReadOnlyBlock.get());
 
@@ -481,7 +482,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         builder = new HashMap<>();
         builder.put("hot_node_1", new DiskUsage("hot_node_1", "hot_node_1", "/foo/bar", 100, between(0, 100)));
         builder.put("hot_node_2", new DiskUsage("hot_node_2", "hot_node_2", "/foo/bar", 100, between(0, 4)));
-        monitor.onNewInfo(clusterInfo(builder, reservedSpaces, Map.of()));
+        monitor.onNewInfo(clusterInfo(builder, reservedSpaces, Map.of(), Map.of()));
         assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
         assertNull(indicesToReleaseReadOnlyBlock.get());
 
@@ -491,7 +492,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         builder = new HashMap<>();
         builder.put("hot_node_1", new DiskUsage("hot_node_1", "hot_node_1", "/foo/bar", 100, between(10, 100)));
         builder.put("hot_node_2", new DiskUsage("hot_node_2", "hot_node_2", "/foo/bar", 100, between(10, 100)));
-        monitor.onNewInfo(clusterInfo(builder, reservedSpaces, Map.of()));
+        monitor.onNewInfo(clusterInfo(builder, reservedSpaces, Map.of(), Map.of()));
         assertNull(indicesToMarkReadOnly.get());
         assertThat(indicesToReleaseReadOnlyBlock.get(), contains("test_2"));
 
@@ -939,7 +940,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[remote_index][0][p]", 172L);
 
-        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes));
+        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes, Map.of()));
 
         // Should not mark remote indices read-only due to low stage breach
         // and should not trigger reroute
@@ -1021,7 +1022,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[remote_index][0][p]", 182L);
 
-        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes));
+        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes, Map.of()));
 
         // Should not mark remote indices read-only due to High stage breach
         // but should trigger reroute
@@ -1098,7 +1099,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[remote_index][0][p]", 192L);
 
-        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes));
+        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes, Map.of()));
 
         // Should mark remote indices read-only due to flood stage breach
         assertNotNull(indicesToMarkReadOnly.get());
@@ -1167,7 +1168,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         builder.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 40));
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[remote_index][0][p]", 172L);
-        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes));
+        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes, Map.of()));
         assertFalse(indicesToMarkReadOnly.get().isEmpty());
         assertFalse(indicesToBlockRead.get().isEmpty());
     }
@@ -1235,7 +1236,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         builder.put("warm_node_index_block", new DiskUsage("warm_node_index_block", "warm_node_index_block", "/foo/bar", 200, 40));
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[remote_index][0][p]", 172L);
-        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes));
+        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes, Map.of()));
         assertFalse(indicesToMarkReadOnly.get().isEmpty());
         assertNull(indicesToBlockRead.get());
     }
@@ -1304,7 +1305,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         builder.put("warm_node_search_block", new DiskUsage("warm_node_search_block", "warm_node_search_block", "/foo/bar", 200, 40));
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[remote_index][0][p]", 172L);
-        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes));
+        monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes, Map.of()));
         assertFalse(indicesToMarkReadOnly.get().isEmpty());
         assertFalse(indicesToBlockRead.get().isEmpty());
     }
@@ -1379,13 +1380,15 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
     }
 
     private static ClusterInfo clusterInfo(final Map<String, DiskUsage> diskUsages) {
-        return clusterInfo(diskUsages, Map.of(), Map.of());
+        return clusterInfo(diskUsages, Map.of(), Map.of(), Map.of());
     }
 
     private static ClusterInfo clusterInfo(
         final Map<String, DiskUsage> diskUsages,
         final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace,
-        final Map<String, Long> shardSizes
+        final Map<String, Long> shardSizes,
+        final Map<String, ProcessStats> processStats
+
     ) {
         final Map<String, AggregateFileCacheStats> fileCacheStats = new HashMap<>();
         diskUsages.forEach((key, value) -> {
@@ -1399,7 +1402,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 }
             }
         });
-        return new ClusterInfo(diskUsages, null, shardSizes, null, reservedSpace, fileCacheStats, Map.of(), Map.of());
+        return new ClusterInfo(diskUsages, null, shardSizes, null, reservedSpace, fileCacheStats, Map.of(), processStats);
     }
 
     private static AggregateFileCacheStats createAggregateFileCacheStats(long totalCacheSize, long active, long used) {
@@ -1450,4 +1453,81 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         return new AggregateFileCacheStats(System.currentTimeMillis(), overallStats, fullStats, blockStats, pinnedStats);
     }
 
+    public void testFileDescriptorThresholdMonitoring() {
+        AllocationService allocation = createAllocationService(Settings.builder().build());
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .nodes(DiscoveryNodes.builder().add(newNode("node_1")))
+                .build(),
+            allocation
+        );
+
+        AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
+
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            Settings.EMPTY,
+            () -> clusterState,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> listener.onResponse(null),
+            () -> 5.0
+        ) {
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                indicesToMarkReadOnly.set(indicesToUpdate);
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+
+        Map<String, DiskUsage> diskUsages = new HashMap<>();
+        diskUsages.put("node_1", new DiskUsage("node_1", "node_1", "/foo/bar", 100, 50));
+        Map<String, ProcessStats> processStats = new HashMap<>();
+
+        // Test 1: FD threshold breached at 87% - should apply block
+        processStats.put("node_1", new ProcessStats(0, 8700, 10000, null, null));
+        monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), processStats));
+        assertEquals(Collections.singleton("test"), indicesToMarkReadOnly.get());
+        logger.info("Write Block applied when FD threshold exceed at 87%");
+
+
+        // Test 2: FD threshold at 73%, disk space not breached - should release
+        indicesToMarkReadOnly.set(null);
+        processStats.put("node_1", new ProcessStats(0, 7300, 10000, null, null));
+        monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), processStats));
+        assertNull(indicesToMarkReadOnly.get());
+        logger.info("Write Block released when FD threshold at 73% and disk space not breached");
+
+
+        // Test 3: FD threshold at 73%, disk space breached at 95% - should NOT release
+        diskUsages.put("node_1", new DiskUsage("node_1", "node_1", "/foo/bar", 100, 4));
+        monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), processStats));
+        assertEquals(Collections.singleton("test"), indicesToMarkReadOnly.get());
+        logger.info("Write Block NOT released when FD threshold at 73% but disk space breached at 96%");
+
+
+        // Test 4 :ProcessStats not populated
+        indicesToMarkReadOnly.set(null);
+        diskUsages.put("node_1", new DiskUsage("node_1", "node_1", "/foo/bar", 100, 50));
+        monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), Map.of()));
+        assertNull(indicesToMarkReadOnly.get());
+        logger.info("No action taken when ProcessStats not populated");
+    }
 }
