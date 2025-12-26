@@ -420,8 +420,11 @@ gradle.projectsEvaluated {
 
         // Add Java Agent for security sandboxing
         if (!(project.path in [':build-tools', ":libs:agent-sm:bootstrap", ":libs:agent-sm:agent"])) {
-          dependsOn(project(':libs:agent-sm:agent').prepareAgent)
-          jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
+          dependsOn(':libs:agent-sm:agent:jar')
+          // Defer resolution of jar file until task execution by using doFirst
+          doFirst {
+            jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
+          }
         }
         if (BuildParams.isInFipsJvm()) {
           def fipsSecurityFile = project.rootProject.file('distribution/src/config/fips_java.security')
