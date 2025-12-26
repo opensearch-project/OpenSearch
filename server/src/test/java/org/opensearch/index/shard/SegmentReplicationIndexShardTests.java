@@ -160,7 +160,10 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testMergedSegmentReplication() throws Exception {
         // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 1 replica shard.
         final RecoverySettings recoverySettings = new RecoverySettings(
-            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            Settings.builder()
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "1b")
+                .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         try (
@@ -205,7 +208,10 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             throw new RuntimeException("mock exception");
         });
         final RecoverySettings recoverySettings = new RecoverySettings(
-            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            Settings.builder()
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "1b")
+                .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         try (
@@ -247,7 +253,10 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testMergedSegmentReplicationWithZeroReplica() throws Exception {
         // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 0 replica shard.
         final RecoverySettings recoverySettings = new RecoverySettings(
-            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            Settings.builder()
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "1b")
+                .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         try (
@@ -279,9 +288,13 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    public void testCleanupRedundantPendingMergeSegment() throws Exception {
+    public void testCleanupReplicaRedundantMergedSegment() throws Exception {
         final RecoverySettings recoverySettings = new RecoverySettings(
-            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build(),
+            Settings.builder()
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "1b")
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(1))
+                .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         try (
@@ -324,16 +337,74 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             // verify primary segment count and replica pending merge segment count
             assertEquals(1, primaryShard.segments(false).size());
-            assertEquals(2, replicaShard.getPendingMergedSegmentCheckpoints().size());
+            assertEquals(2, primaryShard.getPrimaryMergedSegmentCheckpoints().size());
+            assertEquals(2, replicaShard.getReplicaMergedSegmentCheckpoints().size());
 
             // after segment replication, _4.si is removed from pending merge segments
             replicateSegments(primaryShard, List.of(replicaShard));
-            assertEquals(1, replicaShard.getPendingMergedSegmentCheckpoints().size());
+            assertEquals(1, replicaShard.getReplicaMergedSegmentCheckpoints().size());
+
+            assertBusy(() -> {
+                primaryShard.removeExpiredPrimaryMergedSegmentCheckpoints();
+                assertEquals(0, primaryShard.getPrimaryMergedSegmentCheckpoints().size());
+            }, 60, TimeUnit.SECONDS);
 
             // after cleanup redundant pending merge segment, _2.si is removed from pending merge segments
             ReferencedSegmentsCheckpoint referencedSegmentsCheckpoint = primaryShard.computeReferencedSegmentsCheckpoint();
             replicaShard.cleanupRedundantPendingMergeSegment(referencedSegmentsCheckpoint);
-            assertEquals(0, replicaShard.getPendingMergedSegmentCheckpoints().size());
+            assertEquals(0, replicaShard.getReplicaMergedSegmentCheckpoints().size());
+        }
+    }
+
+    public void testPrimaryMergedSegmentCheckpointRetentionTimeout() throws Exception {
+        // close auto refresh
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put("index.refresh_interval", -1)
+            .build();
+        final RecoverySettings recoverySettings = new RecoverySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+                .put(RecoverySettings.INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.getKey(), "1b")
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(1))
+                .build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (
+            ReplicationGroup shards = createGroup(
+                1,
+                indexSettings,
+                indexMapping,
+                new NRTReplicationEngineFactory(),
+                recoverySettings,
+                MergedSegmentPublisher.EMPTY
+            )
+        ) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+
+            // generate segment _0.si and _1.si
+            int numDocs = 1;
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            // generate pending merge segment _2.si
+            // specify parameter flush as false to prevent triggering the refresh operation
+            primaryShard.forceMerge(new ForceMergeRequest("test").flush(false).maxNumSegments(1));
+            assertEquals(1, primaryShard.getPrimaryMergedSegmentCheckpoints().size());
+            assertBusy(() -> {
+                primaryShard.removeExpiredPrimaryMergedSegmentCheckpoints();
+                assertEquals(0, primaryShard.getPrimaryMergedSegmentCheckpoints().size());
+            }, 60, TimeUnit.SECONDS);
+
+            primaryShard.refresh("test");
+            replicateSegments(primaryShard, List.of(replicaShard));
         }
     }
 
