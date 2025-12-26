@@ -174,7 +174,15 @@ public class SegmentTopologyAnalyzer implements Writeable {
 
         long minSize = sizes.get(0);
         long maxSize = sizes.get(sizes.size() - 1);
-        long medianSize = sizes.get(sizes.size() / 2);
+        long medianSize;
+        int mid = sizes.size() / 2;
+        if (sizes.size() % 2 == 0) {
+            // For even-sized lists, median is the average of the two middle values
+            medianSize = (sizes.get(mid - 1) + sizes.get(mid)) / 2;
+        } else {
+            // For odd-sized lists, median is the middle value
+            medianSize = sizes.get(mid);
+        }
         long meanSize = totalSize / segmentCount;
 
         // Calculate variance and skew
