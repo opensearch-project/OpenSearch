@@ -16,7 +16,7 @@ opensearchplugin {
 dependencies {
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
-  implementation "com.google.errorprone:error_prone_annotations:2.24.1"
+  compileOnly "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
   implementation "com.google.guava:failureaccess:1.0.1"
   implementation "io.grpc:grpc-api:${versions.grpc}"
   implementation "io.grpc:grpc-core:${versions.grpc}"
