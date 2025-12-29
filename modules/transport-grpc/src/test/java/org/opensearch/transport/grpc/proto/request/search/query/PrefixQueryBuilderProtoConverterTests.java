@@ -34,7 +34,7 @@ public class PrefixQueryBuilderProtoConverterTests extends OpenSearchTestCase {
             .setBoost(2.0f)
             .setXName("test_query")
             .setCaseInsensitive(true)
-            .setRewrite(org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite("constant_score")
             .build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setPrefix(prefixQuery).build();
 

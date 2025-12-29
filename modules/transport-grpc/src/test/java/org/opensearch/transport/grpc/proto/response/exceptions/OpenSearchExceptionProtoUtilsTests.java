@@ -18,7 +18,7 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.protobufs.ErrorCause;
 import org.opensearch.protobufs.ObjectMap;
-import org.opensearch.protobufs.StringOrStringArray;
+import org.opensearch.protobufs.StringArray;
 import org.opensearch.script.ScriptException;
 import org.opensearch.search.SearchParseException;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
@@ -168,14 +168,12 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         List<String> values = Collections.singletonList("test-value");
 
         // Convert to Protocol Buffer
-        Map.Entry<String, StringOrStringArray> entry = OpenSearchExceptionProtoUtils.headerToProto(key, values);
+        StringArray headerArray = OpenSearchExceptionProtoUtils.headerToProto(key, values);
 
         // Verify the conversion
-        assertNotNull("Entry should not be null", entry);
-        assertEquals("Key should match", key, entry.getKey());
-        assertTrue("Should be a string value", entry.getValue().hasString());
-        assertEquals("Value should match", "test-value", entry.getValue().getString());
-        assertFalse("Should not have a string array", entry.getValue().hasStringArray());
+        assertNotNull("Header array should not be null", headerArray);
+        assertEquals("Array should have correct size", 1, headerArray.getStringArrayCount());
+        assertEquals("Value should match", "test-value", headerArray.getStringArray(0));
     }
 
     public void testHeaderToProtoWithMultipleValues() throws IOException {
@@ -184,17 +182,14 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         List<String> values = Arrays.asList("value1", "value2", "value3");
 
         // Convert to Protocol Buffer
-        Map.Entry<String, StringOrStringArray> entry = OpenSearchExceptionProtoUtils.headerToProto(key, values);
+        StringArray headerArray = OpenSearchExceptionProtoUtils.headerToProto(key, values);
 
         // Verify the conversion
-        assertNotNull("Entry should not be null", entry);
-        assertEquals("Key should match", key, entry.getKey());
-        assertFalse("Should not be a string value", entry.getValue().hasString());
-        assertTrue("Should have a string array", entry.getValue().hasStringArray());
-        assertEquals("Array should have correct size", 3, entry.getValue().getStringArray().getStringArrayCount());
-        assertEquals("First value should match", "value1", entry.getValue().getStringArray().getStringArray(0));
-        assertEquals("Second value should match", "value2", entry.getValue().getStringArray().getStringArray(1));
-        assertEquals("Third value should match", "value3", entry.getValue().getStringArray().getStringArray(2));
+        assertNotNull("Header array should not be null", headerArray);
+        assertEquals("Array should have correct size", 3, headerArray.getStringArrayCount());
+        assertEquals("First value should match", "value1", headerArray.getStringArray(0));
+        assertEquals("Second value should match", "value2", headerArray.getStringArray(1));
+        assertEquals("Third value should match", "value3", headerArray.getStringArray(2));
     }
 
     public void testHeaderToProtoWithEmptyValues() throws IOException {
@@ -203,10 +198,10 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         List<String> values = Collections.emptyList();
 
         // Convert to Protocol Buffer
-        Map.Entry<String, StringOrStringArray> entry = OpenSearchExceptionProtoUtils.headerToProto(key, values);
+        StringArray headerArray = OpenSearchExceptionProtoUtils.headerToProto(key, values);
 
         // Verify the conversion
-        assertNull("Entry should be null for empty values", entry);
+        assertNull("Header array should be null for empty values", headerArray);
     }
 
     public void testHeaderToProtoWithNullValues() throws IOException {
@@ -215,10 +210,10 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         List<String> values = null;
 
         // Convert to Protocol Buffer
-        Map.Entry<String, StringOrStringArray> entry = OpenSearchExceptionProtoUtils.headerToProto(key, values);
+        StringArray headerArray = OpenSearchExceptionProtoUtils.headerToProto(key, values);
 
         // Verify the conversion
-        assertNull("Entry should be null for null values", entry);
+        assertNull("Header array should be null for null values", headerArray);
     }
 
     public void testHeaderToValueProtoWithSingleValue() throws IOException {
