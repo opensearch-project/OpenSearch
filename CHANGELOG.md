@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Removed
 
 ### Fixed
+- Fix SearchPhaseExecutionException to properly initCause ([#20336](https://github.com/opensearch-project/OpenSearch/pull/20336))
 
 ### Security
 
