@@ -83,6 +83,11 @@ import static org.opensearch.cluster.routing.RoutingPool.getNodePool;
 public class DiskThresholdMonitor {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);
+
+    // File descriptor threshold constants
+    private static final double FD_USAGE_THRESHOLD_HIGH = 85.0;
+    private static final double FD_USAGE_THRESHOLD_LOW = 75.0;
+
     private final DiskThresholdSettings diskThresholdSettings;
     private final FileCacheThresholdSettings fileCacheThresholdSettings;
     private final Client client;
@@ -191,6 +196,9 @@ public class DiskThresholdMonitor {
             final boolean isWarmNode = REMOTE_CAPABLE.equals(getNodePool(routingNode));
             nodeDiskEvaluator.setNodeType(isWarmNode);
 
+            // Fetch process stats
+            ProcessStats processStats = info.getNodeProcessStats().get(usage.getNodeId());
+
             if (isWarmNode) {
                 AggregateFileCacheStats aggregateFileCacheStats = info.getNodeFileCacheStats().getOrDefault(usage.getNodeId(), null);
                 if (aggregateFileCacheStats != null && fileCacheEvaluator.isNodeExceedingSearchThreshold(aggregateFileCacheStats)) {
@@ -221,7 +229,6 @@ public class DiskThresholdMonitor {
             }
 
             // Check for file descriptor usage
-            ProcessStats processStats = info.getNodeProcessStats().get(usage.getNodeId());
             if (processStats != null) {
                 long openFDs = processStats.getOpenFileDescriptors();
                 long maxFDs = processStats.getMaxFileDescriptors();
@@ -229,34 +236,29 @@ public class DiskThresholdMonitor {
                 if (maxFDs > 0) {
                     double fdUsagePercent = (openFDs * 100.0) / maxFDs;
 
-                    // Applying write block at 85%
-                    if (fdUsagePercent >= 85.0) {
+                    // Applying write block at FD_USAGE_THRESHOLD_HIGH
+                    if (fdUsagePercent >= FD_USAGE_THRESHOLD_HIGH) {
                         if (nodesOverFileDescriptorThreshold.add(node)) {
                             logger.warn(
-                                "file descriptor usage [{}%] exceeded 85% threshold on {}, marking indices read-only",
+                                "file descriptor usage [{}%] exceeded {}% threshold on {}, marking indices read-only",
                                 String.format("%.1f", fdUsagePercent),
+                                FD_USAGE_THRESHOLD_HIGH,
                                 usage.getNodeName()
                             );
                         }
                         if (routingNode != null) {
                             for (ShardRouting routing : routingNode) {
                                 String indexName = routing.index().getName();
-                                indicesToMarkReadOnly.add(indexName);
-                                indicesNotToAutoRelease.add(indexName); // Prevent auto-release
+                                IndexMetadata indexMetadata = state.metadata().index(indexName);
+                                if (indexMetadata != null
+                                    && indexMetadata.getSettings().getAsBoolean("index.context_aware.enabled", true)) {
+                                    indicesToMarkReadOnly.add(indexName);
+                                    indicesNotToAutoRelease.add(indexName); // context-aware idx gets added to the set , which'll prevent
+                                                                            // auto-release
+                                }
                             }
                         }
                     }
-                    // Releasing write block at 75%
-                    else if (fdUsagePercent <= 75.0
-                        && !nodeDiskEvaluator.isNodeExceedingFloodStageWatermark(usage)
-                        && !nodeDiskEvaluator.isNodeExceedingHighWatermark(usage)
-                        && nodesOverFileDescriptorThreshold.remove(node)) {
-                            logger.info(
-                                "file descriptor usage [{}%] dropped below 75% on {}, indices eligible for write block release",
-                                String.format("%.1f", fdUsagePercent),
-                                usage.getNodeName()
-                            );
-                        }
                 }
             }
 
@@ -337,6 +339,24 @@ public class DiskThresholdMonitor {
 
             } else {
                 nodesOverHighThresholdAndRelocating.remove(node);
+
+                // Releasing write block at FD_USAGE_THRESHOLD_LOW after all disk watermarks are clear
+                if (processStats != null && nodesOverFileDescriptorThreshold.contains(node)) {
+                    long openFDs = processStats.getOpenFileDescriptors();
+                    long maxFDs = processStats.getMaxFileDescriptors();
+                    if (maxFDs > 0) {
+                        double fdUsagePercent = (openFDs * 100.0) / maxFDs;
+                        if (fdUsagePercent <= FD_USAGE_THRESHOLD_LOW && nodesOverFileDescriptorThreshold.remove(node)) {
+                            logger.info(
+                                "file descriptor usage [{}%] dropped below {}% on {}, indices eligible for write block release",
+                                String.format("%.1f", fdUsagePercent),
+                                FD_USAGE_THRESHOLD_LOW,
+                                usage.getNodeName()
+                            );
+                        }
+                    }
+                }
+
                 if (nodesOverLowThreshold.contains(node)) {
                     // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more
                     // shards

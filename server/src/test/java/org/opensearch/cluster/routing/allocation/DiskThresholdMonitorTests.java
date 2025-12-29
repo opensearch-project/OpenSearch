@@ -1456,11 +1456,16 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
     public void testFileDescriptorThresholdMonitoring() {
         AllocationService allocation = createAllocationService(Settings.builder().build());
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT).put("index.context_aware.enabled", true))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
             .build();
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+        ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(routingTable)
@@ -1470,10 +1475,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         );
 
         AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
+        AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(clusterState);
 
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(
             Settings.EMPTY,
-            () -> clusterState,
+            clusterStateRef::get,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             () -> 0L,
@@ -1501,33 +1507,102 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         diskUsages.put("node_1", new DiskUsage("node_1", "node_1", "/foo/bar", 100, 50));
         Map<String, ProcessStats> processStats = new HashMap<>();
 
-        // Test 1: FD threshold breached at 87% - should apply block
+        // Test 1: FD threshold breached at 87% (above 85%), disk space not breached - should apply block
         processStats.put("node_1", new ProcessStats(0, 8700, 10000, null, null));
         monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), processStats));
         assertEquals(Collections.singleton("test"), indicesToMarkReadOnly.get());
-        logger.info("Write Block applied when FD threshold exceed at 87%");
+        logger.info("Write Block applied as FD threshold exceeded at 87%");
 
+        // Update cluster state to reflect the block
+        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test"))
+            .settings(
+                Settings.builder()
+                    .put(clusterState.metadata().index("test").getSettings())
+                    .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
+            )
+            .build();
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, true).build())
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .build();
+        clusterStateRef.set(clusterState);
 
-        // Test 2: FD threshold at 73%, disk space not breached - should release
+        // Test 2: FD threshold at 73% (below 75%), disk space not breached - should release
         indicesToMarkReadOnly.set(null);
         processStats.put("node_1", new ProcessStats(0, 7300, 10000, null, null));
         monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), processStats));
+        assertEquals(Collections.singleton("test"), indicesToMarkReadOnly.get());
+        logger.info("Write Block released as FD threshold dropped to 73% and disk space not breached");
+
+        // Update cluster state to remove the block
+        indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test"))
+            .settings(
+                Settings.builder()
+                    .put(clusterState.metadata().index("test").getSettings())
+                    .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+            )
+            .build();
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, true).build())
+            .blocks(ClusterBlocks.builder().build())
+            .build();
+        clusterStateRef.set(clusterState);
+
+        // Test 3: FD threshold at 73% (below 75%), disk space at low watermark 86% (above 85%) - should NOT apply Write block
+        indicesToMarkReadOnly.set(null);
+        diskUsages.put("node_1", new DiskUsage("node_1", "node_1", "/foo/bar", 100, 14));
+        monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), processStats));
         assertNull(indicesToMarkReadOnly.get());
-        logger.info("Write Block released when FD threshold at 73% and disk space not breached");
+        logger.info("Write Block NOT applied as FD not breached and disk space at low watermark (86%)");
 
+        // Test 4: FD threshold at 73% (below 75%), disk space at high watermark 91% (above 90%) - should NOT apply Write block
+        indicesToMarkReadOnly.set(null);
+        diskUsages.put("node_1", new DiskUsage("node_1", "node_1", "/foo/bar", 100, 9));
+        monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), processStats));
+        assertNull(indicesToMarkReadOnly.get());
+        logger.info("Write Block NOT applied as FD not breached and disk space at high watermark (91%)");
 
-        // Test 3: FD threshold at 73%, disk space breached at 95% - should NOT release
+        // Test 5: FD threshold at 73% (below 75%), disk space breached at 96% (above 95% flood stage) - should apply block
+        indicesToMarkReadOnly.set(null);
         diskUsages.put("node_1", new DiskUsage("node_1", "node_1", "/foo/bar", 100, 4));
         monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), processStats));
         assertEquals(Collections.singleton("test"), indicesToMarkReadOnly.get());
-        logger.info("Write Block NOT released when FD threshold at 73% but disk space breached at 96%");
+        logger.info("Write Block applied as disk space breached at 96% (flood stage)");
 
-
-        // Test 4 :ProcessStats not populated
+        // Test 6: ProcessStats not populated
         indicesToMarkReadOnly.set(null);
         diskUsages.put("node_1", new DiskUsage("node_1", "node_1", "/foo/bar", 100, 50));
         monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), Map.of()));
         assertNull(indicesToMarkReadOnly.get());
         logger.info("No action taken when ProcessStats not populated");
+
+        // Test 7: FD at 87% and disk at 96% both breached, FD threshold drops but disk remains breached - block persists
+        indicesToMarkReadOnly.set(null);
+        diskUsages.put("node_1", new DiskUsage("node_1", "node_1", "/foo/bar", 100, 4)); // 96% disk usage (flood stage)
+        processStats.put("node_1", new ProcessStats(0, 8700, 10000, null, null)); // 87% FD usage
+        monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), processStats));
+        assertEquals(Collections.singleton("test"), indicesToMarkReadOnly.get());
+        logger.info("Write Block applied as both FD and disk thresholds exceeded");
+
+        // Update cluster state to reflect the block
+        indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test"))
+            .settings(
+                Settings.builder()
+                    .put(clusterState.metadata().index("test").getSettings())
+                    .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
+            )
+            .build();
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, true).build())
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .build();
+        clusterStateRef.set(clusterState);
+
+        // FD threshold drops to 73% but disk threshold still at 96% - should NOT release
+        indicesToMarkReadOnly.set(null);
+        processStats.put("node_1", new ProcessStats(0, 7300, 10000, null, null)); // 73% FD usage
+        monitor.onNewInfo(clusterInfo(diskUsages, Map.of(), Map.of(), processStats));
+        assertNull(indicesToMarkReadOnly.get());
+        logger.info("Write Block NOT released as FD cleared but disk threshold still breached");
     }
 }
