@@ -777,8 +777,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * @throws InterruptedException if the current thread got interrupted while waiting for shards to close
      */
     public boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
-        // Todo: Add this: return closeLatch.await(timeout, timeUnit);
-        return true;
+        return closeLatch.await(timeout, timeUnit);
     }
 
     public NodeIndicesStats stats(CommonStatsFlags flags) {

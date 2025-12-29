@@ -66,18 +66,14 @@ public class CatalogSnapshotManager {
     }
 
     public synchronized void applyRefreshResult(RefreshResult refreshResult) {
-        CatalogSnapshot newSnapshot = new CatalogSnapshot(
-            latestCatalogSnapshot.getId() + 1,
-            latestCatalogSnapshot.getVersion() + 1,
-            refreshResult.getRefreshedSegments(),
-            catalogSnapshotMap,
-            indexFileDeleter::get
+        commitCatalogSnapshot(
+            new CatalogSnapshot(
+                latestCatalogSnapshot.getId() + 1,
+                latestCatalogSnapshot.getVersion() + 1,
+                refreshResult.getRefreshedSegments(),
+                catalogSnapshotMap,
+                indexFileDeleter::get)
         );
-        
-        // Note: userData is populated in CompositeEngine.flush() before serialization
-        // to ensure checkpoint values are current at flush time
-        
-        commitCatalogSnapshot(newSnapshot);
     }
 
     public synchronized void applyReplicationChanges(CatalogSnapshot catalogSnapshot, ShardPath shardPath) {
@@ -132,7 +128,7 @@ public class CatalogSnapshotManager {
 
         // Note: userData will be populated in CompositeEngine.flush() before serialization
         // when this snapshot is committed to disk
-        
+
         // Commit new catalog snapshot
         commitCatalogSnapshot(newCatSnap);
     }

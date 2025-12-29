@@ -179,23 +179,22 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
      * @throws IOException if there were any failures in reading the metadata file
      */
     public RemoteSegmentMetadata init() throws IOException {
-        logger.info("[SEGMENT_UPLOAD_DEBUG] Start initialisation of remote segment metadata");
         RemoteSegmentMetadata remoteSegmentMetadata = readLatestMetadataFile();
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
-            logger.info("[SEGMENT_UPLOAD_DEBUG] Initialized with {} segments from metadata",
-                       segmentsUploadedToRemoteStore.size());
         } else {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>();
-            logger.info("[SEGMENT_UPLOAD_DEBUG] No metadata found, initialized with empty map");
         }
-        logger.info("[SEGMENT_UPLOAD_DEBUG] Initialisation completed, segmentsUploadedToRemoteStore.size={}",
-                   segmentsUploadedToRemoteStore.size());
         return remoteSegmentMetadata;
     }
 
     /**
-     * Initializes the cache to a specific commit which keeps track of all the segment files uploaded to the remote segment store.
+     * Initializes the cache to a specific commit which keeps track of all the segment files uploaded to the
+     * remote segment store.
+     * this is currently used to restore snapshots, where we want to copy segment files from a given commit.
+     * TODO: check if we can return read only RemoteSegmentStoreDirectory object from here.
+     *
+     * @throws IOException if there were any failures in reading the metadata file
      */
     public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration, String acquirerId) throws IOException {
         String metadataFilePrefix = MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, commitGeneration);

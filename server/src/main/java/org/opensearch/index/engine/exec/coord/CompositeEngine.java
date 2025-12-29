@@ -282,6 +282,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 lastCommittedWriterGeneration.set(Long.parseLong(lastCommittedData.get(CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY)));
             }
 
+            System.out.println("While initialising Composite Engine - lst commit generation : " + lastCommittedWriterGeneration.get());
+
             // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
             this.engine = new CompositeIndexingExecutionEngine(
                 mapperService,
@@ -317,7 +319,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             this.historyUUID = loadHistoryUUID(userData);
             this.mergeHandler = new CompositeMergeHandler(this, this.engine, this.engine.getDataFormat(), indexSettings, shardId);
             this.mergeScheduler = new MergeScheduler(this.mergeHandler, this, shardId, indexSettings);
-            
+
             // Initialize checkpoint listener for tracking refreshed checkpoints
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(
                 localCheckpointTracker.getProcessedCheckpoint()
@@ -389,7 +391,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
         } catch (org.apache.lucene.index.IndexNotFoundException e) {
             // Local store is empty (remote store recovery scenario)
-            // Initialize with NO_OPS_PERFORMED (-1) - checkpoint will be restored from CatalogSnapshot during first flush
             logger.debug(
                 "Local store is empty during engine initialization, initializing checkpoint tracker with NO_OPS_PERFORMED. "
                 + "This is expected during remote store recovery where local store has not been initialized yet."
@@ -737,7 +738,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         boolean refreshed = false;
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()) {
             refreshListeners.forEach(PRE_REFRESH_LISTENER_CONSUMER);
-            
+
             // Call checkpoint listener's beforeRefresh to capture pending checkpoint
             lastRefreshedCheckpointListener.beforeRefresh();
 
@@ -749,19 +750,19 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
             catalogSnapshotManager.applyRefreshResult(refreshResult);
             refreshed = true;
-            
+
             catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.accept(
                 acquireSnapshot(),
                 refreshListener
             ));
 
             refreshListeners.forEach(POST_REFRESH_LISTENER_CONSUMER);
-            
+
             // Call checkpoint listener's afterRefresh to update refreshed checkpoint
             if (refreshed) {
                 lastRefreshedCheckpointListener.afterRefresh(true);
             }
-            
+
             triggerPossibleMerges(); // trigger merges
         } catch (Exception ex) {
             try {
@@ -771,7 +772,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
             throw new RefreshFailedEngineException(shardId, ex);
         }
-        
+
         assert refreshed == false || lastRefreshedCheckpoint() >= localCheckpointBeforeRefresh : "refresh checkpoint was not advanced; "
             + "local_checkpoint="
             + localCheckpointBeforeRefresh
@@ -907,14 +908,17 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (force || shouldFlush() || shouldPeriodicallyFlush || getProcessedLocalCheckpoint() > Long.parseLong(
                     readLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))) {
-
                     translogManager.ensureCanFlush();
-
                     try {
                         translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
                         CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotToFlushRef = catalogSnapshotManager.acquireSnapshot();
                         final CatalogSnapshot catalogSnapshotToFlush = catalogSnapshotToFlushRef.getRef();
+                        System.out.println("FLUSH called, current snapshot to commit : " + catalogSnapshotToFlush.getId()
+                            + ", previous commited snapshot : " + ((lastCommitedCatalogSnapshotRef != null)
+                            ? lastCommitedCatalogSnapshotRef.getRef().getId()
+                            : -1));
+
                         final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
                         final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
 
@@ -1178,8 +1182,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         }
     }
 
-
-
     /**
      * Acquires the most recent safe index commit snapshot from the currently running engine.
      * All index files referenced by this commit won't be freed until the commit/snapshot is closed.
@@ -1225,7 +1227,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
         @Override
         public void beforeRefresh() {
-            // All changes until this point should be visible after refresh
             pendingCheckpoint.updateAndGet(curr -> Math.max(curr, localCheckpointTracker.getProcessedCheckpoint()));
         }
 
@@ -1239,8 +1240,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         void updateRefreshedCheckpoint(long checkpoint) {
             refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
             assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
-            // This shouldn't be required ideally, but we're also invoking this method from refresh as of now.
-            // This change is added as safety check to ensure that our checkpoint values are consistent at all times.
             pendingCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
         }
     }

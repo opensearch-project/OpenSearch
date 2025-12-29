@@ -1799,7 +1799,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             try {
                 final TranslogReader reader = current.closeIntoReader();
                 readers.add(reader);
-                logger.info("Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME)).generation [{}]       current.getGeneration() [{}]", Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME)).generation, current.getGeneration());
+                logger.debug("Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME)).generation [{}]       current.getGeneration() [{}]", Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME)).generation, current.getGeneration());
                 assert Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME)).generation == current.getGeneration();
                 copyCheckpointTo(location.resolve(getCommitCheckpointFileName(current.getGeneration())));
                 // create a new translog file; this will sync it and update the checkpoint data;
