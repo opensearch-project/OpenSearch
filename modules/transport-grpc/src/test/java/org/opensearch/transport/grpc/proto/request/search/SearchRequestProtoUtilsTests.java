@@ -421,7 +421,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
             () -> SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils)
         );
 
-        assertEquals("global_params.human param is not supported yet", exception.getMessage());
+        assertEquals("global_params.human or filter_path params are not supported yet", exception.getMessage());
     }
 
 }

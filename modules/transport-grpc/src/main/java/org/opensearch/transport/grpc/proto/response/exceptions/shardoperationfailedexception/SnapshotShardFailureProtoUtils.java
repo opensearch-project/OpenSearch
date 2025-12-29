@@ -35,9 +35,7 @@ public class SnapshotShardFailureProtoUtils {
      */
     public static ShardFailure toProto(SnapshotShardFailure exception, GlobalParams params) throws IOException {
         ShardFailure.Builder shardFailure = ShardFailure.newBuilder();
-        if (exception.index() != null) {
-            shardFailure.setIndex(exception.index());
-        }
+        shardFailure.setIndex(exception.index());
         // shardFailure.setIndexUuid(exception.index()); // TODO no field called index_uuid in ShardFailure protos
         shardFailure.setShard(exception.shardId());
         if (exception.nodeId() != null) {
