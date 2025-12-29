@@ -99,9 +99,6 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.exec.coord.LastRefreshedCheckpointListener;
-import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
-import org.opensearch.index.engine.exec.coord.CompositeEngine;
-import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
@@ -1760,7 +1757,7 @@ public class InternalEngine extends Engine {
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
         final Throwable writerTragicException = indexWriter.getTragicException();
-        
+
         // For optimized indices (using DocumentIndexWriter with multiple writers), use stricter check
         // that requires the writer to be closed. For non-optimized indices (raw IndexWriter), match
         // upstream behavior that only checks for tragic exception - this fixes replica promotion issues.
@@ -1770,7 +1767,7 @@ public class InternalEngine extends Engine {
         } else {
             hasWriterTragicEvent = writerTragicException != null;
         }
-        
+
         if (hasWriterTragicEvent) {
             final Exception tragicException;
             if (writerTragicException instanceof Exception) {
@@ -1792,10 +1789,10 @@ public class InternalEngine extends Engine {
             String exMessage = ex.getMessage();
             Throwable cause = ex.getCause();
             boolean isEngineClosedMessage = exMessage != null && exMessage.contains("engine is closed");
-            boolean isCauseFromEngineClose = cause instanceof AlreadyClosedException 
-                && cause.getMessage() != null 
+            boolean isCauseFromEngineClose = cause instanceof AlreadyClosedException
+                && cause.getMessage() != null
                 && cause.getMessage().contains("engine is closed");
-            
+
             if (isEngineClosedMessage || isCauseFromEngineClose) {
                 // This is a normal engine close race - not a tragic event
                 // The engine is closing but isClosed flag hasn't been set yet
