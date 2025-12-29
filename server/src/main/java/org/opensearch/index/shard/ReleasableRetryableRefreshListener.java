@@ -25,6 +25,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * RefreshListener that runs afterRefresh method if and only if there is a permit available. Once the {@code drainRefreshes()}
@@ -62,7 +63,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
     }
 
     @Override
-    public final void afterRefresh(boolean didRefresh, CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot) throws IOException {
+    public final void afterRefresh(boolean didRefresh, Supplier<CompositeEngine.ReleasableRef<CatalogSnapshot>> catalogSnapshot) throws IOException {
         // TODO CompositeEngine filters CatalogSnapshotAwareListeners, keeping this for now
         afterRefresh(didRefresh);
     }

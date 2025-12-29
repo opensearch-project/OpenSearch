@@ -239,10 +239,9 @@ public class CatalogSnapshot extends AbstractRefCounted implements Writeable, Cl
         return "CatalogSnapshot{" + "id=" + id + ", version=" + version + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + ", List of Segment= " + segmentList + ", userData=" + userData +'}';
     }
 
-    @Override
-    public CatalogSnapshot clone() {
-        // TODO this doesn't call super.clone right now
-        return new CatalogSnapshot(getId(), getVersion(), getSegments(), catalogSnapshotMap, indexFileDeleterSupplier);
+    public CatalogSnapshot cloneNoAcquire() {
+        // Still using the clone call since Lucene call requires clone. This will allow a SegmentsInfos backed CatalogSnapshot to use the same method in calls.
+        return this;
     }
 
     /**

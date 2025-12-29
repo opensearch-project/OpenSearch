@@ -8,13 +8,10 @@
 
 package org.opensearch.datafusion.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
-import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.EngineReaderManager;
 import org.opensearch.index.engine.FileDeletionListener;
@@ -22,18 +19,21 @@ import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class DatafusionReaderManager implements EngineReaderManager<DatafusionReader>, CatalogSnapshotAwareRefreshListener, FileDeletionListener {
+    private static final Logger log = LoggerFactory.getLogger(DatafusionReaderManager.class);
     private DatafusionReader current;
     private String path;
     private String dataFormat;
-    private static final Logger logger = LogManager.getLogger(DatafusionReaderManager.class);
     private Consumer<List<String>> onFilesAdded;
 //    private final Lock refreshLock = new ReentrantLock();
 //    private final List<ReferenceManager.RefreshListener> refreshListeners = new CopyOnWriteArrayList();
@@ -75,9 +75,14 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     }
 
     @Override
-    public void afterRefresh(boolean didRefresh, CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot) throws IOException {
-        if (didRefresh && catalogSnapshot != null) {
+    public void afterRefresh(boolean didRefresh, Supplier<CompositeEngine.ReleasableRef<CatalogSnapshot>> catalogSnapshotSupplier) throws IOException {
+        if (didRefresh && catalogSnapshotSupplier != null) {
             DatafusionReader old = this.current;
+            final CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot = catalogSnapshotSupplier.get();
+            if (catalogSnapshot == null) {
+                log.warn("Catalog snapshot is null, skipping post refresh actions for Datafusion reader");
+                return;
+            }
             Collection<WriterFileSet> newFiles = catalogSnapshot.getRef().getSearchableFiles(dataFormat);
             this.current = new DatafusionReader(this.path, catalogSnapshot, catalogSnapshot.getRef().getSearchableFiles(dataFormat));
             if (old != null) {

@@ -9,24 +9,20 @@
 package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.FilterDirectory;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.cluster.routing.RecoverySource;
-import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.store.CompositeRemoteSegmentStoreDirectory;
 import org.opensearch.index.store.CompositeStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
@@ -43,7 +39,6 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -224,7 +219,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
             // if following condition does not exist. The segments created as part of translog replay will not be present
             // in the remote store.
-            return indexShard.state() != IndexShardState.STARTED || indexShard.getIndexingExecutionCoordinator() == null;
+            return indexShard.state() != IndexShardState.STARTED || !(indexShard.getIndexer() instanceof InternalEngine || indexShard.getIndexer() instanceof CompositeEngine);
         }
         beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
@@ -259,8 +254,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 }
                 // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                 // move.
-
-                long lastRefreshedCheckpoint = indexShard.getIndexingExecutionCoordinator().lastRefreshedCheckpoint();
+                long lastRefreshedCheckpoint = indexShard.getIndexer().lastRefreshedCheckpoint();
 
                 Collection<FileMetadata> localFilesPostRefresh = catalogSnapshot.getFileMetadataList();
 
@@ -431,7 +425,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
         // Set the minimum sequence number for keeping translog
-        indexShard.getIndexingExecutionCoordinator().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint+1);
+        indexShard.getIndexer().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
         logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
@@ -479,9 +473,11 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     void uploadMetadata(Collection<FileMetadata> localFilesPostRefresh, CatalogSnapshot catalogSnapshot, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
         final long maxSeqNo = indexShard.getIndexingExecutionCoordinator().currentOngoingRefreshCheckpoint();
-        CatalogSnapshot catalogSnapshotCopy = catalogSnapshot.clone();
+        CatalogSnapshot catalogSnapshotCopy = catalogSnapshot.cloneNoAcquire();
 
         final Map<String, String> segmentUserData = indexShard.store().readLastCommittedSegmentsInfo().getUserData();
+
+        CatalogSnapshot catalogSnapshotCloned = catalogSnapshot.cloneNoAcquire();
 
         // Create mutable copy and update checkpoint fields while preserving ALL existing metadata
         final Map<String, String> userData = new HashMap<>(segmentUserData);
@@ -495,7 +491,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                    userData.get(org.opensearch.index.engine.Engine.HISTORY_UUID_KEY),
                    userData.keySet());
 
-        Translog.TranslogGeneration translogGeneration = indexShard.getIndexingExecutionCoordinator().translogManager().getTranslogGeneration();
+        Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {
@@ -635,8 +631,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             if (indexShard.state() != null) {
                 sb.append(" indexShardState=").append(indexShard.state());
             }
-            if (indexShard.getEngineOrNull() != null) {
-                sb.append(" engineType=").append(indexShard.getEngine().getClass().getSimpleName());
+            if (indexShard.getIndexerOrNull() != null) {
+                sb.append(" engineType=").append(indexShard.getIndexer().getClass().getSimpleName());
             }
             if (indexShard.recoveryState() != null) {
                 sb.append(" recoverySourceType=").append(indexShard.recoveryState().getRecoverySource().getType());

@@ -51,11 +51,13 @@ import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.bridge.CheckpointState;
 import org.opensearch.index.engine.exec.bridge.Indexer;
+import org.opensearch.index.engine.exec.bridge.Indexer.OpVsEngineDocStatus;
 import org.opensearch.index.engine.exec.bridge.IndexingThrottler;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.LuceneCommitEngine;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
+import org.opensearch.index.engine.exec.coord.CompositeEngine.ReleasableRef;
 import org.opensearch.index.engine.exec.merge.MergeHandler;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.MergeScheduler;
@@ -132,7 +134,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private static final BiConsumer<ReleasableRef<CatalogSnapshot>, CatalogSnapshotAwareRefreshListener>
         POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER = (catalogSnapshot, catalogSnapshotAwareRefreshListener) -> {
         try {
-            catalogSnapshotAwareRefreshListener.afterRefresh(true, catalogSnapshot);
+            // Wrap in Supplier as required by CatalogSnapshotAwareRefreshListener interface
+            catalogSnapshotAwareRefreshListener.afterRefresh(true, () -> catalogSnapshot);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -221,6 +224,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
             Map<String, String> userData;
             String translogUUID;
+            // Note: lastRefreshedCheckpointListener is initialized later after localCheckpointTracker is ready
             try {
                 final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
                 userData = segmentInfos.getUserData();
@@ -391,6 +395,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
         } catch (org.apache.lucene.index.IndexNotFoundException e) {
             // Local store is empty (remote store recovery scenario)
+            // Initialize with NO_OPS_PERFORMED (-1) - checkpoint will be restored from CatalogSnapshot during first flush
             logger.debug(
                 "Local store is empty during engine initialization, initializing checkpoint tracker with NO_OPS_PERFORMED. "
                 + "This is expected during remote store recovery where local store has not been initialized yet."
@@ -458,9 +463,10 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     }
 
     public void updateSearchEngine() throws IOException {
-        catalogSnapshotAwareRefreshListeners.forEach(ref -> {
+            catalogSnapshotAwareRefreshListeners.forEach(ref -> {
             try {
-                ref.afterRefresh(true, catalogSnapshotManager.acquireSnapshot());
+                // Wrap in Supplier as required by CatalogSnapshotAwareRefreshListener interface
+                ref.afterRefresh(true, () -> catalogSnapshotManager.acquireSnapshot());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -908,17 +914,28 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (force || shouldFlush() || shouldPeriodicallyFlush || getProcessedLocalCheckpoint() > Long.parseLong(
                     readLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))) {
+
+                    logger.info(
+                        "[COMPOSITE ENGINE FLUSH] Starting flush. force={}, shouldFlush={}, shouldPeriodicallyFlush={}, " +
+                        "processedLocalCheckpoint={}, lastCommittedCheckpoint={}",
+                        force, shouldFlush(), shouldPeriodicallyFlush,
+                        getProcessedLocalCheckpoint(),
+                        readLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                    );
+
                     translogManager.ensureCanFlush();
+
                     try {
+                        logger.info("[COMPOSITE ENGINE FLUSH] About to roll translog generation");
                         translogManager.rollTranslogGeneration();
+                        logger.info("[COMPOSITE ENGINE FLUSH] Successfully rolled translog generation");
                         logger.trace("starting commit for flush; commitTranslog=true");
                         CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotToFlushRef = catalogSnapshotManager.acquireSnapshot();
                         final CatalogSnapshot catalogSnapshotToFlush = catalogSnapshotToFlushRef.getRef();
                         System.out.println("FLUSH called, current snapshot to commit : " + catalogSnapshotToFlush.getId()
                             + ", previous commited snapshot : " + ((lastCommitedCatalogSnapshotRef != null)
-                            ? lastCommitedCatalogSnapshotRef.getRef().getId()
-                            : -1));
-
+                                                                   ? lastCommitedCatalogSnapshotRef.getRef().getId()
+                                                                   : -1));
                         final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
                         final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
 
@@ -1182,6 +1199,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         }
     }
 
+
+
     /**
      * Acquires the most recent safe index commit snapshot from the currently running engine.
      * All index files referenced by this commit won't be freed until the commit/snapshot is closed.
@@ -1227,6 +1246,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
         @Override
         public void beforeRefresh() {
+            // All changes until this point should be visible after refresh
             pendingCheckpoint.updateAndGet(curr -> Math.max(curr, localCheckpointTracker.getProcessedCheckpoint()));
         }
 
@@ -1240,6 +1260,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         void updateRefreshedCheckpoint(long checkpoint) {
             refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
             assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
+            // This shouldn't be required ideally, but we're also invoking this method from refresh as of now.
+            // This change is added as safety check to ensure that our checkpoint values are consistent at all times.
             pendingCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
         }
     }
