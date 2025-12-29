@@ -109,7 +109,13 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
                 + "        \"index_uuid\": \"_na_\""
                 + "      }"
                 + "    }"
-                + "  ]"
+                + "  ],"
+                + "  \"caused_by\": {"
+                + "    \"type\": \"parsing_exception\","
+                + "    \"reason\": \"foobar\","
+                + "    \"line\": 1,"
+                + "    \"col\": 2"
+                + "  }"
                 + "}"
         );
         assertEquals(expectedJson, Strings.toString(MediaTypeRegistry.JSON, exception));
@@ -149,8 +155,8 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
         assertThat(parsedException.getHeaderKeys(), hasSize(0));
         assertThat(parsedException.getMetadataKeys(), hasSize(1));
         assertThat(parsedException.getMetadata("opensearch.phase"), hasItem(phase));
-        // SearchPhaseExecutionException has no cause field
-        assertNull(parsedException.getCause());
+        // SearchPhaseExecutionException wires up the first shard failure's cause
+        assertNotNull(parsedException.getCause());
     }
 
     public void testPhaseFailureWithoutSearchShardFailure() {
