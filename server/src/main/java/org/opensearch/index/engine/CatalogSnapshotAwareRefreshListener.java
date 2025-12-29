@@ -12,6 +12,7 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 public interface CatalogSnapshotAwareRefreshListener {
     /**
@@ -24,5 +25,5 @@ public interface CatalogSnapshotAwareRefreshListener {
      * @param didRefresh whether refresh actually occurred
      * @param catalogSnapshot the current catalog snapshot with file information
      */
-    void afterRefresh(boolean didRefresh, CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshot) throws IOException;
+    void afterRefresh(boolean didRefresh, Supplier<CompositeEngine.ReleasableRef<CatalogSnapshot>> catalogSnapshot) throws IOException;
 }
