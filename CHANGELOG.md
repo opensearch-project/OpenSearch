@@ -7,8 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - Add support for forward translog reading ([#20163](https://github.com/opensearch-project/OpenSearch/pull/20163))
 - Added public getter method in `SourceFieldMapper` to return excluded field ([#20205](https://github.com/opensearch-project/OpenSearch/pull/20205))
+- Add integ test for simulating node join left event when data node cluster state publication lag because the cluster applier thread being busy ([#19907](https://github.com/opensearch-project/OpenSearch/pull/19907)).
 - Relax jar hell check when extended plugins share transitive dependencies ([#20103](https://github.com/opensearch-project/OpenSearch/pull/20103))
 - Added public getter method in `SourceFieldMapper` to return included field ([#20290](https://github.com/opensearch-project/OpenSearch/pull/20290))
+
 
 ### Changed
 - Handle custom metadata files in subdirectory-store ([#20157](https://github.com/opensearch-project/OpenSearch/pull/20157))
@@ -39,6 +41,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `ch.qos.logback:logback-core` from 1.5.20 to 1.5.23 ([#20303](https://github.com/opensearch-project/OpenSearch/pull/20303))
 - Bump `com.google.api.grpc:proto-google-iam-v1` from 1.57.0 to 1.58.2 ([#20302](https://github.com/opensearch-project/OpenSearch/pull/20302))
 - Bump `actions/setup-java` from 4 to 5 ([#20304](https://github.com/opensearch-project/OpenSearch/pull/20304))
+- Bump `actions/upload-artifact` from 5 to 6 ([#20333](https://github.com/opensearch-project/OpenSearch/pull/20333))
+- Bump `com.google.http-client:google-http-client-appengine` from 2.0.2 to 2.0.3 ([#20332](https://github.com/opensearch-project/OpenSearch/pull/20332))
 - Bump `opensearch-protobufs` from 0.24.0 to 1.0.0 and update transport-grpc module compatibility ([#20335](https://github.com/opensearch-project/OpenSearch/pull/20335))
 
 ### Removed
