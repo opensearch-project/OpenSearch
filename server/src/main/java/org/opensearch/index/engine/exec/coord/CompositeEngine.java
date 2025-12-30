@@ -462,6 +462,10 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         return engine.createCompositeWriter().newDocumentInput();
     }
 
+    public EngineConfig getEngineConfig() {
+        return engineConfig;
+    }
+
     public Engine.IndexResult index(Engine.Index index) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         final boolean doThrottle = index.origin().isRecovery() == false;
