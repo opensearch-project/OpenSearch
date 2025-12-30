@@ -1500,7 +1500,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     public static Translog getTranslog(IndexShard shard) {
-        return EngineTestCase.getTranslog((CompositeEngine) getIndexer(shard));
+        return EngineTestCase.getTranslog(getIndexer(shard));
     }
 
     public static ReplicationTracker getReplicationTracker(IndexShard indexShard) {
