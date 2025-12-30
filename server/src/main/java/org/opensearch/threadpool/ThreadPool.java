@@ -184,7 +184,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.GET, ThreadPoolType.FIXED);
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
         map.put(Names.WRITE, ThreadPoolType.FIXED);
-        //map.put(Names.SEARCH, ThreadPoolType.RESIZABLE);
         map.put(Names.SEARCH, ThreadPoolType.VIRTUAL);
         map.put(Names.STREAM_SEARCH, ThreadPoolType.RESIZABLE);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
@@ -205,7 +204,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_REFRESH_RETRY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_RECOVERY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_STATE_READ, ThreadPoolType.FIXED);
-        //map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
         map.put(Names.INDEX_SEARCHER, ThreadPoolType.VIRTUAL);
         map.put(Names.REMOTE_STATE_CHECKSUM, ThreadPoolType.FIXED);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
@@ -264,11 +262,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
-        /*builders.put(
+        builders.put(
             Names.SEARCH,
-            new ResizableExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, runnableTaskListener)
-        );*/
-        builders.put(Names.SEARCH, new VirtualThreadExecutorBuilder(Names.SEARCH, settings));
+            new VirtualThreadExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, runnableTaskListener)
+        );
         // TODO: configure the appropriate size and explore use of virtual threads
         builders.put(
             Names.STREAM_SEARCH,
@@ -332,15 +329,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.INDEX_SEARCHER,
-            // TODO: We probably want to extend some VirtualExecutorBuilder here?
-            new VirtualThreadExecutorBuilder(Names.INDEX_SEARCHER, settings)
-            /*new ResizableExecutorBuilder(
+            new VirtualThreadExecutorBuilder(
                 settings,
                 Names.INDEX_SEARCHER,
                 twiceAllocatedProcessors(allocatedProcessors),
                 1000,
                 runnableTaskListener
-            )*/
+            )
         );
         builders.put(
             Names.REMOTE_STATE_CHECKSUM,
@@ -364,7 +359,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             if (executors.containsKey(executorHolder.info.getName())) {
                 throw new IllegalStateException("duplicate executors with name [" + executorHolder.info.getName() + "] registered");
             }
-            logger.info("created thread pool: {}", entry.getValue().formatInfo(executorHolder.info)); // TODO: Changing to info for my own testing
+            // TODO: Changing to info for my own testing
+            logger.info("created thread pool: {}", entry.getValue().formatInfo(executorHolder.info));
             executors.put(entry.getKey(), executorHolder);
         }
 
@@ -932,7 +928,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public final Info info;
 
         ExecutorHolder(ExecutorService executor, Info info) {
-            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR || executor instanceof ForkJoinPool || info.type == ThreadPoolType.VIRTUAL;
+            assert executor instanceof OpenSearchThreadPoolExecutor
+                || executor == DIRECT_EXECUTOR
+                || executor instanceof ForkJoinPool
+                || info.type == ThreadPoolType.VIRTUAL;
             this.executor = executor;
             this.info = info;
         }
