@@ -253,6 +253,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return shardPath;
     }
 
+    public boolean shouldSetParentField() {
+        return indexSettings.getIndexVersionCreated().onOrAfter(org.opensearch.Version.V_3_2_0) && this.isIndexSortEnabled;
+    }
+
     /**
      * Returns the last committed segments info for this store
      *
