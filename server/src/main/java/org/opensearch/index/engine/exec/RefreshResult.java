@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine.exec;
 
+import org.opensearch.index.engine.exec.coord.Segment;
+
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.util.ArrayList;
@@ -15,17 +17,17 @@ import java.util.List;
 
 public class RefreshResult {
 
-    private List<CatalogSnapshot.Segment> refreshedSegments;
+    private List<Segment> refreshedSegments;
 
     public RefreshResult() {
         this.refreshedSegments = new ArrayList<>();
     }
 
-    public List<CatalogSnapshot.Segment> getRefreshedSegments() {
+    public List<Segment> getRefreshedSegments() {
         return refreshedSegments;
     }
 
-    public void setRefreshedSegments(List<CatalogSnapshot.Segment> refreshedSegments) {
+    public void setRefreshedSegments(List<Segment> refreshedSegments) {
         this.refreshedSegments = refreshedSegments;
     }
 }

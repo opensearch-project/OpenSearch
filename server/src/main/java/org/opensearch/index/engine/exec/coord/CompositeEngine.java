@@ -832,7 +832,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 lastCommitedCatalogSnapshotRef.getRef()
                     .getSegments()
                     .stream()
-                    .map(CatalogSnapshot.Segment::getGeneration)
+                    .map(org.opensearch.index.engine.exec.coord.Segment::getGeneration)
                     .collect(Collectors.toCollection(() -> committedSegments));
             }
             Map<String, FileStats> segmentStats = getPrimaryReadEngine().fetchSegmentStats();
