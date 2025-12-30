@@ -2869,4 +2869,210 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals("10001", doc.rootDoc().getField("user.address.zip").stringValue());
     }
 
+    public void testDisableObjectsWithStrictDynamicMapping() throws Exception {
+        // Test that strict dynamic mapping works correctly with disable_objects
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "strict");
+        }));
+
+        // Should throw exception when trying to add new field with strict mapping
+        StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class, () -> {
+            mapper.parse(source(b -> b.field("new.field", "value")));
+        });
+
+        assertThat(exception.getMessage(), containsString("strict"));
+    }
+
+    public void testDisableObjectsWithExistingFieldMappers() throws Exception {
+        // Test that existing field mappers work correctly with disable_objects
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.startObject("properties");
+            {
+                b.startObject("user.name");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject();
+                b.startObject("user.age");
+                {
+                    b.field("type", "integer");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("user.name", "John Doe");
+            b.field("user.age", 30);
+        }));
+
+        // Both fields should be properly mapped using existing field mappers
+        assertNotNull("Field 'user.name' should exist", doc.rootDoc().getField("user.name"));
+        assertEquals("John Doe", doc.rootDoc().getField("user.name").stringValue());
+
+        assertNotNull("Field 'user.age' should exist", doc.rootDoc().getField("user.age"));
+        assertEquals(30, doc.rootDoc().getField("user.age").numericValue().intValue());
+    }
+
+    public void testDisableObjectsParentInStackScenario() throws Exception {
+        // Test scenario that exercises findDisableObjectsParentInStack function
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("level1");
+                {
+                    b.field("type", "object");
+                    b.startObject("properties");
+                    {
+                        b.startObject("level2");
+                        {
+                            b.field("type", "object");
+                            b.field("disable_objects", true);
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Parse a document that creates dynamic fields under the disable_objects parent
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("level1");
+            {
+                b.startObject("level2");
+                {
+                    // These should be treated as flat fields due to disable_objects=true
+                    b.field("dynamic.field1", "value1");
+                    b.field("dynamic.field2", "value2");
+                    b.startObject("nested");
+                    {
+                        b.field("deep.field", "deepvalue");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Verify that fields under disable_objects parent are flattened
+        assertNotNull("Field 'level1.level2.dynamic.field1' should exist", doc.rootDoc().getField("level1.level2.dynamic.field1"));
+        assertEquals("value1", doc.rootDoc().getField("level1.level2.dynamic.field1").stringValue());
+
+        assertNotNull("Field 'level1.level2.dynamic.field2' should exist", doc.rootDoc().getField("level1.level2.dynamic.field2"));
+        assertEquals("value2", doc.rootDoc().getField("level1.level2.dynamic.field2").stringValue());
+
+        // Nested objects should also be flattened
+        assertNotNull("Field 'level1.level2.nested.deep.field' should exist", doc.rootDoc().getField("level1.level2.nested.deep.field"));
+        assertEquals("deepvalue", doc.rootDoc().getField("level1.level2.nested.deep.field").stringValue());
+    }
+
+    public void testDisableObjectsParentInStackWithRootDisabled() throws Exception {
+        // Test scenario where root has disable_objects=true and we have nested dynamic fields
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+        }));
+
+        // Parse document with multiple levels of nesting
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("level1");
+            {
+                b.startObject("level2");
+                {
+                    b.field("field1", "value1");
+                    b.startArray("arrayField");
+                    {
+                        b.startObject();
+                        {
+                            b.field("nested.field", "nestedValue");
+                        }
+                        b.endObject();
+                    }
+                    b.endArray();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // All fields should be flattened due to root disable_objects=true
+        assertNotNull("Field 'level1.level2.field1' should exist", doc.rootDoc().getField("level1.level2.field1"));
+        assertEquals("value1", doc.rootDoc().getField("level1.level2.field1").stringValue());
+
+        assertNotNull(
+            "Field 'level1.level2.arrayField.nested.field' should exist",
+            doc.rootDoc().getField("level1.level2.arrayField.nested.field")
+        );
+        assertEquals("nestedValue", doc.rootDoc().getField("level1.level2.arrayField.nested.field").stringValue());
+    }
+
+    public void testDisableObjectsParentInStackWithExistingMappers() throws Exception {
+        // Test scenario where findDisableObjectsParentInStack needs to check existing mappers
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("container");
+                {
+                    b.field("type", "object");
+                    b.field("disable_objects", true);
+                    b.startObject("properties");
+                    {
+                        b.startObject("existing.field");
+                        {
+                            b.field("type", "text");
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // First parse to establish some dynamic mappings
+        ParsedDocument doc1 = mapper.parse(source(b -> {
+            b.startObject("container");
+            {
+                b.field("existing.field", "test");
+                b.field("dynamic.field1", "value1");
+            }
+            b.endObject();
+        }));
+
+        // Verify first document
+        assertNotNull("Field 'container.existing.field' should exist", doc1.rootDoc().getField("container.existing.field"));
+        assertNotNull("Field 'container.dynamic.field1' should exist", doc1.rootDoc().getField("container.dynamic.field1"));
+
+        // Parse second document that should find the existing disable_objects parent
+        ParsedDocument doc2 = mapper.parse(source(b -> {
+            b.startObject("container");
+            {
+                b.field("dynamic.field2", "value2");
+                b.startObject("nested");
+                {
+                    b.field("deep.field", "deepvalue");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Verify second document uses the same flattening behavior
+        assertNotNull("Field 'container.dynamic.field2' should exist", doc2.rootDoc().getField("container.dynamic.field2"));
+        assertEquals("value2", doc2.rootDoc().getField("container.dynamic.field2").stringValue());
+
+        assertNotNull("Field 'container.nested.deep.field' should exist", doc2.rootDoc().getField("container.nested.deep.field"));
+        assertEquals("deepvalue", doc2.rootDoc().getField("container.nested.deep.field").stringValue());
+    }
+
 }
