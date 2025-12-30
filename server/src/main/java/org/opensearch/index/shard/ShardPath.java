@@ -61,6 +61,7 @@ import java.util.Objects;
 public final class ShardPath {
     public static final String INDEX_FOLDER_NAME = "index";
     public static final String TRANSLOG_FOLDER_NAME = "translog";
+    public static final String METADATA_FOLDER_NAME = "metadata";
 
     private final Path path;
     private final ShardId shardId;

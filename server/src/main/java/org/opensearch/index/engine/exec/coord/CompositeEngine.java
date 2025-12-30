@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec.coord;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
@@ -43,17 +44,20 @@ import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.VersionValue;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.bridge.CheckpointState;
 import org.opensearch.index.engine.exec.bridge.Indexer;
+import org.opensearch.index.engine.exec.bridge.Indexer.OpVsEngineDocStatus;
 import org.opensearch.index.engine.exec.bridge.IndexingThrottler;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.LuceneCommitEngine;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
+import org.opensearch.index.engine.exec.coord.CompositeEngine.ReleasableRef;
 import org.opensearch.index.engine.exec.merge.MergeHandler;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.MergeScheduler;
@@ -67,12 +71,14 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.Checkpoint;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
+import org.opensearch.index.translog.TranslogHeader;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
@@ -83,6 +89,7 @@ import org.opensearch.plugins.spi.vectorized.DataFormat;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -101,7 +108,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.opensearch.index.engine.Engine.HISTORY_UUID_KEY;
 import static org.opensearch.index.engine.Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID;
@@ -125,10 +131,11 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             throw new RuntimeException(e);
         }
     };
-    private static final BiConsumer<Supplier<ReleasableRef<CatalogSnapshot>>, CatalogSnapshotAwareRefreshListener>
+    private static final BiConsumer<ReleasableRef<CatalogSnapshot>, CatalogSnapshotAwareRefreshListener>
         POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER = (catalogSnapshot, catalogSnapshotAwareRefreshListener) -> {
         try {
-            catalogSnapshotAwareRefreshListener.afterRefresh(true, catalogSnapshot);
+            // Wrap in Supplier as required by CatalogSnapshotAwareRefreshListener interface
+            catalogSnapshotAwareRefreshListener.afterRefresh(true, () -> catalogSnapshot);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -155,7 +162,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     protected final String historyUUID;
 
     private final LocalCheckpointTracker localCheckpointTracker;
-    private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
     private final ReentrantLock failEngineLock = new ReentrantLock();
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
@@ -189,6 +195,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private final CatalogSnapshotManager catalogSnapshotManager;
     private ReleasableRef<CatalogSnapshot> lastCommitedCatalogSnapshotRef;
     private final EventListener eventListener;
+    private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
     public CompositeEngine(
         EngineConfig engineConfig,
@@ -215,11 +222,31 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
             // initialize local checkpoint tracker and translog manager
             this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
-            this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker);
-            refreshListeners.add(lastRefreshedCheckpointListener);
+            Map<String, String> userData;
+            String translogUUID;
+            // Note: lastRefreshedCheckpointListener is initialized later after localCheckpointTracker is ready
+            try {
+                final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+                userData = segmentInfos.getUserData();
+                translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
+            } catch (java.io.FileNotFoundException e) {
+                // Local store is empty (remote store recovery scenario)
+                logger.debug("Local store is empty, reading translog UUID from translog header and creating initial commit");
+                final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
+                final Checkpoint checkpoint = Checkpoint.read(translogPath.resolve(Translog.CHECKPOINT_FILE_NAME));
+                final Path translogFile = translogPath.resolve(Translog.getFilename(checkpoint.getGeneration()));
+                try (java.nio.channels.FileChannel channel = java.nio.channels.FileChannel.open(translogFile, java.nio.file.StandardOpenOption.READ)) {
+                    final TranslogHeader translogHeader = TranslogHeader.read(translogFile, channel);
+                    translogUUID = translogHeader.getTranslogUUID();
 
-            final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
-            String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
+                    // Create initial empty commit for LuceneCommitEngine
+                    store.createEmpty(engineConfig.getIndexSettings().getIndexVersionCreated().luceneVersion, translogUUID);
+
+                    // Now read the userData from the newly created commit
+                    userData = store.readLastCommittedSegmentsInfo().getUserData();
+                    logger.debug("Created initial empty commit with translog UUID: {}", translogUUID);
+                }
+            }
             TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
                 @Override
                 public void onAfterTranslogSync() {
@@ -297,6 +324,11 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             this.mergeHandler = new CompositeMergeHandler(this, this.engine, this.engine.getDataFormat(), indexSettings, shardId);
             this.mergeScheduler = new MergeScheduler(this.mergeHandler, this, shardId, indexSettings);
 
+            // Initialize checkpoint listener for tracking refreshed checkpoints
+            this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(
+                localCheckpointTracker.getProcessedCheckpoint()
+            );
+
             // Refresh here so that catalog snapshot gets initialized
             // TODO : any better way to do this ?
             refresh("start");
@@ -329,7 +361,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 }
             }
             catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.accept(
-                this::acquireSnapshot,
+                acquireSnapshot(),
                 refreshListener
             ));
             success = true;
@@ -347,7 +379,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         logger.trace("created new CompositeEngine");
 
         initializeRefreshListeners(engineConfig);
-
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
@@ -355,11 +386,26 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     ) throws IOException {
         final long maxSeqNo;
         final long localCheckpoint;
-        final SequenceNumbers.CommitInfo seqNoStats =
-            SequenceNumbers.loadSeqNoInfoFromLuceneCommit(store.readLastCommittedSegmentsInfo().getUserData().entrySet());
-        maxSeqNo = seqNoStats.maxSeqNo;
-        localCheckpoint = seqNoStats.localCheckpoint;
-        logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
+
+        try {
+            final SequenceNumbers.CommitInfo seqNoStats =
+                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(store.readLastCommittedSegmentsInfo().getUserData().entrySet());
+            maxSeqNo = seqNoStats.maxSeqNo;
+            localCheckpoint = seqNoStats.localCheckpoint;
+            logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
+        } catch (org.apache.lucene.index.IndexNotFoundException e) {
+            // Local store is empty (remote store recovery scenario)
+            // Initialize with NO_OPS_PERFORMED (-1) - checkpoint will be restored from CatalogSnapshot during first flush
+            logger.debug(
+                "Local store is empty during engine initialization, initializing checkpoint tracker with NO_OPS_PERFORMED. "
+                + "This is expected during remote store recovery where local store has not been initialized yet."
+            );
+            return localCheckpointTrackerSupplier.apply(
+                SequenceNumbers.NO_OPS_PERFORMED,
+                SequenceNumbers.NO_OPS_PERFORMED
+            );
+        }
+
         return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
     }
 
@@ -376,6 +422,11 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
             )
         );
+    }
+
+    public final EngineConfig getEngineConfig()
+    {
+        return engineConfig;
     }
 
     protected TranslogManager createTranslogManager(
@@ -407,14 +458,15 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         }
     }
 
-    LocalCheckpointTracker getLocalCheckpointTracker() {
+    public LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
     }
 
     public void updateSearchEngine() throws IOException {
-        catalogSnapshotAwareRefreshListeners.forEach(ref -> {
+            catalogSnapshotAwareRefreshListeners.forEach(ref -> {
             try {
-                ref.afterRefresh(true, catalogSnapshotManager::acquireSnapshot);
+                // Wrap in Supplier as required by CatalogSnapshotAwareRefreshListener interface
+                ref.afterRefresh(true, () -> catalogSnapshotManager.acquireSnapshot());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -688,8 +740,13 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     }
 
     public synchronized void refresh(String source) throws EngineException {
+        final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
+        boolean refreshed = false;
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()) {
             refreshListeners.forEach(PRE_REFRESH_LISTENER_CONSUMER);
+
+            // Call checkpoint listener's beforeRefresh to capture pending checkpoint
+            lastRefreshedCheckpointListener.beforeRefresh();
 
             RefreshInput refreshInput = new RefreshInput();
             refreshInput.setExistingSegments(catalogSnapshotReleasableRef.getRef().getSegments());
@@ -698,12 +755,20 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 return;
             }
             catalogSnapshotManager.applyRefreshResult(refreshResult);
+            refreshed = true;
+
             catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.accept(
-                this::acquireSnapshot,
+                acquireSnapshot(),
                 refreshListener
             ));
 
             refreshListeners.forEach(POST_REFRESH_LISTENER_CONSUMER);
+
+            // Call checkpoint listener's afterRefresh to update refreshed checkpoint
+            if (refreshed) {
+                lastRefreshedCheckpointListener.afterRefresh(true);
+            }
+
             triggerPossibleMerges(); // trigger merges
         } catch (Exception ex) {
             try {
@@ -713,6 +778,12 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
             throw new RefreshFailedEngineException(shardId, ex);
         }
+
+        assert refreshed == false || lastRefreshedCheckpoint() >= localCheckpointBeforeRefresh : "refresh checkpoint was not advanced; "
+            + "local_checkpoint="
+            + localCheckpointBeforeRefresh
+            + " refresh_checkpoint="
+            + lastRefreshedCheckpoint();
     }
 
     public synchronized void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
@@ -802,16 +873,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     }
 
     @Override
-    public long lastRefreshedCheckpoint() {
-        return lastRefreshedCheckpointListener.getRefreshedCheckpoint();
-    }
-
-    @Override
-    public long currentOngoingRefreshCheckpoint() {
-        return lastRefreshedCheckpointListener.getPendingCheckpoint();
-    }
-
-    @Override
     public void forceMerge(
         boolean flush,
         int maxNumSegments,
@@ -853,9 +914,21 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (force || shouldFlush() || shouldPeriodicallyFlush || getProcessedLocalCheckpoint() > Long.parseLong(
                     readLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))) {
+
+                    logger.info(
+                        "[COMPOSITE ENGINE FLUSH] Starting flush. force={}, shouldFlush={}, shouldPeriodicallyFlush={}, " +
+                        "processedLocalCheckpoint={}, lastCommittedCheckpoint={}",
+                        force, shouldFlush(), shouldPeriodicallyFlush,
+                        getProcessedLocalCheckpoint(),
+                        readLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                    );
+
                     translogManager.ensureCanFlush();
+
                     try {
+                        logger.info("[COMPOSITE ENGINE FLUSH] About to roll translog generation");
                         translogManager.rollTranslogGeneration();
+                        logger.info("[COMPOSITE ENGINE FLUSH] Successfully rolled translog generation");
                         logger.trace("starting commit for flush; commitTranslog=true");
                         CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotToFlushRef = catalogSnapshotManager.acquireSnapshot();
                         final CatalogSnapshot catalogSnapshotToFlush = catalogSnapshotToFlushRef.getRef();
@@ -863,21 +936,30 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                             + ", previous commited snapshot : " + ((lastCommitedCatalogSnapshotRef != null)
                                                                    ? lastCommitedCatalogSnapshotRef.getRef().getId()
                                                                    : -1));
-                        final String serializedCatalogSnapshot = catalogSnapshotToFlush.serializeToString();
                         final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
                         final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+
+                        // Create commitData with checkpoint information BEFORE serializing CatalogSnapshot
+                        // This ensures CatalogSnapshot.userData contains the correct checkpoint values
+                        final Map<String, String> commitData = new HashMap<>(7);
+                        commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
+                        commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
+                        commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
+                        commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                        commitData.put(HISTORY_UUID_KEY, historyUUID);
+                        commitData.put(LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(lastWriterGeneration));
+
+                        // Copy checkpoint data to CatalogSnapshot.userData BEFORE serialization
+                        // This preserves checkpoint state for recovery scenarios (e.g., replica promotion)
+                        catalogSnapshotToFlush.setUserData(commitData, false);
+
+                        // Now serialize CatalogSnapshot with checkpoint data in userData
+                        final String serializedCatalogSnapshot = catalogSnapshotToFlush.serializeToString();
+                        commitData.put(CATALOG_SNAPSHOT_KEY, serializedCatalogSnapshot);
+
                         compositeEngineCommitter.commit(
-                            () -> {
-                                final Map<String, String> commitData = new HashMap<>(7);
-                                commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
-                                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
-                                commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
-                                commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
-                                commitData.put(HISTORY_UUID_KEY, historyUUID);
-                                commitData.put(CATALOG_SNAPSHOT_KEY, serializedCatalogSnapshot);
-                                commitData.put(LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(lastWriterGeneration));
-                                return commitData.entrySet().iterator();
-                            }, catalogSnapshotToFlush
+                            () -> commitData.entrySet().iterator(),
+                            catalogSnapshotToFlush
                         );
                         logger.trace("finished commit for flush");
                         if (lastCommitedCatalogSnapshotRef != null && lastCommitedCatalogSnapshotRef.getRef() != null)
@@ -957,7 +1039,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         boolean requiredFullRange,
         boolean accurateCount
     ) throws IOException {
-        return null;
+        return translogManager.newChangesSnapshot(fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     @Override
@@ -1103,23 +1185,21 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             assert rwl.isWriteLockedByCurrentThread()
                 || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
-                try {
                     IOUtils.close(engine, translogManager, compositeEngineCommitter);
                 } catch (Exception e) {
                     logger.warn("Failed to close translog", e);
-                }
-            } catch (Exception e) {
-                logger.warn("failed to close translog manager", e);
-            } finally {
-                try {
-                    store.decRef();
-                    logger.debug("engine closed [{}]", reason);
                 } finally {
-                    closedLatch.countDown();
+                    try {
+                        store.decRef();
+                        logger.debug("engine closed [{}]", reason);
+                    } finally {
+                        closedLatch.countDown();
+                    }
                 }
-            }
         }
     }
+
+
 
     /**
      * Acquires the most recent safe index commit snapshot from the currently running engine.
@@ -1134,6 +1214,55 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             return luceneCommitEngine.acquireSafeIndexCommit();
         } else {
             throw new EngineException(shardId, "CompositeEngine committer is not a LuceneCommitEngine");
+        }
+    }
+
+    /**
+     * Returns the last local checkpoint value that has been refreshed internally.
+     */
+    public final long lastRefreshedCheckpoint() {
+        return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
+    }
+
+    /**
+     * Returns the current local checkpoint that is being refreshed internally.
+     */
+    public final long currentOngoingRefreshCheckpoint() {
+        return lastRefreshedCheckpointListener.pendingCheckpoint.get();
+    }
+
+    /**
+     * Listener that tracks the last refreshed checkpoint.
+     * This is used to determine which operations have been made searchable.
+     */
+    private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
+        final AtomicLong refreshedCheckpoint;
+        volatile AtomicLong pendingCheckpoint;
+
+        LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
+            this.refreshedCheckpoint = new AtomicLong(initialLocalCheckpoint);
+            this.pendingCheckpoint = new AtomicLong(initialLocalCheckpoint);
+        }
+
+        @Override
+        public void beforeRefresh() {
+            // All changes until this point should be visible after refresh
+            pendingCheckpoint.updateAndGet(curr -> Math.max(curr, localCheckpointTracker.getProcessedCheckpoint()));
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) {
+            if (didRefresh) {
+                updateRefreshedCheckpoint(pendingCheckpoint.get());
+            }
+        }
+
+        void updateRefreshedCheckpoint(long checkpoint) {
+            refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
+            assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
+            // This shouldn't be required ideally, but we're also invoking this method from refresh as of now.
+            // This change is added as safety check to ensure that our checkpoint values are consistent at all times.
+            pendingCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
         }
     }
 }

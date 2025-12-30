@@ -155,6 +155,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                     if (directoryFiles.contains(fileMetadata)) {
                         logger.info("ReplicationCheckpoint: {}, filesToFetch: {}", checkpoint.getSegmentInfosVersion(), filesToFetch);
                         logger.info(directoryFiles);
+                        continue;
                     }
                     assert directoryFiles.contains(fileMetadata) == false : "Local store already contains the file " + fileMetadata;
 
@@ -165,6 +166,13 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
 
                 // Use CompositeStoreDirectory with format-aware progress tracking
                 final CompositeStoreDirectoryStatsWrapper statsWrapper = new CompositeStoreDirectoryStatsWrapper(storeDirectory, fileProgressTracker);
+
+                // After the for loop that builds toDownloadFileMetadata
+                if (toDownloadFileMetadata.isEmpty()) {
+                    logger.debug("All files already exist locally, skipping download");
+                    listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+                    return;
+                }
 
                 indexShard.getFileDownloader()
                     .downloadAsync(

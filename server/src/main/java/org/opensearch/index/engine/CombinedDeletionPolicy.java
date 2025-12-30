@@ -175,10 +175,15 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * Index files of the capturing commit point won't be released until the commit reference is closed.
      *
      * @param acquiringSafeCommit captures the most recent safe commit point if true; otherwise captures the most recent commit point.
+     * @throws EngineNotInitializedException if the deletion policy has not been initialized yet (no commits exist)
      */
     public synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
-        assert safeCommit != null : "Safe commit is not initialized yet";
-        assert lastCommit != null : "Last commit is not initialized yet";
+        if (safeCommit == null) {
+            throw new EngineNotInitializedException("Safe commit is not initialized yet - deletion policy has not processed any commits");
+        }
+        if (lastCommit == null) {
+            throw new EngineNotInitializedException("Last commit is not initialized yet - deletion policy has not processed any commits");
+        }
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
         snapshottedCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
         return new SnapshotIndexCommit(snapshotting);

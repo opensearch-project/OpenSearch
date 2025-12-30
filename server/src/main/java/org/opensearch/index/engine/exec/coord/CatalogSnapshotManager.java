@@ -126,6 +126,9 @@ public class CatalogSnapshotManager {
         }
         CatalogSnapshot newCatSnap = new CatalogSnapshot(latestCatalogSnapshot.getId() + 1, latestCatalogSnapshot.getVersion() + 1, segmentList, catalogSnapshotMap, indexFileDeleter::get);
 
+        // Note: userData will be populated in CompositeEngine.flush() before serialization
+        // when this snapshot is committed to disk
+
         // Commit new catalog snapshot
         commitCatalogSnapshot(newCatSnap);
     }

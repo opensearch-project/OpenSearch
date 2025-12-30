@@ -397,7 +397,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public ContextIndexSearcher searcher() {
-        return null;
+        return  originalContext.searcher();
     }
 
     @Override
@@ -511,7 +511,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public int trackTotalHitsUpTo() {
-        return 0;
+        return originalContext.trackTotalHitsUpTo();
     }
 
     @Override
@@ -572,13 +572,13 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public ParsedQuery parsedQuery() {
-        return null;
+        return originalContext.parsedQuery();
     }
 
     // TODO : fix this
     public Query query() {
         // Extract query from request
-        return null;
+        return originalContext.query();
     }
 
     @Override
