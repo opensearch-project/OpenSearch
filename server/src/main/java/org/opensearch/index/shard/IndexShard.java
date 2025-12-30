@@ -1549,7 +1549,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public IndexingStats indexingStats() {
-        IndexingThrottler engine = getIndexingExecutionCoordinator();
+        IndexingThrottler engine = getIndexingThrottler();
         final boolean throttled;
         final long throttleTimeInMillis;
         if (engine == null) {
@@ -2015,7 +2015,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             catalogSnapshot.getVersion(),
             formatAwareMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
             formatAwareMetadataMap,
-            getIndexingExecutionCoordinator().getEngineConfig().getCodec().getName()
+            getIndexer().config().getCodec().getName()
         );
         logger.trace("Recomputed ReplicationCheckpoint from CatalogSnapshot for shard {}", checkpoint);
         return checkpoint;
@@ -4166,7 +4166,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public IndexingThrottler getIndexingThrottler() {
-        return getEngine();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : getEngine();
     }
 
     public Engine getEngine() {
@@ -5826,7 +5826,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * executing that replication request on a replica.
      */
     public long getMaxSeqNoOfUpdatesOrDeletes() {
-        return getIndexingExecutionCoordinator().getMaxSeqNoOfUpdatesOrDeletes();
+        return getIndexer().getMaxSeqNoOfUpdatesOrDeletes();
     }
 
     /**

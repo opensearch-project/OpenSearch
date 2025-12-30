@@ -424,7 +424,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         );
     }
 
-    public final EngineConfig getEngineConfig()
+    public final EngineConfig config()
     {
         return engineConfig;
     }

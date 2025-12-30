@@ -472,8 +472,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     // ToDo:@Kamal Update MaxSeqNo
     void uploadMetadata(Collection<FileMetadata> localFilesPostRefresh, CatalogSnapshot catalogSnapshot, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
-        final long maxSeqNo = indexShard.getIndexingExecutionCoordinator().currentOngoingRefreshCheckpoint();
-        CatalogSnapshot catalogSnapshotCopy = catalogSnapshot.cloneNoAcquire();
+        final long maxSeqNo = indexShard.getIndexer().currentOngoingRefreshCheckpoint();
 
         final Map<String, String> segmentUserData = indexShard.store().readLastCommittedSegmentsInfo().getUserData();
 
@@ -483,7 +482,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         final Map<String, String> userData = new HashMap<>(segmentUserData);
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
-        catalogSnapshotCopy.setUserData(userData, false);
+        catalogSnapshotCloned.setUserData(userData, false);
 
         // Log for verification during debugging
         logger.debug("Uploading metadata with userData: translog_uuid={}, history_uuid={}, all_keys={}",
@@ -498,7 +497,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             long translogFileGeneration = translogGeneration.translogFileGeneration;
             remoteDirectory.uploadMetadata(
                 localFilesPostRefresh.stream().map(FileMetadata::serialize).collect(Collectors.toList()),
-                catalogSnapshotCopy,
+                catalogSnapshotCloned,
                 compositeStoreDirectory,
                 translogFileGeneration,
                 replicationCheckpoint,

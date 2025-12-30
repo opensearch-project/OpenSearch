@@ -15,6 +15,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.Segment;
@@ -161,6 +162,11 @@ public interface Indexer {
     }
 
     default long currentOngoingRefreshCheckpoint() {
+        throw new UnsupportedOperationException();
+    }
+
+    default EngineConfig config()
+    {
         throw new UnsupportedOperationException();
     }
 

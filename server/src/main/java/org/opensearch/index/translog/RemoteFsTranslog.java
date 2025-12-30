@@ -273,14 +273,15 @@ public class RemoteFsTranslog extends Translog {
             }
 
             Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
-            long minGen = translogMetadata.getMinTranslogGeneration();
-            long maxGen = translogMetadata.getGeneration();
-
-            for (long i = maxGen; i >= minGen; i--) {
+            for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
                 String generation = Long.toString(i);
-                String primaryTerm = generationToPrimaryTermMapper.get(generation);
-                translogTransferManager.downloadTranslog(primaryTerm, generation, location);
+                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
             }
+            logger.info(
+                "Downloaded translog and checkpoint files from={} to={}",
+                translogMetadata.getMinTranslogGeneration(),
+                translogMetadata.getGeneration()
+            );
 
             statsTracker.recordDownloadStats(prevDownloadBytesSucceeded, prevDownloadTimeInMillis);
 
