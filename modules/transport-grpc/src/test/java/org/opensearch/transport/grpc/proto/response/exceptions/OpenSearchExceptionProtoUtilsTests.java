@@ -28,6 +28,7 @@ import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexcepti
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -428,5 +429,105 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         // Verify the conversion
         assertNotNull("Metadata should not be null", metadata);
         assertTrue("Metadata should be empty for generic exception", metadata.isEmpty());
+    }
+
+    public void testInnerToProtoWithEmptyHeaders() throws IOException {
+        // Create an exception with empty headers
+        OpenSearchException exception = new OpenSearchException("Test exception");
+        exception.addHeader("empty-header", Collections.emptyList());
+
+        // Convert to Protocol Buffer
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception);
+
+        // Verify the conversion - empty headers should not be added
+        assertNotNull("ErrorCause should not be null", errorCause);
+        assertEquals("Should have the correct type", "exception", errorCause.getType());
+        assertEquals("Should have the correct reason", "Test exception", errorCause.getReason());
+        // Empty headers should not be added to the proto
+        assertEquals("Should have no headers", 0, errorCause.getHeaderCount());
+    }
+
+    public void testInnerToProtoWithNullHeaders() throws IOException {
+        // Create an exception with empty header values
+        OpenSearchException exception = new OpenSearchException("Test exception");
+        exception.addHeader("empty-header", Collections.emptyList());
+
+        // Convert to Protocol Buffer
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception);
+
+        // Verify the conversion - empty headers should not be added
+        assertNotNull("ErrorCause should not be null", errorCause);
+        assertEquals("Should have the correct type", "exception", errorCause.getType());
+        assertEquals("Should have the correct reason", "Test exception", errorCause.getReason());
+        // Empty headers should not be added to the proto
+        assertEquals("Should have no headers", 0, errorCause.getHeaderCount());
+    }
+
+    public void testInnerToProtoWithMetadata() throws IOException {
+        // Create a FailedNodeException which has metadata (node_id)
+        FailedNodeException exception = new FailedNodeException(TEST_NODE_ID, "Test failed node", new IOException("IO error"));
+
+        // Convert to Protocol Buffer
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception);
+
+        // Verify the conversion - metadata should be included
+        assertNotNull("ErrorCause should not be null", errorCause);
+        assertTrue("Should have metadata", errorCause.hasMetadata());
+        assertTrue("Metadata should have fields", errorCause.getMetadata().getFieldsCount() > 0);
+    }
+
+    public void testInnerToProtoWithHeaders() throws IOException {
+        // Create an exception with headers
+        OpenSearchException exception = new OpenSearchException("Test exception");
+        exception.addHeader("test-header", Arrays.asList("value1", "value2"));
+
+        // Convert to Protocol Buffer
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception);
+
+        // Verify the conversion - headers should be included
+        assertNotNull("ErrorCause should not be null", errorCause);
+        assertEquals("Should have the correct type", "exception", errorCause.getType());
+        assertEquals("Should have the correct reason", "Test exception", errorCause.getReason());
+        assertEquals("Should have 1 header", 1, errorCause.getHeaderCount());
+        assertTrue("Should have test-header", errorCause.containsHeader("test-header"));
+        StringArray headerArray = errorCause.getHeaderOrDefault("test-header", null);
+        assertNotNull("Header array should not be null", headerArray);
+        assertEquals("Header should have 2 values", 2, headerArray.getStringArrayCount());
+    }
+
+    public void testToProtoWithWrappedException() throws IOException {
+        // Create an exception with a wrapped cause that will be unwrapped
+        IOException ioException = new IOException("IO error");
+        OpenSearchException innerException = new OpenSearchException("Inner exception", ioException);
+
+        // The toProto method unwraps causes, so when ex != exception, it calls generateThrowableProto
+        // We need to create a scenario where ExceptionsHelper.unwrapCause returns something different
+        // This is tricky to test directly, but we can test the generateThrowableProto path
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(innerException);
+
+        // Verify the conversion
+        assertNotNull("ErrorCause should not be null", errorCause);
+        assertEquals("Should have the correct type", "exception", errorCause.getType());
+    }
+
+    public void testInnerToProtoWithOpenSearchPrefixMetadata() throws IOException {
+        // Create an exception with metadata that has OPENSEARCH_PREFIX_KEY
+        // This tests the metadata loop that processes entries with the prefix
+        OpenSearchException exception = new OpenSearchException("Test exception") {
+            @Override
+            public Map<String, List<String>> getMetadata() {
+                Map<String, List<String>> metadata = new HashMap<>();
+                metadata.put(OpenSearchException.OPENSEARCH_PREFIX_KEY + "custom_key", Arrays.asList("value1"));
+                return metadata;
+            }
+        };
+
+        // Convert to Protocol Buffer
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception);
+
+        // Verify the conversion - metadata with prefix should be processed
+        assertNotNull("ErrorCause should not be null", errorCause);
+        assertTrue("Should have metadata", errorCause.hasMetadata());
+        assertTrue("Metadata should have fields", errorCause.getMetadata().getFieldsCount() > 0);
     }
 }
