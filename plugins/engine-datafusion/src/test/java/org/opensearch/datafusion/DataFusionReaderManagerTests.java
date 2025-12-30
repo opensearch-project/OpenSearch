@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 
@@ -111,7 +110,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
+            () -> getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher = engine.acquireSearcher("test");
         DatafusionReader reader = searcher.getReader();
@@ -125,7 +124,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         // Assert RefCount 1 -> 1 for latest catalogSnapshot holder
         assertEquals(1, getRefCount(reader));
         reader.close();
-       // assertEquals(-1, reader.getReaderPtr());
+        // assertEquals(-1, reader.getReaderPtr());
     }
 
     /** Test that multiple searchers share the same reader instance for efficiency */
@@ -141,7 +140,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
+            () -> getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
@@ -172,7 +171,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
+            () -> getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
@@ -205,7 +204,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         segment1.addSearchableFiles(getMockDataFormat().name(), writerFileSet1);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment1), new HashMap<>(), noOpFileDeleterSupplier)));
+            () -> getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment1), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("test1");
         DatafusionReader reader1 = searcher1.getReader();
@@ -220,7 +219,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         segment2.addSearchableFiles(getMockDataFormat().name(), writerFileSet2);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(2, 2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
+            () -> getCatalogSnapshotRef(new CatalogSnapshot(2, 2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher2 = engine.acquireSearcher("test2");
         DatafusionReader reader2 = searcher2.getReader();
@@ -253,7 +252,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
+            () -> getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher = engine.acquireSearcher("test");
         DatafusionReader reader = searcher.getReader();
@@ -284,7 +283,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
             segment.addSearchableFiles(getMockDataFormat().name(), writerFileSet);
 
             readerManager.afterRefresh(true,
-                    getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
+                () -> getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment), new HashMap<>(), noOpFileDeleterSupplier)));
 
             // DatafusionReader readerR1 = readerManager.acquire();
             DatafusionSearcher datafusionSearcherS1 = engine.acquireSearcher("Search");
@@ -307,7 +306,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
             segment2.addSearchableFiles(getMockDataFormat().name(), writerFileSet2);
 
             readerManager.afterRefresh(true,
-                    getCatalogSnapshotRef(new CatalogSnapshot(2, 2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
+                () -> getCatalogSnapshotRef(new CatalogSnapshot(2, 2, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
 
             // now check if new Reader is created with F2, F3
             // DatafusionReader readerR2 = readerManager.acquire();
@@ -352,7 +351,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         segment1.addSearchableFiles(getMockDataFormat().name(), writerFileSet1);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment1), new HashMap<>(), noOpFileDeleterSupplier)));
+            () -> getCatalogSnapshotRef(new CatalogSnapshot(1, 1, List.of(segment1), new HashMap<>(), noOpFileDeleterSupplier)));
 
         DatafusionSearcher searcher1 = engine.acquireSearcher("search");
         DatafusionReader reader1 = searcher1.getReader();
@@ -382,7 +381,7 @@ public class DataFusionReaderManagerTests extends OpenSearchTestCase {
         segment2.addSearchableFiles(getMockDataFormat().name(), writerFileSet2);
 
         readerManager.afterRefresh(true,
-                getCatalogSnapshotRef(new CatalogSnapshot(2, 1, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
+            () -> getCatalogSnapshotRef(new CatalogSnapshot(2, 1, List.of(segment2), new HashMap<>(), noOpFileDeleterSupplier)));
 
         expectedResults = new HashMap<>();
         expectedResults.put("min", 3L);
