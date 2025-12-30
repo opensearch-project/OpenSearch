@@ -772,6 +772,7 @@ final class DefaultSearchContext extends SearchContext {
         return collapse;
     }
 
+    @Override
     public SearchContext sliceBuilder(SliceBuilder sliceBuilder) {
         this.sliceBuilder = sliceBuilder;
         return this;
@@ -1051,6 +1052,7 @@ final class DefaultSearchContext extends SearchContext {
     /**
      * Evaluate if request should use concurrent search based on request and concurrent search deciders
      */
+    @Override
     public void evaluateRequestShouldUseConcurrentSearch() {
         if (sort != null && sort.isSortOnTimeSeriesField()) {
             requestShouldUseConcurrentSearch.set(false);
@@ -1067,6 +1069,7 @@ final class DefaultSearchContext extends SearchContext {
             }
     }
 
+    @Override
     public void setProfilers(Profilers profilers) {
         this.profilers = profilers;
     }
