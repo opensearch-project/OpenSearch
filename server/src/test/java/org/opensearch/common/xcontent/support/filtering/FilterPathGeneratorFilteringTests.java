@@ -35,6 +35,7 @@ package org.opensearch.common.xcontent.support.filtering;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
+import com.fasterxml.jackson.core.filter.TokenFilter.Inclusion;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.xcontent.filtering.FilterPathBasedFilter;
@@ -321,7 +322,7 @@ public class FilterPathGeneratorFilteringTests extends OpenSearchTestCase {
                 FilteringGeneratorDelegate generator = new FilteringGeneratorDelegate(
                     JSON_FACTORY.createGenerator(os),
                     new FilterPathBasedFilter(Collections.singleton(filter), inclusive),
-                    true,
+                    Inclusion.INCLUDE_ALL_AND_PATH,
                     true
                 )
             ) {

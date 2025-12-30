@@ -36,7 +36,7 @@ dependencies {
   testImplementation "com.github.docker-java:docker-java-api:${versions.docker}"
   testImplementation "com.github.docker-java:docker-java-transport:${versions.docker}"
   testImplementation "com.github.docker-java:docker-java-transport-zerodep:${versions.docker}"
-  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   testImplementation "org.testcontainers:testcontainers:${versions.testcontainers}"
   testImplementation "org.testcontainers:kafka:${versions.testcontainers}"
   testImplementation "org.rnorth.duct-tape:duct-tape:${versions.ducttape}"
