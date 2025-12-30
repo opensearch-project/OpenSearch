@@ -53,6 +53,7 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.engine.SearchExecEngine;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -113,14 +114,17 @@ public class FetchPhase {
         execute(context, "fetch");
     }
 
-    public void executeFetchPhase(SearchContext context) {
+    public void executeNativeFetchPhase(SearchContext context) {
         try {
             SearchExecEngine searchExecEngine = context.readerContext().indexShard()
-                .getIndexingExecutionCoordinator()
-                .getPrimaryReadEngine();
+                .getIndexer() instanceof CompositeEngine ? ((CompositeEngine)(context.readerContext().indexShard()
+                .getIndexer())).getPrimaryReadEngine() : null;
 
-
-            searchExecEngine.executeFetchPhase(context);
+            if(searchExecEngine == null ) {
+                throw new RuntimeException("Native search engine not available");
+            } else {
+                searchExecEngine.executeFetchPhase(context);
+            }
         } catch (RuntimeException | IOException e) {
             logger.error(e);
             throw new RuntimeException(e);
@@ -146,7 +150,7 @@ public class FetchPhase {
         }
 
         if (context.request().source().queryPlanIR() != null) {
-            executeFetchPhase(context);
+            executeNativeFetchPhase(context);
             return;
         }
 
