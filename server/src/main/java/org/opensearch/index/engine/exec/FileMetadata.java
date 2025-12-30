@@ -26,11 +26,10 @@ public class FileMetadata {
 
     public FileMetadata(String dataFormatAwareFile) {
         String[] parts = dataFormatAwareFile.split(DELIMITER);
-        if (parts.length != 2) {
-            throw new IllegalArgumentException("Expected FileMetadata string to have 2 parts: " + dataFormatAwareFile);
-        }
+        this.dataFormat = (parts.length == 1)
+            ? "lucene"
+            : parts[1];
         this.file = parts[0];
-        this.dataFormat = parts[1];
     }
 
     public String serialize() {

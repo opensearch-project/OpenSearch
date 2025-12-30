@@ -11,7 +11,9 @@ package org.opensearch.index.store;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.*;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.Any;
@@ -42,7 +44,7 @@ import java.util.stream.Collectors;
  * @opensearch.api
  */
 @PublicApi(since = "3.0.0")
-public class CompositeStoreDirectory extends Directory {
+public class CompositeStoreDirectory extends Store.StoreDirectory {
 
     private Any dataFormat;
     private final Path directoryPath;
@@ -56,7 +58,8 @@ public class CompositeStoreDirectory extends Directory {
     /**
      * Simplified constructor for auto-discovery (like CompositeIndexingExecutionEngine)
      */
-    public CompositeStoreDirectory(IndexSettings indexSettings, PluginsService pluginsService, ShardPath shardPath, Logger logger) {
+    public CompositeStoreDirectory(IndexSettings indexSettings, PluginsService pluginsService, ShardId shardId, ShardPath shardPath, Logger logger) {
+        super(null, Loggers.getLogger("index.store.deletes", shardId));
         this.shardPath = shardPath;
         this.logger = logger;
         this.directoryFileTransferTracker = new DirectoryFileTransferTracker();

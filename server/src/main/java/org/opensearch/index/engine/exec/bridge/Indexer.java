@@ -9,16 +9,17 @@
 package org.opensearch.index.engine.exec.bridge;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexCommit;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.index.engine.Engine;
-import org.opensearch.index.engine.EngineException;
-import org.opensearch.index.engine.SafeCommitInfo;
-import org.opensearch.index.engine.Segment;
+import org.opensearch.index.engine.*;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
@@ -31,7 +32,7 @@ import java.util.Map;
 import static org.opensearch.index.engine.Engine.HISTORY_UUID_KEY;
 
 @PublicApi(since = "1.0.0")
-public interface Indexer {
+public interface Indexer extends LifecycleAware {
 
     /**
      * Perform document index operation on the engine
@@ -156,6 +157,14 @@ public interface Indexer {
      */
     int fillSeqNoGaps(long primaryTerm) throws IOException;
 
+    default long lastRefreshedCheckpoint() {
+        throw new UnsupportedOperationException();
+    }
+
+    default long currentOngoingRefreshCheckpoint() {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * Performs a force merge operation on this engine.
      */
@@ -212,6 +221,8 @@ public interface Indexer {
     void flushAndClose() throws IOException;
 
     void failEngine(String reason, @Nullable Exception failure);
+
+    CompositeEngine.ReleasableRef<CatalogSnapshot> acquireSnapshot();
 
     /**
      * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
@@ -294,6 +305,8 @@ public interface Indexer {
             "primary operations must never have an assigned sequence number but was [" + seqNo + "]";
         return true;
     }
+
+    GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException;
 
     /**
      * the status of the current doc version in engine, compared to the version in an incoming

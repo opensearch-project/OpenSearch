@@ -113,6 +113,9 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.index.engine.Engine.HISTORY_UUID_KEY;
 import static org.opensearch.index.engine.Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID;
+import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNAPSHOT_KEY;
+import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNAPSHOT_ID;
+import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY;
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.*;
 
 @ExperimentalApi
@@ -162,6 +165,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     protected final String historyUUID;
 
     private final LocalCheckpointTracker localCheckpointTracker;
+    private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
     private final ReentrantLock failEngineLock = new ReentrantLock();
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
@@ -221,6 +225,9 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
             // initialize local checkpoint tracker and translog manager
             this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
+            this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker);
+            refreshListeners.add(lastRefreshedCheckpointListener);
+
             final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
             String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
@@ -350,6 +357,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         logger.trace("created new CompositeEngine");
 
         initializeRefreshListeners(engineConfig);
+
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
@@ -804,6 +812,16 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     }
 
     @Override
+    public long lastRefreshedCheckpoint() {
+        return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
+    }
+
+    @Override
+    public long currentOngoingRefreshCheckpoint() {
+        return lastRefreshedCheckpointListener.pendingCheckpoint.get();
+    }
+
+    @Override
     public void forceMerge(
         boolean flush,
         int maxNumSegments,
@@ -1182,6 +1200,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
      * All index files referenced by this commit won't be freed until the commit/snapshot is closed.
      * This method is required for replica recovery operations.
      */
+    @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
         ensureOpen();
         if (compositeEngineCommitter instanceof LuceneCommitEngine) {
