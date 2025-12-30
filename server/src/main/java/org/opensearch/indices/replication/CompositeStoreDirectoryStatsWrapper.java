@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.store.CompositeRemoteSegmentStoreDirectory;
@@ -26,13 +27,19 @@ import java.util.function.BiConsumer;
  *
  * @opensearch.internal
  */
-public final class CompositeStoreDirectoryStatsWrapper {
+public final class CompositeStoreDirectoryStatsWrapper extends SegmentReplicationSource.ReplicationStatsDirectoryWrapper {
     private final CompositeStoreDirectory delegate;
     private final BiConsumer<String, Long> fileProgressTracker;
 
     public CompositeStoreDirectoryStatsWrapper(CompositeStoreDirectory delegate, BiConsumer<String, Long> fileProgressTracker) {
+        super(delegate, fileProgressTracker);
         this.delegate = delegate;
         this.fileProgressTracker = fileProgressTracker;
+    }
+
+    @Override
+    public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
+        copyFrom(new FileMetadata(src), (RemoteSegmentStoreDirectory) from, context);
     }
 
     /**
@@ -76,7 +83,7 @@ public final class CompositeStoreDirectoryStatsWrapper {
     /**
      * Gets the underlying CompositeStoreDirectory for direct access when needed.
      */
-    public CompositeStoreDirectory getDelegate() {
+    public CompositeStoreDirectory getCompositeStoreDirectory() {
         return delegate;
     }
 

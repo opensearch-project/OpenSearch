@@ -40,8 +40,8 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
     private IndexFileDeleter indexFileDeleter;
     private CompositeEngine mockEngine;
     private ShardPath shardPath;
-    private CatalogSnapshot catalogSnapshot;
-    private Map<Long, CatalogSnapshot> catalogSnapshotMap;
+    private CompositeEngineCatalogSnapshot catalogSnapshot;
+    private Map<Long, CompositeEngineCatalogSnapshot> catalogSnapshotMap;
     private AtomicLong catalogSnapshotId;
     private AtomicLong lastCommittedSnapshotId;
     private Set<String> deletedFiles;
@@ -154,7 +154,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
     private void simulateRefresh(Map<String, List<WriterFileSet>> files) {
         // Create RefreshResult with segments
         RefreshResult refreshResult = new RefreshResult();
-        CatalogSnapshot.Segment segment = new CatalogSnapshot.Segment(catalogSnapshotId.get() + 1);
+        Segment segment = new Segment(catalogSnapshotId.get() + 1);
 
         files.forEach((formatName, fileSets) -> {
             fileSets.forEach(fileSet -> {
@@ -164,11 +164,11 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
 
         refreshResult.setRefreshedSegments(List.of(segment));
 
-        CatalogSnapshot prevSnap = catalogSnapshot;
+        CompositeEngineCatalogSnapshot prevSnap = catalogSnapshot;
 
         // Create new snapshot
         long id = catalogSnapshotId.incrementAndGet();
-        catalogSnapshot = new CatalogSnapshot(id, id, List.of(segment), catalogSnapshotMap, () -> indexFileDeleter);
+        catalogSnapshot = new CompositeEngineCatalogSnapshot(id, id, List.of(segment), catalogSnapshotMap, () -> indexFileDeleter);
         catalogSnapshotMap.put(id, catalogSnapshot);
 
         // Release previous snapshot if exists

@@ -29,6 +29,7 @@ import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
+import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineCreationFailureException;
@@ -44,8 +45,9 @@ import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.Segment;
-import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.VersionValue;
+import org.opensearch.index.engine.exec.FileStats;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
@@ -53,22 +55,25 @@ import org.opensearch.index.engine.exec.bridge.CheckpointState;
 import org.opensearch.index.engine.exec.bridge.Indexer;
 import org.opensearch.index.engine.exec.bridge.Indexer.OpVsEngineDocStatus;
 import org.opensearch.index.engine.exec.bridge.IndexingThrottler;
+import org.opensearch.index.engine.exec.bridge.StatsHolder;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.LuceneCommitEngine;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
 import org.opensearch.index.engine.exec.coord.CompositeEngine.ReleasableRef;
+import org.opensearch.index.engine.exec.merge.CompositeMergeHandler;
 import org.opensearch.index.engine.exec.merge.MergeHandler;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.MergeScheduler;
 import org.opensearch.index.engine.exec.merge.OneMerge;
-import org.opensearch.index.engine.exec.merge.CompositeMergeHandler;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Checkpoint;
@@ -83,8 +88,10 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchEnginePlugin;
+import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
 
 import java.io.Closeable;
@@ -108,14 +115,17 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.engine.Engine.HISTORY_UUID_KEY;
 import static org.opensearch.index.engine.Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID;
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNAPSHOT_KEY;
+import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNAPSHOT_ID;
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY;
+import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.*;
 
 @ExperimentalApi
-public class CompositeEngine implements LifecycleAware, Closeable, Indexer, CheckpointState, IndexingThrottler {
+public class CompositeEngine implements LifecycleAware, Closeable, Indexer, CheckpointState, IndexingThrottler, StatsHolder {
 
     private static final Consumer<ReferenceManager.RefreshListener> PRE_REFRESH_LISTENER_CONSUMER = refreshListener -> {
         try {
@@ -162,6 +172,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     protected final String historyUUID;
 
     private final LocalCheckpointTracker localCheckpointTracker;
+    private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
     private final ReentrantLock failEngineLock = new ReentrantLock();
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
@@ -195,7 +206,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private final CatalogSnapshotManager catalogSnapshotManager;
     private ReleasableRef<CatalogSnapshot> lastCommitedCatalogSnapshotRef;
     private final EventListener eventListener;
-    private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
     public CompositeEngine(
         EngineConfig engineConfig,
@@ -379,6 +389,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         logger.trace("created new CompositeEngine");
 
         initializeRefreshListeners(engineConfig);
+
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
@@ -873,6 +884,16 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     }
 
     @Override
+    public long lastRefreshedCheckpoint() {
+        return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
+    }
+
+    @Override
+    public long currentOngoingRefreshCheckpoint() {
+        return lastRefreshedCheckpointListener.pendingCheckpoint.get();
+    }
+
+    @Override
     public void forceMerge(
         boolean flush,
         int maxNumSegments,
@@ -986,6 +1007,68 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             // TODO - pruneDeletedTombstones();
         }
 
+    }
+
+    @Override
+    public CommitStats commitStats() {
+        try {
+            Map<String, String> userData = compositeEngineCommitter.getLastCommittedData();
+            long generation = Long.parseLong(userData.get(LAST_COMPOSITE_WRITER_GEN_KEY));
+            String id = userData.get(CATALOG_SNAPSHOT_ID);
+            // TODO - Implement numDocs
+            return new CommitStats(userData, generation, id, 0);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public DocsStats docStats() {
+        try {
+            Map<String, FileStats> segmentStats = getPrimaryReadEngine().fetchSegmentStats();
+            long docCount = segmentStats.values().stream().mapToLong(FileStats::getDocCount).sum();
+            long size = segmentStats.values().stream().mapToLong(FileStats::getSize).sum();
+            return new DocsStats(docCount, 0, size);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        ensureOpen();
+        try {
+            Map<String, FileStats> segmentStats = getPrimaryReadEngine().fetchSegmentStats();
+            SegmentsStats stats = new SegmentsStats();
+            segmentStats.forEach((key, value) -> {
+                stats.add(1);
+                if (includeSegmentFileSizes) {
+                    stats.addFileSizes(segmentStats.entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getSize())));
+                }
+            });
+            stats.addVersionMapMemoryInBytes(0);
+            stats.addIndexWriterMemoryInBytes(0);
+            return stats;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public CompletionStats completionStats(String... fieldNamePatterns) {
+        return null;
+    }
+
+    @Override
+    public PollingIngestStats pollingIngestStats() {
+        return null;
+    }
+
+    @Override
+    public MergeStats getMergeStats() {
+        return null;
     }
 
     @Override
@@ -1206,6 +1289,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
      * All index files referenced by this commit won't be freed until the commit/snapshot is closed.
      * This method is required for replica recovery operations.
      */
+    @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
         ensureOpen();
         if (compositeEngineCommitter instanceof LuceneCommitEngine) {
@@ -1217,19 +1301,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         }
     }
 
-    /**
-     * Returns the last local checkpoint value that has been refreshed internally.
-     */
-    public final long lastRefreshedCheckpoint() {
-        return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
-    }
-
-    /**
-     * Returns the current local checkpoint that is being refreshed internally.
-     */
-    public final long currentOngoingRefreshCheckpoint() {
-        return lastRefreshedCheckpointListener.pendingCheckpoint.get();
-    }
 
     /**
      * Listener that tracks the last refreshed checkpoint.

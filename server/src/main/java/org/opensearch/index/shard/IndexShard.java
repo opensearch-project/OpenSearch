@@ -153,6 +153,7 @@ import org.opensearch.index.engine.exec.bridge.StatsHolder;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
 import org.opensearch.index.flush.FlushStats;
@@ -555,7 +556,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
-        this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
+        this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings, isOptimizedIndex());
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
         this.discoveryNodes = discoveryNodes;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
@@ -1834,6 +1835,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IOException if an error occurs during replication finalization
      */
     public void finalizeReplication(CatalogSnapshot catalogSnapshot, ReplicationCheckpoint replicationCheckpoint) throws IOException {
+        if (catalogSnapshot instanceof SegmentInfosCatalogSnapshot) {
+            finalizeReplication(((SegmentInfosCatalogSnapshot) catalogSnapshot).getSegmentInfos());
+            return;
+        }
         if (Thread.holdsLock(mutex)) {
             throw new IllegalStateException("finalizeReplication must not be called under mutex - potential deadlock risk");
         }
@@ -1935,7 +1940,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
-            return getIndexingExecutionCoordinator().acquireSafeIndexCommit();
+            return getIndexer().acquireSafeIndexCommit();
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
@@ -1995,6 +2000,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * TODO: SegRep changes for decoupling. looks to depend on codec.
      */
     ReplicationCheckpoint computeReplicationCheckpoint(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (catalogSnapshot instanceof SegmentInfosCatalogSnapshot) {
+            return computeReplicationCheckpoint(((SegmentInfosCatalogSnapshot) catalogSnapshot).getSegmentInfos());
+        }
         if (catalogSnapshot == null) {
             return ReplicationCheckpoint.empty(shardId);
         }
@@ -2026,16 +2034,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Creates a mapping from FileMetadata to StoreFileMetadata preserving format information.
      */
     private Map<FileMetadata, StoreFileMetadata> extractFormatAwareMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (!isOptimizedIndex()) {
+            return getSegmentMetadataMap().entrySet().stream().collect(
+                Collectors.toMap(
+                    e -> new FileMetadata("lucene", e.getKey()),
+                    Map.Entry::getValue
+                )
+            );
+        }
         Map<FileMetadata, StoreFileMetadata> formatAwareMap = new HashMap<>();
 
-        if(catalogSnapshot == null){
+        if (catalogSnapshot == null) {
             return formatAwareMap;
         }
 
         for (FileMetadata fileMetadata : catalogSnapshot.getFileMetadataList()) {
             try {
-                long fileLength = store.compositeStoreDirectory().fileLength(fileMetadata);
-                long checksum = store.compositeStoreDirectory().calculateChecksum(fileMetadata);
+                Directory storeDirectory = isOptimizedIndex() ? store.compositeStoreDirectory() : store().directory();
+                String fileName = isOptimizedIndex() ? fileMetadata.serialize() : fileMetadata.file();
+                long fileLength = storeDirectory.fileLength(fileName);
+                long checksum = ((CompositeStoreDirectory) storeDirectory).calculateChecksum(fileMetadata);
 
                 StoreFileMetadata storeFileMetadata = new StoreFileMetadata(
                     fileMetadata.file(),
@@ -4158,15 +4176,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public CheckpointState getCheckpointState() {
-        return (CheckpointState) getIndexer();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
     }
 
     public StatsHolder getStatsHolder() {
-        return getEngine();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator(): currentEngineReference.get();
     }
 
     public IndexingThrottler getIndexingThrottler() {
-        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : getEngine();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
     }
 
     public Engine getEngine() {
@@ -4187,7 +4205,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public StatsHolder getStatsHolderOrNull() {
-        return getEngineOrNull();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
     }
 
     public IndexingThrottler getIndexingThrottlerOrNull() {
@@ -4532,6 +4550,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public boolean isRemoteTranslogEnabled() {
         return indexSettings() != null && (indexSettings().isRemoteTranslogStoreEnabled());
+    }
+
+    public boolean isOptimizedIndex() {
+        return indexSettings().isOptimizedIndex();
     }
 
     /**
@@ -5634,7 +5656,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
 
             if (remoteSegmentMetadata != null) {
-                final SegmentInfos infosSnapshot = store.buildSegmentInfos(
+                final SegmentInfos infosSnapshot = store.buildSegmentInfosFromSerializedCatalogSnapshot(
                     remoteSegmentMetadata.getSegmentInfosBytes(),
                     remoteSegmentMetadata.getGeneration()
                 );
@@ -5874,7 +5896,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public CompositeEngine.ReleasableRef<CatalogSnapshot> getCatalogSnapshotFromEngine() {
         try {
-            return getIndexingExecutionCoordinator().acquireSnapshot();
+            return getIndexer().acquireSnapshot();
         } catch (Exception e) {
             throw new OpenSearchException("Error occurred while getting catalog snapshot", e);
         }

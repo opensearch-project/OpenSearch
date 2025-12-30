@@ -16,20 +16,24 @@ import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
 
+    private static final String CATALOG_SNAPSHOT_KEY = "_segment_infos_catalog_snapshot_";
+
     private final SegmentInfos segmentInfos;
 
-    public SegmentInfosCatalogSnapshot(long id, long version, List<Segment> segmentList, Map<Long, CatalogSnapshot> catalogSnapshotMap, Supplier<IndexFileDeleter> indexFileDeleterSupplier, SegmentInfos segmentInfos) {
-        super(id, version, segmentList, catalogSnapshotMap, indexFileDeleterSupplier);
+    public SegmentInfosCatalogSnapshot(SegmentInfos segmentInfos) {
+        super(CATALOG_SNAPSHOT_KEY + segmentInfos.getGeneration(), segmentInfos.getGeneration(), segmentInfos.getVersion());
         this.segmentInfos = segmentInfos;
     }
 
@@ -55,10 +59,76 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
 
     @Override
     public Collection<FileMetadata> getFileMetadataList() throws IOException {
-        return segmentInfos.files(true).stream().map(file -> new FileMetadata(file, "lucene")).collect(Collectors.toList());
+        return segmentInfos.files(true).stream().map(file -> new FileMetadata("lucene", file)).collect(Collectors.toList());
     }
 
     public SegmentInfos getSegmentInfos() {
         return segmentInfos;
+    }
+
+    @Override
+    public Map<String, String> getUserData() {
+        return segmentInfos.getUserData();
+    }
+
+    @Override
+    public long getId() {
+        return generation;
+    }
+
+    @Override
+    public List<Segment> getSegments() {
+        throw new UnsupportedOperationException("SegmentInfosCatalogSnapshot does not support getSegments()");
+    }
+
+    @Override
+    public Collection<WriterFileSet> getSearchableFiles(String dataFormat) {
+        throw new UnsupportedOperationException("SegmentInfosCatalogSnapshot does not support getSearchableFiles()");
+    }
+
+    @Override
+    public Set<String> getDataFormats() {
+        throw new UnsupportedOperationException("SegmentInfosCatalogSnapshot does not support getDataFormats()");
+    }
+
+    @Override
+    public long getLastWriterGeneration() {
+        return -1;
+    }
+
+    @Override
+    public String serializeToString() throws IOException {
+        throw new UnsupportedOperationException("SegmentInfosCatalogSnapshot does not support serializeToString()");
+    }
+
+    @Override
+    public void remapPaths(Path newShardDataPath) {
+        // No-op for SegmentInfosCatalogSnapshot
+    }
+
+    @Override
+    public void setIndexFileDeleterSupplier(java.util.function.Supplier<IndexFileDeleter> supplier) {
+        // No-op for SegmentInfosCatalogSnapshot
+    }
+
+    @Override
+    public void setCatalogSnapshotMap(Map<Long, ? extends CatalogSnapshot> catalogSnapshotMap) {
+        // No-op for SegmentInfosCatalogSnapshot
+    }
+
+    @Override
+    public SegmentInfosCatalogSnapshot clone() {
+        return new SegmentInfosCatalogSnapshot(segmentInfos);
+    }
+
+    @Override
+    protected void closeInternal() {
+        // TODO no op since SegmentInfosCatalogSnapshot is not refcounted
+    }
+
+    @Override
+    public  void setUserData(Map<String, String> userData, boolean b)
+    {
+        // TODO no op since SegmentInfosCatalogSnapshot is not refcounted
     }
 }

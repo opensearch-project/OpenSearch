@@ -93,7 +93,7 @@ public interface SegmentReplicationSource {
      *
      * @opensearch.internal
      */
-    final class ReplicationStatsDirectoryWrapper extends FilterDirectory {
+    class ReplicationStatsDirectoryWrapper extends FilterDirectory {
         private final BiConsumer<String, Long> fileProgressTracker;
 
         ReplicationStatsDirectoryWrapper(Directory in, BiConsumer<String, Long> fileProgressTracker) {

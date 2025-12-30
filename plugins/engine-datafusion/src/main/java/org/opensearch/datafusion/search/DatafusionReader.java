@@ -8,7 +8,10 @@
 
 package org.opensearch.datafusion.search;
 
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.datafusion.jni.handle.ReaderHandle;
+import org.opensearch.index.engine.exec.FileStats;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
@@ -16,6 +19,10 @@ import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
 /**
  * DataFusion reader for JNI operations.
  */
@@ -37,12 +44,14 @@ public class DatafusionReader implements Closeable {
      */
     private CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef;
 
+    private final CompletableFuture<Map<String, FileStats>> segmentStatsFuture;
+
     /**
      * Constructor
      * @param directoryPath The directory path
      * @param files The file metadata collection
      */
-    public DatafusionReader(String directoryPath, CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef, Collection<WriterFileSet> files) {
+    public DatafusionReader(String directoryPath, CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef, Collection<WriterFileSet> files, long runtimePointer) {
         this.directoryPath = directoryPath;
         this.catalogSnapshotRef = catalogSnapshotRef;
         this.files = files;
@@ -56,6 +65,23 @@ public class DatafusionReader implements Closeable {
         System.out.println("File names: " + Arrays.toString(fileNames));
         System.out.println("Directory path: " + directoryPath);
         this.readerHandle = new ReaderHandle(directoryPath, fileNames, this::releaseCatalogSnapshot);
+        this.segmentStatsFuture = new CompletableFuture<>();
+        setupSegmentStatsCompletableFuture(segmentStatsFuture);
+    }
+
+    private CompletableFuture<Map<String, FileStats>> setupSegmentStatsCompletableFuture(CompletableFuture<Map<String, FileStats>> segmentStatsFuture) {
+        NativeBridge.fetchSegmentStats(getReaderPtr(), new ActionListener<>() {
+            @Override
+            public void onResponse(Map<String, FileStats> map) {
+                segmentStatsFuture.complete(map);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                segmentStatsFuture.completeExceptionally(e);
+            }
+        });
+        return segmentStatsFuture;
     }
 
     /**
@@ -86,6 +112,18 @@ public class DatafusionReader implements Closeable {
      */
     public int getRefCount() {
         return readerHandle.getRefCount();
+    }
+
+    /**
+     * Get count of docs ingested in files referenced by this reader.
+     * @return Doc count
+     */
+    public Map<String, FileStats> fetchSegmentStats() {
+        try {
+            return segmentStatsFuture.get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

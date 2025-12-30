@@ -736,7 +736,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         // Do nothing for shard lock on remote store
                     }
                 };
-                CompositeStoreDirectory remoteCompositeStoreDirectory = createCompositeStoreDirectory(path);
+                CompositeStoreDirectory remoteCompositeStoreDirectory = this.indexSettings.isOptimizedIndex()
+                    ? createCompositeStoreDirectory(shardId, path)
+                    : null;
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, remoteStoreLock, Store.OnClose.EMPTY, path, remoteCompositeStoreDirectory);
             } else {
                 // Disallow shards with remote store based settings to be created on non-remote store enabled nodes
@@ -767,7 +769,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
             }
 
-            CompositeStoreDirectory compositeStoreDirectory = createCompositeStoreDirectory(path);
+            CompositeStoreDirectory compositeStoreDirectory = this.indexSettings.isOptimizedIndex()
+                ? createCompositeStoreDirectory(shardId, path)
+                : null;
 
             store = new Store(
                 shardId,
@@ -1366,11 +1370,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * Creates CompositeStoreDirectory using the factory if available, otherwise fallback to Store's internal creation.
      * This method centralizes the directory creation logic and enables plugin-based format discovery.
      */
-    private CompositeStoreDirectory createCompositeStoreDirectory(ShardPath shardPath) throws IOException {
+    private CompositeStoreDirectory createCompositeStoreDirectory(ShardId shardId, ShardPath shardPath) throws IOException {
         if (compositeStoreDirectoryFactory != null) {
             logger.debug("Using CompositeStoreDirectoryFactory to create directory for shard path: {}", shardPath);
             return compositeStoreDirectoryFactory.newCompositeStoreDirectory(
                 indexSettings,
+                shardId,
                 shardPath,
                 pluginsService
             );

@@ -20,6 +20,8 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngineCatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -27,7 +29,6 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -40,6 +41,8 @@ import java.util.function.BiConsumer;
 public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
     public final static String REPLICATION_PREFIX = "replication.";
 
+    private final IndexShard indexShard;
+
     public SegmentReplicationTarget(
         IndexShard indexShard,
         ReplicationCheckpoint checkpoint,
@@ -47,6 +50,7 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
         ReplicationListener listener
     ) {
         super("replication_target", indexShard, checkpoint, source, listener);
+        this.indexShard = indexShard;
     }
 
     @Override
@@ -91,7 +95,16 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
             store = store();
             store.incRef();
             multiFileWriter.renameAllTempFiles();
-            final CatalogSnapshot catalogSnapshot = deserializeCatalogSnapshot(checkpointInfoResponse.getInfosBytes());
+            CatalogSnapshot catalogSnapshot = null;
+            if (!indexShard.isOptimizedIndex()) {
+                final SegmentInfos infos = store.buildSegmentInfos(
+                    checkpointInfoResponse.getInfosBytes(),
+                    checkpointInfoResponse.getCheckpoint().getSegmentsGen()
+                );
+                catalogSnapshot = new SegmentInfosCatalogSnapshot(infos);
+            } else {
+                catalogSnapshot = deserializeCatalogSnapshot(checkpointInfoResponse.getInfosBytes());
+            }
             indexShard.finalizeReplication(catalogSnapshot, checkpointInfoResponse.getCheckpoint());
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
@@ -142,7 +155,7 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
      */
     private CatalogSnapshot deserializeCatalogSnapshot(byte[] infoBytes) throws IOException {
         try (BytesStreamInput in = new BytesStreamInput(infoBytes)) {
-            return new CatalogSnapshot(in);
+            return new CompositeEngineCatalogSnapshot(in);
         }
     }
 }

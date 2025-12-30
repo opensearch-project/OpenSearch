@@ -8,18 +8,20 @@
 
 package org.opensearch.index.engine.exec.merge;
 
+import org.opensearch.index.engine.exec.coord.Segment;
+
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.util.List;
 
 public class OneMerge {
-    private final List<CatalogSnapshot.Segment> segmentsToMerge;
+    private final List<Segment> segmentsToMerge;
 
-    public OneMerge(List<CatalogSnapshot.Segment> segmentsToMerge) {
+    public OneMerge(List<Segment> segmentsToMerge) {
         this.segmentsToMerge = segmentsToMerge;
     }
 
-    public List<CatalogSnapshot.Segment> getSegmentsToMerge() {
+    public List<Segment> getSegmentsToMerge() {
         return segmentsToMerge;
     }
 
