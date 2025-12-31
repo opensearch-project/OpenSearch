@@ -8,7 +8,8 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.interceptor.Context;
 import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
@@ -34,18 +35,38 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class S3ArnEndpointResolutionTests extends AbstractS3RepositoryTestCase {
 
+    private static final StaticCredentialsProvider DUMMY_CREDENTIALS = StaticCredentialsProvider.create(
+        AwsBasicCredentials.create("dummy-access-key", "dummy-secret-key")
+    );
+
     // ---- Helpers ----
 
     private static final class CapturingInterceptor implements ExecutionInterceptor {
         private final AtomicReference<URI> captured = new AtomicReference<>();
+        private final AtomicReference<String> capturedSigningName = new AtomicReference<>();
 
         @Override
         public void beforeTransmission(Context.BeforeTransmission context, ExecutionAttributes executionAttributes) {
             captured.set(context.httpRequest().getUri());
+            // Capture the signing name from the Authorization header
+            // Format: AWS4-HMAC-SHA256 Credential=AKID/20250101/us-east-1/s3-outposts/aws4_request, ...
+            context.httpRequest().firstMatchingHeader("Authorization").ifPresent(auth -> {
+                int credIdx = auth.indexOf("Credential=");
+                if (credIdx >= 0) {
+                    String[] parts = auth.substring(credIdx).split("/");
+                    if (parts.length >= 5) {
+                        capturedSigningName.set(parts[3]); // service name is 4th part (index 3)
+                    }
+                }
+            });
         }
 
         URI capturedUri() {
             return captured.get();
+        }
+
+        String capturedSigningName() {
+            return capturedSigningName.get();
         }
     }
 
@@ -93,7 +114,7 @@ public class S3ArnEndpointResolutionTests extends AbstractS3RepositoryTestCase {
         try (
             S3Client client = S3Client.builder()
                 .region(Region.US_EAST_1)
-                .credentialsProvider(AnonymousCredentialsProvider.create())
+                .credentialsProvider(DUMMY_CREDENTIALS)
                 .serviceConfiguration(
                     S3Configuration.builder()
                         // Ensure ARN region behavior is enabled; harmless for this test if already defaulted.
@@ -113,6 +134,9 @@ public class S3ArnEndpointResolutionTests extends AbstractS3RepositoryTestCase {
         assertNotNull("SDK did not reach beforeTransmission; endpoint not captured", uri);
         assertNotNull(uri.getHost());
         assertTrue("Expected outposts endpoint but was: " + uri, uri.getHost().contains("s3-outposts"));
+
+        // Verify SDK uses correct signing service for Outposts
+        assertEquals("s3-outposts", interceptor.capturedSigningName());
     }
 
     public void testSdkResolvesAccessPointEndpointFromBucketArn() {
@@ -123,7 +147,7 @@ public class S3ArnEndpointResolutionTests extends AbstractS3RepositoryTestCase {
         try (
             S3Client client = S3Client.builder()
                 .region(Region.US_WEST_2)
-                .credentialsProvider(AnonymousCredentialsProvider.create())
+                .credentialsProvider(DUMMY_CREDENTIALS)
                 .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
                 .overrideConfiguration(ClientOverrideConfiguration.builder().addExecutionInterceptor(interceptor).build())
                 .httpClient(failingHttpClient())
@@ -137,6 +161,9 @@ public class S3ArnEndpointResolutionTests extends AbstractS3RepositoryTestCase {
         assertNotNull("SDK did not reach beforeTransmission; endpoint not captured", uri);
         assertNotNull(uri.getHost());
         assertTrue("Expected accesspoint endpoint but was: " + uri, uri.getHost().contains("s3-accesspoint"));
+
+        // Verify SDK uses correct signing service for access points
+        assertEquals("s3", interceptor.capturedSigningName());
     }
 
     public void testSdkResolvesRegularBucketToRegularS3Endpoint() {
@@ -147,7 +174,7 @@ public class S3ArnEndpointResolutionTests extends AbstractS3RepositoryTestCase {
         try (
             S3Client client = S3Client.builder()
                 .region(Region.US_EAST_1)
-                .credentialsProvider(AnonymousCredentialsProvider.create())
+                .credentialsProvider(DUMMY_CREDENTIALS)
                 .overrideConfiguration(ClientOverrideConfiguration.builder().addExecutionInterceptor(interceptor).build())
                 .httpClient(failingHttpClient())
                 .build()
