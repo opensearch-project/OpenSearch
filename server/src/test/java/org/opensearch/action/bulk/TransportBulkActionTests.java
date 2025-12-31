@@ -52,18 +52,23 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -76,6 +81,7 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -86,6 +92,8 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_QUEUE_SIZE;
+import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_SERVICE_TIME;
 import static org.opensearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.opensearch.ingest.IngestServiceTests.createIngestServiceWithProcessors;
@@ -390,6 +398,39 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         assertEquals(Set.of("index"), deserializedRequest.getIndices());
     }
 
+    public void testBulkAdaptedSelectShard() {
+        // if IndexRoutingTable is null, we should return null
+        ResponseCollectorService nodeMeticsCollector = new ResponseCollectorService(clusterService);
+        Map<String, Long> clientConnections = new HashMap();
+        ShardId shardId = TransportBulkAction.bulkAdaptiveSelectShard(null, nodeMeticsCollector, clientConnections);
+        assertNull(shardId);
+
+        IndexRoutingTable routingTable = createIndexRoutingTable(3, 100);
+        String[] dataNodes = TransportBulkAction.getIndexPrimaryShards(routingTable).v2().keySet().toArray(new String[0]);
+        assertEquals(3, dataNodes.length);
+        nodeMeticsCollector.addNodeStatistics(dataNodes[0], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME);
+        shardId = TransportBulkAction.bulkAdaptiveSelectShard(routingTable, nodeMeticsCollector, clientConnections);
+        // check non-nulls after null values
+        assertNotEquals(dataNodes[0], routingTable.shard(shardId.getId()).primaryShard().currentNodeId());
+
+        // check the less count of connection will be chosen
+        clientConnections.put(dataNodes[1], 2l);
+        clientConnections.put(dataNodes[2], 2l);
+        nodeMeticsCollector.addNodeStatistics(dataNodes[1], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME);
+        nodeMeticsCollector.addNodeStatistics(dataNodes[2], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME);
+        shardId = TransportBulkAction.bulkAdaptiveSelectShard(routingTable, nodeMeticsCollector, clientConnections);
+        assertEquals(dataNodes[0], routingTable.shard(shardId.getId()).primaryShard().currentNodeId());
+
+        // check the less request time will be chosen.
+        clientConnections.clear();
+        nodeMeticsCollector = new ResponseCollectorService(clusterService);
+        nodeMeticsCollector.addNodeStatistics(dataNodes[0], DEFAULT_QUEUE_SIZE, 299999999, DEFAULT_SERVICE_TIME);
+        nodeMeticsCollector.addNodeStatistics(dataNodes[1], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME);
+        nodeMeticsCollector.addNodeStatistics(dataNodes[2], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME);
+        shardId = TransportBulkAction.bulkAdaptiveSelectShard(routingTable, nodeMeticsCollector, clientConnections);
+        assertEquals(dataNodes[0], routingTable.shard(shardId.getId()).primaryShard().currentNodeId());
+    }
+
     private BulkRequest buildBulkRequest(List<String> indices) {
         BulkRequest request = new BulkRequest();
         for (String index : indices) {
@@ -410,5 +451,24 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
             request.add(subRequest);
         }
         return request;
+    }
+
+    private IndexRoutingTable createIndexRoutingTable(int nodeCount, int shardCount) {
+        org.opensearch.core.index.Index index = new org.opensearch.core.index.Index("test", "1");
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+        for (int i = 0; i < shardCount; i++) {
+            indexRoutingTable.addShard(
+                TestShardRouting.newShardRouting(new ShardId(index, i), "node" + (i % nodeCount), true, ShardRoutingState.STARTED)
+            )
+                .addShard(
+                    TestShardRouting.newShardRouting(
+                        new ShardId(index, i),
+                        "node" + ((i + 1) % nodeCount),
+                        false,
+                        ShardRoutingState.STARTED
+                    )
+                );
+        }
+        return indexRoutingTable.build();
     }
 }
