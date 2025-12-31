@@ -48,6 +48,7 @@ import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.VersionValue;
 import org.opensearch.index.engine.*;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.FileStats;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
@@ -239,6 +240,13 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             try {
                 final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
                 userData = segmentInfos.getUserData();
+                logger.info("[COMPOSITE ENGINE STARTUP] Read userData from Lucene commit: keys={}", userData.keySet());
+                logger.info("[COMPOSITE ENGINE STARTUP] CATALOG_SNAPSHOT_KEY present={}, LAST_COMPOSITE_WRITER_GEN_KEY present={}",
+                           userData.containsKey(CATALOG_SNAPSHOT_KEY), userData.containsKey(LAST_COMPOSITE_WRITER_GEN_KEY));
+                if (userData.containsKey(LAST_COMPOSITE_WRITER_GEN_KEY)) {
+                    logger.info("[COMPOSITE ENGINE STARTUP] LAST_COMPOSITE_WRITER_GEN_KEY value={}",
+                               userData.get(LAST_COMPOSITE_WRITER_GEN_KEY));
+                }
                 translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             } catch (java.io.FileNotFoundException e) {
                 // Local store is empty (remote store recovery scenario)
@@ -349,8 +357,20 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             for (SearchEnginePlugin searchEnginePlugin : searchEnginePlugins) {
                 for (DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
                     List<SearchExecEngine<?, ?, ?, ?>> currentSearchEngines = readEngines.getOrDefault(dataFormat, new ArrayList<>());
+
+                    // Get FileMetadata filtered by data format from current catalog snapshot
+                    Collection<FileMetadata> formatFiles;
+                    try (ReleasableRef<CatalogSnapshot> snapshotRef = acquireSnapshot()) {
+                        CatalogSnapshot snapshot = snapshotRef.getRef();
+                        formatFiles = snapshot.getFileMetadataList().stream()
+                            .filter(fm -> fm.dataFormat().equals(dataFormat.getName()))
+                            .collect(Collectors.toList());
+                    } catch (Exception e) {
+                        throw new EngineCreationFailureException(shardId, "failed to acquire catalog snapshot for read engine creation", e);
+                    }
+
                     SearchExecEngine<?, ?, ?, ?> newSearchEngine =
-                        searchEnginePlugin.createEngine(dataFormat, Collections.emptyList(), shardPath);
+                        searchEnginePlugin.createEngine(dataFormat, formatFiles, shardPath);
 
                     currentSearchEngines.add(newSearchEngine);
                     readEngines.put(dataFormat, currentSearchEngines);
@@ -973,7 +993,19 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                             + ", previous commited snapshot : " + ((lastCommitedCatalogSnapshotRef != null)
                                                                    ? lastCommitedCatalogSnapshotRef.getRef().getId()
                                                                    : -1));
-                        final long lastWriterGeneration = catalogSnapshotToFlush.getLastWriterGeneration();
+
+                        // FIX: Use MAX of engine's current counter and snapshot's lastWriterGeneration
+                        // to ensure we never reuse a generation after restart.
+                        // Engine counter - 1 = last assigned generation (counter points to NEXT generation)
+                        final long engineLastAssignedGen = engine.getCurrentWriterGeneration() - 1;
+                        final long snapshotLastWriterGen = catalogSnapshotToFlush.getLastWriterGeneration();
+                        final long lastWriterGeneration = Math.max(engineLastAssignedGen, snapshotLastWriterGen);
+
+                        logger.info("[COMPOSITE ENGINE FLUSH] Computing lastWriterGeneration: engineCounter={}, " +
+                                   "engineLastAssignedGen={}, snapshotLastWriterGen={}, result={}",
+                                   engine.getCurrentWriterGeneration(), engineLastAssignedGen,
+                                   snapshotLastWriterGen, lastWriterGeneration);
+
                         final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
 
                         // Create commitData with checkpoint information BEFORE serializing CatalogSnapshot

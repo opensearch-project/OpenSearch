@@ -3277,8 +3277,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public long getNativeBytesUsed() {
-        return getIndexer().getNativeBytesUsed();
+        Indexer indexer = getIndexer();
+        if (indexer == null) {
+            return 0;
+        }
+        return indexer.getNativeBytesUsed();
     }
+
 
     public void addShardFailureCallback(Consumer<ShardFailure> onShardFailure) {
         this.shardEventListener.delegates.add(onShardFailure);

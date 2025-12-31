@@ -40,6 +40,27 @@ testClusters {
     testDistribution = 'archive'
     if (numZones > 1) numberOfZones = numZones
     if (numNodes > 1) numberOfNodes = numNodes
+
+    // S3 repository configuration
+    if (findProperty("enableS3")) {
+      plugin(':plugins:repository-s3')
+      if (findProperty("s3Endpoint")) {
+        setting 's3.client.default.endpoint', findProperty("s3Endpoint")
+      }
+      setting 's3.client.default.region', findProperty("s3Region") ?: 'us-east-1'
+      keystore 's3.client.default.access_key', findProperty("s3AccessKey") ?: System.getenv("AWS_ACCESS_KEY_ID") ?: 'test'
+      keystore 's3.client.default.secret_key', findProperty("s3SecretKey") ?: System.getenv("AWS_SECRET_ACCESS_KEY") ?: 'test'
+
+      // Remote store configuration
+      setting 'node.attr.remote_store.segment.repository', 'my-s3-repo'
+      setting 'node.attr.remote_store.translog.repository', 'my-s3-repo'
+      setting 'node.attr.remote_store.state.repository', 'my-s3-repo'
+      setting 'cluster.remote_store.state.enabled', 'true'
+      setting 'node.attr.remote_store.repository.my-s3-repo.type', 's3'
+      setting 'node.attr.remote_store.repository.my-s3-repo.settings.bucket', 'local-opensearch-bucket'
+      setting 'node.attr.remote_store.repository.my-s3-repo.settings.base_path', 'raghraaj-local-1230'
+    }
+
     if (findProperty("installedPlugins")) {
       installedPlugins = Eval.me(installedPlugins)
 

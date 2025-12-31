@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.*;
@@ -28,6 +30,8 @@ import java.util.function.Supplier;
 
 @ExperimentalApi
 public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
+    
+    private static final Logger logger = LogManager.getLogger(CompositeEngineCatalogSnapshot.class);
 
     public static final String CATALOG_SNAPSHOT_KEY = "_catalog_snapshot_";
     public static final String LAST_COMPOSITE_WRITER_GEN_KEY = "_last_composite_writer_gen_";
@@ -57,6 +61,7 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
 
     public CompositeEngineCatalogSnapshot(StreamInput in) throws IOException {
         super(in);
+        logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Starting deserialization, generation={}, version={}", generation, version);
 
         // Read userData map
         int userDataSize = in.readVInt();
@@ -66,20 +71,30 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
             String value = in.readString();
             userData.put(key, value);
         }
+        logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Read userData with {} entries: keys={}", userDataSize, userData.keySet());
 
         this.lastWriterGeneration = in.readLong();
+        logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Read lastWriterGeneration={}", lastWriterGeneration);
 
         int segmentCount = in.readVInt();
+        logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Reading {} segments", segmentCount);
         this.segmentList = new ArrayList<>(segmentCount);
         for (int i = 0; i < segmentCount; i++) {
-            segmentList.add(new Segment(in));
+            Segment segment = new Segment(in);
+            segmentList.add(segment);
+            logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Segment[{}]: files={}", i, segment.getDFGroupedSearchableFiles());
         }
 
         // Rebuild dfGroupedSearchableFiles from segmentList
         this.dfGroupedSearchableFiles = new HashMap<>();
         segmentList.forEach(segment -> segment.getDFGroupedSearchableFiles().forEach((dataFormat, writerFiles) -> {
             dfGroupedSearchableFiles.computeIfAbsent(dataFormat, k -> new ArrayList<>()).add(writerFiles);
+            logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Rebuilt dfGroupedSearchableFiles for format={}: writerGeneration={}", 
+                       dataFormat, writerFiles.getWriterGeneration());
         }));
+        
+        logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Completed. Final lastWriterGeneration={}, segmentCount={}, dataFormats={}",
+                   lastWriterGeneration, segmentList.size(), dfGroupedSearchableFiles.keySet());
     }
 
     public void remapPaths(Path newShardDataPath) {
