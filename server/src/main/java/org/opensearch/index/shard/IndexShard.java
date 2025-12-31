@@ -1179,7 +1179,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Engine.Operation.Origin.REPLICA,
             sourceToParse,
             id,
-            null
+            getIndexer()::documentInput
         );
     }
 
@@ -2270,8 +2270,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         logger.debug("CompositeEngine deletion policy not initialized during peer recovery, falling back to direct store access for shard [{}]", shardId);
                         wrappedIndexCommit = null;
                     }
+                } else {
+                    // Use regular Engine for non-optimized indices
+                    Engine engine = currentEngineReference.get();
+                    if (engine != null) {
+                        wrappedIndexCommit = engine.acquireSafeIndexCommit();
+                    }
                 }
                 if (wrappedIndexCommit == null) {
+                    // Only use direct store access when no engine is running
                     return store.getMetadata(null, true);
                 }
             }
@@ -5369,17 +5376,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void updateReplicationCheckpoint() {
 
         CompositeEngine compositeEngine = currentCompositeEngineReference.get();
-        if (compositeEngine == null) {
-            logger.debug("Skipping replication checkpoint update - CompositeEngine not initialized yet for shard [{}]", shardId);
-            return;
-        }
-
-        try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = compositeEngine.acquireSnapshot()) {
-            final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(catalogSnapshotRef.getRef());
-            replicationTracker.setLatestReplicationCheckpoint(checkpoint);
-            logger.trace("Updated replication checkpoint from CatalogSnapshot: shard={}, checkpoint={}", shardId, checkpoint);
-        } catch (Exception e) {
-            logger.error("Error computing replication checkpoint from catalog snapshot for shard [{}]", shardId, e);
+        if (compositeEngine != null) {
+            // Use CompositeEngine's CatalogSnapshot for optimized indices
+            try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = compositeEngine.acquireSnapshot()) {
+                final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(catalogSnapshotRef.getRef());
+                replicationTracker.setLatestReplicationCheckpoint(checkpoint);
+                logger.trace("Updated replication checkpoint from CatalogSnapshot: shard={}, checkpoint={}", shardId, checkpoint);
+            } catch (Exception e) {
+                logger.error("Error computing replication checkpoint from catalog snapshot for shard [{}]", shardId, e);
+            }
+        } else {
+            // Fall back to standard engine for non-optimized segment replication
+            Engine engine = getEngineOrNull();
+            if (engine == null) {
+                logger.debug("Skipping replication checkpoint update - engine not initialized yet for shard [{}]", shardId);
+                return;
+            }
+            try (GatedCloseable<SegmentInfos> segmentInfosSnapshot = engine.getSegmentInfosSnapshot()) {
+                final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(segmentInfosSnapshot.get());
+                replicationTracker.setLatestReplicationCheckpoint(checkpoint);
+                logger.trace("Updated replication checkpoint from SegmentInfos: shard={}, checkpoint={}", shardId, checkpoint);
+            } catch (Exception e) {
+                logger.error("Error computing replication checkpoint from engine for shard [{}]", shardId, e);
+            }
         }
     }
 

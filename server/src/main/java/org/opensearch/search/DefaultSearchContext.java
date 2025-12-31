@@ -259,6 +259,7 @@ final class DefaultSearchContext extends SearchContext {
         this.clusterService = clusterService;
         this.engineSearcher = (Engine.Searcher) indexShard.getEngine().acquireSearcher("search");
         this.concurrentSearchMode = evaluateConcurrentSearchMode(executor);
+        requestShouldUseConcurrentSearch.set(false);
         this.searcher = new ContextIndexSearcher(
             engineSearcher.getIndexReader(),
             engineSearcher.getSimilarity(),

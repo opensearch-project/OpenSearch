@@ -314,80 +314,80 @@ public class ParquetSegmentReplicationIT extends RemoteStoreBaseIntegTestCase {
     /**
      * Tests that replica can recover from remote store with Parquet files.
      */
-//    public void testReplicaRecoveryWithParquetFiles() throws Exception {
-//        internalCluster().startClusterManagerOnlyNode();
-//        internalCluster().startDataOnlyNodes(2);
-//        createReplicationIndex(INDEX_NAME, 1);
-//
-//        // Index documents
-//        for (int i = 0; i < 20; i++) {
-//            client().prepareIndex(INDEX_NAME)
-//                .setId(String.valueOf(i))
-//                .setSource("id", String.valueOf(i), "field", "recovery" + i, "value", (long) i)
-//                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-//                .get();
-//        }
-//
-//        String primaryNode = getPrimaryNodeName(INDEX_NAME);
-//        String replicaNode = getReplicaNodeName(INDEX_NAME);
-//
-//        // Wait for initial replication
-//        assertBusy(() -> {
-//            IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
-//            IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
-//            assertEquals(
-//                primaryShard.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
-//                replicaShard.getLatestReplicationCheckpoint().getSegmentInfosVersion()
-//            );
-//        }, 30, TimeUnit.SECONDS);
-//
-//        // Stop replica node to simulate failure
-//        internalCluster().restartNode(replicaNode, new InternalTestCluster.RestartCallback() {
-//            @Override
-//            public Settings onNodeStopped(String nodeName) throws Exception {
-//                // Index more documents on primary while replica is down
-//                try {
-//                    for (int i = 20; i < 40; i++) {
-//                        client().prepareIndex(INDEX_NAME)
-//                            .setId(String.valueOf(i))
-//                            .setSource("id", String.valueOf(i), "field", "after_failure" + i, "value", (long) i)
-//                            .get();
-//                    }
-//                    client().admin().indices().prepareRefresh(INDEX_NAME).get();
-//                } catch (Exception e) {
-//                    throw new RuntimeException(e);
-//                }
-//                return super.onNodeStopped(nodeName);
-//            }
-//        });
-//
-//        ensureGreen(INDEX_NAME);
-//
-//        // Verify replica recovered with Parquet files
-//        assertBusy(() -> {
-//            IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
-//            IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
-//
-//            // Verify checkpoints match after recovery
-//            assertEquals(
-//                "Replica should catch up after recovery",
-//                primaryShard.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
-//                replicaShard.getLatestReplicationCheckpoint().getSegmentInfosVersion()
-//            );
-//
-//            // Verify replica has Parquet files
-//            RemoteSegmentStoreDirectory replicaRemoteDir = replicaShard.getRemoteDirectory();
-//            Map<String, UploadedSegmentMetadata> replicaSegments =
-//                replicaRemoteDir.getSegmentsUploadedToRemoteStore();
-//
-//            Set<String> formats = replicaSegments.keySet().stream()
-//                .map(file -> new FileMetadata(file).dataFormat())
-//                .collect(Collectors.toSet());
-//
-//            assertTrue("Recovered replica should have Parquet files", formats.contains("parquet"));
-//
-//        }, 60, TimeUnit.SECONDS);
-//    }
+    public void testReplicaRecoveryWithParquetFiles() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        createReplicationIndex(INDEX_NAME, 1);
+
+        // Index documents
+        for (int i = 0; i < 20; i++) {
+            client().prepareIndex(INDEX_NAME)
+                .setId(String.valueOf(i))
+                .setSource("id", String.valueOf(i), "field", "recovery" + i, "value", (long) i)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
+
+        String primaryNode = getPrimaryNodeName(INDEX_NAME);
+        String replicaNode = getReplicaNodeName(INDEX_NAME);
+
+        // Wait for initial replication
+        assertBusy(() -> {
+            IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+            IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+            assertEquals(
+                primaryShard.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+                replicaShard.getLatestReplicationCheckpoint().getSegmentInfosVersion()
+            );
+        }, 30, TimeUnit.SECONDS);
+
+        // Stop replica node to simulate failure
+        internalCluster().restartNode(replicaNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                // Index more documents on primary while replica is down
+                try {
+                    for (int i = 20; i < 40; i++) {
+                        client().prepareIndex(INDEX_NAME)
+                            .setId(String.valueOf(i))
+                            .setSource("id", String.valueOf(i), "field", "after_failure" + i, "value", (long) i)
+                            .get();
+                    }
+                    client().admin().indices().prepareRefresh(INDEX_NAME).get();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        ensureGreen(INDEX_NAME);
+
+        // Verify replica recovered with Parquet files
+        assertBusy(() -> {
+            IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+            IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+
+            // Verify checkpoints match after recovery
+            assertEquals(
+                "Replica should catch up after recovery",
+                primaryShard.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+                replicaShard.getLatestReplicationCheckpoint().getSegmentInfosVersion()
+            );
+
+            // Verify replica has Parquet files
+            RemoteSegmentStoreDirectory replicaRemoteDir = replicaShard.getRemoteDirectory();
+            Map<String, UploadedSegmentMetadata> replicaSegments =
+                replicaRemoteDir.getSegmentsUploadedToRemoteStore();
+
+            Set<String> formats = replicaSegments.keySet().stream()
+                .map(file -> new FileMetadata(file).dataFormat())
+                .collect(Collectors.toSet());
+
+            assertTrue("Recovered replica should have Parquet files", formats.contains("parquet"));
+
+        }, 60, TimeUnit.SECONDS);
+    }
 
     /**
      * Tests that ReplicationCheckpoint contains format-aware metadata.
