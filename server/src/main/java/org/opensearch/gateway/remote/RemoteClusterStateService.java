@@ -1955,6 +1955,29 @@ public class RemoteClusterStateService implements Closeable {
         }
     }
 
+    /**
+     * Read and apply the latest cluster state from remote store for new cluster manager
+     * This ensures no updates are lost during cluster manager transitions
+     *
+     * @param clusterName The cluster name
+     * @param localNodeId The local node ID
+     * @return Latest cluster state from remote, or null if none found
+     */
+    public ClusterState getLatestClusterStateForNewManager(String clusterName, String localNodeId) {
+        try {
+
+            ClusterMetadataManifest manifest = remoteManifestManager.getRemoteClusterMetadataManifestByFileName(
+                null,
+                remoteManifestManager.getLatestManifestFileName()
+            );
+
+            return getClusterStateForManifest(clusterName, manifest, localNodeId, true);
+        } catch (Exception e) {
+            logger.warn("Failed to read latest cluster state from remote for new manager", e);
+            return null;
+        }
+    }
+
     public boolean isRemotePublicationEnabled() {
         return this.isPublicationEnabled.get();
     }

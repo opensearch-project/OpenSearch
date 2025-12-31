@@ -12,6 +12,7 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
 import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
@@ -235,7 +236,22 @@ public class RemoteManifestConditionalUpdateIT extends RemoteStoreBaseIntegTestC
          */
         @Override
         public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-            return Map.of();
+            Map<String, BlobMetadata> result = new HashMap<>();
+            try (Stream<Path> files = java.nio.file.Files.list(STORAGE_DIR)) {
+                files.filter(path -> {
+                    String fileName = path.getFileName().toString();
+                    return fileName.startsWith(blobNamePrefix) && !fileName.endsWith(".version");
+                }).forEach(path -> {
+                    String blobName = path.getFileName().toString();
+                    try {
+                        long size = java.nio.file.Files.size(path);
+                        result.put(blobName, new PlainBlobMetadata(blobName, size));
+                    } catch (IOException e) {
+                        // Skip files that can't be read
+                    }
+                });
+            }
+            return result;
         }
 
         @Override

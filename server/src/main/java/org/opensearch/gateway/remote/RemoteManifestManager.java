@@ -295,6 +295,11 @@ public class RemoteManifestManager {
         return blobStoreRepository.blobStore().blobContainer(getManifestFolderPath(clusterName, clusterUUID));
     }
 
+    private BlobContainer manifestContainerV2() {
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest
+        return blobStoreRepository.blobStore().blobContainer(getManifestPath());
+    }
+
     BlobPath getManifestFolderPath(String clusterName, String clusterUUID) {
         return RemoteClusterStateUtils.getClusterMetadataBasePath(blobStoreRepository, clusterName, clusterUUID)
             .add(RemoteClusterMetadataManifest.MANIFEST);
@@ -343,6 +348,24 @@ public class RemoteManifestManager {
             RemoteStoreUtils.invertLong(version)
         ) + DELIMITER;
     }
+
+    public BlobPath getManifestPath() {
+        BlobPath blobPath = manifestBlobStore.getBlobPathPrefix(null, true);
+        blobPath = blobPath.add(RemoteClusterMetadataManifest.MANIFEST);
+        return blobPath;
+    }
+
+    public String getLatestManifestFileName() throws IOException {
+
+        List<BlobMetadata> manifests = manifestContainerV2().listBlobsByPrefixInSortedOrder(
+            RemoteClusterMetadataManifest.MANIFEST,
+            1,
+            BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+        );
+        return manifests.getFirst().name();
+    }
+
+
 
     /**
      * Fetch latest ClusterMetadataManifest file from remote state store
