@@ -36,6 +36,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -48,18 +50,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
-import org.opensearch.gateway.remote.model.RemoteClusterBlocks;
-import org.opensearch.gateway.remote.model.RemoteClusterStateCustoms;
-import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
-import org.opensearch.gateway.remote.model.RemoteCoordinationMetadata;
-import org.opensearch.gateway.remote.model.RemoteCustomMetadata;
-import org.opensearch.gateway.remote.model.RemoteDiscoveryNodes;
-import org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings;
-import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
-import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
-import org.opensearch.gateway.remote.model.RemoteReadResult;
-import org.opensearch.gateway.remote.model.RemoteTemplatesMetadata;
-import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
+import org.opensearch.gateway.remote.model.*;
 import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
@@ -238,6 +229,7 @@ public class RemoteClusterStateService implements Closeable {
     private RemoteGlobalMetadataManager remoteGlobalMetadataManager;
     private RemoteClusterStateAttributesManager remoteClusterStateAttributesManager;
     private RemoteManifestManager remoteManifestManager;
+    private IndexMetadataManifestManager indexMetadataManifestManager;
     private ClusterSettings clusterSettings;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final String CLUSTER_STATE_UPLOAD_TIME_LOG_STRING = "writing cluster state for version [{}] took [{}ms]";
@@ -339,6 +331,8 @@ public class RemoteClusterStateService implements Closeable {
             remoteRoutingTableService.getIndicesRouting(clusterState.getRoutingTable()),
             null
         );
+
+        uploadIndexMetadataManifest(clusterState, ClusterState.EMPTY_STATE, uploadedMetadataResults.uploadedIndexMetadata);
 
         ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
             clusterState,
@@ -544,6 +538,11 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults.uploadedIndicesRoutingMetadata,
             deletedIndicesRouting
         );
+
+        // Upload index metadata manifest if indices changed
+        if (!toUpload.isEmpty() || !indicesToBeDeletedFromRemote.isEmpty()) {
+            uploadIndexMetadataManifest(clusterState, previousClusterState, uploadedMetadataResults.uploadedIndexMetadata);
+        }
 
         ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
             clusterState,
@@ -1059,6 +1058,10 @@ public class RemoteClusterStateService implements Closeable {
         return remoteManifestManager.getRemoteClusterMetadataManifestByFileName(clusterUUID, fileName);
     }
 
+    public IndexMetadataManifest getIndexMetadataManifestByFileName() throws IOException {
+        return indexMetadataManifestManager.getLatestIndexMetadataManifest();
+    }
+
     public Optional<ClusterMetadataManifest> getClusterMetadataManifestByTermVersion(
         String clusterName,
         String clusterUUID,
@@ -1116,6 +1119,14 @@ public class RemoteClusterStateService implements Closeable {
             blobStoreRepository,
             blobStoreTransferService,
             namedWriteableRegistry,
+            threadpool
+        );
+
+        indexMetadataManifestManager = new IndexMetadataManifestManager(
+            clusterName,
+            nodeId,
+            blobStoreRepository,
+            blobStoreTransferService,
             threadpool
         );
 
@@ -1182,7 +1193,10 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
 
-        return getClusterStateForManifest(clusterName, clusterMetadataManifest.get(), nodeId, includeEphemeral);
+        // Get index metadata manifest independently
+        Optional<IndexMetadataManifest> indexMetadataManifest = getLatestIndexMetadataManifest(clusterName, clusterUUID);
+
+        return getClusterStateForManifest(clusterName, clusterMetadataManifest.get(), indexMetadataManifest.orElse(null), nodeId, includeEphemeral);
     }
 
     // package private for testing
@@ -1556,6 +1570,22 @@ public class RemoteClusterStateService implements Closeable {
         String localNodeId,
         boolean includeEphemeral
     ) throws IOException {
+        return getClusterStateForManifest(
+            clusterName,
+            manifest,
+            null,
+            localNodeId,
+            includeEphemeral
+        );
+    }
+
+    public ClusterState getClusterStateForManifest(
+        String clusterName,
+        ClusterMetadataManifest manifest,
+        IndexMetadataManifest indexManifest,
+        String localNodeId,
+        boolean includeEphemeral
+    ) throws IOException {
         try {
             ClusterState stateFromCache = remoteClusterStateCache.getState(clusterName, manifest);
             if (stateFromCache != null) {
@@ -1579,12 +1609,15 @@ public class RemoteClusterStateService implements Closeable {
             final ClusterState clusterState;
             final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
             if (manifest.onOrAfterCodecVersion(CODEC_V2)) {
+                // Use indices from index manifest if available, otherwise from cluster manifest for backward compatibility
+                List<UploadedIndexMetadata> indicesToRead = indexManifest != null ? indexManifest.getIndices() : manifest.getIndices();
+
                 clusterState = readClusterStateInParallel(
                     ClusterState.builder(new ClusterName(clusterName)).build(),
                     manifest,
                     manifest.getClusterUUID(),
                     localNodeId,
-                    manifest.getIndices(),
+                    indicesToRead,
                     manifest.getCustomMetadataMap(),
                     manifest.getCoordinationMetadata() != null,
                     manifest.getSettingsMetadata() != null,
@@ -1651,14 +1684,39 @@ public class RemoteClusterStateService implements Closeable {
             ClusterStateDiffManifest diff = manifest.getDiffManifest();
             boolean includeEphemeral = true;
 
-            List<UploadedIndexMetadata> updatedIndices = diff.getIndicesUpdated().stream().map(idx -> {
-                Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = manifest.getIndices()
-                    .stream()
-                    .filter(idx2 -> idx2.getIndexName().equals(idx))
-                    .findFirst();
-                assert uploadedIndexMetadataOptional.isPresent() == true;
-                return uploadedIndexMetadataOptional.get();
-            }).collect(Collectors.toList());
+            // Get index metadata manifest to read indices from there instead of cluster manifest
+            Optional<IndexMetadataManifest> indexManifest = getLatestIndexMetadataManifest(
+                previousState.getClusterName().value(),
+                manifest.getClusterUUID()
+            );
+
+            List<UploadedIndexMetadata> updatedIndices;
+            List<UploadedIndexMetadata> availableIndices;
+
+            if (indexManifest.isPresent()) {
+                IndexStateDiffManifest indexStateDiffManifest = indexManifest.get().getIndexDiffManifest();
+
+                availableIndices = indexManifest.get().getIndices();
+                updatedIndices = indexStateDiffManifest.getIndicesUpdated().stream().map(idx -> {
+                    Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = availableIndices
+                        .stream()
+                        .filter(idx2 -> idx2.getIndexName().equals(idx))
+                        .findFirst();
+                    assert uploadedIndexMetadataOptional.isPresent() == true;
+                    return uploadedIndexMetadataOptional.get();
+                }).collect(Collectors.toList());
+            } else {
+                availableIndices = manifest.getIndices();
+                updatedIndices = diff.getIndicesUpdated().stream().map(idx -> {
+                    Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = availableIndices
+                        .stream()
+                        .filter(idx2 -> idx2.getIndexName().equals(idx))
+                        .findFirst();
+                    assert uploadedIndexMetadataOptional.isPresent() == true;
+                    return uploadedIndexMetadataOptional.get();
+                }).collect(Collectors.toList());
+            }
+
 
             Map<String, UploadedMetadataAttribute> updatedCustomMetadata = new HashMap<>();
             if (diff.getCustomMetadataUpdated() != null) {
@@ -1971,7 +2029,7 @@ public class RemoteClusterStateService implements Closeable {
                 remoteManifestManager.getLatestManifestFileName()
             );
 
-            return getClusterStateForManifest(clusterName, manifest, localNodeId, true);
+            return getClusterStateForManifest(clusterName, manifest, null, localNodeId, true);
         } catch (Exception e) {
             logger.warn("Failed to read latest cluster state from remote for new manager", e);
             return null;
@@ -2163,6 +2221,44 @@ public class RemoteClusterStateService implements Closeable {
 
     RemoteClusterStateCache getRemoteClusterStateCache() {
         return remoteClusterStateCache;
+    }
+
+    /**
+     * Upload index metadata manifest when indices change
+     */
+    private String uploadIndexMetadataManifest(
+        ClusterState clusterState,
+        ClusterState previousClusterState,
+        List<UploadedIndexMetadata> uploadedIndexMetadata
+    ) throws IOException {
+        boolean hasIndexChanges = !uploadedIndexMetadata.isEmpty() ||
+            (previousClusterState != null && hasIndexMetadataChanged(previousClusterState, clusterState));
+
+        if (!hasIndexChanges && indexMetadataManifestManager.getLastUploadedIndexManifestVersion() != null) {
+            return indexMetadataManifestManager.getLastUploadedIndexManifestVersion();
+        }
+
+        return indexMetadataManifestManager.uploadIndexMetadataManifest(
+            clusterState,
+            previousClusterState,
+            uploadedIndexMetadata
+        );
+    }
+
+    /**
+     * Get latest index metadata manifest
+     */
+    private Optional<IndexMetadataManifest> getLatestIndexMetadataManifest(String clusterName, String clusterUUID) {
+        return indexMetadataManifestManager.getLatestIndexMetadataManifest(clusterName, clusterUUID);
+    }
+
+    /**
+     * Check if index metadata changed between states
+     */
+    private boolean hasIndexMetadataChanged(ClusterState previous, ClusterState current) {
+        return !Objects.equals(previous.metadata().indices(), current.metadata().indices()) ||
+               !Objects.equals(previous.routingTable(), current.routingTable()) ||
+               !Objects.equals(previous.metadata().dataStreams(), current.metadata().dataStreams());
     }
 
 }

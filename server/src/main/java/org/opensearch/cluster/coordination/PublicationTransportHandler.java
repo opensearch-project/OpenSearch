@@ -51,6 +51,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.IndexMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BytesTransportRequest;
@@ -245,6 +246,10 @@ public class PublicationTransportHandler {
             if (manifest == null) {
                 throw new IllegalStateException("Publication failed as manifest was not found for " + request);
             }
+
+            // Fetch IndexMetadataManifest if available
+            IndexMetadataManifest indexManifest = remoteClusterStateService.getIndexMetadataManifestByFileName();
+
             final ClusterState lastSeen = lastSeenClusterState.get();
             if (lastSeen == null) {
                 logger.debug(() -> "Diff cannot be applied as there is no last cluster state");
@@ -269,6 +274,7 @@ public class PublicationTransportHandler {
                 ClusterState clusterState = remoteClusterStateService.getClusterStateForManifest(
                     request.getClusterName(),
                     manifest,
+                    indexManifest,
                     transportService.getLocalNode().getId(),
                     true
                 );

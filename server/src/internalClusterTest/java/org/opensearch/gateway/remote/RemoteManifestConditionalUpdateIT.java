@@ -221,7 +221,22 @@ public class RemoteManifestConditionalUpdateIT extends RemoteStoreBaseIntegTestC
         }
 
         @Override
-        public Map<String, BlobMetadata> listBlobs() { return Collections.emptyMap(); }
+        public Map<String, BlobMetadata> listBlobs() throws IOException {
+            Map<String, BlobMetadata> result = new HashMap<>();
+            try (Stream<Path> files = java.nio.file.Files.list(STORAGE_DIR)) {
+                files.filter(path -> !path.getFileName().toString().endsWith(".version"))
+                     .forEach(path -> {
+                         String blobName = path.getFileName().toString();
+                         try {
+                             long size = java.nio.file.Files.size(path);
+                             result.put(blobName, new PlainBlobMetadata(blobName, size));
+                         } catch (IOException e) {
+                             // Skip files that can't be read
+                         }
+                     });
+            }
+            return result;
+        }
 
         @Override
         public Map<String, BlobContainer> children() { return Collections.emptyMap(); }
