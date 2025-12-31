@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 3.3.99"
-      reason: "introduced in 3.4.0 "
+      version: " - 3.4.99"
+      reason: "introduced in 3.5.0 "
 
 ---
 "Test basic use":
