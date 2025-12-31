@@ -1425,6 +1425,7 @@ public class Node implements Closeable {
                 b.bind(NodeService.class).toInstance(nodeService);
                 b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
                 b.bind(PluginsService.class).toInstance(pluginsService);
+                b.bind(SearchModule.class).toInstance(searchModule);
                 b.bind(Client.class).toInstance(client);
                 b.bind(NodeClient.class).toInstance(client);
                 b.bind(Environment.class).toInstance(this.environment);
@@ -1523,6 +1524,9 @@ public class Node implements Closeable {
                 taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });
             injector = modules.createInjector();
+
+            // Wire HttpServerTransport to IndicesService for dynamic registry updates
+            injector.getInstance(IndicesService.class).setHttpServerTransport(injector.getInstance(HttpServerTransport.class));
 
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
             // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it
