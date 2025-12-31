@@ -36,7 +36,9 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.secure_sm.AccessController;
 
+import java.net.URI;
 import java.util.Map;
+import java.util.Optional;
 
 public class S3ServiceTests extends AbstractS3RepositoryTestCase {
     public void testCachedClientsAreReleased() {
@@ -82,5 +84,48 @@ public class S3ServiceTests extends AbstractS3RepositoryTestCase {
         s3Service.close();
         final S3ClientSettings clientSettingsReloaded = s3Service.settings(metadata1);
         assertNotSame(clientSettings, clientSettingsReloaded);
+    }
+
+    public void testResolveEndpointOverrideAbsentWhenEndpointNotProvided() {
+        final S3Service s3Service = new S3Service(configPath());
+        final Settings repoSettings = Settings.builder()
+            // region is required by S3Service.settings(...) in this test suite
+            .put("region", "us-east-1")
+            // intentionally omit "endpoint"
+            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("no-endpoint", "s3", repoSettings);
+
+        final S3ClientSettings clientSettings = s3Service.settings(metadata);
+        final Optional<URI> override = s3Service.resolveEndpointOverride(clientSettings);
+        assertTrue("Expected no endpoint override when endpoint setting is absent", override.isEmpty());
+    }
+
+    public void testResolveEndpointOverrideAddsSchemeWhenMissing() {
+        final S3Service s3Service = new S3Service(configPath());
+        final Settings repoSettings = Settings.builder()
+            .put("region", "us-east-1")
+            // no scheme on purpose
+            .put("endpoint", "s3.us-east-1.amazonaws.com")
+            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("endpoint-no-scheme", "s3", repoSettings);
+
+        final S3ClientSettings clientSettings = s3Service.settings(metadata);
+        final Optional<URI> override = s3Service.resolveEndpointOverride(clientSettings);
+        assertTrue("Expected endpoint override to be present when endpoint setting is provided", override.isPresent());
+
+        // S3 client settings default protocol in tests should be https unless explicitly configured otherwise.
+        // If this ever changes in the future, update this assertion accordingly.
+        assertEquals("https://s3.us-east-1.amazonaws.com", override.get().toString());
+    }
+
+    public void testResolveEndpointOverridePreservesExplicitScheme() {
+        final S3Service s3Service = new S3Service(configPath());
+        final Settings repoSettings = Settings.builder().put("region", "us-east-1").put("endpoint", "http://localhost:9000").build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("endpoint-with-scheme", "s3", repoSettings);
+
+        final S3ClientSettings clientSettings = s3Service.settings(metadata);
+        final Optional<URI> override = s3Service.resolveEndpointOverride(clientSettings);
+        assertTrue("Expected endpoint override to be present when endpoint has explicit scheme", override.isPresent());
+        assertEquals("http://localhost:9000", override.get().toString());
     }
 }
