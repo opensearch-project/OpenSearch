@@ -119,7 +119,7 @@ public class CatalogSnapshotManager {
         segmentList.subList(newSegIdx, segmentList.size()).clear();
 
         // Either we found place to insert segment, or, we did
-        // not, but only because all segments we merged becamee
+        // not, but only because all segments we merged became
         // deleted while we are merging, in which case it should
         // be the case that the new segment is also all deleted,
         // we insert it at the beginning if it should not be dropped:

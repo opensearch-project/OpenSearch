@@ -8,12 +8,8 @@
 
 package com.parquet.parquetdataformat.merge;
 
-
-import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.merge.MergeResult;
-
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -26,10 +22,4 @@ public interface ParquetMergeStrategy {
      */
     MergeResult mergeParquetFiles(List<WriterFileSet> files, long writerGeneration);
 
-    /**
-     * Optional post-merge hook.
-     */
-    default void postMerge() {
-        // No-op by default
-    }
 }

@@ -79,6 +79,7 @@ import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
+import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
@@ -254,6 +255,12 @@ public abstract class SearchContext implements Releasable {
     public abstract boolean hasScriptFields();
 
     public abstract ScriptFieldsContext scriptFields();
+    public void evaluateRequestShouldUseConcurrentSearch() {
+        // do nothing
+    }
+    public void setProfilers(Profilers profilers) {
+        // do nothing
+    }
 
     /**
      * A shortcut function to see whether there is a fetchSourceContext and it says the source is requested.
@@ -611,5 +618,10 @@ public abstract class SearchContext implements Releasable {
     // TODO : This should be a part of mapper given by DataFormat or SearchEngine as related to Field type.
     public Comparable convertToComparable(Object rawValue) {
         throw new UnsupportedOperationException("Engine doesn't implement response value conversion");
+    }
+
+    public SearchContext sliceBuilder(SliceBuilder slice) {
+        // do nothing
+        return this;
     }
 }
