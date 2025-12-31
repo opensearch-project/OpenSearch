@@ -45,6 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `asm` from 9.7 to 9.9.1 ([#20330](https://github.com/opensearch-project/OpenSearch/pull/20330))
 - Bump `actions/upload-artifact` from 5 to 6 ([#20333](https://github.com/opensearch-project/OpenSearch/pull/20333))
 - Bump `com.google.http-client:google-http-client-appengine` from 2.0.2 to 2.0.3 ([#20332](https://github.com/opensearch-project/OpenSearch/pull/20332))
+- Bump `jackson` from 2.18.1 to 2.20.1 ([#20343](https://github.com/opensearch-project/OpenSearch/pull/20343))
 
 ### Removed
 

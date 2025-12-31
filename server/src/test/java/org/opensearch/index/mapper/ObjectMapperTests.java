@@ -1053,9 +1053,11 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         });
 
         // Verify childMapper.name() and name() are correctly used in error message
-        assertTrue("Error should mention nested_child1 or nested_child2", 
-                  e2.getMessage().contains("Cannot add nested object field [container.nested_child1]") ||
-                  e2.getMessage().contains("Cannot add nested object field [container.nested_child2]"));
+        assertTrue(
+            "Error should mention nested_child1 or nested_child2",
+            e2.getMessage().contains("Cannot add nested object field [container.nested_child1]")
+                || e2.getMessage().contains("Cannot add nested object field [container.nested_child2]")
+        );
         assertThat(e2.getMessage(), containsString("when disable_objects is enabled for [container]"));
 
         // Test that validation only triggers for ObjectMapper instances, not FieldMapper instances
