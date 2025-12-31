@@ -3075,4 +3075,522 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals("deepvalue", doc2.rootDoc().getField("container.nested.deep.field").stringValue());
     }
 
+    public void testComplexExistingMapperLookupForDisableObjects() throws Exception {
+        // Test scenario where disable_objects parent exists in docMapper.objectMappers() but not in current parentMappers stack
+        // This specifically tests the second loop in findDisableObjectsParentInStack that checks existing mappers
+
+        // First, create a mapper with a pre-existing disable_objects parent
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("level1");
+                {
+                    b.field("type", "object");
+                    b.startObject("properties");
+                    {
+                        b.startObject("level2");
+                        {
+                            b.field("type", "object");
+                            b.field("disable_objects", true);
+                            b.startObject("properties");
+                            {
+                                // Pre-existing field to establish the mapper
+                                b.startObject("existing");
+                                {
+                                    b.field("type", "text");
+                                }
+                                b.endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Parse a document that establishes the existing mapper structure
+        ParsedDocument doc1 = mapper.parse(source(b -> {
+            b.startObject("level1");
+            {
+                b.startObject("level2");
+                {
+                    b.field("existing", "test");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Verify the existing field is properly mapped
+        assertNotNull("Field 'level1.level2.existing' should exist", doc1.rootDoc().getField("level1.level2.existing"));
+
+        // Now parse a document with a deeply nested field that should trigger the existing mapper lookup
+        // The key here is that "level1.level2" exists in docMapper.objectMappers() with disable_objects=true
+        // but may not be in the current parentMappers stack when processing "level1.level2.deep.nested.field"
+        ParsedDocument doc2 = mapper.parse(source(b -> { b.field("level1.level2.deep.nested.field", "deepvalue"); }));
+
+        // This field should be flattened because level1.level2 has disable_objects=true
+        // The test verifies that findDisableObjectsParentInStack finds the existing disable_objects parent
+        // even when it's not in the current stack
+        assertNotNull("Field 'level1.level2.deep.nested.field' should exist", doc2.rootDoc().getField("level1.level2.deep.nested.field"));
+        assertEquals("deepvalue", doc2.rootDoc().getField("level1.level2.deep.nested.field").stringValue());
+
+        // Test another scenario with multiple levels to ensure the path splitting logic works correctly
+        ParsedDocument doc3 = mapper.parse(source(b -> { b.field("level1.level2.another.deeply.nested.path", "anothervalue"); }));
+
+        assertNotNull(
+            "Field 'level1.level2.another.deeply.nested.path' should exist",
+            doc3.rootDoc().getField("level1.level2.another.deeply.nested.path")
+        );
+        assertEquals("anothervalue", doc3.rootDoc().getField("level1.level2.another.deeply.nested.path").stringValue());
+
+        // Test edge case where we have a field that matches multiple potential parents
+        // but only one has disable_objects=true
+        ParsedDocument doc4 = mapper.parse(source(b -> { b.field("level1.level2.complex.field.with.many.dots", "complexvalue"); }));
+
+        assertNotNull(
+            "Field 'level1.level2.complex.field.with.many.dots' should exist",
+            doc4.rootDoc().getField("level1.level2.complex.field.with.many.dots")
+        );
+        assertEquals("complexvalue", doc4.rootDoc().getField("level1.level2.complex.field.with.many.dots").stringValue());
+    }
+
+    public void testExistingMapperLookupWithDisableObjectsParent() throws Exception {
+        // Test scenario with disable_objects parent to ensure correct flattening behavior
+        // disable_objects should only be set at ONE place, not multiple levels
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("outer");
+                {
+                    b.field("type", "object");
+                    b.field("disable_objects", true);
+                    // Note: No nested object mappers defined when disable_objects=true
+                    // All nested structures will be flattened during document parsing
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Test that nested object structures are automatically flattened
+        ParsedDocument doc1 = mapper.parse(source(b -> {
+            b.startObject("outer");
+            {
+                b.startObject("inner");
+                {
+                    b.field("test", "value");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Should be flattened to outer.inner.test
+        assertNotNull("Field 'outer.inner.test' should exist", doc1.rootDoc().getField("outer.inner.test"));
+        assertEquals("value", doc1.rootDoc().getField("outer.inner.test").stringValue());
+
+        // Test that a deeply nested field is also flattened correctly
+        ParsedDocument doc2 = mapper.parse(source(b -> {
+            b.startObject("outer");
+            {
+                b.startObject("deep");
+                {
+                    b.startObject("nested");
+                    {
+                        b.field("field", "testvalue");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Should be flattened to outer.deep.nested.field
+        assertNotNull("Field 'outer.deep.nested.field' should exist", doc2.rootDoc().getField("outer.deep.nested.field"));
+        assertEquals("testvalue", doc2.rootDoc().getField("outer.deep.nested.field").stringValue());
+
+        // Test that dotted field names are treated as literal field names
+        ParsedDocument doc3 = mapper.parse(source(b -> {
+            b.startObject("outer");
+            {
+                b.field("literal.field.name", "literalvalue");
+            }
+            b.endObject();
+        }));
+
+        assertNotNull("Field 'outer.literal.field.name' should exist", doc3.rootDoc().getField("outer.literal.field.name"));
+        assertEquals("literalvalue", doc3.rootDoc().getField("outer.literal.field.name").stringValue());
+    }
+
+    public void testEmptyParentPathScenario() throws Exception {
+        // Test scenario where a parent mapper has an empty name
+        // This tests the parentPath.isEmpty() condition in findDisableObjectsParentInStack
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);  // Root mapper with disable_objects=true
+            b.field("dynamic", "true");
+        }));
+
+        // Parse a document with nested structure - all should be flattened due to root disable_objects
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("level1");
+            {
+                b.startObject("level2");
+                {
+                    b.field("field1", "value1");
+                    b.startObject("nested");
+                    {
+                        b.field("deep.field", "deepvalue");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // All fields should be flattened because root has disable_objects=true and empty name
+        assertNotNull("Field 'level1.level2.field1' should exist", doc.rootDoc().getField("level1.level2.field1"));
+        assertEquals("value1", doc.rootDoc().getField("level1.level2.field1").stringValue());
+
+        assertNotNull("Field 'level1.level2.nested.deep.field' should exist", doc.rootDoc().getField("level1.level2.nested.deep.field"));
+        assertEquals("deepvalue", doc.rootDoc().getField("level1.level2.nested.deep.field").stringValue());
+
+        // Test with dotted field names directly
+        ParsedDocument doc2 = mapper.parse(source(b -> { b.field("direct.dotted.field", "directvalue"); }));
+
+        assertNotNull("Field 'direct.dotted.field' should exist", doc2.rootDoc().getField("direct.dotted.field"));
+        assertEquals("directvalue", doc2.rootDoc().getField("direct.dotted.field").stringValue());
+    }
+
+    public void testDocParentPathScenario() throws Exception {
+        // Test scenario where parent path equals "_doc"
+        // This tests the parentPath.equals("_doc") condition in findDisableObjectsParentInStack
+
+        // Create a custom mapper service to simulate a scenario where root mapper name is "_doc"
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+        }));
+
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        // Parse a document with complex nested structure
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("user");
+            {
+                b.field("name", "John");
+                b.startObject("profile");
+                {
+                    b.field("age", 30);
+                    b.startObject("address");
+                    {
+                        b.field("street.number", "123");
+                        b.field("city", "Seattle");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // All fields should be flattened due to root disable_objects=true
+        assertNotNull("Field 'user.name' should exist", doc.rootDoc().getField("user.name"));
+        assertEquals("John", doc.rootDoc().getField("user.name").stringValue());
+
+        assertNotNull("Field 'user.profile.age' should exist", doc.rootDoc().getField("user.profile.age"));
+        assertEquals(30, doc.rootDoc().getField("user.profile.age").numericValue().intValue());
+
+        assertNotNull(
+            "Field 'user.profile.address.street.number' should exist",
+            doc.rootDoc().getField("user.profile.address.street.number")
+        );
+        assertEquals("123", doc.rootDoc().getField("user.profile.address.street.number").stringValue());
+
+        assertNotNull("Field 'user.profile.address.city' should exist", doc.rootDoc().getField("user.profile.address.city"));
+        assertEquals("Seattle", doc.rootDoc().getField("user.profile.address.city").stringValue());
+
+        // Test with direct dotted field names
+        ParsedDocument doc2 = mapper.parse(source(b -> { b.field("company.department.team.member", "Alice"); }));
+
+        assertNotNull("Field 'company.department.team.member' should exist", doc2.rootDoc().getField("company.department.team.member"));
+        assertEquals("Alice", doc2.rootDoc().getField("company.department.team.member").stringValue());
+    }
+
+    public void testRootMapperNameVariations() throws Exception {
+        // Test to ensure both empty and "_doc" root mapper names are handled correctly
+        // This comprehensively tests the condition: parentPath.isEmpty() || parentPath.equals("_doc")
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+        }));
+
+        // Test with array of objects containing dotted field names
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("items");
+            {
+                b.startObject();
+                {
+                    b.field("item.id", "item1");
+                    b.field("item.category.name", "electronics");
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.field("item.id", "item2");
+                    b.field("item.category.name", "books");
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        // All fields should be flattened
+        IndexableField[] itemIdFields = doc.rootDoc().getFields("items.item.id");
+        assertTrue("Should have item.id fields", itemIdFields.length > 0);
+
+        IndexableField[] categoryFields = doc.rootDoc().getFields("items.item.category.name");
+        assertTrue("Should have item.category.name fields", categoryFields.length > 0);
+
+        // Test edge case with deeply nested structure
+        ParsedDocument doc2 = mapper.parse(source(b -> {
+            b.startObject("a");
+            {
+                b.startObject("b");
+                {
+                    b.startObject("c");
+                    {
+                        b.startObject("d");
+                        {
+                            b.field("e.f.g", "deepvalue");
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        assertNotNull("Field 'a.b.c.d.e.f.g' should exist", doc2.rootDoc().getField("a.b.c.d.e.f.g"));
+        assertEquals("deepvalue", doc2.rootDoc().getField("a.b.c.d.e.f.g").stringValue());
+    }
+
+    public void testPathSplittingAndReconstructionInExistingMapperLookup() throws Exception {
+        // Test the path splitting logic: String[] pathParts = fieldPath.split("\\.");
+        // and reconstruction: String.join(".", java.util.Arrays.copyOf(pathParts, i))
+        // in the existing mapper lookup loop
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("a");
+                {
+                    b.field("type", "object");
+                    b.startObject("properties");
+                    {
+                        b.startObject("b");
+                        {
+                            b.field("type", "object");
+                            b.startObject("properties");
+                            {
+                                b.startObject("c");
+                                {
+                                    b.field("type", "object");
+                                    b.field("disable_objects", true);
+                                }
+                                b.endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // First establish the existing mapper structure
+        ParsedDocument doc1 = mapper.parse(source(b -> {
+            b.startObject("a");
+            {
+                b.startObject("b");
+                {
+                    b.startObject("c");
+                    {
+                        b.field("existing", "test");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Test various field paths that should trigger the path splitting logic
+        // Field: "a.b.c.d.e.f" should find parent "a.b.c" with disable_objects=true
+        ParsedDocument doc2 = mapper.parse(source(b -> { b.field("a.b.c.d.e.f", "value1"); }));
+
+        assertNotNull("Field 'a.b.c.d.e.f' should exist", doc2.rootDoc().getField("a.b.c.d.e.f"));
+        assertEquals("value1", doc2.rootDoc().getField("a.b.c.d.e.f").stringValue());
+
+        // Test with single level under disable_objects parent
+        ParsedDocument doc3 = mapper.parse(source(b -> { b.field("a.b.c.single", "value2"); }));
+
+        assertNotNull("Field 'a.b.c.single' should exist", doc3.rootDoc().getField("a.b.c.single"));
+        assertEquals("value2", doc3.rootDoc().getField("a.b.c.single").stringValue());
+
+        // Test with very deep nesting to exercise the path reconstruction loop
+        ParsedDocument doc4 = mapper.parse(source(b -> { b.field("a.b.c.very.deep.nested.field.with.many.levels", "deepvalue"); }));
+
+        assertNotNull(
+            "Field 'a.b.c.very.deep.nested.field.with.many.levels' should exist",
+            doc4.rootDoc().getField("a.b.c.very.deep.nested.field.with.many.levels")
+        );
+        assertEquals("deepvalue", doc4.rootDoc().getField("a.b.c.very.deep.nested.field.with.many.levels").stringValue());
+
+        // Test edge case where field path exactly matches the disable_objects parent
+        ParsedDocument doc5 = mapper.parse(source(b -> { b.field("a.b.c", "exactmatch"); }));
+
+        assertNotNull("Field 'a.b.c' should exist", doc5.rootDoc().getField("a.b.c"));
+        assertEquals("exactmatch", doc5.rootDoc().getField("a.b.c").stringValue());
+    }
+
+    public void testGetMapperFlatteningLogic() throws Exception {
+        // Test the specific flattening logic in getMapper function
+        // This covers the StringBuilder flatFieldName code that flattens remaining path segments
+        // when encountering an ObjectMapper with disable_objects=true
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("level1");
+                {
+                    b.field("type", "object");
+                    b.startObject("properties");
+                    {
+                        b.startObject("level2");
+                        {
+                            b.field("type", "object");
+                            b.startObject("properties");
+                            {
+                                b.startObject("level3");
+                                {
+                                    b.field("type", "object");
+                                    b.field("disable_objects", true);
+                                    // level3 has disable_objects=true, so any deeper paths should be flattened
+                                }
+                                b.endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // First establish the mapping structure
+        ParsedDocument doc1 = mapper.parse(source(b -> {
+            b.startObject("level1");
+            {
+                b.startObject("level2");
+                {
+                    b.startObject("level3");
+                    {
+                        b.field("simple.field", "test1");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Verify the simple case works
+        assertNotNull(
+            "Field 'level1.level2.level3.simple.field' should exist",
+            doc1.rootDoc().getField("level1.level2.level3.simple.field")
+        );
+        assertEquals("test1", doc1.rootDoc().getField("level1.level2.level3.simple.field").stringValue());
+
+        // Test the getMapper flattening logic: when looking up "level1.level2.level3.deep.nested.field.name"
+        // the getMapper function should:
+        // 1. Traverse: level1 → level2 → level3 (which has disable_objects=true)
+        // 2. Flatten remaining path ["deep", "nested", "field", "name"] into "deep.nested.field.name"
+        // 3. Look for field "deep.nested.field.name" under level3 mapper
+        ParsedDocument doc2 = mapper.parse(source(b -> { b.field("level1.level2.level3.deep.nested.field.name", "flattened_value"); }));
+
+        // This should create a field with the flattened name
+        assertNotNull(
+            "Field 'level1.level2.level3.deep.nested.field.name' should exist",
+            doc2.rootDoc().getField("level1.level2.level3.deep.nested.field.name")
+        );
+        assertEquals("flattened_value", doc2.rootDoc().getField("level1.level2.level3.deep.nested.field.name").stringValue());
+
+        // Test another case with multiple segments to flatten
+        ParsedDocument doc3 = mapper.parse(source(b -> { b.field("level1.level2.level3.very.long.dotted.field.path", "another_value"); }));
+
+        assertNotNull(
+            "Field 'level1.level2.level3.very.long.dotted.field.path' should exist",
+            doc3.rootDoc().getField("level1.level2.level3.very.long.dotted.field.path")
+        );
+        assertEquals("another_value", doc3.rootDoc().getField("level1.level2.level3.very.long.dotted.field.path").stringValue());
+
+        // Test edge case where the path exactly matches the disable_objects parent
+        ParsedDocument doc4 = mapper.parse(source(b -> { b.field("level1.level2.level3", "exact_match"); }));
+
+        assertNotNull("Field 'level1.level2.level3' should exist", doc4.rootDoc().getField("level1.level2.level3"));
+        assertEquals("exact_match", doc4.rootDoc().getField("level1.level2.level3").stringValue());
+    }
+
+    public void testRootLevelGetMapperFlattening() throws Exception {
+        // Test the root-level flattening logic in getMapper function
+        // This covers the first StringBuilder flatFieldName code block
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);  // Root level has disable_objects=true
+            b.field("dynamic", "true");
+        }));
+
+        // When root has disable_objects=true, any dotted field name should be treated as a flat field
+        // The getMapper function should flatten the entire path into a single field name
+        ParsedDocument doc1 = mapper.parse(source(b -> { b.field("root.level.dotted.field", "root_flattened"); }));
+
+        // This should create a single flat field
+        assertNotNull("Field 'root.level.dotted.field' should exist", doc1.rootDoc().getField("root.level.dotted.field"));
+        assertEquals("root_flattened", doc1.rootDoc().getField("root.level.dotted.field").stringValue());
+
+        // Test with very long dotted path
+        ParsedDocument doc2 = mapper.parse(source(b -> { b.field("a.b.c.d.e.f.g.h.i.j", "long_path"); }));
+
+        assertNotNull("Field 'a.b.c.d.e.f.g.h.i.j' should exist", doc2.rootDoc().getField("a.b.c.d.e.f.g.h.i.j"));
+        assertEquals("long_path", doc2.rootDoc().getField("a.b.c.d.e.f.g.h.i.j").stringValue());
+
+        // Test single level field (should work normally)
+        ParsedDocument doc3 = mapper.parse(source(b -> { b.field("simple", "simple_value"); }));
+
+        assertNotNull("Field 'simple' should exist", doc3.rootDoc().getField("simple"));
+        assertEquals("simple_value", doc3.rootDoc().getField("simple").stringValue());
+    }
+
 }
