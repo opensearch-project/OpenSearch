@@ -9,6 +9,7 @@
 package org.opensearch.gateway.remote;
 
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
@@ -338,8 +339,10 @@ public class RemoteManifestConditionalUpdateIT extends RemoteStoreBaseIntegTestC
 
     public void testBootstrapClusterWithRemoteStateAndVerifyS3Upload() throws Exception {
         // 1. Bootstrap new cluster with remote state enabled
-        prepareCluster(1, 2, INDEX_NAME, 1, 1);
+        prepareCluster(3, 2, INDEX_NAME, 1, 1);
         ensureGreen(INDEX_NAME);
+        ClusterState state = internalCluster().clusterService().state();
+        assertNotNull(state.nodes().getIndexMetadataCoordinatorNodeId());
     }
 
     public void testConditionalUpdatesOnClusterStateChanges() throws Exception {
