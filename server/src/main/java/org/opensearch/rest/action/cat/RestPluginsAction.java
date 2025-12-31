@@ -36,6 +36,7 @@ import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.action.admin.cluster.node.info.PluginsAndModulesWithStatus;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
@@ -44,6 +45,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.plugins.PluginInfo;
+import org.opensearch.plugins.PluginLoadStatus;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
@@ -113,6 +115,7 @@ public class RestPluginsAction extends AbstractCatAction {
         table.addCell("component", "alias:c;desc:component");
         table.addCell("version", "alias:v;desc:component version");
         table.addCell("description", "alias:d;default:false;desc:plugin details");
+        table.addCell("load_status", "alias:ls;desc:plugin load status (initial/loaded/active)");
         table.endHeaders();
         return table;
     }
@@ -130,14 +133,39 @@ public class RestPluginsAction extends AbstractCatAction {
             if (plugins == null) {
                 continue;
             }
-            for (PluginInfo pluginInfo : plugins.getPluginInfos()) {
-                table.startRow();
-                table.addCell(node.getId());
-                table.addCell(node.getName());
-                table.addCell(pluginInfo.getName());
-                table.addCell(pluginInfo.getVersion());
-                table.addCell(pluginInfo.getDescription());
-                table.endRow();
+            
+            // Check if we have enhanced plugin info with status
+            if (plugins instanceof PluginsAndModulesWithStatus) {
+                PluginsAndModulesWithStatus pluginsWithStatus = (PluginsAndModulesWithStatus) plugins;
+                for (PluginInfo pluginInfo : pluginsWithStatus.getPluginInfos()) {
+                    table.startRow();
+                    table.addCell(node.getId());
+                    table.addCell(node.getName());
+                    table.addCell(pluginInfo.getName());
+                    table.addCell(pluginInfo.getVersion());
+                    table.addCell(pluginInfo.getDescription());
+                    
+                    // Get load status from the enhanced plugin info
+                    String loadStatus = pluginsWithStatus.getPluginLoadStatus(pluginInfo.getName()).getDisplayName();
+                    table.addCell(loadStatus);
+                    
+                    table.endRow();
+                }
+            } else {
+                // Fallback to regular plugin info without status
+                for (PluginInfo pluginInfo : plugins.getPluginInfos()) {
+                    table.startRow();
+                    table.addCell(node.getId());
+                    table.addCell(node.getName());
+                    table.addCell(pluginInfo.getName());
+                    table.addCell(pluginInfo.getVersion());
+                    table.addCell(pluginInfo.getDescription());
+                    
+                    // Default status for regular plugin info
+                    table.addCell(PluginLoadStatus.INITIAL.getDisplayName());
+                    
+                    table.endRow();
+                }
             }
         }
 
