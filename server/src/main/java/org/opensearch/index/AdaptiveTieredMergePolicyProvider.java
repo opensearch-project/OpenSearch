@@ -24,9 +24,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * shard size.
  *
  * Implementation notes:
- * - Uses smooth interpolation (log/linear across size decades) instead of hard
- * categories
- * to avoid abrupt parameter jumps as shards grow.
+ * - Delegates to AdaptiveOpenSearchTieredMergePolicy which uses smooth
+ * interpolation (log/linear across size decades) to avoid abrupt parameter
+ * jumps as shards grow.
  * - Caps the max merged segment size at 5GB to align with Lucene defaults.
  *
  * @opensearch.internal
@@ -57,23 +57,28 @@ public class AdaptiveTieredMergePolicyProvider implements MergePolicyProvider {
     }
 
     private void applyDefaultSettings() {
-        // Fallback to the original default settings, ensuring parity with
-        // TieredMergePolicyProvider
-        // We use explicit values here, but they match the constants in
-        // TieredMergePolicyProvider:
-        // DEFAULT_MAX_MERGED_SEGMENT = 5GB
-        tieredMergePolicy.setMaxMergedSegmentMB(5 * 1024);
-        // DEFAULT_FLOOR_SEGMENT = 16MB
-        tieredMergePolicy.setFloorSegmentMB(16);
-        // DEFAULT_SEGMENTS_PER_TIER = 10.0
-        tieredMergePolicy.setSegmentsPerTier(10.0);
-        // DEFAULT_MAX_MERGE_AT_ONCE = 30
-        tieredMergePolicy.setMaxMergeAtOnce(30);
-        // DEFAULT_EXPUNGE_DELETES_ALLOWED = 10.0
-        tieredMergePolicy.setForceMergeDeletesPctAllowed(10.0);
-        // DEFAULT_DELETES_PCT_ALLOWED = 20.0
-        tieredMergePolicy.setDeletesPctAllowed(20.0);
-        tieredMergePolicy.setNoCFSRatio(TieredMergePolicy.DEFAULT_NO_CFS_RATIO);
+        settingsLock.writeLock().lock();
+        try {
+            // Fallback to the original default settings, ensuring parity with
+            // TieredMergePolicyProvider
+            // We use explicit values here, but they match the constants in
+            // TieredMergePolicyProvider:
+            // DEFAULT_MAX_MERGED_SEGMENT = 5GB
+            tieredMergePolicy.setMaxMergedSegmentMB(5 * 1024);
+            // DEFAULT_FLOOR_SEGMENT = 16MB
+            tieredMergePolicy.setFloorSegmentMB(16);
+            // DEFAULT_SEGMENTS_PER_TIER = 10.0
+            tieredMergePolicy.setSegmentsPerTier(10.0);
+            // DEFAULT_MAX_MERGE_AT_ONCE = 30
+            tieredMergePolicy.setMaxMergeAtOnce(30);
+            // DEFAULT_EXPUNGE_DELETES_ALLOWED = 10.0
+            tieredMergePolicy.setForceMergeDeletesPctAllowed(10.0);
+            // DEFAULT_DELETES_PCT_ALLOWED = 20.0
+            tieredMergePolicy.setDeletesPctAllowed(20.0);
+            tieredMergePolicy.setNoCFSRatio(TieredMergePolicy.DEFAULT_NO_CFS_RATIO);
+        } finally {
+            settingsLock.writeLock().unlock();
+        }
     }
 
     @Override

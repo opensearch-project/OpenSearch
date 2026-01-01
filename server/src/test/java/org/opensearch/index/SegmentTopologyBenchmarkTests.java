@@ -26,7 +26,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.opensearch.index.analysis.SegmentTopologyTestUtils.getRecommendedFloorSegmentSize;
@@ -199,7 +201,7 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
 
     private PerformanceMetrics simulateMergePerformance(MergePolicy mergePolicy) throws IOException {
         SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
-        List<Long> trackedSegmentSizes = new ArrayList<>();
+        Map<String, Long> trackedSegmentSizes = new HashMap<>();
         double accumulatedVariance = 0.0;
         double accumulatedBalance = 0.0;
         int iterations = 50;
@@ -213,7 +215,7 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
             long size = 50L * 1024 * 1024; // Start with some 50MB segments
             String name = "_init_" + i;
             segmentInfos.add(createSegmentCommitInfo(name, size));
-            trackedSegmentSizes.add(size);
+            trackedSegmentSizes.put(name, size);
         }
 
         for (int i = 0; i < iterations; i++) {
@@ -222,7 +224,7 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
             String newSegmentName = "_sim_" + i;
             SegmentCommitInfo newSegment = createSegmentCommitInfo(newSegmentName, newSegmentSize);
             segmentInfos.add(newSegment);
-            trackedSegmentSizes.add(newSegmentSize);
+            trackedSegmentSizes.put(newSegmentName, newSegmentSize);
 
             // 2. Find Merges
             MergePolicy.MergeContext mergeContext = mock(MergePolicy.MergeContext.class);
@@ -235,7 +237,7 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
             }
 
             // 4. Measure Metrics at this step
-            SegmentTopologyMetrics metrics = calculateTopologyMetrics(trackedSegmentSizes);
+            SegmentTopologyMetrics metrics = calculateTopologyMetrics(new ArrayList<>(trackedSegmentSizes.values()));
             accumulatedVariance += metrics.variance;
             accumulatedBalance += metrics.balanceScore;
         }
@@ -243,21 +245,21 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
         return new PerformanceMetrics(accumulatedVariance / iterations, accumulatedBalance / iterations);
     }
 
-    private void applyMerges(SegmentInfos infos, List<Long> trackedSizes, MergeSpecification spec) throws IOException {
+    private void applyMerges(SegmentInfos infos, Map<String, Long> trackedSizes, MergeSpecification spec) throws IOException {
         for (OneMerge merge : spec.merges) {
             long newSize = 0;
             // Remove merged segments from infos and tracking
             for (SegmentCommitInfo info : merge.segments) {
                 newSize += info.sizeInBytes();
                 infos.remove(info);
-                trackedSizes.remove(Long.valueOf(info.sizeInBytes())); // Use object removal
+                trackedSizes.remove(info.info.name);
             }
 
             // Add new merged segment
             String mergedName = "_merged_" + StringHelper.idToString(StringHelper.randomId());
             SegmentCommitInfo mergedInfo = createSegmentCommitInfo(mergedName, newSize);
             infos.add(mergedInfo);
-            trackedSizes.add(newSize);
+            trackedSizes.put(mergedName, newSize);
         }
     }
 
