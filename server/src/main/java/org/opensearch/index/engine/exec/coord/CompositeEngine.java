@@ -356,6 +356,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
             // Refresh here so that catalog snapshot gets initialized
             // TODO : any better way to do this ?
+            initializeRefreshListeners(engineConfig);
             refresh("start");
             // TODO : how to extend this for Lucene ? where engine is a r/w engine
             // Create read specific engines for each format which is associated with shard
@@ -414,9 +415,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
         }
         logger.trace("created new CompositeEngine");
-
-        initializeRefreshListeners(engineConfig);
-
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
