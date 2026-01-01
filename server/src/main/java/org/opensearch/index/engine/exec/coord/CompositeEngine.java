@@ -317,7 +317,13 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             //Initialize CatalogSnapshotManager before loadWriterFiles to ensure stale files are cleaned up before loading
             this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath);
             try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()) {
-                this.engine.loadWriterFiles(catalogSnapshotReleasableRef.getRef());
+                CatalogSnapshot loadedSnapshot = catalogSnapshotReleasableRef.getRef();
+                this.engine.loadWriterFiles(loadedSnapshot);
+
+                if (loadedSnapshot != null) {
+                    long snapshotLastWriterGen = loadedSnapshot.getLastWriterGeneration();
+                    engine.updateWriterGenerationIfNeeded(snapshotLastWriterGen);
+                }
             } catch (Exception e) {
                 failEngine("unable to close releasable catalog snapshot while bootstrapping composite engine", e);
             }
@@ -843,6 +849,12 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
     public void finalizeReplication(CatalogSnapshot catalogSnapshot, ShardPath shardPath) throws IOException {
         catalogSnapshotManager.applyReplicationChanges(catalogSnapshot, shardPath);
+
+        if (catalogSnapshot != null) {
+            long maxGenerationInSnapshot = catalogSnapshot.getLastWriterGeneration();
+            engine.updateWriterGenerationIfNeeded(maxGenerationInSnapshot);
+        }
+
         updateSearchEngine();
     }
 
