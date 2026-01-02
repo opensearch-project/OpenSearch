@@ -81,7 +81,7 @@ public class ParquetWriterCreateBenchmark {
     @Benchmark
     public void benchmarkCreate() throws IOException {
         // This is what we're benchmarking - just writer creation
-        RustBridge.createWriter(filePath, writerCreationBenchmarkData.getArrowSchema().memoryAddress());
+        RustBridge.createWriter(filePath, writerCreationBenchmarkData.getArrowSchema().memoryAddress(), true);
     }
 
     private String generateTempFilePath() {

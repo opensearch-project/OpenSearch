@@ -294,6 +294,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.OPTIMIZED_INDEX_CONCURRENT_SEGMENT_SEARCH_MODE,
                 IndexSettings.OPTIMIZED_INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT,
 
+                IndexSettings.INDEX_COMPRESSION_ENABLED_SETTING,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();

@@ -6,6 +6,7 @@ import com.parquet.parquetdataformat.vsr.VSRManager;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
@@ -45,10 +46,16 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final VSRManager vsrManager;
     private final long writerGeneration;
 
-    public ParquetWriter(String file, Schema schema, long writerGeneration, ArrowBufferPool arrowBufferPool) {
+    public ParquetWriter(
+        String file,
+        Schema schema,
+        long writerGeneration,
+        ArrowBufferPool arrowBufferPool,
+        IndexSettings indexSettings
+    ) {
         this.file = file;
         this.schema = schema;
-        this.vsrManager = new VSRManager(file, schema, arrowBufferPool);
+        this.vsrManager = new VSRManager(file, schema, arrowBufferPool, indexSettings);
         this.writerGeneration = writerGeneration;
     }
 

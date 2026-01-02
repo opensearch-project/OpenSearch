@@ -48,7 +48,7 @@ public class TextDF extends Plugin implements DataFormat, DataSourcePlugin {
     }
 
     @Override
-    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath) {
+    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
         return  (IndexingExecutionEngine<T>) new TextEngine();
     }
 
