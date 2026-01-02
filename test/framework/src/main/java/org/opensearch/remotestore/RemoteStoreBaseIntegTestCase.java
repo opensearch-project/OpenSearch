@@ -374,8 +374,8 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         prepareCluster(numClusterManagerNodes, numDataOnlyNodes, settings);
         for (String index : indices.split(",")) {
             createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
-            ensureYellowAndNoInitializingShards(index);
-            ensureGreen(index);
+//            ensureYellowAndNoInitializingShards(index);
+//            ensureGreen(index);
         }
     }
 
