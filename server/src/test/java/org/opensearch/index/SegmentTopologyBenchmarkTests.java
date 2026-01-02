@@ -232,6 +232,9 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
             // 2. Find Merges
             MergePolicy.MergeContext mergeContext = mock(MergePolicy.MergeContext.class);
             when(mergeContext.getInfoStream()).thenReturn(org.apache.lucene.util.InfoStream.NO_OUTPUT);
+            when(mergeContext.getMergingSegments()).thenReturn(Collections.emptySet());
+            when(mergeContext.numDeletedDocs(any())).thenReturn(0);
+            when(mergeContext.numDeletesToMerge(any())).thenReturn(0);
             MergeSpecification spec = mergePolicy.findMerges(MergeTrigger.SEGMENT_FLUSH, segmentInfos, mergeContext);
 
             // 3. Apply Merges to update topology
