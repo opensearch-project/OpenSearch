@@ -13,6 +13,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.exec.FileStats;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
@@ -49,4 +50,9 @@ public abstract class SearchExecEngine<C extends SearchContext, S extends Engine
      * execute Fetch Phase
      */
     public abstract void executeFetchPhase(C context) throws IOException;
+
+    /**
+     * Fetch Segment Stats
+     */
+    public abstract Map<String, FileStats> fetchSegmentStats() throws IOException;
 }

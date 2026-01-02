@@ -118,7 +118,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             List<CatalogSnapshot.Segment> newSegmentList = new ArrayList<>();
             // flush to disk
             for (CompositeDataFormatWriter dataFormatWriter : dataFormatWriters) {
-                CatalogSnapshot.Segment newSegment = new CatalogSnapshot.Segment(0);
+                CatalogSnapshot.Segment newSegment = new CatalogSnapshot.Segment(dataFormatWriter.getWriterGeneration());
                 FileInfos fileInfos = dataFormatWriter.flush(null);
                 fileInfos.getWriterFilesMap().forEach((key, value) -> {
                     newSegment.addSearchableFiles(key.name(), value);
