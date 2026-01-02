@@ -92,12 +92,14 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
         PerformanceMetrics adaptivePerformance = simulateMergePerformance(adaptivePolicy);
 
         // Assertions: Verify that Adaptive policy improves topology metrics
-        // With @Seed("DEADBEEF"), the random sequence is fixed, allowing for strict regression protection.
+        // With @Seed("DEADBEEF"), the random sequence is fixed, allowing for strict
+        // regression protection.
 
         assertTrue("Default variance should be valid", defaultPerformance.variance >= 0.0);
         assertTrue("Adaptive variance should be valid", adaptivePerformance.variance >= 0.0);
 
-        // Assert relative improvement: Adaptive variance should be lower than or equal to default variance
+        // Assert relative improvement: Adaptive variance should be lower than or equal
+        // to default variance
         // In this specific seeded run, we expect adaptive to be better or comparable.
         assertTrue("Adaptive variance should be <= Default variance", adaptivePerformance.variance <= defaultPerformance.variance);
 
@@ -110,7 +112,8 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
 
         // Verify adaptive policy is functioning (consistency score > 0)
         assertTrue("Adaptive policy should produce a consistent topology", adaptivePerformance.consistencyScore > 0.0);
-        // Assert relative improvement: Adaptive consistency should be higher than or equal to default consistency
+        // Assert relative improvement: Adaptive consistency should be higher than or
+        // equal to default consistency
         assertTrue(
             "Adaptive consistency should be >= Default consistency",
             adaptivePerformance.consistencyScore >= defaultPerformance.consistencyScore
@@ -219,7 +222,7 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
         }
 
         for (int i = 0; i < iterations; i++) {
-            // 1. Simulate Flashing a new segment
+            // 1. Simulate Flushing a new segment
             long newSegmentSize = docsPerFlush * baseDocSize + randomIntBetween(0, 1024 * 1024); // Add some noise
             String newSegmentName = "_sim_" + i;
             SegmentCommitInfo newSegment = createSegmentCommitInfo(newSegmentName, newSegmentSize);
@@ -338,6 +341,9 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
     }
 
     private SegmentTopologyMetrics calculateTopologyMetrics(List<Long> segmentSizes) {
+        if (segmentSizes.isEmpty()) {
+            return new SegmentTopologyMetrics(0.0, 0.0);
+        }
         long totalSize = segmentSizes.stream().mapToLong(Long::longValue).sum();
         long meanSize = totalSize / segmentSizes.size();
 
