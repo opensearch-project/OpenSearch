@@ -32,6 +32,7 @@
 package org.opensearch.test;
 
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleListener;
@@ -84,4 +85,9 @@ public class NoopDiscovery implements Discovery {
 
     @Override
     public void close() {}
+
+    @Override
+    public void publishIndexMetadata(ClusterState clusterState) {
+
+    }
 }

@@ -50,6 +50,7 @@ import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigurat
 import org.opensearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.opensearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.opensearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
+import org.opensearch.cluster.metadata.IndexMetadataCoordinatorService;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -96,14 +97,7 @@ import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -201,6 +195,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private NodeConnectionsService nodeConnectionsService;
     private final ClusterSettings clusterSettings;
     private final ClusterManagerMetrics clusterManagerMetrics;
+    private final IndexMetadataCoordinatorService indexMetadataCoordinatorService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -226,6 +221,32 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         RemoteStoreNodeService remoteStoreNodeService,
         ClusterManagerMetrics clusterManagerMetrics,
         RemoteClusterStateService remoteClusterStateService
+    ) {
+        this(nodeName, settings, clusterSettings, transportService, namedWriteableRegistry, allocationService, clusterManagerService, persistedStateSupplier,
+            seedHostsProvider, clusterApplier, onJoinValidators, random, rerouteService, electionStrategy, nodeHealthService, persistedStateRegistry, remoteStoreNodeService, clusterManagerMetrics, remoteClusterStateService, null);
+    }
+
+    public Coordinator(
+        String nodeName,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        TransportService transportService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        AllocationService allocationService,
+        ClusterManagerService clusterManagerService,
+        Supplier<CoordinationState.PersistedState> persistedStateSupplier,
+        SeedHostsProvider seedHostsProvider,
+        ClusterApplier clusterApplier,
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators,
+        Random random,
+        RerouteService rerouteService,
+        ElectionStrategy electionStrategy,
+        NodeHealthService nodeHealthService,
+        PersistedStateRegistry persistedStateRegistry,
+        RemoteStoreNodeService remoteStoreNodeService,
+        ClusterManagerMetrics clusterManagerMetrics,
+        RemoteClusterStateService remoteClusterStateService,
+        IndexMetadataCoordinatorService indexMetadataCoordinatorService
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -329,6 +350,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.remoteStoreNodeService = remoteStoreNodeService;
         this.remoteClusterStateService = remoteClusterStateService;
         this.clusterSettings = clusterSettings;
+        this.indexMetadataCoordinatorService = indexMetadataCoordinatorService;
+        if (Objects.nonNull(indexMetadataCoordinatorService)) {
+            indexMetadataCoordinatorService.setClusterStateSupplier(this::getStateForClusterManagerService);
+        }
     }
 
     private void setPublishTimeout(TimeValue publishTimeout) {
@@ -1361,6 +1386,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         } else {
             return clusterState;
         }
+    }
+
+    @Override
+    public void publishIndexMetadata(ClusterState clusterState) {
+        coordinationState.get().uploadIndexMetadataState(clusterState);
     }
 
     @Override

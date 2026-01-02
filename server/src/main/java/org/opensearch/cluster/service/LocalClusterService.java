@@ -13,11 +13,13 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.coordination.ClusterStatePublisher;
+import org.opensearch.cluster.metadata.IndexMetadataCoordinatorService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -83,5 +85,16 @@ public class LocalClusterService extends ClusterService {
         final ClusterStateTaskExecutor<T> executor
     ) {
         throw new UnsupportedOperationException("Cannot submit cluster state update tasks when cluster manager service is not available");
+    }
+
+    @Override
+    public <T> void submitIndexMetadataUpdateTask(
+        String source,
+        T task,
+        ClusterStateTaskConfig config,
+        ClusterStateTaskExecutor<T> executor,
+        IndexMetadataCoordinatorService.IndexMetadataUpdateListener<T> listener
+    ) {
+        throw new UnsupportedOperationException("Cannot submit index metadata update tasks when index metadata coordinator is not available");
     }
 }

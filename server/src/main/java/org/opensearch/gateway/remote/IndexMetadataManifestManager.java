@@ -149,7 +149,7 @@ public class IndexMetadataManifestManager {
         lastUploadedIndexManifestVersion = newManifestVersion;
         logger.debug("Updated index metadata manifest version: {}", newManifestVersion);
 
-        return remoteIndexManifest.getUploadedMetadata().getUploadedFilename();
+        return newManifestVersion;
     }
 
     /**

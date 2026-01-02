@@ -43,6 +43,7 @@ import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.delete.TransportDeleteIndexAction;
@@ -156,6 +157,7 @@ public class ClusterStateChanges {
     private final TransportUpdateSettingsAction transportUpdateSettingsAction;
     private final TransportClusterRerouteAction transportClusterRerouteAction;
     private final TransportCreateIndexAction transportCreateIndexAction;
+    private final MetadataCreateIndexService createIndexService;
     private final RepositoriesService repositoriesService;
     private final RemoteStoreNodeService remoteStoreNodeService;
 
@@ -323,6 +325,7 @@ public class ClusterStateChanges {
             DefaultRemoteStoreSettings.INSTANCE,
             null
         );
+        this.createIndexService = createIndexService;
 
         transportCloseIndexAction = new TransportCloseIndexAction(
             SETTINGS,
@@ -395,7 +398,22 @@ public class ClusterStateChanges {
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
-        return execute(transportCreateIndexAction, request, state);
+        try {
+            CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
+                request.cause(),
+                request.index(),
+                request.index()
+            ).ackTimeout(request.timeout())
+                .clusterManagerNodeTimeout(request.clusterManagerNodeTimeout())
+                .settings(request.settings())
+                .mappings(request.mappings())
+                .aliases(request.aliases())
+                .waitForActiveShards(request.waitForActiveShards());
+
+            return createIndexService.applyCreateIndexRequest(state, updateRequest, false);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public ClusterState closeIndices(ClusterState state, CloseIndexRequest request) {

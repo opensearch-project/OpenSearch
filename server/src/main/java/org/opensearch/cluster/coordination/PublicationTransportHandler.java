@@ -248,7 +248,7 @@ public class PublicationTransportHandler {
             }
 
             // Fetch IndexMetadataManifest if available
-            IndexMetadataManifest indexManifest = remoteClusterStateService.getIndexMetadataManifestByFileName();
+            IndexMetadataManifest indexManifest = remoteClusterStateService.getLatestIndexMetadataManifest();
 
             final ClusterState lastSeen = lastSeenClusterState.get();
             if (lastSeen == null) {

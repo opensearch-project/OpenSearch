@@ -43,6 +43,7 @@ import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.StreamNodeConnectionsService;
+import org.opensearch.cluster.metadata.IndexMetadataCoordinatorService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.RerouteService;
@@ -70,6 +71,9 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final ClusterManagerService clusterManagerService;
 
     private final ClusterApplierService clusterApplierService;
+
+    private final IndexMetadataCoordinatorService indexMetadataCoordinatorService;
+
 
     public static final org.opensearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_METADATA = Setting.prefixKeySetting(
         "cluster.metadata.",
@@ -107,7 +111,8 @@ public class ClusterService extends AbstractLifecycleComponent {
             settings,
             clusterSettings,
             new ClusterManagerService(settings, clusterSettings, threadPool, clusterManagerMetrics),
-            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, clusterManagerMetrics)
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, clusterManagerMetrics),
+            new IndexMetadataCoordinatorService(threadPool)
         );
     }
 
@@ -116,6 +121,22 @@ public class ClusterService extends AbstractLifecycleComponent {
         ClusterSettings clusterSettings,
         ClusterManagerService clusterManagerService,
         ClusterApplierService clusterApplierService
+    ) {
+        this(
+            settings,
+            clusterSettings,
+            clusterManagerService,
+            clusterApplierService,
+            null
+        );
+    }
+
+    public ClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ClusterManagerService clusterManagerService,
+        ClusterApplierService clusterApplierService,
+        IndexMetadataCoordinatorService indexMetadataCoordinatorService
     ) {
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
@@ -126,6 +147,8 @@ public class ClusterService extends AbstractLifecycleComponent {
         // Add a no-op update consumer so changes are logged
         this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_METADATA, (first, second) -> {}, (first, second) -> {});
         this.clusterApplierService = clusterApplierService;
+        this.indexMetadataCoordinatorService = indexMetadataCoordinatorService;
+
     }
 
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
@@ -255,6 +278,10 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterManagerService;
     }
 
+    public IndexMetadataCoordinatorService getIndexMetadataCoordinatorService() {
+        return indexMetadataCoordinatorService;
+    }
+
     /**
      * Getter and Setter for IndexingPressureService, This method exposes IndexingPressureService stats to other plugins for usage.
      * Although Indexing Pressure instances can be accessed via Node and NodeService class but none of them are
@@ -378,5 +405,18 @@ public class ClusterService extends AbstractLifecycleComponent {
         final ClusterStateTaskExecutor<T> executor
     ) {
         clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
+    }
+
+    /**
+     * Submits an index metadata update task without publishing to the cluster.
+     */
+    public <T> void submitIndexMetadataUpdateTask(
+        String source,
+        T task,
+        ClusterStateTaskConfig config,
+        ClusterStateTaskExecutor<T> executor,
+        IndexMetadataCoordinatorService.IndexMetadataUpdateListener<T> listener
+    ) {
+        indexMetadataCoordinatorService.submitIndexMetadataUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
     }
 }

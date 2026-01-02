@@ -63,8 +63,10 @@ import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.IndexMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
+import org.opensearch.gateway.remote.model.RemoteIndexMetadataManifestInfo;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.MetadataUpgrader;
@@ -708,6 +710,8 @@ public class GatewayMetaState implements Closeable {
 
         private ClusterState lastAcceptedState;
         private ClusterMetadataManifest lastAcceptedManifest;
+        private IndexMetadataManifest lastAcceptedIndexMetadataManifest;
+        private String lastAcceptedIndexMetadataManifestVersion;
 
         private String lastUploadedManifestFile;
         private final RemoteClusterStateService remoteClusterStateService;
@@ -797,6 +801,14 @@ public class GatewayMetaState implements Closeable {
             this.lastAcceptedManifest = manifest;
         }
 
+        public void setLastAcceptedIndexMetadataManifest(IndexMetadataManifest manifest) {
+            this.lastAcceptedIndexMetadataManifest = manifest;
+        }
+
+        public void setLastAcceptedIndexMetadataManifestVersion(String version) {
+            this.lastAcceptedIndexMetadataManifestVersion = version;
+        }
+
         @Override
         public PersistedStateStats getStats() {
             return remoteClusterStateService.getUploadStats();
@@ -821,6 +833,15 @@ public class GatewayMetaState implements Closeable {
                 || lastAcceptedManifest == null
                 || (remoteClusterStateService.isRemotePublicationEnabled() == false && lastAcceptedState.term() != clusterState.term())
                 || lastAcceptedManifest.getOpensearchVersion() != Version.CURRENT) {
+                return true;
+            }
+            return false;
+        }
+
+        private boolean shouldWriteFullIndexMetadataState() {
+            if (lastAcceptedState == null || lastAcceptedIndexMetadataManifestVersion == null
+                || lastAcceptedIndexMetadataManifest == null
+                || lastAcceptedIndexMetadataManifest.getOpensearchVersion() != Version.CURRENT) {
                 return true;
             }
             return false;
@@ -858,6 +879,37 @@ public class GatewayMetaState implements Closeable {
                     setLastAcceptedManifest(ClusterMetadataManifest.builder(lastAcceptedManifest).committed(true).build());
                 }
                 lastAcceptedState = clusterState;
+            } catch (Exception e) {
+                handleExceptionOnWrite(e);
+            }
+        }
+
+        @Override
+        public void updateIndexMetadataState(ClusterState clusterState) {
+            assert clusterState.getNodes().isLocalNodeIndexMetadataCoordinator() == true : "Only IMC node can update index metadata";
+
+            RemoteIndexMetadataManifestInfo manifestInfo;
+
+            logger.info("Writing IndexMetadata and IndexMetadata Manifest");
+            try {
+                if (shouldWriteFullIndexMetadataState()) {
+                    manifestInfo = remoteClusterStateService.writeFullIndexMetadata(
+                        clusterState,
+                        lastAcceptedState == null ? ClusterState.EMPTY_STATE : lastAcceptedState
+                    );
+                } else {
+                    manifestInfo = remoteClusterStateService.writeIncrementalIndexMetadata(
+                        lastAcceptedState,
+                        clusterState,
+                        lastAcceptedIndexMetadataManifest
+                    );
+                }
+
+                assert manifestInfo != null : "ManifestInfo is null";
+
+                setLastAcceptedIndexMetadataManifest(manifestInfo.getIndexMetadataManifest());
+                lastAcceptedIndexMetadataManifestVersion = manifestInfo.getManifestVersion();
+                setLastAcceptedState(clusterState);
             } catch (Exception e) {
                 handleExceptionOnWrite(e);
             }

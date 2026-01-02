@@ -587,6 +587,12 @@ public class CoordinationState {
         }
     }
 
+
+    public void uploadIndexMetadataState(ClusterState clusterState) {
+        assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
+        persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).updateIndexMetadataState(clusterState);
+    }
+
     /**
      * This method should be called just before sending the ApplyCommitRequest to all cluster nodes.
      */
@@ -725,6 +731,10 @@ public class CoordinationState {
             if (metadataBuilder != null) {
                 setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build());
             }
+        }
+
+        default void updateIndexMetadataState(ClusterState clusterState) {
+            throw new  UnsupportedOperationException("updateIndexMetadataState is not supported");
         }
 
         default Metadata.Builder commitVotingConfiguration(ClusterState lastAcceptedState) {

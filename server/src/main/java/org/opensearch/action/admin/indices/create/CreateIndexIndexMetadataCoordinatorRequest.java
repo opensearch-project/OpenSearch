@@ -30,34 +30,29 @@
  * GitHub history for details.
  */
 
-package org.opensearch.discovery;
+package org.opensearch.action.admin.indices.create;
 
-import org.opensearch.cluster.NodeConnectionsService;
-import org.opensearch.cluster.coordination.ClusterStatePublisher;
-import org.opensearch.cluster.coordination.IndexMetadataStatePublisher;
-import org.opensearch.common.lifecycle.LifecycleComponent;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.shrink.ResizeType;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
+import org.opensearch.cluster.block.ClusterBlock;
+import org.opensearch.cluster.metadata.Context;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
- * A pluggable module allowing to implement discovery of other nodes, publishing of the cluster
- * state to all nodes, electing a cluster-manager of the cluster that raises cluster state change
- * events.
+ * Cluster state update request that allows to create an index
  *
  * @opensearch.internal
  */
-public interface Discovery extends LifecycleComponent, ClusterStatePublisher, IndexMetadataStatePublisher {
+public class CreateIndexIndexMetadataCoordinatorRequest extends CreateIndexClusterStateUpdateRequest {
 
-    /**
-     * @return stats about the discovery
-     */
-    DiscoveryStats stats();
-
-    /**
-     * Triggers the first join cycle
-     */
-    void startInitialJoin();
-
-    /**
-     * Sets the NodeConnectionsService which is an abstraction used for connection management
-     */
-    void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService);
+    public CreateIndexIndexMetadataCoordinatorRequest(String cause, String index, String providedName) {
+        super(cause, index, providedName);
+    }
 }

@@ -6,37 +6,13 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.action.admin.indices.create;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportIndicesResolvingAction;
-import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
+import org.opensearch.action.support.indexmetadatacoordinator.TransportIndexMetadataCoordinatorAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -55,13 +31,10 @@ import java.io.IOException;
 import java.util.stream.Collectors;
 
 /**
- * Create index action.
- *
- * @opensearch.internal
+ * Transport action for creating an index
  */
-public class TransportCreateIndexAction extends TransportClusterManagerNodeAction<CreateIndexRequest, CreateIndexResponse>
-    implements
-        TransportIndicesResolvingAction<CreateIndexRequest> {
+public class TransportCreateIndexAction extends TransportIndexMetadataCoordinatorAction<CreateIndexRequest, CreateIndexResponse> implements
+    TransportIndicesResolvingAction<CreateIndexRequest> {
 
     private final MetadataCreateIndexService createIndexService;
     private final MappingTransformerRegistry mappingTransformerRegistry;
@@ -101,22 +74,23 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
     }
 
     @Override
-    protected ClusterBlockException checkBlock(CreateIndexRequest request, ClusterState state) {
-        ClusterBlockException clusterBlockException = state.blocks()
-            .indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.index());
-
-        if (clusterBlockException == null) {
-            return state.blocks().createIndexBlockedException(ClusterBlockLevel.CREATE_INDEX);
-        }
-        return clusterBlockException;
-    }
-
-    @Override
-    protected void clusterManagerOperation(
-        final CreateIndexRequest request,
-        final ClusterState state,
-        final ActionListener<CreateIndexResponse> listener
+    protected void indexMetadataCoordinatorOperation(
+        CreateIndexRequest request,
+        ClusterState state,
+        ActionListener<CreateIndexResponse> listener
     ) {
+
+        assert state.nodes().getIndexMetadataCoordinatorNodeId() != null
+            : "Index Metadata Coordinator node is not assigned yet";
+
+        String imcNodeID = state.nodes().getIndexMetadataCoordinatorNodeId();
+        String localNodeID = clusterService.localNode().getId();
+
+        assert imcNodeID.equals(localNodeID)
+            : "Current node is not Index Metadata Coordinator Node";
+
+        logger.info("Received request to create index via Index Metadata Coordinator");
+
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
@@ -126,7 +100,7 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
 
         final String finalCause = cause;
         final ActionListener<String> mappingTransformListener = ActionListener.wrap(transformedMappings -> {
-            final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
+            final CreateIndexIndexMetadataCoordinatorRequest updateRequest = (CreateIndexIndexMetadataCoordinatorRequest) new CreateIndexIndexMetadataCoordinatorRequest(
                 finalCause,
                 indexName,
                 request.index()
@@ -138,7 +112,7 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
                 .context(request.context())
                 .waitForActiveShards(request.waitForActiveShards());
 
-            createIndexService.createIndex(
+            createIndexService.createIndexViaIMC(
                 updateRequest,
                 ActionListener.map(
                     listener,
@@ -166,5 +140,16 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
 
     private String resolveIndexName(CreateIndexRequest request) {
         return indexNameExpressionResolver.resolveDateMathExpression(request.index());
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(CreateIndexRequest request, ClusterState state) {
+        ClusterBlockException clusterBlockException = state.blocks()
+            .indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.index());
+
+        if (clusterBlockException == null) {
+            return state.blocks().createIndexBlockedException(ClusterBlockLevel.CREATE_INDEX);
+        }
+        return clusterBlockException;
     }
 }
