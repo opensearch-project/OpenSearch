@@ -448,18 +448,18 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testInnerToProtoWithNullHeaders() throws IOException {
-        // Create an exception with empty header values
+        // Create an exception with null header values
         OpenSearchException exception = new OpenSearchException("Test exception");
-        exception.addHeader("empty-header", Collections.emptyList());
+        exception.addHeader("null-header", null);
 
         // Convert to Protocol Buffer
         ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception);
 
-        // Verify the conversion - empty headers should not be added
+        // Verify the conversion - null headers should not be added
         assertNotNull("ErrorCause should not be null", errorCause);
         assertEquals("Should have the correct type", "exception", errorCause.getType());
         assertEquals("Should have the correct reason", "Test exception", errorCause.getReason());
-        // Empty headers should not be added to the proto
+        // Null headers should not be added to the proto
         assertEquals("Should have no headers", 0, errorCause.getHeaderCount());
     }
 
