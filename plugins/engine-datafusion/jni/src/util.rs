@@ -5,16 +5,17 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use datafusion::arrow::array::RecordBatch;
-use jni::objects::{GlobalRef, JObject, JObjectArray, JString};
+use jni::objects::{GlobalRef, JMap, JObject, JObjectArray, JString, JValue};
 use jni::sys::jlong;
 use jni::JNIEnv;
 use object_store::{path::Path as ObjectPath, ObjectMeta};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
+use std::sync::Arc;
 use datafusion::error::DataFusionError;
 use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use crate::CustomFileMeta;
+use crate::{CustomFileMeta, FileStats};
 
 
 /// Set error message from a result using a Consumer<String> Java callback
@@ -206,11 +207,38 @@ pub fn create_object_meta_from_file(file_path: &str) -> Result<Vec<ObjectMeta>, 
     Ok(vec![object_meta])
 }
 
+pub async fn fetch_segment_statistics(
+    files_meta: Arc<Vec<CustomFileMeta>>,
+) -> Result<HashMap<String, FileStats>, DataFusionError> {
+    let mut stats_map = HashMap::with_capacity(files_meta.len());
+
+    for file_meta in files_meta.iter() {
+        let object_meta = &file_meta.object_meta;
+        let num_rows: i64 = file_meta.row_group_row_counts.iter().sum();
+        let file_stats = FileStats::new(object_meta.size, num_rows);
+
+        let filename = object_meta
+            .location
+            .filename()
+            .ok_or_else(|| {
+                DataFusionError::Execution(format!(
+                    "Object path has no filename: {}",
+                    object_meta.location
+                ))
+            })?
+            .to_string();
+
+        stats_map.insert(filename, file_stats);
+    }
+
+    Ok(stats_map)
+}
+
 /// Set success result by calling an ActionListener
 pub fn set_action_listener_ok(env: &mut JNIEnv, listener: JObject, value: jlong) {
     let long_obj = env.new_object("java/lang/Long", "(J)V", &[value.into()])
         .expect("Failed to create Long object");
-    
+
     env.call_method(
         listener,
         "onResponse",
@@ -229,7 +257,7 @@ pub fn set_action_listener_error<T: Error>(env: &mut JNIEnv, listener: JObject, 
         "(Ljava/lang/String;)V",
         &[(&error_msg).into()],
     ).expect("Failed to create exception");
-    
+
     env.call_method(
         listener,
         "onFailure",
@@ -239,11 +267,40 @@ pub fn set_action_listener_error<T: Error>(env: &mut JNIEnv, listener: JObject, 
     .expect("Failed to call ActionListener onFailure");
 }
 
+/// Set success result by calling an ActionListener
+pub fn set_action_listener_ok_global_with_map(env: &mut JNIEnv, listener: &GlobalRef, map: &HashMap<String, FileStats>) {
+    let hash_map_obj = env.new_object("java/util/HashMap", "()V", &[])
+    .expect("Failed to create HashMap");
+    let jmap = JMap::from_env(env, &hash_map_obj)
+    .expect("Failed to create JMap");
+
+    for (key, value) in map {
+        let j_key = env.new_string(key)
+        .expect("Failed to create String object");
+        let j_value = env.new_object(
+            "org/opensearch/index/engine/exec/FileStats",
+            "(JJ)V",
+            &[JValue::Long(value.size() as jlong), JValue::Long(value.num_rows() as jlong)],
+        ).expect("Failed to create Long object");
+
+        jmap.put(env, &JObject::from(j_key), &j_value)
+        .expect("Failed to populate JMap");
+    }
+
+    env.call_method(
+        listener.as_obj(),
+        "onResponse",
+        "(Ljava/lang/Object;)V",
+        &[(&hash_map_obj).into()],
+    )
+    .expect("Failed to call ActionListener onResponse");
+}
+
 /// Set success result by calling an ActionListener with GlobalRef
 pub fn set_action_listener_ok_global(env: &mut JNIEnv, listener: &GlobalRef, value: jlong) {
     let long_obj = env.new_object("java/lang/Long", "(J)V", &[value.into()])
         .expect("Failed to create Long object");
-    
+
     env.call_method(
         listener.as_obj(),
         "onResponse",
@@ -262,7 +319,7 @@ pub fn set_action_listener_error_global<T: Error>(env: &mut JNIEnv, listener: &G
         "(Ljava/lang/String;)V",
         &[(&error_msg).into()],
     ).expect("Failed to create exception");
-    
+
     env.call_method(
         listener.as_obj(),
         "onFailure",

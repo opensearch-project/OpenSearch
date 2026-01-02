@@ -13,7 +13,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.search.aggregations.SearchResultsCollector;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
