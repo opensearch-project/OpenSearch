@@ -186,8 +186,14 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
-import org.opensearch.index.store.*;
+import org.opensearch.index.store.CompositeStoreDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteStoreFileDownloader;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
+import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.StoreStats;
+import org.opensearch.index.store.UploadedSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteFsTranslog;
@@ -5652,31 +5658,43 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // are uploaded to the remote segment store.
         RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
 
-        Map<FileMetadata, UploadedSegmentMetadata> uploadedSegments = remoteDirectory
-            .getSegmentsUploadedToRemoteStore()
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getKey().startsWith(IndexFileNames.SEGMENTS) == false)
-            .collect(Collectors.toMap(
-                entry -> new FileMetadata(entry.getKey()),
-                Map.Entry::getValue
-            ));
+        Map<String, UploadedSegmentMetadata> uploadedSegments = remoteDirectory.getSegmentsUploadedToRemoteStore();
+        Map<String, UploadedSegmentMetadata> filteredSegments = new HashMap<>();
+        for (Map.Entry<String, UploadedSegmentMetadata> entry : uploadedSegments.entrySet()) {
+            if (!entry.getKey().startsWith(IndexFileNames.SEGMENTS)) {
+                filteredSegments.put(entry.getKey(), entry.getValue());
+            }
+        }
         store.incRef();
         remoteStore.incRef();
         try {
-            final CompositeStoreDirectory storeDirectory = store.compositeStoreDirectory();
+            final Directory storeDirectory;
             if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
-                for (FileMetadata fileMetadata : uploadedSegments.keySet()) {
-                    long checksum = Long.parseLong(uploadedSegments.get(fileMetadata).getChecksum());
-                    if (overrideLocal || localDirectoryContains(storeDirectory, fileMetadata, checksum) == false) {
-                        recoveryState.getIndex().addFileDetail(fileMetadata.file(), uploadedSegments.get(fileMetadata).getLength(), false);
+                storeDirectory = new StoreRecovery.StatsDirectoryWrapper(store.directory(), recoveryState.getIndex());
+                for (String file : filteredSegments.keySet()) {
+                    long checksum = Long.parseLong(filteredSegments.get(file).getChecksum());
+                    if (overrideLocal || localDirectoryContainsFile(storeDirectory, file, checksum) == false) {
+                        recoveryState.getIndex().addFileDetail(file, filteredSegments.get(file).getLength(), false);
                     } else {
-                        recoveryState.getIndex().addFileDetail(fileMetadata.file(), uploadedSegments.get(fileMetadata).getLength(), true);
+                        recoveryState.getIndex().addFileDetail(file, filteredSegments.get(file).getLength(), true);
                     }
                 }
+            } else {
+                storeDirectory = store.directory();
             }
             if (indexSettings.isWarmIndex() == false) {
-                copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal, onFileSync);
+                if (isOptimizedIndex()) {
+                    // Convert to format-aware map only for optimized indices
+                    Map<FileMetadata, UploadedSegmentMetadata> formatAwareSegments = new HashMap<>();
+                    for (Map.Entry<String, UploadedSegmentMetadata> entry : filteredSegments.entrySet()) {
+                        formatAwareSegments.put(new FileMetadata(entry.getKey()), entry.getValue());
+                    }
+                    CompositeStoreDirectory compositeDir = store.compositeStoreDirectory();
+                    copySegmentFiles(compositeDir, remoteDirectory, null, formatAwareSegments, overrideLocal, onFileSync);
+                } else {
+                    // Use original String-based logic for non-optimized indices
+                    copySegmentFiles(storeDirectory, remoteDirectory, null, filteredSegments, overrideLocal, onFileSync);
+                }
             }
 
             if (remoteSegmentMetadata != null) {
@@ -5799,6 +5817,54 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return segmentNFile;
     }
 
+    private String copySegmentFiles(
+        Directory storeDirectory,
+        RemoteSegmentStoreDirectory sourceRemoteDirectory,
+        RemoteSegmentStoreDirectory targetRemoteDirectory,
+        Map<String, UploadedSegmentMetadata> uploadedSegments,
+        boolean overrideLocal,
+        final Runnable onFileSync
+    )  throws IOException {
+        Set<String> toDownloadSegments = new HashSet<>();
+        Set<String> skippedSegments = new HashSet<>();
+        String segmentNFile = null;
+
+        try {
+            if (overrideLocal) {
+                for (String file : storeDirectory.listAll()) {
+                    storeDirectory.deleteFile(file);
+                }
+            }
+
+            for (String file : uploadedSegments.keySet()) {
+                long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
+                if (overrideLocal || localDirectoryContainsFile(storeDirectory, file, checksum) == false) {
+                    toDownloadSegments.add(file);
+                } else {
+                    skippedSegments.add(file);
+                }
+
+                if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                    assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
+                    segmentNFile = file;
+                }
+            }
+
+            if (toDownloadSegments.isEmpty() == false) {
+                try {
+                    fileDownloader.download(sourceRemoteDirectory, storeDirectory, targetRemoteDirectory, toDownloadSegments, onFileSync);
+                } catch (Exception e) {
+                    throw new IOException("Error occurred when downloading segments from remote store", e);
+                }
+            }
+        } finally {
+            logger.trace("Downloaded segments here: {}", toDownloadSegments);
+            logger.trace("Skipped download for segments here: {}", skippedSegments);
+        }
+
+        return segmentNFile;
+    }
+
     boolean localDirectoryContains(CompositeStoreDirectory localDirectory, FileMetadata fileMetadata, long checksum) throws IOException {
         try {
             // Use existing CompositeStoreDirectory checksum calculation (format-aware)
@@ -5832,29 +5898,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return false;
     }
 
-    // ToDo: @Kamal
-    @Deprecated
-    boolean localDirectoryContains(Directory localDirectory, FileMetadata fileMetadata, long checksum) throws IOException {
-        try (IndexInput indexInput = localDirectory.openInput(fileMetadata.file(), IOContext.READONCE)) {
+
+    boolean localDirectoryContainsFile(Directory localDirectory, String fileName, long checksum) throws IOException {
+        try (IndexInput indexInput = localDirectory.openInput(fileName, IOContext.READONCE)) {
             if (checksum == CodecUtil.retrieveChecksum(indexInput)) {
                 return true;
             } else {
-                logger.warn("Checksum mismatch between local and remote segment file: {}, will override local file", fileMetadata);
+                logger.warn("Checksum mismatch between local and remote segment file: {}, will override local file", fileName);
                 if (isReadAllowed() == false) {
-                    localDirectory.deleteFile(fileMetadata.file());
+                    localDirectory.deleteFile(fileName);
                 } else {
-                    // segment conflict with remote store while the shard is serving reads.
-                    failShard("Local copy of segment " + fileMetadata.file() + " has a different checksum than the version in remote store", null);
+                    failShard("Local copy of segment " + fileName + " has a different checksum than the version in remote store", null);
                 }
             }
         } catch (NoSuchFileException | FileNotFoundException e) {
-            logger.debug("File {} does not exist in local FS, downloading from remote store", fileMetadata.file());
+            logger.debug("File {} does not exist in local FS, downloading from remote store", fileName);
         } catch (IOException e) {
-            logger.warn("Exception while reading checksum of file: {}, this can happen if file is corrupted", fileMetadata.file());
-            // For any other exception on reading checksum, we delete the file to re-download again
-            localDirectory.deleteFile(fileMetadata.file());
+            logger.warn("Exception while reading checksum of file: {}, this can happen if file is corrupted", fileName, e);
+            localDirectory.deleteFile(fileName);
         }
-
         return false;
     }
 
