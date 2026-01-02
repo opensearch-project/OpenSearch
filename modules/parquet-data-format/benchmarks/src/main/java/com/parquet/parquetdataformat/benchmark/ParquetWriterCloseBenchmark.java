@@ -60,7 +60,7 @@ public class ParquetWriterCloseBenchmark {
         writerCreationBenchmarkData = generator.generate("simple", fieldCount, 0);
         writerWriteBenchmarkData = generator.generate("simple", fieldCount, recordCount);
         filePath = generateTempFilePath();
-        RustBridge.createWriter(filePath, writerCreationBenchmarkData.getArrowSchema().memoryAddress());
+        RustBridge.createWriter(filePath, writerCreationBenchmarkData.getArrowSchema().memoryAddress(), true);
         RustBridge.write(filePath, writerWriteBenchmarkData.getArrowArray().memoryAddress(), writerWriteBenchmarkData.getArrowSchema().memoryAddress());
     }
 

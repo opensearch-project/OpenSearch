@@ -280,7 +280,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 mapperService,
                 pluginsService,
                 shardPath,
-                lastCommittedWriterGeneration.incrementAndGet()
+                lastCommittedWriterGeneration.incrementAndGet(),
+                indexSettings
             );
             //Initialize CatalogSnapshotManager before loadWriterFiles to ensure stale files are cleaned up before loading
             this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath);

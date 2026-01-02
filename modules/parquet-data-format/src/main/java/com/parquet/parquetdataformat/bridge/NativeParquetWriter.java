@@ -8,6 +8,8 @@
 
 package com.parquet.parquetdataformat.bridge;
 
+import org.opensearch.index.IndexSettings;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,9 +28,10 @@ public class NativeParquetWriter implements Closeable {
      * @param schemaAddress Arrow C Data Interface schema pointer
      * @throws IOException if writer creation fails
      */
-    public NativeParquetWriter(String filePath, long schemaAddress) throws IOException {
+    public NativeParquetWriter(String filePath, long schemaAddress, IndexSettings indexSettings) throws IOException {
         this.filePath = filePath;
-        RustBridge.createWriter(filePath, schemaAddress);
+        final boolean isCompressionEnabled = indexSettings.isCompressionEnabled();
+        RustBridge.createWriter(filePath, schemaAddress, isCompressionEnabled);
     }
 
     /**

@@ -16,6 +16,7 @@ import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
 
@@ -42,9 +43,10 @@ public class VSRManager implements AutoCloseable {
     private final String fileName;
     private final VSRPool vsrPool;
     private NativeParquetWriter writer;
+    private final IndexSettings indexSettings;
 
 
-    public VSRManager(String fileName, Schema schema, ArrowBufferPool arrowBufferPool) {
+    public VSRManager(String fileName, Schema schema, ArrowBufferPool arrowBufferPool, IndexSettings indexSettings) {
         this.fileName = fileName;
         this.schema = schema;
 
@@ -54,6 +56,8 @@ public class VSRManager implements AutoCloseable {
         // Get active VSR from pool
         this.managedVSR.set(vsrPool.getActiveVSR());
 
+        this.indexSettings = indexSettings;
+
         // Initialize writer lazily to avoid crashes
         initializeWriter();
     }
@@ -61,7 +65,7 @@ public class VSRManager implements AutoCloseable {
     private void initializeWriter() {
         try {
             try (ArrowExport export = managedVSR.get().exportSchema()) {
-                writer = new NativeParquetWriter(fileName, export.getSchemaAddress());
+                writer = new NativeParquetWriter(fileName, export.getSchemaAddress(), indexSettings);
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
