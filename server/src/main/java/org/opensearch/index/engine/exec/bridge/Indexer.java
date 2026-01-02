@@ -35,6 +35,12 @@ import static org.opensearch.index.engine.Engine.HISTORY_UUID_KEY;
 public interface Indexer extends LifecycleAware {
 
     /**
+     * Returns the engine configuration for this indexer.
+     * @return the engine configuration
+     */
+    EngineConfig config();
+
+    /**
      * Perform document index operation on the engine
      * @param index operation to perform
      * @return {@link Engine.IndexResult} containing updated translog location, version and
@@ -162,11 +168,6 @@ public interface Indexer extends LifecycleAware {
     }
 
     default long currentOngoingRefreshCheckpoint() {
-        throw new UnsupportedOperationException();
-    }
-
-    default EngineConfig config()
-    {
         throw new UnsupportedOperationException();
     }
 

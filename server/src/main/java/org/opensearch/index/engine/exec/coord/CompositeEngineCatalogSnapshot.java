@@ -71,30 +71,20 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
             String value = in.readString();
             userData.put(key, value);
         }
-        logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Read userData with {} entries: keys={}", userDataSize, userData.keySet());
 
         this.lastWriterGeneration = in.readLong();
-        logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Read lastWriterGeneration={}", lastWriterGeneration);
 
         int segmentCount = in.readVInt();
-        logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Reading {} segments", segmentCount);
         this.segmentList = new ArrayList<>(segmentCount);
         for (int i = 0; i < segmentCount; i++) {
-            Segment segment = new Segment(in);
-            segmentList.add(segment);
-            logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Segment[{}]: files={}", i, segment.getDFGroupedSearchableFiles());
+            segmentList.add(new Segment(in));
         }
 
         // Rebuild dfGroupedSearchableFiles from segmentList
         this.dfGroupedSearchableFiles = new HashMap<>();
         segmentList.forEach(segment -> segment.getDFGroupedSearchableFiles().forEach((dataFormat, writerFiles) -> {
             dfGroupedSearchableFiles.computeIfAbsent(dataFormat, k -> new ArrayList<>()).add(writerFiles);
-            logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Rebuilt dfGroupedSearchableFiles for format={}: writerGeneration={}", 
-                       dataFormat, writerFiles.getWriterGeneration());
         }));
-        
-        logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Completed. Final lastWriterGeneration={}, segmentCount={}, dataFormats={}",
-                   lastWriterGeneration, segmentList.size(), dfGroupedSearchableFiles.keySet());
     }
 
     public void remapPaths(Path newShardDataPath) {
@@ -259,5 +249,4 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
     public String toString() {
         return "CatalogSnapshot{" + "id=" + generation + ", version=" + version + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + ", List of Segment= " + segmentList + ", userData=" + userData +'}';
     }
-
 }

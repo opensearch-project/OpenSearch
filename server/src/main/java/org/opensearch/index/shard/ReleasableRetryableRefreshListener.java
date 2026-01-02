@@ -67,6 +67,11 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
         // TODO CompositeEngine filters CatalogSnapshotAwareListeners, keeping this for now
 
         afterRefresh(didRefresh);
+        try {
+           // catalogSnapshot.close();
+        } catch (Exception ex) {
+
+        }
     }
 
     @Override

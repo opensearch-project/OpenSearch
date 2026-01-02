@@ -292,6 +292,7 @@ final class DefaultSearchContext extends SearchContext {
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
         this.isStreamSearch = isStreamSearch;
+        requestShouldUseConcurrentSearch.set(false);
     }
 
     DefaultSearchContext(

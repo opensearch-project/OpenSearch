@@ -71,7 +71,6 @@ public class CatalogSnapshotManager {
             latestCatalogSnapshot.setCatalogSnapshotMap(catalogSnapshotMap);
             logger.info("[CATALOG_SNAPSHOT_MANAGER] Using restored CatalogSnapshot");
         } else {
-            logger.info("[CATALOG_SNAPSHOT_MANAGER] No CatalogSnapshot found in commit, creating new empty snapshot");
             latestCatalogSnapshot = new CompositeEngineCatalogSnapshot(1, 1, new ArrayList<>(), catalogSnapshotMap, indexFileDeleter::get);
             catalogSnapshotMap.put(latestCatalogSnapshot.getId(), latestCatalogSnapshot);
             logger.info("[CATALOG_SNAPSHOT_MANAGER] Created new empty CatalogSnapshot: id={}, lastWriterGeneration={}",
@@ -158,9 +157,6 @@ public class CatalogSnapshotManager {
             segmentList.add(0, segmentToAdd);
         }
         CompositeEngineCatalogSnapshot newCatSnap = new CompositeEngineCatalogSnapshot(latestCatalogSnapshot.getId() + 1, latestCatalogSnapshot.getVersion() + 1, segmentList, catalogSnapshotMap, indexFileDeleter::get);
-
-        // Note: userData will be populated in CompositeEngine.flush() before serialization
-        // when this snapshot is committed to disk
 
         // Commit new catalog snapshot
         commitCatalogSnapshot(newCatSnap);
