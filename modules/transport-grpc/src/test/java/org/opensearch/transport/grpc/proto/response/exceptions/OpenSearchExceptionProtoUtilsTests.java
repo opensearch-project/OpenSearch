@@ -450,7 +450,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
     public void testInnerToProtoWithNullHeaders() throws IOException {
         // Create an exception with null header values
         OpenSearchException exception = new OpenSearchException("Test exception");
-        exception.addHeader("null-header", null);
+        exception.addHeader("null-header", (List<String>) null);
 
         // Convert to Protocol Buffer
         ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception);
