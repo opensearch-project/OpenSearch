@@ -84,6 +84,9 @@ import org.opensearch.index.engine.exec.bridge.Indexer;
 import org.opensearch.index.engine.exec.bridge.IndexingThrottler;
 import org.opensearch.index.engine.exec.bridge.StatsHolder;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.ParseContext.Document;
@@ -299,6 +302,19 @@ public abstract class Engine implements LifecycleAware, Closeable, Indexer, Chec
             final IndexSearcher searcher = new IndexSearcher(innerReader);
             return getMaxSeqNoFromSearcher(searcher);
         }
+    }
+
+    @Override
+    public CompositeEngine.ReleasableRef<CatalogSnapshot> acquireSnapshot() {
+        GatedCloseable<SegmentInfos> segmentInfosCloseable = getSegmentInfosSnapshot();
+        return new CompositeEngine.ReleasableRef<CatalogSnapshot>(
+            new SegmentInfosCatalogSnapshot(segmentInfosCloseable.get())
+        ) {
+            @Override
+            public void close() throws Exception {
+                segmentInfosCloseable.close();
+            }
+        };
     }
 
     /**

@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine.exec.text;
 
+import org.opensearch.index.engine.exec.coord.Segment;
+
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.DocumentInput;
 import org.opensearch.index.engine.exec.FileInfos;
@@ -78,7 +80,7 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
         openFiles.addAll(refreshInput.getWriterFiles());
         RefreshResult refreshResult = new RefreshResult();
-        CatalogSnapshot.Segment segment = new CatalogSnapshot.Segment(0);
+        Segment segment = new Segment(0);
         openFiles.forEach(file -> segment.addSearchableFiles(DataFormat.TEXT.name(), file));
         refreshResult.setRefreshedSegments(List.of(segment));
         return refreshResult;
