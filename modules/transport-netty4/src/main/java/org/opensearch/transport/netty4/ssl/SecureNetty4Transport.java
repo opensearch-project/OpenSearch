@@ -50,18 +50,13 @@ import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.netty4.Netty4Transport;
 import org.opensearch.transport.netty4.ssl.SecureConnectionTestUtil.SSLConnectionTestResult;
 
-import javax.net.ssl.SNIHostName;
-import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLParameters;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.List;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
@@ -194,11 +189,7 @@ public class SecureNetty4Transport extends Netty4Transport {
             final boolean hostnameVerificationEnabled,
             final boolean hostnameVerificationResovleHostName
         ) {
-            this.settings = settings;
-            this.secureTransportSettingsProvider = secureTransportSettingsProvider;
-            this.hostnameVerificationEnabled = hostnameVerificationEnabled;
-            this.hostnameVerificationResovleHostName = hostnameVerificationResovleHostName;
-            this.serverName = null;
+            this(settings, secureTransportSettingsProvider, hostnameVerificationEnabled, hostnameVerificationResovleHostName, null);
         }
 
         private ClientSSLHandler(
@@ -250,12 +241,14 @@ public class SecureNetty4Transport extends Netty4Transport {
 
                     sslEngine = secureTransportSettingsProvider.buildSecureClientTransportEngine(
                         settings,
+                        serverName,
                         hostname,
                         inetSocketAddress.getPort()
                     ).orElse(null);
 
                 } else {
-                    sslEngine = secureTransportSettingsProvider.buildSecureClientTransportEngine(settings, null, -1).orElse(null);
+                    sslEngine = secureTransportSettingsProvider.buildSecureClientTransportEngine(settings, serverName, null, -1)
+                        .orElse(null);
                 }
 
                 if (sslEngine == null) {
@@ -263,13 +256,6 @@ public class SecureNetty4Transport extends Netty4Transport {
                 }
             } catch (final SSLException e) {
                 throw ExceptionsHelper.convertToOpenSearchException(e);
-            }
-            if (serverName != null) {
-                SSLParameters params = sslEngine.getSSLParameters();
-                List<SNIServerName> serverNames = new ArrayList<>(1);
-                serverNames.add(new SNIHostName(serverName));
-                params.setServerNames(serverNames);
-                sslEngine.setSSLParameters(params);
             }
 
             final SslHandler sslHandler = new SslHandler(sslEngine);
