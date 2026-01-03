@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add support for missing proto fields in GRPC FunctionScore and Highlight ([#20169](https://github.com/opensearch-project/OpenSearch/pull/20169))
 - Ensure all modules are included in INTEG_TEST testcluster distribution ([#20241](https://github.com/opensearch-project/OpenSearch/pull/20241))
 - Cleanup HttpServerTransport.Dispatcher in Netty tests ([#20160](https://github.com/opensearch-project/OpenSearch/pull/20160))
+- Add `cluster.initial_cluster_manager_nodes` to testClusters OVERRIDABLE_SETTINGS ([#20348](https://github.com/opensearch-project/OpenSearch/pull/20348))
 
 ### Fixed
 - Fix bug of warm index: FullFileCachedIndexInput was closed error ([#20055](https://github.com/opensearch-project/OpenSearch/pull/20055))
@@ -42,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `ch.qos.logback:logback-core` from 1.5.20 to 1.5.23 ([#20303](https://github.com/opensearch-project/OpenSearch/pull/20303))
 - Bump `com.google.api.grpc:proto-google-iam-v1` from 1.57.0 to 1.58.2 ([#20302](https://github.com/opensearch-project/OpenSearch/pull/20302))
 - Bump `actions/setup-java` from 4 to 5 ([#20304](https://github.com/opensearch-project/OpenSearch/pull/20304))
+- Bump `com.squareup.okhttp3:okhttp` from 5.3.0 to 5.3.2 ([#20331](https://github.com/opensearch-project/OpenSearch/pull/20331))
 - Bump `asm` from 9.7 to 9.9.1 ([#20330](https://github.com/opensearch-project/OpenSearch/pull/20330))
 - Bump `actions/upload-artifact` from 5 to 6 ([#20333](https://github.com/opensearch-project/OpenSearch/pull/20333))
 - Bump `com.google.http-client:google-http-client-appengine` from 2.0.2 to 2.0.3 ([#20332](https://github.com/opensearch-project/OpenSearch/pull/20332))
