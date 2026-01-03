@@ -895,13 +895,6 @@ final class DocumentParser {
         throws IOException {
         assert currentFieldName != null;
 
-        // Check if we should flatten this object instead of creating nested structure
-        if (mapper.disableObjects()) {
-            // Instead of creating nested ObjectMappers, flatten the object
-            flattenObjectForDisableObjects(context, mapper, currentFieldName);
-            return;
-        }
-
         Mapper objectMapper = getMapper(context, mapper, currentFieldName, paths);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
@@ -911,16 +904,6 @@ final class DocumentParser {
             currentFieldName = paths[paths.length - 1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, mapper);
             ObjectMapper parentMapper = parentMapperTuple.v2();
-
-            // Check if the parent mapper has disable_objects=true
-            if (parentMapper.disableObjects()) {
-                // Flatten the object instead of creating nested structure
-                flattenObjectForDisableObjects(context, parentMapper, currentFieldName);
-                for (int i = 0; i < parentMapperTuple.v1(); i++) {
-                    context.path().remove();
-                }
-                return;
-            }
 
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
             switch (dynamic) {
@@ -984,16 +967,6 @@ final class DocumentParser {
                 Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
                 parentMapper = parentMapperTuple.v2();
 
-                // Check if parent has disable_objects=true
-                if (parentMapper.disableObjects()) {
-                    // Flatten the array instead of creating nested structure
-                    flattenArrayForDisableObjects(context, parentMapper, lastFieldName);
-                    for (int i = 0; i < parentMapperTuple.v1(); i++) {
-                        context.path().remove();
-                    }
-                    return;
-                }
-
                 ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
                 switch (dynamic) {
                     case STRICT:
@@ -1054,12 +1027,6 @@ final class DocumentParser {
 
     private static void parseNonDynamicArray(ParseContext context, ObjectMapper mapper, final String lastFieldName, String arrayFieldName)
         throws IOException {
-
-        // Check if mapper has disable_objects=true and handle flattening
-        if (mapper.disableObjects()) {
-            flattenArrayForDisableObjects(context, mapper, lastFieldName);
-            return;
-        }
 
         XContentParser parser = context.parser();
         XContentParser.Token token;
