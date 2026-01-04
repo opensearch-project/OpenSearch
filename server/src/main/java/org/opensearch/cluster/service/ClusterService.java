@@ -173,18 +173,21 @@ public class ClusterService extends AbstractLifecycleComponent {
     protected synchronized void doStart() {
         clusterApplierService.start();
         clusterManagerService.start();
+        indexMetadataCoordinatorService.start();
     }
 
     @Override
     protected synchronized void doStop() {
         clusterManagerService.stop();
         clusterApplierService.stop();
+        indexMetadataCoordinatorService.stop();
     }
 
     @Override
     protected synchronized void doClose() {
         clusterManagerService.close();
         clusterApplierService.close();
+        indexMetadataCoordinatorService.close();
     }
 
     /**

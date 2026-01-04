@@ -50,6 +50,7 @@ import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigurat
 import org.opensearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.opensearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.opensearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexMetadataCoordinatorService;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -169,6 +170,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private TimeValue publishTimeout;
     private final TimeValue publishInfoTimeout;
     private final PublicationTransportHandler publicationHandler;
+    private final IndexMetadataPublicationTransportHandler indexMetadataPublicationTransportHandler;
     private final LeaderChecker leaderChecker;
     private final FollowersChecker followersChecker;
     private final ClusterApplier clusterApplier;
@@ -354,6 +356,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         if (Objects.nonNull(indexMetadataCoordinatorService)) {
             indexMetadataCoordinatorService.setClusterStateSupplier(this::getStateForClusterManagerService);
         }
+        this.indexMetadataPublicationTransportHandler = new IndexMetadataPublicationTransportHandler(
+            transportService,
+            namedWriteableRegistry,
+            this::handleIndexMetadataPublishRequest,
+            remoteClusterStateService
+        );
     }
 
     private void setPublishTimeout(TimeValue publishTimeout) {
@@ -474,6 +482,33 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 });
             }
         }
+    }
+
+    IndexMetadataPublishResponse handleIndexMetadataPublishRequest(Map<String, IndexMetadata> latestIndices) {
+        synchronized (mutex) {
+            ClusterState currentState = getLastAcceptedState();
+            Metadata updatedIndexMetadata = Metadata.builder(currentState.metadata()).indices(latestIndices).build();
+            ClusterState updateState = ClusterState.builder(currentState).metadata(updatedIndexMetadata).build();
+
+            logger.info("Built new IndexMetadata Cluster State. Number of Indices - " + updateState.metadata().indices().size());
+
+            coordinationState.get().commitIndexMetadataState(updateState);
+
+            logger.info("Updated states locally and on remote");
+
+            clusterApplier.onNewClusterState("imc-update", () -> updateState, new ClusterApplyListener() {
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                }
+
+                @Override
+                public void onSuccess(String source) {
+                }
+            });
+        }
+
+        return new IndexMetadataPublishResponse();
     }
 
     PublishWithJoinResponse handlePublishRequest(PublishRequest publishRequest) {
@@ -815,22 +850,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             lastKnownLeader
         );
 
-//         Read latest state from remote before becoming leader to avoid losing updates
-        if (remoteClusterStateService != null) {
-            try {
-                ClusterState remoteState = remoteClusterStateService.getLatestClusterStateForNewManager(
-                    ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
-                    getLocalNode().getId()
-                );
-                if (remoteState != null && remoteState.version() > getLastAcceptedState().version()) {
-                    logger.info("Applying latest remote state version {} before becoming leader", remoteState.version());
-                        assert persistedStateRegistry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
-                        persistedStateRegistry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE).setLastAcceptedState(remoteState);
-                }
-            } catch (Exception e) {
-                logger.warn("Failed to read latest remote state when becoming leader, proceeding with local state", e);
-            }
-        }
+////         Read latest state from remote before becoming leader to avoid losing updates
+//        if (remoteClusterStateService != null) {
+//            try {
+//                ClusterState remoteState = remoteClusterStateService.getLatestClusterStateForNewManager(
+//                    ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
+//                    getLocalNode().getId()
+//                );
+//                if (remoteState != null && remoteState.version() > getLastAcceptedState().version()) {
+//                    logger.info("Applying latest remote state version {} before becoming leader", remoteState.version());
+//                        assert persistedStateRegistry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
+//                        persistedStateRegistry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE).setLastAcceptedState(remoteState);
+//                }
+//            } catch (Exception e) {
+//                logger.warn("Failed to read latest remote state when becoming leader, proceeding with local state", e);
+//            }
+//        }
 
         mode = Mode.LEADER;
         joinAccumulator.close(mode);
@@ -1391,6 +1426,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     @Override
     public void publishIndexMetadata(ClusterState clusterState) {
         coordinationState.get().uploadIndexMetadataState(clusterState);
+
+        IndexMetadataPublicationTransportHandler.IndexMetadataPublicationContext indexMetadataPublicationContext =
+            indexMetadataPublicationTransportHandler.newIndexMetadataPublicationContext(clusterState, persistedStateRegistry);
+
+        final IndexMetadataPublication publication = new IndexStatePublication(clusterState, indexMetadataPublicationContext);
+        publication.start();
+
     }
 
     @Override
@@ -1684,6 +1726,23 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 }
             }
             return false;
+        }
+    }
+
+    class IndexStatePublication extends IndexMetadataPublication {
+
+        private final IndexMetadataPublicationTransportHandler.IndexMetadataPublicationContext indexMetadataPublicationContext;
+
+        public IndexStatePublication(
+            ClusterState clusterState,
+            IndexMetadataPublicationTransportHandler.IndexMetadataPublicationContext indexMetadataPublicationContext) {
+            super(clusterState);
+            this.indexMetadataPublicationContext = indexMetadataPublicationContext;
+        }
+
+        @Override
+        protected void sendPublishRequest(DiscoveryNode destination, ActionListener<IndexMetadataPublishResponse> responseActionListener) {
+            indexMetadataPublicationContext.sendPublishRequest(destination, responseActionListener);
         }
     }
 

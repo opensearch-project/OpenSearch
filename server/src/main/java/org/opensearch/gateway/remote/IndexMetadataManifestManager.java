@@ -27,10 +27,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * Manager for IndexMetadataManifest operations
@@ -257,11 +254,14 @@ public class IndexMetadataManifestManager {
             1,
             BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
         );
-        return manifests.getFirst().name();
+        return manifests.isEmpty() ? null : manifests.getFirst().name();
     }
 
     public IndexMetadataManifest getLatestIndexMetadataManifest() throws IOException {
         String latestManifestFileName = getLatestManifestFileName();
+        if (Objects.isNull(latestManifestFileName)) {
+            return null;
+        }
         return fetchRemoteIndexMetadataManifest(null, null, latestManifestFileName);
     }
 }

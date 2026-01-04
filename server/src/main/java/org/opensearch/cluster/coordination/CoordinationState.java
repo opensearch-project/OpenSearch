@@ -593,6 +593,15 @@ public class CoordinationState {
         persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).updateIndexMetadataState(clusterState);
     }
 
+
+
+    public void commitIndexMetadataState(ClusterState clusterState) {
+        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).commitAndUpdateIndexMetadataState(clusterState);
+        if (persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null) {
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).commitAndUpdateIndexMetadataState(clusterState);
+        }
+    }
+
     /**
      * This method should be called just before sending the ApplyCommitRequest to all cluster nodes.
      */
@@ -734,6 +743,10 @@ public class CoordinationState {
         }
 
         default void updateIndexMetadataState(ClusterState clusterState) {
+            throw new  UnsupportedOperationException("updateIndexMetadataState is not supported");
+        }
+
+        default void commitAndUpdateIndexMetadataState(ClusterState clusterState) {
             throw new  UnsupportedOperationException("updateIndexMetadataState is not supported");
         }
 

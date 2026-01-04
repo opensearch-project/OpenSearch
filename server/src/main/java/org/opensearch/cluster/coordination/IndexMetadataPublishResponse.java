@@ -31,57 +31,45 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.cluster.ClusterState;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.transport.TransportResponse;
+
+import java.io.IOException;
+import java.util.Optional;
 
 /**
- * Persist state in memory
+ * Response to a {@link PublishRequest}. Encapsulates both a {@link PublishResponse}
+ * and an optional {@link Join}.
  *
  * @opensearch.internal
  */
-public class InMemoryPersistedState implements CoordinationState.PersistedState {
+public class IndexMetadataPublishResponse extends TransportResponse {
 
-    private long currentTerm;
-    private ClusterState acceptedState;
+    public IndexMetadataPublishResponse() {
+    }
 
-    public InMemoryPersistedState(long term, ClusterState acceptedState) {
-        this.currentTerm = term;
-        this.acceptedState = acceptedState;
-
-        assert currentTerm >= 0;
-        assert getLastAcceptedState().term() <= currentTerm : "last accepted term "
-            + getLastAcceptedState().term()
-            + " cannot be above current term "
-            + currentTerm;
+    public IndexMetadataPublishResponse(StreamInput in) throws IOException {
     }
 
     @Override
-    public void setCurrentTerm(long currentTerm) {
-        assert this.currentTerm <= currentTerm;
-        this.currentTerm = currentTerm;
+    public void writeTo(StreamOutput out) throws IOException {
     }
 
     @Override
-    public void setLastAcceptedState(ClusterState clusterState) {
-        this.acceptedState = clusterState;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof IndexMetadataPublishResponse)) return false;
+        return true;
     }
 
     @Override
-    public void commitAndUpdateIndexMetadataState(ClusterState clusterState) {
-        this.acceptedState = clusterState;
+    public int hashCode() {
+        return 0;
     }
 
     @Override
-    public PersistedStateStats getStats() {
-        return null;
-    }
-
-    @Override
-    public long getCurrentTerm() {
-        return currentTerm;
-    }
-
-    @Override
-    public ClusterState getLastAcceptedState() {
-        return acceptedState;
+    public String toString() {
+        return "IndexMetadataPublishResponse{}";
     }
 }

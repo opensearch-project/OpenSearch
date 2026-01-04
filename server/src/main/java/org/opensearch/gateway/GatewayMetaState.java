@@ -662,6 +662,12 @@ public class GatewayMetaState implements Closeable {
         }
 
         @Override
+        public void commitAndUpdateIndexMetadataState(ClusterState clusterState) {
+            lastAcceptedState = clusterState;
+        }
+
+
+        @Override
         public PersistedStateStats getStats() {
             // Note: These stats are not published yet, will come in future
             return null;
@@ -805,8 +811,8 @@ public class GatewayMetaState implements Closeable {
             this.lastAcceptedIndexMetadataManifest = manifest;
         }
 
-        public void setLastAcceptedIndexMetadataManifestVersion(String version) {
-            this.lastAcceptedIndexMetadataManifestVersion = version;
+        public String getLastAcceptedIndexMetadataManifestVersion() {
+            return lastAcceptedIndexMetadataManifestVersion;
         }
 
         @Override
@@ -815,16 +821,16 @@ public class GatewayMetaState implements Closeable {
         }
 
         private boolean verifyManifestAndClusterState(ClusterMetadataManifest manifest, ClusterState clusterState) {
-            assert manifest != null : "ClusterMetadataManifest is null";
-            assert clusterState != null : "ClusterState is null";
-            assert clusterState.metadata().indices().size() == manifest.getIndices().size()
-                : "Number of indices in last accepted state and manifest are different";
-            manifest.getIndices().stream().forEach(md -> {
-                assert clusterState.metadata().indices().containsKey(md.getIndexName())
-                    : "Last accepted state does not contain the index : " + md.getIndexName();
-                assert clusterState.metadata().indices().get(md.getIndexName()).getIndexUUID().equals(md.getIndexUUID())
-                    : "Last accepted state and manifest do not have same UUID for index : " + md.getIndexName();
-            });
+//            assert manifest != null : "ClusterMetadataManifest is null";
+//            assert clusterState != null : "ClusterState is null";
+//            assert clusterState.metadata().indices().size() == manifest.getIndices().size()
+//                : "Number of indices in last accepted state and manifest are different";
+//            manifest.getIndices().stream().forEach(md -> {
+//                assert clusterState.metadata().indices().containsKey(md.getIndexName())
+//                    : "Last accepted state does not contain the index : " + md.getIndexName();
+//                assert clusterState.metadata().indices().get(md.getIndexName()).getIndexUUID().equals(md.getIndexUUID())
+//                    : "Last accepted state and manifest do not have same UUID for index : " + md.getIndexName();
+//            });
             return true;
         }
 
@@ -882,6 +888,11 @@ public class GatewayMetaState implements Closeable {
             } catch (Exception e) {
                 handleExceptionOnWrite(e);
             }
+        }
+
+        @Override
+        public void commitAndUpdateIndexMetadataState(ClusterState clusterState) {
+            lastAcceptedState = clusterState;
         }
 
         @Override

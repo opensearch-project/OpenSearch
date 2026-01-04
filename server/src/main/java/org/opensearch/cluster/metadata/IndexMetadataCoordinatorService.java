@@ -16,12 +16,14 @@ import org.opensearch.cluster.service.NoOpTaskBatcherListener;
 import org.opensearch.cluster.service.TaskBatcher;
 import org.opensearch.common.Priority;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -32,7 +34,7 @@ import java.util.stream.Collectors;
  * @opensearch.api
  */
 @PublicApi(since = "3.0.0")
-public class IndexMetadataCoordinatorService {
+public class IndexMetadataCoordinatorService extends AbstractLifecycleComponent {
 
     private static final Logger log = LogManager.getLogger(IndexMetadataCoordinatorService.class);
     private final ThreadPool threadPool;
@@ -45,6 +47,10 @@ public class IndexMetadataCoordinatorService {
 
     public IndexMetadataCoordinatorService(ThreadPool threadPool) {
         this.threadPool = threadPool;
+    }
+
+    @Override
+    protected void doStart() {
         this.threadPoolExecutor = createThreadPoolExecutor();
         this.taskBatcher = new IndexMetadataTaskBatcher(threadPoolExecutor);
     }
@@ -158,6 +164,14 @@ public class IndexMetadataCoordinatorService {
             }
         }
     }
+
+    @Override
+    protected synchronized void doStop() {
+        ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected synchronized void doClose() {}
 
     /**
      * Listener for index metadata update tasks that provides access to the computed state

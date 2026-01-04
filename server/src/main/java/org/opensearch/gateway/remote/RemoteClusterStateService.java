@@ -332,7 +332,7 @@ public class RemoteClusterStateService implements Closeable {
             null
         );
 
-        uploadIndexMetadataManifest(clusterState, ClusterState.EMPTY_STATE, uploadedMetadataResults.uploadedIndexMetadata);
+//        uploadIndexMetadataManifest(clusterState, ClusterState.EMPTY_STATE, uploadedMetadataResults.uploadedIndexMetadata);
 
         ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
             clusterState,
@@ -719,9 +719,9 @@ public class RemoteClusterStateService implements Closeable {
         );
 
         // Upload index metadata manifest if indices changed
-        if (!toUpload.isEmpty() || !indicesToBeDeletedFromRemote.isEmpty()) {
-            uploadIndexMetadataManifest(clusterState, previousClusterState, uploadedMetadataResults.uploadedIndexMetadata);
-        }
+//        if (!toUpload.isEmpty() || !indicesToBeDeletedFromRemote.isEmpty()) {
+//            uploadIndexMetadataManifest(clusterState, previousClusterState, uploadedMetadataResults.uploadedIndexMetadata);
+//        }
 
         ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
             clusterState,
@@ -1758,6 +1758,108 @@ public class RemoteClusterStateService implements Closeable {
         );
     }
 
+    public Map<String, IndexMetadata> getIndexMetadataFromManifest(
+        IndexMetadataManifest indexMetadataManifest
+    ) {
+        List<UploadedIndexMetadata> indicesToRead = indexMetadataManifest.getIndices();
+        return readIndexMetadataInParallel(indicesToRead);
+    }
+
+    public Map<String, IndexMetadata> getIndexMetadataStateUsingDiff(
+        IndexMetadataManifest manifest,
+        Map<String, IndexMetadata> indices
+    ) {
+
+        List<UploadedIndexMetadata> updatedIndices;
+        List<UploadedIndexMetadata> availableIndices;
+
+        IndexStateDiffManifest indexStateDiffManifest = manifest.getIndexDiffManifest();
+
+        availableIndices = manifest.getIndices();
+        updatedIndices = indexStateDiffManifest.getIndicesUpdated().stream().map(idx -> {
+            Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = availableIndices
+                .stream()
+                .filter(idx2 -> idx2.getIndexName().equals(idx))
+                .findFirst();
+            assert uploadedIndexMetadataOptional.isPresent() == true;
+            return uploadedIndexMetadataOptional.get();
+        }).toList();
+
+        Map<String, IndexMetadata> updatedIndicesMap = readIndexMetadataInParallel(updatedIndices);
+        indices.putAll(updatedIndicesMap);
+
+        return indices;
+
+    }
+
+        public Map<String, IndexMetadata> readIndexMetadataInParallel(
+        List<UploadedIndexMetadata> indicesToRead
+    ) {
+        int totalReadTasks = indicesToRead.size();
+        CountDownLatch latch = new CountDownLatch(totalReadTasks);
+        List<RemoteReadResult> readResults = Collections.synchronizedList(new ArrayList<>());
+        List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalReadTasks));
+
+        LatchedActionListener<RemoteReadResult> listener = new LatchedActionListener<>(ActionListener.wrap(response -> {
+            logger.debug("Successfully read cluster state component from remote");
+            readResults.add(response);
+        }, ex -> {
+            logger.error("Failed to read cluster state from remote", ex);
+            exceptionList.add(ex);
+        }), latch);
+
+        for (UploadedIndexMetadata indexMetadata : indicesToRead) {
+            remoteIndexMetadataManager.readAsync(
+                indexMetadata.getIndexName(),
+                new RemoteIndexMetadata(
+                    RemoteClusterStateUtils.getFormattedIndexFileName(indexMetadata.getUploadedFilename()),
+                    null,
+                    blobStoreRepository.getCompressor(),
+                    blobStoreRepository.getNamedXContentRegistry()
+                ),
+                listener
+            );
+        }
+
+        try {
+            if (latch.await(this.remoteStateReadTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+                RemoteStateTransferException exception = new RemoteStateTransferException(
+                    "Timed out waiting to read cluster state from remote within timeout " + this.remoteStateReadTimeout
+                );
+                exceptionList.forEach(exception::addSuppressed);
+                throw exception;
+            }
+        } catch (InterruptedException e) {
+            exceptionList.forEach(e::addSuppressed);
+            RemoteStateTransferException ex = new RemoteStateTransferException(
+                "Interrupted while waiting to read cluster state from metadata"
+            );
+            Thread.currentThread().interrupt();
+            throw ex;
+        }
+
+        if (!exceptionList.isEmpty()) {
+            RemoteStateTransferException exception = new RemoteStateTransferException("Exception during reading cluster state from remote");
+            exceptionList.forEach(exception::addSuppressed);
+            throw exception;
+        }
+
+        Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
+
+        readResults.forEach(remoteReadResult -> {
+            switch (remoteReadResult.getComponent()) {
+                case RemoteIndexMetadata.INDEX:
+                    IndexMetadata indexMetadata = (IndexMetadata) remoteReadResult.getObj();
+                    indexMetadataMap.put(indexMetadata.getIndex().getName(), indexMetadata);
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown component: " + remoteReadResult.getComponent());
+            }
+        });
+
+        return indexMetadataMap;
+    }
+
     public ClusterState getClusterStateForManifest(
         String clusterName,
         ClusterMetadataManifest manifest,
@@ -1856,7 +1958,7 @@ public class RemoteClusterStateService implements Closeable {
         }
     }
 
-    public ClusterState getClusterStateUsingDiff(ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId) {
+    public ClusterState getClusterStateUsingDiff(ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId) throws IOException {
         try {
             assert manifest.getDiffManifest() != null : "Diff manifest null which is required for downloading cluster state";
             final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
@@ -1864,10 +1966,7 @@ public class RemoteClusterStateService implements Closeable {
             boolean includeEphemeral = true;
 
             // Get index metadata manifest to read indices from there instead of cluster manifest
-            Optional<IndexMetadataManifest> indexManifest = getLatestIndexMetadataManifest(
-                previousState.getClusterName().value(),
-                manifest.getClusterUUID()
-            );
+            Optional<IndexMetadataManifest> indexManifest = Optional.ofNullable(getLatestIndexMetadataManifest());
 
             List<UploadedIndexMetadata> updatedIndices;
             List<UploadedIndexMetadata> availableIndices;

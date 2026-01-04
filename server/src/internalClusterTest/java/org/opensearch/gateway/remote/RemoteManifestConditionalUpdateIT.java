@@ -8,10 +8,14 @@
 
 package org.opensearch.gateway.remote;
 
+import org.junit.Assert;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.service.ClusterApplierService;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
@@ -36,6 +40,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.opensearch.common.blobstore.versioned.VersionedBlobContainer;
@@ -341,18 +346,19 @@ public class RemoteManifestConditionalUpdateIT extends RemoteStoreBaseIntegTestC
     public void testBootstrapClusterWithRemoteStateAndVerifyS3Upload() throws Exception {
         // 1. Bootstrap new cluster with remote state enabled
         prepareCluster(3, 2, INDEX_NAME, 1, 1);
-//        ensureGreen(INDEX_NAME);
-        ClusterState state = internalCluster().clusterService().state();
-        assertNotNull(state.nodes().getIndexMetadataCoordinatorNodeId());
-        PersistedStateRegistry persistedStateRegistry = internalCluster().getInstance(
-            PersistedStateRegistry.class
-        );
-        assertTrue(persistedStateRegistry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE).getLastAcceptedState().metadata().indices().size()==1);
+        ensureGreen(INDEX_NAME);
+//
+        List<String> nodes = Arrays.stream(internalCluster().getNodeNames())
+            .collect(Collectors.toList());
+
+        nodes.stream().forEach(node -> {
+            assertTrue(internalCluster().getInstance(PersistedStateRegistry.class, node).getPersistedState(PersistedStateRegistry.PersistedStateType.LOCAL).getLastAcceptedState().metadata().indices().size()==1);
+        });
     }
 
     public void testConditionalUpdatesOnClusterStateChanges() throws Exception {
         // Bootstrap cluster
-        prepareCluster(1, 2, INDEX_NAME, 1, 1);
+        prepareCluster(3, 2, INDEX_NAME, 1, 1);
         ensureGreen(INDEX_NAME);
 
         // 2. Create new index and verify conditional update
@@ -361,6 +367,13 @@ public class RemoteManifestConditionalUpdateIT extends RemoteStoreBaseIntegTestC
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
         ensureGreen("test-index-2");
+
+        List<String> nodes = Arrays.stream(internalCluster().getNodeNames())
+            .collect(Collectors.toList());
+
+        nodes.stream().forEach(node -> {
+            assertTrue(internalCluster().getInstance(PersistedStateRegistry.class, node).getPersistedState(PersistedStateRegistry.PersistedStateType.LOCAL).getLastAcceptedState().metadata().indices().size()==2);
+        });
     }
 
     public void testVersionConflictWithNodeFailure() throws Exception {
