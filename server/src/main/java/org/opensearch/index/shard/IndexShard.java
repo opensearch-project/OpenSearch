@@ -48,11 +48,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
@@ -5515,28 +5511,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IOUtils.close(oldCompositeEngine);
         }
 
-        // Create NEW CompositeEngine OUTSIDE synchronized block with fresh translog
-        final CompositeEngine newCompositeEngine = new CompositeEngine(
-            newEngineConfig(replicationTracker),
-            mapperService,
-            pluginsService,
-            indexSettings,
-            path,
-            LocalCheckpointTracker::new,
-            TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
-        );
-
-        currentCompositeEngineReference.set(newCompositeEngine);
-
-        final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
-            newCompositeEngine,
-            snapshot,
-            Engine.Operation.Origin.LOCAL_RESET,
-            () -> {
-                // TODO: add a dedicate recovery stats for the reset translog
-            }
-        );
-
         // When the new engine is created, translogs are synced from remote store onto local. Since remote store is the source
         // of truth for translog, we play all translogs that exists locally. Otherwise, the recoverUpto happens upto global checkpoint.
         // We also replay all local translog ops with Segment replication, because on engine swap our local translog may
@@ -5545,11 +5519,36 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ? Long.MAX_VALUE
             : globalCheckpoint;
 
-        // Recover the NEW CompositeEngine's translog FIRST
-        newCompositeEngine
-            .translogManager()
-            .recoverFromTranslog(translogRunner, newCompositeEngine.getProcessedLocalCheckpoint(), recoverUpto);
-        newCompositeEngine.refresh("reset_engine");
+        // Only create CompositeEngine for optimized indices
+        if (indexSettings.isOptimizedIndex()) {
+            // Create NEW CompositeEngine OUTSIDE synchronized block with fresh translog
+            final CompositeEngine newCompositeEngine = new CompositeEngine(
+                newEngineConfig(replicationTracker),
+                mapperService,
+                pluginsService,
+                indexSettings,
+                path,
+                LocalCheckpointTracker::new,
+                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
+            );
+
+            currentCompositeEngineReference.set(newCompositeEngine);
+
+            final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
+                newCompositeEngine,
+                snapshot,
+                Engine.Operation.Origin.LOCAL_RESET,
+                () -> {
+                    // TODO: add a dedicate recovery stats for the reset translog
+                }
+            );
+
+            // Recover the NEW CompositeEngine's translog FIRST
+            newCompositeEngine
+                .translogManager()
+                .recoverFromTranslog(translogRunner, newCompositeEngine.getProcessedLocalCheckpoint(), recoverUpto);
+            newCompositeEngine.refresh("reset_engine");
+        }
 
         // Create InternalEngine AFTER translog recovery so it reads the updated commit with correct checkpoints
         final Engine newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
@@ -5670,40 +5669,41 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             final Directory storeDirectory;
             if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
-                storeDirectory = new StoreRecovery.StatsDirectoryWrapper(store.directory(), recoveryState.getIndex());
+                Store.StoreDirectory directory = isOptimizedIndex() ? store().compositeStoreDirectory() : (Store.StoreDirectory) store().directory();
+                storeDirectory = new StoreRecovery.StatsDirectoryWrapper(directory, recoveryState.getIndex());
                 for (String file : filteredSegments.keySet()) {
                     long checksum = Long.parseLong(filteredSegments.get(file).getChecksum());
-                    if (overrideLocal || localDirectoryContainsFile(storeDirectory, file, checksum) == false) {
+                    boolean fileExistsLocally;
+
+                    if (isOptimizedIndex() && directory instanceof CompositeStoreDirectory) {
+                        FileMetadata fileMetadata = new FileMetadata(file);
+                        fileExistsLocally = localDirectoryContains((CompositeStoreDirectory) directory, fileMetadata, checksum);
+                    } else {
+                        fileExistsLocally = localDirectoryContainsFile(storeDirectory, file, checksum);
+                    }
+
+                    if (overrideLocal || !fileExistsLocally) {
                         recoveryState.getIndex().addFileDetail(file, filteredSegments.get(file).getLength(), false);
                     } else {
                         recoveryState.getIndex().addFileDetail(file, filteredSegments.get(file).getLength(), true);
                     }
                 }
             } else {
-                storeDirectory = store.directory();
+                storeDirectory = isOptimizedIndex()
+                    ? store().compositeStoreDirectory()
+                    : store.directory();
             }
             if (indexSettings.isWarmIndex() == false) {
-                if (isOptimizedIndex()) {
-                    // Convert to format-aware map only for optimized indices
-                    Map<FileMetadata, UploadedSegmentMetadata> formatAwareSegments = new HashMap<>();
-                    for (Map.Entry<String, UploadedSegmentMetadata> entry : filteredSegments.entrySet()) {
-                        formatAwareSegments.put(new FileMetadata(entry.getKey()), entry.getValue());
-                    }
-                    CompositeStoreDirectory compositeDir = store.compositeStoreDirectory();
-                    copySegmentFiles(compositeDir, remoteDirectory, null, formatAwareSegments, overrideLocal, onFileSync);
-                } else {
-                    // Use original String-based logic for non-optimized indices
-                    copySegmentFiles(storeDirectory, remoteDirectory, null, filteredSegments, overrideLocal, onFileSync);
-                }
+                copySegmentFiles(storeDirectory, remoteDirectory, null, filteredSegments, overrideLocal, onFileSync);
             }
 
             if (remoteSegmentMetadata != null) {
-                final SegmentInfos infosSnapshot = isOptimizedIndex()
-                    ? store.buildSegmentInfosFromSerializedCatalogSnapshot(
+                // Remote store always stores Lucene SegmentInfos format (for both optimized and non-optimized indices)
+                // For optimized indices, the CatalogSnapshot is embedded within userData of the SegmentInfos
+                final SegmentInfos infosSnapshot = store.buildSegmentInfos(
                     remoteSegmentMetadata.getSegmentInfosBytes(),
                     remoteSegmentMetadata.getGeneration()
-                )
-                    : store.buildSegmentInfos(remoteSegmentMetadata.getSegmentInfosBytes(), remoteSegmentMetadata.getGeneration());
+                );
                 long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
                 // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
                 // Extra segments will be wiped on engine open.
@@ -5729,8 +5729,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             remoteStore.decRef();
         }
     }
+
     /**
-     * ToDo: @Kamal, Implement this API during Restore flow
      * Downloads segments from given remote segment store for a specific commit.
      * @param overrideLocal flag to override local segment files with those in remote store
      * @param sourceRemoteDirectory RemoteSegmentDirectory Instance from which we need to sync segments
@@ -5742,86 +5742,91 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentMetadata remoteSegmentMetadata,
         boolean pinnedTimestamp
     ) throws IOException {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
-    // Format-aware implementation for multiformat support
-    private String copySegmentFiles(
-        CompositeStoreDirectory storeDirectory,
-        RemoteSegmentStoreDirectory sourceRemoteDirectory,
-        RemoteSegmentStoreDirectory targetRemoteDirectory,
-        Map<FileMetadata, UploadedSegmentMetadata> uploadedSegments,
-        boolean overrideLocal,
-        final Runnable onFileSync
-    ) throws IOException {
-        Set<FileMetadata> toDownloadFiles = new HashSet<>();
-        Set<FileMetadata> skippedFiles = new HashSet<>();
-        String segmentNFile = null;
-
-        try {
-            if (overrideLocal) {
-                for (FileMetadata file : storeDirectory.listFileMetadata()) {
-                    storeDirectory.deleteFile(file);
-                }
-            }
-
-            for (FileMetadata file : uploadedSegments.keySet()) {
-                long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
-                if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
-                    toDownloadFiles.add(file);
-                } else {
-                    skippedFiles.add(file);
-                }
-
-                if (file.file().startsWith(IndexFileNames.SEGMENTS)) {
-                    assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
-                    segmentNFile = file.file();
-                }
-            }
-
-            if (toDownloadFiles.isEmpty() == false) {
-                try {
-                    // Convert FileMetadata Set to List for format-aware downloader
-                    List<FileMetadata> toDownloadList = new ArrayList<>(toDownloadFiles);
-
-                    // Use format-aware async downloader with FileMetadata list
-                    CancellableThreads cancellableThreads = new CancellableThreads();
-                    CompositeStoreDirectoryStatsWrapper statsWrapper = new CompositeStoreDirectoryStatsWrapper(
-                        storeDirectory,
-                        (fileName, bytes) -> logger.trace("File transfer progress: {} - {} bytes", fileName, bytes)
-                    );
-
-                    PlainActionFuture<Void> downloadFuture = newFuture();
-
-                    fileDownloader.downloadAsync(
-                        cancellableThreads,
-                        sourceRemoteDirectory,
-                        statsWrapper,
-                        toDownloadList,
-                        org.opensearch.core.action.ActionListener.wrap(
-                            success -> {
-                                onFileSync.run();
-                                downloadFuture.onResponse(null);
-                            },
-                            downloadFuture::onFailure
-                        )
-                    );
-
-                    // Wait for download completion
-                    downloadFuture.get();
-                } catch (Exception e) {
-                    logger.error("Error occurred when downloading format-aware segments from remote store", e);
-                    throw new IOException("Error occurred when downloading format-aware segments from remote store", e);
-                }
-            }
-        } finally {
-            logger.trace("Downloaded format-aware files here: {}", toDownloadFiles);
-            logger.trace("Skipped download for format-aware files here: {}", skippedFiles);
+        logger.trace("Downloading segments from given remote segment store");
+        RemoteSegmentStoreDirectory remoteDirectory = null;
+        if (remoteStore != null) {
+            remoteDirectory = getRemoteDirectory();
+            remoteDirectory.init();
+            remoteStore.incRef();
         }
+        Map<String, UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
+            .getSegmentsUploadedToRemoteStore();
+        store.incRef();
+        try {
+            final Directory storeDirectory;
+            if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
+                storeDirectory = new StoreRecovery.StatsDirectoryWrapper(store.directory(), recoveryState.getIndex());
+                for (String file : uploadedSegments.keySet()) {
+                    long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
+                    if (overrideLocal || localDirectoryContainsFile(storeDirectory, file, checksum) == false) {
+                        recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), false);
+                    } else {
+                        recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), true);
+                    }
+                }
+            } else {
+                storeDirectory = isOptimizedIndex()
+                    ? store().compositeStoreDirectory()
+                    : store.directory();
+            }
 
-        return segmentNFile;
+            String segmentsNFile = copySegmentFiles(
+                storeDirectory,
+                sourceRemoteDirectory,
+                remoteDirectory,
+                uploadedSegments,
+                overrideLocal,
+                () -> {}
+            );
+            if (pinnedTimestamp) {
+                final SegmentInfos infosSnapshot = store.buildSegmentInfos(
+                    remoteSegmentMetadata.getSegmentInfosBytes(),
+                    remoteSegmentMetadata.getGeneration()
+                );
+                long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
+                // Extra segments will be wiped on engine open.
+                for (String file : List.of(store.directory().listAll())) {
+                    if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                        store.deleteQuiet(file);
+                    }
+                }
+                assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
+                    || indexSettings.isWarmIndex() : "There should not be any segments file in the dir";
+                store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+            } else if (segmentsNFile != null) {
+                try (
+                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
+                        storeDirectory.openInput(segmentsNFile, IOContext.READONCE)
+                    )
+                ) {
+                    long commitGeneration = SegmentInfos.generationFromSegmentsFileName(segmentsNFile);
+                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(store.directory(), indexInput, commitGeneration);
+                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                    if (remoteStore != null) {
+                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    } else {
+                        store.directory().sync(infosSnapshot.files(true));
+                        store.directory().syncMetaData();
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
+        } finally {
+            store.decRef();
+            if (remoteStore != null) {
+                remoteStore.decRef();
+            }
+        }
     }
 
+    /**
+     * Unified method to copy segment files from remote store.
+     * Handles both optimized (multiformat) and non-optimized (plain Lucene) indices.
+     * For optimized indices, keys in uploadedSegments are serialized FileMetadata strings like "segment_1.si:::lucene".
+     * For non-optimized indices, keys are plain filenames like "segment_1.si".
+     */
     private String copySegmentFiles(
         Directory storeDirectory,
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
@@ -5841,15 +5846,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
 
-            for (String file : uploadedSegments.keySet()) {
-                long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
-                if (overrideLocal || localDirectoryContainsFile(storeDirectory, file, checksum) == false) {
-                    toDownloadSegments.add(file);
-                } else {
-                    skippedSegments.add(file);
-                }
+        for (String file : uploadedSegments.keySet()) {
+            long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
+            boolean fileExistsLocally;
 
-                if (file.startsWith(IndexFileNames.SEGMENTS)) {
+            // For optimized indices with multiformat support (e.g., Parquet files),
+            // use format-aware checksum validation since Parquet files don't have Lucene codec footers
+            if (isOptimizedIndex() && storeDirectory instanceof CompositeStoreDirectory) {
+                FileMetadata fileMetadata = new FileMetadata(file);
+                fileExistsLocally = localDirectoryContains((CompositeStoreDirectory) storeDirectory, fileMetadata, checksum);
+            } else if (storeDirectory instanceof StoreRecovery.StatsDirectoryWrapper
+                       && ((StoreRecovery.StatsDirectoryWrapper) storeDirectory).getDelegate() instanceof CompositeStoreDirectory) {
+                // Handle case where storeDirectory is wrapped in StatsDirectoryWrapper
+                FileMetadata fileMetadata = new FileMetadata(file);
+                fileExistsLocally = localDirectoryContains(
+                    (CompositeStoreDirectory) ((StoreRecovery.StatsDirectoryWrapper) storeDirectory).getDelegate(),
+                    fileMetadata, checksum);
+            } else {
+                // Standard Lucene indices use codec-based checksum validation
+                fileExistsLocally = localDirectoryContainsFile(storeDirectory, file, checksum);
+            }
+
+            if (overrideLocal || !fileExistsLocally) {
+                toDownloadSegments.add(file);
+            } else {
+                skippedSegments.add(file);
+            }
+
+            if (file.startsWith(IndexFileNames.SEGMENTS)) {
                     assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
                     segmentNFile = file;
                 }
@@ -5894,10 +5918,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.debug("File {} with format {} does not exist in local FS, downloading from remote store",
                 fileMetadata.file(), fileMetadata.dataFormat());
         } catch (IOException e) {
-            logger.warn("Exception while reading checksum of file: {}, format: {}, this can happen if file is corrupted",
-                fileMetadata.file(), fileMetadata.dataFormat(), e);
-            // For any other exception on reading checksum, we delete the file to re-download again
-            localDirectory.deleteFile(fileMetadata);
+            // Check if root cause is "file not found" - MultiFormatStoreException wraps the original exception
+            Throwable cause = e.getCause();
+            if (cause instanceof NoSuchFileException || cause instanceof FileNotFoundException) {
+                logger.debug("File {} with format {} does not exist in local FS (wrapped exception), downloading from remote store",
+                    fileMetadata.file(), fileMetadata.dataFormat());
+            } else {
+                logger.warn("Exception while reading checksum of file: {}, format: {}, this can happen if file is corrupted",
+                    fileMetadata.file(), fileMetadata.dataFormat(), e);
+                // For any other exception on reading checksum, we delete the file to re-download again
+                try {
+                    localDirectory.deleteFile(fileMetadata);
+                } catch (NoSuchFileException | FileNotFoundException ignored) {
+                    // File already doesn't exist, nothing to delete
+                }
+            }
         }
 
         return false;

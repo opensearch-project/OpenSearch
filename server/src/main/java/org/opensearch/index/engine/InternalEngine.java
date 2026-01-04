@@ -1759,22 +1759,53 @@ public class InternalEngine extends Engine {
         // if we are already closed due to some tragic exception
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
-        if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
+        final Throwable writerTragicException = indexWriter.getTragicException();
+        
+        // For optimized indices (using DocumentIndexWriter with multiple writers), use stricter check
+        // that requires the writer to be closed. For non-optimized indices (raw IndexWriter), match
+        // upstream behavior that only checks for tragic exception - this fixes replica promotion issues.
+        boolean hasWriterTragicEvent;
+        if (engineConfig.getIndexSettings().isOptimizedIndex()) {
+            hasWriterTragicEvent = indexWriter.isOpen() == false && writerTragicException != null;
+        } else {
+            hasWriterTragicEvent = writerTragicException != null;
+        }
+        
+        if (hasWriterTragicEvent) {
             final Exception tragicException;
-            if (indexWriter.getTragicException() instanceof Exception) {
-                tragicException = (Exception) indexWriter.getTragicException();
+            if (writerTragicException instanceof Exception) {
+                tragicException = (Exception) writerTragicException;
             } else {
-                tragicException = new RuntimeException(indexWriter.getTragicException());
+                tragicException = new RuntimeException(writerTragicException);
             }
             failEngine("already closed by tragic event on the index writer", tragicException);
             engineFailed = true;
         } else if (translogManager.getTragicExceptionIfClosed() != null) {
             failEngine("already closed by tragic event on the translog", translogManager.getTragicExceptionIfClosed());
             engineFailed = true;
-        } else if (failedEngine.get() == null && isClosed.get() == false) { // we are closed but the engine is not failed yet?
-            // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
-            // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
-            throw new AssertionError("Unexpected AlreadyClosedException", ex);
+        } else if (failedEngine.get() == null && isClosed.get() == false) {
+            // Check if the ACE is from the translog manager checking engine state during normal shutdown.
+            // During engine close, there's a race where translog closes before isClosed is set.
+            // Concurrent operations (like refresh) may hit ACE from ensureOpen() calls.
+            // This is not a tragic event - it's a normal shutdown race condition.
+            // Only throw AssertionError if we're sure this is not a shutdown scenario.
+            String exMessage = ex.getMessage();
+            Throwable cause = ex.getCause();
+            boolean isEngineClosedMessage = exMessage != null && exMessage.contains("engine is closed");
+            boolean isCauseFromEngineClose = cause instanceof AlreadyClosedException 
+                && cause.getMessage() != null 
+                && cause.getMessage().contains("engine is closed");
+            
+            if (isEngineClosedMessage || isCauseFromEngineClose) {
+                // This is a normal engine close race - not a tragic event
+                // The engine is closing but isClosed flag hasn't been set yet
+                logger.debug("AlreadyClosedException during engine close race - not a tragic event", ex);
+                engineFailed = false;
+            } else {
+                // This is unexpected - neither writer nor translog has tragic exception,
+                // engine is not failed and not closed, but we got ACE
+                throw new AssertionError("Unexpected AlreadyClosedException", ex);
+            }
         } else {
             engineFailed = false;
         }

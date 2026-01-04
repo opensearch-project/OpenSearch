@@ -96,14 +96,14 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
             store.incRef();
             multiFileWriter.renameAllTempFiles();
             CatalogSnapshot catalogSnapshot = null;
+            final SegmentInfos infos = store.buildSegmentInfos(
+                checkpointInfoResponse.getInfosBytes(),
+                checkpointInfoResponse.getCheckpoint().getSegmentsGen()
+            );
             if (!indexShard.isOptimizedIndex()) {
-                final SegmentInfos infos = store.buildSegmentInfos(
-                    checkpointInfoResponse.getInfosBytes(),
-                    checkpointInfoResponse.getCheckpoint().getSegmentsGen()
-                );
                 catalogSnapshot = new SegmentInfosCatalogSnapshot(infos);
             } else {
-                catalogSnapshot = deserializeCatalogSnapshot(checkpointInfoResponse.getInfosBytes());
+                catalogSnapshot = CompositeEngineCatalogSnapshot.deserializeFromString(infos.getUserData().get(CompositeEngineCatalogSnapshot.CATALOG_SNAPSHOT_KEY));
             }
             indexShard.finalizeReplication(catalogSnapshot, checkpointInfoResponse.getCheckpoint());
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
