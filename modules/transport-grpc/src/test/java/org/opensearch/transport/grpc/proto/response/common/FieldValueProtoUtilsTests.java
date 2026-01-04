@@ -184,6 +184,27 @@ public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Uint64 value should match", uint64Value, result);
     }
 
+    public void testFromProtoWithUint64ValueExceedingLongMax() {
+        // Create a FieldValue with UINT64_VALUE that exceeds Long.MAX_VALUE
+        // When a uint64 value > Long.MAX_VALUE is stored, it appears as a negative long
+        // (e.g., max uint64 = 2^64-1 appears as -1L in two's complement)
+        // The expected behavior is to return BigInteger for values that don't fit in signed long
+        long uint64ValueExceedingLongMax = -1L; // This represents 2^64-1 (max unsigned long)
+        org.opensearch.protobufs.GeneralNumber generalNumber = org.opensearch.protobufs.GeneralNumber.newBuilder()
+            .setUint64Value(uint64ValueExceedingLongMax)
+            .build();
+        FieldValue fieldValue = FieldValue.newBuilder().setGeneralNumber(generalNumber).build();
+
+        // Convert from Protocol Buffer
+        Object result = FieldValueProtoUtils.fromProto(fieldValue);
+
+        // Verify the conversion - should return BigInteger for values exceeding Long.MAX_VALUE
+        assertNotNull("Result should not be null", result);
+        assertTrue("Result should be BigInteger when value exceeds Long.MAX_VALUE", result instanceof BigInteger);
+        BigInteger expectedValue = new BigInteger("18446744073709551615"); // 2^64 - 1
+        assertEquals("Uint64 value should match max unsigned long", expectedValue, result);
+    }
+
     public void testToProtoWithBigInteger() {
         // Test with a BigInteger that represents an unsigned_long value
         BigInteger bigIntValue = new BigInteger("18446744073709551615"); // Max unsigned long
@@ -222,6 +243,25 @@ public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
             assertTrue("Result should be Long for " + original, result instanceof Long);
             assertEquals("Value should match for " + original, original.longValue(), ((Long) result).longValue());
         }
+    }
+
+    public void testToProtoWithBigIntegerOutOfRange() {
+        // Test that BigInteger values outside unsigned long range throw exception
+        BigInteger tooLarge = new BigInteger("18446744073709551616"); // 2^64 (exceeds max unsigned long)
+        BigInteger negative = new BigInteger("-1");
+
+        // Should throw IllegalArgumentException for values out of range
+        IllegalArgumentException exception1 = expectThrows(IllegalArgumentException.class, () -> FieldValueProtoUtils.toProto(tooLarge));
+        assertTrue(
+            "Exception should mention out of range",
+            exception1.getMessage().contains("out of range") || exception1.getMessage().contains("unsigned long")
+        );
+
+        IllegalArgumentException exception2 = expectThrows(IllegalArgumentException.class, () -> FieldValueProtoUtils.toProto(negative));
+        assertTrue(
+            "Exception should mention out of range",
+            exception2.getMessage().contains("out of range") || exception2.getMessage().contains("unsigned long")
+        );
     }
 
     // Test enum for testing enum conversion

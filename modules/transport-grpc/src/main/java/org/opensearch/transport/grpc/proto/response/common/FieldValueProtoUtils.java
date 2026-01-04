@@ -7,6 +7,7 @@
  */
 package org.opensearch.transport.grpc.proto.response.common;
 
+import org.opensearch.common.Numbers;
 import org.opensearch.protobufs.FieldValue;
 
 import java.math.BigInteger;
@@ -79,9 +80,12 @@ public class FieldValueProtoUtils {
             case Boolean b -> fieldValueBuilder.setBool(b);
             case Enum<?> e -> fieldValueBuilder.setString(e.toString());
             case BigInteger bi -> {
-                org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
                 // BigInteger is used for unsigned_long fields in OpenSearch
+                // Validate that the value is within unsigned long range (0 to 2^64-1)
+                Numbers.toUnsignedLongExact(bi);
                 // Convert to long for protobuf uint64 representation
+                // bi.longValue() preserves the bit pattern for correct uint64 encoding
+                org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
                 num.setUint64Value(bi.longValue());
                 fieldValueBuilder.setGeneralNumber(num.build());
             }
@@ -130,7 +134,16 @@ public class FieldValueProtoUtils {
                 case DOUBLE_VALUE:
                     return generalNumber.getDoubleValue();
                 case UINT64_VALUE:
-                    return generalNumber.getUint64Value();
+                    long uint64Value = generalNumber.getUint64Value();
+                    // If the value doesn't fit in a signed long (i.e., it's negative when interpreted as signed),
+                    // return BigInteger to preserve the unsigned value. Otherwise return Long for efficiency.
+                    if (uint64Value < 0) {
+                        // Value exceeds Long.MAX_VALUE, convert to BigInteger using unsigned interpretation
+                        return Numbers.toUnsignedBigInteger(uint64Value);
+                    } else {
+                        // Value fits in signed long range, return as Long
+                        return uint64Value;
+                    }
                 default:
                     throw new IllegalArgumentException("Unsupported general number type: " + generalNumber.getValueCase());
             }
