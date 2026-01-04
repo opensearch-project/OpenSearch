@@ -141,7 +141,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportIndicesResolvingAction<BulkRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
-    private static final ShardShuffler shuffler = new RotationShardShuffler(Randomness.get().nextInt());
+    private static final ShardShuffler SHUFFLER = new RotationShardShuffler(Randomness.get().nextInt());
 
     private final ThreadPool threadPool;
     private final AutoCreateIndex autoCreateIndex;
@@ -1002,7 +1002,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // Two-stage selection: first rank nodes by metrics, then randomly pick a shard on the best node
         Tuple<List<ShardRouting>, Map<String, List<ShardRouting>>> shardInfos = getIndexPrimaryShards(indexRoutingTable);
         List<ShardRouting> shardRoutings = rankShardsAndUpdateStats(
-            shuffler.shuffle(shardInfos.v1(), shuffler.nextSeed()),
+            SHUFFLER.shuffle(shardInfos.v1(), SHUFFLER.nextSeed()),
             nodeMetricsCollector,
             new HashMap<>(clientConnections)
         );
