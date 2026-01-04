@@ -9,6 +9,8 @@ package org.opensearch.transport.grpc.proto.response.common;
 
 import org.opensearch.protobufs.FieldValue;
 
+import java.math.BigInteger;
+
 import static org.opensearch.index.query.AbstractQueryBuilder.maybeConvertToBytesRef;
 
 /**
@@ -40,7 +42,7 @@ public class FieldValueProtoUtils {
 
     /**
      * Converts a generic Java Object to its Protocol Buffer FieldValue representation.
-     * It handles various Java types (Integer, Long, Double, Float, String, Boolean, Enum, Map)
+     * It handles various Java types (Integer, Long, Double, Float, String, Boolean, Enum, BigInteger, Map)
      * and converts them to the appropriate FieldValue type.
      *
      * @param javaObject The Java object to convert
@@ -76,6 +78,13 @@ public class FieldValueProtoUtils {
             }
             case Boolean b -> fieldValueBuilder.setBool(b);
             case Enum<?> e -> fieldValueBuilder.setString(e.toString());
+            case BigInteger bi -> {
+                org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
+                // BigInteger is used for unsigned_long fields in OpenSearch
+                // Convert to long for protobuf uint64 representation
+                num.setUint64Value(bi.longValue());
+                fieldValueBuilder.setGeneralNumber(num.build());
+            }
             default -> throw new IllegalArgumentException("Cannot convert " + javaObject + " to FieldValue");
         }
     }

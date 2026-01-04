@@ -11,6 +11,7 @@ package org.opensearch.transport.grpc.proto.response.common;
 import org.opensearch.protobufs.FieldValue;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -181,6 +182,46 @@ public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("Result should not be null", result);
         assertTrue("Result should be Long", result instanceof Long);
         assertEquals("Uint64 value should match", uint64Value, result);
+    }
+
+    public void testToProtoWithBigInteger() {
+        // Test with a BigInteger that represents an unsigned_long value
+        BigInteger bigIntValue = new BigInteger("18446744073709551615"); // Max unsigned long
+        FieldValue fieldValue = FieldValueProtoUtils.toProto(bigIntValue);
+
+        assertNotNull("FieldValue should not be null", fieldValue);
+        assertTrue("FieldValue should have general number", fieldValue.hasGeneralNumber());
+        assertTrue("GeneralNumber should have uint64 value", fieldValue.getGeneralNumber().hasUint64Value());
+        assertEquals("Uint64 value should match", -1L, fieldValue.getGeneralNumber().getUint64Value()); // -1L is max unsigned
+    }
+
+    public void testToProtoWithBigIntegerSmallValue() {
+        // Test with a BigInteger that has a value within signed long range
+        BigInteger bigIntValue = new BigInteger("2147395412"); // The value from the error message
+        FieldValue fieldValue = FieldValueProtoUtils.toProto(bigIntValue);
+
+        assertNotNull("FieldValue should not be null", fieldValue);
+        assertTrue("FieldValue should have general number", fieldValue.hasGeneralNumber());
+        assertTrue("GeneralNumber should have uint64 value", fieldValue.getGeneralNumber().hasUint64Value());
+        assertEquals("Uint64 value should match", 2147395412L, fieldValue.getGeneralNumber().getUint64Value());
+    }
+
+    public void testRoundTripBigInteger() {
+        // Test round-trip conversion for BigInteger values
+        BigInteger[] testValues = {
+            new BigInteger("0"),
+            new BigInteger("2147395412"),
+            new BigInteger("9223372036854775807"), // Max signed long
+            BigInteger.valueOf(Long.MAX_VALUE) };
+
+        for (BigInteger original : testValues) {
+            FieldValue fieldValue = FieldValueProtoUtils.toProto(original);
+            Object result = FieldValueProtoUtils.fromProto(fieldValue);
+
+            assertNotNull("Result should not be null for " + original, result);
+            assertTrue("Result should be Long for " + original, result instanceof Long);
+            assertEquals("Value should match for " + original, original.longValue(), ((Long) result).longValue());
+        }
     }
 
     // Test enum for testing enum conversion
