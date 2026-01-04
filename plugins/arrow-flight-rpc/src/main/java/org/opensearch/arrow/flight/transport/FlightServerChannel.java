@@ -28,7 +28,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -49,7 +48,7 @@ class FlightServerChannel implements TcpChannel {
     private final InetSocketAddress remoteAddress;
     private final List<ActionListener<Void>> closeListeners = Collections.synchronizedList(new ArrayList<>());
     private final ServerHeaderMiddleware middleware;
-    private volatile Optional<VectorSchemaRoot> root = Optional.empty();
+    private volatile VectorSchemaRoot root = null;
     private final FlightCallTracker callTracker;
     private volatile boolean cancelled = false;
     private final ExecutorService executor;
@@ -63,13 +62,10 @@ class FlightServerChannel implements TcpChannel {
     ) {
         this.serverStreamListener = serverStreamListener;
         this.serverStreamListener.setUseZeroCopy(true);
-        this.serverStreamListener.setOnCancelHandler(new Runnable() {
-            @Override
-            public void run() {
-                cancelled = true;
-                callTracker.recordCallEnd(StreamErrorCode.CANCELLED.name());
-                close();
-            }
+        this.serverStreamListener.setOnCancelHandler(() -> {
+            cancelled = true;
+            callTracker.recordCallEnd(StreamErrorCode.CANCELLED.name());
+            close();
         });
         this.allocator = allocator;
         this.middleware = middleware;
@@ -83,7 +79,7 @@ class FlightServerChannel implements TcpChannel {
         return allocator;
     }
 
-    Optional<VectorSchemaRoot> getRoot() {
+    VectorSchemaRoot getRoot() {
         return root;
     }
 
@@ -108,12 +104,12 @@ class FlightServerChannel implements TcpChannel {
         }
         long batchStartTime = System.nanoTime();
         // Only set for the first batch
-        if (root.isEmpty()) {
+        if (root == null) {
             middleware.setHeader(header);
-            root = Optional.of(output.getRoot());
-            serverStreamListener.start(root.get());
+            root = output.getRoot();
+            serverStreamListener.start(root);
         } else {
-            root = Optional.of(output.getRoot());
+            root = output.getRoot();
             // placeholder to clear and fill the root with data for the next batch
         }
 
@@ -121,7 +117,7 @@ class FlightServerChannel implements TcpChannel {
         // its transmitted at transport; we close them all at complete stream. TODO: optimize this behaviour
         serverStreamListener.putNext();
         if (callTracker != null) {
-            long rootSize = FlightUtils.calculateVectorSchemaRootSize(root.get());
+            long rootSize = FlightUtils.calculateVectorSchemaRootSize(root);
             callTracker.recordBatchSent(rootSize, System.nanoTime() - batchStartTime);
         }
     }
@@ -130,10 +126,14 @@ class FlightServerChannel implements TcpChannel {
      * Completes the streaming response and closes all pending roots.
      *
      */
-    public void completeStream() {
+    public void completeStream(ByteBuffer header) {
         try {
             if (!open.get()) {
                 throw new IllegalStateException("FlightServerChannel already closed.");
+            }
+            if (root == null) {
+                // Set header if no batches were sent
+                middleware.setHeader(header);
             }
             serverStreamListener.completed();
         } finally {
@@ -210,7 +210,9 @@ class FlightServerChannel implements TcpChannel {
             return;
         }
         open.set(false);
-        root.ifPresent(VectorSchemaRoot::close);
+        if (root != null) {
+            root.close();
+        }
         notifyCloseListeners();
     }
 
