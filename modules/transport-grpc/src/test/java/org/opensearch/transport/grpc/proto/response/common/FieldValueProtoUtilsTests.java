@@ -218,7 +218,7 @@ public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithBigIntegerSmallValue() {
         // Test with a BigInteger that has a value within signed long range
-        BigInteger bigIntValue = new BigInteger("2147395412"); // The value from the error message
+        BigInteger bigIntValue = new BigInteger("2147395412");
         FieldValue fieldValue = FieldValueProtoUtils.toProto(bigIntValue);
 
         assertNotNull("FieldValue should not be null", fieldValue);
