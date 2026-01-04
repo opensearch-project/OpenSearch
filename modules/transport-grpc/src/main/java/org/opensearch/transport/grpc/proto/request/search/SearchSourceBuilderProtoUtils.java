@@ -152,20 +152,24 @@ public class SearchSourceBuilderProtoUtils {
             }
         }
 
-        // TODO support aggregations
+        // Aggregations field was removed in protobufs 1.0.0
+        // TODO: Support aggregations when they are re-added to the proto
+        /*
         if (protoRequest.getAggregationsCount() > 0) {
             throw new UnsupportedOperationException("aggregations param is not supported yet");
         }
-
+        */
         if (protoRequest.hasHighlight()) {
             searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), registry));
         }
 
-        // TODO support suggest
+        // TODO support suggest once added back to the protos
+        /*
         if (protoRequest.hasSuggest()) {
             throw new UnsupportedOperationException("suggest param is not supported yet");
             // searchSourceBuilder.suggest(SuggestBuilderProtoUtils.fromProto(protoRequest.getSuggest()));
         }
+        */
         if (protoRequest.getRescoreCount() > 0) {
             for (Rescore rescore : protoRequest.getRescoreList()) {
                 searchSourceBuilder.addRescorer(RescorerBuilderProtoUtils.parseFromProto(rescore));

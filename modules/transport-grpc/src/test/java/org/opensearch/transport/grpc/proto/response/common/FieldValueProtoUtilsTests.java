@@ -165,6 +165,24 @@ public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Exception message should mention cannot convert", exception.getMessage().contains("Cannot convert"));
     }
 
+    public void testFromProtoWithUint64Value() {
+        // Create a FieldValue with UINT64_VALUE
+        // Using a value that fits in Java long (max long is 9223372036854775807L)
+        long uint64Value = 9223372036854775807L;
+        org.opensearch.protobufs.GeneralNumber generalNumber = org.opensearch.protobufs.GeneralNumber.newBuilder()
+            .setUint64Value(uint64Value)
+            .build();
+        FieldValue fieldValue = FieldValue.newBuilder().setGeneralNumber(generalNumber).build();
+
+        // Convert from Protocol Buffer
+        Object result = FieldValueProtoUtils.fromProto(fieldValue);
+
+        // Verify the conversion
+        assertNotNull("Result should not be null", result);
+        assertTrue("Result should be Long", result instanceof Long);
+        assertEquals("Uint64 value should match", uint64Value, result);
+    }
+
     // Test enum for testing enum conversion
     private enum TestEnum {
         TEST_VALUE
