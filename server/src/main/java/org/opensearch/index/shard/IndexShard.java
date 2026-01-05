@@ -5553,6 +5553,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // Create InternalEngine AFTER translog recovery so it reads the updated commit with correct checkpoints
         final Engine newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
         newEngineReference.set(newEngine);
+        onNewEngine(newEngineReference.get());
+
+        if (!indexSettings.isOptimizedIndex()) {
+            final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
+                newEngineReference.get(),
+                snapshot,
+                Engine.Operation.Origin.LOCAL_RESET,
+                () -> {
+                    // TODO: add a dedicate recovery stats for the reset translog
+                }
+            );
+            newEngineReference.get()
+                .translogManager()
+                .recoverFromTranslog(translogRunner, newEngineReference.get().getProcessedLocalCheckpoint(), recoverUpto);
+            newEngineReference.get().refresh("reset_engine");
+        }
 
         synchronized (engineMutex) {
             verifyNotClosed();
@@ -5756,14 +5772,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Directory storeDirectory;
         if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
             // Fix: Add isOptimizedIndex() check for optimized indices
-            Store.StoreDirectory directory = isOptimizedIndex() 
-                ? store().compositeStoreDirectory() 
+            Store.StoreDirectory directory = isOptimizedIndex()
+                ? store().compositeStoreDirectory()
                 : (Store.StoreDirectory) store().directory();
             storeDirectory = new StoreRecovery.StatsDirectoryWrapper(directory, recoveryState.getIndex());
             for (String file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
                 boolean fileExistsLocally;
-                
+
                 // Fix: Use format-aware checksum for optimized indices
                 if (isOptimizedIndex() && directory instanceof CompositeStoreDirectory) {
                     FileMetadata fileMetadata = new FileMetadata(file);
@@ -5771,7 +5787,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } else {
                     fileExistsLocally = localDirectoryContainsFile(storeDirectory, file, checksum);
                 }
-                
+
                 if (overrideLocal || !fileExistsLocally) {
                     recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), false);
                 } else {
