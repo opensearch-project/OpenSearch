@@ -858,6 +858,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Thread pool Settings
                 ThreadPool.CLUSTER_THREAD_POOL_SIZE_SETTING,
+                ThreadPool.MAX_VIRTUAL_THREADS_MULTIPLIER,
 
                 // Tiered caching settings
                 CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE),
