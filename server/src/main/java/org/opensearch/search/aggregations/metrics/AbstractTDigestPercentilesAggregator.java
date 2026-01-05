@@ -38,6 +38,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ObjectArray;
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -81,7 +82,9 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
-        this.formatter = formatter;
+        this.formatter = valuesSource instanceof HistogramValuesSource
+            ? DocValueFormat.RAW
+            : formatter;
         this.states = context.bigArrays().newObjectArray(1);
         this.keys = keys;
         this.compression = compression;

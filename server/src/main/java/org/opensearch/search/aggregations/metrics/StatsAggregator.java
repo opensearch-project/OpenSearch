@@ -38,6 +38,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
 import org.opensearch.common.util.LongArray;
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -87,7 +88,9 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             maxes = bigArrays.newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
-        this.format = valuesSourceConfig.format();
+        this.format = valuesSource instanceof HistogramValuesSource
+            ? DocValueFormat.RAW
+            : valuesSourceConfig.format();
     }
 
     @Override
@@ -101,7 +104,11 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
+        final boolean isHistogram = valuesSource instanceof HistogramValuesSource;
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final SortedNumericDoubleValues histogramCounts = isHistogram
+            ? ((HistogramValuesSource) valuesSource).getCounts(ctx)
+            : null;
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
         return new LeafBucketCollectorBase(sub, values) {
@@ -111,18 +118,45 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
-                    counts.increment(bucket, valuesCount);
+
+                    long totalDocCount = 0L;
                     double min = mins.get(bucket);
                     double max = maxes.get(bucket);
+                    double sum = sums.get(bucket);
+                    double compensation = compensations.get(bucket);
+                    kahanSummation.reset(sum, compensation);
 
+                    long[] countArray = new long[valuesCount];
+
+                    if (isHistogram) {
+                        assert histogramCounts != null;
+                        if (histogramCounts.advanceExact(doc) == false || histogramCounts.docValueCount() != valuesCount) {
+                            throw new IllegalStateException("Histogram counts and values must align");
+                        }
+                        for (int i = 0; i < valuesCount; i++) {
+                            countArray[i] = (long) histogramCounts.nextValue();
+                        }
+                    } else {
+                        for (int i = 0; i < valuesCount; i++) {
+                            countArray[i] = 1L; // Each value counts once
+                        }
+                    }
+
+                    // Process both values and counts
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        kahanSummation.add(value);
+                        long count = countArray[i];
+                        totalDocCount += count;
+                        for (long j = 0; j < count; j++) {
+                            kahanSummation.add(value);
+                        }
                         min = Math.min(min, value);
                         max = Math.max(max, value);
                     }
+
                     sums.set(bucket, kahanSummation.value());
                     compensations.set(bucket, kahanSummation.delta());
+                    counts.increment(bucket, totalDocCount);
                     mins.set(bucket, min);
                     maxes.set(bucket, max);
                 }

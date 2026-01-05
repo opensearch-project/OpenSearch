@@ -32,7 +32,9 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
@@ -68,7 +70,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     ) {
         builder.register(
             registryKey,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.HISTOGRAM),
             RangeAggregator::new,
             true
         );
@@ -106,13 +108,20 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
         Map<String, Object> metadata
     ) throws IOException {
 
+        DocValueFormat format;
+        if (config.getValuesSource() instanceof HistogramValuesSource) {
+            format = DocValueFormat.RAW;
+        } else {
+            format = config.format();
+        }
+
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(registryKey, config)
             .build(
                 name,
                 factories,
                 (Numeric) config.getValuesSource(),
-                config.format(),
+                format,
                 rangeFactory,
                 ranges,
                 keyed,

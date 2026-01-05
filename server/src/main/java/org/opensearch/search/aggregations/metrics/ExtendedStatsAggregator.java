@@ -39,6 +39,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.core.ParseField;
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -84,7 +85,9 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         super(name, context, parent, metadata);
         // TODO: stop depending on nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
-        this.format = valuesSourceConfig.format();
+        this.format = valuesSource instanceof HistogramValuesSource
+            ? DocValueFormat.RAW
+            : valuesSourceConfig.format();
         this.sigma = sigma;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
@@ -111,9 +114,14 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+
+        final HistogramValuesSource histogramValuesSource = (HistogramValuesSource) valuesSource;
+        final SortedNumericDoubleValues values = histogramValuesSource.doubleValues(ctx);
+        final SortedNumericDoubleValues countsValues = histogramValuesSource.getCounts(ctx);
+
         final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumOfSqr = new CompensatedSum(0, 0);
+
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override
@@ -132,13 +140,11 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                     maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
                 }
 
-                if (values.advanceExact(doc)) {
+                if (values.advanceExact(doc) && countsValues.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
-                    counts.increment(bucket, valuesCount);
                     double min = mins.get(bucket);
                     double max = maxes.get(bucket);
-                    // Compute the sum and sum of squires for double values with Kahan summation algorithm
-                    // which is more accurate than naive summation.
+
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
                     compensatedSum.reset(sum, compensation);
@@ -147,14 +153,20 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                     double compensationOfSqr = compensationOfSqrs.get(bucket);
                     compensatedSumOfSqr.reset(sumOfSqr, compensationOfSqr);
 
+                    long totalCount = counts.get(bucket);
+
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        compensatedSum.add(value);
-                        compensatedSumOfSqr.add(value * value);
+                        double count = countsValues.nextValue();  // get count for bucket
+
+                        totalCount += (long) count;
+                        compensatedSum.add(value * count);
+                        compensatedSumOfSqr.add(value * value * count);
                         min = Math.min(min, value);
                         max = Math.max(max, value);
                     }
 
+                    counts.set(bucket, totalCount);
                     sums.set(bucket, compensatedSum.value());
                     compensations.set(bucket, compensatedSum.delta());
                     sumOfSqrs.set(bucket, compensatedSumOfSqr.value());

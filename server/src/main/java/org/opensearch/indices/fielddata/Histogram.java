@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.fielddata;
+package org.opensearch.indices.fielddata;
 
 public class Histogram {
     private final double[] values;

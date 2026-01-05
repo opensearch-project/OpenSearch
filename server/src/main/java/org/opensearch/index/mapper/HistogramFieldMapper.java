@@ -6,8 +6,11 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.fielddata.HistogramIndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
@@ -232,7 +235,12 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new IndexFieldData.Builder() {
+                @Override
+                public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+                    return new HistogramIndexFieldData(name());
+                }
+            };
         }
     }
 }
