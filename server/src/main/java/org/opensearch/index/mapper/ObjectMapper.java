@@ -282,6 +282,28 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return objectMapper;
         }
 
+        @Deprecated
+        protected ObjectMapper createMapper(
+            String name,
+            String fullPath,
+            Explicit<Boolean> enabled,
+            Nested nested,
+            Dynamic dynamic,
+            Map<String, Mapper> mappers,
+            @Nullable Settings settings
+        ) {
+            return createMapper(
+                name,
+                fullPath,
+                enabled,
+                nested,
+                dynamic,
+                Defaults.DISABLE_OBJECTS,
+                mappers,
+                settings
+            );
+        }
+
         protected ObjectMapper createMapper(
             String name,
             String fullPath,
