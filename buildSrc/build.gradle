@@ -130,12 +130,12 @@ dependencies {
   testFixturesApi gradleTestKit()
   testImplementation 'org.wiremock:wiremock-standalone:3.6.0'
   testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
-  integTestImplementation('org.spockframework:spock-core:2.4-M6-groovy-4.0') {
+  integTestImplementation('org.spockframework:spock-core:2.4-groovy-5.0') {
     exclude module: "groovy"
   }
   // Integration with JUnit 4 features for Spock 2+ (which internally uses JUnit Platform -
   // part of JUnit 5) - https://spockframework.org/spock/docs/2.4-M6/modules.html
-  integTestImplementation('org.spockframework:spock-junit4:2.4-M6-groovy-4.0') {
+  integTestImplementation('org.spockframework:spock-junit4:2.4-groovy-5.0') {
     exclude module: "groovy"
   }
   integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
