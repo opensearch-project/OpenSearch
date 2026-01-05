@@ -30,7 +30,7 @@ public abstract class CatalogSnapshot extends AbstractRefCounted implements Writ
     public static final String CATALOG_SNAPSHOT_ID = "_id";
 
     protected final long generation;
-    protected final long version;
+    protected long version;
 
     public CatalogSnapshot(String name, long generation, long version) {
         super(name);
@@ -76,5 +76,5 @@ public abstract class CatalogSnapshot extends AbstractRefCounted implements Writ
         return this;
     }
 
-    public abstract  void setUserData(Map<String, String> userData, boolean b);
+    public abstract void setUserData(Map<String, String> userData, boolean b);
 }

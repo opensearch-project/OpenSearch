@@ -140,7 +140,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             List<Segment> newSegmentList = new ArrayList<>();
             // flush to disk
             for (CompositeDataFormatWriter dataFormatWriter : dataFormatWriters) {
-                Segment newSegment = new Segment(0);
+                Segment newSegment = new Segment(dataFormatWriter.getWriterGeneration());
                 FileInfos fileInfos = dataFormatWriter.flush(null);
                 fileInfos.getWriterFilesMap().forEach((key, value) -> {
                     newSegment.addSearchableFiles(key.name(), value);
