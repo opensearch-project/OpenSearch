@@ -71,6 +71,12 @@ apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
 
+// Apply security setup if opensearch-security is in installedPlugins
+if (project.hasProperty('installedPlugins') && 
+    project.property('installedPlugins').toString().contains('opensearch-security')) {
+  apply from: 'gradle/security-setup.gradle'
+}
+
 // Apply FIPS configuration to all projects
 allprojects {
   apply from: "$rootDir/gradle/fips.gradle"
