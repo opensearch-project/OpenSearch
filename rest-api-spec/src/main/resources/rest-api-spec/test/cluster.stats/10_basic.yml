@@ -90,7 +90,6 @@
 
 ---
 "get cluster stats nodes count with both master and cluster_manager":
-
   - do:
       cluster.stats: {}
 

@@ -4,7 +4,6 @@ setup:
 
 ---
 "Help":
-
   - do:
       cat.cluster_manager:
         help: true

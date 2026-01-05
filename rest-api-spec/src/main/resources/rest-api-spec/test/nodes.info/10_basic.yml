@@ -41,7 +41,6 @@ setup:
 
 ---
 "node_info role test":
-
   - do:
       nodes.info: {}
 

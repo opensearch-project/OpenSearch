@@ -23,7 +23,6 @@
 
 ---
 "Test cat nodes output":
-
   - do:
       cat.nodes: {}
 
