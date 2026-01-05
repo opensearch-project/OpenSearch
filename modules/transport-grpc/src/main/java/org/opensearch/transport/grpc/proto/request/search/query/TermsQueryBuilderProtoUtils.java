@@ -13,7 +13,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.protobufs.TermsQueryField;
-import org.opensearch.protobufs.ValueType;
 import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
 import java.util.ArrayList;
@@ -176,27 +175,6 @@ class TermsQueryBuilderProtoUtils {
             : new TermsQueryBuilder(fieldName, termsLookup);
 
         return termsQueryBuilder.valueType(valueType);
-    }
-
-    /**
-     * Parses a protobuf ScriptLanguage to a String representation
-     *
-     * See {@link org.opensearch.index.query.TermsQueryBuilder.ValueType#fromString(String)}  }
-     * *
-     * @param valueType the Protocol Buffer ValueType to convert
-     * @return the string representation of the script language
-     * @throws UnsupportedOperationException if no language was specified
-     */
-    public static TermsQueryBuilder.ValueType parseValueType(ValueType valueType) {
-        switch (valueType) {
-            case VALUE_TYPE_BITMAP:
-                return TermsQueryBuilder.ValueType.BITMAP;
-            case VALUE_TYPE_DEFAULT:
-                return TermsQueryBuilder.ValueType.DEFAULT;
-            case VALUE_TYPE_UNSPECIFIED:
-            default:
-                return TermsQueryBuilder.ValueType.DEFAULT;
-        }
     }
 
     /**
