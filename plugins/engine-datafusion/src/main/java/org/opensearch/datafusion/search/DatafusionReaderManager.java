@@ -45,7 +45,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
         WriterFileSet writerFileSet = new WriterFileSet(Path.of(URI.create("file:///" + path)), 1);
         files.forEach(fileMetadata -> writerFileSet.add(fileMetadata.file()));
         this.dataFusionService = dataFusionService;
-        this.current = new DatafusionReader(path, null, List.of(writerFileSet), dataFusionService.getRuntimePointer());
+        this.current = new DatafusionReader(path, null, List.of(writerFileSet));
         this.path = path;
         this.dataFormat = dataFormat;
     }
@@ -88,7 +88,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
                 return;
             }
             Collection<WriterFileSet> newFiles = catalogSnapshot.getRef().getSearchableFiles(dataFormat);
-            this.current = new DatafusionReader(this.path, catalogSnapshot, catalogSnapshot.getRef().getSearchableFiles(dataFormat), dataFusionService.getRuntimePointer());
+            this.current = new DatafusionReader(this.path, catalogSnapshot, catalogSnapshot.getRef().getSearchableFiles(dataFormat));
             if (old != null) {
                 release(old);
                 processFileChanges(old.files, newFiles);
