@@ -5753,22 +5753,36 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .getSegmentsUploadedToRemoteStore();
         store.incRef();
         try {
-            final Directory storeDirectory;
-            if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
-                storeDirectory = new StoreRecovery.StatsDirectoryWrapper(store.directory(), recoveryState.getIndex());
-                for (String file : uploadedSegments.keySet()) {
-                    long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
-                    if (overrideLocal || localDirectoryContainsFile(storeDirectory, file, checksum) == false) {
-                        recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), false);
-                    } else {
-                        recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), true);
-                    }
+        final Directory storeDirectory;
+        if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
+            // Fix: Add isOptimizedIndex() check for optimized indices
+            Store.StoreDirectory directory = isOptimizedIndex() 
+                ? store().compositeStoreDirectory() 
+                : (Store.StoreDirectory) store().directory();
+            storeDirectory = new StoreRecovery.StatsDirectoryWrapper(directory, recoveryState.getIndex());
+            for (String file : uploadedSegments.keySet()) {
+                long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
+                boolean fileExistsLocally;
+                
+                // Fix: Use format-aware checksum for optimized indices
+                if (isOptimizedIndex() && directory instanceof CompositeStoreDirectory) {
+                    FileMetadata fileMetadata = new FileMetadata(file);
+                    fileExistsLocally = localDirectoryContains((CompositeStoreDirectory) directory, fileMetadata, checksum);
+                } else {
+                    fileExistsLocally = localDirectoryContainsFile(storeDirectory, file, checksum);
                 }
-            } else {
-                storeDirectory = isOptimizedIndex()
-                    ? store().compositeStoreDirectory()
-                    : store.directory();
+                
+                if (overrideLocal || !fileExistsLocally) {
+                    recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), false);
+                } else {
+                    recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), true);
+                }
             }
+        } else {
+            storeDirectory = isOptimizedIndex()
+                ? store().compositeStoreDirectory()
+                : store.directory();
+        }
 
             String segmentsNFile = copySegmentFiles(
                 storeDirectory,

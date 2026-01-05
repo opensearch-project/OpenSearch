@@ -23,6 +23,7 @@ import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.bridge.Indexer;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
@@ -428,8 +429,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         updateRemoteRefreshTimeAndSeqNo(refreshTimeMs, refreshClockTimeMs, refreshSeqNo);
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
-        // Set the minimum sequence number for keeping translog
-        indexShard.getIndexer().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        Indexer indexer = indexShard.getIndexer();
+        if (indexer != null) {
+            indexer.translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        }
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
         logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
