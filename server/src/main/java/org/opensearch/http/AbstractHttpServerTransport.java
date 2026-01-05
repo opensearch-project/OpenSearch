@@ -54,12 +54,14 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.StreamingRestChannel;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.channels.TraceableHttpChannel;
 import org.opensearch.telemetry.tracing.channels.TraceableRestChannel;
+import org.opensearch.telemetry.tracing.channels.TraceableStreamingRestChannel;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BindTransportException;
 import org.opensearch.transport.Transport;
@@ -366,7 +368,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             final Span span = tracer.startSpan(SpanBuilder.from(restRequest));
             try (final SpanScope spanScope = tracer.withSpanInScope(span)) {
                 if (channel != null) {
-                    traceableRestChannel = TraceableRestChannel.create(channel, span, tracer);
+                    if (channel instanceof StreamingRestChannel streamingRestChannel) {
+                        traceableRestChannel = TraceableStreamingRestChannel.create(streamingRestChannel, span, tracer);
+                    } else {
+                        traceableRestChannel = TraceableRestChannel.create(channel, span, tracer);
+                    }
                 }
                 if (badRequestCause != null) {
                     dispatcher.dispatchBadRequest(traceableRestChannel, threadContext, badRequestCause);
