@@ -9,21 +9,20 @@
 package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.indices.TermsLookup;
-import org.opensearch.protobufs.TermsLookupField;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class TermsLookupProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseTermsLookupWithBasicFields() {
-        // Create a TermsLookupField instance with basic fields
-        TermsLookupField termsLookupField = TermsLookupField.newBuilder()
+        // Create a TermsLookup instance with basic fields (TermsLookupField was renamed to TermsLookup in protobufs 1.0.0)
+        org.opensearch.protobufs.TermsLookup termsLookupProto = org.opensearch.protobufs.TermsLookup.newBuilder()
             .setIndex("test_index")
             .setId("test_id")
             .setPath("test_path")
             .build();
 
         // Call the method under test
-        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupField);
+        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupProto);
 
         // Verify the result
         assertNotNull("TermsLookup should not be null", termsLookup);
@@ -35,8 +34,8 @@ public class TermsLookupProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testParseTermsLookupWithStore() {
-        // Create a TermsLookupField instance with store field
-        TermsLookupField termsLookupField = TermsLookupField.newBuilder()
+        // Create a TermsLookup instance with store field
+        org.opensearch.protobufs.TermsLookup termsLookupProto = org.opensearch.protobufs.TermsLookup.newBuilder()
             .setIndex("test_index")
             .setId("test_id")
             .setPath("test_path")
@@ -44,7 +43,7 @@ public class TermsLookupProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupField);
+        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupProto);
 
         // Verify the result
         assertNotNull("TermsLookup should not be null", termsLookup);
@@ -62,15 +61,15 @@ public class TermsLookupProtoUtilsTests extends OpenSearchTestCase {
 
     // This test verifies the bug fix for using index instead of id
     public void testParseTermsLookupWithDifferentIndexAndId() {
-        // Create a TermsLookupField instance with different index and id values
-        TermsLookupField termsLookupField = TermsLookupField.newBuilder()
+        // Create a TermsLookup instance with different index and id values
+        org.opensearch.protobufs.TermsLookup termsLookupProto = org.opensearch.protobufs.TermsLookup.newBuilder()
             .setIndex("test_index")
             .setId("test_id")
             .setPath("test_path")
             .build();
 
         // Call the method under test
-        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupField);
+        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupProto);
 
         // Verify the result
         assertNotNull("TermsLookup should not be null", termsLookup);
@@ -80,11 +79,15 @@ public class TermsLookupProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testParseTermsLookupWithEmptyFields() {
-        // Create a TermsLookupField instance with empty fields
-        TermsLookupField termsLookupField = TermsLookupField.newBuilder().setIndex("").setId("").setPath("").build();
+        // Create a TermsLookup instance with empty fields
+        org.opensearch.protobufs.TermsLookup termsLookupProto = org.opensearch.protobufs.TermsLookup.newBuilder()
+            .setIndex("")
+            .setId("")
+            .setPath("")
+            .build();
 
         // Call the method under test
-        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupField);
+        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupProto);
 
         // Verify the result
         assertNotNull("TermsLookup should not be null", termsLookup);
@@ -94,8 +97,8 @@ public class TermsLookupProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testParseTermsLookupWithRouting() {
-        // Create a TermsLookupField instance with routing field
-        TermsLookupField termsLookupField = TermsLookupField.newBuilder()
+        // Create a TermsLookup instance with routing field
+        org.opensearch.protobufs.TermsLookup termsLookupProto = org.opensearch.protobufs.TermsLookup.newBuilder()
             .setIndex("test_index")
             .setId("test_id")
             .setPath("test_path")
@@ -103,7 +106,7 @@ public class TermsLookupProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupField);
+        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupProto);
 
         // Verify the result
         assertNotNull("TermsLookup should not be null", termsLookup);
@@ -115,8 +118,8 @@ public class TermsLookupProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testParseTermsLookupWithRoutingAndStore() {
-        // Create a TermsLookupField instance with both routing and store fields
-        TermsLookupField termsLookupField = TermsLookupField.newBuilder()
+        // Create a TermsLookup instance with both routing and store fields
+        org.opensearch.protobufs.TermsLookup termsLookupProto = org.opensearch.protobufs.TermsLookup.newBuilder()
             .setIndex("test_index")
             .setId("test_id")
             .setPath("test_path")
@@ -125,7 +128,7 @@ public class TermsLookupProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupField);
+        TermsLookup termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsLookupProto);
 
         // Verify the result
         assertNotNull("TermsLookup should not be null", termsLookup);

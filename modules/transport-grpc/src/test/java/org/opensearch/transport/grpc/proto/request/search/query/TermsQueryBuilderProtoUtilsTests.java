@@ -10,7 +10,6 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.protobufs.TermsQueryField;
-import org.opensearch.protobufs.ValueType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.junit.Assert.assertEquals;
@@ -59,32 +58,6 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
                 org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_DEFAULT
             )
         );
-    }
-
-    public void testParseValueTypeWithBitmap() {
-        // Test the parseValueType method with BITMAP
-        TermsQueryBuilder.ValueType valueType = TermsQueryBuilderProtoUtils.parseValueType(ValueType.VALUE_TYPE_BITMAP);
-
-        assertEquals("Value type should be BITMAP", TermsQueryBuilder.ValueType.BITMAP, valueType);
-    }
-
-    public void testParseValueTypeWithDefault() {
-        // Test the parseValueType method with DEFAULT
-        TermsQueryBuilder.ValueType valueType = TermsQueryBuilderProtoUtils.parseValueType(ValueType.VALUE_TYPE_DEFAULT);
-
-        assertEquals("Value type should be DEFAULT", TermsQueryBuilder.ValueType.DEFAULT, valueType);
-    }
-
-    public void testParseValueTypeWithUnspecified() {
-        // Test the parseValueType method with UNSPECIFIED
-        TermsQueryBuilder.ValueType valueType = TermsQueryBuilderProtoUtils.parseValueType(ValueType.VALUE_TYPE_UNSPECIFIED);
-
-        assertEquals("Value type should be DEFAULT for UNSPECIFIED", TermsQueryBuilder.ValueType.DEFAULT, valueType);
-    }
-
-    public void testParseValueTypeWithNull() {
-
-        assertThrows(NullPointerException.class, () -> TermsQueryBuilderProtoUtils.parseValueType((ValueType) null));
     }
 
     public void testFromProtoWithTermsLookupField() {
