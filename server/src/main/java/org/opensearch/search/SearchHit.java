@@ -64,7 +64,6 @@ import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.transport.RemoteClusterAware;
@@ -731,8 +730,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         sortValues.toXContent(builder, params);
         if (!matchedQueries.isEmpty()) {
-            boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
-            if (includeMatchedQueriesScore) {
+            boolean includeNamedQueriesScore = matchedQueries.values().stream().anyMatch(value -> value != null && !Float.isNaN(value));
+            if (includeNamedQueriesScore) {
                 builder.startObject(Fields.MATCHED_QUERIES);
                 for (Map.Entry<String, Float> entry : matchedQueries.entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
