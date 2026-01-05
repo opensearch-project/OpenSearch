@@ -149,7 +149,16 @@ thirdPartyAudit {
       'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
       'io.micrometer.core.instrument.search.Search',
       'reactor.blockhound.BlockHound$Builder',
-      'reactor.blockhound.integration.BlockHoundIntegration'
+      'reactor.blockhound.integration.BlockHoundIntegration',
+      //optional compression
+      'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+      'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+      'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+      'com.aayushatharva.brotli4j.encoder.EncoderJNI$Operation',
+      'com.aayushatharva.brotli4j.encoder.EncoderJNI$Wrapper',
+      'com.github.luben.zstd.ZstdDecompressCtx',
+      'com.github.luben.zstd.ZstdDirectBufferCompressingStream',
+      'org.apache.commons.compress.compressors.CompressorStreamFactory'
    )
    ignoreViolations(
       'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',

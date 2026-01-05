@@ -79,10 +79,10 @@ dependencies {
   implementation "com.google.auth:google-auth-library-oauth2-http:1.41.0"
   runtimeOnly "com.google.oauth-client:google-oauth-client:1.39.0" // 1.39.0 in bom
   implementation "com.google.api-client:google-api-client:2.7.2"
-  implementation "com.google.http-client:google-http-client:2.0.2"
-  runtimeOnly "com.google.http-client:google-http-client-gson:2.0.2"
-  runtimeOnly "com.google.http-client:google-http-client-appengine:2.0.2"
-  runtimeOnly "com.google.http-client:google-http-client-jackson2:2.0.2"
+  implementation "com.google.http-client:google-http-client:2.0.3"
+  runtimeOnly "com.google.http-client:google-http-client-gson:2.0.3"
+  runtimeOnly "com.google.http-client:google-http-client-appengine:2.0.3"
+  runtimeOnly "com.google.http-client:google-http-client-jackson2:2.0.3"
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}" // 2.18.2 in bom
   runtimeOnly "io.opencensus:opencensus-api:0.31.1"
   runtimeOnly "io.opencensus:opencensus-contrib-http-util:0.31.1"

@@ -120,6 +120,8 @@ public class FieldValueProtoUtils {
                     return generalNumber.getFloatValue();
                 case DOUBLE_VALUE:
                     return generalNumber.getDoubleValue();
+                case UINT64_VALUE:
+                    return generalNumber.getUint64Value();
                 default:
                     throw new IllegalArgumentException("Unsupported general number type: " + generalNumber.getValueCase());
             }
