@@ -42,8 +42,16 @@ impl NativeParquetWriter {
             return Err("Invalid schema address".into());
         }
 
-        if WRITER_MANAGER.contains_key(&filename) {
-            log_error!("[RUST] ERROR: Writer already exists for file: {}", filename);
+        // Create temporary filename with "temp" prefix
+        let path = Path::new(&filename);
+        let temp_filename = path.parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(format!("temp-{}", path.file_name().unwrap().to_str().unwrap()))
+            .to_string_lossy()
+            .to_string();
+
+        if WRITER_MANAGER.contains_key(&temp_filename) {
+            log_error!("[RUST] ERROR: Writer already exists for file: {}", temp_filename);
             return Err("Writer already exists for this file".into());
         }
 
@@ -56,26 +64,35 @@ impl NativeParquetWriter {
             log_debug!("[RUST] Field {}: {} ({})", i, field.name(), field.data_type());
         }
 
-        let file = File::create(&filename)?;
+        let file = File::create(&temp_filename)?;
         let file_clone = file.try_clone()?;
-        FILE_MANAGER.insert(filename.clone(), file_clone);
+        FILE_MANAGER.insert(temp_filename.clone(), file_clone);
         let props = WriterProperties::builder()
             .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
             .build();
 
-        // Store properties for later use in sorting
-        PROPS_MANAGER.insert(filename.clone(), props.clone());
+        // Store properties and original filename for later use in sorting
+        PROPS_MANAGER.insert(temp_filename.clone(), props.clone());
+        PROPS_MANAGER.insert(format!("{}_original", temp_filename), WriterProperties::builder().build()); // Store original filename as a marker
 
         let writer = ArrowWriter::try_new(file, schema, Some(props))?;
-        WRITER_MANAGER.insert(filename, Arc::new(Mutex::new(writer)));
+        WRITER_MANAGER.insert(temp_filename, Arc::new(Mutex::new(writer)));
         Ok(())
     }
 
     fn write_data(filename: String, array_address: i64, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("[RUST] write_data called for file: {}, array_address: {}, schema_address: {}", filename, array_address, schema_address);
+        // Convert original filename to temp filename
+        let path = Path::new(&filename);
+        let temp_filename = path.parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(format!("temp-{}", path.file_name().unwrap().to_str().unwrap()))
+            .to_string_lossy()
+            .to_string();
+
+        log_info!("[RUST] write_data called for file: {} (temp: {}), array_address: {}, schema_address: {}", filename, temp_filename, array_address, schema_address);
 
         if (array_address as *mut u8).is_null() || (schema_address as *mut u8).is_null() {
-            log_error!("[RUST] ERROR: Invalid FFI addresses for file: {}, array_address: {}, schema_address: {}", filename, array_address, schema_address);
+            log_error!("[RUST] ERROR: Invalid FFI addresses for file: {}, array_address: {}, schema_address: {}", temp_filename, array_address, schema_address);
             return Err("Invalid FFI addresses (null pointers)".into());
         }
 
@@ -104,14 +121,14 @@ impl NativeParquetWriter {
 
                         log_info!("[RUST] Created RecordBatch with {} rows and {} columns", record_batch.num_rows(), record_batch.num_columns());
 
-                        if let Some(writer_arc) = WRITER_MANAGER.get(&filename) {
-                            log_debug!("[RUST] Writing RecordBatch to file");
+                        if let Some(writer_arc) = WRITER_MANAGER.get(&temp_filename) {
+                            log_debug!("[RUST] Writing RecordBatch to temp file");
                             let mut writer = writer_arc.lock().unwrap();
                             writer.write(&record_batch)?;
                             log_info!("[RUST] Successfully wrote RecordBatch");
                             Ok(())
                         } else {
-                            log_error!("[RUST] ERROR: No writer found for file: {}", filename);
+                            log_error!("[RUST] ERROR: No writer found for temp file: {}", temp_filename);
                             Err("Writer not found".into())
                         }
                     } else {
@@ -128,34 +145,42 @@ impl NativeParquetWriter {
     }
 
     fn close_writer(filename: String) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("[RUST] close_writer called for file: {}", filename);
+        // Convert original filename to temp filename
+        let path = Path::new(&filename);
+        let temp_filename = path.parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(format!("temp-{}", path.file_name().unwrap().to_str().unwrap()))
+            .to_string_lossy()
+            .to_string();
 
-        if let Some((_, writer_arc)) = WRITER_MANAGER.remove(&filename) {
+        log_info!("[RUST] close_writer called for file: {} (temp: {})", filename, temp_filename);
+
+        if let Some((_, writer_arc)) = WRITER_MANAGER.remove(&temp_filename) {
             match Arc::try_unwrap(writer_arc) {
                 Ok(mutex) => {
                     let writer = mutex.into_inner().unwrap();
                     match writer.close() {
                         Ok(_) => {
-                            log_info!("[RUST] Successfully closed writer for file: {}", filename);
+                            log_info!("[RUST] Successfully closed writer for temp file: {}", temp_filename);
 
                             // Sort and rewrite the file
-                            Self::sort_and_rewrite_parquet(&filename)?;
+                            Self::sort_and_rewrite_parquet(&temp_filename)?;
 
                             Ok(())
                         }
                         Err(e) => {
-                            log_error!("[RUST] ERROR: Failed to close writer for file: {}", filename);
+                            log_error!("[RUST] ERROR: Failed to close writer for temp file: {}", temp_filename);
                             Err(e.into())
                         }
                     }
                 }
                 Err(_) => {
-                    log_error!("[RUST] ERROR: Writer still in use for file: {}", filename);
+                    log_error!("[RUST] ERROR: Writer still in use for temp file: {}", temp_filename);
                     Err("Writer still in use".into())
                 }
             }
         } else {
-            log_error!("[RUST] ERROR: Writer not found for file: {}\n", filename);
+            log_error!("[RUST] ERROR: Writer not found for temp file: {}\n", temp_filename);
             Err("Writer not found".into())
         }
     }
@@ -189,7 +214,7 @@ impl NativeParquetWriter {
 
         // Check file size to decide sorting strategy
         let file_size = std::fs::metadata(filename)?.len();
-        const MAX_MEMORY_SIZE: u64 = 64 * 1024 * 1024; // 64MB threshold
+        const MAX_MEMORY_SIZE: u64 = 32 * 1024 * 1024; // 32MB threshold
 
         if file_size <= MAX_MEMORY_SIZE {
             Self::sort_small_file(filename, props)
@@ -232,6 +257,7 @@ impl NativeParquetWriter {
         let sorted_batch = RecordBatch::try_new(schema.clone(), sorted_columns)?;
 
         Self::write_sorted_file(filename, &sorted_batch, schema, props)?;
+        log_info!("[RUST] Sorted file written: {}", filename);
         std::fs::remove_file(filename)?;
 
         Ok(())
@@ -265,14 +291,14 @@ impl NativeParquetWriter {
             let sorted_columns = sorted_columns?;
 
             let sorted_batch = RecordBatch::try_new(schema.clone(), sorted_columns)?;
-            
+
             // Write sorted batch to temporary file
             let temp_filename = temp_dir.join(format!("sort_temp_{}_{}.parquet", batch_count, std::process::id()));
             let temp_file = File::create(&temp_filename)?;
             let mut temp_writer = ArrowWriter::try_new(temp_file, schema.clone(), Some(props.clone()))?;
             temp_writer.write(&sorted_batch)?;
             temp_writer.close()?;
-            
+
             temp_files.push(temp_filename);
             batch_count += 1;
         }
@@ -340,57 +366,86 @@ impl NativeParquetWriter {
         RecordBatch::try_new(schema, sorted_columns).map_err(|e| e.into())
     }
 
-    fn write_sorted_file(filename: &str, batch: &RecordBatch, schema: Arc<arrow::datatypes::Schema>, props: WriterProperties) -> Result<(), Box<dyn std::error::Error>> {
-        use arrow::array::UInt64Array;
-        
-        let path = Path::new(filename);
-        let sorted_filename = path.parent()
-            .unwrap_or_else(|| Path::new(""))
-            .join(format!("sorted-{}", path.file_name().unwrap().to_str().unwrap()));
+    fn write_sorted_file(temp_filename: &str, batch: &RecordBatch, schema: Arc<arrow::datatypes::Schema>, props: WriterProperties) -> Result<(), Box<dyn std::error::Error>> {
+        use arrow::array::Int64Array;
+
+        // Extract original filename from temp filename
+        let temp_path = Path::new(temp_filename);
+        let original_filename = if let Some(temp_name) = temp_path.file_name().and_then(|n| n.to_str()) {
+            if temp_name.starts_with("temp-") {
+                temp_path.parent()
+                    .unwrap_or_else(|| Path::new(""))
+                    .join(&temp_name[5..]) // Remove "temp-" prefix
+                    .to_string_lossy()
+                    .to_string()
+            } else {
+                temp_filename.to_string()
+            }
+        } else {
+            temp_filename.to_string()
+        };
 
         // Check if ___row_id column exists and rewrite it with sequential values
         let final_batch = if let Some(row_id_idx) = schema.fields().iter().position(|f| f.name() == "___row_id") {
-            log_debug!("[RUST] Rewriting ___row_id column with sequential values starting from 0");
-            
+            log_info!("[RUST] Rewriting ___row_id column with sequential values starting from 0");
+
             let row_count = batch.num_rows();
-            let sequential_ids = UInt64Array::from_iter_values(0..row_count as u64);
-            
+            let sequential_ids = Int64Array::from_iter_values((0..row_count as u64).map(|x| x as i64));
+
             let mut new_columns = batch.columns().to_vec();
             new_columns[row_id_idx] = Arc::new(sequential_ids);
-            
-            RecordBatch::try_new(schema.clone(), new_columns)?
+
+            match RecordBatch::try_new(schema.clone(), new_columns) {
+                Ok(batch) => {
+                    log_info!("[RUST] Successfully rewrote row id, now moving to write sorted file: {}", original_filename);
+                    batch
+                }
+                Err(e) => {
+                    log_error!("[RUST] Failed to create batch with rewritten row_id: {}", e);
+                    return Err(e.into());
+                }
+            }
         } else {
+            log_info!("[RUST] No ___row_id column found, proceeding with original batch to write sorted file: {}", original_filename);
             batch.clone()
         };
 
-        let sorted_file = File::create(&sorted_filename)?;
+        let sorted_file = File::create(&original_filename)?;
         let mut sorted_writer = ArrowWriter::try_new(sorted_file, schema, Some(props))?;
 
         sorted_writer.write(&final_batch)?;
         sorted_writer.close()?;
 
-        log_info!("[RUST] Successfully created sorted file: {:?}", sorted_filename);
+        log_info!("[RUST] Successfully created sorted file: {}", original_filename);
         Ok(())
     }
 
     fn flush_to_disk(filename: String) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("[RUST] fsync_file called for file: {}", filename);
+        // Convert original filename to temp filename
+        let path = Path::new(&filename);
+        let temp_filename = path.parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(format!("temp-{}", path.file_name().unwrap().to_str().unwrap()))
+            .to_string_lossy()
+            .to_string();
 
-        if let Some(file) = FILE_MANAGER.get_mut(&filename) {
+        log_info!("[RUST] fsync_file called for file: {} (temp: {})", filename, temp_filename);
+
+        if let Some(file) = FILE_MANAGER.get_mut(&temp_filename) {
             match file.sync_all() {
                 Ok(_) => {
-                    log_info!("[RUST] Successfully fsynced file: {}", filename);
+                    log_info!("[RUST] Successfully fsynced temp file: {}", temp_filename);
                     drop(file);
-                    FILE_MANAGER.remove(&filename);
+                    FILE_MANAGER.remove(&temp_filename);
                     Ok(())
                 }
                 Err(e) => {
-                    log_error!("[RUST] ERROR: Failed to fsync file: {}", filename);
+                    log_error!("[RUST] ERROR: Failed to fsync temp file: {}", temp_filename);
                     Err(e.into())
                 }
             }
         } else {
-            log_error!("[RUST] ERROR: File not found for fsync: {}", filename);
+            log_error!("[RUST] ERROR: Temp file not found for fsync: {}", temp_filename);
             Err("File not found".into())
         }
     }
