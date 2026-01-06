@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-ext.securityEnabled = project.hasProperty('installedPlugins') && 
+ext.securityEnabled = project.hasProperty('installedPlugins') &&
     project.property('installedPlugins').toString().contains('opensearch-security')
 
 if (securityEnabled) {
@@ -30,12 +30,12 @@ if (securityEnabled) {
     if (testClusters.findByName('runTask')) {
       testClusters.runTask.nodes.each { node ->
         // Add certificate files
-        node.extraConfigFile("kirk.pem", file("build/kirk.pem"))
-        node.extraConfigFile("kirk-key.pem", file("build/kirk-key.pem"))
-        node.extraConfigFile("esnode.pem", file("build/esnode.pem"))
-        node.extraConfigFile("esnode-key.pem", file("build/esnode-key.pem"))
-        node.extraConfigFile("root-ca.pem", file("build/root-ca.pem"))
-        
+        node.extraConfigFile("kirk.pem", project.layout.buildDirectory.file("kirk.pem").get().asFile)
+        node.extraConfigFile("kirk-key.pem", project.layout.buildDirectory.file("kirk-key.pem").get().asFile)
+        node.extraConfigFile("esnode.pem", project.layout.buildDirectory.file("esnode.pem").get().asFile)
+        node.extraConfigFile("esnode-key.pem", project.layout.buildDirectory.file("esnode-key.pem").get().asFile)
+        node.extraConfigFile("root-ca.pem", project.layout.buildDirectory.file("root-ca.pem").get().asFile)
+
         // Security settings
         node.setting("plugins.security.ssl.transport.pemcert_filepath", "esnode.pem")
         node.setting("plugins.security.ssl.transport.pemkey_filepath", "esnode-key.pem")
@@ -54,7 +54,7 @@ if (securityEnabled) {
         node.setting("plugins.security.restapi.roles_enabled", "[\"all_access\", \"security_rest_api_access\"]")
         node.setting("plugins.security.system_indices.enabled", "true")
       }
-      
+
       // Make run task depend on certificate downloads
       tasks.named('run') {
         dependsOn tasks.matching { it.name.startsWith('download') && it.name.contains('pem') }
