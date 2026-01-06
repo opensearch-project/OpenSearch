@@ -259,6 +259,11 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
             Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 1).build()
         );
 
+        // Wait for cluster to stabilize and complete allocation decisions
+        ClusterState currentState = client().admin().cluster().prepareState().get().getState();
+        int expectedNodes = currentState.getNodes().getSize();
+        ensureStableCluster(expectedNodes);
+
         try {
             assertBusy(() -> {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
