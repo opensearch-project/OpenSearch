@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.common.settings.Setting;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
@@ -42,6 +41,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
@@ -52,7 +52,12 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.contains;
@@ -98,18 +103,13 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         List<Setting<?>> reflectedSettings = new ArrayList<>();
 
         for (Field field : S3ClientSettings.class.getDeclaredFields()) {
-            if (Modifier.isStatic(field.getModifiers())
-                && Setting.class.isAssignableFrom(field.getType())) {
+            if (Modifier.isStatic(field.getModifiers()) && Setting.class.isAssignableFrom(field.getType())) {
                 reflectedSettings.add((Setting<?>) field.get(null));
             }
         }
 
-        assertEquals(
-            Set.copyOf(reflectedSettings),
-            Set.copyOf(S3ClientSettings.getAllClientSettings())
-        );
+        assertEquals(Set.copyOf(reflectedSettings), Set.copyOf(S3ClientSettings.getAllClientSettings()));
     }
-
 
     public void testLegacyMd5ChecksumCalculationCanBeSet() {
         S3Service.setDefaultAwsProfilePath();
