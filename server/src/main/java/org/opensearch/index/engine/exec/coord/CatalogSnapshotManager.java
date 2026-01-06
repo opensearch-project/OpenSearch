@@ -103,7 +103,6 @@ public class CatalogSnapshotManager {
     public synchronized void applyReplicationChanges(CatalogSnapshot catalogSnapshot, ShardPath shardPath) {
         CompositeEngineCatalogSnapshot oldSnapshot = latestCatalogSnapshot;
         if (catalogSnapshot != null) {
-            catalogSnapshot.incRef();
             catalogSnapshot.remapPaths(shardPath.getDataPath());
 
             CompositeEngineCatalogSnapshot newSnapshot = (CompositeEngineCatalogSnapshot) catalogSnapshot;

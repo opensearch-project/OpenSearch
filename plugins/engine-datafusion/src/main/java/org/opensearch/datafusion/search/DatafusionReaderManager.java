@@ -91,6 +91,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
             this.current = new DatafusionReader(this.path, catalogSnapshot, catalogSnapshot.getRef().getSearchableFiles(dataFormat));
             if (old != null) {
                 release(old);
+                old.releaseCatalogSnapshot();
                 processFileChanges(old.files, newFiles);
             } else {
                 processFileChanges(List.of(), newFiles);

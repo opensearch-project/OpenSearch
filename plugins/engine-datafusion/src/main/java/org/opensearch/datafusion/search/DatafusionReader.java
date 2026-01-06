@@ -168,7 +168,7 @@ public class DatafusionReader implements Closeable {
         readerHandle.close();
     }
 
-    private void releaseCatalogSnapshot() {
+    public void releaseCatalogSnapshot() {
         try {
             if (catalogSnapshotRef != null) {
                 catalogSnapshotRef.close();
