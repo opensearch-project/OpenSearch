@@ -1,0 +1,3 @@
+fixes:
+  - description: Fix missing registration of repository-s3 client settings, including disable_chunked_encoding, to prevent unknown setting errors.
+    issue: 20159
