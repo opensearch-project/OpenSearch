@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Ensure all modules are included in INTEG_TEST testcluster distribution ([#20241](https://github.com/opensearch-project/OpenSearch/pull/20241))
 - Cleanup HttpServerTransport.Dispatcher in Netty tests ([#20160](https://github.com/opensearch-project/OpenSearch/pull/20160))
 - Add `cluster.initial_cluster_manager_nodes` to testClusters OVERRIDABLE_SETTINGS ([#20348](https://github.com/opensearch-project/OpenSearch/pull/20348))
+- Add BigInteger support for unsigned_long fields in gRPC transport ([#20346](https://github.com/opensearch-project/OpenSearch/pull/20346))
 
 ### Fixed
 - Fix bug of warm index: FullFileCachedIndexInput was closed error ([#20055](https://github.com/opensearch-project/OpenSearch/pull/20055))
@@ -50,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `opensearch-protobufs` from 0.24.0 to 1.0.0 and update transport-grpc module compatibility ([#20335](https://github.com/opensearch-project/OpenSearch/pull/20335))
 - Bump Apache HttpClient5 to 5.6 ([#20358](https://github.com/opensearch-project/OpenSearch/pull/20358))
 - Bump Apache HttpCore5 to 5.4 ([#20358](https://github.com/opensearch-project/OpenSearch/pull/20358))
+- Bump `lycheeverse/lychee-action` from 2.6.1 to 2.7.0 ([#20370](https://github.com/opensearch-project/OpenSearch/pull/20370))
 
 ### Removed
 
