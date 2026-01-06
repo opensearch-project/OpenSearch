@@ -123,7 +123,7 @@ public class CatalogSnapshotManager {
 
     public synchronized void applyMergeResults(MergeResult mergeResult, OneMerge oneMerge) {
 
-        List<Segment> segmentList = latestCatalogSnapshot.getSegments();
+        List<Segment> segmentList = new ArrayList<>(latestCatalogSnapshot.getSegments());
 
         Segment segmentToAdd = getSegment(mergeResult.getMergedWriterFileSet());
         Set<Segment> segmentsToRemove = new HashSet<>(oneMerge.getSegmentsToMerge());

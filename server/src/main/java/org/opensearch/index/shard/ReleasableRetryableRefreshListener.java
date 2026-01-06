@@ -68,7 +68,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
 
         afterRefresh(didRefresh);
         try {
-           // catalogSnapshot.close();
+            catalogSnapshot.get().close();
         } catch (Exception ex) {
 
         }
