@@ -1,4 +1,4 @@
-/*
+   /*
  * SPDX-License-Identifier: Apache-2.0
  *
  * The OpenSearch Contributors require contributions made to
@@ -95,6 +95,22 @@ public class DiskThresholdSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_FILE_DESCRIPTOR_SETTING = new Setting<>(
+            "cluster.routing.allocation.file.descriptor.high",
+            "85%",
+            (s) -> validWatermarkSetting(s, "cluster.routing.allocation.file.descriptor.high"),
+            new HighFileDescriptorValidator(),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope
+    );
+    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_FILE_DESCRIPTOR_SETTING = new Setting<>(
+            "cluster.routing.allocation.file.descriptor.low",
+            "75%",
+            (s) -> validWatermarkSetting(s, "cluster.routing.allocation.file.descriptor.low"),
+            new LowFileDescriptorValidator(),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope
+    );
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.disk.include_relocations",
         true,
@@ -117,6 +133,8 @@ public class DiskThresholdSettings {
 
     private volatile String lowWatermarkRaw;
     private volatile String highWatermarkRaw;
+    private volatile Double fileDescriptorThresholdHigh;
+    private volatile Double fileDescriptorThresholdLow;
     private volatile Double freeDiskThresholdLow;
     private volatile Double freeDiskThresholdHigh;
     private volatile ByteSizeValue freeBytesThresholdLow;
@@ -144,10 +162,14 @@ public class DiskThresholdSettings {
     public DiskThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
         final String lowWatermark = CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings);
         final String highWatermark = CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings);
+        final String lowFileDescriptor = CLUSTER_ROUTING_ALLOCATION_LOW_FILE_DESCRIPTOR_SETTING.get(settings);
+        final String highFileDescriptor = CLUSTER_ROUTING_ALLOCATION_HIGH_FILE_DESCRIPTOR_SETTING.get(settings);
         final String floodStage = CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings);
         setHighWatermark(highWatermark);
         setLowWatermark(lowWatermark);
         setFloodStage(floodStage);
+        setHighFileDescriptor(highFileDescriptor);
+        setLowFileDescriptor(lowFileDescriptor);
         this.includeRelocations = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.get(settings);
         this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -156,6 +178,8 @@ public class DiskThresholdSettings {
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_FILE_DESCRIPTOR_SETTING, this::setHighFileDescriptor);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_FILE_DESCRIPTOR_SETTING, this::setLowFileDescriptor);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING, this::setIncludeRelocations);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
@@ -251,6 +275,70 @@ public class DiskThresholdSettings {
                 CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
                 CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING
             );
+            return settings.iterator();
+        }
+
+    }
+
+    /**
+     * Validates a high file descriptor threshold.
+     *
+     * @opensearch.internal
+     */
+    static final class HighFileDescriptorValidator implements Setting.Validator<String> {
+
+        @Override
+        public void validate(String value) {
+
+        }
+
+        @Override
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            final String lowFileDescriptorRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_FILE_DESCRIPTOR_SETTING);
+            if (lowFileDescriptorRaw != null) {
+                final double lowThreshold = thresholdPercentageFromWatermark(lowFileDescriptorRaw, false);
+                final double highThreshold = thresholdPercentageFromWatermark(value, false);
+                if (lowThreshold > highThreshold) {
+                    throw new IllegalArgumentException("low file descriptor [" + lowFileDescriptorRaw + "] more than high file descriptor [" + value + "]");
+                }
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = Arrays.asList(CLUSTER_ROUTING_ALLOCATION_LOW_FILE_DESCRIPTOR_SETTING);
+            return settings.iterator();
+        }
+
+    }
+
+    /**
+     * Validates a low file descriptor threshold.
+     *
+     * @opensearch.internal
+     */
+    static final class LowFileDescriptorValidator implements Setting.Validator<String> {
+
+        @Override
+        public void validate(String value) {
+
+        }
+
+        @Override
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            final String highFileDescriptorRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_FILE_DESCRIPTOR_SETTING);
+            if (highFileDescriptorRaw != null) {
+                final double lowThreshold = thresholdPercentageFromWatermark(value, false);
+                final double highThreshold = thresholdPercentageFromWatermark(highFileDescriptorRaw, false);
+                if (lowThreshold > highThreshold) {
+                    throw new IllegalArgumentException("low file descriptor [" + value + "] more than high file descriptor [" + highFileDescriptorRaw + "]");
+                }
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = Arrays.asList(CLUSTER_ROUTING_ALLOCATION_HIGH_FILE_DESCRIPTOR_SETTING);
             return settings.iterator();
         }
 
@@ -361,6 +449,14 @@ public class DiskThresholdSettings {
         );
     }
 
+    private void setHighFileDescriptor(String highFileDescriptor) {
+        this.fileDescriptorThresholdHigh = thresholdPercentageFromWatermark(highFileDescriptor);
+    }
+
+    private void setLowFileDescriptor(String lowFileDescriptor) {
+        this.fileDescriptorThresholdLow = thresholdPercentageFromWatermark(lowFileDescriptor);
+    }
+
     private void setCreateIndexBlockAutoReleaseEnabled(boolean createIndexBlockAutoReleaseEnabled) {
         this.createIndexBlockAutoReleaseEnabled = createIndexBlockAutoReleaseEnabled;
     }
@@ -421,6 +517,14 @@ public class DiskThresholdSettings {
 
     public boolean isCreateIndexBlockAutoReleaseEnabled() {
         return createIndexBlockAutoReleaseEnabled;
+    }
+
+    public Double getFileDescriptorThresholdHigh() {
+        return fileDescriptorThresholdHigh;
+    }
+
+    public Double getFileDescriptorThresholdLow() {
+        return fileDescriptorThresholdLow;
     }
 
     String describeLowThreshold() {

@@ -84,10 +84,6 @@ public class DiskThresholdMonitor {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);
 
-    // File descriptor threshold constants
-    private static final double FD_USAGE_THRESHOLD_HIGH = 85.0;
-    private static final double FD_USAGE_THRESHOLD_LOW = 75.0;
-
     private final DiskThresholdSettings diskThresholdSettings;
     private final FileCacheThresholdSettings fileCacheThresholdSettings;
     private final Client client;
@@ -237,12 +233,12 @@ public class DiskThresholdMonitor {
                     double fdUsagePercent = (openFDs * 100.0) / maxFDs;
 
                     // Applying write block at FD_USAGE_THRESHOLD_HIGH
-                    if (fdUsagePercent >= FD_USAGE_THRESHOLD_HIGH) {
+                    if (fdUsagePercent >= diskThresholdSettings.getFileDescriptorThresholdHigh()) {
                         if (nodesOverFileDescriptorThreshold.add(node)) {
                             logger.warn(
                                 "file descriptor usage [{}%] exceeded {}% threshold on {}, marking indices read-only",
                                 String.format("%.1f", fdUsagePercent),
-                                FD_USAGE_THRESHOLD_HIGH,
+                                diskThresholdSettings.getFileDescriptorThresholdHigh(),
                                 usage.getNodeName()
                             );
                         }
@@ -346,11 +342,11 @@ public class DiskThresholdMonitor {
                     long maxFDs = processStats.getMaxFileDescriptors();
                     if (maxFDs > 0) {
                         double fdUsagePercent = (openFDs * 100.0) / maxFDs;
-                        if (fdUsagePercent <= FD_USAGE_THRESHOLD_LOW && nodesOverFileDescriptorThreshold.remove(node)) {
+                        if (fdUsagePercent <= diskThresholdSettings.getFileDescriptorThresholdLow() && nodesOverFileDescriptorThreshold.remove(node)) {
                             logger.info(
                                 "file descriptor usage [{}%] dropped below {}% on {}, indices eligible for write block release",
                                 String.format("%.1f", fdUsagePercent),
-                                FD_USAGE_THRESHOLD_LOW,
+                                String.format("%.1f", diskThresholdSettings.getFileDescriptorThresholdLow()),
                                 usage.getNodeName()
                             );
                         }
