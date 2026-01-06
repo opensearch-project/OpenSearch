@@ -132,7 +132,8 @@ public interface SecureTransportSettingsProvider {
      * @return if supported, builds the {@link SSLEngine} instance
      * @throws SSLException throws SSLException if the {@link SSLEngine} instance cannot be built
      */
-    default Optional<SSLEngine> buildSecureClientTransportEngine(Settings settings, String serverName, String hostname, int port) throws SSLException {
+    default Optional<SSLEngine> buildSecureClientTransportEngine(Settings settings, String serverName, String hostname, int port)
+        throws SSLException {
         return buildSecureClientTransportEngine(settings, hostname, port);
     }
 }
