@@ -5553,9 +5553,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // Create InternalEngine AFTER translog recovery so it reads the updated commit with correct checkpoints
         final Engine newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
         newEngineReference.set(newEngine);
-        onNewEngine(newEngineReference.get());
+
 
         if (!indexSettings.isOptimizedIndex()) {
+            onNewEngine(newEngineReference.get());
             final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
                 newEngineReference.get(),
                 snapshot,
@@ -5573,9 +5574,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (engineMutex) {
             verifyNotClosed();
             IOUtils.close(currentEngineReference.getAndSet(newEngineReference.get()));
-            // currentCompositeEngineReference already set before recovery
-            // InternalEngine (currentEngineReference) provides Lucene search capability
-            // CompositeEngine (currentCompositeEngineReference) handles writes and format-specific search
+
+            // onNewEngine must be called inside synchronized(engineMutex) block for both optimized and non-optimized indices
+
+
             // We set active because we are now writing operations to the engine; this way,
             // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
             active.set(true);
