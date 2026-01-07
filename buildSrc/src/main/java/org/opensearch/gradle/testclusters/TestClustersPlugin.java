@@ -59,7 +59,7 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.net.URL;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 
@@ -199,7 +199,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 try {
                     localFile.getParentFile().mkdirs();
                     try (
-                        InputStream in = new URL(SECURITY_CERTS_URL + certFile).openStream();
+                        InputStream in = URI.create(SECURITY_CERTS_URL + certFile).toURL().openStream();
                         FileOutputStream out = new FileOutputStream(localFile)
                     ) {
                         byte[] buffer = new byte[8192];
