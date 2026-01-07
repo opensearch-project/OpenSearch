@@ -18,6 +18,8 @@ import org.opensearch.protobufs.BulkResponse;
 import org.opensearch.protobufs.IndexOperation;
 import org.opensearch.protobufs.Item;
 import org.opensearch.protobufs.MatchAllQuery;
+
+import java.util.ArrayList;
 import org.opensearch.protobufs.OperationContainer;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.Refresh;
@@ -109,20 +111,6 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
     }
 
     /**
-     * Gets a random gRPC transport address from the cluster.
-     *
-     * @return A random transport address
-     */
-    protected TransportAddress randomNetty4GrpcServerTransportAddr() {
-        List<TransportAddress> addresses = new ArrayList<>();
-        for (Netty4GrpcServerTransport transport : internalCluster().getInstances(Netty4GrpcServerTransport.class)) {
-            TransportAddress tAddr = new TransportAddress(transport.getBoundAddress().publishAddress().address());
-            addresses.add(tAddr);
-        }
-        return randomFrom(addresses);
-    }
-
-    /**
      * Configures node settings for gRPC transport.
      */
     @Override
@@ -148,6 +136,38 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
     }
 
     /**
+     * Gets a random gRPC transport address from the cluster.
+     *
+     * @return A random transport address
+     */
+    protected TransportAddress randomNetty4GrpcServerTransportAddr() {
+        List<TransportAddress> addresses = new ArrayList<>();
+        for (Netty4GrpcServerTransport transport : internalCluster().getInstances(Netty4GrpcServerTransport.class)) {
+            TransportAddress tAddr = new TransportAddress(transport.getBoundAddress().publishAddress().address());
+            addresses.add(tAddr);
+        }
+        return randomFrom(addresses);
+    }
+
+    /**
+     * Creates a test document with the specified field and value.
+     */
+    protected static String createTestDocument(String field, String value) {
+        return String.format(Locale.ROOT, "{\"%s\": \"%s\"}", field, value);
+    }
+
+    /**
+     * Creates a list of test documents with sequential numbering.
+     */
+    protected static List<String> createTestDocuments(String field, String prefix, int count) {
+        List<String> docs = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            docs.add(createTestDocument(field, prefix + " " + i));
+        }
+        return docs;
+    }
+
+    /**
      * Helper method to index a number of auto generated test documents.
      * Documents generated with the form: { "field": "doc 2 body" }
      * @param channel The gRPC channel to use for the indexing operation.
@@ -159,7 +179,7 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
         BulkRequest.Builder requestBuilder = BulkRequest.newBuilder().setRefresh(Refresh.REFRESH_TRUE).setIndex(index);
 
         for (int i = 0; (long) i < numDocs; ++i) {
-            String docBody = String.format(Locale.ROOT, "{\n    \"field\": \"doc %d body\"\n}\n", i);
+            String docBody = createTestDocument("field", String.valueOf(i));
             IndexOperation.Builder indexOp = IndexOperation.newBuilder().setXId(String.valueOf(i));
             OperationContainer.Builder opCont = OperationContainer.newBuilder().setIndex(indexOp);
             BulkRequestBody requestBody = BulkRequestBody.newBuilder()
