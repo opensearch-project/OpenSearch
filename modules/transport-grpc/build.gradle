@@ -21,6 +21,19 @@ testClusters {
   }
 }
 
+configurations {
+  testArtifacts.extendsFrom testImplementation
+}
+
+task testJar(type: Jar) {
+  archiveClassifier = 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}
+
 dependencies {
   api project('spi')
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"

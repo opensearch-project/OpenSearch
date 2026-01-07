@@ -8,6 +8,7 @@
 
 package org.opensearch.transport.grpc.ssl;
 
+import io.grpc.internal.GrpcUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -37,7 +38,6 @@ import io.grpc.stub.StreamObserver;
 
 import static org.opensearch.transport.grpc.ssl.SecureSettingsHelpers.CLIENT_KEYSTORE;
 import static org.opensearch.transport.grpc.ssl.SecureSettingsHelpers.getTestKeyManagerFactory;
-import static io.grpc.internal.GrpcUtil.NOOP_PROXY_DETECTOR;
 
 public class NettyGrpcClient implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(NettyGrpcClient.class);
@@ -134,7 +134,7 @@ public class NettyGrpcClient implements AutoCloseable {
 
         public NettyGrpcClient build() throws SSLException {
             NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(addr.getAddress(), addr.getPort())
-                .proxyDetector(NOOP_PROXY_DETECTOR);
+                .proxyDetector(GrpcUtil.NOOP_PROXY_DETECTOR);
 
             if (clientAuth || insecure) {
                 SslContextBuilder builder = SslContextBuilder.forClient();

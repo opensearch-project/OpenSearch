@@ -18,7 +18,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
+
 import org.opensearch.transport.grpc.ssl.NettyGrpcClient;
+
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
