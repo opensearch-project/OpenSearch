@@ -870,6 +870,10 @@ public class MetadataCreateIndexService {
 
         Map<String, Object> parsedRequestMappings = MapperService.parseMapping(xContentRegistry, requestMappings);
         result.add(parsedRequestMappings);
+
+        // Apply disable_objects override logic to ensure template priority ordering is respected
+        applyDisableObjectsOverrides(result);
+
         return result;
     }
 
@@ -940,43 +944,100 @@ public class MetadataCreateIndexService {
         List<CompressedXContent> templateMappings,
         NamedXContentRegistry xContentRegistry
     ) throws Exception {
-        Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, requestMappings);
-        // apply templates, merging the mappings into the request mapping if exists
+        // Step 1: Collect all mappings into a list
+        List<Map<String, Object>> allMappings = new ArrayList<>();
+
+        // Add template mappings first (lower priority)
         for (CompressedXContent mapping : templateMappings) {
             if (mapping != null) {
                 Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
-                if (templateMapping.isEmpty()) {
-                    // Someone provided an empty '{}' for mappings, which is okay, but to avoid
-                    // tripping the below assertion, we can safely ignore it
-                    continue;
-                }
-                assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
-                // pre-8x templates may have a wrapper type other than _doc, so we re-wrap things here
-                templateMapping = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, templateMapping.values().iterator().next());
-                if (mappings.isEmpty()) {
-                    mappings = templateMapping;
-                } else {
-                    XContentHelper.mergeDefaults(mappings, templateMapping);
-                    // Special handling for disable_objects: later templates should override earlier ones.
-                    // mergeDefaults only adds missing keys, so we need to explicitly override disable_objects
-                    // to ensure the last template's value wins (consistent with template priority ordering).
-                    Object templateDocObj = templateMapping.get(MapperService.SINGLE_MAPPING_NAME);
-                    if (templateDocObj instanceof Map) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> templateDoc = (Map<String, Object>) templateDocObj;
-                        if (templateDoc.containsKey("disable_objects")) {
-                            Object mappingsDocObj = mappings.get(MapperService.SINGLE_MAPPING_NAME);
-                            if (mappingsDocObj instanceof Map) {
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> mappingsDoc = (Map<String, Object>) mappingsDocObj;
-                                mappingsDoc.put("disable_objects", templateDoc.get("disable_objects"));
-                            }
-                        }
-                    }
+                if (!templateMapping.isEmpty()) {
+                    assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
+                    // pre-8x templates may have a wrapper type other than _doc, so we re-wrap things here
+                    templateMapping = Collections.singletonMap(
+                        MapperService.SINGLE_MAPPING_NAME,
+                        templateMapping.values().iterator().next()
+                    );
+                    allMappings.add(templateMapping);
                 }
             }
         }
-        return mappings;
+
+        // Add request mapping last (highest priority)
+        Map<String, Object> requestMapping = MapperService.parseMapping(xContentRegistry, requestMappings);
+        if (!requestMapping.isEmpty()) {
+            allMappings.add(requestMapping);
+        }
+
+        // Step 2: Apply shared disable_objects override logic (same as V2 templates)
+        applyDisableObjectsOverrides(allMappings);
+
+        // Step 3: Merge all mappings using existing logic
+        Map<String, Object> result = new HashMap<>();
+        for (Map<String, Object> mapping : allMappings) {
+            if (result.isEmpty()) {
+                result = new HashMap<>(mapping);
+            } else {
+                // Create a copy of the current mapping to avoid modifying the original
+                Map<String, Object> newMapping = new HashMap<>(mapping);
+                // Merge previous result as defaults into the new mapping
+                // This gives priority to the new mapping (later templates override earlier ones)
+                XContentHelper.mergeDefaults(newMapping, result);
+                result = newMapping;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Applies disable_objects override logic to a list of mappings.
+     * Later mappings in the list override earlier ones for the disable_objects setting,
+     * ensuring template priority ordering is respected.
+     *
+     * @param mappings List of mapping objects to process
+     */
+    static void applyDisableObjectsOverrides(List<Map<String, Object>> mappings) {
+        if (mappings == null || mappings.size() <= 1) {
+            return; // No overrides needed for null, empty, or single mapping
+        }
+
+        Object finalDisableObjectsValue = null;
+        boolean hasDisableObjects = false;
+
+        // Find the last (highest priority) disable_objects value
+        for (Map<String, Object> mapping : mappings) {
+            if (mapping == null) {
+                continue; // Skip null mappings
+            }
+
+            Object docObj = mapping.get(MapperService.SINGLE_MAPPING_NAME);
+            if (docObj instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> doc = (Map<String, Object>) docObj;
+                if (doc.containsKey("disable_objects")) {
+                    finalDisableObjectsValue = doc.get("disable_objects");
+                    hasDisableObjects = true;
+                }
+            }
+        }
+
+        // If we found a disable_objects value, apply it to all mappings that have a _doc section
+        if (hasDisableObjects) {
+            for (Map<String, Object> mapping : mappings) {
+                if (mapping == null) {
+                    continue; // Skip null mappings
+                }
+
+                Object docObj = mapping.get(MapperService.SINGLE_MAPPING_NAME);
+                if (docObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> doc = (Map<String, Object>) docObj;
+                    // Override with the final disable_objects value
+                    doc.put("disable_objects", finalDisableObjectsValue);
+                }
+            }
+        }
     }
 
     /**

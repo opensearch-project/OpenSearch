@@ -3284,4 +3284,225 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(exception3.getMessage(), containsString("strict"));
         assertThat(exception3.getMessage(), containsString("user.age"));
     }
+
+    public void testParseNonDynamicArrayWithDisableObjects() throws Exception {
+        // Test the specific array flattening logic in parseNonDynamicArray when disable_objects=true
+        // This tests the code path: parseNonDynamicArray -> processFlattenedTokenForDisableObjects
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("tags");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject();
+                b.startObject("numbers");
+                {
+                    b.field("type", "integer");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Test 1: Simple array with existing field mapping
+        ParsedDocument doc1 = mapper.parse(source(b -> { b.startArray("tags").value("tag1").value("tag2").value("tag3").endArray(); }));
+
+        assertNotNull(doc1);
+        // In disable_objects mode, array elements should be flattened using the same field name
+        assertEquals(3, doc1.rootDoc().getFields("tags").length);
+
+        // Verify the values are correctly stored
+        IndexableField[] tagFields = doc1.rootDoc().getFields("tags");
+        assertEquals("tag1", tagFields[0].stringValue());
+        assertEquals("tag2", tagFields[1].stringValue());
+        assertEquals("tag3", tagFields[2].stringValue());
+
+        // Test 2: Array with numeric values
+        ParsedDocument doc2 = mapper.parse(source(b -> { b.startArray("numbers").value(10).value(20).value(30).endArray(); }));
+
+        assertNotNull(doc2);
+        assertEquals(6, doc2.rootDoc().getFields("numbers").length); // 3 values * 2 fields each (numeric + stored)
+
+        // Test 3: Array with mixed content (objects within arrays)
+        ParsedDocument doc3 = mapper.parse(source(b -> {
+            b.startArray("mixed_array");
+            {
+                b.startObject();
+                {
+                    b.field("name", "item1");
+                    b.field("value", 100);
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.field("name", "item2");
+                    b.field("value", 200);
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        assertNotNull(doc3);
+        // Objects within arrays should be flattened to dotted field names
+        assertNotNull("Field 'mixed_array.name' should exist", doc3.rootDoc().getField("mixed_array.name"));
+        assertNotNull("Field 'mixed_array.value' should exist", doc3.rootDoc().getField("mixed_array.value"));
+
+        // Should have 2 instances of each field (one for each object in the array)
+        assertEquals(2, doc3.rootDoc().getFields("mixed_array.name").length);
+        assertEquals(4, doc3.rootDoc().getFields("mixed_array.value").length); // 2 values * 2 fields each
+    }
+
+    public void testParseNonDynamicArrayNestedArraysWithDisableObjects() throws Exception {
+        // Test nested arrays within disable_objects mode
+        // This tests the recursive array handling in processFlattenedTokenForDisableObjects
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+        }));
+
+        // Test nested arrays
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("nested_arrays");
+            {
+                b.startArray().value("a1").value("a2").endArray();
+                b.startArray().value("b1").value("b2").endArray();
+                b.startArray().value("c1").value("c2").endArray();
+            }
+            b.endArray();
+        }));
+
+        assertNotNull(doc);
+        // All array elements should be flattened to the same field name
+        assertEquals(6, doc.rootDoc().getFields("nested_arrays").length);
+
+        // Verify all values are present
+        IndexableField[] fields = doc.rootDoc().getFields("nested_arrays");
+        String[] expectedValues = { "a1", "a2", "b1", "b2", "c1", "c2" };
+        for (int i = 0; i < expectedValues.length; i++) {
+            assertEquals(expectedValues[i], fields[i].stringValue());
+        }
+    }
+
+    public void testParseNonDynamicArrayWithComplexObjectsDisableObjects() throws Exception {
+        // Test complex nested objects within arrays in disable_objects mode
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+        }));
+
+        // Test array containing complex nested objects
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("products");
+            {
+                b.startObject();
+                {
+                    b.field("id", "prod1");
+                    b.startObject("details");
+                    {
+                        b.field("name", "Product 1");
+                        b.field("price", 99.99);
+                        b.startObject("category");
+                        {
+                            b.field("main", "electronics");
+                            b.field("sub", "phones");
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.field("id", "prod2");
+                    b.startObject("details");
+                    {
+                        b.field("name", "Product 2");
+                        b.field("price", 149.99);
+                        b.startObject("category");
+                        {
+                            b.field("main", "electronics");
+                            b.field("sub", "tablets");
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        assertNotNull(doc);
+
+        // Verify all nested fields are flattened correctly
+        assertNotNull("Field 'products.id' should exist", doc.rootDoc().getField("products.id"));
+        assertNotNull("Field 'products.details.name' should exist", doc.rootDoc().getField("products.details.name"));
+        assertNotNull("Field 'products.details.price' should exist", doc.rootDoc().getField("products.details.price"));
+        assertNotNull("Field 'products.details.category.main' should exist", doc.rootDoc().getField("products.details.category.main"));
+        assertNotNull("Field 'products.details.category.sub' should exist", doc.rootDoc().getField("products.details.category.sub"));
+
+        // Verify we have the correct number of instances (2 products)
+        assertEquals(2, doc.rootDoc().getFields("products.id").length);
+        assertEquals(2, doc.rootDoc().getFields("products.details.name").length);
+        assertEquals(2, doc.rootDoc().getFields("products.details.category.main").length);
+        assertEquals(2, doc.rootDoc().getFields("products.details.category.sub").length);
+
+        // Verify the actual values
+        IndexableField[] idFields = doc.rootDoc().getFields("products.id");
+        assertEquals("prod1", idFields[0].stringValue());
+        assertEquals("prod2", idFields[1].stringValue());
+
+        IndexableField[] nameFields = doc.rootDoc().getFields("products.details.name");
+        assertEquals("Product 1", nameFields[0].stringValue());
+        assertEquals("Product 2", nameFields[1].stringValue());
+    }
+
+    public void testParseNonDynamicArrayWithNullValuesDisableObjects() throws Exception {
+        // Test array containing null values in disable_objects mode
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("disable_objects", true);
+            b.field("dynamic", "true");
+        }));
+
+        // Test array with null values mixed with regular values
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("mixed_nulls");
+            {
+                b.value("value1");
+                b.nullValue();
+                b.value("value2");
+                b.startObject();
+                {
+                    b.field("nested", "value3");
+                    b.nullField("null_field");
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        assertNotNull(doc);
+
+        // Non-null values should be stored
+        assertNotNull("Field 'mixed_nulls' should exist", doc.rootDoc().getField("mixed_nulls"));
+        assertNotNull("Field 'mixed_nulls.nested' should exist", doc.rootDoc().getField("mixed_nulls.nested"));
+
+        // Verify the non-null values
+        IndexableField[] mixedFields = doc.rootDoc().getFields("mixed_nulls");
+        assertEquals("value1", mixedFields[0].stringValue());
+        assertEquals("value2", mixedFields[1].stringValue());
+
+        assertEquals("value3", doc.rootDoc().getField("mixed_nulls.nested").stringValue());
+
+        // Null fields should not be created
+        assertNull("Null field should not be created", doc.rootDoc().getField("mixed_nulls.null_field"));
+    }
 }
