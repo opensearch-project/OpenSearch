@@ -181,6 +181,7 @@ public class SecureNetty4Transport extends Netty4Transport {
         private final SecureTransportSettingsProvider secureTransportSettingsProvider;
         private final boolean hostnameVerificationEnabled;
         private final boolean hostnameVerificationResovleHostName;
+        private final String serverName;
 
         private ClientSSLHandler(
             final Settings settings,
@@ -188,10 +189,21 @@ public class SecureNetty4Transport extends Netty4Transport {
             final boolean hostnameVerificationEnabled,
             final boolean hostnameVerificationResovleHostName
         ) {
+            this(settings, secureTransportSettingsProvider, hostnameVerificationEnabled, hostnameVerificationResovleHostName, null);
+        }
+
+        private ClientSSLHandler(
+            final Settings settings,
+            final SecureTransportSettingsProvider secureTransportSettingsProvider,
+            final boolean hostnameVerificationEnabled,
+            final boolean hostnameVerificationResovleHostName,
+            final String serverName
+        ) {
             this.settings = settings;
             this.secureTransportSettingsProvider = secureTransportSettingsProvider;
             this.hostnameVerificationEnabled = hostnameVerificationEnabled;
             this.hostnameVerificationResovleHostName = hostnameVerificationResovleHostName;
+            this.serverName = serverName;
         }
 
         @Override
@@ -229,12 +241,14 @@ public class SecureNetty4Transport extends Netty4Transport {
 
                     sslEngine = secureTransportSettingsProvider.buildSecureClientTransportEngine(
                         settings,
+                        serverName,
                         hostname,
                         inetSocketAddress.getPort()
                     ).orElse(null);
 
                 } else {
-                    sslEngine = secureTransportSettingsProvider.buildSecureClientTransportEngine(settings, null, -1).orElse(null);
+                    sslEngine = secureTransportSettingsProvider.buildSecureClientTransportEngine(settings, serverName, null, -1)
+                        .orElse(null);
                 }
 
                 if (sslEngine == null) {
@@ -299,7 +313,8 @@ public class SecureNetty4Transport extends Netty4Transport {
                             settings,
                             secureTransportSettingsProvider,
                             hostnameVerificationEnabled,
-                            hostnameVerificationResolveHostName
+                            hostnameVerificationResolveHostName,
+                            node.getAttributes().get("server_name")
                         )
                     );
             } else {
