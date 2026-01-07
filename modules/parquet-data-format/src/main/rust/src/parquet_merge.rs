@@ -31,7 +31,14 @@ struct PriorityItem {
     sort_value: i64,
     file_index: usize,
     row_index: usize,
-    batch: RecordBatch,
+    batch_index: usize,
+}
+
+// File state to track current batch per file
+struct FileState {
+    reader: parquet::arrow::arrow_reader::ParquetRecordBatchReader,
+    current_batch: Option<RecordBatch>,
+    batch_index: usize,
 }
 
 impl Eq for PriorityItem {}
@@ -285,8 +292,8 @@ fn process_files_sorted(
 
     log_info!("Processing merge with sorting.");
 
-    // Create readers for all files
-    let mut readers = Vec::new();
+    // Create file states for all files
+    let mut file_states = Vec::new();
     for path in input_files {
         let file = File::open(path)
             .map_err(|e| ParquetMergeError::InvalidFile(format!("{}: {}", path, e)))?;
@@ -295,31 +302,36 @@ fn process_files_sorted(
             .with_batch_size(READER_BATCH_SIZE)
             .build()
             .map_err(|e| ParquetMergeError::BatchProcessingError(format!("Failed to build reader: {}", e)))?;
-        readers.push(reader);
+        
+        file_states.push(FileState {
+            reader,
+            current_batch: None,
+            batch_index: 0,
+        });
     }
 
     // Priority queue for sorted merging
     let mut heap = BinaryHeap::new();
-    let mut readers: Vec<_> = readers.into_iter().enumerate().collect();
 
     // Initialize heap with first record from each file
-    for (file_index, reader) in readers.iter_mut() {
-        if let Some(batch_result) = reader.next() {
+    for (file_index, file_state) in file_states.iter_mut().enumerate() {
+        if let Some(batch_result) = file_state.reader.next() {
             let batch = batch_result
                 .map_err(|e| ParquetMergeError::BatchProcessingError(format!("Failed to read batch: {}", e)))?;
 
             if batch.num_rows() > 0 {
                 let mut sort_value = get_sort_value_from_batch(&batch, 0, schema, sort_column_name)?;
                 if reverse_sort {
-                    sort_value = -sort_value; // Negate for reverse order
+                    sort_value = -sort_value;
                 }
+                
+                file_state.current_batch = Some(batch);
                 heap.push(PriorityItem {
                     sort_value,
-                    file_index: file_index.clone(),
+                    file_index,
                     row_index: 0,
-                    batch: batch.clone(),
+                    batch_index: 0,
                 });
-
             }
         }
     }
@@ -328,21 +340,23 @@ fn process_files_sorted(
 
     // Process records in sorted order
     while let Some(item) = heap.pop() {
+        // Get current batch from file state
+        let current_batch = file_states[item.file_index].current_batch.as_ref()
+            .ok_or("Current batch not available")?;
+
         // Extract current record
-        let record = extract_record_from_batch(&item.batch, item.row_index, schema)?;
+        let record = extract_record_from_batch(current_batch, item.row_index, schema)?;
         output_records.push(record);
 
         // Write batch when it reaches the target size
         if output_records.len() >= WRITER_BATCH_SIZE {
             let output_batch = create_batch_from_records(&output_records, schema)?;
-
             let new_batch = update_row_ids(&output_batch, current_row_id, schema)?;
 
             writer.write(&new_batch)
                 .map_err(|e| ParquetMergeError::BatchProcessingError(format!("Failed to write batch: {}", e)))?;
 
             current_row_id += new_batch.num_rows() as i64;
-
             stats.total_rows += output_records.len();
             stats.total_batches += 1;
             output_records.clear();
@@ -350,35 +364,48 @@ fn process_files_sorted(
 
         // Get next record from the same file
         let next_row_index = item.row_index + 1;
-        if next_row_index < item.batch.num_rows() {
-            // Next record is in the same batch
-            let mut sort_value = get_sort_value_from_batch(&item.batch, next_row_index, schema, sort_column_name)?;
-            if reverse_sort {
-                sort_value = -sort_value;
-            }
-            heap.push(PriorityItem {
-                sort_value,
-                file_index: item.file_index,
-                row_index: next_row_index,
-                batch: item.batch,
-            });
-        } else {
-            // Need to read next batch from this file
-            if let Some(batch_result) = readers.get_mut(item.file_index).and_then(|(_, r)| r.next()) {
-                let batch = batch_result
-                    .map_err(|e| ParquetMergeError::BatchProcessingError(format!("Failed to read batch: {}", e)))?;
-                if batch.num_rows() > 0 {
-                    let mut sort_value = get_sort_value_from_batch(&batch, 0, schema, sort_column_name)?;
-                    if reverse_sort {
-                        sort_value = -sort_value;
+        let file_state = &mut file_states[item.file_index];
+        
+        if let Some(ref current_batch) = file_state.current_batch {
+            if next_row_index < current_batch.num_rows() {
+                // Next record is in the same batch
+                let mut sort_value = get_sort_value_from_batch(current_batch, next_row_index, schema, sort_column_name)?;
+                if reverse_sort {
+                    sort_value = -sort_value;
+                }
+                heap.push(PriorityItem {
+                    sort_value,
+                    file_index: item.file_index,
+                    row_index: next_row_index,
+                    batch_index: item.batch_index,
+                });
+            } else {
+                // Need to read next batch from this file
+                if let Some(batch_result) = file_state.reader.next() {
+                    let batch = batch_result
+                        .map_err(|e| ParquetMergeError::BatchProcessingError(format!("Failed to read batch: {}", e)))?;
+                    if batch.num_rows() > 0 {
+                        let mut sort_value = get_sort_value_from_batch(&batch, 0, schema, sort_column_name)?;
+                        if reverse_sort {
+                            sort_value = -sort_value;
+                        }
+                        
+                        file_state.current_batch = Some(batch);
+                        file_state.batch_index += 1;
+                        
+                        heap.push(PriorityItem {
+                            sort_value,
+                            file_index: item.file_index,
+                            row_index: 0,
+                            batch_index: file_state.batch_index,
+                        });
+                    } else {
+                        // No more data in this file
+                        file_state.current_batch = None;
                     }
-                    heap.push(PriorityItem {
-                        sort_value,
-                        file_index: item.file_index,
-                        row_index: 0,
-                        batch: batch.clone(),
-                    });
-
+                } else {
+                    // No more batches in this file
+                    file_state.current_batch = None;
                 }
             }
         }
