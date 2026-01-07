@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc.ssl;
 
-import io.grpc.internal.GrpcUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -24,6 +23,7 @@ import io.grpc.ManagedChannel;
 import io.grpc.health.v1.HealthCheckRequest;
 import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.health.v1.HealthGrpc;
+import io.grpc.internal.GrpcUtil;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;

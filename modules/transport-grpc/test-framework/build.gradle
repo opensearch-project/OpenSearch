@@ -28,7 +28,6 @@ dependencies {
   api "io.grpc:grpc-util:${versions.grpc}"
 
   api "junit:junit:${versions.junit}"
-  api "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
@@ -37,4 +36,8 @@ dependencies {
 
   testImplementation project(':test:framework')
   internalClusterTestImplementation project(':modules:transport-grpc')
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /grpc-.*/, to: 'grpc'
 }

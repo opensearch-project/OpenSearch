@@ -8,11 +8,12 @@
 
 package org.opensearch.transport.grpc.test;
 
-import io.grpc.ManagedChannel;
 import org.opensearch.transport.grpc.ssl.NettyGrpcClient;
 
 import java.util.Arrays;
 import java.util.List;
+
+import io.grpc.ManagedChannel;
 
 /**
  * Integration tests for the gRPC test framework utility methods.
@@ -47,10 +48,7 @@ public class GrpcTestFrameworkIT extends GrpcOpenSearchIntegTestCase {
         String indexName = "test-search-index";
         try (NettyGrpcClient client = createGrpcClient()) {
             ManagedChannel channel = client.getChannel();
-            List<String> docs = Arrays.asList(
-                "{\"field\": \"doc 0 body\"}",
-                "{\"field\": \"doc 1 body\"}"
-            );
+            List<String> docs = Arrays.asList("{\"field\": \"doc 0 body\"}", "{\"field\": \"doc 1 body\"}");
             doBulk(channel, indexName, docs);
             GrpcTestSearchResponse response = doMatchAll(channel, indexName, 10);
             assertTrue("Should return results", response.getTotalCount() >= 2);

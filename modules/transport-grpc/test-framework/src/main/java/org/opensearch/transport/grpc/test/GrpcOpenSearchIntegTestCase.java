@@ -9,7 +9,6 @@
 package org.opensearch.transport.grpc.test;
 
 import com.google.protobuf.ByteString;
-import io.grpc.ManagedChannel;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.plugins.Plugin;
@@ -36,6 +35,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+
+import io.grpc.ManagedChannel;
 
 import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
@@ -48,7 +50,7 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
     public static class GrpcTestBulkResponse {
         private final BulkResponse protoBulkResponse;
 
-        GrpcTestBulkResponse(BulkResponse protoBulkResponse){
+        GrpcTestBulkResponse(BulkResponse protoBulkResponse) {
             this.protoBulkResponse = protoBulkResponse;
         }
 
@@ -156,11 +158,14 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
     protected static GrpcTestBulkResponse doBulk(ManagedChannel channel, String index, long numDocs) {
         BulkRequest.Builder requestBuilder = BulkRequest.newBuilder().setRefresh(Refresh.REFRESH_TRUE).setIndex(index);
 
-        for(int i = 0; (long)i < numDocs; ++i) {
-            String docBody = "{\n    \"field\": \"doc %d body\"\n}\n".formatted(i);
+        for (int i = 0; (long) i < numDocs; ++i) {
+            String docBody = String.format(Locale.ROOT, "{\n    \"field\": \"doc %d body\"\n}\n", i);
             IndexOperation.Builder indexOp = IndexOperation.newBuilder().setXId(String.valueOf(i));
             OperationContainer.Builder opCont = OperationContainer.newBuilder().setIndex(indexOp);
-            BulkRequestBody requestBody = BulkRequestBody.newBuilder().setOperationContainer(opCont).setObject(ByteString.copyFromUtf8(docBody)).build();
+            BulkRequestBody requestBody = BulkRequestBody.newBuilder()
+                .setOperationContainer(opCont)
+                .setObject(ByteString.copyFromUtf8(docBody))
+                .build();
             requestBuilder.addBulkRequestBody(requestBody);
         }
 
@@ -181,7 +186,10 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
         for (String doc : docs) {
             IndexOperation.Builder indexOp = IndexOperation.newBuilder();
             OperationContainer.Builder opCont = OperationContainer.newBuilder().setIndex(indexOp);
-            BulkRequestBody requestBody = BulkRequestBody.newBuilder().setOperationContainer(opCont).setObject(ByteString.copyFromUtf8(doc)).build();
+            BulkRequestBody requestBody = BulkRequestBody.newBuilder()
+                .setOperationContainer(opCont)
+                .setObject(ByteString.copyFromUtf8(doc))
+                .build();
             requestBuilder.addBulkRequestBody(requestBody);
         }
 
