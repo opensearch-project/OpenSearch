@@ -954,10 +954,7 @@ public class MetadataCreateIndexService {
                 if (!templateMapping.isEmpty()) {
                     assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
                     // pre-8x templates may have a wrapper type other than _doc, so we re-wrap things here
-                    templateMapping = Collections.singletonMap(
-                        MapperService.SINGLE_MAPPING_NAME,
-                        templateMapping.values().iterator().next()
-                    );
+                    templateMapping = new HashMap<>(Map.of(MapperService.SINGLE_MAPPING_NAME, templateMapping.values().iterator().next()));
                     allMappings.add(templateMapping);
                 }
             }
