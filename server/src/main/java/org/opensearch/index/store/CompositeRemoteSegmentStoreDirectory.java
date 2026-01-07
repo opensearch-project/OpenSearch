@@ -15,10 +15,8 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.*;
+import org.apache.lucene.util.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.InternalApi;
@@ -29,6 +27,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngineCatalogSnapshot;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
@@ -533,7 +532,8 @@ public final class CompositeRemoteSegmentStoreDirectory extends RemoteSegmentSto
                 translogGeneration, metadataUploadCounter.incrementAndGet(),
                 RemoteSegmentMetadata.CURRENT_VERSION, nodeId);
 
-            FileMetadata fileMetadata = new FileMetadata("TempMetadata", metadataFilename);
+            // Use "metadata" format instead of "TempMetadata" - temp metadata files use the same directory as metadata files
+            FileMetadata fileMetadata = new FileMetadata("metadata", metadataFilename);
 
             try {
                 try (IndexOutput indexOutput = storeDirectory.createOutput(fileMetadata, IOContext.DEFAULT)) {
@@ -557,17 +557,20 @@ public final class CompositeRemoteSegmentStoreDirectory extends RemoteSegmentSto
                         }
                     }
 
-                    // Serialize CatalogSnapshot using StreamOutput
-                    byte[] catalogSnapshotByteArray;
-                    try (org.opensearch.common.io.stream.BytesStreamOutput streamOutput =
-                             new org.opensearch.common.io.stream.BytesStreamOutput()) {
-                        catalogSnapshot.writeTo(streamOutput);
-                        catalogSnapshotByteArray = streamOutput.bytes().toBytesRef().bytes;
-                    }
+                    SegmentInfos segmentInfosSnapshot = new SegmentInfos(Version.LATEST.major);
+                    Map<String, String> userData = catalogSnapshot.getUserData();
+                    userData.put(CompositeEngineCatalogSnapshot.CATALOG_SNAPSHOT_KEY, catalogSnapshot.serializeToString());
+                    segmentInfosSnapshot.setUserData(userData, false);
+                    segmentInfosSnapshot.setNextWriteGeneration(replicationCheckpoint.getSegmentsGen());
+                    ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
+                    segmentInfosSnapshot.write(
+                        new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos")
+                    );
+                    byte[] segmentInfoSnapshotByteArray = byteBuffersIndexOutput.toArrayCopy();
 
                     metadataStreamWrapper.writeStream(indexOutput, new RemoteSegmentMetadata(
                         RemoteSegmentMetadata.fromMapOfStringsV2(uploadedSegments),
-                        catalogSnapshotByteArray, replicationCheckpoint));
+                        segmentInfoSnapshotByteArray, replicationCheckpoint));
                 }
 
                 storeDirectory.sync(Collections.singleton(fileMetadata.serialize()));

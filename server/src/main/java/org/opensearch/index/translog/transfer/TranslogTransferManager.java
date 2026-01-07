@@ -292,6 +292,7 @@ public class TranslogTransferManager {
         } else {
             // Download translog.tlog file with object metadata from remote to local FS
             Map<String, String> metadata = downloadToFS(translogFilename, location, primaryTerm, true);
+
             try {
                 assert metadata != null && !metadata.isEmpty() && metadata.containsKey(CHECKPOINT_FILE_DATA_KEY);
                 recoverCkpFileUsingMetadata(metadata, location, generation, translogFilename);

@@ -100,7 +100,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService, ShardPath shardPath) throws IOException {
         this.dataFormat = dataFormat;
         this.datafusionReaderManager = new DatafusionReaderManager(
-            shardPath.getDataPath().resolve(dataFormat.getName()).toString(), formatCatalogSnapshot, dataFormat.getName()
+            shardPath.getDataPath().resolve(dataFormat.getName()).toString(), formatCatalogSnapshot, dataFormat.getName(), dataFusionService
         );
         this.datafusionService = dataFusionService;
         this.cacheManager = datafusionService.getCacheManager();
@@ -513,8 +513,14 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
     @Override
     public Map<String, FileStats> fetchSegmentStats() throws IOException {
-        try (DatafusionReader datafusionReader = datafusionReaderManager.acquire()) {
+        DatafusionReader datafusionReader = null;
+        try {
+            datafusionReader = datafusionReaderManager.acquire();
             return datafusionReader.fetchSegmentStats();
+        } finally {
+            if (datafusionReader != null) {
+                datafusionReaderManager.release(datafusionReader);
+            }
         }
     }
 }

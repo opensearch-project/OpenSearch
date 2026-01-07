@@ -49,6 +49,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -67,6 +68,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+
+import static org.opensearch.index.shard.ShardPath.INDEX_FOLDER_NAME;
+import static org.opensearch.index.shard.ShardPath.METADATA_FOLDER_NAME;
 
 /**
  * A RemoteDirectory extension for remote segment store. We need to make sure we don't overwrite a segment file once uploaded.
@@ -176,14 +180,12 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
      * @throws IOException if there were any failures in reading the metadata file
      */
     public RemoteSegmentMetadata init() throws IOException {
-        logger.debug("Start initialisation of remote segment metadata");
         RemoteSegmentMetadata remoteSegmentMetadata = readLatestMetadataFile();
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
         } else {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>();
         }
-        logger.debug("Initialisation of remote segment metadata completed");
         return remoteSegmentMetadata;
     }
 
@@ -525,7 +527,7 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
 
     private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
         UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
-        segmentsUploadedToRemoteStore.put(src, segmentMetadata);
+        segmentsUploadedToRemoteStore.put(new FileMetadata(src).serialize(), segmentMetadata);
     }
 
     /**
@@ -600,12 +602,13 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
                     Map<String, Integer> segmentToLuceneVersion = getSegmentToLuceneVersion(segmentFiles, segmentInfosSnapshot);
                     Map<String, String> uploadedSegments = new HashMap<>();
                     for (String file : segmentFiles) {
-                        if (segmentsUploadedToRemoteStore.containsKey(file)) {
-                            UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
+                        String normalizedFile = new FileMetadata(file).serialize();
+                        if (segmentsUploadedToRemoteStore.containsKey(normalizedFile)) {
+                            UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(normalizedFile);
                             metadata.setWrittenByMajor(segmentToLuceneVersion.get(metadata.getOriginalFilename()));
-                            uploadedSegments.put(file, metadata.toString());
+                            uploadedSegments.put(normalizedFile, metadata.toString());
                         } else {
-                            throw new NoSuchFileException(file);
+                            throw new NoSuchFileException(normalizedFile);
                         }
                     }
 

@@ -8,6 +8,10 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.index.engine.exec.coord.Segment;
+
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -30,27 +34,47 @@ import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNA
 
 public class CatalogSnapshotManager {
 
-    private CatalogSnapshot latestCatalogSnapshot;
+    private static final Logger logger = LogManager.getLogger(CatalogSnapshotManager.class);
+
+    private CompositeEngineCatalogSnapshot latestCatalogSnapshot;
     private final Committer compositeEngineCommitter;
-    private final Map<Long, CatalogSnapshot> catalogSnapshotMap;
+    private final Map<Long, CompositeEngineCatalogSnapshot> catalogSnapshotMap;
     private final AtomicReference<IndexFileDeleter> indexFileDeleter;
 
     public CatalogSnapshotManager(CompositeEngine compositeEngine, Committer compositeEngineCommitter, ShardPath shardPath) throws IOException {
         catalogSnapshotMap = new HashMap<>();
         this.compositeEngineCommitter = compositeEngineCommitter;
         indexFileDeleter = new AtomicReference<>();
-        getLastCommittedCatalogSnapshot().ifPresent(lastCommittedCatalogSnapshot -> {
+
+        logger.info("[CATALOG_SNAPSHOT_MANAGER] Initializing CatalogSnapshotManager for shardPath: {}", shardPath.getDataPath());
+
+        Optional<CompositeEngineCatalogSnapshot> lastCommittedOpt = getLastCommittedCatalogSnapshot();
+        logger.info("[CATALOG_SNAPSHOT_MANAGER] getLastCommittedCatalogSnapshot returned: present={}", lastCommittedOpt.isPresent());
+
+        lastCommittedOpt.ifPresent(lastCommittedCatalogSnapshot -> {
             latestCatalogSnapshot = lastCommittedCatalogSnapshot;
+            logger.info("[CATALOG_SNAPSHOT_MANAGER] Loaded CatalogSnapshot from commit: id={}, version={}, " +
+                       "lastWriterGeneration={}, segmentCount={}, segments={}",
+                       latestCatalogSnapshot.getId(),
+                       latestCatalogSnapshot.getVersion(),
+                       latestCatalogSnapshot.getLastWriterGeneration(),
+                       latestCatalogSnapshot.getSegments().size(),
+                       latestCatalogSnapshot.getSegments());
             catalogSnapshotMap.put(latestCatalogSnapshot.getId(), latestCatalogSnapshot);
             latestCatalogSnapshot.remapPaths(shardPath.getDataPath());
+            logger.info("[CATALOG_SNAPSHOT_MANAGER] After remapPaths, segments: {}", latestCatalogSnapshot.getSegments());
         });
+
         indexFileDeleter.set(new IndexFileDeleter(compositeEngine, latestCatalogSnapshot, shardPath));
         if(latestCatalogSnapshot != null) {
             latestCatalogSnapshot.setIndexFileDeleterSupplier(indexFileDeleter::get);
             latestCatalogSnapshot.setCatalogSnapshotMap(catalogSnapshotMap);
+            logger.info("[CATALOG_SNAPSHOT_MANAGER] Using restored CatalogSnapshot");
         } else {
-            latestCatalogSnapshot = new CatalogSnapshot(1, 1, new ArrayList<>(), catalogSnapshotMap, indexFileDeleter::get);
+            latestCatalogSnapshot = new CompositeEngineCatalogSnapshot(1, 1, new ArrayList<>(), catalogSnapshotMap, indexFileDeleter::get);
             catalogSnapshotMap.put(latestCatalogSnapshot.getId(), latestCatalogSnapshot);
+            logger.info("[CATALOG_SNAPSHOT_MANAGER] Created new empty CatalogSnapshot: id={}, lastWriterGeneration={}",
+                       latestCatalogSnapshot.getId(), latestCatalogSnapshot.getLastWriterGeneration());
         }
     }
 
@@ -67,7 +91,7 @@ public class CatalogSnapshotManager {
 
     public synchronized void applyRefreshResult(RefreshResult refreshResult) {
         commitCatalogSnapshot(
-            new CatalogSnapshot(
+            new CompositeEngineCatalogSnapshot(
                 latestCatalogSnapshot.getId() + 1,
                 latestCatalogSnapshot.getVersion() + 1,
                 refreshResult.getRefreshedSegments(),
@@ -77,11 +101,18 @@ public class CatalogSnapshotManager {
     }
 
     public synchronized void applyReplicationChanges(CatalogSnapshot catalogSnapshot, ShardPath shardPath) {
-        CatalogSnapshot oldSnapshot = latestCatalogSnapshot;
+        CompositeEngineCatalogSnapshot oldSnapshot = latestCatalogSnapshot;
         if (catalogSnapshot != null) {
-            catalogSnapshot.incRef();
             catalogSnapshot.remapPaths(shardPath.getDataPath());
-            latestCatalogSnapshot = catalogSnapshot;
+
+            CompositeEngineCatalogSnapshot newSnapshot = (CompositeEngineCatalogSnapshot) catalogSnapshot;
+
+            newSnapshot.setIndexFileDeleterSupplier(indexFileDeleter::get);
+            newSnapshot.setCatalogSnapshotMap(catalogSnapshotMap);
+
+            indexFileDeleter.get().addFileReferences(newSnapshot);
+
+            latestCatalogSnapshot = newSnapshot;
             catalogSnapshotMap.put(latestCatalogSnapshot.getId(), latestCatalogSnapshot);
         }
         if (oldSnapshot != null) {
@@ -91,16 +122,16 @@ public class CatalogSnapshotManager {
 
     public synchronized void applyMergeResults(MergeResult mergeResult, OneMerge oneMerge) {
 
-        List<CatalogSnapshot.Segment> segmentList = latestCatalogSnapshot.getSegments();
+        List<Segment> segmentList = new ArrayList<>(latestCatalogSnapshot.getSegments());
 
-        CatalogSnapshot.Segment segmentToAdd = getSegment(mergeResult.getMergedWriterFileSet());
-        Set<CatalogSnapshot.Segment> segmentsToRemove = new HashSet<>(oneMerge.getSegmentsToMerge());
+        Segment segmentToAdd = getSegment(mergeResult.getMergedWriterFileSet());
+        Set<Segment> segmentsToRemove = new HashSet<>(oneMerge.getSegmentsToMerge());
 
         boolean inserted = false;
         int newSegIdx = 0;
         for (int segIdx = 0, cnt = segmentList.size(); segIdx < cnt; segIdx++) {
             assert segIdx >= newSegIdx;
-            CatalogSnapshot.Segment currSegment = segmentList.get(segIdx);
+            Segment currSegment = segmentList.get(segIdx);
             if(segmentsToRemove.contains(currSegment)) {
                 if (!inserted) {
                     segmentList.set(segIdx, segmentToAdd);
@@ -124,13 +155,13 @@ public class CatalogSnapshotManager {
         if (!inserted) {
             segmentList.add(0, segmentToAdd);
         }
-        CatalogSnapshot newCatSnap = new CatalogSnapshot(latestCatalogSnapshot.getId() + 1, latestCatalogSnapshot.getVersion() + 1, segmentList, catalogSnapshotMap, indexFileDeleter::get);
+        CompositeEngineCatalogSnapshot newCatSnap = new CompositeEngineCatalogSnapshot(latestCatalogSnapshot.getId() + 1, latestCatalogSnapshot.getVersion() + 1, segmentList, catalogSnapshotMap, indexFileDeleter::get);
 
         // Commit new catalog snapshot
         commitCatalogSnapshot(newCatSnap);
     }
 
-    private synchronized void commitCatalogSnapshot(CatalogSnapshot newCatSnap) {
+    private synchronized void commitCatalogSnapshot(CompositeEngineCatalogSnapshot newCatSnap) {
         catalogSnapshotMap.put(newCatSnap.getId(), newCatSnap);
         if (latestCatalogSnapshot != null) {
             latestCatalogSnapshot.decRef();
@@ -139,8 +170,8 @@ public class CatalogSnapshotManager {
         compositeEngineCommitter.addLuceneIndexes(latestCatalogSnapshot);
     }
 
-    private CatalogSnapshot.Segment getSegment(Map<DataFormat, WriterFileSet> writerFileSetMap) {
-        CatalogSnapshot.Segment segment = new CatalogSnapshot.Segment(0);
+    private Segment getSegment(Map<DataFormat, WriterFileSet> writerFileSetMap) {
+        Segment segment = new Segment(0);
 
         for(DataFormat dataFormat : writerFileSetMap.keySet()) {
             segment.addSearchableFiles(dataFormat.name(), writerFileSetMap.get(dataFormat));
@@ -148,11 +179,21 @@ public class CatalogSnapshotManager {
         return segment;
     }
 
-    private Optional<CatalogSnapshot> getLastCommittedCatalogSnapshot() throws IOException {
+    private Optional<CompositeEngineCatalogSnapshot> getLastCommittedCatalogSnapshot() throws IOException {
         Map<String, String> lastCommittedData = compositeEngineCommitter.getLastCommittedData();
+        logger.info("[CATALOG_SNAPSHOT_MANAGER] getLastCommittedCatalogSnapshot: lastCommittedData keys={}", lastCommittedData.keySet());
+
         if (lastCommittedData.containsKey(CATALOG_SNAPSHOT_KEY)) {
-            return Optional.of(CatalogSnapshot.deserializeFromString(lastCommittedData.get(CATALOG_SNAPSHOT_KEY)));
+            String serializedSnapshot = lastCommittedData.get(CATALOG_SNAPSHOT_KEY);
+            logger.info("[CATALOG_SNAPSHOT_MANAGER] Found CATALOG_SNAPSHOT_KEY, serialized length={}",
+                       serializedSnapshot != null ? serializedSnapshot.length() : 0);
+            CompositeEngineCatalogSnapshot snapshot = CompositeEngineCatalogSnapshot.deserializeFromString(serializedSnapshot);
+            logger.info("[CATALOG_SNAPSHOT_MANAGER] Deserialized CatalogSnapshot: id={}, lastWriterGeneration={}, segmentCount={}",
+                       snapshot.getId(), snapshot.getLastWriterGeneration(), snapshot.getSegments().size());
+            return Optional.of(snapshot);
         }
+
+        logger.info("[CATALOG_SNAPSHOT_MANAGER] CATALOG_SNAPSHOT_KEY not found in commit data");
         return Optional.empty();
     }
 

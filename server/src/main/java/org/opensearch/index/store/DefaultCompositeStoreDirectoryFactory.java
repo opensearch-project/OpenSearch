@@ -11,17 +11,15 @@ package org.opensearch.index.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.DataFormat;
-import org.opensearch.index.engine.exec.coord.Any;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.PluginsService;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-
-import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.logger;
 
 /**
  * Default implementation of CompositeStoreDirectoryFactory that provides
@@ -45,8 +43,9 @@ public class DefaultCompositeStoreDirectoryFactory implements CompositeStoreDire
     /**
      * Creates a new CompositeStoreDirectory with plugin-based format discovery.
      *
-     * @param indexSettings the shard's index settings
-     * @param shardPath the path the shard is using
+     * @param indexSettings  the shard's index settings
+     * @param shardId
+     * @param shardPath      the path the shard is using
      * @param pluginsService service for discovering DataFormat plugins
      * @return a new CompositeStoreDirectory instance
      * @throws IOException if directory creation fails
@@ -54,7 +53,7 @@ public class DefaultCompositeStoreDirectoryFactory implements CompositeStoreDire
     @Override
     public CompositeStoreDirectory newCompositeStoreDirectory(
         IndexSettings indexSettings,
-        ShardPath shardPath,
+        ShardId shardId, ShardPath shardPath,
         PluginsService pluginsService
     ) throws IOException {
 
@@ -67,6 +66,7 @@ public class DefaultCompositeStoreDirectoryFactory implements CompositeStoreDire
             CompositeStoreDirectory compositeDirectory = new CompositeStoreDirectory(
                 indexSettings,
                 pluginsService,
+                shardId,
                 shardPath,
                 logger
             );

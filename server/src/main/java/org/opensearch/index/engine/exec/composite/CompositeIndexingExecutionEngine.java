@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine.exec.composite;
 
+import org.opensearch.index.engine.exec.coord.Segment;
+
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -79,6 +81,26 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return writerGeneration.getAndIncrement();
     }
 
+    /**
+     * Updates the writer generation counter to be at least minGeneration + 1.
+     * This is used during replication/recovery to ensure the replica's writer generation
+     * is always greater than any replicated file's generation, preventing file name collisions.
+     *
+     * @param minGeneration The minimum generation value from replicated files
+     */
+    public void updateWriterGenerationIfNeeded(long minGeneration) {
+        writerGeneration.updateAndGet(current -> Math.max(current, minGeneration + 1));
+    }
+
+    /**
+     * Gets the current writer generation without incrementing.
+     *
+     * @return The current writer generation value
+     */
+    public long getCurrentWriterGeneration() {
+        return writerGeneration.get();
+    }
+
     @Override
     public List<String> supportedFieldTypes() {
         throw new UnsupportedOperationException();
@@ -114,11 +136,11 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         RefreshResult finalResult;
         try {
             List<CompositeDataFormatWriter> dataFormatWriters = dataFormatWriterPool.checkoutAll();
-            List<CatalogSnapshot.Segment> refreshedSegment = ignore.getExistingSegments();
-            List<CatalogSnapshot.Segment> newSegmentList = new ArrayList<>();
+            List<Segment> refreshedSegment = ignore.getExistingSegments();
+            List<Segment> newSegmentList = new ArrayList<>();
             // flush to disk
             for (CompositeDataFormatWriter dataFormatWriter : dataFormatWriters) {
-                CatalogSnapshot.Segment newSegment = new CatalogSnapshot.Segment(dataFormatWriter.getWriterGeneration());
+                Segment newSegment = new Segment(dataFormatWriter.getWriterGeneration());
                 FileInfos fileInfos = dataFormatWriter.flush(null);
                 fileInfos.getWriterFilesMap().forEach((key, value) -> {
                     newSegment.addSearchableFiles(key.name(), value);
