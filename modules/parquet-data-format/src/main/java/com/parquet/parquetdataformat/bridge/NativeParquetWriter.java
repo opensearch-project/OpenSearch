@@ -10,12 +10,14 @@ package com.parquet.parquetdataformat.bridge;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Type-safe handle for native Parquet writer with lifecycle management.
  */
 public class NativeParquetWriter implements Closeable {
 
+    private final AtomicBoolean writerClosed = new AtomicBoolean(false);
     private final String filePath;
 
     /**
@@ -47,13 +49,21 @@ public class NativeParquetWriter implements Closeable {
         RustBridge.flushToDisk(filePath);
     }
 
+    private ParquetFileMetadata metadata;
+
     @Override
     public void close() {
-        try {
-            RustBridge.closeWriter(filePath);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to close Parquet writer for " + filePath, e);
+        if (writerClosed.compareAndSet(false, true)) {
+            try {
+                metadata = RustBridge.closeWriter(filePath);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to close Parquet writer for " + filePath, e);
+            }
         }
+    }
+
+    public ParquetFileMetadata getMetadata() {
+        return metadata;
     }
 
     public String getFilePath() {

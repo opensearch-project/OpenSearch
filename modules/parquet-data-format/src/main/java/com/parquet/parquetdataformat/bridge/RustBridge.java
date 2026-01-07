@@ -31,8 +31,9 @@ public class RustBridge {
     // Enhanced native methods that handle validation and provide better error reporting
     public static native void createWriter(String file, long schemaAddress) throws IOException;
     public static native void write(String file, long arrayAddress, long schemaAddress) throws IOException;
-    public static native void closeWriter(String file) throws IOException;
+    public static native ParquetFileMetadata closeWriter(String file) throws IOException;
     public static native void flushToDisk(String file) throws IOException;
+    public static native ParquetFileMetadata getFileMetadata(String file) throws IOException;
 
     public static native long getFilteredNativeBytesUsed(String pathPrefix);
 
