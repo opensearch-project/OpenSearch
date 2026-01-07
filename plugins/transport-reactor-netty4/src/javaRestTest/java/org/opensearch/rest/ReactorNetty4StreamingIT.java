@@ -49,8 +49,10 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
     public void testStreamingRequestNoBatching() throws IOException {
         final VirtualTimeScheduler scheduler = VirtualTimeScheduler.create(true);
 
-        final Stream<String> stream = IntStream.range(1, 6)
-            .mapToObj(id -> "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"" + id + "\" } }\n" + "{ \"name\": \"josh\" }\n");
+        final Stream<String> stream = IntStream.range(1, 6).mapToObj(id -> String.format(Locale.ENGLISH, """
+            { "index": { "_index": "test-streaming", "_id": "%d" } }
+            { "name": "josh" }
+            """, id));
 
         final Duration delay = Duration.ofMillis(1);
         final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
@@ -90,8 +92,10 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
     public void testStreamingRequestOpaqueId() throws IOException {
         final VirtualTimeScheduler scheduler = VirtualTimeScheduler.create(true);
 
-        final Stream<String> stream = IntStream.range(1, 6)
-            .mapToObj(id -> "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"" + id + "\" } }\n" + "{ \"name\": \"josh\" }\n");
+        final Stream<String> stream = IntStream.range(1, 6).mapToObj(id -> String.format(Locale.ENGLISH, """
+            { "index": { "_index": "test-streaming", "_id": "%d" } }
+            { "name": "josh" }
+            """, id));
 
         final RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("X-Opaque-Id", "1").build();
 
@@ -133,8 +137,10 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
     }
 
     public void testStreamingRequestOpaqueIdTwice() throws IOException {
-        final Stream<String> stream = IntStream.range(1, 6)
-            .mapToObj(id -> "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"" + id + "\" } }\n" + "{ \"name\": \"josh\" }\n");
+        final Stream<String> stream = IntStream.range(1, 6).mapToObj(id -> String.format(Locale.ENGLISH, """
+            { "index": { "_index": "test-streaming", "_id": "%d" } }
+            { "name": "josh" }
+            """, id));
 
         final RequestOptions options = RequestOptions.DEFAULT.toBuilder()
             .addHeader("X-Opaque-Id", "1")
@@ -160,8 +166,10 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
     }
 
     public void testStreamingRequestOneBatchBySize() throws IOException, InterruptedException {
-        final Stream<String> stream = IntStream.range(1, 6)
-            .mapToObj(id -> "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"" + id + "\" } }\n" + "{ \"name\": \"josh\" }\n");
+        final Stream<String> stream = IntStream.range(1, 6).mapToObj(id -> String.format(Locale.ENGLISH, """
+            { "index": { "_index": "test-streaming", "_id": "%d" } }
+            { "name": "josh" }
+            """, id));
 
         final Duration delay = Duration.ofMillis(1);
         final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
@@ -201,8 +209,10 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
     }
 
     public void testStreamingRequestManyBatchesBySize() throws IOException {
-        final Stream<String> stream = IntStream.range(1, 6)
-            .mapToObj(id -> "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"" + id + "\" } }\n" + "{ \"name\": \"josh\" }\n");
+        final Stream<String> stream = IntStream.range(1, 6).mapToObj(id -> String.format(Locale.ENGLISH, """
+            { "index": { "_index": "test-streaming", "_id": "%d" } }
+            { "name": "josh" }
+            """, id));
 
         final Duration delay = Duration.ofMillis(1);
         final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
@@ -244,8 +254,10 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
     }
 
     public void testStreamingRequestManyBatchesByInterval() throws IOException {
-        final Stream<String> stream = IntStream.range(1, 6)
-            .mapToObj(id -> "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"" + id + "\" } }\n" + "{ \"name\": \"josh\" }\n");
+        final Stream<String> stream = IntStream.range(1, 6).mapToObj(id -> String.format(Locale.ENGLISH, """
+            { "index": { "_index": "test-streaming", "_id": "%d" } }
+            { "name": "josh" }
+            """, id));
 
         final Duration delay = Duration.ofMillis(500);
         final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
@@ -287,8 +299,10 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
     }
 
     public void testStreamingRequestManyBatchesByIntervalAndSize() throws IOException {
-        final Stream<String> stream = IntStream.range(1, 6)
-            .mapToObj(id -> "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"" + id + "\" } }\n" + "{ \"name\": \"josh\" }\n");
+        final Stream<String> stream = IntStream.range(1, 6).mapToObj(id -> String.format(Locale.ENGLISH, """
+            { "index": { "_index": "test-streaming", "_id": "%d" } }
+            { "name": "josh" }
+            """, id));
 
         final Duration delay = Duration.ofSeconds(1);
         final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
@@ -321,9 +335,10 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
     }
 
     public void testStreamingBadRequest() throws IOException {
-        final Stream<String> stream = Stream.of(
-            "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"1\" } }\n" + "{ \"name\": \"josh\"  }\n"
-        );
+        final Stream<String> stream = Stream.of("""
+            { "index": { "_index": "test-streaming", "_id": "1" } }
+            { "name": "josh" }
+            """);
 
         final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
             "POST",
@@ -345,10 +360,12 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
     public void testStreamingBadStream() throws IOException {
         final VirtualTimeScheduler scheduler = VirtualTimeScheduler.create(true);
 
-        final Stream<String> stream = Stream.of(
-            "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"1\" } }\n" + "{ \"name\": \"josh\"  }\n",
-            "{ \"name\": \"josh\"  }\n"
-        );
+        final Stream<String> stream = Stream.of("""
+            { "index": { "_index": "test-streaming", "_id": "1" } }
+            { "name": "josh" }
+            """, """
+            { "name": "josh" }
+            """);
 
         final Duration delay = Duration.ofMillis(1);
         final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
@@ -373,13 +390,10 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
     }
 
     public void testStreamingLargeDocument() throws IOException {
-        final Stream<String> stream = Stream.of(
-            String.format(
-                Locale.getDefault(),
-                "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"1\" } }\n{ \"name\": \"%s\"  }\n",
-                randomAlphaOfLength(7000)
-            )
-        );
+        final Stream<String> stream = Stream.of(String.format(Locale.getDefault(), """
+            { "index": { "_index": "test-streaming", "_id": "1" } }
+            { "name": "%s" }
+            """, randomAlphaOfLength(7000)));
 
         final StreamingRequest<ByteBuffer> streamingRequest = new StreamingRequest<>(
             "POST",
@@ -402,7 +416,10 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
         final Stream<String> stream = Stream.of(
             String.format(
                 Locale.getDefault(),
-                "{ \"index\": { \"_index\": \"test-streaming\", \"_id\": \"1\" } }\n{ \"name\": \"%s\"  }\n",
+                """
+                    { "index": { "_index": "test-streaming", "_id": "1" } }
+                    { "name": "%s" }
+                    """,
                 randomAlphaOfLength(9000) /* the default chunk size limit is set 8k */
             )
         );
