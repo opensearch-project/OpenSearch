@@ -43,10 +43,22 @@ import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 
 /**
- * Base test class for gRPC transport integration tests.
+ * Base test case for gRPC transport integration tests.
+ * Provides utilities for testing plugins that use gRPC transport.
  */
 public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCase {
 
+    /**
+     * Constructor for GrpcOpenSearchIntegTestCase.
+     */
+    protected GrpcOpenSearchIntegTestCase() {
+        super();
+    }
+
+    /**
+     * Response wrapper for gRPC bulk operations.
+     * Provides a high level summary which abstracts away schema details.
+     */
     public static class GrpcTestBulkResponse {
         private final BulkResponse protoBulkResponse;
 
@@ -54,10 +66,18 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
             this.protoBulkResponse = protoBulkResponse;
         }
 
+        /**
+         * Gets the number of successfully indexed documents.
+         * @return the count of indexed documents
+         */
         public int getCount() {
             return protoBulkResponse.getItemsCount();
         }
 
+        /**
+         * Gets the number of errors during bulk operation.
+         * @return the error count
+         */
         public int getErrors() {
             int errors = 0;
             for (int i = 0; i < protoBulkResponse.getItemsCount(); i++) {
@@ -92,6 +112,10 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
         }
     }
 
+    /**
+     * Response wrapper for gRPC search operations.
+     * Provides a high level summary which abstracts away schema details.
+     */
     public static class GrpcTestSearchResponse {
         private final SearchResponse protoSearchResponse;
 
@@ -99,10 +123,19 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
             this.protoSearchResponse = protoSearchResponse;
         }
 
+        /**
+         * Gets the total number of search hits.
+         * @return the total hit count
+         */
         public long getTotalCount() {
             return protoSearchResponse.getHits().getTotal().getTotalHits().getValue();
         }
 
+        /**
+         * Gets the source of a document at the specified index.
+         * @param i the index of the document
+         * @return the document source as a string, or null if index is out of bounds
+         */
         public String getDocumentSource(int i) {
             return protoSearchResponse.getHits().getHits(i).getXSource().toString();
         }
@@ -110,6 +143,8 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
 
     /**
      * Configures node settings for gRPC transport.
+     * @param nodeOrdinal the ordinal number of the node
+     * @return the configured settings
      */
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -135,7 +170,6 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
 
     /**
      * Gets a random gRPC transport address from the cluster.
-     *
      * @return A random transport address
      */
     protected TransportAddress randomNetty4GrpcServerTransportAddr() {
@@ -149,6 +183,10 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
 
     /**
      * Creates a test document with the specified field and value.
+     * Useful for dependent plugins to generate consistent test data.
+     * @param field the field name
+     * @param value the field value
+     * @return a JSON string representing the document
      */
     protected static String createTestDocument(String field, String value) {
         return String.format(Locale.ROOT, "{\"%s\": \"%s\"}", field, value);
@@ -156,6 +194,11 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
 
     /**
      * Creates a list of test documents with sequential numbering.
+     * Useful for bulk operations in dependent plugin tests.
+     * @param field the field name for each document
+     * @param prefix the prefix for field values
+     * @param count the number of documents to create
+     * @return a list of JSON document strings
      */
     protected static List<String> createTestDocuments(String field, String prefix, int count) {
         List<String> docs = new ArrayList<>();
