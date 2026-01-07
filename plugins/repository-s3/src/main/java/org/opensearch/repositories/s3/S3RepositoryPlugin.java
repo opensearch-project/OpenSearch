@@ -68,7 +68,6 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -350,21 +349,22 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         settings.addAll(S3ClientSettings.getAllClientSettings());
 
         // Repository-level settings
-        settings.addAll(List.of(
-            S3Repository.ACCESS_KEY_SETTING,
-            S3Repository.SECRET_KEY_SETTING,
-            S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING,
-            S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING,
-            S3Repository.REDIRECT_LARGE_S3_UPLOAD,
-            S3Repository.UPLOAD_RETRY_ENABLED,
-            S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT,
-            S3Repository.PERMIT_BACKED_TRANSFER_ENABLED,
-            S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE
-        ));
+        settings.addAll(
+            List.of(
+                S3Repository.ACCESS_KEY_SETTING,
+                S3Repository.SECRET_KEY_SETTING,
+                S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING,
+                S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING,
+                S3Repository.REDIRECT_LARGE_S3_UPLOAD,
+                S3Repository.UPLOAD_RETRY_ENABLED,
+                S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT,
+                S3Repository.PERMIT_BACKED_TRANSFER_ENABLED,
+                S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE
+            )
+        );
 
         return settings;
     }
-
 
     @Override
     public void reload(Settings settings) {

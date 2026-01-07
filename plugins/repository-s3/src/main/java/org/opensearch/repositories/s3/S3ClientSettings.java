@@ -759,8 +759,6 @@ public final class S3ClientSettings {
         );
     }
 
-
-
     static class IrsaCredentials {
         private final String identityTokenFile;
         private final String roleArn;
