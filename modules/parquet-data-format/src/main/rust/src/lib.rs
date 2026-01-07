@@ -186,7 +186,7 @@ impl NativeParquetWriter {
     }
 
     fn sort_and_rewrite_parquet(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("[RUST] Sorting parquet file by @timestamp: {}", filename);
+        log_info!("[RUST] Sorting parquet file by timestamp: {}", filename);
 
         // Use stored properties from create_writer or fallback to reading from file
         let props = if let Some((_, stored_props)) = PROPS_MANAGER.remove(filename) {
@@ -243,8 +243,8 @@ impl NativeParquetWriter {
         let schema = batches[0].schema();
         let combined_batch = arrow::compute::concat_batches(&schema, &batches)?;
 
-        let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == "@timestamp")
-            .ok_or("@timestamp column not found")?;
+        let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == "timestamp")
+            .ok_or("timestamp column not found")?;
 
         let timestamp_array = combined_batch.column(timestamp_col_idx);
         let sort_indices = sort_to_indices(timestamp_array, None, None)?;
@@ -279,8 +279,8 @@ impl NativeParquetWriter {
             let batch = batch_result?;
             let schema = batch.schema();
 
-            let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == "@timestamp")
-                .ok_or("@timestamp column not found")?;
+            let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == "timestamp")
+                .ok_or("timestamp column not found")?;
 
             let timestamp_array = batch.column(timestamp_col_idx);
             let sort_indices = sort_to_indices(timestamp_array, None, None)?;
@@ -352,8 +352,8 @@ impl NativeParquetWriter {
         let schema = all_batches[0].schema();
         let combined = arrow::compute::concat_batches(&schema, &all_batches)?;
 
-        let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == "@timestamp")
-            .ok_or("@timestamp column not found")?;
+        let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == "timestamp")
+            .ok_or("timestamp column not found")?;
 
         let timestamp_array = combined.column(timestamp_col_idx);
         let sort_indices = sort_to_indices(timestamp_array, None, None)?;
