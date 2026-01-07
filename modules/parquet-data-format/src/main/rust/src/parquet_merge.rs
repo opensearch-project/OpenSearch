@@ -10,7 +10,7 @@ use std::collections::BinaryHeap;
 use std::cmp::Ordering;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
-use arrow::array::{Int64Array, ArrayRef};
+use arrow::array::{Int64Array, ArrayRef, TimestampMillisecondArray};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
@@ -402,9 +402,20 @@ fn get_sort_value_from_batch(batch: &RecordBatch, row_index: usize, schema: &Sch
     for (i, field) in schema.fields().iter().enumerate() {
         if field.name() == sort_column_name {
             let column = batch.column(i);
-            let sort_array = column.as_any().downcast_ref::<Int64Array>()
-                .ok_or("Sort column is not Int64Array")?;
-            return Ok(sort_array.value(row_index));
+
+            // Try TimestampMillisecondArray for timestamp fields
+            if let Some(timestamp_array) = column.as_any().downcast_ref::<TimestampMillisecondArray>() {
+                return Ok(timestamp_array.value(row_index));
+            }
+
+            // Try Int64Array
+            if let Some(int64_array) = column.as_any().downcast_ref::<Int64Array>() {
+                return Ok(int64_array.value(row_index));
+            }
+
+            // TODO
+            // For now only date/long fields are supported for sort
+            return Err(format!("Sort column '{}' is not Int64Array or TimestampMillisecondArray", sort_column_name).into());
         }
     }
     return Ok(0);
