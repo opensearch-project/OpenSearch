@@ -8,24 +8,20 @@
 
 package org.opensearch.transport.grpc.test;
 
-import org.junit.Test;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
-
-import static org.junit.Assert.*;
 
 /**
  * Unit tests for gRPC test framework utilities.
  */
-public class GrpcTestFrameworkTests {
+public class GrpcTestFrameworkTests extends OpenSearchTestCase {
 
-    @Test
     public void testCreateTestDocument() {
         String doc = GrpcOpenSearchIntegTestCase.createTestDocument("name", "test-value");
         assertEquals("Should create proper JSON", "{\"name\": \"test-value\"}", doc);
     }
 
-    @Test
     public void testCreateTestDocuments() {
         List<String> docs = GrpcOpenSearchIntegTestCase.createTestDocuments("field", "doc", 3);
         assertEquals("Should create 3 documents", 3, docs.size());

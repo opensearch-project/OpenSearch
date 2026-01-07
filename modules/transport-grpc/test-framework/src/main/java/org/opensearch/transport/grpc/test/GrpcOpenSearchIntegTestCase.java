@@ -18,8 +18,6 @@ import org.opensearch.protobufs.BulkResponse;
 import org.opensearch.protobufs.IndexOperation;
 import org.opensearch.protobufs.Item;
 import org.opensearch.protobufs.MatchAllQuery;
-
-import java.util.ArrayList;
 import org.opensearch.protobufs.OperationContainer;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.Refresh;
