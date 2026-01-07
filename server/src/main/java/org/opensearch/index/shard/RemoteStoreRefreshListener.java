@@ -331,9 +331,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     }
 
     /**
-     * Resolves CryptoMetadata with 2-layer priority:
-     * 1. Index-level encryption from index settings (if configured)
-     * 2. Repository-level encryption (fallback to null)
+     * Extracts CryptoMetadata if configured.
      *
      * @param indexMetadata Index metadata containing crypto settings
      * @return CryptoMetadata if encryption is configured, null otherwise
