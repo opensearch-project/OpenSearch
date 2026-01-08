@@ -105,8 +105,6 @@ class S3Service implements Closeable {
 
     private static final String STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY = "aws.stsEndpointOverride";
 
-    private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
-
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = new ConcurrentHashMap<>();
 
     /**
@@ -221,23 +219,18 @@ class S3Service implements Closeable {
         builder.httpClientBuilder(buildHttpClient(clientSettings));
         builder.overrideConfiguration(buildOverrideConfiguration(clientSettings, clientExecutorService));
 
-        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : DEFAULT_S3_ENDPOINT;
-        if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
-            // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
-            // TODO: Remove this once fixed in the AWS SDK
-            endpoint = clientSettings.protocol.toString() + "://" + endpoint;
+        if (Strings.hasLength(clientSettings.endpoint))
+        {
+            String endpoint = clientSettings.endpoint;
+            if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
+                // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
+                // TODO: Remove this once fixed in the AWS SDK
+                endpoint = clientSettings.protocol.toString() + "://" + endpoint;
+            }
+            logger.debug("using endpoint [{}] and region [{}]", endpoint, clientSettings.region);
+            builder.endpointOverride(URI.create(endpoint));
         }
-        logger.debug("using endpoint [{}] and region [{}]", endpoint, clientSettings.region);
 
-        // If the endpoint configuration isn't set on the builder then the default behaviour is to try
-        // and work out what region we are in and use an appropriate endpoint - see AwsClientBuilder#setRegion.
-        // In contrast, directly-constructed clients use s3.amazonaws.com unless otherwise instructed. We currently
-        // use a directly-constructed client, and need to keep the existing behaviour to avoid a breaking change,
-        // so to move to using the builder we must set it explicitly to keep the existing behaviour.
-        //
-        // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
-        // so this change removes that usage of a deprecated API.
-        builder.endpointOverride(URI.create(endpoint));
         if (Strings.hasText(clientSettings.region)) {
             builder.region(Region.of(clientSettings.region));
         }
