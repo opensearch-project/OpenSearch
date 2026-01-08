@@ -354,8 +354,22 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
     @RequiresTestIndexStoreListener
     public void testClusterStabilityWhenClusterStatePublicationLagsOnShardCleanup() throws Exception {
         additionalSetupForLagDuringDataMigration();
+        Map<ClusterApplierService, ClusterStateListener> blueNodeListeners = new HashMap<>();
         try {
             TestIndexStoreListener.DELAY_SHARD_ASSIGNMENT = true;
+
+            // Also add delay listeners on blue nodes (source nodes) to ensure publication lag
+            for (String nodeName : internalCluster().getNodeNames()) {
+                Settings nodeSettings = internalCluster().getInstance(Settings.class, nodeName);
+                if ("blue".equals(nodeSettings.get("node.attr.color")) && nodeSettings.getAsBoolean("node.data", true)) {
+                    ClusterApplierService applierService = internalCluster().getInstance(ClusterService.class, nodeName)
+                        .getClusterApplierService();
+                    ClusterStateListener listener = createDelayListener(applierService);
+                    blueNodeListeners.put(applierService, listener);
+                    applierService.addListener(listener);
+                }
+            }
+
             logger.info("Moving all shards to red nodes");
             client().admin()
                 .indices()
@@ -363,11 +377,11 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put("index.routing.allocation.include.color", "red"))
                 .get();
             validateNodeDropDueToPublicationLag();
-            TestIndexStoreListener.DELAY_SHARD_ASSIGNMENT = false;
-            validateClusterRecovery();
         } finally {
             TestIndexStoreListener.DELAY_SHARD_ASSIGNMENT = false;
+            blueNodeListeners.forEach(ClusterApplierService::removeListener);
         }
+        validateClusterRecovery();
     }
 
     public void testClusterStabilityWhenClusterStatePublicationLagsWithLongRunningListenerOnApplierThread() throws Exception {
@@ -448,20 +462,25 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         testLogsAppender.clearCapturedLogs();
     }
 
-    private void validateNodeDropDueToPublicationLag() {
-        ClusterHealthResponse clusterHealthResponse = internalCluster().client()
-            .admin()
-            .cluster()
-            .prepareHealth()
-            .setWaitForNodes("<9")
-            .setTimeout(TimeValue.timeValueSeconds(120))
-            .get();
-        logger.info("Cluster health {}", clusterHealthResponse);
-        assertFalse("Cluster didn't have a node drop", clusterHealthResponse.isTimedOut());
-        boolean logFound;
-        logFound = testLogsAppender.waitForLog("Sleeping for 30 seconds", 30, TimeUnit.SECONDS);
-        assertTrue("Expected log for delay in shard cleanup was not found within the timeout period", logFound);
-        logFound = testLogsAppender.waitForLog(
+    private void validateNodeDropDueToPublicationLag() throws Exception {
+        // Wait for the delay log to appear first, confirming the delay mechanism is active
+        boolean delayLogFound = testLogsAppender.waitForLog("Sleeping for 30 seconds", 60, TimeUnit.SECONDS);
+        assertTrue("Expected log for delay in shard cleanup was not found within the timeout period", delayLogFound);
+
+        // Use assertBusy to wait for node drop with retries
+        assertBusy(() -> {
+            ClusterHealthResponse clusterHealthResponse = internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForNodes("<9")
+                .setTimeout(TimeValue.timeValueSeconds(5))
+                .get();
+            assertFalse("Cluster didn't have a node drop yet", clusterHealthResponse.isTimedOut());
+        }, 120, TimeUnit.SECONDS);
+
+        logger.info("Node drop detected, validating logs");
+        boolean logFound = testLogsAppender.waitForLog(
             "Tasks batched with key: org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor",
             30,
             TimeUnit.SECONDS
