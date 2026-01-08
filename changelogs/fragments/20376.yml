@@ -1,2 +1,0 @@
-bugfix:
-  - Fix missing registration of repository-s3 client settings to prevent unknown setting errors.
