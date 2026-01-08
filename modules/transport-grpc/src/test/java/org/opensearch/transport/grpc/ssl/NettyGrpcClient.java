@@ -23,7 +23,6 @@ import io.grpc.ManagedChannel;
 import io.grpc.health.v1.HealthCheckRequest;
 import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.health.v1.HealthGrpc;
-import io.grpc.internal.GrpcUtil;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
@@ -133,8 +132,7 @@ public class NettyGrpcClient implements AutoCloseable {
         public Builder() {}
 
         public NettyGrpcClient build() throws SSLException {
-            NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(addr.getAddress(), addr.getPort())
-                .proxyDetector(GrpcUtil.NOOP_PROXY_DETECTOR);
+            NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(addr.getAddress(), addr.getPort()).proxyDetector(null);
 
             if (clientAuth || insecure) {
                 SslContextBuilder builder = SslContextBuilder.forClient();
