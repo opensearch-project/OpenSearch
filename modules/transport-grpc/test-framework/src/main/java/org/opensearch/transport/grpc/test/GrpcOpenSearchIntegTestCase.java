@@ -142,7 +142,7 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
         /**
          * Gets the source of a document at the specified index.
          * @param i the index of the document
-         * @return the document source as a string, or null if index is out of bounds
+         * @return the document source as a string, or throw IndexOutOfBoundsException if index is out of bounds
          */
         public String getDocumentSource(int i) {
             return protoSearchResponse.getHits().getHits(i).getXSource().toString();
