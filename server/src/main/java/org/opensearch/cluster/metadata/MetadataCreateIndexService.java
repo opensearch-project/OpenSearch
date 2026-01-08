@@ -77,7 +77,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -969,22 +968,87 @@ public class MetadataCreateIndexService {
         // Step 2: Apply shared disable_objects override logic (same as V2 templates)
         applyDisableObjectsOverrides(allMappings);
 
-        // Step 3: Merge all mappings using existing logic
+        // Step 3: Merge all mappings using field-aware replacement logic
+        // Process mappings in forward order, with special handling for request mappings
         Map<String, Object> result = new HashMap<>();
-        for (Map<String, Object> mapping : allMappings) {
+        boolean hasRequestMapping = !MapperService.parseMapping(xContentRegistry, requestMappings).isEmpty();
+
+        for (int i = 0; i < allMappings.size(); i++) {
+            Map<String, Object> mapping = allMappings.get(i);
+            boolean isRequestMapping = hasRequestMapping && (i == allMappings.size() - 1);
+
             if (result.isEmpty()) {
                 result = new HashMap<>(mapping);
             } else {
-                // Create a copy of the current mapping to avoid modifying the original
-                Map<String, Object> newMapping = new HashMap<>(mapping);
-                // Merge previous result as defaults into the new mapping
-                // This gives priority to the new mapping (later templates override earlier ones)
-                XContentHelper.mergeDefaults(newMapping, result);
-                result = newMapping;
+                if (isRequestMapping) {
+                    // For request mappings: request wins over templates
+                    Map<String, Object> newMapping = new HashMap<>(mapping);
+                    mergeTemplateFieldMappings(newMapping, result);
+                    result = newMapping;
+                } else {
+                    // For template mappings: accumulated result (higher priority) wins over current (lower priority)
+                    mergeTemplateFieldMappings(result, mapping);
+                }
             }
         }
 
         return result;
+    }
+
+    /**
+     * Merges template mappings with complete field definition replacement.
+     * Higher priority mappings completely override field definitions from lower priority mappings.
+     *
+     * @param target the target mapping to merge into (higher priority)
+     * @param source the source mapping to merge from (lower priority)
+     */
+    private static void mergeTemplateFieldMappings(Map<String, Object> target, Map<String, Object> source) {
+        for (Map.Entry<String, Object> sourceEntry : source.entrySet()) {
+            String key = sourceEntry.getKey();
+            Object sourceValue = sourceEntry.getValue();
+
+            if (!target.containsKey(key)) {
+                // Key doesn't exist in target, add it
+                target.put(key, sourceValue);
+            } else if (key.equals("properties") && sourceValue instanceof Map && target.get(key) instanceof Map) {
+                // Special handling for "properties" section - merge field definitions with replacement
+                @SuppressWarnings("unchecked")
+                Map<String, Object> targetProperties = (Map<String, Object>) target.get(key);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> sourceProperties = (Map<String, Object>) sourceValue;
+                mergeFieldProperties(targetProperties, sourceProperties);
+            } else if (sourceValue instanceof Map && target.get(key) instanceof Map) {
+                // Recursively merge other Map objects (but not field definitions)
+                @SuppressWarnings("unchecked")
+                Map<String, Object> targetMap = (Map<String, Object>) target.get(key);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> sourceMap = (Map<String, Object>) sourceValue;
+                mergeTemplateFieldMappings(targetMap, sourceMap);
+            }
+            // For non-Map values or when target already has the key, target value takes precedence (no override)
+        }
+    }
+
+    /**
+     * Merges field properties with complete field definition replacement.
+     * If a field exists in both maps, the target field definition completely replaces the source.
+     *
+     * @param targetProperties the target properties map (higher priority)
+     * @param sourceProperties the source properties map (lower priority)
+     */
+    private static void mergeFieldProperties(Map<String, Object> targetProperties, Map<String, Object> sourceProperties) {
+        for (Map.Entry<String, Object> sourceField : sourceProperties.entrySet()) {
+            String fieldName = sourceField.getKey();
+            Object sourceFieldDef = sourceField.getValue();
+
+            if (!targetProperties.containsKey(fieldName)) {
+                // Field doesn't exist in target, add it
+                targetProperties.put(fieldName, sourceFieldDef);
+            } else {
+                // If field exists in target, target takes precedence (higher priority template wins)
+                // This ensures complete field definition replacement rather than property merging
+            }
+        }
     }
 
     /**

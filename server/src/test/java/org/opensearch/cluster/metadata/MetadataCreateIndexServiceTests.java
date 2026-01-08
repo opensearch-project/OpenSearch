@@ -3747,4 +3747,50 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertNull("Should return null for null mapping", resultNullMapping);
     }
 
+    /**
+     * Test for field property override behavior in parseV1Mappings.
+     * This test reproduces the exact scenario from SimpleIndexTemplateIT.testSimpleIndexTemplateTests
+     */
+    public void testFieldPropertyOverrideInParseV1Mappings() throws Exception {
+        // Template 1 (order 0): field2 with type=keyword, store=true
+        CompressedXContent template1 = new CompressedXContent(
+            "{\""
+                + MapperService.SINGLE_MAPPING_NAME
+                + "\":{"
+                + "\"properties\":{"
+                + "\"field1\":{\"type\":\"text\",\"store\":true},"
+                + "\"field2\":{\"type\":\"keyword\",\"store\":true}"
+                + "}}}"
+        );
+
+        // Template 2 (order 1): field2 with type=text, store=false
+        CompressedXContent template2 = new CompressedXContent(
+            "{\""
+                + MapperService.SINGLE_MAPPING_NAME
+                + "\":{"
+                + "\"properties\":{"
+                + "\"field2\":{\"type\":\"text\",\"store\":false}"
+                + "}}}"
+        );
+
+        // Templates are processed in order: template2 (order 1) first, then template1 (order 0)
+        // But template2 should win because it has higher order
+        List<CompressedXContent> templates = Arrays.asList(template2, template1);
+        Map<String, Object> result = MetadataCreateIndexService.parseV1Mappings("", templates, NamedXContentRegistry.EMPTY);
+
+        // Verify the result
+        Map<String, Object> doc = (Map<String, Object>) result.get(MapperService.SINGLE_MAPPING_NAME);
+        Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+        Map<String, Object> field2 = (Map<String, Object>) properties.get("field2");
+
+        // field2 should have the complete definition from template2 (higher priority)
+        assertEquals("field2 type should be from template2", "text", field2.get("type"));
+        assertEquals("field2 store should be from template2", false, field2.get("store"));
+
+        // field1 should be from template1 (only defined there)
+        Map<String, Object> field1 = (Map<String, Object>) properties.get("field1");
+        assertEquals("field1 type should be from template1", "text", field1.get("type"));
+        assertEquals("field1 store should be from template1", true, field1.get("store"));
+    }
+
 }
