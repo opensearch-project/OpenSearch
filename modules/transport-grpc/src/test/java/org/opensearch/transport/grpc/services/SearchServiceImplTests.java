@@ -117,23 +117,6 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         verify(client).search(any(org.opensearch.action.search.SearchRequest.class), any());
     }
 
-    public void testSearchWithException() throws IOException {
-        // Create a test request
-        org.opensearch.protobufs.SearchRequest request = createTestSearchRequest();
-
-        // Mock client to throw an exception
-        doThrow(new RuntimeException("Test exception")).when(client).search(any(), any());
-
-        // Call search method
-        service.search(request, responseObserver);
-
-        // Verify bytes were released after exception
-        verify(circuitBreaker).addWithoutBreaking(anyLong());
-
-        // Verify that responseObserver.onError was called
-        verify(responseObserver).onError(any());
-    }
-
     public void testCircuitBreakerCheckedBeforeProcessing() throws IOException {
         // Create a test request
         org.opensearch.protobufs.SearchRequest request = createTestSearchRequest();
@@ -214,14 +197,27 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         // Create a test request
         org.opensearch.protobufs.SearchRequest request = createTestSearchRequest();
 
+        // Capture the bytes added and released
+        ArgumentCaptor<Long> addedBytesCaptor = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<Long> releasedBytesCaptor = ArgumentCaptor.forClass(Long.class);
+
         // Mock client to throw an exception
         doThrow(new RuntimeException("Test exception")).when(client).search(any(), any());
 
         // Call search method
         service.search(request, responseObserver);
 
-        // Verify bytes were released after exception
-        verify(circuitBreaker).addWithoutBreaking(anyLong());
+        // Verify bytes were added first (positive value)
+        verify(circuitBreaker).addEstimateBytesAndMaybeBreak(addedBytesCaptor.capture(), eq("<grpc_request>"));
+
+        // Verify bytes were released after exception (negative value)
+        verify(circuitBreaker).addWithoutBreaking(releasedBytesCaptor.capture());
+
+        // Verify the magnitudes match (added is positive, released is negative of same value)
+        long addedBytes = addedBytesCaptor.getValue();
+        long releasedBytes = releasedBytesCaptor.getValue();
+        assertTrue("Added bytes should be positive", addedBytes > 0);
+        assertEquals("Released bytes should equal negative of added bytes", -addedBytes, releasedBytes);
 
         // Verify error was sent to client
         verify(responseObserver).onError(any());
