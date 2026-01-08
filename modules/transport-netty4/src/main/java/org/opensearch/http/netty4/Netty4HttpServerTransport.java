@@ -202,7 +202,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     /**
      * Creates new HTTP transport implementations based on Netty 4
-     * @param settings seetings
+     * @param settings settings
      * @param networkService network service
      * @param bigArrays big array allocator
      * @param threadPool thread pool instance
@@ -380,7 +380,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             this.handlingSettings = handlingSettings;
             this.byteBufSizer = new NettyByteBufSizer();
             this.requestCreator = new Netty4HttpRequestCreator();
-            this.requestHandler = new Netty4HttpRequestHandler(transport);
+            this.requestHandler = new Netty4HttpRequestHandler(transport, HTTP_CHANNEL_KEY);
             this.responseCreator = new Netty4HttpResponseCreator();
         }
 
