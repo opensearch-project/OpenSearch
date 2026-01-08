@@ -27,6 +27,7 @@ import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpReadTimeoutException;
 import org.opensearch.http.HttpServerChannel;
 import org.opensearch.http.reactor.netty4.http3.Http3Utils;
+import org.opensearch.http.reactor.netty4.http3.SecureQuicTokenHandler;
 import org.opensearch.http.reactor.netty4.ssl.SslUtils;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider.SecureHttpTransportParameters;
@@ -353,7 +354,8 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                         )
                         .handle((req, res) -> incomingRequest(req, res))
                         .http3Settings(
-                            spec -> spec.idleTimeout(Duration.ofMillis(connectTimeoutMillis))
+                            spec -> spec.tokenHandler(new SecureQuicTokenHandler())
+                                .idleTimeout(Duration.ofMillis(connectTimeoutMillis))
                                 .maxData(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes())
                                 .maxStreamDataBidirectionalLocal(SETTING_H3_MAX_STREAM_LOCAL_LENGTH.get(settings).getBytes())
                                 .maxStreamDataBidirectionalRemote(SETTING_H3_MAX_STREAM_REMOTE_LENGTH.get(settings).getBytes())

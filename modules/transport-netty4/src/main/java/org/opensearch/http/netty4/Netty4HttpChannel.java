@@ -140,13 +140,15 @@ public class Netty4HttpChannel implements HttpChannel {
             return (Optional<T>) Optional.of(getNettyChannel());
         }
 
-        if (SSL_ENGINE_PROPERTY.equalsIgnoreCase(name) && clazz.isAssignableFrom(SSLEngine.class)) {
-            SSLEngine engine = channel.attr(sslEngineKey).get();
-            if (engine == null && channel.parent() != null) {
-                engine = channel.parent().attr(sslEngineKey).get();
-            }
-            if (engine != null) {
-                return (Optional<T>) Optional.of(engine);
+        if (sslEngineKey != null) {
+            if (SSL_ENGINE_PROPERTY.equalsIgnoreCase(name) && clazz.isAssignableFrom(SSLEngine.class)) {
+                SSLEngine engine = channel.attr(sslEngineKey).get();
+                if (engine == null && channel.parent() != null) {
+                    engine = channel.parent().attr(sslEngineKey).get();
+                }
+                if (engine != null) {
+                    return (Optional<T>) Optional.of(engine);
+                }
             }
         }
 
