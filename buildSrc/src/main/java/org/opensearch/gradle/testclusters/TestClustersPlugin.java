@@ -53,6 +53,7 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskState;
+import org.gradle.api.tasks.testing.Test;
 
 import javax.inject.Inject;
 
@@ -125,9 +126,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     @SuppressWarnings("unchecked")
     private void configureInstalledPlugins(Project project, NamedDomainObjectContainer<OpenSearchCluster> container) {
         String installedPluginsProp = System.getProperty("installedPlugins");
-        boolean securityEnabled = "true".equals(System.getProperty("security"))
-            || "true".equals(System.getProperty("security.enabled"))
-            || "true".equals(System.getProperty("https"));
+        boolean securityEnabled = "true".equals(System.getProperty("security.enabled"));
 
         if (installedPluginsProp == null && !securityEnabled) {
             return;
@@ -185,16 +184,24 @@ public class TestClustersPlugin implements Plugin<Project> {
         });
     }
 
-    private static final String[] SECURITY_CERT_FILES = { "esnode.pem", "esnode-key.pem", "kirk.pem", "kirk-key.pem", "root-ca.pem" };
+    private static final String[] SECURITY_CERT_FILES = {
+        "esnode.pem",
+        "esnode-key.pem",
+        "kirk.pem",
+        "kirk-key.pem",
+        "root-ca.pem",
+        "sample.pem",
+        "test-kirk.jks" };
     private static final String SECURITY_CERTS_URL =
         "https://raw.githubusercontent.com/opensearch-project/security/refs/heads/main/bwc-test/src/test/resources/security/";
 
     private void configureSecurityPlugin(Project project, OpenSearchCluster cluster) {
         File buildDir = project.getBuildDir();
+        File securityResourcesDir = new File(buildDir, "security-resources");
 
         // Download certificates
         for (String certFile : SECURITY_CERT_FILES) {
-            File localFile = new File(buildDir, certFile);
+            File localFile = new File(securityResourcesDir, certFile);
             if (!localFile.exists()) {
                 try {
                     localFile.getParentFile().mkdirs();
@@ -214,10 +221,15 @@ public class TestClustersPlugin implements Plugin<Project> {
             }
         }
 
+        // Add security-resources directory to test classpath
+        project.getTasks().withType(Test.class).configureEach(testTask -> {
+            testTask.setClasspath(testTask.getClasspath().plus(project.files(securityResourcesDir)));
+        });
+
         // Configure each node with certificates and security settings
         cluster.getNodes().forEach(node -> {
             // Add certificate files
-            Arrays.stream(SECURITY_CERT_FILES).forEach(cert -> node.extraConfigFile(cert, new File(buildDir, cert)));
+            Arrays.stream(SECURITY_CERT_FILES).forEach(cert -> node.extraConfigFile(cert, new File(securityResourcesDir, cert)));
 
             // Security settings
             node.setting("plugins.security.ssl.transport.pemcert_filepath", "esnode.pem");
