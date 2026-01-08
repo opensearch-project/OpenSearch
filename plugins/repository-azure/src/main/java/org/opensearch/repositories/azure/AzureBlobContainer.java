@@ -146,6 +146,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         @Nullable Map<String, String> metadata,
         @Nullable CryptoMetadata cryptoMetadata
     ) throws IOException {
+        // Azure does not support custom metadata, so we just delegate to writeBlob
         writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
