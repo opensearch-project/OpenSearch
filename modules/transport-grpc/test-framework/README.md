@@ -16,7 +16,7 @@ Example usage of `OpenSearchIntegTestCase` and helper functions.
 public class MyPluginTest extends OpenSearchIntegTestCase {
 
     public void testMyPluginFeature() {
-        ManagedChannel plainTextGrpcChannel = NettyChannelBuilder.forAddress("localhost", "9200").
+        ManagedChannel plainTextGrpcChannel = NettyChannelBuilder.forAddress("localhost", 9200).
                 proxyDetector(NOOP_PROXY_DETECTOR).
                 usePlaintext()
                 .build();
