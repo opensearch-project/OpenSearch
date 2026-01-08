@@ -146,6 +146,12 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         @Nullable Map<String, String> metadata,
         @Nullable CryptoMetadata cryptoMetadata
     ) throws IOException {
+        if (cryptoMetadata != null) {
+            throw new UnsupportedOperationException(
+                "Azure Blob Storage repository does not currently support CryptoMetadata. "
+                    + "Consider using repository-level encryption settings instead."
+            );
+        }
         // Azure does not support custom metadata, so we just delegate to writeBlob
         writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
