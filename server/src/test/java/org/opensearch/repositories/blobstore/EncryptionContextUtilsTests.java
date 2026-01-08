@@ -231,4 +231,116 @@ public class EncryptionContextUtilsTests extends OpenSearchTestCase {
         assertTrue(decoded.contains("\"repo\":\"remote-segment\"")); // From repo
         assertTrue(decoded.contains("\"type\":\"segments\"")); // From repo
     }
+
+    public void testMergeAndEncodeWithNonBase64JsonRepoContext() {
+        // Test with repo context that's already valid JSON (not Base64 encoded)
+        // This triggers the IllegalArgumentException fallback path (line 67)
+        String indexContext = "key=value";
+        String rawJsonRepo = "{\"repo\":\"test\"}";  // Valid JSON but not Base64
+
+        String result = EncryptionContextUtils.mergeAndEncodeEncryptionContexts(indexContext, rawJsonRepo);
+        assertNotNull(result);
+        String decoded = new String(Base64.getDecoder().decode(result), StandardCharsets.UTF_8);
+        assertTrue(decoded.contains("\"key\":\"value\""));
+        assertTrue(decoded.contains("\"repo\":\"test\""));
+    }
+
+    public void testMergeAndEncodeWithEmptyStrings() {
+        // Test with empty strings (different from null)
+        assertNull(EncryptionContextUtils.mergeAndEncodeEncryptionContexts("", ""));
+        assertNull(EncryptionContextUtils.mergeAndEncodeEncryptionContexts("", null));
+        assertNull(EncryptionContextUtils.mergeAndEncodeEncryptionContexts(null, ""));
+    }
+
+    public void testMergeCryptoMetadataWithOnlyRepoEncryptionContext() {
+        // Index metadata with no encryption context
+        Settings indexSettings = Settings.builder()
+            .put("kms.key_arn", "arn:aws:kms:us-east-1:123456789:key/index-key")
+            .build();
+        CryptoMetadata indexMetadata = new CryptoMetadata("index-provider", "aws-kms", indexSettings);
+
+        // Repo metadata with encryption context
+        Settings repoSettings = Settings.builder()
+            .put("kms.encryption_context", "repo=segment")
+            .build();
+        CryptoMetadata repoMetadata = new CryptoMetadata("repo-provider", "aws-kms", repoSettings);
+
+        CryptoMetadata merged = EncryptionContextUtils.mergeCryptoMetadata(indexMetadata, repoMetadata);
+        assertEquals("repo=segment", merged.settings().get("kms.encryption_context"));
+    }
+
+    public void testMergeCryptoMetadataWithJsonFormatContext() {
+        // Index metadata with JSON format encryption context
+        Settings indexSettings = Settings.builder()
+            .put("kms.encryption_context", "{\"tenant\":\"acme\"}")
+            .build();
+        CryptoMetadata indexMetadata = new CryptoMetadata("index-provider", "aws-kms", indexSettings);
+
+        // Repo metadata with JSON format encryption context
+        Settings repoSettings = Settings.builder()
+            .put("kms.encryption_context", "{\"repo\":\"segment\"}")
+            .build();
+        CryptoMetadata repoMetadata = new CryptoMetadata("repo-provider", "aws-kms", repoSettings);
+
+        CryptoMetadata merged = EncryptionContextUtils.mergeCryptoMetadata(indexMetadata, repoMetadata);
+        String mergedCtx = merged.settings().get("kms.encryption_context");
+        assertTrue(mergedCtx.contains("tenant=acme"));
+        assertTrue(mergedCtx.contains("repo=segment"));
+    }
+
+    public void testMergeCryptoMetadataWithNullKeyProviders() {
+        // Index metadata with null key provider name
+        Settings indexSettings = Settings.builder().put("some.setting", "value").build();
+        CryptoMetadata indexMetadata = new CryptoMetadata(null, null, indexSettings);
+
+        // Repo metadata with key provider
+        Settings repoSettings = Settings.builder().build();
+        CryptoMetadata repoMetadata = new CryptoMetadata("repo-provider", "aws-kms", repoSettings);
+
+        CryptoMetadata merged = EncryptionContextUtils.mergeCryptoMetadata(indexMetadata, repoMetadata);
+        assertEquals("repo-provider", merged.keyProviderName());
+        assertEquals("aws-kms", merged.keyProviderType());
+    }
+
+    public void testCryptofsToJsonEdgeCases() {
+        // Test trailing comma
+        assertEquals("{\"key\":\"value\"}", EncryptionContextUtils.cryptofsToJson("key=value,"));
+        // Test leading comma
+        assertEquals("{\"key\":\"value\"}", EncryptionContextUtils.cryptofsToJson(",key=value"));
+        // Test whitespace around equals
+        assertEquals("{\"key\":\"value\"}", EncryptionContextUtils.cryptofsToJson("key = value"));
+        // Test malformed pair (no equals)
+        assertEquals("{}", EncryptionContextUtils.cryptofsToJson("invalid"));
+    }
+
+    public void testJsonToCryptofsWithEmpty() {
+        // Empty string input
+        assertEquals("", EncryptionContextUtils.jsonToCryptofs(""));
+        // Whitespace only
+        assertEquals("", EncryptionContextUtils.jsonToCryptofs("   "));
+    }
+
+    public void testParseSimpleJsonWithNullAndEmpty() {
+        var map = new java.util.HashMap<String, String>();
+        // Null input shouldn't throw
+        EncryptionContextUtils.parseSimpleJson(null, map);
+        assertTrue(map.isEmpty());
+
+        // Empty string input
+        EncryptionContextUtils.parseSimpleJson("", map);
+        assertTrue(map.isEmpty());
+
+        // Whitespace only
+        EncryptionContextUtils.parseSimpleJson("   ", map);
+        assertTrue(map.isEmpty());
+    }
+
+    public void testMergeJsonWithEmptyStrings() {
+        // Empty string base returns override
+        assertEquals("{\"key\":\"value\"}", EncryptionContextUtils.mergeJson("", "{\"key\":\"value\"}"));
+        // Empty string override returns base
+        assertEquals("{\"key\":\"value\"}", EncryptionContextUtils.mergeJson("{\"key\":\"value\"}", ""));
+        // Both empty strings - base empty so returns override which is empty string
+        assertEquals("", EncryptionContextUtils.mergeJson("", ""));
+    }
 }
