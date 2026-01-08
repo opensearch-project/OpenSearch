@@ -62,6 +62,10 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
     public static class GrpcTestBulkResponse {
         private final BulkResponse protoBulkResponse;
 
+        /**
+         * Constructor for GrpcTestBulkResponse.
+         * @param protoBulkResponse the gRPC bulk response to wrap
+         */
         GrpcTestBulkResponse(BulkResponse protoBulkResponse) {
             this.protoBulkResponse = protoBulkResponse;
         }
@@ -119,6 +123,10 @@ public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCas
     public static class GrpcTestSearchResponse {
         private final SearchResponse protoSearchResponse;
 
+        /**
+         * Constructor for GrpcTestSearchResponse.
+         * @param protoSearchResponse the gRPC search response to wrap
+         */
         GrpcTestSearchResponse(SearchResponse protoSearchResponse) {
             this.protoSearchResponse = protoSearchResponse;
         }
