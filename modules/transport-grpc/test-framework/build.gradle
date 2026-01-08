@@ -22,7 +22,6 @@ dependencies {
   api "io.grpc:grpc-core:${versions.grpc}"
   api "io.grpc:grpc-netty-shaded:${versions.grpc}"
   api "io.grpc:grpc-protobuf-lite:${versions.grpc}"
-  api "io.grpc:grpc-protobuf:${versions.grpc}"
   api "io.grpc:grpc-services:${versions.grpc}"
   api "io.grpc:grpc-stub:${versions.grpc}"
   api "io.grpc:grpc-util:${versions.grpc}"
@@ -37,6 +36,9 @@ dependencies {
   testImplementation project(':test:framework')
   internalClusterTestImplementation project(':modules:transport-grpc')
 }
+
+// Enable javadoc checks for precommit since this module has full coverage
+precommit.dependsOn missingJavadoc
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /grpc-.*/, to: 'grpc'
