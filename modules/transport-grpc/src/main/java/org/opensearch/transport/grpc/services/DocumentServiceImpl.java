@@ -38,6 +38,12 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
      * @param circuitBreakerService Circuit breaker service for memory protection
      */
     public DocumentServiceImpl(Client client, CircuitBreakerService circuitBreakerService) {
+        if (client == null) {
+            throw new IllegalArgumentException("Client cannot be null");
+        }
+        if (circuitBreakerService == null) {
+            throw new IllegalArgumentException("Circuit breaker service cannot be null");
+        }
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
     }
