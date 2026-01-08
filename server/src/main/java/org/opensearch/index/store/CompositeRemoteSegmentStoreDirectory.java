@@ -474,8 +474,7 @@ public final class CompositeRemoteSegmentStoreDirectory extends RemoteSegmentSto
     }
 
     public boolean containsFile(String localFilename, String checksum) {
-        return segmentsUploadedToRemoteStore.containsKey(localFilename)
-            && segmentsUploadedToRemoteStore.get(localFilename).getChecksum().equals(checksum);
+        return containsFile(new FileMetadata(localFilename), checksum);
     }
 
     public boolean containsFile(FileMetadata fileMetadata, String checksum) {
