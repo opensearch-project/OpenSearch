@@ -10,8 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add integ test for simulating node join left event when data node cluster state publication lag because the cluster applier thread being busy ([#19907](https://github.com/opensearch-project/OpenSearch/pull/19907)).
 - Relax jar hell check when extended plugins share transitive dependencies ([#20103](https://github.com/opensearch-project/OpenSearch/pull/20103))
 - Added public getter method in `SourceFieldMapper` to return included field ([#20290](https://github.com/opensearch-project/OpenSearch/pull/20290))
+- Support for HTTP/3 (server side) ([#20017](https://github.com/opensearch-project/OpenSearch/pull/20017)
 - Add circuit breaker support for gRPC transport to prevent out-of-memory errors ([#20203](https://github.com/opensearch-project/OpenSearch/pull/20203))
-
 
 ### Changed
 - Handle custom metadata files in subdirectory-store ([#20157](https://github.com/opensearch-project/OpenSearch/pull/20157))
@@ -30,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix snapshot restore when an index sort is present ([#20284](https://github.com/opensearch-project/OpenSearch/pull/20284))
 - Fix SearchPhaseExecutionException to properly initCause ([#20320](https://github.com/opensearch-project/OpenSearch/pull/20320))
 - Fix `cluster.remote.<cluster_alias>.server_name` setting no populating SNI ([#20321](https://github.com/opensearch-project/OpenSearch/pull/20321))
+- Fix X-Opaque-Id header propagation (along with other response headers) for streaming Reactor Netty 4 transport ([#20371](https://github.com/opensearch-project/OpenSearch/pull/20371))
 
 ### Dependencies
 - Bump `com.google.auth:google-auth-library-oauth2-http` from 1.38.0 to 1.41.0 ([#20183](https://github.com/opensearch-project/OpenSearch/pull/20183))
@@ -54,6 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `opensearch-protobufs` from 0.24.0 to 1.0.0 and update transport-grpc module compatibility ([#20335](https://github.com/opensearch-project/OpenSearch/pull/20335))
 - Bump Apache HttpClient5 to 5.6 ([#20358](https://github.com/opensearch-project/OpenSearch/pull/20358))
 - Bump Apache HttpCore5 to 5.4 ([#20358](https://github.com/opensearch-project/OpenSearch/pull/20358))
+- Bump `org.jsoup:jsoup` from 1.21.2 to 1.22.1 ([#20368](https://github.com/opensearch-project/OpenSearch/pull/20368))
 - Bump `org.jline:jline` from 3.30.5 to 3.30.6 ([#20369](https://github.com/opensearch-project/OpenSearch/pull/20369))
 - Bump `lycheeverse/lychee-action` from 2.6.1 to 2.7.0 ([#20370](https://github.com/opensearch-project/OpenSearch/pull/20370))
 
