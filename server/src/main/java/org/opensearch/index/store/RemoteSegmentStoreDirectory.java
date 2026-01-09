@@ -23,7 +23,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.InternalApi;
@@ -49,7 +48,6 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,15 +60,11 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-
-import static org.opensearch.index.shard.ShardPath.INDEX_FOLDER_NAME;
-import static org.opensearch.index.shard.ShardPath.METADATA_FOLDER_NAME;
 
 /**
  * A RemoteDirectory extension for remote segment store. We need to make sure we don't overwrite a segment file once uploaded.
@@ -280,7 +274,7 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
         return remoteSegmentMetadata;
     }
 
-    private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
+    protected RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
         try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(metadataFilename)) {
             byte[] metadataBytes = inputStream.readAllBytes();
             return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
@@ -859,20 +853,17 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
         Set<String> deletedSegmentFiles = new HashSet<>();
         for (String metadataFile : metadataFilesToBeDeleted) {
             Map<String, UploadedSegmentMetadata> staleSegmentFilesMetadataMap = readMetadataFile(metadataFile).getMetadata();
-            Set<String> staleSegmentRemoteFilenames = staleSegmentFilesMetadataMap.values()
-                .stream()
-                .map(metadata -> metadata.getUploadedFilename())
-                .collect(Collectors.toSet());
             AtomicBoolean deletionSuccessful = new AtomicBoolean(true);
-            staleSegmentRemoteFilenames.stream()
-                .filter(file -> activeSegmentRemoteFilenames.contains(file) == false)
-                .filter(file -> deletedSegmentFiles.contains(file) == false)
-                .forEach(file -> {
+            staleSegmentFilesMetadataMap.entrySet().stream()
+                .filter(e -> activeSegmentRemoteFilenames.contains(e.getValue().getUploadedFilename()) == false)
+                .filter(e -> deletedSegmentFiles.contains(e.getValue().getUploadedFilename()) == false)
+                .forEach(entry -> {
+                    String file = entry.getValue().getUploadedFilename();
                     try {
-                        remoteDataDirectory.deleteFile(file);
+                        remoteDataDirectory.deleteFile(entry.getValue());
                         deletedSegmentFiles.add(file);
-                        if (!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
-                            segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
+                        if (!activeSegmentFilesMetadataMap.containsKey(entry.getKey())) {
+                            removeFileFromSegmentsUploadedToRemoteStore(file);
                         }
                     } catch (NoSuchFileException e) {
                         logger.info("Segment file {} corresponding to metadata file {} does not exist in remote", file, metadataFile);
@@ -891,6 +882,10 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
             }
         }
         logger.debug("deletedSegmentFiles={}", deletedSegmentFiles);
+    }
+
+    protected void removeFileFromSegmentsUploadedToRemoteStore(String file) {
+        segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
     }
 
     public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep) {

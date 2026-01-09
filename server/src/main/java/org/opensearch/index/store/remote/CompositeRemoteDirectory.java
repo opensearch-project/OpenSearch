@@ -34,9 +34,7 @@ import org.opensearch.index.engine.MergedSegmentWarmer;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.Any;
-import org.opensearch.index.store.CompositeStoreDirectory;
-import org.opensearch.index.store.RemoteIndexInput;
-import org.opensearch.index.store.RemoteIndexOutput;
+import org.opensearch.index.store.*;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
@@ -47,11 +45,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.shard.ShardPath.METADATA_FOLDER_NAME;
 
@@ -67,7 +67,7 @@ import static org.opensearch.index.shard.ShardPath.METADATA_FOLDER_NAME;
  * @opensearch.api
  */
 @PublicApi(since = "3.0.0")
-public class CompositeRemoteDirectory implements Closeable {
+public class CompositeRemoteDirectory extends RemoteDirectory {
 
     /**
      * Metadata stream wrapper for reading/writing RemoteSegmentMetadata
@@ -109,6 +109,19 @@ public class CompositeRemoteDirectory implements Closeable {
         Logger logger,
         PluginsService pluginsService
     ) {
+        super(
+            blobStore.blobContainer(baseBlobPath),
+            uploadRateLimiter,
+            lowPriorityUploadRateLimiter,
+            downloadRateLimiter,
+            lowPriorityDownloadRateLimiter,
+            pendingDownloadMergedSegments.entrySet().stream().collect(
+                Collectors.toMap(
+                    e -> e.getKey().serialize(),
+                    Map.Entry::getValue
+                )
+            )
+        );
         this.formatBlobContainers = new ConcurrentHashMap<>();
         this.blobStore = blobStore;
         this.baseBlobPath = baseBlobPath;
@@ -304,6 +317,13 @@ public class CompositeRemoteDirectory implements Closeable {
 
     private long calculateChecksumOfChecksum(CompositeStoreDirectory from, FileMetadata fileMetadata) throws IOException {
         return from.calculateChecksum(fileMetadata);
+    }
+
+    @Override
+    public void deleteFile(UploadedSegmentMetadata uploadedSegmentMetadata) throws IOException {
+        FileMetadata fileMetadata = new FileMetadata(uploadedSegmentMetadata.getDataFormat(), uploadedSegmentMetadata.getUploadedFilename());
+        BlobContainer blobContainer = getBlobContainer(fileMetadata.dataFormat());
+        blobContainer.deleteBlobsIgnoringIfNotExists(Collections.singletonList(fileMetadata.file()));
     }
 
     /**
