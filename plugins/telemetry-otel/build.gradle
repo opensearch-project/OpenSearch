@@ -70,8 +70,6 @@ thirdPartyAudit {
     'io.grpc.stub.AbstractFutureStub',
     'io.grpc.stub.AbstractStub',
     'io.grpc.stub.ClientCalls',
-    'org.bouncycastle.jsse.BCSSLParameters',
-    'org.bouncycastle.jsse.BCSSLSocket',
     'org.conscrypt.Conscrypt',
     'org.conscrypt.Conscrypt$Version',
     'org.conscrypt.ConscryptHostnameVerifier',

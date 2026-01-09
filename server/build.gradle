@@ -419,6 +419,7 @@ tasks.named("dependencyLicenses").configure {
     mapping from: /jackson-.*/, to: 'jackson'
     mapping from: /reactor-.*/, to: 'reactor'
     mapping from: /lucene-.*/, to: 'lucene'
+    mapping from: /bc.*fips.*/, to: 'bouncycastle'
     dependencies = project.configurations.runtimeClasspath.incoming.artifactView {
         componentFilter {
             it instanceof ModuleComponentIdentifier &&
