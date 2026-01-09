@@ -15,6 +15,7 @@ import java.util.Objects;
 public class FileMetadata {
 
     public static final String DELIMITER = ":::";
+    private static final String METADATA_KEY = "metadata";
 
     private final String file;
     private final String dataFormat;
@@ -25,6 +26,11 @@ public class FileMetadata {
     }
 
     public FileMetadata(String dataFormatAwareFile) {
+        if (!dataFormatAwareFile.contains(DELIMITER) && dataFormatAwareFile.startsWith(METADATA_KEY)) {
+            this.dataFormat = "metadata";
+            this.file = dataFormatAwareFile;
+            return;
+        }
         String[] parts = dataFormatAwareFile.split(DELIMITER);
         this.dataFormat = (parts.length == 1)
             ? "lucene"

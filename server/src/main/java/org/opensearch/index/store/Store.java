@@ -1077,7 +1077,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @opensearch.internal
      */
-    static class StoreDirectory extends FilterDirectory {
+    public static class StoreDirectory extends FilterDirectory {
         private final Logger deletesLogger;
 
         public final DirectoryFileTransferTracker directoryFileTransferTracker;

@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.*;
@@ -28,6 +30,8 @@ import java.util.function.Supplier;
 
 @ExperimentalApi
 public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
+    
+    private static final Logger logger = LogManager.getLogger(CompositeEngineCatalogSnapshot.class);
 
     public static final String CATALOG_SNAPSHOT_KEY = "_catalog_snapshot_";
     public static final String LAST_COMPOSITE_WRITER_GEN_KEY = "_last_composite_writer_gen_";
@@ -57,6 +61,7 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
 
     public CompositeEngineCatalogSnapshot(StreamInput in) throws IOException {
         super(in);
+        logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Starting deserialization, generation={}, version={}", generation, version);
 
         // Read userData map
         int userDataSize = in.readVInt();
@@ -209,6 +214,16 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
     @Override
     public void setCatalogSnapshotMap(Map<Long, ? extends CatalogSnapshot> catalogSnapshotMap) {
         this.catalogSnapshotMap = (Map<Long, CompositeEngineCatalogSnapshot>) catalogSnapshotMap;
+    }
+
+    @Override
+    public  void setUserData(Map<String, String> userData, boolean b)
+    {
+        if (userData == null) {
+            this.userData = Collections.emptyMap();
+        } else {
+            this.userData = new HashMap<>(userData);
+        }
     }
 
     @Override

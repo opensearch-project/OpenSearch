@@ -184,6 +184,10 @@ public class RemoteDirectory extends Directory {
         blobContainer.deleteBlobsIgnoringIfNotExists(Collections.singletonList(name));
     }
 
+    public void deleteFile(UploadedSegmentMetadata uploadedSegmentMetadata) throws IOException {
+        deleteFile(uploadedSegmentMetadata.getUploadedFilename());
+    }
+
     /**
      * Creates and returns a new instance of {@link RemoteIndexOutput} which will be used to copy files to the remote
      * store.

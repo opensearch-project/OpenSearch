@@ -81,6 +81,26 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return writerGeneration.getAndIncrement();
     }
 
+    /**
+     * Updates the writer generation counter to be at least minGeneration + 1.
+     * This is used during replication/recovery to ensure the replica's writer generation
+     * is always greater than any replicated file's generation, preventing file name collisions.
+     *
+     * @param minGeneration The minimum generation value from replicated files
+     */
+    public void updateWriterGenerationIfNeeded(long minGeneration) {
+        writerGeneration.updateAndGet(current -> Math.max(current, minGeneration + 1));
+    }
+
+    /**
+     * Gets the current writer generation without incrementing.
+     *
+     * @return The current writer generation value
+     */
+    public long getCurrentWriterGeneration() {
+        return writerGeneration.get();
+    }
+
     @Override
     public List<String> supportedFieldTypes() {
         throw new UnsupportedOperationException();

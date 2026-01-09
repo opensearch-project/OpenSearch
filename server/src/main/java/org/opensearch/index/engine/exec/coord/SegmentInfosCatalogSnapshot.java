@@ -125,4 +125,10 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
     protected void closeInternal() {
         // TODO no op since SegmentInfosCatalogSnapshot is not refcounted
     }
+
+    @Override
+    public  void setUserData(Map<String, String> userData, boolean b)
+    {
+        // TODO no op since SegmentInfosCatalogSnapshot is not refcounted
+    }
 }

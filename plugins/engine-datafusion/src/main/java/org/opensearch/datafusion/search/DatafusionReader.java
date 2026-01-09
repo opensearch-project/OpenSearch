@@ -24,6 +24,8 @@ import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -57,6 +59,8 @@ public class DatafusionReader implements Closeable {
      */
     private volatile Map<String, FileStats> segmentStats;
 
+    private final CompletableFuture<Map<String, FileStats>> segmentStatsFuture;
+
     /**
      * Constructor
      * @param directoryPath The directory path
@@ -78,6 +82,23 @@ public class DatafusionReader implements Closeable {
         System.out.println("File names: " + Arrays.toString(fileNames));
         System.out.println("Directory path: " + directoryPath);
         this.readerHandle = new ReaderHandle(directoryPath, fileNames, this::releaseCatalogSnapshot);
+        this.segmentStatsFuture = new CompletableFuture<>();
+        setupSegmentStatsCompletableFuture(segmentStatsFuture);
+    }
+
+    private CompletableFuture<Map<String, FileStats>> setupSegmentStatsCompletableFuture(CompletableFuture<Map<String, FileStats>> segmentStatsFuture) {
+        NativeBridge.fetchSegmentStats(getReaderPtr(), new ActionListener<>() {
+            @Override
+            public void onResponse(Map<String, FileStats> map) {
+                segmentStatsFuture.complete(map);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                segmentStatsFuture.completeExceptionally(e);
+            }
+        });
+        return segmentStatsFuture;
     }
 
     /**
@@ -147,7 +168,7 @@ public class DatafusionReader implements Closeable {
         readerHandle.close();
     }
 
-    private void releaseCatalogSnapshot() {
+    public void releaseCatalogSnapshot() {
         try {
             if (catalogSnapshotRef != null) {
                 catalogSnapshotRef.close();
