@@ -88,15 +88,15 @@ class TermsQueryBuilderProtoUtils {
         TermsLookup termsLookup = null;
 
         switch (termsQueryProto.getTermsQueryFieldCase()) {
-            case FIELD_VALUE_ARRAY:
-                values = parseFieldValueArray(termsQueryProto.getFieldValueArray());
+            case VALUE:
+                values = parseFieldValueArray(termsQueryProto.getValue());
                 break;
             case LOOKUP:
                 termsLookup = parseTermsLookup(termsQueryProto.getLookup());
                 break;
             case TERMSQUERYFIELD_NOT_SET:
             default:
-                throw new IllegalArgumentException("Neither field_value_array nor lookup is set");
+                throw new IllegalArgumentException("Neither value nor lookup is set");
         }
 
         if (values == null && termsLookup == null) {
@@ -136,15 +136,15 @@ class TermsQueryBuilderProtoUtils {
         TermsLookup termsLookup = null;
 
         switch (termsQueryField.getTermsQueryFieldCase()) {
-            case FIELD_VALUE_ARRAY:
-                values = parseFieldValueArray(termsQueryField.getFieldValueArray());
+            case VALUE:
+                values = parseFieldValueArray(termsQueryField.getValue());
                 break;
             case LOOKUP:
                 termsLookup = parseTermsLookup(termsQueryField.getLookup());
                 break;
             case TERMSQUERYFIELD_NOT_SET:
             default:
-                throw new IllegalArgumentException("Neither field_value_array nor lookup is set");
+                throw new IllegalArgumentException("Neither value nor lookup is set");
         }
 
         if (values == null && termsLookup == null) {
