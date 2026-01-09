@@ -275,6 +275,11 @@ public class SearchHitProtoUtils {
                     namesBuilder.addStringArray(matchedFilter);
                 }
                 matchedQueriesBuilder.setNames(namesBuilder.build());
+
+                // Populate deprecated matched_queries field for backward compatibility with old clients
+                for (String matchedFilter : hit.getMatchedQueries()) {
+                    hitBuilder.addMatchedQueries(matchedFilter);
+                }
             }
 
             hitBuilder.setMatchedQueries2(matchedQueriesBuilder.build());
