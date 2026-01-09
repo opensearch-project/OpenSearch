@@ -438,4 +438,5 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             )
         );
     }
+
 }

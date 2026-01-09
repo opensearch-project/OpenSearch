@@ -12,7 +12,6 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.indices.TermsLookup;
-import org.opensearch.protobufs.TermsQueryField;
 import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
 import java.util.ArrayList;
@@ -71,48 +70,6 @@ class TermsQueryBuilderProtoUtils {
         }
 
         return builder;
-    }
-
-    /**
-     * Converts a Protocol Buffer TermsQueryField to an OpenSearch TermQueryBuilder.
-     * This method handles the field-specific conversion (values or lookup) without
-     * boost, queryName, or valueType which are handled at the TermsQuery level.
-     *
-     * @param termsQueryProto The Protocol Buffer TermsQueryField object
-     * @return A configured TermQueryBuilder instance
-     * @throws IllegalArgumentException if the term query field value is not recognized
-     */
-    static TermsQueryBuilder fromProto(TermsQueryField termsQueryProto) {
-        String fieldName = null;
-        List<Object> values = null;
-        TermsLookup termsLookup = null;
-
-        switch (termsQueryProto.getTermsQueryFieldCase()) {
-            case VALUE:
-                values = parseFieldValueArray(termsQueryProto.getValue());
-                break;
-            case LOOKUP:
-                termsLookup = parseTermsLookup(termsQueryProto.getLookup());
-                break;
-            case TERMSQUERYFIELD_NOT_SET:
-            default:
-                throw new IllegalArgumentException("Neither value nor lookup is set");
-        }
-
-        if (values == null && termsLookup == null) {
-            throw new IllegalArgumentException("Either field_value_array or lookup must be set");
-        }
-
-        TermsQueryBuilder termsQueryBuilder;
-        if (values == null) {
-            termsQueryBuilder = new TermsQueryBuilder(fieldName, termsLookup);
-        } else if (termsLookup == null) {
-            termsQueryBuilder = new TermsQueryBuilder(fieldName, values);
-        } else {
-            throw new IllegalArgumentException("values and termsLookup cannot both be null");
-        }
-
-        return termsQueryBuilder;
     }
 
     /**

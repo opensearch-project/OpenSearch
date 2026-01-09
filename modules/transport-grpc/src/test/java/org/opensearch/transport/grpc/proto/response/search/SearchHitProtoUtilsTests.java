@@ -521,7 +521,7 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         assertArrayEquals("Source bytes should match JSON content", expectedBytes, hit.getXSource().toByteArray());
     }
 
-    public void testToProtoWithMatchedQueriesScoreFalse() throws IOException {
+    public void testToProtoWithMatchedQueriesWithoutScores() throws IOException {
         SearchHit searchHit = new SearchHit(1);
         searchHit.matchedQueries(new String[] { "filter1", "filter2" });
 

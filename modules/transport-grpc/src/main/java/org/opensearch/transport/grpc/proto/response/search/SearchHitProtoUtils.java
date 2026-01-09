@@ -263,12 +263,13 @@ public class SearchHitProtoUtils {
             org.opensearch.protobufs.HitMatchedQueries.Builder matchedQueriesBuilder = org.opensearch.protobufs.HitMatchedQueries
                 .newBuilder();
             if (includeMatchedQueriesScore) {
-                Map<String, Float> matchedQueriesWithScores = hit.getMatchedQueriesAndScores();
-                org.opensearch.protobufs.DoubleMap.Builder doubleMapBuilder = org.opensearch.protobufs.DoubleMap.newBuilder();
-                for (Map.Entry<String, Float> entry : matchedQueriesWithScores.entrySet()) {
-                    doubleMapBuilder.putDoubleMap(entry.getKey(), entry.getValue().doubleValue());
-                }
-                matchedQueriesBuilder.setScores(doubleMapBuilder.build());
+                // TODO: uncomment when have a way to pass the param to the converter
+                // Map<String, Float> matchedQueriesWithScores = hit.getMatchedQueriesAndScores();
+                // org.opensearch.protobufs.DoubleMap.Builder doubleMapBuilder = org.opensearch.protobufs.DoubleMap.newBuilder();
+                // for (Map.Entry<String, Float> entry : matchedQueriesWithScores.entrySet()) {
+                // doubleMapBuilder.putDoubleMap(entry.getKey(), entry.getValue().doubleValue());
+                // }
+                // matchedQueriesBuilder.setScores(doubleMapBuilder.build());
             } else {
                 org.opensearch.protobufs.StringArray.Builder namesBuilder = org.opensearch.protobufs.StringArray.newBuilder();
                 for (String matchedFilter : hit.getMatchedQueries()) {
