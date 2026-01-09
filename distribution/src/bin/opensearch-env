@@ -112,16 +112,15 @@ fi
 # now make OPENSEARCH_PATH_CONF absolute
 OPENSEARCH_PATH_CONF=`cd "$OPENSEARCH_PATH_CONF"; pwd`
 
-FIPS_APPROVED_MODE=${org.bouncycastle.fips.approved_only}
+OPENSEARCH_FIPS_MODE=${opensearch.fips.mode}
 
-if [[ "$FIPS_APPROVED_MODE" == "true" ]]; then
-  echo "org.bouncycastle.fips.approved_only set to true, setting FIPS JVM options."
-  export OPENSEARCH_JAVA_OPTS="Djava.security.properties=${OPENSEARCH_PATH_CONF}/fips_java.security \
-      ${OPENSEARCH_JAVA_OPTS}"
+if [[ "$OPENSEARCH_FIPS_MODE" == "true" ]]; then
+  echo "FIPS mode enabled, setting FIPS JVM options."
+  export OPENSEARCH_JAVA_OPTS="-Djava.security.properties=${OPENSEARCH_PATH_CONF}/fips_java.security ${OPENSEARCH_JAVA_OPTS}"
 fi
 
 OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}
-OPENSEARCH_BUNDLED_JDK=${opensearch.bundled_jdk}
+OPENSEARCH_BUNDLED_JDK=${opensearch.bundled.jdk}
 
 if [[ "$OPENSEARCH_BUNDLED_JDK" == "false" ]]; then
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2

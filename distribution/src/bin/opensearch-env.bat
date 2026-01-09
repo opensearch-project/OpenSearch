@@ -30,14 +30,14 @@ if not defined OPENSEARCH_PATH_CONF (
 rem now make OPENSEARCH_PATH_CONF absolute
 for %%I in ("%OPENSEARCH_PATH_CONF%..") do set OPENSEARCH_PATH_CONF=%%~dpfI
 
-set FIPS_APPROVED_MODE=${org.bouncycastle.fips.approved_only}
-if "%FIPS_APPROVED_MODE%" == "true" (
-    echo org.bouncycastle.fips.approved_only set to true, setting FIPS JVM options.
+set OPENSEARCH_FIPS_MODE=${opensearch.fips.mode}
+if "%OPENSEARCH_FIPS_MODE%" == "true" (
+    echo FIPS mode enabled, setting FIPS JVM options.
     set OPENSEARCH_JAVA_OPTS=-Djava.security.properties="%OPENSEARCH_PATH_CONF%\fips_java.security" %OPENSEARCH_JAVA_OPTS%
 )
 
 set OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}
-set OPENSEARCH_BUNDLED_JDK=${opensearch.bundled_jdk}
+set OPENSEARCH_BUNDLED_JDK=${opensearch.bundled.jdk}
 
 if "%OPENSEARCH_BUNDLED_JDK%" == "false" (
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2

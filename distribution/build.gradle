@@ -633,8 +633,12 @@ subprojects {
         'zip': 'zip'
       ],
 
-      'opensearch.bundled_jdk': [
+      'opensearch.bundled.jdk': [
         'def': jdk != JavaPackageType.NONE ? true : false
+      ],
+
+      'opensearch.fips.mode': [
+        'def': System.getProperty('org.bouncycastle.fips.approved_only', 'false')
       ],
 
       'license.name': [
