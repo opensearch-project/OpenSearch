@@ -15,14 +15,18 @@ import org.opensearch.protobufs.IndexOperation;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.transport.grpc.services.DocumentServiceImpl;
+import org.opensearch.transport.grpc.util.GrpcParamsHandler;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import static org.opensearch.transport.grpc.TestFixtures.settingsWithGivenStackTraceConfig;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -41,9 +45,15 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
         service = new DocumentServiceImpl(client);
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(true));
     }
 
-    public void testBulkSuccess() throws IOException {
+    @After
+    public void resetStackTraceSettings() {
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(true));
+    }
+
+    public void testBulkSuccess() {
         // Create a test request
         BulkRequest request = createTestBulkRequest();
 
@@ -54,7 +64,7 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
         verify(client).bulk(any(org.opensearch.action.bulk.BulkRequest.class), any());
     }
 
-    public void testBulkError() throws IOException {
+    public void testBulkError() {
         // Create a test request
         BulkRequest request = createTestBulkRequest();
 
@@ -68,6 +78,34 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
         verify(responseObserver).onError(any(RuntimeException.class));
     }
 
+    public void testErrorTraceConfigValidationFailsWhenServerSettingIsDisabledAndRequestRequiresStackTrace() {
+        // Setup request and the service, server setting is off and request requires a stack trace
+        BulkRequest request = createTestBulkRequest();
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
+        DocumentServiceImpl serviceThatFailsToProvideErrorInfo = new DocumentServiceImpl(client);
+
+        // Call bulk method
+        serviceThatFailsToProvideErrorInfo.bulk(request, responseObserver);
+
+        // Verify that an error was sent
+        verify(responseObserver).onError(any(StatusRuntimeException.class));
+    }
+
+    public void testErrorTraceConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsStackTrace() {
+        // Setup request and the service, server setting is off and request does not require a stack trace
+        BulkRequest request = createTestBulkRequest().toBuilder()
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(false))
+            .build();
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
+        DocumentServiceImpl serviceThatFailsToProvideErrorInfo = new DocumentServiceImpl(client);
+
+        // Call bulk method
+        serviceThatFailsToProvideErrorInfo.bulk(request, responseObserver);
+
+        // Verify that client.bulk was called
+        verify(client).bulk(any(org.opensearch.action.bulk.BulkRequest.class), any());
+    }
+
     private BulkRequest createTestBulkRequest() {
         IndexOperation indexOp = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
@@ -76,6 +114,9 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
             .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"))
             .build();
 
-        return BulkRequest.newBuilder().addBulkRequestBody(requestBody).build();
+        return BulkRequest.newBuilder()
+            .addBulkRequestBody(requestBody)
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true))
+            .build();
     }
 }

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.transport.grpc.proto.response.document.bulk.BulkResponseProtoUtils;
 import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
@@ -26,15 +27,18 @@ import io.grpc.stub.StreamObserver;
 public class BulkRequestActionListener implements ActionListener<BulkResponse> {
     private static final Logger logger = LogManager.getLogger(BulkRequestActionListener.class);
     private final StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver;
+    private final GlobalParams params;
 
     /**
      * Creates a new BulkRequestActionListener.
      *
      * @param responseObserver The gRPC stream observer to send the response back to the client
+     * @param params parameters that are going to change how responses and errors are handled
      */
-    public BulkRequestActionListener(StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver) {
+    public BulkRequestActionListener(StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver, GlobalParams params) {
         super();
         this.responseObserver = responseObserver;
+        this.params = params;
     }
 
     /**
@@ -47,12 +51,12 @@ public class BulkRequestActionListener implements ActionListener<BulkResponse> {
     public void onResponse(org.opensearch.action.bulk.BulkResponse response) {
         // Bulk execution succeeded. Convert the opensearch internal response to protobuf
         try {
-            org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(response);
+            org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(response, params);
             responseObserver.onNext(protoResponse);
             responseObserver.onCompleted();
         } catch (RuntimeException | IOException e) {
             logger.error("Failed to convert bulk response to protobuf: " + e.getMessage());
-            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e, params);
             responseObserver.onError(grpcError);
         }
     }
@@ -66,7 +70,7 @@ public class BulkRequestActionListener implements ActionListener<BulkResponse> {
     @Override
     public void onFailure(Exception e) {
         logger.error("BulkRequestActionListener failed to process bulk request: " + e.getMessage());
-        StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+        StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e, params);
         responseObserver.onError(grpcError);
     }
 }

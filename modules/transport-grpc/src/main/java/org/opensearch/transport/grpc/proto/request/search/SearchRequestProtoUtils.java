@@ -15,6 +15,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.protobufs.GlobalParams;
 import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.rest.RestRequest;
@@ -189,9 +190,10 @@ public class SearchRequestProtoUtils {
             throw new UnsupportedOperationException("typed_keys param is not supported yet");
         }
 
-        // TODO support global_params
-        if (request.hasGlobalParams()) {
-            throw new UnsupportedOperationException("global_params param is not supported yet");
+        // TODO support global_params parameters
+        GlobalParams params = request.getGlobalParams();
+        if (params.hasHuman() || params.getFilterPathCount() > 0) {
+            throw new UnsupportedOperationException("global_params.human or filter_path params are not supported yet");
         }
     }
 

@@ -409,7 +409,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     public void testParseSearchRequestWithGlobalParamsThrowsUnsupportedOperationException() throws IOException {
         // Create a protobuf SearchRequest with global_params
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().build())
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setHuman(true).build())
             .build();
 
         // Create a SearchRequest to populate
@@ -421,7 +421,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
             () -> SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils)
         );
 
-        assertEquals("global_params param is not supported yet", exception.getMessage());
+        assertEquals("global_params.human or filter_path params are not supported yet", exception.getMessage());
     }
 
 }

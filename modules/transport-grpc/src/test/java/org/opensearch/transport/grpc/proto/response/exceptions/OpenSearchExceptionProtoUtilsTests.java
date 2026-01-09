@@ -32,6 +32,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.transport.grpc.TestFixtures.GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE;
+import static org.opensearch.transport.grpc.TestFixtures.GLOBAL_PARAMS_WITH_ERROR_TRACE_TRUE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -43,7 +45,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         OpenSearchException exception = new OpenSearchException("Test exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_TRUE);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -54,13 +56,27 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         assertFalse("Should not have a cause", errorCause.hasCausedBy());
     }
 
+    public void testToProtoWithOpenSearchExceptionSummary() throws IOException {
+        // Create an OpenSearchException
+        OpenSearchException exception = new OpenSearchException("Test exception");
+
+        // Convert to Protocol Buffer
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
+
+        // Verify the conversion
+        // The actual type format uses underscores instead of dots
+        assertFalse("Should not have a stack trace", errorCause.hasStackTrace());
+        assertFalse("Should not have suppressed exceptions", errorCause.getSuppressedList().iterator().hasNext());
+        assertFalse("Should not have a cause", errorCause.hasCausedBy());
+    }
+
     public void testToProtoWithNestedOpenSearchException() throws IOException {
         // Create a nested OpenSearchException
         IOException cause = new IOException("Cause exception");
         OpenSearchException exception = new OpenSearchException("Test exception", cause);
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_TRUE);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -72,6 +88,30 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Should have a cause", errorCause.hasCausedBy());
         ErrorCause causedBy = errorCause.getCausedBy();
         // The actual type format uses underscores instead of dots
+        assertTrue("Should have a stack trace for cause", causedBy.getStackTrace().length() > 0);
+        assertEquals("Cause should have the correct type", "i_o_exception", causedBy.getType());
+        assertEquals("Cause should have the correct reason", "Cause exception", causedBy.getReason());
+    }
+
+    public void testToProtoWithNestedOpenSearchExceptionSummary() throws IOException {
+        // Create a nested OpenSearchException
+        IOException cause = new IOException("Cause exception");
+        OpenSearchException exception = new OpenSearchException("Test exception", cause);
+
+        // Convert to Protocol Buffer
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.toProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
+
+        // Verify the conversion
+        // The actual type format uses underscores instead of dots
+        assertEquals("Should have the correct type", "exception", errorCause.getType());
+        assertEquals("Should have the correct reason", "Test exception", errorCause.getReason());
+        assertFalse("Should not have a stack trace", errorCause.hasStackTrace());
+
+        // Verify the cause
+        assertTrue("Should have a cause", errorCause.hasCausedBy());
+        ErrorCause causedBy = errorCause.getCausedBy();
+        // The actual type format uses underscores instead of dots
+        assertFalse("Should not have a stack trace on the cause", causedBy.hasStackTrace());
         assertEquals("Cause should have the correct type", "i_o_exception", causedBy.getType());
         assertEquals("Cause should have the correct reason", "Cause exception", causedBy.getReason());
     }
@@ -81,7 +121,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         OpenSearchException exception = new OpenSearchException("Test exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -94,7 +134,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         IOException exception = new IOException("Test IO exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -107,7 +147,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         RuntimeException exception = new RuntimeException("Test runtime exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -120,7 +160,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         RuntimeException exception = new RuntimeException((String) null);
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -134,7 +174,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         exception.addSuppressed(new IllegalArgumentException("Suppressed exception"));
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
@@ -154,13 +194,27 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         RuntimeException exception = new RuntimeException("Test exception");
 
         // Convert to Protocol Buffer
-        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception);
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_TRUE);
 
         // Verify the conversion
         // The actual type format uses underscores instead of dots
         assertEquals("Should have the correct type", "runtime_exception", errorCause.getType());
         assertEquals("Should have the correct reason", "Test exception", errorCause.getReason());
         assertTrue("Should have a stack trace", errorCause.getStackTrace().length() > 0);
+    }
+
+    public void testInnerToProtoReturnsOnlyBasicExceptionSummary() throws IOException {
+        // Create a basic exception
+        RuntimeException exception = new RuntimeException("Test exception");
+
+        // Convert to Protocol Buffer
+        ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE);
+
+        // Verify the conversion
+        // The actual type format uses underscores instead of dots
+        assertEquals("Should have the correct type", "runtime_exception", errorCause.getType());
+        assertEquals("Should have the correct reason", "Test exception", errorCause.getReason());
+        assertFalse("Should not have a stack trace", errorCause.hasStackTrace());
     }
 
     public void testHeaderToProtoWithSingleValue() throws IOException {

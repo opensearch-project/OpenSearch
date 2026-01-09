@@ -188,6 +188,18 @@ public class Netty4GrpcServerTransport extends AuxTransport {
     );
 
     /**
+     * Enables detailed error message for gRPC requests. If enabled, returns detailed
+     * error information when requested via {@code error_trace} parameter in the request scope.
+     * Otherwise, only a summary is generated. The case when the detailed error trace is requested
+     * but server explicitly turned it off, the error response is generated.
+     */
+    public static final Setting<Boolean> SETTING_GRPC_DETAILED_ERRORS_ENABLED = Setting.boolSetting(
+        "grpc.detailed_errors.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Port range on which servers bind.
      */
     protected PortsRange port;

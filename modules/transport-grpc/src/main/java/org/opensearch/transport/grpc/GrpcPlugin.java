@@ -42,6 +42,7 @@ import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInte
 import org.opensearch.transport.grpc.spi.GrpcServiceFactory;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
+import org.opensearch.transport.grpc.util.GrpcParamsHandler;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
@@ -58,6 +59,7 @@ import io.grpc.BindableService;
 
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
+import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_DETAILED_ERRORS_ENABLED;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_KEEPALIVE_TIMEOUT;
@@ -78,7 +80,9 @@ import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.
 public final class GrpcPlugin extends Plugin implements NetworkPlugin, ExtensiblePlugin {
     private static final Logger logger = LogManager.getLogger(GrpcPlugin.class);
 
-    /** The name of the gRPC thread pool */
+    /**
+     * The name of the gRPC thread pool
+     */
     public static final String GRPC_THREAD_POOL_NAME = "grpc";
 
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
@@ -182,6 +186,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         }
 
         return Collections.singletonMap(GRPC_TRANSPORT_SETTING_KEY, () -> {
+            GrpcParamsHandler.initialize(settings);
             List<BindableService> grpcServices = new ArrayList<>(
                 List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
             );
@@ -233,6 +238,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
         return Collections.singletonMap(GRPC_SECURE_TRANSPORT_SETTING_KEY, () -> {
+            GrpcParamsHandler.initialize(settings);
             List<BindableService> grpcServices = new ArrayList<>(
                 List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
             );
@@ -282,7 +288,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             SETTING_GRPC_MAX_MSG_SIZE,
             SETTING_GRPC_MAX_CONNECTION_AGE,
             SETTING_GRPC_MAX_CONNECTION_IDLE,
-            SETTING_GRPC_KEEPALIVE_TIMEOUT
+            SETTING_GRPC_KEEPALIVE_TIMEOUT,
+            SETTING_GRPC_DETAILED_ERRORS_ENABLED
         );
     }
 

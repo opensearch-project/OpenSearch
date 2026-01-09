@@ -21,6 +21,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
+import static org.opensearch.transport.grpc.TestFixtures.GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE;
 import static org.mockito.Mockito.mock;
 
 public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTestCase {
@@ -35,7 +36,10 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         ShardSearchFailure shardSearchFailure = new ShardSearchFailure(new Exception("fake exception"), searchShardTarget);
 
         // Call the method under test
-        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(shardSearchFailure);
+        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(
+            shardSearchFailure,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the result
         assertNotNull("Proto failure should not be null", protoFailure);
@@ -53,7 +57,10 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         SnapshotShardFailure shardSearchFailure = new SnapshotShardFailure("test_node", shardId, "Snapshot failed");
 
         // Call the method under test
-        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(shardSearchFailure);
+        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(
+            shardSearchFailure,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the result
         assertNotNull("Proto failure should not be null", protoFailure);
@@ -72,7 +79,10 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         );
 
         // Call the method under test
-        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(defaultShardOperationFailedException);
+        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(
+            defaultShardOperationFailedException,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the result
         assertNotNull("Proto failure should not be null", protoFailure);
@@ -93,7 +103,10 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         );
 
         // Call the method under test
-        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(replicationResponseFailure);
+        ShardFailure protoFailure = ShardOperationFailedExceptionProtoUtils.toProto(
+            replicationResponseFailure,
+            GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE
+        );
 
         // Verify the result
         assertNotNull("Proto failure should not be null", protoFailure);
@@ -111,7 +124,7 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         // Call the method under test, should throw UnsupportedOperationException
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
-            () -> ShardOperationFailedExceptionProtoUtils.toProto(mockFailure)
+            () -> ShardOperationFailedExceptionProtoUtils.toProto(mockFailure, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE)
         );
 
         assertTrue(
@@ -124,7 +137,7 @@ public class ShardOperationFailedExceptionProtoUtilsTests extends OpenSearchTest
         // Call the method under test with null, should throw UnsupportedOperationException
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
-            () -> ShardOperationFailedExceptionProtoUtils.toProto(null)
+            () -> ShardOperationFailedExceptionProtoUtils.toProto(null, GLOBAL_PARAMS_WITH_ERROR_TRACE_FALSE)
         );
 
         assertEquals("Unsupported ShardOperationFailedException [null] cannot be converted to proto.", exception.getMessage());

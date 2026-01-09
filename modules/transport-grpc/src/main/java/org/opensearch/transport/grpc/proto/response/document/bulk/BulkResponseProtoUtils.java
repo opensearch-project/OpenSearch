@@ -11,6 +11,7 @@ import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.protobufs.GlobalParams;
 
 import java.io.IOException;
 
@@ -30,10 +31,11 @@ public class BulkResponseProtoUtils {
      * This method is equivalent to {@link BulkResponse#toXContent(XContentBuilder, ToXContent.Params)}
      *
      * @param response The BulkResponse to convert
+     * @param params The global gRPC request parameters
      * @return A Protocol Buffer BulkResponse representation
      * @throws IOException if there's an error during conversion
      */
-    public static org.opensearch.protobufs.BulkResponse toProto(BulkResponse response) throws IOException {
+    public static org.opensearch.protobufs.BulkResponse toProto(BulkResponse response, GlobalParams params) throws IOException {
         // System.out.println("=== grpc bulk response=" + response.toString());
 
         org.opensearch.protobufs.BulkResponse.Builder bulkResponse = org.opensearch.protobufs.BulkResponse.newBuilder();
@@ -51,7 +53,7 @@ public class BulkResponseProtoUtils {
 
         // Add individual item responses for each operation in the bulk request
         for (BulkItemResponse bulkItemResponse : response.getItems()) {
-            org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+            org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse, params);
             org.opensearch.protobufs.Item.Builder itemBuilder = org.opensearch.protobufs.Item.newBuilder();
 
             // Wrap ResponseItem in Item based on operation type

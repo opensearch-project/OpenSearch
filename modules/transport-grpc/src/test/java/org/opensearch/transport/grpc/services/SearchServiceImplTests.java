@@ -14,14 +14,18 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
+import org.opensearch.transport.grpc.util.GrpcParamsHandler;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import static org.opensearch.transport.grpc.TestFixtures.settingsWithGivenStackTraceConfig;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -42,6 +46,12 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         MockitoAnnotations.openMocks(this);
         queryUtils = QueryBuilderProtoTestUtils.createQueryUtils();
         service = new SearchServiceImpl(client, queryUtils);
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(true));
+    }
+
+    @After
+    public void resetStackTraceSettings() {
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(true));
     }
 
     public void testConstructorWithNullClient() {
@@ -66,7 +76,7 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         assertEquals("Client cannot be null", exception.getMessage());
     }
 
-    public void testSearchSuccess() throws IOException {
+    public void testSearchSuccess() {
         // Create a test request
         SearchRequest request = createTestSearchRequest();
 
@@ -77,7 +87,7 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         verify(client).search(any(org.opensearch.action.search.SearchRequest.class), any());
     }
 
-    public void testSearchWithException() throws IOException {
+    public void testSearchWithException() {
         // Create a test request
         SearchRequest request = createTestSearchRequest();
 
@@ -91,10 +101,39 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         verify(responseObserver).onError(any());
     }
 
+    public void testErrorTraceConfigValidationFailsWhenServerSettingIsDisabledAndRequestRequiresStackTrace() {
+        // Setup request and the service, server setting is off and request requires a stack trace
+        SearchRequest request = createTestSearchRequest();
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
+        SearchServiceImpl serviceThatFailsToProvideErrorInfo = new SearchServiceImpl(client, queryUtils);
+
+        // Call search method
+        serviceThatFailsToProvideErrorInfo.search(request, responseObserver);
+
+        // Verify that responseObserver.onError reports request parameter must be disabled
+        verify(responseObserver).onError(any(StatusRuntimeException.class));
+    }
+
+    public void testErrorTraceConfigValidationPassesWhenServerSettingIsDisabledAndRequestSkipsStackTrace() {
+        // Setup request and the service, server setting is off and request skips a stack trace
+        SearchRequest request = createTestSearchRequest().toBuilder()
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(false))
+            .build();
+        GrpcParamsHandler.initialize(settingsWithGivenStackTraceConfig(false));
+        SearchServiceImpl serviceThatFailsToProvideErrorInfo = new SearchServiceImpl(client, queryUtils);
+
+        // Call search method
+        serviceThatFailsToProvideErrorInfo.search(request, responseObserver);
+
+        // Verify that client.search was called
+        verify(client).search(any(org.opensearch.action.search.SearchRequest.class), any());
+    }
+
     private SearchRequest createTestSearchRequest() {
         return SearchRequest.newBuilder()
             .addIndex("test-index")
             .setSearchRequestBody(SearchRequestBody.newBuilder().setSize(10).build())
+            .setGlobalParams(org.opensearch.protobufs.GlobalParams.newBuilder().setErrorTrace(true).build())
             .build();
     }
 }
