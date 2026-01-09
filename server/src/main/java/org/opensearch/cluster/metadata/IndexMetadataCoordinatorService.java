@@ -42,6 +42,7 @@ public class IndexMetadataCoordinatorService extends AbstractLifecycleComponent 
     private volatile IndexMetadataTaskBatcher taskBatcher;
 
     private java.util.function.Supplier<ClusterState> clusterStateSupplier;
+    private java.util.function.Supplier<Integer> indexMetadataStateVersionSupplier;
 
     IndexMetadataStatePublisher indexMetadataStatePublisher;
 
@@ -91,6 +92,14 @@ public class IndexMetadataCoordinatorService extends AbstractLifecycleComponent 
         this.clusterStateSupplier = clusterStateSupplier;
     }
 
+    public synchronized void setIndexMetadataStateVersionSupplier(java.util.function.Supplier<Integer> indexMetadataStateVersionSupplier) {
+        this.indexMetadataStateVersionSupplier = indexMetadataStateVersionSupplier;
+    }
+
+    int indexMetadataStateVersion() {
+        return indexMetadataStateVersionSupplier.get();
+    }
+
     public synchronized void setIndexMetadataStatePublisher(IndexMetadataStatePublisher publisher) {
         indexMetadataStatePublisher = publisher;
     }
@@ -125,8 +134,10 @@ public class IndexMetadataCoordinatorService extends AbstractLifecycleComponent 
                 ClusterState newClusterState = result.resultingState;
 
                 if (newClusterState != currentState) {
+                    int lastAcceptedIndexMetadataVersion = indexMetadataStateVersion();
+
                     log.info("[IMC] Cluster State Changed, publishing new IndexMetadata");
-                    indexMetadataStatePublisher.publishIndexMetadata(newClusterState);
+                    indexMetadataStatePublisher.publishIndexMetadata(newClusterState,lastAcceptedIndexMetadataVersion+1);
                 }
 
                 for (UpdateTask updateTask : updateTasks) {

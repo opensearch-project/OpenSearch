@@ -54,6 +54,6 @@ public interface IndexMetadataStatePublisher {
      * The method is guaranteed to pass back a {@link FailedToCommitClusterStateException} to the publishListener if the change is not
      * committed and should be rejected. Any other exception signals that something bad happened but the change is committed.
      */
-    void publishIndexMetadata(ClusterState clusterState);
+    void publishIndexMetadata(ClusterState clusterState, int indexMetadataVersion);
 
 }

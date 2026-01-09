@@ -47,7 +47,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
     }
 
     @Override
-    public void publishIndexMetadata(ClusterState clusterState) {
+    public void publishIndexMetadata(ClusterState clusterState, int indexMetadataVersion) {
         throw new UnsupportedOperationException("Should not be called in clusterless mode");
     }
 

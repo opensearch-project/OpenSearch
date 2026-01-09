@@ -87,7 +87,7 @@ public class NoopDiscovery implements Discovery {
     public void close() {}
 
     @Override
-    public void publishIndexMetadata(ClusterState clusterState) {
+    public void publishIndexMetadata(ClusterState clusterState, int indexMetadataVersion) {
 
     }
 }

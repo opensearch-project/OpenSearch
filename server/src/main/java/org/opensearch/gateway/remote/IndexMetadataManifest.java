@@ -38,7 +38,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
     private static final ParseField OPENSEARCH_VERSION_FIELD = new ParseField("opensearch_version");
     private static final ParseField CODEC_VERSION_FIELD = new ParseField("codec_version");
     private static final ParseField INDICES_FIELD = new ParseField("indices");
-    private static final ParseField PREVIOUS_INDEX_MANIFEST_VERSION_FIELD = new ParseField("previous_index_manifest_version");
+    private static final ParseField MANIFEST_VERSION_FIELD = new ParseField("manifest_version");
     private static final ParseField INDEX_DIFF_MANIFEST_FIELD = new ParseField("index_diff_manifest");
 
     private static final ConstructingObjectParser<IndexMetadataManifest, Void> PARSER = new ConstructingObjectParser<>(
@@ -58,7 +58,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
             (p, c) -> UploadedIndexMetadata.fromXContent(p, codecVersion >= MANIFEST_CURRENT_CODEC_VERSION ? ClusterMetadataManifest.CODEC_V2 : ClusterMetadataManifest.CODEC_V0),
             INDICES_FIELD
         );
-        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), PREVIOUS_INDEX_MANIFEST_VERSION_FIELD);
+        parser.declareInt(ConstructingObjectParser.constructorArg(), MANIFEST_VERSION_FIELD);
         parser.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> IndexStateDiffManifest.fromXContent(p),
@@ -69,20 +69,20 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
     private final Version opensearchVersion;
     private final int codecVersion;
     private final List<UploadedIndexMetadata> indices;
-    private final String previousIndexManifestVersion;
+    private final int manifestVersion;
     private final IndexStateDiffManifest indexDiffManifest;
 
     public IndexMetadataManifest(
         Version opensearchVersion,
         int codecVersion,
         List<UploadedIndexMetadata> indices,
-        String previousIndexManifestVersion,
+        int manifestVersion,
         IndexStateDiffManifest indexDiffManifest
     ) {
         this.opensearchVersion = opensearchVersion;
         this.codecVersion = codecVersion;
         this.indices = Collections.unmodifiableList(indices != null ? indices : new ArrayList<>());
-        this.previousIndexManifestVersion = previousIndexManifestVersion;
+        this.manifestVersion = manifestVersion;
         this.indexDiffManifest = indexDiffManifest;
     }
 
@@ -90,7 +90,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
         this.opensearchVersion = Version.fromId(in.readInt());
         this.codecVersion = in.readInt();
         this.indices = Collections.unmodifiableList(in.readList(UploadedIndexMetadata::new));
-        this.previousIndexManifestVersion = in.readOptionalString();
+        this.manifestVersion = in.readInt();
         this.indexDiffManifest = in.readOptionalWriteable(IndexStateDiffManifest::new);
     }
 
@@ -106,8 +106,8 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
         return indices;
     }
 
-    public String getPreviousIndexManifestVersion() {
-        return previousIndexManifestVersion;
+    public int getManifestVersion() {
+        return manifestVersion;
     }
 
     public IndexStateDiffManifest getIndexDiffManifest() {
@@ -119,7 +119,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
         out.writeInt(opensearchVersion.id);
         out.writeInt(codecVersion);
         out.writeCollection(indices);
-        out.writeOptionalString(previousIndexManifestVersion);
+        out.writeInt(manifestVersion);
         out.writeOptionalWriteable(indexDiffManifest);
     }
 
@@ -136,9 +136,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
         }
         builder.endArray();
 
-        if (previousIndexManifestVersion != null) {
-            builder.field(PREVIOUS_INDEX_MANIFEST_VERSION_FIELD.getPreferredName(), previousIndexManifestVersion);
-        }
+        builder.field(MANIFEST_VERSION_FIELD.getPreferredName(), manifestVersion);
 
         if (indexDiffManifest != null) {
             builder.startObject(INDEX_DIFF_MANIFEST_FIELD.getPreferredName());
@@ -168,7 +166,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
             .opensearchVersion(opensearchVersion(fields))
             .codecVersion(CODEC_V1)
             .indices(indices(fields))
-            .previousIndexManifestVersion(previousIndexManifestVersion(fields))
+            .manifestVersion(manifestVersion(fields))
             .indexDiffManifest(indexDiffManifest(fields));
     }
 
@@ -180,8 +178,8 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
         return (List<UploadedIndexMetadata>) fields[2];
     }
 
-    private static String previousIndexManifestVersion(Object[] fields) {
-        return (String) fields[3];
+    private static int manifestVersion(Object[] fields) {
+        return (int) fields[3];
     }
 
     private static IndexStateDiffManifest indexDiffManifest(Object[] fields) {
@@ -192,7 +190,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
         private Version opensearchVersion;
         private int codecVersion;
         private List<UploadedIndexMetadata> indices;
-        private String previousIndexManifestVersion;
+        private int manifestVersion;
         private IndexStateDiffManifest indexDiffManifest;
 
         public Builder() {
@@ -203,7 +201,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
             this.opensearchVersion = manifest.opensearchVersion;
             this.codecVersion = manifest.codecVersion;
             this.indices = new ArrayList<>(manifest.indices);
-            this.previousIndexManifestVersion = manifest.previousIndexManifestVersion;
+            this.manifestVersion = manifest.manifestVersion;
             this.indexDiffManifest = manifest.indexDiffManifest;
         }
 
@@ -222,8 +220,8 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder previousIndexManifestVersion(String previousIndexManifestVersion) {
-            this.previousIndexManifestVersion = previousIndexManifestVersion;
+        public Builder manifestVersion(int manifestVersion) {
+            this.manifestVersion = manifestVersion;
             return this;
         }
 
@@ -237,7 +235,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
                 opensearchVersion,
                 codecVersion,
                 indices,
-                previousIndexManifestVersion,
+                manifestVersion,
                 indexDiffManifest
             );
         }
@@ -251,7 +249,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
         return codecVersion == that.codecVersion
             && Objects.equals(opensearchVersion, that.opensearchVersion)
             && Objects.equals(indices, that.indices)
-            && Objects.equals(previousIndexManifestVersion, that.previousIndexManifestVersion)
+            && Objects.equals(manifestVersion, that.manifestVersion)
             && Objects.equals(indexDiffManifest, that.indexDiffManifest);
     }
 
@@ -261,7 +259,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
             opensearchVersion,
             codecVersion,
             indices,
-            previousIndexManifestVersion,
+            manifestVersion,
             indexDiffManifest
         );
     }
@@ -272,7 +270,7 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
             "opensearchVersion=" + opensearchVersion +
             ", codecVersion=" + codecVersion +
             ", indices=" + indices.size() +
-            ", previousIndexManifestVersion='" + previousIndexManifestVersion + '\'' +
+            ", manifestVersion='" + manifestVersion + '\'' +
             ", indexDiffManifest=" + indexDiffManifest +
             '}';
     }

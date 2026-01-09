@@ -347,12 +347,14 @@ public class RemoteManifestConditionalUpdateIT extends RemoteStoreBaseIntegTestC
         // 1. Bootstrap new cluster with remote state enabled
         prepareCluster(3, 2, INDEX_NAME, 1, 1);
         ensureGreen(INDEX_NAME);
-//
+
         List<String> nodes = Arrays.stream(internalCluster().getNodeNames())
             .collect(Collectors.toList());
 
         nodes.stream().forEach(node -> {
             assertTrue(internalCluster().getInstance(PersistedStateRegistry.class, node).getPersistedState(PersistedStateRegistry.PersistedStateType.LOCAL).getLastAcceptedState().metadata().indices().size()==1);
+            assertTrue(internalCluster().getInstance(PersistedStateRegistry.class, node).getPersistedState(PersistedStateRegistry.PersistedStateType.LOCAL).getLastUpdatedIndexMetadataVersion()==1);
+
         });
     }
 
@@ -373,6 +375,7 @@ public class RemoteManifestConditionalUpdateIT extends RemoteStoreBaseIntegTestC
 
         nodes.stream().forEach(node -> {
             assertTrue(internalCluster().getInstance(PersistedStateRegistry.class, node).getPersistedState(PersistedStateRegistry.PersistedStateType.LOCAL).getLastAcceptedState().metadata().indices().size()==2);
+            assertTrue(internalCluster().getInstance(PersistedStateRegistry.class, node).getPersistedState(PersistedStateRegistry.PersistedStateType.LOCAL).getLastUpdatedIndexMetadataVersion()==2);
         });
     }
 

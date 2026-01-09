@@ -1033,6 +1033,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             }
 
             @Override
+            public int getLastUpdatedIndexMetadataVersion() {
+                return 0;
+            }
+
+            @Override
             public void close() {
                 assertTrue(openPersistedStates.remove(this));
                 try {

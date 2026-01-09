@@ -42,6 +42,7 @@ public class InMemoryPersistedState implements CoordinationState.PersistedState 
 
     private long currentTerm;
     private ClusterState acceptedState;
+    private int indexMetadataVersion;
 
     public InMemoryPersistedState(long term, ClusterState acceptedState) {
         this.currentTerm = term;
@@ -66,13 +67,19 @@ public class InMemoryPersistedState implements CoordinationState.PersistedState 
     }
 
     @Override
-    public void commitAndUpdateIndexMetadataState(ClusterState clusterState) {
+    public void commitAndUpdateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
         this.acceptedState = clusterState;
+        this.indexMetadataVersion = indexMetadataVersion;
     }
 
     @Override
     public PersistedStateStats getStats() {
         return null;
+    }
+
+    @Override
+    public int getLastUpdatedIndexMetadataVersion() {
+        return indexMetadataVersion;
     }
 
     @Override

@@ -64,6 +64,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -79,7 +80,7 @@ public class IndexMetadataPublicationTransportHandler {
 
     private final TransportService transportService;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final Function<Map<String, IndexMetadata>, IndexMetadataPublishResponse> handleIndexMetadataPublishRequest;
+    private final BiFunction<Map<String, IndexMetadata>, Integer, IndexMetadataPublishResponse> handleIndexMetadataPublishRequest;
 
     private final AtomicReference<Map<String, IndexMetadata>> lastSeenIndexMetadata = new AtomicReference<>();
 
@@ -93,7 +94,7 @@ public class IndexMetadataPublicationTransportHandler {
     public IndexMetadataPublicationTransportHandler(
         TransportService transportService,
         NamedWriteableRegistry namedWriteableRegistry,
-        Function<Map<String, IndexMetadata>, IndexMetadataPublishResponse> handlePublishRequest,
+        BiFunction<Map<String, IndexMetadata>, Integer, IndexMetadataPublishResponse> handlePublishRequest,
         RemoteClusterStateService remoteClusterStateService
     ) {
         this.transportService = transportService;
@@ -138,7 +139,7 @@ public class IndexMetadataPublicationTransportHandler {
 
         logger.info("Fetched latest manifest. Contains indices - " + indexManifest.getIndices().size());
 
-        return handleIndexMetadataPublishRequest.apply(latestIndices);
+        return handleIndexMetadataPublishRequest.apply(latestIndices, indexManifest.getManifestVersion());
     }
 
 

@@ -578,6 +578,8 @@ public class GatewayMetaState implements Closeable {
         private long currentTerm;
         private ClusterState lastAcceptedState;
         private final PersistedClusterStateService persistedClusterStateService;
+        private int lastAcceptedIndexMetadataVersion;
+
 
         // As the close method can be concurrently called to the other PersistedState methods, this class has extra protection in place.
         private final AtomicReference<PersistedClusterStateService.Writer> persistenceWriter = new AtomicReference<>();
@@ -623,6 +625,11 @@ public class GatewayMetaState implements Closeable {
         }
 
         @Override
+        public int getLastUpdatedIndexMetadataVersion() {
+            return lastAcceptedIndexMetadataVersion;
+        }
+
+        @Override
         public void setCurrentTerm(long currentTerm) {
             try {
                 if (writeNextStateFully) {
@@ -662,8 +669,9 @@ public class GatewayMetaState implements Closeable {
         }
 
         @Override
-        public void commitAndUpdateIndexMetadataState(ClusterState clusterState) {
+        public void commitAndUpdateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
             lastAcceptedState = clusterState;
+            lastAcceptedIndexMetadataVersion = indexMetadataVersion;
         }
 
 
@@ -718,6 +726,8 @@ public class GatewayMetaState implements Closeable {
         private ClusterMetadataManifest lastAcceptedManifest;
         private IndexMetadataManifest lastAcceptedIndexMetadataManifest;
         private String lastAcceptedIndexMetadataManifestVersion;
+        private int indexMetadataVersion;
+
 
         private String lastUploadedManifestFile;
         private final RemoteClusterStateService remoteClusterStateService;
@@ -752,6 +762,11 @@ public class GatewayMetaState implements Closeable {
         @Override
         public ClusterMetadataManifest getLastAcceptedManifest() {
             return lastAcceptedManifest;
+        }
+
+        @Override
+        public int getLastUpdatedIndexMetadataVersion() {
+            return indexMetadataVersion;
         }
 
         @Override
@@ -891,12 +906,13 @@ public class GatewayMetaState implements Closeable {
         }
 
         @Override
-        public void commitAndUpdateIndexMetadataState(ClusterState clusterState) {
+        public void commitAndUpdateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
             lastAcceptedState = clusterState;
+            indexMetadataVersion = indexMetadataVersion;
         }
 
         @Override
-        public void updateIndexMetadataState(ClusterState clusterState) {
+        public void updateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
             assert clusterState.getNodes().isLocalNodeIndexMetadataCoordinator() == true : "Only IMC node can update index metadata";
 
             RemoteIndexMetadataManifestInfo manifestInfo;
@@ -906,13 +922,15 @@ public class GatewayMetaState implements Closeable {
                 if (shouldWriteFullIndexMetadataState()) {
                     manifestInfo = remoteClusterStateService.writeFullIndexMetadata(
                         clusterState,
-                        lastAcceptedState == null ? ClusterState.EMPTY_STATE : lastAcceptedState
+                        lastAcceptedState == null ? ClusterState.EMPTY_STATE : lastAcceptedState,
+                        indexMetadataVersion
                     );
                 } else {
                     manifestInfo = remoteClusterStateService.writeIncrementalIndexMetadata(
                         lastAcceptedState,
                         clusterState,
-                        lastAcceptedIndexMetadataManifest
+                        lastAcceptedIndexMetadataManifest,
+                        indexMetadataVersion
                     );
                 }
 

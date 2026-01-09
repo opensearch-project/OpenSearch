@@ -376,7 +376,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     @Nullable
-    public RemoteIndexMetadataManifestInfo writeFullIndexMetadata(ClusterState clusterState, ClusterState previousClusterState) throws IOException {
+    public RemoteIndexMetadataManifestInfo writeFullIndexMetadata(ClusterState clusterState, ClusterState previousClusterState, int indexManifestVersion) throws IOException {
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (clusterState.nodes().isLocalNodeIndexMetadataCoordinator() == false) {
             logger.error("Local node is not index metadata update coordinator. Exiting");
@@ -385,7 +385,7 @@ public class RemoteClusterStateService implements Closeable {
 
         UploadedMetadataResults uploadedMetadataResults = writeIndexMetadataInParallel(clusterState);
         assert uploadedMetadataResults != null;
-        String uploadIndexMetadataManifestVersion = uploadIndexMetadataManifest(clusterState, previousClusterState, uploadedMetadataResults.uploadedIndexMetadata);
+        String uploadIndexMetadataManifestVersion = uploadIndexMetadataManifest(clusterState, previousClusterState, uploadedMetadataResults.uploadedIndexMetadata, indexManifestVersion);
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
 
         logger.info(
@@ -407,7 +407,8 @@ public class RemoteClusterStateService implements Closeable {
     public RemoteIndexMetadataManifestInfo writeIncrementalIndexMetadata(
         ClusterState previousClusterState,
         ClusterState clusterState,
-        IndexMetadataManifest previousManifest
+        IndexMetadataManifest previousManifest,
+        int indexManifestVersion
     ) throws IOException {
 
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
@@ -463,7 +464,7 @@ public class RemoteClusterStateService implements Closeable {
 
         String latestManifestVersion = indexMetadataManifestManager.getLastUploadedIndexManifestVersion();
         if (!toUpload.isEmpty() || !indicesToBeDeletedFromRemote.isEmpty()) {
-            latestManifestVersion = uploadIndexMetadataManifest(clusterState, previousClusterState, uploadedMetadataResults.uploadedIndexMetadata);
+            latestManifestVersion = uploadIndexMetadataManifest(clusterState, previousClusterState, uploadedMetadataResults.uploadedIndexMetadata, indexManifestVersion);
         }
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
 
@@ -2507,7 +2508,8 @@ public class RemoteClusterStateService implements Closeable {
     private String uploadIndexMetadataManifest(
         ClusterState clusterState,
         ClusterState previousClusterState,
-        List<UploadedIndexMetadata> uploadedIndexMetadata
+        List<UploadedIndexMetadata> uploadedIndexMetadata,
+        int indexManifestVersion
     ) throws IOException {
         boolean hasIndexChanges = !uploadedIndexMetadata.isEmpty() ||
             (previousClusterState != null && hasIndexMetadataChanged(previousClusterState, clusterState));
@@ -2519,7 +2521,8 @@ public class RemoteClusterStateService implements Closeable {
         return indexMetadataManifestManager.uploadIndexMetadataManifest(
             clusterState,
             previousClusterState,
-            uploadedIndexMetadata
+            uploadedIndexMetadata,
+            indexManifestVersion
         );
     }
 

@@ -74,7 +74,8 @@ public class IndexMetadataManifestManager {
     public String uploadIndexMetadataManifest(
         ClusterState clusterState,
         ClusterState previousClusterState,
-        List<UploadedIndexMetadata> uploadedIndexMetadata
+        List<UploadedIndexMetadata> uploadedIndexMetadata,
+        int indexMetadataVersion
     ) throws IOException {
 
         IndexStateDiffManifest indexDiffManifest = null;
@@ -104,7 +105,7 @@ public class IndexMetadataManifestManager {
             .opensearchVersion(Version.CURRENT)
             .codecVersion(IndexMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION)
             .indices(uploadedIndexMetadata)
-            .previousIndexManifestVersion(lastUploadedIndexManifestVersion)
+            .manifestVersion(indexMetadataVersion)
             .indexDiffManifest(indexDiffManifest)
             .build();
 

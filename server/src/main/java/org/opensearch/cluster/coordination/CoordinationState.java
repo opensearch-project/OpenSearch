@@ -113,6 +113,10 @@ public class CoordinationState {
         return persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).getLastAcceptedState();
     }
 
+    public int getLastAcceptedIndexMetadataVersion() {
+        return persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).getLastUpdatedIndexMetadataVersion();
+    }
+
     public long getLastAcceptedTerm() {
         return getLastAcceptedState().term();
     }
@@ -588,17 +592,17 @@ public class CoordinationState {
     }
 
 
-    public void uploadIndexMetadataState(ClusterState clusterState) {
+    public void uploadIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
         assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
-        persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).updateIndexMetadataState(clusterState);
+        persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).updateIndexMetadataState(clusterState, indexMetadataVersion);
     }
 
 
 
-    public void commitIndexMetadataState(ClusterState clusterState) {
-        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).commitAndUpdateIndexMetadataState(clusterState);
+    public void commitIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
+        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).commitAndUpdateIndexMetadataState(clusterState, indexMetadataVersion);
         if (persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null) {
-            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).commitAndUpdateIndexMetadataState(clusterState);
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).commitAndUpdateIndexMetadataState(clusterState, indexMetadataVersion);
         }
     }
 
@@ -704,6 +708,8 @@ public class CoordinationState {
             return null;
         }
 
+        int getLastUpdatedIndexMetadataVersion();
+
         /**
          * Sets the last accepted {@link ClusterMetadataManifest}.
          */
@@ -742,11 +748,11 @@ public class CoordinationState {
             }
         }
 
-        default void updateIndexMetadataState(ClusterState clusterState) {
+        default void updateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
             throw new  UnsupportedOperationException("updateIndexMetadataState is not supported");
         }
 
-        default void commitAndUpdateIndexMetadataState(ClusterState clusterState) {
+        default void commitAndUpdateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
             throw new  UnsupportedOperationException("updateIndexMetadataState is not supported");
         }
 
