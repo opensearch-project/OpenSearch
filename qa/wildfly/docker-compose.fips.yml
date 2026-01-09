@@ -3,3 +3,4 @@ services:
     environment:
       KEYSTORE_PASSWORD: notarealpasswordphrase
       FIPS_GENERATE_TRUSTSTORE: true
+      RUN_FIPS_INSTALLER: true

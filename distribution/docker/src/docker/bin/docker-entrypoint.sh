@@ -73,7 +73,7 @@ if [[ -f bin/opensearch-users ]]; then
   fi
 fi
 
-if ls "/usr/share/opensearch/lib" | grep -E -q "bc-fips.*\.jar"; then
+if [[ "$RUN_FIPS_INSTALLER" == "true" ]]; then
 
   # If BouncyCastle FIPS is detected - configure FIPS trust store in test mode
   if [[ "$FIPS_GENERATE_TRUSTSTORE" == "true" ]]; then

@@ -301,5 +301,6 @@ dockerCompose {
   if (BuildParams.isInFipsJvm()) {
     environment.put("KEYSTORE_PASSWORD", "notarealpasswordphrase")
     environment.put("FIPS_GENERATE_TRUSTSTORE", "true")
+    environment.put("RUN_FIPS_INSTALLER", "true")
   }
 }

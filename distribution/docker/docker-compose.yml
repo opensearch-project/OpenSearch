@@ -18,6 +18,7 @@ services:
        - node.store.allow_mmap=false
        - "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}"
        - "FIPS_GENERATE_TRUSTSTORE=${FIPS_GENERATE_TRUSTSTORE}"
+       - "RUN_FIPS_INSTALLER=${RUN_FIPS_INSTALLER}"
     volumes:
        - ./build/repo:/tmp/opensearch-repo
        - ./build/logs/1:/usr/share/opensearch/logs
@@ -44,6 +45,7 @@ services:
        - node.store.allow_mmap=false
        - "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}"
        - "FIPS_GENERATE_TRUSTSTORE=${FIPS_GENERATE_TRUSTSTORE}"
+       - "RUN_FIPS_INSTALLER=${RUN_FIPS_INSTALLER}"
     volumes:
        - ./build/repo:/tmp/opensearch-repo
        - ./build/logs/2:/usr/share/opensearch/logs
