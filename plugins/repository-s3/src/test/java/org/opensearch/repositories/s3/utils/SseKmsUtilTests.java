@@ -211,9 +211,7 @@ public class SseKmsUtilTests extends OpenSearchTestCase {
         when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(null);
 
         // CryptoMetadata without kms.key_arn
-        Settings settings = Settings.builder()
-            .put("kms.encryption_context", "tenant=acme")
-            .build();
+        Settings settings = Settings.builder().put("kms.encryption_context", "tenant=acme").build();
         CryptoMetadata cryptoMetadata = new CryptoMetadata("provider", "aws-kms", settings);
 
         CreateMultipartUploadRequest.Builder builder = CreateMultipartUploadRequest.builder();

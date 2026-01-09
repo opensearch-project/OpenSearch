@@ -254,15 +254,11 @@ public class EncryptionContextUtilsTests extends OpenSearchTestCase {
 
     public void testMergeCryptoMetadataWithOnlyRepoEncryptionContext() {
         // Index metadata with no encryption context
-        Settings indexSettings = Settings.builder()
-            .put("kms.key_arn", "arn:aws:kms:us-east-1:123456789:key/index-key")
-            .build();
+        Settings indexSettings = Settings.builder().put("kms.key_arn", "arn:aws:kms:us-east-1:123456789:key/index-key").build();
         CryptoMetadata indexMetadata = new CryptoMetadata("index-provider", "aws-kms", indexSettings);
 
         // Repo metadata with encryption context
-        Settings repoSettings = Settings.builder()
-            .put("kms.encryption_context", "repo=segment")
-            .build();
+        Settings repoSettings = Settings.builder().put("kms.encryption_context", "repo=segment").build();
         CryptoMetadata repoMetadata = new CryptoMetadata("repo-provider", "aws-kms", repoSettings);
 
         CryptoMetadata merged = EncryptionContextUtils.mergeCryptoMetadata(indexMetadata, repoMetadata);
@@ -271,15 +267,11 @@ public class EncryptionContextUtilsTests extends OpenSearchTestCase {
 
     public void testMergeCryptoMetadataWithJsonFormatContext() {
         // Index metadata with JSON format encryption context
-        Settings indexSettings = Settings.builder()
-            .put("kms.encryption_context", "{\"tenant\":\"acme\"}")
-            .build();
+        Settings indexSettings = Settings.builder().put("kms.encryption_context", "{\"tenant\":\"acme\"}").build();
         CryptoMetadata indexMetadata = new CryptoMetadata("index-provider", "aws-kms", indexSettings);
 
         // Repo metadata with JSON format encryption context
-        Settings repoSettings = Settings.builder()
-            .put("kms.encryption_context", "{\"repo\":\"segment\"}")
-            .build();
+        Settings repoSettings = Settings.builder().put("kms.encryption_context", "{\"repo\":\"segment\"}").build();
         CryptoMetadata repoMetadata = new CryptoMetadata("repo-provider", "aws-kms", repoSettings);
 
         CryptoMetadata merged = EncryptionContextUtils.mergeCryptoMetadata(indexMetadata, repoMetadata);

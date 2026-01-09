@@ -187,7 +187,14 @@ public class EncryptedBlobContainerTests extends OpenSearchTestCase {
         CryptoMetadata inputCryptoMetadata = new CryptoMetadata("delegate-provider", "aws-kms", kmsSettings);
 
         // Execute
-        encryptedBlobContainer.writeBlobWithMetadata("delegation-test", new ByteArrayInputStream(new byte[10]), 10L, true, new HashMap<>(), inputCryptoMetadata);
+        encryptedBlobContainer.writeBlobWithMetadata(
+            "delegation-test",
+            new ByteArrayInputStream(new byte[10]),
+            10L,
+            true,
+            new HashMap<>(),
+            inputCryptoMetadata
+        );
 
         // Verify the exact same CryptoMetadata instance was passed through
         CryptoMetadata capturedCryptoMetadata = cryptoMetadataCaptor.getValue();
@@ -214,7 +221,11 @@ public class EncryptedBlobContainerTests extends OpenSearchTestCase {
         // Setup encrypted stream with larger size (simulating encryption overhead)
         long originalSize = 100L;
         long encryptedSize = 128L; // Encryption adds overhead
-        InputStreamContainer encryptedStreamContainer = new InputStreamContainer(new ByteArrayInputStream(new byte[(int) encryptedSize]), encryptedSize, 0);
+        InputStreamContainer encryptedStreamContainer = new InputStreamContainer(
+            new ByteArrayInputStream(new byte[(int) encryptedSize]),
+            encryptedSize,
+            0
+        );
         when(cryptoHandler.createEncryptingStream(eq(cryptoContext), inputStreamCaptor.capture())).thenReturn(encryptedStreamContainer);
         when(cryptoHandler.estimateEncryptedLengthOfEntireContent(cryptoContext, originalSize)).thenReturn(encryptedSize);
 
