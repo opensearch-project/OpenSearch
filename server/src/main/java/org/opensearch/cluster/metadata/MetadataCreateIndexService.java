@@ -191,6 +191,7 @@ public class MetadataCreateIndexService {
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
     private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTaskKey;
     private AwarenessReplicaBalance awarenessReplicaBalance;
+    private final IndexRoutingNodeApplier indexRoutingNodeApplier;
 
     @Nullable
     private final RemoteStoreCustomMetadataResolver remoteStoreCustomMetadataResolver;
@@ -233,10 +234,26 @@ public class MetadataCreateIndexService {
             && RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings)
                 ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
                 : null;
+
+        // Initialize and register the routing node applier only on cluster manager nodes
+        this.indexRoutingNodeApplier = new IndexRoutingNodeApplier(clusterService, allocationService);
+        if (DiscoveryNode.isClusterManagerNode(settings)) {
+            clusterService.addHighPriorityApplier(this.indexRoutingNodeApplier);
+        }
     }
 
     public IndexScopedSettings getIndexScopedSettings() {
         return indexScopedSettings;
+    }
+
+    /**
+     * Cleanup method to remove the applier when service is stopped
+     */
+    public void cleanup() {
+        if (indexRoutingNodeApplier != null) {
+            indexRoutingNodeApplier.disable();
+            clusterService.removeApplier(indexRoutingNodeApplier);
+        }
     }
 
     /**
