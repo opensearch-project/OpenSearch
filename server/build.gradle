@@ -78,6 +78,7 @@ dependencies {
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 
   api libs.bundles.lucene
+  api libs.bundles.bouncycastle
 
   // utilities
   api project(":libs:opensearch-cli")
