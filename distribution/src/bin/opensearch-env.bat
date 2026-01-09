@@ -30,12 +30,10 @@ if not defined OPENSEARCH_PATH_CONF (
 rem now make OPENSEARCH_PATH_CONF absolute
 for %%I in ("%OPENSEARCH_PATH_CONF%..") do set OPENSEARCH_PATH_CONF=%%~dpfI
 
-rem Check if any bc-fips jar exists on classpath
-rem run in FIPS JVM if jar is found
-set "FOUND_BC_FIPS="
-if exist "%OPENSEARCH_HOME%\lib\bc-fips*.jar" (
-    echo BouncyCastle FIPS library found, setting FIPS JVM options.
-    set OPENSEARCH_JAVA_OPTS=-Dorg.bouncycastle.fips.approved_only=true -Djava.security.properties="%OPENSEARCH_PATH_CONF%\fips_java.security" %OPENSEARCH_JAVA_OPTS%
+set FIPS_APPROVED_MODE=${org.bouncycastle.fips.approved_only}
+if "%FIPS_APPROVED_MODE%" == "true" (
+    echo org.bouncycastle.fips.approved_only set to true, setting FIPS JVM options.
+    set OPENSEARCH_JAVA_OPTS=-Djava.security.properties="%OPENSEARCH_PATH_CONF%\fips_java.security" %OPENSEARCH_JAVA_OPTS%
 )
 
 set OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}
@@ -54,10 +52,10 @@ if "%1" == "nojava" (
 
 rem comparing to empty string makes this equivalent to bash -v check on env var
 rem and allows to effectively force use of the bundled jdk when launching OpenSearch
-rem by setting OPENSEARCH_JAVA_HOME= and JAVA_HOME= 
+rem by setting OPENSEARCH_JAVA_HOME= and JAVA_HOME=
 if not "%OPENSEARCH_JAVA_HOME%" == "" (
   set "JAVA=%OPENSEARCH_JAVA_HOME%\bin\java.exe"
-  set JAVA_TYPE=OPENSEARCH_JAVA_HOME 
+  set JAVA_TYPE=OPENSEARCH_JAVA_HOME
 ) else if not "%JAVA_HOME%" == "" (
   set "JAVA=%JAVA_HOME%\bin\java.exe"
   set JAVA_TYPE=JAVA_HOME
