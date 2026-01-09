@@ -78,7 +78,6 @@ dependencies {
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 
   api libs.bundles.lucene
-  api libs.bundles.bouncycastle
 
   // utilities
   api project(":libs:opensearch-cli")
@@ -419,14 +418,15 @@ tasks.named("dependencyLicenses").configure {
     mapping from: /jackson-.*/, to: 'jackson'
     mapping from: /reactor-.*/, to: 'reactor'
     mapping from: /lucene-.*/, to: 'lucene'
-    mapping from: /bc.*fips.*/, to: 'bouncycastle'
     dependencies = project.configurations.runtimeClasspath.incoming.artifactView {
         componentFilter {
             it instanceof ModuleComponentIdentifier &&
                 (it.group.startsWith('org.opensearch') == false ||
                     // keep the following org.opensearch jars in
                     (it.name == 'jna' ||
-                            it.name == 'securesm'))
+                            it.name == 'securesm')) &&
+                // exclude bouncycastle since they're handled by common
+                it.group != 'org.bouncycastle'
         }
     }.files
 }
