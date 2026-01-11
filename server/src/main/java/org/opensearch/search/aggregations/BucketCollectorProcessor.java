@@ -20,7 +20,6 @@ import org.opensearch.search.profile.query.InternalProfileCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedList;
@@ -78,10 +77,15 @@ public class BucketCollectorProcessor {
                 // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator) {
                     // Do not perform postCollection for MultiBucketCollector as we are unwrapping that below
-                    bucketCollector.postCollection();
-                    aggregator.buildTopLevel();
-                } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
-                    for (Collector innerCollector : multiBucketCollector.getCollectors()) {
+                    Aggregator agg = (Aggregator) currentCollector;
+                    ((BucketCollector) currentCollector).postCollection();
+                    // Only call buildTopLevel() if it hasn't been called yet (e.g., in streaming mode,
+                    // buildAggBatch() may have already called it via toInternalAggregations())
+                    if (agg.getPostCollectionAggregation() == null) {
+                        agg.buildTopLevel();
+                    }
+                } else if (currentCollector instanceof MultiBucketCollector) {
+                    for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
                         collectors.offer(innerCollector);
                     }
                 }
@@ -94,10 +98,41 @@ public class BucketCollectorProcessor {
      */
     @ExperimentalApi
     public List<InternalAggregation> buildAggBatch(Collector collectorTree) throws IOException {
-        // Build one aggregation batch result from the provided collector tree
-        List<Collector> collectors = new ArrayList<>(1);
-        collectors.add(collectorTree);
-        return toInternalAggregations(collectors);
+        // For streaming batches, we need to build aggregations and reset state so aggregators
+        // can be reused for subsequent segments. We traverse the collector tree directly and
+        // call buildTopLevelBatch() (which builds and resets) rather than buildTopLevel().
+        List<InternalAggregation> internalAggregations = new ArrayList<>();
+        final Queue<Collector> collectors = new LinkedList<>();
+        collectors.offer(collectorTree);
+        while (!collectors.isEmpty()) {
+            Collector currentCollector = collectors.poll();
+            if (currentCollector instanceof InternalProfileCollector) {
+                collectors.offer(((InternalProfileCollector) currentCollector).getCollector());
+            } else if (currentCollector instanceof MinimumScoreCollector) {
+                collectors.offer(((MinimumScoreCollector) currentCollector).getCollector());
+            } else if (currentCollector instanceof MultiCollector) {
+                for (Collector innerCollector : ((MultiCollector) currentCollector).getCollectors()) {
+                    collectors.offer(innerCollector);
+                }
+            } else if (currentCollector instanceof BucketCollector) {
+                if (currentCollector instanceof Aggregator) {
+                    Aggregator agg = (Aggregator) currentCollector;
+                    // Call postCollection() to finalize collection for this segment
+                    ((BucketCollector) currentCollector).postCollection();
+                    // Call buildTopLevelBatch() which builds the aggregation and resets state
+                    // This allows the aggregator to be reused for the next segment
+                    InternalAggregation batch = agg.buildTopLevelBatch();
+                    if (batch != null) {
+                        internalAggregations.add(batch);
+                    }
+                } else if (currentCollector instanceof MultiBucketCollector) {
+                    for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
+                        collectors.offer(innerCollector);
+                    }
+                }
+            }
+        }
+        return internalAggregations;
     }
 
     /**
@@ -114,16 +149,31 @@ public class BucketCollectorProcessor {
         final Deque<Collector> allCollectors = new LinkedList<>(collectors);
         while (!allCollectors.isEmpty()) {
             final Collector currentCollector = allCollectors.pop();
-            if (currentCollector instanceof Aggregator aggregator) {
-                aggregators.add(aggregator);
-            } else if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
-                if (internalProfileCollector.getCollector() instanceof Aggregator aggregator) {
-                    aggregators.add(aggregator);
-                } else if (internalProfileCollector.getCollector() instanceof MultiBucketCollector multiBucketCollector) {
-                    allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
+            if (currentCollector instanceof Aggregator) {
+                aggregators.add((Aggregator) currentCollector);
+            } else if (currentCollector instanceof InternalProfileCollector) {
+                if (((InternalProfileCollector) currentCollector).getCollector() instanceof Aggregator) {
+                    aggregators.add((Aggregator) ((InternalProfileCollector) currentCollector).getCollector());
+                } else if (((InternalProfileCollector) currentCollector).getCollector() instanceof MultiBucketCollector) {
+                    Collector[] subCollectors = ((MultiBucketCollector) ((InternalProfileCollector) currentCollector).getCollector())
+                        .getCollectors();
+                    if (subCollectors != null) {
+                        for (Collector subCollector : subCollectors) {
+                            if (subCollector != null) {
+                                allCollectors.add(subCollector);
+                            }
+                        }
+                    }
                 }
-            } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
-                allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
+            } else if (currentCollector instanceof MultiBucketCollector) {
+                Collector[] subCollectors = ((MultiBucketCollector) currentCollector).getCollectors();
+                if (subCollectors != null) {
+                    for (Collector subCollector : subCollectors) {
+                        if (subCollector != null) {
+                            allCollectors.add(subCollector);
+                        }
+                    }
+                }
             }
         }
         return aggregators;
@@ -140,28 +190,49 @@ public class BucketCollectorProcessor {
     public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors) throws IOException {
         List<InternalAggregation> internalAggregations = new ArrayList<>();
 
+        if (collectors == null || collectors.isEmpty()) {
+            return internalAggregations;
+        }
+
         final Deque<Collector> allCollectors = new LinkedList<>(collectors);
         while (!allCollectors.isEmpty()) {
             Collector currentCollector = allCollectors.pop();
-            if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
-                currentCollector = internalProfileCollector.getCollector();
+
+            // Skip null collectors
+            if (currentCollector == null) {
+                continue;
+            }
+
+            // Unwrap profiling collectors
+            while (currentCollector instanceof InternalProfileCollector) {
+                currentCollector = ((InternalProfileCollector) currentCollector).getCollector();
+                if (currentCollector == null) {
+                    break;
+                }
+            }
+
+            if (currentCollector == null) {
+                continue;
             }
 
             if (currentCollector instanceof Aggregator) {
                 Aggregator agg = (Aggregator) currentCollector;
                 // Include all aggregators in final reduction - no more skipping streaming aggregators
+                // Note: aggregators should already be finalized via processPostCollection() before
+                // toInternalAggregations() is called. This method only unwraps and reads the results.
                 InternalAggregation ia = agg.getPostCollectionAggregation();
-                if (ia == null) {
-                    // Finalize only if needed; idempotent and scoped to this aggregator
-                    ((BucketCollector) currentCollector).postCollection();
-                    ia = agg.getPostCollectionAggregation();
+                if (ia != null) {
+                    internalAggregations.add(ia);
                 }
-                if (ia == null) {
-                    throw new AssertionError("Null InternalAggregation from " + agg.getClass().getName());
-                }
-                internalAggregations.add(ia);
             } else if (currentCollector instanceof MultiBucketCollector) {
-                allCollectors.addAll(Arrays.asList(((MultiBucketCollector) currentCollector).getCollectors()));
+                Collector[] subCollectors = ((MultiBucketCollector) currentCollector).getCollectors();
+                if (subCollectors != null) {
+                    for (Collector subCollector : subCollectors) {
+                        if (subCollector != null) {
+                            allCollectors.add(subCollector);
+                        }
+                    }
+                }
             }
         }
         return internalAggregations;

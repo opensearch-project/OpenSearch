@@ -128,23 +128,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    if ((context.isStreamSearch() || context.getStreamingMode() != null)
-                        && context.getStreamChannelListener() != null
-                        && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
-                        return createStreamStringTermsAggregator(
-                            name,
-                            factories,
-                            valuesSource,
-                            order,
-                            format,
-                            bucketCountThresholds,
-                            context,
-                            parent,
-                            showTermDocCountError,
-                            computeSegmentTopN(context, bucketCountThresholds, order),
-                            metadata
-                        );
-                    }
                     execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
                 final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
@@ -208,6 +191,49 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 Map<String, Object> metadata
             ) throws IOException {
 
+                // Check for streaming eligibility first
+                if (context.isStreamingModeRequested()
+                    && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
+                    // Streaming aggregators only support single-segment readers
+                    int numSegments = context.searcher().getIndexReader().leaves().size();
+                    if (numSegments <= 1) {
+                        ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource;
+                        IncludeExclude.LongFilter longFilter = null;
+
+                        // Handle include/exclude for streaming case
+                        if (numericValuesSource.isFloatingPoint()) {
+                            if (includeExclude != null) {
+                                longFilter = includeExclude.convertToDoubleFilter();
+                            }
+                        } else if (numericValuesSource.isBigInteger()) {
+                            if (includeExclude != null) {
+                                longFilter = includeExclude.convertToDoubleFilter();
+                            }
+                        } else {
+                            if (includeExclude != null) {
+                                longFilter = includeExclude.convertToLongFilter(format);
+                            }
+                        }
+
+                        return createStreamNumericTermsAggregator(
+                            name,
+                            factories,
+                            numericValuesSource,
+                            format,
+                            order,
+                            bucketCountThresholds,
+                            context,
+                            parent,
+                            longFilter,
+                            includeExclude,
+                            showTermDocCountError,
+                            cardinality,
+                            metadata
+                        );
+                    }
+                    // Fall through to classic aggregator selection for multi-segment readers
+                }
+
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
                     throw new AggregationExecutionException(
                         "Aggregation ["
@@ -239,26 +265,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         longFilter = includeExclude.convertToLongFilter(format);
                     }
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
-                }
-                if ((context.isStreamSearch() || context.getStreamingMode() != null)
-                    && context.getStreamChannelListener() != null
-                    && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
-                    return createStreamNumericTermsAggregator(
-                        name,
-                        factories,
-                        numericValuesSource,
-                        format,
-                        order,
-                        bucketCountThresholds,
-                        context,
-                        parent,
-                        longFilter,
-                        includeExclude,
-                        showTermDocCountError,
-                        cardinality,
-                        computeSegmentTopN(context, bucketCountThresholds, order),
-                        metadata
-                    );
                 }
                 return new NumericTermsAggregator(
                     name,
@@ -485,6 +491,28 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
                 assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
                 ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+
+                // Check for streaming eligibility first - when explicitly requested, prefer streaming
+                if (context.isStreamingModeRequested()
+                    && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
+                    // Streaming aggregators only support single-segment readers
+                    int numSegments = context.searcher().getIndexReader().leaves().size();
+                    if (numSegments <= 1) {
+                        return createStreamStringTermsAggregator(
+                            name,
+                            factories,
+                            valuesSource,
+                            order,
+                            format,
+                            bucketCountThresholds,
+                            context,
+                            parent,
+                            showTermDocCountError,
+                            metadata
+                        );
+                    }
+                    // Fall through to classic aggregator selection for multi-segment readers
+                }
 
                 if (factories == AggregatorFactories.EMPTY
                     && includeExclude == null
