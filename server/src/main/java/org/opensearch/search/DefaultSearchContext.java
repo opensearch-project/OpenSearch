@@ -227,6 +227,7 @@ final class DefaultSearchContext extends SearchContext {
     private boolean isStreamSearch;
     private StreamSearchChannelListener listener;
     private StreamingSearchMode streamingMode;
+    private boolean streamingModeRequested;
     private final SetOnce<FlushMode> cachedFlushMode = new SetOnce<>();
 
     DefaultSearchContext(
@@ -295,6 +296,7 @@ final class DefaultSearchContext extends SearchContext {
         this.isStreamSearch = isStreamSearch;
 
         // Initialize streaming mode from request
+        this.streamingModeRequested = request.getStreamingSearchMode() != null;
         if (request.getStreamingSearchMode() != null) {
             try {
                 this.streamingMode = StreamingSearchMode.fromString(request.getStreamingSearchMode());
@@ -1306,6 +1308,11 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean isStreamingModeRequested() {
+        return streamingModeRequested;
+    }
+
+    @Override
     public int getStreamingBatchSize() {
         // Return fixed default for streaming batch size
         return 10;
@@ -1317,7 +1324,12 @@ final class DefaultSearchContext extends SearchContext {
      */
     @Override
     public FlushMode getFlushMode() {
-        return cachedFlushMode.get();
+        FlushMode currentMode = cachedFlushMode.get();
+        if (currentMode != null) {
+            return currentMode;
+        }
+        // Non-mutating fallback: advertise PER_SEGMENT only if streaming was requested
+        return streamingModeRequested ? FlushMode.PER_SEGMENT : null;
     }
 
     @Override

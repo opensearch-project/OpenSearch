@@ -377,38 +377,33 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     private void doAggOverManySegments(boolean profile) throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                boolean isSegmented = false;
+            // Use IndexWriter directly to ensure single-segment index
+            // Streaming aggregators only support single-leaf readers
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Add all documents without any intermediate flushes to ensure single segment
                 for (int i = 0; i < 3; i++) {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("field", new BytesRef("common")));
                     indexWriter.addDocument(document);
-                    if (rarely()) {
-                        indexWriter.flush();
-                        isSegmented = true;
-                    }
                 }
-                indexWriter.flush();
                 for (int i = 0; i < 2; i++) {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("field", new BytesRef("medium")));
                     indexWriter.addDocument(document);
-                    if (rarely()) {
-                        indexWriter.flush();
-                        isSegmented = true;
-                    }
                 }
-
-                if (!isSegmented) {
-                    indexWriter.flush();
-                }
-
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("field", new BytesRef("rare")));
                 indexWriter.addDocument(document);
+                // Commit to ensure single segment
+                indexWriter.commit();
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(directory))) {
+                    // Verify single-leaf reader before proceeding (required for streaming aggregators)
+                    int numLeaves = indexReader.leaves().size();
+                    assertThat("Reader must have exactly one leaf for streaming aggregators", numLeaves, equalTo(1));
+
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
                     SearchContext searchContext = createSearchContext(
                         indexSearcher,
                         createIndexSettings(),
@@ -417,9 +412,11 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
                             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
                         ),
-                        new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
+                        fieldType
                     );
                     when(searchContext.isStreamSearch()).thenReturn(true);
+                    when(searchContext.isStreamingModeRequested()).thenReturn(true);
+                    when(searchContext.getStreamingMode()).thenReturn(org.opensearch.search.query.StreamingSearchMode.SCORED_UNSORTED);
                     when(searchContext.getFlushMode()).thenReturn(FlushMode.PER_SEGMENT);
                     SearchShardTarget searchShardTarget = new SearchShardTarget(
                         "node_1",
@@ -444,21 +441,22 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     }).when(listenerMock).onStreamResponse(any(), anyBoolean());
                     ContextIndexSearcher contextIndexSearcher = searchContext.searcher();
 
-                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
-
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
                         .order(BucketOrder.count(false));
 
-                    Aggregator aggregator = createStreamAggregator(
-                        null,
-                        aggregationBuilder,
-                        indexSearcher,
-                        createIndexSettings(),
-                        new MultiBucketConsumerService.MultiBucketConsumer(
-                            DEFAULT_MAX_BUCKETS,
-                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-                        ),
-                        fieldType
+                    // Create aggregator using the test's searchContext (which has streaming flags and listener set)
+                    // instead of createStreamAggregator which creates its own search context
+                    Aggregator aggregator = createAggregator(aggregationBuilder, searchContext);
+
+                    // Verify factory created a StreamStringTermsAggregator (should pass since reader has single leaf)
+                    Aggregator unwrappedAggregator = aggregator;
+                    if (profile && aggregator instanceof ProfilingAggregator) {
+                        unwrappedAggregator = ((ProfilingAggregator) aggregator).getDelegate();
+                    }
+                    assertThat(
+                        "Factory should create StreamStringTermsAggregator for single-leaf readers",
+                        unwrappedAggregator,
+                        instanceOf(StreamStringTermsAggregator.class)
                     );
 
                     if (profile) {
@@ -1348,7 +1346,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
                         .order(BucketOrder.count(false)); // Order by count descending
 
-                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                    Aggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         searcher,
@@ -1360,9 +1358,17 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         fieldType
                     );
 
-                    // Execute the aggregator
+                    // Verify factory correctly falls back to classic aggregator for multi-segment readers
+                    assertThat(
+                        "Factory should not create StreamStringTermsAggregator for multi-segment readers",
+                        aggregator,
+                        not(instanceOf(StreamStringTermsAggregator.class))
+                    );
+
+                    // Verify the aggregator works correctly (no exception thrown)
                     aggregator.preCollection();
-                    assertThrows(IllegalStateException.class, () -> { searcher.search(new MatchAllDocsQuery(), aggregator); });
+                    searcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                 }
             }
         }

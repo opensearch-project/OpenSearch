@@ -69,8 +69,8 @@ public final class FlushModeResolver {
      */
     public static final Setting<Long> STREAMING_MIN_ESTIMATED_BUCKET_COUNT = Setting.longSetting(
         "search.aggregations.streaming.min_estimated_bucket_count",
-        1L,
-        1L,
+        1000L,
+        1000L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

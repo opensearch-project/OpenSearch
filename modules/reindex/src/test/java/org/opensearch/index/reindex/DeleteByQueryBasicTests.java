@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opensearch.action.search.StreamSearchTransportService.STREAM_SEARCH_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
@@ -381,6 +382,63 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
             .get();
         assertThat(response, matcher().deleted(0).slices(hasSize(0)));
+    }
+
+    /**
+     * Regression test to ensure delete-by-query works correctly even when streaming search is enabled.
+     * Since delete-by-query uses scroll searches, it should automatically opt out of the streaming pipeline.
+     */
+    public void testDeleteByQueryWithStreamingEnabled() throws Exception {
+        // Enable streaming search globally
+        Settings streamingSettings = Settings.builder().put(STREAM_SEARCH_ENABLED.getKey(), true).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(streamingSettings).get());
+
+        try {
+            // Index some test documents
+            indexRandom(
+                true,
+                client().prepareIndex("test").setId("1").setSource("foo", "delete_me"),
+                client().prepareIndex("test").setId("2").setSource("foo", "delete_me"),
+                client().prepareIndex("test").setId("3").setSource("foo", "keep_me")
+            );
+
+            assertHitCount(client().prepareSearch("test").setSize(0).get(), 3);
+
+            // Perform delete-by-query - this should work without "topDocs already consumed" errors
+            BulkByScrollResponse response = deleteByQuery().source("test").filter(termQuery("foo", "delete_me")).refresh(true).get();
+
+            // Verify the delete operation succeeded
+            assertThat(response, matcher().deleted(2));
+            assertHitCount(client().prepareSearch("test").setSize(0).get(), 1);
+
+            // Verify only the expected document remains
+            assertHitCount(client().prepareSearch("test").setQuery(termQuery("foo", "keep_me")).get(), 1);
+        } finally {
+            // Comprehensive cleanup: reset both transient and persistent streaming settings
+            Settings disableStreamingSettings = Settings.builder().putNull(STREAM_SEARCH_ENABLED.getKey()).build();
+            try {
+                // Clear transient settings
+                assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(disableStreamingSettings).get());
+                // Clear persistent settings (in case they were set)
+                assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(disableStreamingSettings).get());
+
+                // Assert the setting is cleared to prevent test pollution
+                assertFalse(
+                    "Stream search should be disabled after cleanup",
+                    client().admin()
+                        .cluster()
+                        .prepareState()
+                        .get()
+                        .getState()
+                        .getMetadata()
+                        .transientSettings()
+                        .getAsBoolean(STREAM_SEARCH_ENABLED.getKey(), false)
+                );
+            } catch (Exception cleanupException) {
+                // Log cleanup failures but don't fail the test
+                logger.warn("Failed to clean up streaming settings", cleanupException);
+            }
+        }
     }
 
     /** Enables or disables the cluster disk allocation decider **/

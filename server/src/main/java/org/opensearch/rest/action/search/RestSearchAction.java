@@ -39,6 +39,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Booleans;
@@ -47,12 +48,14 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.http.HttpChannel;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.rest.action.RestStatusToXContentListener;
+import org.opensearch.rest.action.StreamingTerminalChannelReleasingListener;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -162,8 +165,12 @@ public class RestSearchAction extends BaseRestHandler {
                         searchRequest.setStreamingSearchMode(scoringMode);
                     }
                     return channel -> {
-                        RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-                        cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                        RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
+                        RestStatusToXContentListener<SearchResponse> listener = new RestStatusToXContentListener<>(channel);
+                        StreamingTerminalChannelReleasingListener<SearchResponse> wrappedListener =
+                            new StreamingTerminalChannelReleasingListener<>(cancelClient, channel, listener);
+                        wrappedListener.setupBackstops();
+                        cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, wrappedListener);
                     };
                 } else {
                     logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
@@ -173,9 +180,21 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
         return channel -> {
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
         };
+    }
+
+    /**
+     * Factory method for creating RestCancellableNodeClient instances.
+     * This method is protected to allow tests to override it and inject spyable clients.
+     *
+     * @param client the NodeClient to wrap
+     * @param httpChannel the HTTP channel for cancellation tracking
+     * @return a RestCancellableNodeClient instance
+     */
+    protected RestCancellableNodeClient createRestCancellableNodeClient(NodeClient client, HttpChannel httpChannel) {
+        return new RestCancellableNodeClient(client, httpChannel);
     }
 
     /**
