@@ -57,7 +57,12 @@ public class ReactorNetty4Plugin extends Plugin implements NetworkPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(ReactorNetty4HttpServerTransport.SETTING_H2C_MAX_CONTENT_LENGTH);
+        return Arrays.asList(
+            ReactorNetty4HttpServerTransport.SETTING_H2C_MAX_CONTENT_LENGTH,
+            ReactorNetty4HttpServerTransport.SETTING_H3_MAX_STREAM_LOCAL_LENGTH,
+            ReactorNetty4HttpServerTransport.SETTING_H3_MAX_STREAM_REMOTE_LENGTH,
+            ReactorNetty4HttpServerTransport.SETTING_H3_MAX_STREAMS
+        );
     }
 
     /**

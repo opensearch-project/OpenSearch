@@ -82,7 +82,7 @@ dependencies {
   api "ch.qos.logback:logback-core:1.5.23"
   api "ch.qos.logback:logback-classic:1.5.23"
   api "org.jboss.xnio:xnio-nio:3.8.17.Final"
-  api 'org.jline:jline:3.30.5'
+  api 'org.jline:jline:3.30.6'
   api 'org.apache.commons:commons-configuration2:2.13.0'
   api 'com.nimbusds:nimbus-jose-jwt:10.6'
   api ('org.apache.kerby:kerb-admin:2.1.1') {
@@ -90,9 +90,9 @@ dependencies {
     exclude group: "org.jline"
   }
   runtimeOnly "com.google.guava:guava:${versions.guava}"
-  runtimeOnly("com.squareup.okhttp3:okhttp:5.3.0") {
+  runtimeOnly("com.squareup.okhttp3:okhttp:5.3.2") {
     exclude group: "com.squareup.okio"
   }
-  runtimeOnly "com.squareup.okio:okio:3.16.3"
+  runtimeOnly "com.squareup.okio:okio:3.16.4"
   runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.8"
 }
