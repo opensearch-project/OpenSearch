@@ -30,7 +30,7 @@ import java.util.function.Supplier;
 
 @ExperimentalApi
 public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
-    
+
     private static final Logger logger = LogManager.getLogger(CompositeEngineCatalogSnapshot.class);
 
     public static final String CATALOG_SNAPSHOT_KEY = "_catalog_snapshot_";
@@ -217,8 +217,7 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public  void setUserData(Map<String, String> userData, boolean b)
-    {
+    public  void setUserData(Map<String, String> userData, boolean b) {
         if (userData == null) {
             this.userData = Collections.emptyMap();
         } else {

@@ -5381,9 +5381,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void updateReplicationCheckpoint() {
-
-        CompositeEngine compositeEngine = currentCompositeEngineReference.get();
-        if (compositeEngine != null) {
+        if (isOptimizedIndex()) {
+            CompositeEngine compositeEngine = currentCompositeEngineReference.get();
             // Use CompositeEngine's CatalogSnapshot for optimized indices
             try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = compositeEngine.acquireSnapshot()) {
                 final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(catalogSnapshotRef.getRef());

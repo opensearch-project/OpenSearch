@@ -123,11 +123,6 @@ public class CompositeStoreDirectory extends Store.StoreDirectory {
         FormatStoreDirectory<?> directory = delegatesMap.get(dataFormatName);
 
         if (directory == null) {
-
-            if(dataFormatName.equalsIgnoreCase(METADATA_FOLDER_NAME) && !delegates.isEmpty())
-            {
-                return delegatesMap.get(INDEX_FOLDER_NAME);
-            }
             List<String> availableFormats = new ArrayList<>(delegatesMap.keySet());
 
             logger.error("Format routing failed: requested format '{}' not found. Available formats: {}. " +

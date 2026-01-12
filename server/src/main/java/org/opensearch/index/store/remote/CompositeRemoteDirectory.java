@@ -53,7 +53,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.shard.ShardPath.METADATA_FOLDER_NAME;
 
 /**
  * CompositeRemoteDirectory with direct BlobContainer access per format.
@@ -90,7 +89,6 @@ public class CompositeRemoteDirectory extends RemoteDirectory {
     final Map<FileMetadata, String> pendingDownloadMergedSegments;
 
     private final Map<String, BlobContainer> formatBlobContainers;
-    private  final BlobContainer metadataBlobContainer;
     private final BlobStore blobStore;
     private final BlobPath baseBlobPath;
     private final Logger logger;
@@ -130,9 +128,6 @@ public class CompositeRemoteDirectory extends RemoteDirectory {
         this.downloadRateLimiterProvider = new DownloadRateLimiterProvider(downloadRateLimiter, lowPriorityDownloadRateLimiter);
         this.pendingDownloadMergedSegments = pendingDownloadMergedSegments;
         this.logger = logger;
-
-        BlobPath metadataBlobPath = baseBlobPath.parent().add(METADATA_FOLDER_NAME);
-        this.metadataBlobContainer = blobStore.blobContainer(metadataBlobPath);
 
         try {
             pluginsService.filterPlugins(DataSourcePlugin.class).forEach(
@@ -375,9 +370,6 @@ public class CompositeRemoteDirectory extends RemoteDirectory {
                 logger.debug("File {} already exists, using existing container", remoteFileName);
                 return new RemoteIndexOutput(remoteFileName, blobContainer);
             }
-            else if(df !=null && df.equals(METADATA_FOLDER_NAME)) {
-                return new RemoteIndexOutput(remoteFileName, metadataBlobContainer);
-            }
 
             throw new IOException(
                 String.format("Failed to create output for file %s in format %s", remoteFileName, df)
@@ -429,52 +421,6 @@ public class CompositeRemoteDirectory extends RemoteDirectory {
             container.delete();
         }
         logger.debug("Deleted all format containers from CompositeRemoteDirectory");
-    }
-
-
-    /**
-     * Read the latest metadata file from the metadata blob container.
-     * This method provides compatibility with RemoteSegmentStoreDirectory.readLatestMetadataFile()
-     */
-    public RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
-        try {
-            List<BlobMetadata> metadataFiles = metadataBlobContainer.listBlobsByPrefixInSortedOrder(
-                METADATA_FOLDER_NAME, 10, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
-
-            if (metadataFiles.isEmpty()) {
-                logger.debug("No metadata files found in composite remote directory");
-                return null;
-            }
-
-            // Get the latest (first in reverse lexicographic order)
-            String latestMetadataFile = metadataFiles.get(0).name();
-            logger.debug("Reading latest metadata file: {}", latestMetadataFile);
-            return readMetadataFile(latestMetadataFile);
-        } catch (Exception e) {
-            logger.error("Failed to read latest metadata file from composite directory", e);
-            throw new IOException("Failed to read latest metadata file", e);
-        }
-    }
-
-    /**
-     * Read a specific metadata file by name from the metadata blob container.
-     * This method provides compatibility with RemoteSegmentStoreDirectory.readMetadataFile()
-     */
-    public RemoteSegmentMetadata readMetadataFile(String metadataFileName) throws IOException {
-        try (InputStream inputStream = metadataBlobContainer.readBlob(metadataFileName)) {
-            byte[] metadataBytes = inputStream.readAllBytes();
-
-            // Use our own metadata stream wrapper
-            return metadataStreamWrapper.readStream(
-                new ByteArrayIndexInput(metadataFileName, metadataBytes)
-            );
-        } catch (NoSuchFileException e) {
-            logger.debug("Metadata file not found: {}", metadataFileName);
-            return null;
-        } catch (Exception e) {
-            logger.error("Failed to read metadata file: {}", metadataFileName, e);
-            throw new IOException("Failed to read metadata file: " + metadataFileName, e);
-        }
     }
 
     @Override

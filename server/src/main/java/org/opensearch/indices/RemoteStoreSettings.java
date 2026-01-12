@@ -44,7 +44,7 @@ public class RemoteStoreSettings {
      */
     public static final Setting<Integer> CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING = Setting.intSetting(
         "cluster.remote_store.index.segment_metadata.retention.max_count",
-        1,
+        10,
         -1,
         v -> {
             if (v == 0) {
